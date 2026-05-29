@@ -41,7 +41,7 @@ async function createNewEvent() {
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
 
 function statusClass(status: string): string {
@@ -113,7 +113,7 @@ onMounted(fetchEvents);
                 <div class="font-mono font-medium text-white">{{ event.name }}</div>
                 <div v-if="event.description" class="mt-1 line-clamp-1 text-sm text-dc-gray-light">{{ event.description }}</div>
               </div>
-              <div class="col-span-3 flex items-center font-mono text-sm text-white"><span class="text-dc-yellow">@</span>&nbsp;{{ formatDate(event.event_date) }}</div>
+              <div class="col-span-3 flex items-center font-mono text-sm text-white">{{ formatDate(event.event_date) }}</div>
               <div class="col-span-3 flex items-center">
                 <span class="border px-2 py-1 font-mono text-xs font-bold uppercase" :class="statusClass(event.status)">{{ event.status.replace('_', ' ') }}</span>
               </div>
