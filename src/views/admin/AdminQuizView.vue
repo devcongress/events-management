@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Question, QuizSession } from '@/types';
+import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
 
 type SessionWithQuestions = QuizSession & { questions: Question[]; participantCount: number };
 
@@ -143,15 +144,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
-    <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+  <div class="editorial-page">
+    <div class="editorial-wrap">
       <RouterLink :to="`/admin/events/${route.params.eventId}`" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENT
       </RouterLink>
+      <AdminEventTabs :event-id="String(route.params.eventId)" />
 
       <div v-if="loading" class="py-12 text-center font-mono text-white">LOADING...</div>
 
-      <div v-else-if="!session" class="relative overflow-hidden border-2 border-dc-dark-3 bg-dc-dark-1 p-12 text-center">
+      <div v-else-if="!session" class="editorial-panel relative overflow-hidden p-12 text-center">
         <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />
         <p class="mb-8 font-mono text-dc-gray">No quiz has been created for this event yet.</p>
         <button class="bg-dc-yellow px-8 py-4 font-bold uppercase tracking-wide text-dc-dark transition-shadow hover:shadow-glow" @click="createSession">Create Quiz</button>
@@ -207,7 +209,8 @@ onUnmounted(() => {
       <template v-else>
         <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h1 class="flex items-center gap-3 text-3xl font-bold text-white"><span class="text-dc-yellow">#</span> Quiz Builder</h1>
+            <p class="editorial-eyebrow">live game</p>
+            <h1 class="editorial-title">Quiz Builder</h1>
             <p class="mt-2 text-dc-gray-light">Join Code: <span class="text-xl font-bold text-dc-yellow">{{ session.join_code }}</span></p>
           </div>
           <div class="flex gap-3">
@@ -216,22 +219,22 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <form class="mb-6 space-y-4 border-2 border-dc-dark-3 bg-dc-dark-1 p-6" @submit.prevent="addQuestion">
-          <h2 class="font-mono text-xl font-bold text-white"><span class="text-dc-yellow">&gt;</span> Add New Question</h2>
-          <input v-model="form.question_text" required placeholder="Question text" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 text-white outline-none focus:border-dc-yellow" />
+        <form class="editorial-panel mb-6 space-y-4 p-6" @submit.prevent="addQuestion">
+          <h2 class="text-2xl font-black tracking-tight text-white">Add New Question</h2>
+          <input v-model="form.question_text" required placeholder="Question text" class="editorial-input" />
           <div class="grid gap-3 sm:grid-cols-2">
-            <input v-for="(_, index) in form.options" :key="index" v-model="form.options[index]" required :placeholder="`Option ${index + 1}`" class="border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 text-white outline-none focus:border-dc-yellow" />
+            <input v-for="(_, index) in form.options" :key="index" v-model="form.options[index]" required :placeholder="`Option ${index + 1}`" class="editorial-input" />
           </div>
           <div class="grid gap-3 sm:grid-cols-3">
             <select v-model="form.correct_index" class="border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 text-white"><option :value="0">A correct</option><option :value="1">B correct</option><option :value="2">C correct</option><option :value="3">D correct</option></select>
             <input v-model="form.time_limit_seconds" type="number" min="5" class="border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 text-white" />
             <input v-model="form.points" type="number" min="100" class="border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 text-white" />
           </div>
-          <button type="submit" :disabled="saving" class="w-full bg-dc-yellow px-4 py-4 font-bold uppercase tracking-wide text-dc-dark transition-shadow hover:shadow-glow">{{ saving ? 'ADDING...' : '+ Add Question' }}</button>
+          <button type="submit" :disabled="saving" class="editorial-action w-full">{{ saving ? 'ADDING...' : '+ Add Question' }}</button>
         </form>
 
         <div class="space-y-4">
-          <article v-for="(question, index) in session.questions" :key="question.id" class="border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+          <article v-for="(question, index) in session.questions" :key="question.id" class="editorial-panel p-6">
             <div class="mb-3 flex items-start justify-between">
               <div>
                 <span class="font-mono text-sm font-bold text-dc-yellow">Q{{ index + 1 }}</span>

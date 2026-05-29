@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Talk, TalkStatus } from '@/types';
+import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
 
 const route = useRoute();
 const talks = ref<Talk[]>([]);
@@ -37,12 +38,17 @@ onMounted(fetchTalks);
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
-    <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+  <div class="editorial-page">
+    <div class="editorial-wrap">
       <RouterLink :to="`/admin/events/${route.params.eventId}`" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENT
       </RouterLink>
-      <h1 class="mb-6 flex items-center gap-3 font-mono text-3xl font-bold text-white"><span class="text-dc-yellow">$</span> TALK_MANAGEMENT</h1>
+      <div class="editorial-header">
+        <p class="editorial-eyebrow">program desk</p>
+        <h1 class="editorial-title">Talk Management</h1>
+        <p class="editorial-subtitle">Review submissions, accept speakers, and publish talks into the public archive.</p>
+      </div>
+      <AdminEventTabs :event-id="String(route.params.eventId)" />
 
       <div v-if="loading" class="py-12 text-center font-mono text-white">LOADING...</div>
       <template v-else>
@@ -52,7 +58,7 @@ onMounted(fetchTalks);
             <span class="text-base text-dc-gray">({{ group.talks.length }})</span>
           </h2>
           <div class="space-y-4">
-            <article v-for="talk in group.talks" :key="talk.id" class="border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+            <article v-for="talk in group.talks" :key="talk.id" class="editorial-panel p-6">
               <div class="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <h3 class="mb-2 font-mono text-xl font-bold text-white">{{ talk.title }}</h3>

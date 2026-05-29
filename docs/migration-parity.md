@@ -5,6 +5,8 @@ Track the Next.js-to-Vue/Bun migration against user-visible product areas.
 ## Ported to active Vue/Hono
 
 - Branded public shell and DEV::CON[] landing page
+- Satoshi + IBM Plex Mono typography direction with editorial page primitives
+- Role-aware top navigation and event-level admin tabs
 - Public archive and event talk pages
 - Public leaderboard and prototype account claim/merge tools
 - CFP submission with speaker allowlist validation

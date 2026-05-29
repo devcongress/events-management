@@ -121,13 +121,12 @@ onMounted(fetchData);
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
-    <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <div class="mb-12">
-        <h1 class="mb-2 flex items-center gap-3 text-4xl font-black text-white sm:text-5xl">
-          <span class="text-dc-yellow">#</span> All-Time Leaderboard
-        </h1>
-        <p class="text-lg text-dc-gray-light">Top players across all quiz sessions</p>
+  <div class="editorial-page">
+    <div class="editorial-wrap">
+      <div class="editorial-header">
+        <p class="editorial-eyebrow">rankings</p>
+        <h1 class="editorial-title">All-Time Leaderboard</h1>
+        <p class="editorial-subtitle">Top players across all quiz sessions, with prototype tools for claiming and merging profiles.</p>
       </div>
 
       <div v-if="loading" class="flex min-h-[40vh] items-center justify-center">
@@ -169,8 +168,8 @@ onMounted(fetchData);
           </div>
         </div>
 
-        <div class="border-2 border-dc-dark-3 bg-dc-dark-1">
-          <div class="grid grid-cols-12 gap-4 border-b-2 border-dc-dark-3 bg-dc-dark-2 px-6 py-4">
+        <div class="editorial-panel">
+          <div class="grid grid-cols-12 gap-4 border-b border-dc-yellow/10 bg-dc-dark-2/60 px-6 py-4">
             <div class="col-span-2 text-xs font-bold uppercase tracking-wider text-dc-yellow">Rank</div>
             <div class="col-span-6 text-xs font-bold uppercase tracking-wider text-dc-yellow">Player</div>
             <div class="col-span-4 text-right text-xs font-bold uppercase tracking-wider text-dc-yellow">Score</div>
@@ -215,7 +214,7 @@ onMounted(fetchData);
           </div>
         </div>
 
-        <div class="mt-10 border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+        <div class="editorial-panel mt-10 p-6">
           <h2 class="mb-2 text-2xl font-black text-white">Account Tools (Prototype)</h2>
           <p class="mb-6 text-dc-gray">Claim a leaderboard profile, then merge duplicate profiles into one account.</p>
 
@@ -229,23 +228,23 @@ onMounted(fetchData);
           <div class="grid gap-6 lg:grid-cols-2">
             <form class="space-y-3" @submit.prevent="submitClaim">
               <h3 class="text-lg font-bold text-dc-yellow">Claim Profile</h3>
-              <input v-model="claimForm.userId" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="User ID" required />
-              <input v-model="claimForm.deviceId" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Device ID" required />
-              <input v-model="claimForm.username" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Username" required />
-              <input v-model="claimForm.email" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Email (optional)" />
-              <input v-model="claimForm.secretQuestion" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Secret Question" required />
-              <input v-model="claimForm.secretAnswer" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Secret Answer" type="password" required />
-              <button type="submit" :disabled="claiming" class="bg-dc-yellow px-4 py-2 font-bold text-dc-dark disabled:opacity-60">
+              <input v-model="claimForm.userId" class="editorial-input" placeholder="User ID" required />
+              <input v-model="claimForm.deviceId" class="editorial-input" placeholder="Device ID" required />
+              <input v-model="claimForm.username" class="editorial-input" placeholder="Username" required />
+              <input v-model="claimForm.email" class="editorial-input" placeholder="Email (optional)" />
+              <input v-model="claimForm.secretQuestion" class="editorial-input" placeholder="Secret Question" required />
+              <input v-model="claimForm.secretAnswer" class="editorial-input" placeholder="Secret Answer" type="password" required />
+              <button type="submit" :disabled="claiming" class="editorial-action disabled:opacity-60">
                 {{ claiming ? 'Claiming...' : 'Claim Profile' }}
               </button>
             </form>
 
             <form class="space-y-3" @submit.prevent="submitMerge">
               <h3 class="text-lg font-bold text-dc-yellow">Merge Duplicate</h3>
-              <input v-model="mergeForm.targetUserId" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Target Claimed User ID" required />
-              <input v-model="mergeForm.sourceUserId" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Source Duplicate User ID" required />
-              <input v-model="mergeForm.secretAnswer" class="w-full border border-dc-dark-3 bg-dc-dark-2 px-3 py-2 text-white" placeholder="Target Secret Answer" type="password" required />
-              <button type="submit" :disabled="merging" class="bg-dc-yellow px-4 py-2 font-bold text-dc-dark disabled:opacity-60">
+              <input v-model="mergeForm.targetUserId" class="editorial-input" placeholder="Target Claimed User ID" required />
+              <input v-model="mergeForm.sourceUserId" class="editorial-input" placeholder="Source Duplicate User ID" required />
+              <input v-model="mergeForm.secretAnswer" class="editorial-input" placeholder="Target Secret Answer" type="password" required />
+              <button type="submit" :disabled="merging" class="editorial-action disabled:opacity-60">
                 {{ merging ? 'Merging...' : 'Merge Profiles' }}
               </button>
             </form>

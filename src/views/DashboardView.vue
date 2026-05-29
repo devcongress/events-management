@@ -24,6 +24,10 @@ const upcomingEvent = computed(() => {
     .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())[0] ?? null;
 });
 
+const cfpOpenEvent = computed(() => {
+  return (overview.value?.events ?? []).find((event) => event.status === 'cfp_open') ?? null;
+});
+
 const talksCount = computed(() => {
   return (overview.value?.talks ?? []).filter((talk) => ['accepted', 'slides_received', 'published'].includes(talk.status)).length;
 });
@@ -88,17 +92,23 @@ onMounted(async () => {
             <span class="text-white">DEV</span><span class="text-dc-yellow">::</span><span class="text-white">CON</span><span class="text-dc-gray">[]</span>
           </h1>
 
-          <p class="mx-auto max-w-2xl font-mono text-base text-dc-gray-light sm:whitespace-nowrap sm:text-xl md:text-2xl">
+          <p class="mx-auto max-w-2xl text-base font-medium text-dc-gray-light sm:whitespace-nowrap sm:text-xl md:text-2xl">
             Community tech talks &bull; Learn from experts &bull; Share knowledge
           </p>
 
-          <div class="pt-2 sm:pt-4">
+          <div class="flex flex-col items-center justify-center gap-3 pt-2 sm:flex-row sm:pt-4">
             <RouterLink
-              to="/archive"
+              :to="cfpOpenEvent ? `/cfp/${cfpOpenEvent.id}` : '/archive'"
               class="inline-flex items-center gap-2 bg-dc-yellow px-6 py-3 font-mono text-sm font-bold uppercase tracking-wider text-dc-dark transition-all hover:shadow-glow sm:gap-3 sm:px-10 sm:py-5 sm:text-lg"
             >
               <span class="inline-block size-1.5 animate-pulse bg-dc-dark sm:size-2" />
-              View Talks
+              {{ cfpOpenEvent ? 'Submit Talk' : 'View Talks' }}
+            </RouterLink>
+            <RouterLink
+              to="/archive"
+              class="inline-flex items-center gap-2 border border-dc-yellow/30 px-5 py-3 font-mono text-sm font-bold uppercase tracking-wider text-dc-yellow transition-all hover:border-dc-yellow hover:bg-dc-yellow/10 sm:px-7 sm:py-5"
+            >
+              Browse Archive
             </RouterLink>
           </div>
 

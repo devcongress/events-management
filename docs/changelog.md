@@ -7,6 +7,10 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-05-29 — Stack migration foundation
 
+- Added Satoshi + IBM Plex Mono typography direction and removed the old Lato/JetBrains Mono pairing.
+- Introduced editorial UI primitives for page headers, panels, labels, inputs, and actions.
+- Made top navigation role-aware and added event-level admin tabs for Overview/Talks/Speakers/Quiz/Live.
+- Refined major public/admin surfaces toward a more cohesive editorial tech-conference look.
 - Switched package management from npm lockfile to pnpm and added `pnpm-lock.yaml`.
 - Added Vue 3 + Vite app shell under `src/` and restored the DEV::CON[] branded landing page with Lato/JetBrains Mono fonts.
 - Added Hono API app and Bun production server under `server/` so the UI and `/api/*` run on one same-origin port.

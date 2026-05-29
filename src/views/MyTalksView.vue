@@ -74,19 +74,18 @@ function badge(status: string) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
+  <div class="editorial-page">
     <div class="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
-      <div class="mb-8">
-        <h1 class="mb-2 flex items-center gap-3 font-mono text-4xl font-bold text-white sm:text-5xl">
-          <span class="text-dc-yellow">$</span> MY_TALKS
-        </h1>
-        <p class="font-mono text-dc-gray-light">View and manage your talk submissions</p>
+      <div class="editorial-header">
+        <p class="editorial-eyebrow">speaker desk</p>
+        <h1 class="editorial-title">My Talks</h1>
+        <p class="editorial-subtitle">Look up submissions, track review status, and attach your slides before event day.</p>
       </div>
 
       <div v-if="message" class="mb-4 border border-green-500/50 bg-green-500/10 px-4 py-3 text-sm text-green-200">{{ message }}</div>
       <div v-if="error" class="mb-4 border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ error }}</div>
 
-      <div v-if="!checked" class="mx-auto max-w-md border-2 border-dc-yellow bg-dc-dark-1 p-8 sm:p-12">
+      <div v-if="!checked" class="editorial-panel mx-auto max-w-md p-8 sm:p-12">
         <div class="mb-6 text-center">
           <div class="mb-4 inline-block bg-dc-yellow px-3 py-1 font-mono text-xs font-bold text-dc-dark">SPEAKER ACCESS</div>
           <h2 class="mb-2 font-mono text-2xl font-bold text-white">Check Your Talks</h2>
@@ -96,7 +95,7 @@ function badge(status: string) {
         <form class="space-y-6" @submit.prevent="checkTalks">
           <div>
             <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Email Address</label>
-            <input v-model="email" required type="email" placeholder="speaker@example.com" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors focus:border-dc-yellow" />
+            <input v-model="email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
           </div>
           <button type="submit" :disabled="loading" class="w-full bg-dc-yellow py-4 font-mono text-lg font-bold uppercase tracking-wide text-dc-dark transition-all hover:shadow-glow disabled:opacity-50">
             {{ loading ? 'CHECKING...' : 'VIEW MY TALKS' }}
@@ -122,7 +121,7 @@ function badge(status: string) {
         </div>
 
         <div v-else class="space-y-4">
-          <article v-for="talk in talks" :key="talk.id" class="border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+              <article v-for="talk in talks" :key="talk.id" class="editorial-panel p-6">
             <div class="mb-4 flex items-start justify-between">
               <div class="flex-1">
                 <h3 class="mb-2 font-mono text-xl font-bold text-white">{{ talk.title }}</h3>

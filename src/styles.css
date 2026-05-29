@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    --font-sans: 'Lato';
-    --font-mono: 'JetBrains Mono';
+    --font-sans: 'Satoshi';
+    --font-mono: 'IBM Plex Mono';
     --background: 0 0% 4%;
     --foreground: 0 0% 100%;
     --card: 0 0% 10%;
@@ -43,5 +43,68 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: #252525 #0a0a0a;
+  }
+}
+
+@layer components {
+  .editorial-page {
+    @apply min-h-screen bg-dc-dark;
+  }
+
+  .editorial-wrap {
+    @apply mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8;
+  }
+
+  .editorial-header {
+    @apply mb-10 border-b border-dc-yellow/10 pb-7;
+  }
+
+  .editorial-eyebrow {
+    @apply mb-3 font-mono text-xs font-semibold uppercase tracking-[0.24em] text-dc-yellow;
+  }
+
+  .editorial-title {
+    @apply text-4xl font-black tracking-tight text-white sm:text-5xl;
+  }
+
+  .editorial-subtitle {
+    @apply mt-3 max-w-2xl text-base leading-7 text-dc-gray-light sm:text-lg;
+  }
+
+  .editorial-panel {
+    @apply border border-dc-yellow/10 bg-dc-dark-1/80;
+  }
+
+  .editorial-action {
+    @apply inline-flex items-center justify-center bg-dc-yellow px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-dark transition-all hover:shadow-glow;
+  }
+
+  .editorial-secondary-action {
+    @apply inline-flex items-center justify-center border border-dc-yellow/25 px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-yellow transition-all hover:border-dc-yellow hover:bg-dc-yellow/10;
+  }
+
+  .editorial-input {
+    @apply w-full border border-dc-yellow/10 bg-dc-dark-2 px-4 py-3 text-white outline-none transition-colors placeholder:text-dc-gray focus:border-dc-yellow;
+  }
+
+  .editorial-label {
+    @apply mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-yellow;
+  }
+
+  .page-enter-active,
+  .page-leave-active {
+    transition:
+      opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .page-enter-from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  .page-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 }

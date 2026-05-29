@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Event, EventSpeaker } from '@/types';
+import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
 
 const route = useRoute();
 const event = ref<Event | null>(null);
@@ -49,7 +50,7 @@ onMounted(fetchAll);
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
+  <div class="editorial-page">
     <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
       <RouterLink :to="`/admin/events/${route.params.eventId}`" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENT
@@ -57,21 +58,25 @@ onMounted(fetchAll);
 
       <div v-if="loading" class="py-12 text-center font-mono text-white">LOADING...</div>
       <template v-else>
-        <h1 class="mb-2 font-mono text-3xl font-bold text-white">MANAGE SPEAKERS</h1>
-        <p class="mb-8 font-mono text-dc-gray-light">{{ event?.name }}</p>
+        <div class="editorial-header">
+          <p class="editorial-eyebrow">speaker access</p>
+          <h1 class="editorial-title">Manage Speakers</h1>
+          <p class="editorial-subtitle">{{ event?.name }}</p>
+        </div>
+        <AdminEventTabs :event-id="String(route.params.eventId)" />
 
-        <section class="relative mb-8 overflow-hidden border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+        <section class="editorial-panel relative mb-8 overflow-hidden p-6">
           <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />
           <h2 class="mb-4 flex items-center gap-3 font-mono text-xl font-bold text-white"><span class="text-dc-yellow">+</span> ADD_SPEAKER</h2>
           <div v-if="error" class="mb-4 border border-red-500/50 bg-red-500/10 px-4 py-3 text-red-200">{{ error }}</div>
           <form class="space-y-4" @submit.prevent="addNewSpeaker">
-            <input v-model="form.email" required type="email" placeholder="speaker@example.com" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-2 font-mono text-white outline-none focus:border-dc-yellow" />
-            <input v-model="form.name" required placeholder="Speaker Name" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-2 font-mono text-white outline-none focus:border-dc-yellow" />
-            <button type="submit" :disabled="adding" class="bg-dc-yellow px-6 py-2 font-mono font-bold uppercase text-dc-dark transition-all hover:shadow-glow disabled:opacity-50">{{ adding ? 'ADDING...' : 'ADD SPEAKER' }}</button>
+            <input v-model="form.email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
+            <input v-model="form.name" required placeholder="Speaker Name" class="editorial-input font-mono" />
+            <button type="submit" :disabled="adding" class="editorial-action disabled:opacity-50">{{ adding ? 'ADDING...' : 'ADD SPEAKER' }}</button>
           </form>
         </section>
 
-        <section class="relative overflow-hidden border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+        <section class="editorial-panel relative overflow-hidden p-6">
           <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />
           <h2 class="mb-4 flex items-center gap-3 font-mono text-xl font-bold text-white"><span class="text-dc-yellow">#</span> APPROVED_SPEAKERS <span class="text-sm text-dc-gray">({{ speakers.length }})</span></h2>
           <p v-if="speakers.length === 0" class="py-8 text-center font-mono text-dc-gray-light">NO SPEAKERS ADDED YET</p>

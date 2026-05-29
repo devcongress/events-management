@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Event, EventStatus } from '@/types';
+import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
 
 const route = useRoute();
 const event = ref<Event | null>(null);
@@ -31,8 +32,8 @@ onMounted(fetchEvent);
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
-    <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+  <div class="editorial-page">
+    <div class="editorial-wrap">
       <RouterLink to="/admin/events" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENTS
       </RouterLink>
@@ -41,11 +42,15 @@ onMounted(fetchEvent);
       <div v-else-if="!event" class="py-12 text-center font-mono text-dc-gray">EVENT NOT FOUND</div>
 
       <template v-else>
-        <h1 class="mb-2 font-mono text-3xl font-bold text-white">{{ event.name }}</h1>
-        <p class="mb-6 font-mono text-dc-gray-light"><span class="text-dc-yellow">@</span> {{ formatDate(event.event_date) }}</p>
+        <div class="editorial-header">
+          <p class="editorial-eyebrow">event control</p>
+          <h1 class="editorial-title">{{ event.name }}</h1>
+          <p class="editorial-subtitle">{{ formatDate(event.event_date) }}</p>
+        </div>
+        <AdminEventTabs :event-id="event.id" />
         <p v-if="event.description" class="mb-8 text-white/80">{{ event.description }}</p>
 
-        <section class="relative mb-8 overflow-hidden border-2 border-dc-dark-3 bg-dc-dark-1 p-6">
+        <section class="editorial-panel relative mb-8 overflow-hidden p-6">
           <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />
           <h2 class="mb-4 flex items-center gap-3 font-mono text-xl font-bold text-white"><span class="text-dc-yellow">$</span> EVENT_STATUS</h2>
           <div class="mb-4 flex flex-wrap gap-2">
@@ -62,7 +67,7 @@ onMounted(fetchEvent);
           <p class="font-mono text-sm text-dc-gray">CURRENT: <span class="font-bold uppercase text-dc-yellow">{{ event.status.replace('_', ' ') }}</span></p>
         </section>
 
-        <h2 class="mb-4 flex items-center gap-3 font-mono text-xl font-bold text-white"><span class="text-dc-yellow">&gt;</span> QUICK_ACTIONS</h2>
+        <h2 class="mb-4 text-2xl font-black tracking-tight text-white">Quick Actions</h2>
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <RouterLink :to="`/admin/events/${event.id}/talks`" class="group relative block overflow-hidden border-2 border-dc-dark-3 bg-dc-dark-1 p-6 transition-all hover:border-dc-yellow/50">
             <div class="absolute right-0 top-0 size-12 border-b-2 border-l-2 border-dc-yellow/10 transition-colors group-hover:border-dc-yellow/30" />

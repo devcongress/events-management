@@ -121,33 +121,32 @@ onMounted(async () => {
     </div>
 
     <div v-else class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-      <div class="mb-8">
-        <div class="mb-4 inline-block bg-dc-yellow px-3 py-1 font-mono text-xs font-bold uppercase tracking-wide text-dc-dark">
-          Call for Presentations
-        </div>
-        <h1 class="mb-2 font-mono text-4xl font-bold text-white">SUBMIT_TALK</h1>
-        <p class="mb-1 font-mono text-lg text-dc-yellow">{{ event.name }}</p>
-        <p class="font-mono text-dc-gray">{{ formatDate(event.event_date) }}</p>
+      <div class="editorial-header">
+        <p class="editorial-eyebrow">Call for Presentations</p>
+        <h1 class="editorial-title">Submit a Talk</h1>
+        <p class="editorial-subtitle">
+          {{ event.name }} · {{ formatDate(event.event_date) }}
+        </p>
       </div>
 
       <div v-if="event.description" class="mb-8 border-2 border-dc-yellow/30 bg-dc-dark-1 p-6">
         <p class="text-white/90">{{ event.description }}</p>
       </div>
 
-      <form class="space-y-6 border-2 border-dc-dark-3 bg-dc-dark-1 p-6 sm:p-8" @submit.prevent="submitProposal">
+      <form class="editorial-panel space-y-6 p-6 sm:p-8" @submit.prevent="submitProposal">
         <div v-if="error" class="border-2 border-red-500 bg-red-900/30 p-4 font-mono text-sm text-red-300">{{ error }}</div>
 
         <div>
-          <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Your Name *</label>
-          <input v-model="form.speaker_name" required class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors focus:border-dc-yellow" />
+          <label class="editorial-label">Your Name *</label>
+          <input v-model="form.speaker_name" required class="editorial-input font-mono" />
         </div>
         <div>
-          <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Email Address *</label>
+          <label class="editorial-label">Email Address *</label>
           <input
             v-model="form.speaker_email"
             required
             type="email"
-            class="w-full border-2 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors focus:border-dc-yellow"
+            class="editorial-input border font-mono"
             :class="emailValidated ? 'border-green-500' : emailChecking ? 'border-dc-yellow' : 'border-dc-dark-3'"
             @input="emailValidated = false"
             @blur="validateEmail"
@@ -156,20 +155,20 @@ onMounted(async () => {
           <p v-if="emailValidated" class="mt-1 font-mono text-xs text-green-400">Email approved</p>
         </div>
         <div>
-          <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">GitHub Username (optional)</label>
-          <input v-model="form.github_username" placeholder="octocat" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors placeholder:text-dc-gray focus:border-dc-yellow" />
+          <label class="editorial-label">GitHub Username (optional)</label>
+          <input v-model="form.github_username" placeholder="octocat" class="editorial-input font-mono" />
         </div>
         <div>
-          <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Talk Title *</label>
-          <input v-model="form.title" required placeholder="Building Scalable APIs with GraphQL" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors placeholder:text-dc-gray focus:border-dc-yellow" />
+          <label class="editorial-label">Talk Title *</label>
+          <input v-model="form.title" required placeholder="Building Scalable APIs with GraphQL" class="editorial-input font-mono" />
         </div>
         <div>
-          <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Abstract</label>
-          <textarea v-model="form.abstract" rows="5" class="w-full resize-none border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors placeholder:text-dc-gray focus:border-dc-yellow" />
+          <label class="editorial-label">Abstract</label>
+          <textarea v-model="form.abstract" rows="5" class="editorial-input resize-none font-mono" />
         </div>
         <div>
-          <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Speaker Bio</label>
-          <textarea v-model="form.bio" rows="3" class="w-full resize-none border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none transition-colors placeholder:text-dc-gray focus:border-dc-yellow" />
+          <label class="editorial-label">Speaker Bio</label>
+          <textarea v-model="form.bio" rows="3" class="editorial-input resize-none font-mono" />
         </div>
         <button type="submit" :disabled="submitting" class="w-full bg-dc-yellow px-6 py-4 font-mono text-lg font-bold uppercase tracking-wide text-dc-dark transition-all hover:shadow-glow disabled:cursor-not-allowed disabled:opacity-50">
           {{ submitting ? 'SUBMITTING...' : 'SUBMIT PROPOSAL' }}

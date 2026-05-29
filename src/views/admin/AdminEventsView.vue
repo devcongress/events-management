@@ -60,45 +60,48 @@ onMounted(fetchEvents);
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
-    <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+  <div class="editorial-page">
+    <div class="editorial-wrap">
       <template v-if="creating">
-        <h1 class="mb-6 flex items-center gap-3 font-mono text-3xl font-bold text-white">
-          <span class="text-dc-yellow">$</span> CREATE_NEW_EVENT
-        </h1>
-        <form class="relative space-y-5 overflow-hidden border-2 border-dc-dark-3 bg-dc-dark-1 p-6" @submit.prevent="createNewEvent">
+        <div class="editorial-header">
+          <p class="editorial-eyebrow">organizer</p>
+          <h1 class="editorial-title">Create New Event</h1>
+        </div>
+        <form class="editorial-panel relative space-y-5 overflow-hidden p-6" @submit.prevent="createNewEvent">
           <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />
           <div v-if="error" class="border border-red-500/50 bg-red-500/10 px-4 py-3 text-red-200">{{ error }}</div>
           <div>
-            <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Name</label>
-            <input v-model="form.name" required class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none focus:border-dc-yellow" />
+            <label class="editorial-label">Name</label>
+            <input v-model="form.name" required class="editorial-input font-mono" />
           </div>
           <div>
-            <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Date</label>
-            <input v-model="form.event_date" required type="date" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none focus:border-dc-yellow" />
+            <label class="editorial-label">Date</label>
+            <input v-model="form.event_date" required type="date" class="editorial-input font-mono" />
           </div>
           <div>
-            <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-yellow">Description</label>
-            <textarea v-model="form.description" rows="4" class="w-full border-2 border-dc-dark-3 bg-dc-dark-2 px-4 py-3 font-mono text-white outline-none focus:border-dc-yellow" />
+            <label class="editorial-label">Description</label>
+            <textarea v-model="form.description" rows="4" class="editorial-input font-mono" />
           </div>
           <div class="flex gap-3">
-            <button type="submit" :disabled="saving" class="bg-dc-yellow px-6 py-3 font-mono font-bold uppercase tracking-wide text-dc-dark hover:shadow-glow disabled:opacity-60">{{ saving ? 'CREATING...' : 'CREATE EVENT' }}</button>
-            <RouterLink to="/admin/events" class="border-2 border-dc-dark-3 px-6 py-3 font-mono font-bold uppercase tracking-wide text-white">CANCEL</RouterLink>
+            <button type="submit" :disabled="saving" class="editorial-action disabled:opacity-60">{{ saving ? 'CREATING...' : 'CREATE EVENT' }}</button>
+            <RouterLink to="/admin/events" class="editorial-secondary-action">CANCEL</RouterLink>
           </div>
         </form>
       </template>
 
       <template v-else>
-        <div class="mb-6 flex items-center justify-between">
-          <h1 class="flex items-center gap-3 font-mono text-3xl font-bold text-white">
-            <span class="text-dc-yellow">$</span> EVENT_MANAGEMENT
-          </h1>
-          <RouterLink to="/admin/events/new" class="bg-dc-yellow px-6 py-3 font-mono font-bold uppercase tracking-wide text-dc-dark transition-shadow hover:shadow-glow">CREATE EVENT</RouterLink>
+        <div class="editorial-header flex items-end justify-between gap-6">
+          <div>
+            <p class="editorial-eyebrow">organizer</p>
+            <h1 class="editorial-title">Event Management</h1>
+            <p class="editorial-subtitle">Create events, move them through the program lifecycle, and jump into talk, speaker, or quiz operations.</p>
+          </div>
+          <RouterLink to="/admin/events/new" class="editorial-action shrink-0">CREATE EVENT</RouterLink>
         </div>
 
         <div v-if="loading" class="py-12 text-center font-mono text-white">LOADING...</div>
-        <div v-else class="border-2 border-dc-dark-3 bg-dc-dark-1">
-          <div class="grid grid-cols-12 gap-4 border-b-2 border-dc-dark-3 bg-dc-dark-2 px-6 py-4">
+        <div v-else class="editorial-panel">
+          <div class="grid grid-cols-12 gap-4 border-b border-dc-yellow/10 bg-dc-dark-2/60 px-6 py-4">
             <div class="col-span-4 font-mono text-xs font-bold uppercase text-dc-yellow">Event</div>
             <div class="col-span-3 font-mono text-xs font-bold uppercase text-dc-yellow">Date</div>
             <div class="col-span-3 font-mono text-xs font-bold uppercase text-dc-yellow">Status</div>
