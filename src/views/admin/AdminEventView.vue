@@ -42,19 +42,25 @@ onMounted(fetchEvent);
       <div v-else-if="!event" class="py-12 text-center font-mono text-dc-gray">EVENT NOT FOUND</div>
 
       <template v-else>
-        <div class="editorial-header">
-          <p class="editorial-eyebrow">event control</p>
-          <h1 class="editorial-title">{{ event.name }}</h1>
-          <p class="editorial-subtitle">{{ formatDate(event.event_date) }}</p>
-        </div>
         <AdminEventTabs :event-id="event.id" />
-        <p v-if="event.description" class="mb-8 text-white/80">{{ event.description }}</p>
 
-        <section class="editorial-panel mb-10 p-6 sm:p-7">
-          <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div class="mb-8 flex flex-col gap-4 border-b border-dc-yellow/10 pb-7 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p class="editorial-eyebrow">event control</p>
+            <h1 class="text-4xl font-black tracking-tight text-white sm:text-5xl">{{ event.name }}</h1>
+            <p v-if="event.description" class="mt-4 max-w-3xl text-base leading-7 text-dc-gray-light">{{ event.description }}</p>
+          </div>
+          <div class="flex flex-wrap gap-2 font-mono text-xs uppercase tracking-wide">
+            <span class="rounded-md border border-dc-yellow/10 bg-dc-yellow/[0.03] px-3 py-2 text-dc-gray-light">{{ formatDate(event.event_date) }}</span>
+            <span class="rounded-md border border-dc-yellow/30 bg-dc-yellow/[0.08] px-3 py-2 font-bold text-dc-yellow">{{ event.status.replace('_', ' ') }}</span>
+          </div>
+        </div>
+
+        <section class="editorial-panel max-w-4xl p-5 sm:p-6">
+          <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-2">status</p>
-              <h2 class="text-2xl font-black tracking-tight text-white">Event Status</h2>
+              <h2 class="text-xl font-black tracking-tight text-white">Lifecycle</h2>
             </div>
             <p class="font-mono text-xs uppercase tracking-wide text-dc-gray">
               Current: <span class="font-bold text-dc-yellow">{{ event.status.replace('_', ' ') }}</span>
@@ -72,22 +78,6 @@ onMounted(fetchEvent);
             </button>
           </div>
         </section>
-
-        <h2 class="mb-4 text-2xl font-black tracking-tight text-white">Quick Actions</h2>
-        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <RouterLink :to="`/admin/events/${event.id}/talks`" class="editorial-panel group block p-6 transition-all hover:-translate-y-0.5 hover:border-dc-yellow/30 hover:bg-[#191917]">
-            <h3 class="mb-2 text-lg font-black tracking-tight text-white transition-colors group-hover:text-dc-yellow">Manage Talks</h3>
-            <p class="text-sm text-dc-gray-light">Review CFP submissions and manage talks</p>
-          </RouterLink>
-          <RouterLink :to="`/admin/events/${event.id}/speakers`" class="editorial-panel group block p-6 transition-all hover:-translate-y-0.5 hover:border-dc-yellow/30 hover:bg-[#191917]">
-            <h3 class="mb-2 text-lg font-black tracking-tight text-white transition-colors group-hover:text-dc-yellow">Manage Speakers</h3>
-            <p class="text-sm text-dc-gray-light">Manage approved speaker list for CFP</p>
-          </RouterLink>
-          <RouterLink :to="`/admin/events/${event.id}/quiz`" class="editorial-panel group block p-6 transition-all hover:-translate-y-0.5 hover:border-dc-yellow/30 hover:bg-[#191917]">
-            <h3 class="mb-2 text-lg font-black tracking-tight text-white transition-colors group-hover:text-dc-yellow">Manage Quiz</h3>
-            <p class="text-sm text-dc-gray-light">Create and run the live quiz for this event</p>
-          </RouterLink>
-        </div>
       </template>
     </div>
   </div>

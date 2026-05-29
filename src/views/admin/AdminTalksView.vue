@@ -80,12 +80,12 @@ onMounted(fetchTalks);
       <RouterLink :to="`/admin/events/${route.params.eventId}`" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENT
       </RouterLink>
+      <AdminEventTabs :event-id="String(route.params.eventId)" />
       <div class="editorial-header">
         <p class="editorial-eyebrow">program desk</p>
         <h1 class="editorial-title">Talk Management</h1>
         <p class="editorial-subtitle">Review submissions, accept speakers, and publish talks into the public archive.</p>
       </div>
-      <AdminEventTabs :event-id="String(route.params.eventId)" />
 
       <div v-if="message" class="mb-4 border border-green-500/50 bg-green-500/10 px-4 py-3 text-sm text-green-200">{{ message }}</div>
       <div v-if="error" class="mb-4 border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-200">{{ error }}</div>
