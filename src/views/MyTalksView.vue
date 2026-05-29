@@ -61,6 +61,18 @@ function slidesViewUrl(talk: Talk): string | null {
   return null;
 }
 
+function slideDeadline(talk: TalkWithEvent): string | null {
+  if (!talk.event) return null;
+  const deadline = new Date(talk.event.event_date);
+  deadline.setDate(deadline.getDate() - 7);
+  return deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function eventDate(talk: TalkWithEvent): string | null {
+  if (!talk.event) return null;
+  return new Date(talk.event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function badge(status: string) {
   const badges: Record<string, { bg: string; text: string; label: string }> = {
     submitted: { bg: 'bg-dc-dark-2', text: 'text-dc-gray', label: 'PENDING REVIEW' },
@@ -124,8 +136,12 @@ function badge(status: string) {
               <article v-for="talk in talks" :key="talk.id" class="editorial-panel p-6">
             <div class="mb-4 flex items-start justify-between">
               <div class="flex-1">
-                <h3 class="mb-2 font-mono text-xl font-bold text-white">{{ talk.title }}</h3>
-                <p class="mb-3 font-mono text-sm text-dc-gray-light">{{ talk.event?.name }}</p>
+                <p class="editorial-eyebrow">{{ talk.topic || 'General' }}</p>
+                <h3 class="mb-2 mt-2 text-2xl font-black tracking-tight text-white">{{ talk.title }}</h3>
+                <p class="mb-3 text-sm text-dc-gray-light">
+                  {{ talk.event?.name }}
+                  <span v-if="eventDate(talk)">· {{ eventDate(talk) }}</span>
+                </p>
               </div>
               <span class="border border-current px-3 py-1 font-mono text-xs font-bold" :class="[badge(talk.status).bg, badge(talk.status).text]">
                 {{ badge(talk.status).label }}
@@ -135,10 +151,22 @@ function badge(status: string) {
             <p class="mb-4 line-clamp-2 text-sm text-white/80">{{ talk.abstract }}</p>
 
             <div v-if="talk.status === 'accepted' || talk.status === 'slides_received'" class="mt-4 border-t-2 border-dc-dark-3 pt-4">
+              <div v-if="talk.status === 'accepted' && !slidesViewUrl(talk)" class="mb-4 border border-dc-yellow/30 bg-dc-yellow/5 p-4">
+                <p class="font-mono text-xs font-bold uppercase tracking-[0.2em] text-dc-yellow">Action needed</p>
+                <p class="mt-2 text-sm text-dc-gray-light">
+                  Share slides before {{ slideDeadline(talk) ?? 'event week' }} so organizers can publish the archive on time.
+                  <span v-if="talk.reminder_sent_count > 0">
+                    Organizers have logged {{ talk.reminder_sent_count }} reminder{{ talk.reminder_sent_count === 1 ? '' : 's' }}.
+                  </span>
+                </p>
+              </div>
               <div v-if="slidesViewUrl(talk)" class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                  <span class="text-xl text-green-400">OK</span>
-                  <span class="font-mono text-sm text-dc-gray-light">Slides uploaded</span>
+                  <span class="font-mono text-sm font-bold text-green-400">READY</span>
+                  <span class="text-sm text-dc-gray-light">
+                    Slides uploaded
+                    <span v-if="talk.slides_uploaded_at">on {{ new Date(talk.slides_uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }}</span>
+                  </span>
                 </div>
                 <div class="flex gap-2">
                   <a :href="slidesViewUrl(talk) ?? undefined" target="_blank" rel="noopener noreferrer" class="border border-dc-yellow/30 bg-dc-dark-2 px-4 py-2 font-mono text-sm text-dc-yellow hover:border-dc-yellow">VIEW</a>

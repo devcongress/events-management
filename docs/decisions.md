@@ -4,6 +4,16 @@
 
 ---
 
+## ADR-008: Same-Origin Prototype Admin Session
+
+**Date:** 2026-05-29
+**Why:** The Vue/Bun migration must keep UI and API on one origin so future cookie auth does not require cross-origin workarounds. A small Hono cookie session now protects organizer routes and mutating admin APIs while keeping speaker/player flows public.
+**Tradeoffs:** This is still prototype auth: one shared admin password, JSON data, no roles, no password reset, and local defaults for development. It is enough to prevent accidental public admin mutations during product work, but not production-ready.
+**Alternatives considered:** Shipping all admin endpoints open until Supabase (too risky for continued iteration), adding a second auth/API server (rejected because same-origin auth is a project constraint), integrating Supabase Auth now (correct long term, too much infrastructure for this migration checkpoint).
+**Revisit when:** Supabase Auth is introduced; replace the shared password with per-admin identities and middleware-backed role checks.
+
+---
+
 ## ADR-007: Vue/Vite Frontend with Single Bun/Hono Server
 
 **Date:** 2026-05-29

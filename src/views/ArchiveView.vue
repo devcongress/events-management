@@ -11,6 +11,9 @@ const overview = ref<OverviewResponse | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const selectedYear = ref<number | null>(null);
+const query = ref('');
+const selectedTopic = ref('');
+const selectedSpeaker = ref('');
 
 const completedEvents = computed(() => {
   return [...(overview.value?.events ?? [])]
@@ -23,10 +26,50 @@ const years = computed(() => {
 });
 
 const activeYear = computed(() => selectedYear.value ?? years.value[0] ?? new Date().getFullYear());
-const selectedYearEvents = computed(() => completedEvents.value.filter((event) => new Date(event.event_date).getFullYear() === activeYear.value));
+const publishedTalks = computed(() => (overview.value?.talks ?? []).filter((talk) => talk.status === 'published'));
+
+const topics = computed(() => {
+  return [...new Set(publishedTalks.value.map((talk) => talk.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+});
+
+const speakers = computed(() => {
+  return [...new Set(publishedTalks.value.map((talk) => talk.speaker_name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+});
+
+const selectedYearEvents = computed(() => {
+  const normalizedQuery = query.value.trim().toLowerCase();
+
+  return completedEvents.value
+    .filter((event) => new Date(event.event_date).getFullYear() === activeYear.value)
+    .filter((event) => {
+      const talks = publishedTalksFor(event.id);
+      const matchesTopic = !selectedTopic.value || talks.some((talk) => talk.topic === selectedTopic.value);
+      const matchesSpeaker = !selectedSpeaker.value || talks.some((talk) => talk.speaker_name === selectedSpeaker.value);
+
+      if (!matchesTopic || !matchesSpeaker) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const haystack = [
+        event.name,
+        event.description,
+        ...talks.flatMap((talk) => [talk.title, talk.abstract ?? '', talk.speaker_name, talk.topic ?? '']),
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedQuery);
+    });
+});
+
+const hasActiveFilters = computed(() => query.value.trim() !== '' || selectedTopic.value !== '' || selectedSpeaker.value !== '');
 
 function publishedTalksFor(eventId: string): Talk[] {
-  return (overview.value?.talks ?? []).filter((talk) => talk.event_id === eventId && talk.status === 'published');
+  return publishedTalks.value.filter((talk) => talk.event_id === eventId);
 }
 
 function tagsFor(eventId: string): string[] {
@@ -52,6 +95,12 @@ function eventDateParts(value: string) {
   };
 }
 
+function clearFilters() {
+  query.value = '';
+  selectedTopic.value = '';
+  selectedSpeaker.value = '';
+}
+
 onMounted(async () => {
   try {
     const response = await fetch('/api/overview');
@@ -69,16 +118,17 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-dark">
+  <div class="editorial-page">
     <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
-      <div class="mb-16 border-b border-dc-yellow/10 pb-8 lg:mb-20">
+      <div class="mb-10 border-b border-dc-yellow/10 pb-8 lg:mb-12">
         <div class="flex items-start justify-between gap-8">
           <div>
-            <h1 class="mb-3 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
-              Event Archive
+            <p class="editorial-eyebrow">community memory</p>
+            <h1 class="editorial-title mt-3">
+              Archive
             </h1>
-            <p class="max-w-2xl text-base leading-relaxed text-dc-gray-light sm:text-lg">
-              Browse past events and view presentation slides
+            <p class="editorial-subtitle mt-4">
+              Find the talks, speakers, topics, and slide decks that keep the community useful after event night.
             </p>
           </div>
           <div v-if="completedEvents.length > 0" class="hidden flex-col items-end gap-1 font-mono text-xs uppercase tracking-wider sm:flex">
@@ -88,17 +138,17 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="loading" class="border-2 border-dc-dark-3 bg-dc-dark-1 p-12 text-center font-mono text-dc-gray">
+      <div v-if="loading" class="editorial-panel p-12 text-center font-mono text-dc-gray">
         Loading archive...
       </div>
       <div v-else-if="error" class="border-2 border-red-500/60 bg-red-950/30 p-12 text-center font-mono text-red-100">
         {{ error }}
       </div>
-      <div v-else-if="completedEvents.length === 0" class="border-2 border-dc-dark-3 bg-dc-dark-1 p-12 text-center">
+      <div v-else-if="completedEvents.length === 0" class="editorial-panel p-12 text-center">
         <p class="font-mono text-dc-gray">No completed events yet. Check back soon.</p>
       </div>
 
-      <div v-else class="flex flex-col gap-12 lg:flex-row lg:gap-16">
+      <div v-else class="flex flex-col gap-10 lg:flex-row lg:gap-14">
         <aside class="lg:sticky lg:top-24 lg:w-56 lg:self-start">
           <div class="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4 lg:hidden">
             <button
@@ -137,12 +187,54 @@ onMounted(async () => {
         </aside>
 
         <main class="min-w-0 flex-1">
-          <header class="mb-12 lg:mb-16">
+          <header class="mb-8 lg:mb-10">
             <h2 class="mb-4 text-6xl font-black leading-none tracking-tighter text-white sm:text-7xl lg:text-8xl">
               {{ activeYear }}
             </h2>
             <div class="h-px bg-dc-yellow/10" />
           </header>
+
+          <section class="editorial-panel mb-10 grid gap-4 p-4 md:grid-cols-[1fr_180px_220px_auto] md:items-end">
+            <label class="block">
+              <span class="editorial-label">Search archive</span>
+              <input
+                v-model="query"
+                class="editorial-input mt-2"
+                type="search"
+                placeholder="Search event, talk, speaker, topic"
+              >
+            </label>
+
+            <label class="block">
+              <span class="editorial-label">Topic</span>
+              <select v-model="selectedTopic" class="editorial-input mt-2">
+                <option value="">All topics</option>
+                <option v-for="topic in topics" :key="topic" :value="topic">{{ topic }}</option>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="editorial-label">Speaker</span>
+              <select v-model="selectedSpeaker" class="editorial-input mt-2">
+                <option value="">All speakers</option>
+                <option v-for="speaker in speakers" :key="speaker" :value="speaker">{{ speaker }}</option>
+              </select>
+            </label>
+
+            <button
+              class="editorial-secondary-action justify-center px-4 py-3 disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              :disabled="!hasActiveFilters"
+              @click="clearFilters"
+            >
+              Clear
+            </button>
+          </section>
+
+          <div v-if="selectedYearEvents.length === 0" class="editorial-panel p-8">
+            <h3 class="text-2xl font-black tracking-tight text-white">No archive matches</h3>
+            <p class="mt-2 text-dc-gray-light">Try a broader topic, speaker, or search term.</p>
+          </div>
 
           <div class="space-y-0">
             <RouterLink

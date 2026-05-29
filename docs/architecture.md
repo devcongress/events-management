@@ -5,7 +5,7 @@
 Vue 3 + Vite + TypeScript 5 — community tech conference platform. Full-stack monorepo: Vue SPA, Hono API, and Bun production server in one app process.
 
 **Intended production stack:** Supabase (auth, PostgreSQL, storage, realtime).
-**Current state:** Prototype — JSON flat-file mock DB, auth/session handling still pending in the new Hono server.
+**Current state:** Prototype — JSON flat-file mock DB, same-origin prototype admin cookie session, no production user auth yet.
 
 ---
 
@@ -76,14 +76,15 @@ devcongress-comm-idea/
 
 ### Active Vue Routes (`src/router.ts`)
 
-- `/` — migration dashboard backed by `/api/overview`
-- `/archive` — completed event archive
+- `/` — community hub backed by `/api/overview`
+- `/archive` — searchable completed event archive
 - `/archive/[eventId]` — published talks for one event
 - `/leaderboard` — public leaderboard and prototype account claim/merge tools
 - `/cfp/[eventId]` — speaker CFP submission
 - `/my-talks` — speaker lookup and slide URL upload/update
 - `/play` — quiz join form
 - `/play/[code]` — live quiz player flow
+- `/admin/login` — prototype organizer sign-in
 - `/admin/events` — event management overview
 - `/admin/events/new` — create event form
 - `/admin/events/[eventId]` — event detail and status progression
@@ -96,6 +97,7 @@ devcongress-comm-idea/
 
 - `/api/health` — single-server runtime smoke check
 - `/api/overview` — events, talks, and leaderboard summary for the Vue shell
+- `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/logout` — same-origin prototype admin session
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail/status update
 - `/api/events/[eventId]/talks` — talks for event
@@ -103,9 +105,10 @@ devcongress-comm-idea/
 - `/api/events/[eventId]/validate-speaker` — CFP speaker allowlist validation
 - `/api/cfp` — CFP submission
 - `/api/talks` — all talks, optional `eventId` query filter
-- `/api/talks/[talkId]` — talk status/slide URL update
+- `/api/talks/[talkId]` — admin talk status update or speaker slide URL update
+- `/api/talks/[talkId]/reminder` — logs organizer slide reminders for accepted talks
 - `/api/my-talks` — speaker talk lookup
-- `/api/leaderboard` — all-time/session leaderboard
+- `/api/leaderboard` — all-time, monthly, or session leaderboard
 - `/api/users/claim`, `/api/users/merge` — prototype account tools
 - `/api/quiz/active`, `/api/quiz/join`, `/api/quiz/state`, `/api/quiz/answer` — player quiz flow
 - `/api/quiz/sessions*`, `/api/quiz/questions*` — quiz builder/live host flow
@@ -208,6 +211,7 @@ Browser (admin) → PATCH /api/quiz/sessions/[id]
 | `bun` | Production runtime and static/API server |
 | `pinia` | Active client state library |
 | `vue-router` | Active client routing |
+| `qrcode` | Local QR-code generation for quiz lobby join links |
 | `tailwindcss` 3 | Utility CSS |
 | `tailwind-merge` | Merge Tailwind class strings without conflicts |
 | `class-variance-authority` | Variant-based component styling |

@@ -29,9 +29,8 @@
   - Admin page: `app/(admin)/admin/events/[eventId]/speakers/page.tsx`
   - APIs: `/api/events/[eventId]/speakers` (`GET`/`POST`), `/api/events/[eventId]/speakers/[speakerId]` (`DELETE`)
 - **Talk review + slides**
-  - Admin talks page: `app/(admin)/admin/events/[eventId]/talks/page.tsx`
-  - Speaker page: `app/(public)/my-talks/page.tsx`
-  - APIs: `/api/talks/[talkId]`, `/api/talks/[talkId]/upload`, `/api/my-talks`
+  - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/MyTalksView.vue`
+  - APIs: `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`, `/api/my-talks`
 - **Quiz authoring + live ops**
   - Active Vue pages: `src/views/admin/AdminQuizView.vue`, `src/views/PlayView.vue`, `src/views/PlayCodeView.vue`
   - Builder: `app/(admin)/admin/events/[eventId]/quiz/page.tsx`
@@ -58,17 +57,20 @@
   - `server/index.ts` starts Bun in production, serving `/api/*` through Hono and all other paths from `dist/`.
 - **Current active APIs:**
   - `/api/health`
+  - `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/logout`
   - `/api/overview`
   - `/api/events`
   - `/api/talks`
   - `/api/leaderboard`
-- **Auth note:** No auth/session layer has been migrated yet. The one-server setup is intended to support same-origin cookie auth later.
+- **Auth note:** Admin routes and organizer mutations use a same-origin HTTP-only cookie session. Set `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` outside local development; otherwise the prototype falls back to local defaults.
 
 ### Vue App (`src/`)
 
 - `src/main.ts` mounts Vue, Pinia, and Vue Router.
 - `src/App.vue` provides the active shell/nav.
-- `src/views/DashboardView.vue` validates the migration by fetching `/api/overview` and rendering event/talk/leaderboard data from the existing mock DB.
+- `src/views/DashboardView.vue` renders the community hub: featured event/CFP, live quiz join, recent talks, and top members from `/api/overview`.
+- `src/views/ArchiveView.vue` filters completed events by year, query, topic, and speaker.
+- `src/views/admin/AdminQuizView.vue` generates local QR-code join links for the live lobby.
 - Legacy Next pages/components remain in `app/`, `components/`, and `hooks/` as a reference while routes are ported.
 
 ### Quiz State API (`app/api/quiz/state/route.ts`)
@@ -135,6 +137,10 @@ POST /api/cfp
 ```
 PATCH /api/talks/[talkId]
   body: { status: 'accepted' | 'rejected' | 'slides_received' | 'published' }
+  → requires admin cookie session when changing status
+
+POST /api/talks/[talkId]/reminder
+  → logs an organizer slide reminder for accepted talks without uploaded slides
 ```
 
 ### Quiz Session Lifecycle (Admin)
@@ -147,11 +153,12 @@ PATCH /api/quiz/sessions/[id]    → partial QuizSession field updates
 ```
 POST /api/quiz/join              body: { join_code, nickname, device_id }
   → creates/finds User by deviceId, creates QuizParticipant
+  → increments User.events_participated when joining a new session
   → returns { session_id, user_id, participant_id }
 
 GET  /api/quiz/state?sessionId=&userId=   (polled every 1500ms)
 POST /api/quiz/answer            body: { session_id, user_id, answer_index }
-  → scores via scoring.ts, updates QuizParticipant totals
+  → scores via scoring.ts, updates QuizParticipant totals and User.total_points
 ```
 
 

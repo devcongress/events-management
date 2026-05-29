@@ -5,6 +5,17 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-05-29 — Community product hardening
+
+- Reframed the Vue landing page as a community hub with CFP/live quiz actions, recent published talks, and top members.
+- Added archive search and filters across event text, talk titles, topics, and speakers.
+- Improved speaker slide workflow with visible deadlines, upload state, and organizer reminder logging.
+- Added local QR-code generation to the live quiz lobby.
+- Updated reputation tracking so new quiz participation increments event counts and answers add to user totals.
+- Added all-time/monthly leaderboard modes and claimed-profile badges.
+- Added same-origin prototype admin cookie auth with `/admin/login`, route redirects, logout, and server-side guards for organizer mutations.
+- Added planning/status files for the autonomous community-product pass.
+
 ## 2026-05-29 — Stack migration foundation
 
 - Added Satoshi + IBM Plex Mono typography direction and removed the old Lato/JetBrains Mono pairing.

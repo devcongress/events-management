@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 interface NavLink {
   href: string;
@@ -9,6 +9,7 @@ interface NavLink {
 }
 
 const route = useRoute();
+const router = useRouter();
 
 const publicLinks: NavLink[] = [
   { href: '/', label: 'Home' },
@@ -47,6 +48,11 @@ function linkClass(link: NavLink) {
 
   return 'border-transparent text-dc-gray-light hover:border-dc-yellow/25 hover:text-white';
 }
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  await router.push('/');
+}
 </script>
 
 <template>
@@ -65,6 +71,13 @@ function linkClass(link: NavLink) {
             <span class="border border-dc-yellow/20 px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-gray-light">
               {{ isAdminRoute ? 'Organizer' : 'Community' }}
             </span>
+            <button
+              v-if="isAdminRoute && route.path !== '/admin/login'"
+              class="border border-dc-yellow/20 px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-gray-light transition-colors hover:border-dc-yellow/50 hover:text-white"
+              @click="logout"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
 

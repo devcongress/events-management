@@ -3,6 +3,7 @@ import ArchiveEventView from './views/ArchiveEventView.vue';
 import ArchiveView from './views/ArchiveView.vue';
 import AdminEventView from './views/admin/AdminEventView.vue';
 import AdminEventsView from './views/admin/AdminEventsView.vue';
+import AdminLoginView from './views/admin/AdminLoginView.vue';
 import AdminQuizView from './views/admin/AdminQuizView.vue';
 import AdminSpeakersView from './views/admin/AdminSpeakersView.vue';
 import AdminTalksView from './views/admin/AdminTalksView.vue';
@@ -24,6 +25,7 @@ export const router = createRouter({
     { path: '/my-talks', name: 'my-talks', component: MyTalksView },
     { path: '/play', name: 'play', component: PlayView },
     { path: '/play/:code', name: 'play-code', component: PlayCodeView },
+    { path: '/admin/login', name: 'admin-login', component: AdminLoginView },
     { path: '/admin', redirect: '/admin/events' },
     { path: '/admin/events', name: 'admin-events', component: AdminEventsView },
     { path: '/admin/events/new', name: 'admin-events-new', component: AdminEventsView },
@@ -33,4 +35,23 @@ export const router = createRouter({
     { path: '/admin/events/:eventId/quiz', name: 'admin-quiz', component: AdminQuizView },
     { path: '/admin/events/:eventId/quiz/live', name: 'admin-quiz-live', component: AdminQuizView },
   ],
+});
+
+router.beforeEach(async (to) => {
+  if (!to.path.startsWith('/admin') || to.path === '/admin/login') {
+    return true;
+  }
+
+  const response = await fetch('/api/auth/session');
+  if (response.ok) {
+    const session = await response.json();
+    if (session.authenticated) {
+      return true;
+    }
+  }
+
+  return {
+    path: '/admin/login',
+    query: { redirect: to.fullPath },
+  };
 });

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { SIMULATED_DELAY_MS } from '@/lib/constants';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { createEvent, getAllEvents, getEventById, updateEvent } from '@/lib/mock-db/events';
@@ -8,13 +9,39 @@ import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParti
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
-import { createTalk, getAllTalks, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
+import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
 import { now } from '@/lib/utils';
+import type { Context } from 'hono';
 import type { LeaderboardEntry, QuizParticipant, QuizStateResponse, Response, User } from '@/types';
 
 const app = new Hono();
+const ADMIN_SESSION_COOKIE = 'devcon_admin';
+
+function envValue(key: string): string | undefined {
+  return typeof Bun === 'undefined' ? process.env[key] : Bun.env[key];
+}
+
+function adminPassword(): string {
+  return envValue('ADMIN_PASSWORD') ?? 'devcon-admin';
+}
+
+function adminSessionToken(): string {
+  return envValue('ADMIN_SESSION_SECRET') ?? 'devcon-local-session';
+}
+
+function isAdminRequest(c: Context): boolean {
+  return getCookie(c, ADMIN_SESSION_COOKIE) === adminSessionToken();
+}
+
+function requireAdmin(c: Context): globalThis.Response | null {
+  if (isAdminRequest(c)) {
+    return null;
+  }
+
+  return c.json({ error: 'Admin session required' }, 401);
+}
 
 app.get('/api/health', (c) => {
   return c.json({
@@ -23,14 +50,45 @@ app.get('/api/health', (c) => {
   });
 });
 
+app.get('/api/auth/session', (c) => {
+  return c.json({
+    authenticated: isAdminRequest(c),
+  });
+});
+
+app.post('/api/auth/admin/login', async (c) => {
+  const { password } = await c.req.json();
+
+  if (String(password ?? '') !== adminPassword()) {
+    return c.json({ error: 'Invalid admin password' }, 401);
+  }
+
+  setCookie(c, ADMIN_SESSION_COOKIE, adminSessionToken(), {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: envValue('NODE_ENV') === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 12,
+  });
+
+  return c.json({ authenticated: true });
+});
+
+app.post('/api/auth/logout', (c) => {
+  deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
+  return c.json({ authenticated: false });
+});
+
 app.get('/api/overview', async (c) => {
-  const [events, talks, leaderboard] = await Promise.all([
+  const [events, talks, leaderboard, sessions] = await Promise.all([
     getAllEvents(),
     getAllTalks(),
     buildLeaderboard(),
+    getAllQuizSessions(),
   ]);
+  const activeSession = sessions.find((session) => session.status === 'waiting' || session.status === 'active') ?? null;
 
-  return c.json({ events, talks, leaderboard });
+  return c.json({ events, talks, leaderboard, activeSession });
 });
 
 app.get('/api/events', async (c) => {
@@ -38,6 +96,9 @@ app.get('/api/events', async (c) => {
 });
 
 app.post('/api/events', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   const body = await c.req.json();
   const { name, description, event_date } = body;
 
@@ -63,6 +124,9 @@ app.get('/api/events/:eventId', async (c) => {
 });
 
 app.patch('/api/events/:eventId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   try {
     return c.json(await updateEvent(c.req.param('eventId'), await c.req.json()));
   } catch (error) {
@@ -79,6 +143,9 @@ app.get('/api/events/:eventId/speakers', async (c) => {
 });
 
 app.post('/api/events/:eventId/speakers', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   const body = await c.req.json();
   const { email, name } = body;
 
@@ -98,6 +165,9 @@ app.post('/api/events/:eventId/speakers', async (c) => {
 });
 
 app.delete('/api/events/:eventId/speakers/:speakerId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   try {
     await removeSpeaker(c.req.param('speakerId'));
     return c.json({ ok: true });
@@ -131,6 +201,9 @@ app.patch('/api/talks/:talkId', async (c) => {
   const updates: Record<string, unknown> = {};
 
   if (body.status) {
+    const adminError = requireAdmin(c);
+    if (adminError) return adminError;
+
     updates.status = body.status;
   }
 
@@ -153,6 +226,26 @@ app.patch('/api/talks/:talkId', async (c) => {
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Failed to update talk' }, 500);
   }
+});
+
+app.post('/api/talks/:talkId/reminder', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const talk = await getTalkById(c.req.param('talkId'));
+
+  if (!talk) {
+    return c.json({ error: 'Talk not found' }, 404);
+  }
+
+  if (talk.status !== 'accepted' || talk.slides_uploaded_at) {
+    return c.json({ error: 'Only accepted talks without slides can receive reminders' }, 400);
+  }
+
+  return c.json(await updateTalk(talk.id, {
+    reminder_sent_count: talk.reminder_sent_count + 1,
+    last_reminder_sent_at: now(),
+  }));
 });
 
 app.get('/api/my-talks', async (c) => {
@@ -227,6 +320,10 @@ app.get('/api/leaderboard', async (c) => {
     return c.json(await buildSessionLeaderboard(sessionId));
   }
 
+  if (type === 'monthly') {
+    return c.json(await buildMonthlyLeaderboard());
+  }
+
   return c.json(await buildLeaderboard());
 });
 
@@ -247,6 +344,9 @@ app.get('/api/quiz/sessions', async (c) => {
 });
 
 app.post('/api/quiz/sessions', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   const { event_id } = await c.req.json();
   if (!event_id) {
     return c.json({ error: 'event_id is required' }, 400);
@@ -270,6 +370,9 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
 });
 
 app.patch('/api/quiz/sessions/:sessionId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   try {
     return c.json(await updateQuizSession(c.req.param('sessionId'), await c.req.json()));
   } catch (error) {
@@ -278,6 +381,9 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
 });
 
 app.post('/api/quiz/questions', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   const body = await c.req.json();
   const { quiz_session_id, question_text, options, correct_index, order_index, time_limit_seconds, points } = body;
 
@@ -297,6 +403,9 @@ app.post('/api/quiz/questions', async (c) => {
 });
 
 app.patch('/api/quiz/questions/:questionId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   try {
     return c.json(await updateQuestion(c.req.param('questionId'), await c.req.json()));
   } catch (error) {
@@ -305,6 +414,9 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
 });
 
 app.delete('/api/quiz/questions/:questionId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   try {
     await deleteQuestion(c.req.param('questionId'));
     return c.json({ ok: true });
@@ -314,6 +426,9 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
 });
 
 app.post('/api/quiz/questions/reorder', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
   const { session_id, question_ids } = await c.req.json();
   if (!session_id || !Array.isArray(question_ids)) {
     return c.json({ error: 'session_id and question_ids are required' }, 400);
@@ -357,6 +472,9 @@ app.post('/api/quiz/join', async (c) => {
     quiz_session_id: session.id,
     user_id: user.id,
     nickname_used: nickname,
+  });
+  await updateUser(user.id, {
+    events_participated: user.events_participated + 1,
   });
 
   return c.json({
@@ -429,6 +547,12 @@ app.post('/api/quiz/answer', async (c) => {
     total_score: participant.total_score + totalPoints,
     current_streak: newStreak,
   });
+  const user = await getUserById(user_id);
+  if (user && !user.merged_into_user_id) {
+    await updateUser(user.id, {
+      total_points: user.total_points + totalPoints,
+    });
+  }
 
   return c.json({
     is_correct: isCorrect,
@@ -723,6 +847,39 @@ async function buildSessionLeaderboard(sessionId: string): Promise<LeaderboardEn
       total_score: participant.total_score,
       rank: index + 1,
       streak_count: participant.current_streak,
+    }));
+}
+
+async function buildMonthlyLeaderboard(): Promise<(LeaderboardEntry & { events_participated: number; is_claimed: boolean; device_id: string | null })[]> {
+  const [users, responses] = await Promise.all([
+    getAllUsers(),
+    readData<Response>('responses'),
+  ]);
+  const userById = new Map(users.map((user) => [user.id, user]));
+  const nowDate = new Date();
+  const monthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+  const totals = new Map<string, number>();
+
+  for (const response of responses) {
+    if (new Date(response.created_at).getTime() < monthStart || !response.points_awarded) {
+      continue;
+    }
+    totals.set(response.user_id, (totals.get(response.user_id) ?? 0) + response.points_awarded);
+  }
+
+  return [...totals.entries()]
+    .map(([userId, score]) => ({ user: userById.get(userId), score }))
+    .filter((entry): entry is { user: User; score: number } => Boolean(entry.user && !entry.user.is_admin && !entry.user.merged_into_user_id))
+    .sort((a, b) => b.score - a.score)
+    .map(({ user, score }, index) => ({
+      rank: index + 1,
+      nickname: user.username || user.nickname || 'Anonymous',
+      total_score: score,
+      events_participated: user.events_participated,
+      is_claimed: user.is_claimed,
+      user_id: user.id,
+      device_id: user.device_id,
+      streak_count: 0,
     }));
 }
 

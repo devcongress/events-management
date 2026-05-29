@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import QRCode from 'qrcode';
 import type { Question, QuizSession } from '@/types';
 import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
 
@@ -11,6 +12,7 @@ const session = ref<SessionWithQuestions | null>(null);
 const loading = ref(true);
 const saving = ref(false);
 const liveState = ref<any>(null);
+const qrCodeUrl = ref<string | null>(null);
 const form = reactive({
   question_text: '',
   options: ['', '', '', ''],
@@ -20,6 +22,10 @@ const form = reactive({
 });
 
 const liveMode = computed(() => route.path.endsWith('/live'));
+const playUrl = computed(() => {
+  if (!session.value) return '';
+  return `${window.location.origin}/play/${session.value.join_code}`;
+});
 let pollTimer: number | undefined;
 
 async function fetchSession() {
@@ -37,9 +43,25 @@ async function fetchSession() {
   const response = await fetch(`/api/quiz/sessions/${sessions[0].id}`);
   if (response.ok) {
     session.value = await response.json();
+    await refreshQrCode();
     await fetchLiveState();
   }
   loading.value = false;
+}
+
+async function refreshQrCode() {
+  if (!session.value) {
+    qrCodeUrl.value = null;
+    return;
+  }
+  qrCodeUrl.value = await QRCode.toDataURL(playUrl.value, {
+    margin: 1,
+    width: 280,
+    color: {
+      dark: '#0b0b0d',
+      light: '#f9e15e',
+    },
+  });
 }
 
 async function fetchLiveState() {
@@ -166,6 +188,13 @@ onUnmounted(() => {
             <div class="mb-10 inline-block border-4 border-dc-yellow bg-dc-dark-1 p-10 shadow-glow">
               <p class="mb-3 font-mono text-xl uppercase tracking-wide text-dc-gray-light">Join Code:</p>
               <p class="animate-pulse-glow font-mono text-8xl font-bold tracking-widest text-dc-yellow">{{ session.join_code }}</p>
+            </div>
+            <div v-if="qrCodeUrl" class="mx-auto mb-10 grid max-w-3xl gap-6 md:grid-cols-[280px_1fr] md:items-center md:text-left">
+              <img :src="qrCodeUrl" alt="Quiz join QR code" class="mx-auto size-[280px] border-4 border-dc-yellow bg-dc-yellow p-3 shadow-glow" />
+              <div>
+                <p class="font-mono text-sm font-bold uppercase tracking-[0.2em] text-dc-yellow">Scan to join</p>
+                <p class="mt-3 break-all text-xl text-dc-gray-light">{{ playUrl }}</p>
+              </div>
             </div>
             <div class="mb-10 text-4xl text-white">
               <span class="font-bold text-dc-yellow">{{ liveState?.participants_count ?? session.participantCount }}</span>

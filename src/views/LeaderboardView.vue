@@ -17,6 +17,7 @@ const claiming = ref(false);
 const merging = ref(false);
 const accountMessage = ref<string | null>(null);
 const accountError = ref<string | null>(null);
+const leaderboardMode = ref<'all-time' | 'monthly'>('all-time');
 
 const claimForm = reactive({
   userId: '',
@@ -34,13 +35,20 @@ const mergeForm = reactive({
 });
 
 const topThree = computed(() => leaderboard.value.slice(0, 3));
+const title = computed(() => leaderboardMode.value === 'monthly' ? 'This Month' : 'All-Time Leaderboard');
 
 async function fetchData() {
-  const response = await fetch('/api/leaderboard?type=all-time');
+  loading.value = true;
+  const response = await fetch(`/api/leaderboard?type=${leaderboardMode.value}`);
   if (response.ok) {
     leaderboard.value = await response.json();
   }
   loading.value = false;
+}
+
+async function setMode(mode: 'all-time' | 'monthly') {
+  leaderboardMode.value = mode;
+  await fetchData();
 }
 
 async function submitClaim() {
@@ -125,8 +133,25 @@ onMounted(fetchData);
     <div class="editorial-wrap">
       <div class="editorial-header">
         <p class="editorial-eyebrow">rankings</p>
-        <h1 class="editorial-title">All-Time Leaderboard</h1>
-        <p class="editorial-subtitle">Top players across all quiz sessions, with prototype tools for claiming and merging profiles.</p>
+        <h1 class="editorial-title">{{ title }}</h1>
+        <p class="editorial-subtitle">Community reputation from live quiz play, with profile claiming for people who show up across events.</p>
+      </div>
+
+      <div class="mb-8 flex flex-wrap gap-3">
+        <button
+          class="border px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide transition-colors"
+          :class="leaderboardMode === 'all-time' ? 'border-dc-yellow bg-dc-yellow text-dc-dark' : 'border-dc-yellow/20 text-dc-gray-light hover:border-dc-yellow/50 hover:text-white'"
+          @click="setMode('all-time')"
+        >
+          All Time
+        </button>
+        <button
+          class="border px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide transition-colors"
+          :class="leaderboardMode === 'monthly' ? 'border-dc-yellow bg-dc-yellow text-dc-dark' : 'border-dc-yellow/20 text-dc-gray-light hover:border-dc-yellow/50 hover:text-white'"
+          @click="setMode('monthly')"
+        >
+          This Month
+        </button>
       </div>
 
       <div v-if="loading" class="flex min-h-[40vh] items-center justify-center">
@@ -191,6 +216,7 @@ onMounted(fetchData);
               <div class="col-span-6 flex flex-col justify-center">
                 <div class="text-lg font-bold" :class="entry.rank <= 3 ? 'text-dc-yellow' : 'text-white'">
                   {{ entry.nickname }}
+                  <span v-if="entry.is_claimed" class="ml-2 align-middle font-mono text-xs font-bold uppercase tracking-wide text-green-300">claimed</span>
                 </div>
                 <div v-if="entry.user_id" class="mt-1 font-mono text-xs text-dc-gray">
                   ID: {{ entry.user_id }}
