@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
+import { adminPath } from '@/src/admin-routes';
 
 const props = defineProps<{
   eventId: string;
@@ -16,7 +17,7 @@ const tabs = [
 ];
 
 function tabPath(href: string) {
-  return href ? `/admin/events/${props.eventId}/${href}` : `/admin/events/${props.eventId}`;
+  return href ? adminPath(`events/${props.eventId}/${href}`) : adminPath(`events/${props.eventId}`);
 }
 
 function isActive(href: string) {

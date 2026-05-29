@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
 const router = useRouter();
@@ -25,7 +26,7 @@ async function login() {
     return;
   }
 
-  await router.push(String(route.query.redirect ?? '/admin/events'));
+  await router.push(String(route.query.redirect ?? adminPath('events')));
 }
 </script>
 

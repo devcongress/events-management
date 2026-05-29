@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';
 import type { GeneratedQuizFromPaperSummary, Question, QuizSession } from '@/types';
 import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
+import { adminPath } from '@/src/admin-routes';
 
 type SessionWithQuestions = QuizSession & { questions: Question[]; participantCount: number };
 type QuestionForm = {
@@ -310,7 +311,7 @@ onUnmounted(() => {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <RouterLink :to="`/admin/events/${route.params.eventId}`" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
+      <RouterLink :to="adminPath(`events/${route.params.eventId}`)" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENT
       </RouterLink>
       <AdminEventTabs :event-id="String(route.params.eventId)" />
@@ -386,7 +387,7 @@ onUnmounted(() => {
           </div>
           <div class="flex gap-3">
             <button v-if="session.questions.length > 0 && session.status === 'draft'" class="border-2 border-green-400/30 bg-green-900/30 px-6 py-3 font-bold uppercase tracking-wide text-green-400" @click="openLobby">OPEN LOBBY</button>
-            <RouterLink v-if="session.status === 'waiting'" :to="`/admin/events/${route.params.eventId}/quiz/live`" class="border-2 border-green-400/30 bg-green-900/30 px-6 py-3 font-bold uppercase tracking-wide text-green-400">GO TO LOBBY</RouterLink>
+            <RouterLink v-if="session.status === 'waiting'" :to="adminPath(`events/${route.params.eventId}/quiz/live`)" class="border-2 border-green-400/30 bg-green-900/30 px-6 py-3 font-bold uppercase tracking-wide text-green-400">GO TO LOBBY</RouterLink>
           </div>
         </div>
 

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { Event } from '@/types';
+import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,7 +40,7 @@ async function createNewEvent() {
 
   if (response.ok) {
     const event = await response.json();
-    await router.push(`/admin/events/${event.id}`);
+    await router.push(adminPath(`events/${event.id}`));
   } else {
     const data = await response.json();
     error.value = data.error || 'Failed to create event';
@@ -95,7 +96,7 @@ onMounted(fetchEvents);
           </div>
           <div class="flex gap-3">
             <button type="submit" :disabled="saving" class="editorial-action disabled:opacity-60">{{ saving ? 'CREATING...' : 'CREATE EVENT' }}</button>
-            <RouterLink to="/admin/events" class="editorial-secondary-action">CANCEL</RouterLink>
+            <RouterLink :to="adminPath('events')" class="editorial-secondary-action">CANCEL</RouterLink>
           </div>
         </form>
       </template>
@@ -107,7 +108,7 @@ onMounted(fetchEvents);
             <h1 class="editorial-title">Event Management</h1>
             <p class="editorial-subtitle">Create events, move them through the program lifecycle, and jump into talk, speaker, or quiz operations.</p>
           </div>
-          <RouterLink to="/admin/events/new" class="editorial-action shrink-0">CREATE EVENT</RouterLink>
+          <RouterLink :to="adminPath('events/new')" class="editorial-action shrink-0">CREATE EVENT</RouterLink>
         </div>
 
         <div v-if="loading" class="py-12 text-center font-mono text-white">LOADING...</div>
@@ -129,7 +130,7 @@ onMounted(fetchEvents);
                 <span class="border px-2 py-1 font-mono text-xs font-bold uppercase" :class="statusClass(event.status)">{{ event.status.replace('_', ' ') }}</span>
               </div>
               <div class="col-span-2 flex items-center justify-end">
-                <RouterLink :to="`/admin/events/${event.id}`" class="font-mono text-sm font-bold uppercase text-dc-yellow hover:text-dc-yellow-glow">MANAGE &rarr;</RouterLink>
+                <RouterLink :to="adminPath(`events/${event.id}`)" class="font-mono text-sm font-bold uppercase text-dc-yellow hover:text-dc-yellow-glow">MANAGE &rarr;</RouterLink>
               </div>
             </div>
           </div>

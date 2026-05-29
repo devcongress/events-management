@@ -6,11 +6,13 @@
 |---|---|
 | `src/main.ts` | Vue app bootstrap — Pinia, Vue Router, global CSS |
 | `src/App.vue` | Active app shell and top navigation |
+| `src/admin-routes.ts` | Configurable organizer route base path helpers |
 | `src/router.ts` | Active Vue route table |
 | `src/views/DashboardView.vue` | DEV::CON[] landing page backed by current mock data |
 | `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public archive and talk detail surfaces |
 | `src/views/CfpView.vue` / `MyTalksView.vue` | Speaker CFP and slide management flows |
 | `src/views/PlayView.vue` / `PlayCodeView.vue` | Quiz join and live player gameplay |
+| `src/views/NotFoundView.vue` | Branded fallback for unknown Vue routes |
 | `src/views/admin/*` | Active admin event/talk/speaker/quiz management views |
 | `server/app.ts` | Hono app — active API routes plus dev SPA fallback |
 | `server/index.ts` | Bun production server — serves `dist/` and `/api/*` on one port |
@@ -70,6 +72,7 @@
 - `src/App.vue` provides the active shell/nav.
 - `src/views/DashboardView.vue` renders the community hub: featured event/CFP, live quiz join, recent talks, and top members from `/api/overview`.
 - `src/views/ArchiveView.vue` filters completed events by year, query, topic, and speaker.
+- `src/views/NotFoundView.vue` is mounted by the final Vue Router catch-all route for unknown client paths.
 - `src/views/admin/AdminQuizView.vue` generates local QR-code join links for the live lobby.
 - Legacy Next pages/components remain in `app/`, `components/`, and `hooks/` as a reference while routes are ported.
 

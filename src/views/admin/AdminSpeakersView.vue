@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Event, EventSpeaker } from '@/types';
 import AdminEventTabs from '@/src/components/AdminEventTabs.vue';
+import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
 const event = ref<Event | null>(null);
@@ -52,7 +53,7 @@ onMounted(fetchAll);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <RouterLink :to="`/admin/events/${route.params.eventId}`" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
+      <RouterLink :to="adminPath(`events/${route.params.eventId}`)" class="mb-6 inline-flex items-center gap-2 font-mono text-dc-yellow hover:text-dc-yellow-glow">
         <span>&larr;</span> BACK TO EVENT
       </RouterLink>
       <AdminEventTabs :event-id="String(route.params.eventId)" />

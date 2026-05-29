@@ -5,6 +5,17 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-05-29 — Configurable organizer route
+
+- Moved organizer-facing Vue routes from the predictable `/admin` prefix to a configurable `VITE_ADMIN_BASE_PATH`, defaulting to `/organizer-console`.
+- Updated admin navigation, auth redirects, event tabs, and admin back links to build URLs through the shared route helper.
+- Added a catch-all client route so old or unknown paths recover through the branded 404 instead of exposing an admin entry point.
+
+## 2026-05-29 — Branded 404 page
+
+- Added a Vue catch-all route for unknown client paths.
+- Added a branded 404 page with the missing path, quick recovery links, and organizer-aware primary navigation.
+
 ## 2026-05-29 — Softer admin UI polish
 
 - Reduced hard-edged admin chrome with softer shared panels, controls, tabs, and inputs.

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { adminPath, isAdminPath } from './admin-routes';
 
 interface NavLink {
   href: string;
@@ -26,10 +27,10 @@ const playLinks: NavLink[] = [
 ];
 
 const adminLinks: NavLink[] = [
-  { href: '/admin/events', label: 'Admin' },
+  { href: adminPath('events'), label: 'Admin' },
 ];
 
-const isAdminRoute = computed(() => route.path.startsWith('/admin'));
+const isAdminRoute = computed(() => isAdminPath(route.path));
 const primaryLinks = computed(() => (isAdminRoute.value ? adminLinks : publicLinks));
 
 function isActive(href: string) {
@@ -72,7 +73,7 @@ async function logout() {
               {{ isAdminRoute ? 'Organizer' : 'Community' }}
             </span>
             <button
-              v-if="isAdminRoute && route.path !== '/admin/login'"
+              v-if="isAdminRoute && route.path !== adminPath('login')"
               class="rounded-md border border-dc-yellow/15 bg-dc-yellow/[0.03] px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-gray-light transition-colors hover:border-dc-yellow/40 hover:text-white"
               @click="logout"
             >

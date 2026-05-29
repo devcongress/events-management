@@ -84,14 +84,16 @@ devcongress-comm-idea/
 - `/my-talks` — speaker lookup and slide URL upload/update
 - `/play` — quiz join form
 - `/play/[code]` — live quiz player flow
-- `/admin/login` — prototype organizer sign-in
-- `/admin/events` — event management overview
-- `/admin/events/new` — create event form
-- `/admin/events/[eventId]` — event detail and status progression
-- `/admin/events/[eventId]/talks` — talk review/status management
-- `/admin/events/[eventId]/speakers` — speaker allowlist management
-- `/admin/events/[eventId]/quiz` — quiz builder
-- `/admin/events/[eventId]/quiz/live` — live quiz host controls
+- `/:pathMatch(.*)*` — branded 404 for unknown client routes
+- Organizer routes live under `VITE_ADMIN_BASE_PATH` (`/organizer-console` by default) instead of `/admin`
+- `[adminBase]/login` — prototype organizer sign-in
+- `[adminBase]/events` — event management overview
+- `[adminBase]/events/new` — create event form
+- `[adminBase]/events/[eventId]` — event detail and status progression
+- `[adminBase]/events/[eventId]/talks` — talk review/status management
+- `[adminBase]/events/[eventId]/speakers` — speaker allowlist management
+- `[adminBase]/events/[eventId]/quiz` — quiz builder
+- `[adminBase]/events/[eventId]/quiz/live` — live quiz host controls
 
 ### Active Hono API Routes (`server/app.ts`)
 

@@ -11,8 +11,10 @@ import CfpView from './views/CfpView.vue';
 import DashboardView from './views/DashboardView.vue';
 import LeaderboardView from './views/LeaderboardView.vue';
 import MyTalksView from './views/MyTalksView.vue';
+import NotFoundView from './views/NotFoundView.vue';
 import PlayCodeView from './views/PlayCodeView.vue';
 import PlayView from './views/PlayView.vue';
+import { adminPath, isAdminPath } from './admin-routes';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -25,20 +27,21 @@ export const router = createRouter({
     { path: '/my-talks', name: 'my-talks', component: MyTalksView },
     { path: '/play', name: 'play', component: PlayView },
     { path: '/play/:code', name: 'play-code', component: PlayCodeView },
-    { path: '/admin/login', name: 'admin-login', component: AdminLoginView },
-    { path: '/admin', redirect: '/admin/events' },
-    { path: '/admin/events', name: 'admin-events', component: AdminEventsView },
-    { path: '/admin/events/new', name: 'admin-events-new', component: AdminEventsView },
-    { path: '/admin/events/:eventId', name: 'admin-event', component: AdminEventView },
-    { path: '/admin/events/:eventId/talks', name: 'admin-talks', component: AdminTalksView },
-    { path: '/admin/events/:eventId/speakers', name: 'admin-speakers', component: AdminSpeakersView },
-    { path: '/admin/events/:eventId/quiz', name: 'admin-quiz', component: AdminQuizView },
-    { path: '/admin/events/:eventId/quiz/live', name: 'admin-quiz-live', component: AdminQuizView },
+    { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
+    { path: adminPath(), redirect: adminPath('events') },
+    { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
+    { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },
+    { path: adminPath('events/:eventId'), name: 'admin-event', component: AdminEventView },
+    { path: adminPath('events/:eventId/talks'), name: 'admin-talks', component: AdminTalksView },
+    { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView },
+    { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView },
+    { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
   ],
 });
 
 router.beforeEach(async (to) => {
-  if (!to.path.startsWith('/admin') || to.path === '/admin/login') {
+  if (!isAdminPath(to.path) || to.path === adminPath('login')) {
     return true;
   }
 
@@ -51,7 +54,7 @@ router.beforeEach(async (to) => {
   }
 
   return {
-    path: '/admin/login',
+    path: adminPath('login'),
     query: { redirect: to.fullPath },
   };
 });
