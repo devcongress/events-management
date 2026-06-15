@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { cors } from 'hono/cors';
 import { PDFParse } from 'pdf-parse';
 import { SIMULATED_DELAY_MS } from '@/lib/constants';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
-import { createEvent, getAllEvents, getEventById, updateEvent } from '@/lib/mock-db/events';
+import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
+import { getEventChecklist, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
+import { createEvent as createMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
+import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
@@ -11,22 +15,41 @@ import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSes
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import { createSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
 import { now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import type { Context } from 'hono';
-import type { GeneratedQuizFromPaperResponse, LeaderboardEntry, Question, QuizParticipant, QuizStateResponse, Response, User } from '@/types';
+import type { Event, EventChecklistItem, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizStateResponse, Response, Talk, User } from '@/types';
+import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 const app = new Hono();
 const ADMIN_SESSION_COOKIE = 'devcon_admin';
-const PAPER_QUIZ_MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const PUBLIC_MEETUP_COVERS = [
+  '/images/apr-meetup.jpg',
+  '/images/fido-dev-0375.jpg',
+  '/images/fido-dev-0539.jpg',
+];
+const DEFAULT_MEETUP_LOCATION = {
+  label: 'Accra, Ghana',
+  name: 'Accra, Ghana',
+  url: null,
+};
+const PAPER_QUIZ_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const ATTENDANCE_CSV_MAX_BYTES = 2 * 1024 * 1024;
 const PAPER_QUIZ_MAX_TEXT_CHARS = 60_000;
 const PAPER_QUIZ_MIN_TEXT_CHARS = 350;
 const PAPER_QUIZ_DEFAULT_QUESTION_COUNT = 5;
 const PAPER_QUIZ_MAX_QUESTION_COUNT = 8;
 const PAPER_QUIZ_GENERATION_NOTE = 'Prototype rule-based generation from extracted PDF text. Review and edit every question before going live.';
+const FEEDBACK_AUTO_OPEN_DAYS = 3;
+const FEEDBACK_AUTO_OPEN_MS = FEEDBACK_AUTO_OPEN_DAYS * 24 * 60 * 60 * 1000;
+const FEEDBACK_CAMPAIGN_STATUSES = new Set<FeedbackCampaignStatus>(['draft', 'active', 'closed']);
+const FEEDBACK_QUESTION_TYPES = new Set<FeedbackQuestionType>(['rating', 'text', 'choice', 'talk_select', 'yes_no']);
+const ROUTE_FEEDBACK_STATUSES = new Set<FeedbackStatus>(['new', 'reviewing', 'done', 'wont_fix']);
 const STOP_WORDS = new Set([
   'about',
   'above',
@@ -74,12 +97,57 @@ const STOP_WORDS = new Set([
   'would',
 ]);
 
+app.use('/api/public/*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'OPTIONS'],
+  maxAge: 86400,
+}));
+
 function adminPassword(c: Context): string {
   return envValue('ADMIN_PASSWORD', c) ?? 'devcon-admin';
 }
 
 function adminSessionToken(c: Context): string {
   return envValue('ADMIN_SESSION_SECRET', c) ?? 'devcon-local-session';
+}
+
+async function getAllEvents(c?: Context): Promise<Event[]> {
+  return (await getSupabaseCommunityEvents(c)) ?? getAllMockEvents();
+}
+
+async function getEventById(id: string, c?: Context): Promise<Event | undefined> {
+  const event = await getSupabaseCommunityEventById(id, c);
+  if (event !== null) return event;
+  return getMockEventById(id);
+}
+
+async function createEvent(data: {
+  name: string;
+  description: string | null;
+  event_date: string;
+  end_date?: string | null;
+  slug?: string | null;
+  cover?: string | null;
+  location?: Event['location'] | null;
+  registration_url?: string | null;
+  stream_url?: string | null;
+  embed_stream?: boolean;
+  photos?: Event['photos'];
+  publish_to_website?: boolean;
+}, c?: Context): Promise<Event> {
+  const event = await createSupabaseCommunityEvent(data, c);
+  if (event) return event;
+  return createMockEvent({
+    name: data.name,
+    description: data.description,
+    event_date: data.event_date,
+  });
+}
+
+async function updateEvent(id: string, updates: Partial<Omit<Event, 'id' | 'created_at'>>, c?: Context): Promise<Event> {
+  const event = await updateSupabaseCommunityEvent(id, updates, c);
+  if (event !== null && event !== undefined) return event;
+  return updateMockEvent(id, updates);
 }
 
 function isAdminRequest(c: Context): boolean {
@@ -94,12 +162,348 @@ function requireAdmin(c: Context): globalThis.Response | null {
   return c.json({ error: 'Admin session required' }, 401);
 }
 
-app.get('/api/health', (c) => {
-  return c.json({
-    ok: true,
-    runtime: typeof Bun === 'undefined' ? 'vite-dev-server' : 'bun',
+function setPublicApiCache(c: Context) {
+  c.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function eventSlug(event: Event): string {
+  return `${slugify(event.name)}-${event.id.slice(0, 8)}`;
+}
+
+function toWebsiteDateTime(value: string): string {
+  const iso = new Date(value).toISOString();
+  return `${iso.slice(0, 19)}+00:00`;
+}
+
+function meetupEndDate(start: string): string {
+  const date = new Date(start);
+  date.setHours(date.getHours() + 3);
+  return toWebsiteDateTime(date.toISOString());
+}
+
+function publicMeetupStatus(event: Event): PublicMeetup['status'] {
+  if (event.status === 'live') return 'live';
+  if (event.status === 'completed') return 'past';
+  return new Date(event.event_date).getTime() > Date.now() ? 'upcoming' : 'past';
+}
+
+function coverForEvent(event: Event): string {
+  if (event.cover) return event.cover;
+  const charTotal = [...event.id].reduce((total, char) => total + char.charCodeAt(0), 0);
+  return PUBLIC_MEETUP_COVERS[charTotal % PUBLIC_MEETUP_COVERS.length];
+}
+
+function absoluteAppUrl(origin: string, path: string): string {
+  return new URL(path, origin).toString();
+}
+
+function validExternalUrl(value: string | null): string | null {
+  return value && URL.canParse(value) ? value : null;
+}
+
+function isWebsiteMediaUrl(value: string): boolean {
+  return value.startsWith('/') || URL.canParse(value);
+}
+
+function normalizeEventPhotos(value: unknown): NonNullable<Event['photos']> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((photo) => {
+    if (!photo || typeof photo !== 'object') {
+      return [];
+    }
+
+    const candidate = photo as { url?: unknown; type?: unknown };
+    const url = typeof candidate.url === 'string' ? candidate.url.trim() : '';
+
+    if (!url || !isWebsiteMediaUrl(url)) {
+      return [];
+    }
+
+    return [{
+      url,
+      type: candidate.type === 'folder' ? 'folder' : 'image',
+    }];
   });
-});
+}
+
+function scheduleForTalks(talks: Talk[]): PublicMeetupScheduleItem[] {
+  const publishedTalks = talks.filter((talk) => talk.status === 'published');
+  const talkItems = publishedTalks.map((talk, index) => ({
+    time: `${7 + index}:00 PM`,
+    title: talk.title,
+    type: 'talk' as const,
+    lead: talk.speaker_name,
+    resources: validExternalUrl(talk.slides_url) ? [{ title: 'Slides', url: talk.slides_url as string }] : [],
+  }));
+
+  return [
+    {
+      time: '6:00 PM',
+      title: 'Doors open and networking',
+      type: 'networking',
+      lead: null,
+      resources: [],
+    },
+    ...talkItems,
+  ];
+}
+
+function speakersForTalks(talks: Talk[], origin: string): PublicMeetupSpeaker[] {
+  return talks
+    .filter((talk) => talk.status === 'published')
+    .map((talk) => ({
+      name: talk.speaker_name,
+      title: talk.bio ?? 'DevCongress community speaker',
+      bio: talk.bio,
+      image: absoluteAppUrl(origin, '/images/fido-dev-0375.jpg'),
+      talk_title: talk.title,
+      talk_description: talk.abstract,
+      slides_url: validExternalUrl(talk.slides_url),
+      recording_url: null,
+      socials: talk.github_username
+        ? [{ platform: 'github', url: `https://github.com/${talk.github_username}` }]
+        : [],
+    }));
+}
+
+function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): PublicMeetup {
+  const publishedTalks = eventTalks.filter((talk) => talk.status === 'published');
+  const registrationUrl = event.registration_url
+    ?? (event.status === 'cfp_open' || event.status === 'upcoming'
+      ? absoluteAppUrl(origin, `/cfp/${event.id}`)
+      : null);
+
+  const location = event.location ?? DEFAULT_MEETUP_LOCATION;
+  const endDate = event.end_date ? toWebsiteDateTime(event.end_date) : meetupEndDate(event.event_date);
+  const photos = normalizeEventPhotos(event.photos);
+
+  const cfpUrl = event.status === 'cfp_open'
+    ? absoluteAppUrl(origin, `/cfp/${event.id}`)
+    : null;
+
+  return {
+    id: event.id,
+    slug: eventSlug(event),
+    name: event.name,
+    status: publicMeetupStatus(event),
+    start: toWebsiteDateTime(event.event_date),
+    end: endDate,
+    description: event.description ?? 'A DevCongress community meetup for talks, peer learning, and practical developer conversations.',
+    cover: coverForEvent(event),
+    location,
+    stream_url: event.stream_url ?? null,
+    embed_stream: event.embed_stream ?? false,
+    registration_url: registrationUrl,
+    speakers: speakersForTalks(eventTalks, origin),
+    schedule: event.schedule ?? scheduleForTalks(eventTalks),
+    photos,
+    videos: event.videos ?? [],
+    talks_count: eventTalks.length,
+    published_talks_count: publishedTalks.length,
+    cfp_url: cfpUrl,
+    archive_url: absoluteAppUrl(origin, `/archive/${event.id}`),
+    updated_at: toWebsiteDateTime(event.updated_at),
+  };
+}
+
+async function buildPublicMeetups(origin: string, c?: Context) {
+  const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
+  return events
+    .filter((event) => event.status !== 'draft')
+    .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), origin))
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+}
+
+function publicAppOrigin(c: Context): string {
+  return envValue('PUBLIC_APP_URL', c) ?? new URL(c.req.url).origin;
+}
+
+function feedbackCampaignWindow(event: Event, campaign: FeedbackCampaign): { opens_at: string | null; closes_at: string | null } {
+  if (campaign.status === 'active') {
+    return {
+      opens_at: campaign.opens_at ?? null,
+      closes_at: campaign.closes_at ?? null,
+    };
+  }
+
+  const eventOpenDate = new Date(event.event_date);
+  const eventOpenMs = eventOpenDate.getTime();
+  const eventOpen = Number.isFinite(eventOpenMs) ? eventOpenDate : null;
+  const explicitOpen = campaign.opens_at ? new Date(campaign.opens_at) : null;
+  const validExplicitOpen = explicitOpen && Number.isFinite(explicitOpen.getTime()) ? explicitOpen : null;
+  const opensAt = validExplicitOpen ?? eventOpen;
+  const explicitClose = campaign.closes_at ? new Date(campaign.closes_at) : null;
+  const validExplicitClose = explicitClose && Number.isFinite(explicitClose.getTime()) ? explicitClose : null;
+  const autoClosesAt = eventOpen ? new Date(eventOpen.getTime() + FEEDBACK_AUTO_OPEN_MS) : null;
+  const closesAt = validExplicitClose ?? autoClosesAt;
+
+  return {
+    opens_at: opensAt?.toISOString() ?? null,
+    closes_at: closesAt?.toISOString() ?? null,
+  };
+}
+
+function isFeedbackCampaignOpen(event: Event, campaign: FeedbackCampaign): boolean {
+  const nowMs = Date.now();
+  const window = feedbackCampaignWindow(event, campaign);
+  const afterOpen = !window.opens_at || new Date(window.opens_at).getTime() <= nowMs;
+  const beforeClose = !window.closes_at || new Date(window.closes_at).getTime() >= nowMs;
+  const statusOpen = campaign.status === 'active'
+    || (campaign.status === 'draft' && campaign.auto_open_on_event_completion && event.status === 'completed');
+
+  return statusOpen && afterOpen && beforeClose;
+}
+
+function normalizeFeedbackQuestions(input: unknown): FeedbackQuestion[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((item, index) => {
+      const raw = item as Partial<FeedbackQuestion>;
+      const type = FEEDBACK_QUESTION_TYPES.has(raw.type as FeedbackQuestionType) ? raw.type as FeedbackQuestionType : 'text';
+      const label = String(raw.label ?? '').trim();
+      const options = Array.isArray(raw.options)
+        ? raw.options.map((option) => String(option).trim()).filter(Boolean)
+        : [];
+
+      if (!label) {
+        return null;
+      }
+
+      return {
+        id: String(raw.id ?? crypto.randomUUID()),
+        type,
+        label,
+        required: Boolean(raw.required),
+        options,
+        order_index: Number.isFinite(Number(raw.order_index)) ? Number(raw.order_index) : index,
+      };
+    })
+    .filter((question): question is FeedbackQuestion => question !== null)
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((question, index) => ({ ...question, order_index: index }));
+}
+
+function normalizeFeedbackAnswers(input: unknown): FeedbackAnswer[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((item) => {
+      const raw = item as Partial<FeedbackAnswer>;
+      const rawValue = raw.value;
+      const value = typeof rawValue === 'string' || typeof rawValue === 'number' || typeof rawValue === 'boolean' || rawValue === null
+        ? rawValue
+        : String(rawValue ?? '');
+
+      return {
+        question_id: String(raw.question_id ?? ''),
+        value,
+      };
+    })
+    .filter((answer) => answer.question_id);
+}
+
+function eventMonthKey(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 7);
+  }
+
+  return date.toISOString().slice(0, 7);
+}
+
+function eventMonthLabel(monthKey: string): string {
+  const date = new Date(`${monthKey}-01T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) {
+    return monthKey;
+  }
+
+  return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
+}
+
+function formatInsightPercent(value: number | null): number | null {
+  return value === null ? null : Math.round(value * 100);
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
+}
+
+function buildFeedbackInsights(
+  campaign: FeedbackCampaign,
+  submissions: Awaited<ReturnType<typeof getAllFeedbackSubmissions>>,
+  talks: Talk[],
+) {
+  const questionsById = new Map(campaign.questions.map((question) => [question.id, question]));
+  const talksById = new Map(talks.map((talk) => [talk.id, `${talk.title} · ${talk.speaker_name}`]));
+  const ratings: number[] = [];
+  const attendAgainValues: boolean[] = [];
+  const talkCounts = new Map<string, number>();
+  let commentCount = 0;
+
+  for (const submission of submissions) {
+    for (const answer of submission.answers) {
+      const question = questionsById.get(answer.question_id);
+      if (!question) continue;
+
+      if (question.type === 'rating' && typeof answer.value === 'number') {
+        ratings.push(answer.value);
+      }
+
+      if (question.type === 'yes_no' && typeof answer.value === 'boolean') {
+        attendAgainValues.push(answer.value);
+      }
+
+      if (question.type === 'talk_select' && typeof answer.value === 'string' && answer.value.trim()) {
+        talkCounts.set(answer.value, (talkCounts.get(answer.value) ?? 0) + 1);
+      }
+
+      if (question.type === 'text' && typeof answer.value === 'string' && answer.value.trim()) {
+        commentCount += 1;
+      }
+    }
+  }
+
+  const topTalk = Array.from(talkCounts.entries()).sort((a, b) => b[1] - a[1])[0] ?? null;
+  const attendAgainYesCount = attendAgainValues.filter(Boolean).length;
+
+  return {
+    average_rating: average(ratings),
+    rating_count: ratings.length,
+    attend_again_percent: formatInsightPercent(attendAgainValues.length === 0 ? null : attendAgainYesCount / attendAgainValues.length),
+    attend_again_count: attendAgainValues.length,
+    top_talk_label: topTalk ? talksById.get(topTalk[0]) ?? topTalk[0] : null,
+    top_talk_count: topTalk?.[1] ?? 0,
+    comment_count: commentCount,
+  };
+}
+
+function checklistProgress(items: EventChecklistItem[]) {
+  const completed = items.filter((item) => item.completed).length;
+  const total = items.length;
+
+  return {
+    completed,
+    total,
+    percent: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+}
 
 app.get('/api/health/supabase', async (c) => {
   if (!isSupabaseServerConfigured(c)) {
@@ -111,9 +515,11 @@ app.get('/api/health/supabase', async (c) => {
   }
 
   const supabase = getSupabaseAdminClient(c);
-  const { error } = await supabase
-    .from('feedback_testers')
-    .select('id', { count: 'exact', head: true });
+  const checks = await Promise.all([
+    supabase.from('feedback_testers').select('id').limit(1),
+    supabase.from('feedback_submissions').select('id').limit(1),
+  ]);
+  const error = checks.find((check) => check.error)?.error;
 
   if (error) {
     return c.json({
@@ -129,10 +535,531 @@ app.get('/api/health/supabase', async (c) => {
   });
 });
 
+app.get('/api/health/supabase/community-events', async (c) => {
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({
+      ok: false,
+      configured: false,
+      error: 'Supabase env is missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
+    }, 503);
+  }
+
+  const { error } = await getSupabaseAdminClient(c)
+    .from('community_events')
+    .select('id')
+    .limit(1);
+
+  if (error) {
+    return c.json({
+      ok: false,
+      configured: true,
+      error: error.message,
+    }, 500);
+  }
+
+  return c.json({
+    ok: true,
+    configured: true,
+  });
+});
+
+app.get('/api/health/supabase/storage', async (c) => {
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({
+      ok: false,
+      configured: false,
+      error: 'Supabase env is missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
+    }, 503);
+  }
+
+  const { error } = await getSupabaseAdminClient(c)
+    .storage
+    .getBucket('meetup-media');
+
+  if (error) {
+    return c.json({
+      ok: false,
+      configured: true,
+      error: error.message,
+    }, 500);
+  }
+
+  return c.json({
+    ok: true,
+    configured: true,
+  });
+});
+
+app.get('/api/health', (c) => {
+  return c.json({
+    ok: true,
+    runtime: typeof Bun === 'undefined' ? 'vite-dev-server' : 'bun',
+  });
+});
+
 app.get('/api/auth/session', (c) => {
   return c.json({
     authenticated: isAdminRequest(c),
   });
+});
+
+app.get('/api/feedback/testers', async (c) => {
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({ error: 'Feedback is not configured' }, 503);
+  }
+
+  const supabase = getSupabaseAdminClient(c);
+  const { data, error } = await supabase
+    .from('feedback_testers')
+    .select('id, display_name')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('display_name', { ascending: true });
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  return c.json(data ?? []);
+});
+
+app.post('/api/feedback', async (c) => {
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({ error: 'Feedback is not configured' }, 503);
+  }
+
+  const allowedTypes = new Set<FeedbackKind>(['bug', 'confusing', 'suggestion']);
+  const body = await c.req.json();
+  const type = String(body.type ?? '') as FeedbackKind;
+  const message = String(body.message ?? '').trim();
+  let testerId = typeof body.tester_id === 'string' && body.tester_id ? body.tester_id : null;
+  let testerName = String(body.tester_name ?? '').trim();
+
+  if (!allowedTypes.has(type)) {
+    return c.json({ error: 'Invalid feedback type' }, 400);
+  }
+
+  if (!message) {
+    return c.json({ error: 'Feedback message is required' }, 400);
+  }
+
+  if (message.length > 4000) {
+    return c.json({ error: 'Feedback message is too long' }, 400);
+  }
+
+  const supabase = getSupabaseAdminClient(c);
+
+  if (testerId) {
+    const { data: tester, error } = await supabase
+      .from('feedback_testers')
+      .select('id, display_name')
+      .eq('id', testerId)
+      .eq('active', true)
+      .maybeSingle();
+
+    if (error) {
+      return c.json({ error: error.message }, 500);
+    }
+
+    if (!tester) {
+      return c.json({ error: 'Selected tester was not found' }, 400);
+    }
+
+    testerName = tester.display_name;
+  } else {
+    testerId = null;
+  }
+
+  if (!testerName) {
+    return c.json({ error: 'Tester name is required' }, 400);
+  }
+
+  const { data, error } = await supabase
+    .from('feedback_submissions')
+    .insert({
+      tester_id: testerId,
+      tester_name: testerName,
+      type,
+      message,
+      trigger_source: 'route_feedback',
+      page_path: typeof body.page_path === 'string' ? body.page_path : null,
+      user_agent: c.req.header('user-agent') ?? null,
+      viewport_width: Number.isFinite(Number(body.viewport_width)) ? Number(body.viewport_width) : null,
+      viewport_height: Number.isFinite(Number(body.viewport_height)) ? Number(body.viewport_height) : null,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  return c.json({ id: data.id }, 201);
+});
+
+app.get('/api/feedback/inbox', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({ error: 'Feedback is not configured' }, 503);
+  }
+
+  const statusParam = c.req.query('status');
+  const status = ROUTE_FEEDBACK_STATUSES.has(statusParam as FeedbackStatus) ? statusParam as FeedbackStatus : null;
+  const limitParam = Number(c.req.query('limit') ?? 80);
+  const limit = Number.isFinite(limitParam) ? Math.min(Math.max(Math.trunc(limitParam), 1), 120) : 80;
+
+  let query = getSupabaseAdminClient(c)
+    .from('feedback_submissions')
+    .select('id, tester_name, type, message, trigger_source, page_path, user_agent, viewport_width, viewport_height, status, admin_note, created_at, updated_at')
+    .is('event_id', null)
+    .or('trigger_source.eq.route_feedback,trigger_source.is.null')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (status) {
+    query = query.eq('status', status);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return c.json({ error: 'Unable to load feedback inbox' }, 500);
+  }
+
+  const rows = data ?? [];
+  return c.json({
+    submissions: rows,
+    summary: {
+      total: rows.length,
+      new: rows.filter((item) => item.status === 'new').length,
+      reviewing: rows.filter((item) => item.status === 'reviewing').length,
+      done: rows.filter((item) => item.status === 'done').length,
+      wont_fix: rows.filter((item) => item.status === 'wont_fix').length,
+    },
+  });
+});
+
+app.patch('/api/feedback/inbox/:feedbackId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({ error: 'Feedback is not configured' }, 503);
+  }
+
+  const body = await c.req.json();
+  const status = String(body.status ?? '') as FeedbackStatus;
+
+  if (!ROUTE_FEEDBACK_STATUSES.has(status)) {
+    return c.json({ error: 'Invalid feedback status' }, 400);
+  }
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('feedback_submissions')
+    .update({ status })
+    .eq('id', c.req.param('feedbackId'))
+    .is('event_id', null)
+    .or('trigger_source.eq.route_feedback,trigger_source.is.null')
+    .select('id, tester_name, type, message, trigger_source, page_path, user_agent, viewport_width, viewport_height, status, admin_note, created_at, updated_at')
+    .maybeSingle();
+
+  if (error) {
+    return c.json({ error: 'Unable to update feedback status' }, 500);
+  }
+
+  if (!data) {
+    return c.json({ error: 'Feedback item was not found' }, 404);
+  }
+
+  return c.json(data);
+});
+
+app.get('/api/feedback/monthly', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const [events, campaigns, submissions, talks] = await Promise.all([
+    getAllEvents(c),
+    getAllFeedbackCampaigns(),
+    getAllFeedbackSubmissions(),
+    getAllTalks(),
+  ]);
+  const campaignsByEvent = new Map(campaigns.map((campaign) => [campaign.event_id, campaign]));
+  const submissionsByEvent = new Map<string, typeof submissions>();
+  const talksByEvent = new Map<string, Talk[]>();
+
+  for (const submission of submissions) {
+    const eventSubmissions = submissionsByEvent.get(submission.event_id) ?? [];
+    eventSubmissions.push(submission);
+    submissionsByEvent.set(submission.event_id, eventSubmissions);
+  }
+
+  for (const talk of talks) {
+    const eventTalks = talksByEvent.get(talk.event_id) ?? [];
+    eventTalks.push(talk);
+    talksByEvent.set(talk.event_id, eventTalks);
+  }
+
+  const monthMap = new Map<string, {
+    month: string;
+    label: string;
+    events: unknown[];
+    total_responses: number;
+    rating_values: number[];
+    attend_again_values: number[];
+    comment_count: number;
+    top_talk_counts: Map<string, { label: string; count: number }>;
+  }>();
+
+  for (const event of events) {
+    const month = eventMonthKey(event.event_date);
+    const monthBucket = monthMap.get(month) ?? {
+      month,
+      label: eventMonthLabel(month),
+      events: [],
+      total_responses: 0,
+      rating_values: [],
+      attend_again_values: [],
+      comment_count: 0,
+      top_talk_counts: new Map<string, { label: string; count: number }>(),
+    };
+    const existingCampaign = campaignsByEvent.get(event.id);
+    const campaign = existingCampaign ?? createDefaultFeedbackCampaign(event.id);
+    const eventSubmissions = submissionsByEvent.get(event.id) ?? [];
+    const eventTalks = talksByEvent.get(event.id) ?? [];
+    const insights = buildFeedbackInsights(campaign, eventSubmissions, eventTalks);
+    const feedbackWindow = feedbackCampaignWindow(event, campaign);
+
+    for (const answer of eventSubmissions.flatMap((submission) => submission.answers)) {
+      const question = campaign.questions.find((item) => item.id === answer.question_id);
+      if (question?.type === 'rating' && typeof answer.value === 'number') {
+        monthBucket.rating_values.push(answer.value);
+      }
+      if (question?.type === 'yes_no' && typeof answer.value === 'boolean') {
+        monthBucket.attend_again_values.push(answer.value ? 1 : 0);
+      }
+    }
+
+    if (insights.top_talk_label) {
+      const current = monthBucket.top_talk_counts.get(insights.top_talk_label) ?? { label: insights.top_talk_label, count: 0 };
+      current.count += insights.top_talk_count;
+      monthBucket.top_talk_counts.set(insights.top_talk_label, current);
+    }
+
+    monthBucket.total_responses += eventSubmissions.length;
+    monthBucket.comment_count += insights.comment_count;
+    monthBucket.events.push({
+      event: {
+        id: event.id,
+        name: event.name,
+        event_date: event.event_date,
+        status: event.status,
+      },
+      campaign: existingCampaign ? {
+        id: existingCampaign.id,
+        title: existingCampaign.title,
+        status: existingCampaign.status,
+        auto_open_on_event_completion: existingCampaign.auto_open_on_event_completion,
+      } : null,
+      campaign_configured: Boolean(existingCampaign),
+      response_count: eventSubmissions.length,
+      feedback_window: feedbackWindow,
+      is_open: isFeedbackCampaignOpen(event, campaign),
+      insights,
+      public_url: `${publicAppOrigin(c)}/feedback/${event.id}`,
+    });
+    monthMap.set(month, monthBucket);
+  }
+
+  const months = Array.from(monthMap.values())
+    .sort((a, b) => b.month.localeCompare(a.month))
+    .map((month) => {
+      const topTalk = Array.from(month.top_talk_counts.values()).sort((a, b) => b.count - a.count)[0] ?? null;
+
+      return {
+        month: month.month,
+        label: month.label,
+        total_responses: month.total_responses,
+        event_count: month.events.length,
+        comment_count: month.comment_count,
+        average_rating: average(month.rating_values),
+        attend_again_percent: formatInsightPercent(month.attend_again_values.length === 0 ? null : month.attend_again_values.reduce((sum, value) => sum + value, 0) / month.attend_again_values.length),
+        top_talk_label: topTalk?.label ?? null,
+        top_talk_count: topTalk?.count ?? 0,
+        events: month.events,
+      };
+    });
+
+  return c.json({ months });
+});
+
+app.get('/api/events/:eventId/feedback-campaign', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const [campaign, submissions] = await Promise.all([
+    getOrCreateFeedbackCampaign(eventId),
+    getFeedbackSubmissionsByEvent(eventId),
+  ]);
+
+  return c.json({
+    campaign,
+    submissions,
+    public_url: `${publicAppOrigin(c)}/feedback/${eventId}`,
+    feedback_window: feedbackCampaignWindow(event, campaign),
+    is_open: isFeedbackCampaignOpen(event, campaign),
+  });
+});
+
+app.patch('/api/events/:eventId/feedback-campaign', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const body = await c.req.json();
+  const status = body.status as FeedbackCampaignStatus | undefined;
+
+  if (status && !FEEDBACK_CAMPAIGN_STATUSES.has(status)) {
+    return c.json({ error: 'Invalid feedback campaign status' }, 400);
+  }
+
+  const questions = body.questions === undefined ? undefined : normalizeFeedbackQuestions(body.questions);
+
+  if (questions && questions.length === 0) {
+    return c.json({ error: 'Add at least one feedback question' }, 400);
+  }
+
+  const campaign = await updateFeedbackCampaign(eventId, {
+    title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : undefined,
+    intro: typeof body.intro === 'string' ? body.intro.trim() || null : undefined,
+    status,
+    auto_open_on_event_completion: typeof body.auto_open_on_event_completion === 'boolean' ? body.auto_open_on_event_completion : undefined,
+    opens_at: typeof body.opens_at === 'string' && body.opens_at ? body.opens_at : body.opens_at === null ? null : undefined,
+    closes_at: typeof body.closes_at === 'string' && body.closes_at ? body.closes_at : body.closes_at === null ? null : undefined,
+    questions,
+  });
+
+  return c.json({
+    campaign,
+    public_url: `${publicAppOrigin(c)}/feedback/${eventId}`,
+    feedback_window: feedbackCampaignWindow(event, campaign),
+    is_open: isFeedbackCampaignOpen(event, campaign),
+  });
+});
+
+app.get('/api/feedback/events/:eventId', async (c) => {
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const existingCampaign = await getFeedbackCampaignByEvent(eventId);
+  const campaign = existingCampaign ?? (event.status === 'completed' ? await getOrCreateFeedbackCampaign(eventId) : undefined);
+
+  if (!campaign || !isFeedbackCampaignOpen(event, campaign)) {
+    return c.json({ error: 'Feedback is not open for this event' }, 404);
+  }
+
+  const talks = await getTalksByEvent(eventId);
+
+  return c.json({
+    event,
+    campaign,
+    feedback_window: feedbackCampaignWindow(event, campaign),
+    talks: talks.filter((talk) => talk.status !== 'rejected'),
+  });
+});
+
+app.get('/api/feedback/events/:eventId/status', async (c) => {
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ available: false, error: 'Event not found' }, 404);
+  }
+
+  const existingCampaign = await getFeedbackCampaignByEvent(eventId);
+  const campaign = existingCampaign ?? (event.status === 'completed' ? await getOrCreateFeedbackCampaign(eventId) : undefined);
+  const available = campaign ? isFeedbackCampaignOpen(event, campaign) : false;
+
+  return c.json({
+    available,
+    feedback_window: campaign ? feedbackCampaignWindow(event, campaign) : null,
+    public_url: available ? `${publicAppOrigin(c)}/feedback/${eventId}` : null,
+  });
+});
+
+app.post('/api/feedback/events/:eventId/submissions', async (c) => {
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const existingCampaign = await getFeedbackCampaignByEvent(eventId);
+  const campaign = existingCampaign ?? (event.status === 'completed' ? await getOrCreateFeedbackCampaign(eventId) : undefined);
+
+  if (!campaign || !isFeedbackCampaignOpen(event, campaign)) {
+    return c.json({ error: 'Feedback is not open for this event' }, 403);
+  }
+
+  const body = await c.req.json();
+  const answers = normalizeFeedbackAnswers(body.answers);
+  const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer.value]));
+  const missingRequired = campaign.questions.some((question) => {
+    const value = answersByQuestion.get(question.id);
+    return question.required && (value === undefined || value === null || String(value).trim() === '');
+  });
+
+  if (missingRequired) {
+    return c.json({ error: 'Please answer all required questions' }, 400);
+  }
+
+  const submission = await createEventFeedbackSubmission({
+    campaign_id: campaign.id,
+    event_id: eventId,
+    respondent_name: typeof body.respondent_name === 'string' && body.respondent_name.trim() ? body.respondent_name.trim() : null,
+    respondent_email: typeof body.respondent_email === 'string' && body.respondent_email.trim() ? body.respondent_email.trim() : null,
+    answers,
+    page_path: typeof body.page_path === 'string' ? body.page_path : null,
+    user_agent: c.req.header('user-agent') ?? null,
+  });
+
+  if (isSupabaseServerConfigured(c)) {
+    const supabase = getSupabaseAdminClient(c);
+    await supabase.from('feedback_submissions').insert({
+      event_id: eventId,
+      campaign_id: campaign.id,
+      tester_name: submission.respondent_name ?? 'Anonymous attendee',
+      tester_email: submission.respondent_email,
+      type: 'suggestion',
+      message: JSON.stringify(answers),
+      structured_answers: answers,
+      trigger_source: 'event_feedback_form',
+      page_path: submission.page_path,
+      user_agent: submission.user_agent,
+    });
+  }
+
+  return c.json({ id: submission.id }, 201);
 });
 
 app.post('/api/auth/admin/login', async (c) => {
@@ -160,7 +1087,7 @@ app.post('/api/auth/logout', (c) => {
 
 app.get('/api/overview', async (c) => {
   const [events, talks, leaderboard, sessions] = await Promise.all([
-    getAllEvents(),
+    getAllEvents(c),
     getAllTalks(),
     buildLeaderboard(),
     getAllQuizSessions(),
@@ -170,8 +1097,54 @@ app.get('/api/overview', async (c) => {
   return c.json({ events, talks, leaderboard, activeSession });
 });
 
+app.get('/api/public/meetups', async (c) => {
+  setPublicApiCache(c);
+  const supabaseMeetups = await getSupabasePublicMeetups(publicAppOrigin(c), c);
+  return c.json({
+    data: supabaseMeetups ?? await buildPublicMeetups(publicAppOrigin(c), c),
+    meta: {
+      source: 'devcongress-comm',
+      version: 1,
+    },
+  });
+});
+
+app.get('/api/public/meetups/:slug', async (c) => {
+  setPublicApiCache(c);
+  const slug = c.req.param('slug');
+  const meetups = (await getSupabasePublicMeetups(publicAppOrigin(c), c)) ?? await buildPublicMeetups(publicAppOrigin(c), c);
+  const meetup = meetups.find((item) => item.slug === slug || item.id === slug);
+
+  if (!meetup) {
+    return c.json({ error: 'Meetup not found' }, 404);
+  }
+
+  return c.json({ data: meetup });
+});
+
+app.get('/api/public/meetups/:slug/talks', async (c) => {
+  setPublicApiCache(c);
+  const slug = c.req.param('slug');
+  const meetups = (await getSupabasePublicMeetups(publicAppOrigin(c), c)) ?? await buildPublicMeetups(publicAppOrigin(c), c);
+  const meetup = meetups.find((item) => item.slug === slug || item.id === slug);
+
+  if (!meetup) {
+    return c.json({ error: 'Meetup not found' }, 404);
+  }
+
+  const talks = (await getTalksByEvent(meetup.id)).filter((talk) => talk.status === 'published');
+  return c.json({
+    data: talks,
+    meta: {
+      meetup_id: meetup.id,
+      meetup_slug: meetup.slug,
+      count: talks.length,
+    },
+  });
+});
+
 app.get('/api/events', async (c) => {
-  return c.json(await getAllEvents());
+  return c.json(await getAllEvents(c));
 });
 
 app.post('/api/events', async (c) => {
@@ -189,11 +1162,20 @@ app.post('/api/events', async (c) => {
     name,
     description: description || null,
     event_date,
-  }), 201);
+    end_date: typeof body.end_date === 'string' ? body.end_date : null,
+    slug: typeof body.slug === 'string' ? body.slug : null,
+    cover: typeof body.cover === 'string' ? body.cover : null,
+    location: body.location && typeof body.location === 'object' ? body.location : null,
+    registration_url: typeof body.registration_url === 'string' ? body.registration_url : null,
+    stream_url: typeof body.stream_url === 'string' ? body.stream_url : null,
+    embed_stream: Boolean(body.embed_stream),
+    photos: normalizeEventPhotos(body.photos),
+    publish_to_website: Boolean(body.publish_to_website),
+  }, c), 201);
 });
 
 app.get('/api/events/:eventId', async (c) => {
-  const event = await getEventById(c.req.param('eventId'));
+  const event = await getEventById(c.req.param('eventId'), c);
 
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
@@ -202,14 +1184,130 @@ app.get('/api/events/:eventId', async (c) => {
   return c.json(event);
 });
 
+app.get('/api/events/:eventId/checklist', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const items = await getEventChecklist(eventId, event.status);
+  return c.json({
+    event_status: event.status,
+    progress: checklistProgress(items),
+    items,
+  });
+});
+
+app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const itemId = c.req.param('itemId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+
+  if (typeof body.completed !== 'boolean') {
+    return c.json({ error: 'completed is required' }, 400);
+  }
+
+  try {
+    const item = await updateEventChecklistItem(eventId, itemId, {
+      completed: body.completed,
+      completed_by: typeof body.completed_by === 'string' ? body.completed_by : 'Organizer',
+    });
+    const updatedEvent = item.completed && item.status_on_complete
+      ? await updateEvent(eventId, { status: item.status_on_complete }, c)
+      : event;
+    const items = await getEventChecklist(eventId, updatedEvent.status);
+
+    return c.json({
+      item,
+      event: updatedEvent,
+      progress: checklistProgress(items),
+      items,
+    });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Failed to update checklist item' }, 400);
+  }
+});
+
 app.patch('/api/events/:eventId', async (c) => {
   const adminError = requireAdmin(c);
   if (adminError) return adminError;
 
   try {
-    return c.json(await updateEvent(c.req.param('eventId'), await c.req.json()));
+    const body = await c.req.json();
+    const updates = {
+      ...body,
+      ...(Array.isArray(body.photos) ? { photos: normalizeEventPhotos(body.photos) } : {}),
+    };
+
+    return c.json(await updateEvent(c.req.param('eventId'), updates, c));
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Failed to update event' }, 500);
+  }
+});
+
+app.post('/api/events/:eventId/media', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  let formData: FormData;
+  try {
+    formData = await c.req.raw.formData();
+  } catch {
+    return c.json({ error: 'Upload must use multipart/form-data' }, 400);
+  }
+
+  const uploadedFile = formData.get('file');
+  if (!(uploadedFile instanceof File)) {
+    return c.json({ error: 'An image file is required' }, 400);
+  }
+
+  const purposeValue = formData.get('purpose');
+  const purpose = purposeValue === 'cover' ? 'cover' : 'photo';
+  const validationError = validateMeetupMediaFile(uploadedFile);
+  if (validationError) {
+    return c.json({ error: validationError }, 400);
+  }
+
+  try {
+    const publicUrl = await uploadMeetupMedia(event.slug ?? event.id, purpose, uploadedFile, c);
+    const updatedEvent = purpose === 'cover'
+      ? await updateEvent(event.id, { cover: publicUrl }, c)
+      : await updateEvent(event.id, {
+        photos: [
+          ...normalizeEventPhotos(event.photos),
+          { url: publicUrl, type: 'image' },
+        ],
+      }, c);
+
+    return c.json({
+      event: updatedEvent,
+      media: {
+        url: publicUrl,
+        type: purpose,
+      },
+    });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Failed to upload image' }, 500);
   }
 });
 
@@ -219,6 +1317,103 @@ app.get('/api/events/:eventId/talks', async (c) => {
 
 app.get('/api/events/:eventId/speakers', async (c) => {
   return c.json(await getSpeakersByEvent(c.req.param('eventId')));
+});
+
+app.get('/api/attendance/monthly', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const [events, imports] = await Promise.all([
+    getAllEvents(c),
+    getAttendanceImports(),
+  ]);
+  const ledger = buildAttendanceLedger(events, imports);
+
+  return c.json({
+    ledger,
+    insights: buildAttendanceInsights(ledger),
+  });
+});
+
+app.get('/api/events/:eventId/attendance', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const attendanceImport = await getLatestAttendanceImport(eventId);
+
+  return c.json({
+    event,
+    import: attendanceImport,
+    summary: buildAttendanceSummary(attendanceImport),
+  });
+});
+
+app.post('/api/events/:eventId/attendance/import', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const csv = typeof body.csv === 'string' ? body.csv : '';
+  const csvSizeBytes = new TextEncoder().encode(csv).byteLength;
+
+  if (!csv.trim()) {
+    return c.json({ error: 'csv is required' }, 400);
+  }
+
+  if (csvSizeBytes > ATTENDANCE_CSV_MAX_BYTES) {
+    return c.json({ error: 'CSV must be 2MB or smaller' }, 413);
+  }
+
+  try {
+    const attendanceImport = await replaceAttendanceImportFromCsv(
+      eventId,
+      csv,
+      typeof body.source_filename === 'string' ? body.source_filename : null,
+      attendanceMonthForEvent(event),
+    );
+
+    return c.json({
+      event,
+      import: attendanceImport,
+      summary: buildAttendanceSummary(attendanceImport),
+    }, 201);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Unable to import attendance CSV' }, 400);
+  }
+});
+
+app.delete('/api/events/:eventId/attendance', async (c) => {
+  const adminError = requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  await removeAttendanceImport(eventId);
+
+  return c.json({
+    event,
+    import: null,
+    summary: buildAttendanceSummary(null),
+  });
 });
 
 app.post('/api/events/:eventId/speakers', async (c) => {
@@ -339,7 +1534,7 @@ app.get('/api/my-talks', async (c) => {
   const talksWithEvents = await Promise.all(
     userTalks.map(async (talk) => ({
       ...talk,
-      event: await getEventById(talk.event_id),
+      event: await getEventById(talk.event_id, c),
     })),
   );
 
@@ -359,7 +1554,7 @@ app.post('/api/cfp', async (c) => {
     return c.json({ error: 'Missing required fields' }, 400);
   }
 
-  const event = await getEventById(event_id);
+  const event = await getEventById(event_id, c);
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
   }
@@ -1010,14 +2205,25 @@ app.post('/api/users/merge', async (c) => {
 });
 
 app.get('*', (c) => {
+  const pathname = new URL(c.req.url).pathname;
+  const adminBasePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
+  const isOrganizerPath = pathname === adminBasePath || pathname.startsWith(`${adminBasePath}/`);
+  const pageTitle = isOrganizerPath
+    ? 'DevCongress | Organizers'
+    : 'DevCongress | Community';
+
   return c.html(`<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/brand/favicon-rounded-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
     <link rel="preconnect" href="https://api.fontshare.com" />
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap" rel="stylesheet" />
-    <title>DevCon-Comm</title>
+    <title>${pageTitle}</title>
   </head>
   <body>
     <div id="app"></div>
@@ -1039,7 +2245,7 @@ function validatePaperQuizFile(file: File): string | null {
   }
 
   if (file.size > PAPER_QUIZ_MAX_FILE_SIZE_BYTES) {
-    return 'PDF must be 8MB or smaller';
+    return 'PDF must be 5MB or smaller';
   }
 
   return null;
