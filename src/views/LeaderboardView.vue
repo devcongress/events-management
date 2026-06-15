@@ -26,7 +26,7 @@ const merging = ref(false);
 const accountMessage = ref<string | null>(null);
 const accountError = ref<string | null>(null);
 const leaderboardMode = ref<LeaderboardMode>('all-time');
-const leaderboardEnabled = import.meta.env.VITE_ENABLE_LEADERBOARD === 'true';
+const phaseOneLeaderboardEnabled = false;
 const page = ref(1);
 const pageSize = 8;
 const leaderboardPanel = ref<HTMLElement | null>(null);
@@ -48,9 +48,9 @@ const mergeForm = reactive({
 });
 
 const title = computed(() => leaderboardMode.value === 'monthly' ? 'This Month' : 'All-Time Leaderboard');
-const visibleLeaderboard = computed(() => leaderboardEnabled ? leaderboards[leaderboardMode.value] : []);
+const visibleLeaderboard = computed(() => phaseOneLeaderboardEnabled ? leaderboards[leaderboardMode.value] : []);
 const showAccountTools = computed(() => {
-  return leaderboardEnabled && leaderboards['all-time'].length > 0 && leaderboards.monthly.length > 0;
+  return phaseOneLeaderboardEnabled && leaderboards['all-time'].length > 0 && leaderboards.monthly.length > 0;
 });
 const pageCount = computed(() => Math.max(1, Math.ceil(visibleLeaderboard.value.length / pageSize)));
 const paginatedLeaderboard = computed(() => visibleLeaderboard.value.slice((page.value - 1) * pageSize, page.value * pageSize));
@@ -64,7 +64,7 @@ function naviiSeed(entry: LeaderboardEntry): string {
 
 async function fetchData() {
   loading.value = true;
-  if (!leaderboardEnabled) {
+  if (!phaseOneLeaderboardEnabled) {
     leaderboards['all-time'] = [];
     leaderboards.monthly = [];
     loading.value = false;

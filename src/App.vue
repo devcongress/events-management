@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AdminEventTabs from './components/AdminEventTabs.vue';
 import AppToaster from './components/ui/AppToaster.vue';
@@ -241,6 +241,12 @@ function toggleMobileMenu() {
   mobileMenuOpen.value = !mobileMenuOpen.value;
 }
 
+function resetMainScroll() {
+  void nextTick(() => {
+    document.querySelector('main')?.scrollTo({ top: 0, left: 0 });
+  });
+}
+
 async function logout() {
   closeMobileMenu();
   await fetch('/api/auth/logout', { method: 'POST' });
@@ -277,6 +283,7 @@ onMounted(() => {
 
 watch(() => route.path, (toPath, fromPath) => {
   closeMobileMenu();
+  resetMainScroll();
   updateRouteTransition(toPath, fromPath);
   void refreshAdminEventNames();
 });

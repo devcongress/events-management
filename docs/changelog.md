@@ -14,7 +14,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Compactly fitted the mobile My Talks and empty Leaderboard routes within common small-device heights, with My Talks centered on roomy phones and kept top-safe on short screens.
 - Made the mobile route-feedback page center after launcher taps on roomy phones while falling back to top-safe placement when the form is taller than the viewport.
 - Simplified the mobile 404 route into a centered recovery card without the desktop suggestion stack, keeping unknown routes non-scrollable on common phone sizes.
-- Hid prototype leaderboard account tools unless leaderboard scoring is enabled and both all-time and monthly leaderboard data are present, keeping empty states focused until live quiz scoring is ready.
+- Hard-paused the public leaderboard for phase one so seeded prototype rows and account tools cannot appear from hosted environment drift.
+- Reset the internal app scroll container on route changes so feedback opens at the form instead of inheriting scroll position from a previous long page.
 - Reduced feedback launcher prominence with route-view interval gating and mobile routing to a standalone `/feedback` page instead of an overlay.
 - Added the `/feedback` route to documentation and noted the mobile feedback behavior for community testers.
 
