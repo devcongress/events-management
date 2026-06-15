@@ -242,9 +242,14 @@ function toggleMobileMenu() {
 }
 
 function resetMainScroll() {
-  void nextTick(() => {
-    document.querySelector('main')?.scrollTo({ top: 0, left: 0 });
-  });
+  const scrollToTop = () => {
+    document.querySelector('main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  };
+
+  scrollToTop();
+  void nextTick(scrollToTop);
+  window.requestAnimationFrame(scrollToTop);
+  window.setTimeout(scrollToTop, 280);
 }
 
 async function logout() {
@@ -476,7 +481,7 @@ onUnmounted(() => {
 
       <div class="page-route-stack">
         <RouterView v-slot="{ Component, route }">
-          <Transition :name="routeTransitionName">
+          <Transition :name="routeTransitionName" @after-enter="resetMainScroll">
             <component :is="Component" :key="route.fullPath" class="page-view" />
           </Transition>
         </RouterView>
