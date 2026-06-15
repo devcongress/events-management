@@ -35,9 +35,9 @@ async function login() {
     <div class="flex min-h-[calc(100vh-6rem)] items-center justify-center px-4 py-12">
       <form class="editorial-panel w-full max-w-md p-8 sm:p-10" @submit.prevent="login">
         <p class="editorial-eyebrow">organizer access</p>
-        <h1 class="mt-3 text-4xl font-black tracking-tight text-white">Admin Sign In</h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray-light">
-          Use the local admin password to manage events, talks, speakers, and live quiz sessions.
+        <h1 class="mt-3 text-4xl font-black tracking-tight text-dc-ink">Admin Sign In</h1>
+        <p class="mt-3 text-sm leading-6 text-dc-gray">
+          Use the local admin password to manage events, talks, speakers, attendance, and feedback.
         </p>
 
         <label class="mt-8 block">
@@ -53,7 +53,7 @@ async function login() {
           >
         </label>
 
-        <div v-if="error" class="mt-4 border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div v-if="error" class="mt-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           {{ error }}
         </div>
 

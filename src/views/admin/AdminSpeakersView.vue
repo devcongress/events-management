@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
 import type { Event, EventSpeaker } from '@/types';
-import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
 const event = ref<Event | null>(null);
@@ -52,7 +52,7 @@ onMounted(fetchAll);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <div v-if="loading" class="py-12 text-center font-mono text-white">LOADING...</div>
+      <ViewSkeleton v-if="loading" variant="form" :rows="2" />
       <template v-else>
         <div class="editorial-header">
           <p class="editorial-eyebrow">speaker access</p>
@@ -60,9 +60,9 @@ onMounted(fetchAll);
           <p class="editorial-subtitle">{{ event?.name }}</p>
         </div>
 
-        <section class="editorial-panel mb-8 p-6">
-          <h2 class="mb-4 text-2xl font-black tracking-tight text-white">Add Speaker</h2>
-          <div v-if="error" class="mb-4 border border-red-500/50 bg-red-500/10 px-4 py-3 text-red-200">{{ error }}</div>
+        <section class="ops-panel mb-8 p-5">
+          <h2 class="mb-4 text-2xl font-black tracking-tight text-dc-ink">Add Speaker</h2>
+          <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
           <form class="space-y-4" @submit.prevent="addNewSpeaker">
             <input v-model="form.email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
             <input v-model="form.name" required placeholder="Speaker Name" class="editorial-input font-mono" />
@@ -70,16 +70,16 @@ onMounted(fetchAll);
           </form>
         </section>
 
-        <section class="editorial-panel p-6">
-          <h2 class="mb-4 text-2xl font-black tracking-tight text-white">Approved Speakers <span class="text-base text-dc-gray">({{ speakers.length }})</span></h2>
-          <p v-if="speakers.length === 0" class="py-8 text-center font-mono text-dc-gray-light">NO SPEAKERS ADDED YET</p>
+        <section class="ops-panel p-5">
+          <h2 class="mb-4 text-2xl font-black tracking-tight text-dc-ink">Approved Speakers <span class="text-base text-dc-gray">({{ speakers.length }})</span></h2>
+          <p v-if="speakers.length === 0" class="py-8 text-center font-mono text-dc-gray">NO SPEAKERS ADDED YET</p>
           <div v-else class="space-y-3">
-            <div v-for="speaker in speakers" :key="speaker.id" class="motion-colors group flex items-center justify-between rounded-md border border-dc-yellow/10 bg-dc-yellow/[0.03] p-4 hover:border-dc-yellow/30">
+            <div v-for="speaker in speakers" :key="speaker.id" class="motion-colors flex items-center justify-between rounded-md border border-dc-border bg-dc-paper px-4 py-3 hover:bg-dc-paper-warm">
               <div>
-                <p class="font-mono font-bold text-white">{{ speaker.name }}</p>
-                <p class="font-mono text-sm text-dc-gray-light">{{ speaker.email }}</p>
+                <p class="font-mono font-bold text-dc-ink">{{ speaker.name }}</p>
+                <p class="font-mono text-sm text-dc-gray">{{ speaker.email }}</p>
               </div>
-              <button class="motion-press rounded-md border border-red-700/70 bg-red-900/40 px-4 py-2 font-mono text-sm uppercase text-red-200 hover:border-red-500 hover:bg-red-900/60" @click="removeExistingSpeaker(speaker.id)">REMOVE</button>
+              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-4 py-2 font-mono text-sm font-bold uppercase text-red-700 hover:bg-red-100" @click="removeExistingSpeaker(speaker.id)">REMOVE</button>
             </div>
           </div>
         </section>
