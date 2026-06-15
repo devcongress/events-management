@@ -44,3 +44,5 @@ If there is no active quiz, the app shows a waiting/empty state instead of a gen
 ## Send App Feedback
 
 Testers can use the feedback launcher to report confusing flows, bugs, or suggestions. Feedback includes the current route so maintainers know where the issue happened.
+
+On small screens, the launcher opens the standalone `/feedback` page instead of an overlay so the form has enough space for touch input.

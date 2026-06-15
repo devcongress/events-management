@@ -34,13 +34,21 @@
   html,
   body {
     background: #f5f2e8;
+    width: 100%;
     min-height: 100%;
+    overflow: hidden;
     overscroll-behavior: none;
   }
 
   body {
     font-family: var(--font-sans), system-ui, sans-serif;
     margin: 0;
+  }
+
+  #app {
+    min-height: 100vh;
+    min-height: 100svh;
+    overflow: hidden;
   }
 
   * {
@@ -56,6 +64,25 @@
 
   .editorial-wrap {
     @apply mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8;
+  }
+
+  .app-shell {
+    height: 100vh;
+    height: 100svh;
+    max-height: 100vh;
+    max-height: 100svh;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .app-header {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .app-main {
+    min-height: 0;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .editorial-header {
@@ -1595,6 +1622,15 @@
     max-width: 100%;
   }
 
+  .my-talks-page {
+    min-height: 100%;
+  }
+
+  .route-feedback-header {
+    border-bottom: 2px solid #111111;
+    padding-bottom: 1rem;
+  }
+
   .motion-colors {
     transition:
       opacity 150ms var(--motion-fast),
@@ -2301,7 +2337,7 @@
   .feedback-bot {
     position: fixed;
     right: 1rem;
-    bottom: 1rem;
+    bottom: max(1rem, env(safe-area-inset-bottom));
     z-index: 60;
     display: grid;
     justify-items: end;
@@ -2371,8 +2407,8 @@
 
   .feedback-bot-body {
     display: grid;
-    width: 3.2rem;
-    height: 3.2rem;
+    width: 2.75rem;
+    height: 2.75rem;
     place-items: center;
     border: 2px solid #111111;
     border-radius: 0.95rem;
@@ -2390,8 +2426,8 @@
     align-items: center;
     justify-content: center;
     gap: 0.42rem;
-    width: 2rem;
-    height: 1.35rem;
+    width: 1.7rem;
+    height: 1.15rem;
     border: 1px solid rgba(17, 17, 17, 0.36);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.84);
@@ -2456,6 +2492,7 @@
 
   .feedback-bot-check {
     display: inline-flex;
+    min-height: 2.75rem;
     align-items: center;
     gap: 0.55rem;
     font-family: var(--font-mono), monospace;
@@ -2467,8 +2504,8 @@
   }
 
   .feedback-bot-check input {
-    width: 1rem;
-    height: 1rem;
+    width: 1.25rem;
+    height: 1.25rem;
     accent-color: #e8117f;
   }
 
@@ -2555,6 +2592,177 @@
   .editorial-action:active,
   .editorial-secondary-action:active {
     transform: scale(0.97);
+  }
+
+  @media (max-width: 640px) {
+    .app-header-inner {
+      gap: 0.4rem 0.75rem !important;
+      padding: 0.5rem 0.75rem !important;
+    }
+
+    .app-brand-logo {
+      height: 1.5rem !important;
+      max-width: 10.5rem !important;
+    }
+
+    .app-header-actions {
+      gap: 0.5rem !important;
+    }
+
+    .app-header-actions > a,
+    .app-header-actions > button,
+    .app-nav-link {
+      min-height: 2.75rem !important;
+    }
+
+    .app-header-actions > a,
+    .app-header-actions > button {
+      padding-inline: 0.65rem !important;
+      font-size: 0.62rem !important;
+      letter-spacing: 0.12em !important;
+    }
+
+    .app-primary-nav {
+      margin-inline: -0.25rem;
+      padding-inline: 0.25rem;
+      scrollbar-width: none;
+      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 0.75rem, #000 calc(100% - 0.75rem), transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0, #000 0.75rem, #000 calc(100% - 0.75rem), transparent 100%);
+    }
+
+    .app-primary-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .app-nav-link {
+      padding: 0.55rem 0.65rem !important;
+      font-size: 0.66rem !important;
+      letter-spacing: 0.05em !important;
+    }
+
+    .editorial-wrap {
+      padding-top: 1.25rem !important;
+      padding-bottom: 1.25rem !important;
+    }
+
+    .my-talks-wrap {
+      display: flex;
+      min-height: 100%;
+      flex-direction: column;
+      justify-content: center;
+      padding-top: 1rem !important;
+      padding-bottom: 1rem !important;
+    }
+
+    .my-talks-page .community-masthead {
+      margin-bottom: 0.6rem !important;
+      padding: 0.75rem !important;
+    }
+
+    .my-talks-page .community-masthead > div:last-child {
+      gap: 0.75rem;
+    }
+
+    .my-talks-page .community-masthead h1 {
+      margin-top: 0.35rem;
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    .my-talks-page .community-masthead p:last-child {
+      margin-top: 0.4rem !important;
+      font-size: 0.82rem;
+      line-height: 1.35;
+    }
+
+    .my-talks-card {
+      padding: 0.85rem !important;
+    }
+
+    .my-talks-card-header {
+      margin-bottom: 1rem !important;
+    }
+
+    .my-talks-card-header h2 {
+      font-size: 1.35rem;
+      line-height: 1.15;
+    }
+
+    .my-talks-card-header p {
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .my-talks-kicker {
+      margin-bottom: 0.75rem !important;
+      font-size: 0.65rem;
+    }
+
+    .my-talks-form {
+      gap: 1rem !important;
+    }
+
+    .my-talks-submit {
+      min-height: 3rem;
+      padding-top: 0.75rem !important;
+      padding-bottom: 0.75rem !important;
+      font-size: 0.95rem !important;
+    }
+
+    .leaderboard-empty-state {
+      padding: 1.5rem 1rem !important;
+    }
+
+    .leaderboard-wrap {
+      padding-top: 1rem !important;
+      padding-bottom: 1rem !important;
+    }
+
+    .leaderboard-page .community-masthead {
+      margin-bottom: 0.75rem !important;
+      padding: 0.85rem !important;
+    }
+
+    .leaderboard-page .community-masthead h1 {
+      margin-top: 0.35rem;
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    .leaderboard-page .community-masthead p:last-child {
+      margin-top: 0.5rem !important;
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .feedback-bot {
+      right: max(0.75rem, env(safe-area-inset-right));
+      bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+
+    .feedback-bot-runner {
+      animation: none;
+    }
+
+    .feedback-bot-bubble {
+      display: none;
+    }
+
+    .feedback-bot-body {
+      width: 2.75rem;
+      height: 2.75rem;
+      border-radius: 0.75rem;
+      box-shadow: 2px 2px 0 #111111;
+    }
+
+    .route-feedback-wrap {
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+    }
+
+    .route-feedback-form {
+      padding: 1rem;
+    }
   }
 
   @keyframes motion-spinner {

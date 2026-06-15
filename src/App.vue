@@ -71,6 +71,7 @@ const modeSwitchLabel = computed(() => (isAdminRoute.value ? 'Community' : 'Orga
 const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
+const showFeedbackBot = computed(() => !isAdminRoute.value && !route.path.startsWith('/feedback'));
 const adminReturnSource = computed(() => {
   const value = route.query.from;
   if (value === 'attendance' || value === 'feedback') return value;
@@ -169,7 +170,7 @@ const breadcrumbItems = computed(() => {
   } else if (path === '/leaderboard') items.push({ label: 'Leaderboard' });
   else if (path === '/my-talks') items.push({ label: 'My Talks' });
   else if (path.startsWith('/cfp/')) items.push({ label: 'Call for proposals' });
-  else if (path.startsWith('/feedback/')) items.push({ label: 'Feedback' });
+  else if (path === '/feedback' || path.startsWith('/feedback/')) items.push({ label: 'Feedback' });
   else if (path === '/play') items.push({ label: 'Play' });
   else if (path.startsWith('/play/')) {
     items.push({ label: 'Play', href: '/play' });
@@ -277,42 +278,42 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen flex-col overflow-hidden bg-dc-cream text-dc-ink">
-    <header class="sticky top-0 z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
-      <div class="grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
-        <RouterLink to="/" class="group flex min-h-9 items-center">
+  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink">
+    <header class="app-header sticky top-0 z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
+      <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
+        <RouterLink to="/" class="group flex min-h-11 items-center">
           <img
             :src="logoSrc"
             alt="DevCongress"
-            class="h-8 w-auto max-w-[13rem] object-contain sm:h-9 sm:max-w-[15rem]"
+            class="app-brand-logo h-8 w-auto max-w-[13rem] object-contain sm:h-9 sm:max-w-[15rem]"
           >
         </RouterLink>
 
-        <div v-if="showHeaderActions" class="flex items-center justify-end gap-3 lg:order-3">
+        <div v-if="showHeaderActions" class="app-header-actions flex items-center justify-end gap-3 lg:order-3">
           <span v-if="showModeSwitch || showSignOut" class="hidden h-8 w-px rounded-full bg-dc-ink/30 sm:block" />
           <RouterLink
             v-if="showModeSwitch"
             :to="modeSwitchLink"
-            class="motion-press rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
+            class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
           >
             {{ modeSwitchLabel }}
           </RouterLink>
           <button
             v-if="showSignOut"
-            class="motion-press rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
+            class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
             @click="logout"
           >
             Sign Out
           </button>
         </div>
 
-        <nav class="col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1">
+        <nav class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1" aria-label="Primary">
           <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
             <RouterLink
               v-for="link in group"
               :key="link.href"
               :to="link.href"
-              class="app-nav-link motion-press relative shrink-0 overflow-hidden rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/35"
+              class="app-nav-link motion-press relative flex min-h-11 shrink-0 items-center overflow-hidden rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/35"
               :class="[link.accent ? 'sm:px-3' : '', linkClass(link)]"
               :aria-current="isActive(link.href) ? 'page' : undefined"
             >
@@ -359,7 +360,7 @@ onUnmounted(() => {
       </ol>
     </nav>
 
-    <main class="page-transition-host flex-1 overflow-y-auto overflow-x-hidden">
+    <main class="app-main page-transition-host flex-1 overflow-y-auto overflow-x-hidden">
       <div v-if="showAdminEventTabs && adminEventId" class="bg-dc-cream text-dc-ink">
         <div class="editorial-wrap event-tabs-wrap pb-0">
           <RouterLink
@@ -382,7 +383,7 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <FeedbackBot v-if="!isAdminRoute" />
+    <FeedbackBot v-if="showFeedbackBot" />
     <AppToaster />
   </div>
 </template>

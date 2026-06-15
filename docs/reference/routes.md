@@ -11,6 +11,7 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 | `/archive` | Past event archive |
 | `/archive/:eventId` | Event archive detail and talks |
 | `/cfp/:eventId` | Public talk submission form |
+| `/feedback` | General app feedback form, used by the mobile feedback launcher |
 | `/feedback/:eventId` | Public post-event feedback form |
 | `/leaderboard` | Community leaderboard preview |
 | `/my-talks` | Speaker talk lookup and slide links |

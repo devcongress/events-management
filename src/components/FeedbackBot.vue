@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import type { FeedbackKind } from '@/types/supabase';
 
 const route = useRoute();
+const router = useRouter();
 const name = ref('');
 const submitAnonymously = ref(false);
 const feedbackType = ref<FeedbackKind>('confusing');
 const message = ref('');
 const feedbackTextarea = ref<HTMLTextAreaElement | null>(null);
 const open = ref(false);
+const visible = ref(false);
 const submitting = ref(false);
 const submitted = ref(false);
 const error = ref<string | null>(null);
 const FEEDBACK_MAX_LENGTH = 4000;
 const FEEDBACK_TEXTAREA_MAX_HEIGHT = 160;
+const FEEDBACK_SHOW_AFTER_VIEWS = 2;
+const FEEDBACK_SNOOZE_VIEWS = 3;
+const FEEDBACK_SESSION_VIEWS_KEY = 'devcon-feedback-route-views';
+const FEEDBACK_NEXT_VIEW_KEY = 'devcon-feedback-next-view';
 
 const feedbackTypeOptions: { value: FeedbackKind; label: string }[] = [
   { value: 'confusing', label: 'Confusing' },
@@ -33,12 +39,46 @@ const canSubmit = computed(() => {
 const feedbackLengthLabel = computed(() => `${message.value.length}/${FEEDBACK_MAX_LENGTH}`);
 
 function toggleOpen() {
+  if (isMobileViewport()) {
+    snoozeFeedbackBot();
+    void router.push({
+      path: '/feedback',
+      query: { from: route.fullPath },
+    });
+    return;
+  }
+
   open.value = !open.value;
   submitted.value = false;
   error.value = null;
   if (open.value) {
     void nextTick(syncFeedbackTextareaHeight);
   }
+}
+
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 640px)').matches;
+}
+
+function readSessionNumber(key: string, fallback = 0) {
+  const value = window.sessionStorage.getItem(key);
+  if (value === null) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function updateBotVisibility() {
+  const views = readSessionNumber(FEEDBACK_SESSION_VIEWS_KEY) + 1;
+  window.sessionStorage.setItem(FEEDBACK_SESSION_VIEWS_KEY, String(views));
+  const nextView = readSessionNumber(FEEDBACK_NEXT_VIEW_KEY, FEEDBACK_SHOW_AFTER_VIEWS);
+  visible.value = views >= nextView;
+}
+
+function snoozeFeedbackBot() {
+  const views = readSessionNumber(FEEDBACK_SESSION_VIEWS_KEY);
+  window.sessionStorage.setItem(FEEDBACK_NEXT_VIEW_KEY, String(views + FEEDBACK_SNOOZE_VIEWS));
+  visible.value = false;
+  open.value = false;
 }
 
 function syncFeedbackTextareaHeight() {
@@ -85,6 +125,7 @@ async function submitFeedback() {
     feedbackType.value = 'confusing';
     name.value = '';
     submitAnonymously.value = false;
+    snoozeFeedbackBot();
     void nextTick(syncFeedbackTextareaHeight);
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Unable to send feedback';
@@ -102,10 +143,17 @@ watch(submitAnonymously, (isAnonymous) => {
 watch(message, () => {
   void nextTick(syncFeedbackTextareaHeight);
 });
+
+watch(() => route.fullPath, () => {
+  open.value = false;
+  updateBotVisibility();
+});
+
+onMounted(updateBotVisibility);
 </script>
 
 <template>
-  <div class="feedback-bot" :class="{ 'feedback-bot--open': open }">
+  <div v-if="visible" class="feedback-bot" :class="{ 'feedback-bot--open': open }">
     <Transition name="feedback-panel">
       <section v-if="open" class="feedback-bot-panel" aria-label="Send feedback">
         <div class="flex items-start justify-between gap-4">
@@ -113,7 +161,7 @@ watch(message, () => {
             <p class="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-dc-yellow">field notes</p>
             <h2 class="mt-2 text-xl font-black tracking-tight text-white">Tell me what felt off.</h2>
           </div>
-          <button class="feedback-bot-icon-button" type="button" aria-label="Close feedback" @click="toggleOpen">
+          <button class="feedback-bot-icon-button" type="button" aria-label="Close feedback" @click="snoozeFeedbackBot">
             <span aria-hidden="true">x</span>
           </button>
         </div>

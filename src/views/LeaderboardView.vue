@@ -14,13 +14,19 @@ interface LeaderboardEntry {
   device_id?: string | null;
 }
 
-const leaderboard = ref<LeaderboardEntry[]>([]);
+type LeaderboardMode = 'all-time' | 'monthly';
+
+const leaderboards = reactive<Record<LeaderboardMode, LeaderboardEntry[]>>({
+  'all-time': [],
+  monthly: [],
+});
 const loading = ref(true);
 const claiming = ref(false);
 const merging = ref(false);
 const accountMessage = ref<string | null>(null);
 const accountError = ref<string | null>(null);
-const leaderboardMode = ref<'all-time' | 'monthly'>('all-time');
+const leaderboardMode = ref<LeaderboardMode>('all-time');
+const leaderboardEnabled = import.meta.env.VITE_ENABLE_LEADERBOARD === 'true';
 const page = ref(1);
 const pageSize = 8;
 const leaderboardPanel = ref<HTMLElement | null>(null);
@@ -42,11 +48,15 @@ const mergeForm = reactive({
 });
 
 const title = computed(() => leaderboardMode.value === 'monthly' ? 'This Month' : 'All-Time Leaderboard');
-const pageCount = computed(() => Math.max(1, Math.ceil(leaderboard.value.length / pageSize)));
-const paginatedLeaderboard = computed(() => leaderboard.value.slice((page.value - 1) * pageSize, page.value * pageSize));
-const pageStart = computed(() => (leaderboard.value.length === 0 ? 0 : (page.value - 1) * pageSize + 1));
-const pageEnd = computed(() => Math.min(leaderboard.value.length, page.value * pageSize));
-const topScore = computed(() => leaderboard.value[0]?.total_score ?? 0);
+const visibleLeaderboard = computed(() => leaderboardEnabled ? leaderboards[leaderboardMode.value] : []);
+const showAccountTools = computed(() => {
+  return leaderboardEnabled && leaderboards['all-time'].length > 0 && leaderboards.monthly.length > 0;
+});
+const pageCount = computed(() => Math.max(1, Math.ceil(visibleLeaderboard.value.length / pageSize)));
+const paginatedLeaderboard = computed(() => visibleLeaderboard.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+const pageStart = computed(() => (visibleLeaderboard.value.length === 0 ? 0 : (page.value - 1) * pageSize + 1));
+const pageEnd = computed(() => Math.min(visibleLeaderboard.value.length, page.value * pageSize));
+const topScore = computed(() => visibleLeaderboard.value[0]?.total_score ?? 0);
 
 function naviiSeed(entry: LeaderboardEntry): string {
   return entry.user_id || entry.device_id || `${entry.nickname}-${entry.rank}`;
@@ -54,16 +64,32 @@ function naviiSeed(entry: LeaderboardEntry): string {
 
 async function fetchData() {
   loading.value = true;
-  const response = await fetch(`/api/leaderboard?type=${leaderboardMode.value}`);
-  if (response.ok) {
-    leaderboard.value = await response.json();
-    page.value = Math.min(page.value, pageCount.value);
+  if (!leaderboardEnabled) {
+    leaderboards['all-time'] = [];
+    leaderboards.monthly = [];
+    loading.value = false;
+    requestAnimationFrame(updateModeSwitcherScope);
+    return;
   }
+
+  const [allTimeLeaderboard, monthlyLeaderboard] = await Promise.all([
+    fetchLeaderboard('all-time'),
+    fetchLeaderboard('monthly'),
+  ]);
+  leaderboards['all-time'] = allTimeLeaderboard;
+  leaderboards.monthly = monthlyLeaderboard;
+  page.value = Math.min(page.value, pageCount.value);
   loading.value = false;
   requestAnimationFrame(updateModeSwitcherScope);
 }
 
-async function setMode(mode: 'all-time' | 'monthly') {
+async function fetchLeaderboard(mode: LeaderboardMode): Promise<LeaderboardEntry[]> {
+  const response = await fetch(`/api/leaderboard?type=${mode}`);
+  if (!response.ok) return [];
+  return response.json();
+}
+
+async function setMode(mode: LeaderboardMode) {
   leaderboardMode.value = mode;
   page.value = 1;
   await fetchData();
@@ -177,8 +203,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="editorial-page">
-    <div class="editorial-wrap">
+  <div class="editorial-page leaderboard-page">
+    <div class="leaderboard-wrap editorial-wrap">
       <CommunityMasthead
         eyebrow="rankings"
         title="Leaderboard"
@@ -188,6 +214,7 @@ onUnmounted(() => {
 
       <section class="coming-soon-muted">
         <div
+          v-if="visibleLeaderboard.length > 0"
           class="z-30 mb-8 border-b-2 border-dc-ink bg-dc-cream/95 py-4 backdrop-blur"
           :class="keepModeSwitcherSticky ? 'sticky top-0' : 'relative'"
         >
@@ -256,13 +283,14 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="leaderboard.length === 0" class="py-16 text-center">
-            <p class="text-lg text-dc-gray">No scores yet. Be the first.</p>
+          <div v-if="visibleLeaderboard.length === 0" class="leaderboard-empty-state py-16 text-center">
+            <p class="text-lg font-semibold text-dc-gray">No scores yet.</p>
+            <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">The leaderboard will open when live quiz scoring is ready for community events.</p>
           </div>
 
           <div v-else class="pagination-footer border-t-2 border-dc-ink bg-dc-paper-warm">
             <p class="pagination-summary">
-              Showing {{ pageStart }}-{{ pageEnd }} of {{ leaderboard.length }}
+              Showing {{ pageStart }}-{{ pageEnd }} of {{ visibleLeaderboard.length }}
             </p>
             <div class="pagination-controls">
               <button
@@ -290,7 +318,7 @@ onUnmounted(() => {
         </template>
       </section>
 
-        <div class="editorial-panel mt-10 p-6 opacity-60">
+        <div v-if="showAccountTools" class="editorial-panel mt-10 p-6 opacity-60">
           <h2 class="mb-2 text-2xl font-black text-dc-ink">Account Tools (Prototype)</h2>
           <p class="mb-6 text-dc-gray">Coming soon with the leaderboard. Profile claiming stays paused for the low-cost launch phase.</p>
 

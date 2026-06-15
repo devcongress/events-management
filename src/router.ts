@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import ArchiveEventView from './views/ArchiveEventView.vue';
 import ArchiveView from './views/ArchiveView.vue';
 import FeedbackView from './views/FeedbackView.vue';
+import RouteFeedbackView from './views/RouteFeedbackView.vue';
 import AdminAttendanceOverviewView from './views/admin/AdminAttendanceOverviewView.vue';
 import AdminAttendanceView from './views/admin/AdminAttendanceView.vue';
 import AdminEventView from './views/admin/AdminEventView.vue';
@@ -34,6 +35,7 @@ export const router = createRouter({
     { path: '/archive/:eventId', name: 'archive-event', component: ArchiveEventView },
     { path: '/leaderboard', name: 'leaderboard', component: LeaderboardView },
     { path: '/cfp/:eventId', name: 'cfp', component: CfpView },
+    { path: '/feedback', name: 'route-feedback', component: RouteFeedbackView },
     { path: '/feedback/:eventId', name: 'feedback', component: FeedbackView },
     { path: '/my-talks', name: 'my-talks', component: MyTalksView },
     { path: '/play', name: 'play', component: PlayView },

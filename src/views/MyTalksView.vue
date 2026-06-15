@@ -87,8 +87,8 @@ function badge(status: string) {
 </script>
 
 <template>
-  <div class="editorial-page">
-    <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+  <div class="editorial-page my-talks-page">
+    <div class="my-talks-wrap mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
       <CommunityMasthead
         eyebrow="speaker desk"
         title="My Talks"
@@ -98,19 +98,19 @@ function badge(status: string) {
       <div v-if="message" class="mb-4 border border-green-700/50 bg-green-100 px-4 py-3 text-sm text-green-800">{{ message }}</div>
       <div v-if="error" class="mb-4 border border-red-700/50 bg-red-100 px-4 py-3 text-sm text-red-800">{{ error }}</div>
 
-      <div v-if="!checked" class="editorial-panel mx-auto max-w-md p-8 sm:p-12">
-        <div class="mb-6 text-center">
-          <div class="mb-4 inline-block border-2 border-dc-ink bg-dc-yellow px-3 py-1 font-mono text-xs font-bold text-dc-ink shadow-[2px_2px_0_#111111]">SPEAKER ACCESS</div>
+      <div v-if="!checked" class="my-talks-card editorial-panel mx-auto max-w-md p-8 sm:p-12">
+        <div class="my-talks-card-header mb-6 text-center">
+          <div class="my-talks-kicker mb-4 inline-block border-2 border-dc-ink bg-dc-yellow px-3 py-1 font-mono text-xs font-bold text-dc-ink shadow-[2px_2px_0_#111111]">SPEAKER ACCESS</div>
           <h2 class="mb-2 font-mono text-2xl font-bold text-dc-ink">Check Your Talks</h2>
           <p class="font-mono text-sm text-dc-gray">Enter the email you used for CFP submissions</p>
         </div>
 
-        <form class="space-y-6" @submit.prevent="checkTalks">
+        <form class="my-talks-form space-y-6" @submit.prevent="checkTalks">
           <div>
             <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-ink">Email Address</label>
             <input v-model="email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
           </div>
-          <button type="submit" :disabled="loading" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink py-4 font-mono text-lg font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:opacity-50">
+          <button type="submit" :disabled="loading" class="my-talks-submit motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink py-4 font-mono text-lg font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:opacity-50">
             {{ loading ? 'CHECKING...' : 'VIEW MY TALKS' }}
           </button>
         </form>
