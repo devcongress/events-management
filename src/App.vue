@@ -17,6 +17,14 @@ interface AdminEventSummary {
   name: string;
 }
 
+interface RouteFeedbackSummary {
+  total: number;
+  new: number;
+  reviewing: number;
+  done: number;
+  wont_fix: number;
+}
+
 const route = useRoute();
 const router = useRouter();
 const quizAvailable = ref(false);
@@ -25,6 +33,7 @@ const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
+const routeFeedbackSummary = ref<RouteFeedbackSummary | null>(null);
 const logoSrc = '/brand/dev-con-logo.png';
 const showOrganizerLink = import.meta.env.VITE_SHOW_ORGANIZER_LINK !== 'false';
 const feedbackBotEnabled = import.meta.env.VITE_SHOW_FEEDBACK_BOT !== 'false';
@@ -77,6 +86,7 @@ const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
 const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
+const routeFeedbackBadgeCount = computed(() => routeFeedbackSummary.value?.new ?? 0);
 const keyboardDismissStyle = computed(() => ({
   transform: `translate3d(0, -${keyboardInset.value}px, 0)`,
 }));
@@ -226,6 +236,10 @@ function isActive(href: string) {
   return activeNavHref.value === href;
 }
 
+function isFeedbackHubLink(link: NavLink) {
+  return link.href === adminPath('feedback');
+}
+
 function linkClass(link: NavLink) {
   if (isActive(link.href)) {
     return link.accent
@@ -333,15 +347,43 @@ async function refreshAdminEventNames() {
   }
 }
 
+async function refreshRouteFeedbackSummary() {
+  if (!isAdminRoute.value || route.path === adminPath('login')) {
+    routeFeedbackSummary.value = null;
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/feedback/inbox');
+    if (!response.ok) {
+      routeFeedbackSummary.value = null;
+      return;
+    }
+
+    const payload = await response.json() as { summary: RouteFeedbackSummary };
+    routeFeedbackSummary.value = payload.summary;
+  } catch {
+    routeFeedbackSummary.value = null;
+  }
+}
+
+function handleRouteFeedbackSummaryUpdated(event: Event) {
+  const detail = (event as CustomEvent<RouteFeedbackSummary>).detail;
+  if (!detail) return;
+  routeFeedbackSummary.value = detail;
+}
+
 onMounted(() => {
   document.addEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.addEventListener('focusin', syncKeyboardDismissVisibility);
   document.addEventListener('focusout', syncKeyboardDismissVisibility);
+  window.addEventListener('route-feedback-summary-updated', handleRouteFeedbackSummaryUpdated);
   window.addEventListener('resize', syncKeyboardDismissVisibility);
   window.visualViewport?.addEventListener('resize', updateKeyboardInset);
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
   void refreshQuizAvailability();
   void refreshAdminEventNames();
+  void refreshRouteFeedbackSummary();
   quizAvailabilityInterval = window.setInterval(() => {
     void refreshQuizAvailability();
   }, 15000);
@@ -353,6 +395,7 @@ watch(() => route.path, (toPath, fromPath) => {
   resetMainScroll();
   updateRouteTransition(toPath, fromPath);
   void refreshAdminEventNames();
+  void refreshRouteFeedbackSummary();
 });
 
 onUnmounted(() => {
@@ -360,6 +403,7 @@ onUnmounted(() => {
   document.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.removeEventListener('focusin', syncKeyboardDismissVisibility);
   document.removeEventListener('focusout', syncKeyboardDismissVisibility);
+  window.removeEventListener('route-feedback-summary-updated', handleRouteFeedbackSummaryUpdated);
   window.removeEventListener('resize', syncKeyboardDismissVisibility);
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
@@ -426,6 +470,13 @@ onUnmounted(() => {
               :aria-current="isActive(link.href) ? 'page' : undefined"
             >
               <span class="relative z-10">{{ link.label }}</span>
+              <span
+                v-if="isFeedbackHubLink(link) && routeFeedbackBadgeCount > 0"
+                class="app-nav-badge"
+                aria-label="New route feedback"
+              >
+                {{ routeFeedbackBadgeCount > 99 ? '99+' : routeFeedbackBadgeCount }}
+              </span>
             </RouterLink>
           </template>
         </nav>
@@ -484,7 +535,14 @@ onUnmounted(() => {
               :aria-current="isActive(link.href) ? 'page' : undefined"
               @click="closeMobileMenu"
             >
-              {{ link.label }}
+              <span>{{ link.label }}</span>
+              <span
+                v-if="isFeedbackHubLink(link) && routeFeedbackBadgeCount > 0"
+                class="app-mobile-menu-badge"
+                aria-label="New route feedback"
+              >
+                {{ routeFeedbackBadgeCount > 99 ? '99+' : routeFeedbackBadgeCount }}
+              </span>
             </RouterLink>
           </template>
         </nav>

@@ -212,6 +212,7 @@ async function fetchRouteFeedback() {
     const payload = await response.json() as { submissions: RouteFeedbackSubmission[]; summary: RouteFeedbackSummary };
     routeFeedbackItems.value = payload.submissions;
     routeFeedbackSummary.value = payload.summary;
+    window.dispatchEvent(new CustomEvent('route-feedback-summary-updated', { detail: payload.summary }));
   } else {
     const payload = await response.json().catch(() => ({}));
     routeFeedbackError.value = payload.error ?? 'Unable to load app feedback inbox';
