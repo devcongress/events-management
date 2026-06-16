@@ -25,6 +25,7 @@ const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
 const logoSrc = '/brand/dev-con-logo.png';
 const showOrganizerLink = import.meta.env.VITE_SHOW_ORGANIZER_LINK !== 'false';
+const feedbackBotEnabled = import.meta.env.VITE_SHOW_FEEDBACK_BOT === 'true';
 let quizAvailabilityInterval: number | undefined;
 
 const publicLinks: NavLink[] = [
@@ -72,7 +73,7 @@ const modeSwitchLabel = computed(() => (isAdminRoute.value ? 'Community' : 'Orga
 const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
-const showFeedbackBot = computed(() => !isAdminRoute.value && !route.path.startsWith('/feedback'));
+const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
 const adminReturnSource = computed(() => {
   const value = route.query.from;
   if (value === 'attendance' || value === 'feedback') return value;

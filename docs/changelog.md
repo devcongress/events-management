@@ -7,6 +7,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-06-15 — Mobile route fit and feedback UX
 
+- Disabled the floating public feedback bot by default behind `VITE_SHOW_FEEDBACK_BOT=true` so mobile scroll testing can isolate route layout without the launcher.
 - Locked the app shell to the visual viewport so document/body overscroll no longer creates phantom vertical scrolling after route content ends.
 - Tightened the route-stack height contract so short mobile pages fill the app scroll area instead of leaving blank space below their content.
 - Replaced the desktop-style mobile nav strip with a compact hamburger header and full-screen mobile menu while preserving accessible 44px+ navigation targets.

@@ -10,6 +10,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional locally, required for server Supabase writes | No | Server-only key for privileged Supabase operations |
 | `VITE_ADMIN_BASE_PATH` | No | Yes | Organizer route prefix; defaults to `/organizer-console` |
 | `VITE_SHOW_ORGANIZER_LINK` | No | Yes | Public header visibility for the Organizer entry point; set to `false` to hide the button in production |
+| `VITE_SHOW_FEEDBACK_BOT` | No | Yes | Public feedback launcher visibility; set to `true` only when testing the route-aware feedback bot |
 | `ADMIN_PASSWORD` | No locally, yes for deployments | No | Prototype organizer login password |
 | `ADMIN_SESSION_SECRET` | No locally, yes for deployments | No | Prototype organizer cookie/session secret |
 | `PUBLIC_APP_URL` | No | No | Absolute base URL used in API payloads when request origin is unavailable |
@@ -22,6 +23,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Never prefix the Supabase service-role key with `VITE_`.
 - Keep `VITE_API_BASE_URL` pointed at the Worker origin only; do not include a trailing slash.
 - `VITE_SHOW_ORGANIZER_LINK=false` only hides the public navigation button; it does not secure organizer routes.
+- Leave `VITE_SHOW_FEEDBACK_BOT` unset or `false` for public scroll/layout test rounds; `/feedback` remains directly reachable.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever `VITE_API_BASE_URL` points the browser to a different origin, otherwise admin cookies and non-public API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.
