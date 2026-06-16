@@ -3,6 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { SIMULATED_DELAY_MS } from '@/lib/constants';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
+import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
@@ -1382,11 +1383,15 @@ app.get('/api/events/:eventId/attendance', async (c) => {
   }
 
   const attendanceImport = await getLatestAttendanceImport(eventId);
+  const uploadWindow = attendanceUploadWindowForEvent(event);
 
   return c.json({
     event,
     import: attendanceImport,
     summary: buildAttendanceSummary(attendanceImport),
+    upload_available: uploadWindow.available,
+    upload_unavailable_reason: uploadWindow.reason,
+    upload_unlocks_at: uploadWindow.unlocks_at,
   });
 });
 
@@ -1399,6 +1404,15 @@ app.post('/api/events/:eventId/attendance/import', async (c) => {
 
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const uploadWindow = attendanceUploadWindowForEvent(event);
+  if (!uploadWindow.available) {
+    return c.json({
+      error: uploadWindow.reason ?? 'Attendance CSV upload is not open for this meetup month.',
+      upload_available: false,
+      upload_unlocks_at: uploadWindow.unlocks_at,
+    }, 403);
   }
 
   const body = await c.req.json().catch(() => ({}));
@@ -1425,6 +1439,9 @@ app.post('/api/events/:eventId/attendance/import', async (c) => {
       event,
       import: attendanceImport,
       summary: buildAttendanceSummary(attendanceImport),
+      upload_available: uploadWindow.available,
+      upload_unavailable_reason: uploadWindow.reason,
+      upload_unlocks_at: uploadWindow.unlocks_at,
     }, 201);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Unable to import attendance CSV' }, 400);
@@ -1443,11 +1460,15 @@ app.delete('/api/events/:eventId/attendance', async (c) => {
   }
 
   await removeAttendanceImport(eventId);
+  const uploadWindow = attendanceUploadWindowForEvent(event);
 
   return c.json({
     event,
     import: null,
     summary: buildAttendanceSummary(null),
+    upload_available: uploadWindow.available,
+    upload_unavailable_reason: uploadWindow.reason,
+    upload_unlocks_at: uploadWindow.unlocks_at,
   });
 });
 

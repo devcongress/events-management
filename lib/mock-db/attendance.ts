@@ -1,4 +1,5 @@
 import { parseLumaAttendanceCsv, summarizeAttendance } from '@/lib/luma-attendance';
+import { attendanceUploadWindowForMonth } from '@/lib/attendance-upload-window';
 import { generateId, now } from '@/lib/utils';
 import type { AttendanceLedgerEvent, AttendanceMonthlyInsights, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
 import { readData, writeData } from './index';
@@ -82,6 +83,7 @@ export function buildAttendanceLedger(events: Event[], imports: EventAttendanceI
     .map((event) => {
       const attendanceImport = importsByEvent.get(event.id) ?? null;
       const attendanceMonth = attendanceImport?.attendance_month ?? attendanceMonthForEvent(event);
+      const uploadWindow = attendanceUploadWindowForMonth(attendanceMonth);
 
       return {
         event,
@@ -90,6 +92,9 @@ export function buildAttendanceLedger(events: Event[], imports: EventAttendanceI
         import: attendanceImport,
         summary: buildAttendanceSummary(attendanceImport),
         upload_status: attendanceImport ? 'uploaded' : 'missing',
+        upload_available: uploadWindow.available,
+        upload_unavailable_reason: uploadWindow.reason,
+        upload_unlocks_at: uploadWindow.unlocks_at,
       };
     });
 }

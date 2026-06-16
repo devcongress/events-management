@@ -26,6 +26,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Added the `/feedback` route to documentation and noted the mobile feedback behavior for community testers.
 - Made the header sticky at the top on mobile viewports only, leaving larger layouts non-sticky.
 - Hardened organizer sign-in so failed JSON checks no longer leave the button stuck, compacted the mobile sign-in card typography and password field, and kept the mobile topbar fixed/reachable across routes.
+- Gated attendance CSV uploads by meetup cycle: current-month uploads stay locked, next-month uploads open from this month’s last Saturday, and locked months show why in the Attendance Hub and event readout.
+- Clarified that removing an attendance CSV drops that meetup from aggregate attendance statistics until a replacement is uploaded.
 
 ## 2026-06-15 — CI badge and workflow
 

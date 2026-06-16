@@ -72,6 +72,7 @@ const pageStart = computed(() => (filteredLedger.value.length === 0 ? 0 : (page.
 const pageEnd = computed(() => Math.min(filteredLedger.value.length, page.value * pageSize));
 const paginatedLedger = computed(() => filteredLedger.value.slice((page.value - 1) * pageSize, page.value * pageSize));
 const completedMissing = computed(() => yearLedger.value.filter((item) => item.event.status === 'completed' && !item.import));
+const uploadableMissing = computed(() => completedMissing.value.filter((item) => item.upload_available));
 const selectedYearUploaded = computed(() => yearLedger.value.filter((item) => item.import).length);
 const selectedYearMissing = computed(() => yearLedger.value.filter((item) => !item.import).length);
 const selectedYearCompletedMissing = computed(() => yearLedger.value.filter((item) => item.event.status === 'completed' && !item.import).length);
@@ -133,6 +134,11 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
 }
 
+function formatUnlockDate(value: string | null): string {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+}
+
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -188,8 +194,8 @@ onMounted(fetchAttendanceLedger);
             <p class="mt-3 max-w-[34rem] text-base leading-7 text-dc-gray sm:text-lg">Track one Luma CSV per meetup month, spot missing uploads, and turn old exports into venue-planning signals.</p>
           </div>
           <RouterLink
-            v-if="completedMissing[0]"
-            :to="{ path: adminPath(`events/${completedMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
+            v-if="uploadableMissing[0]"
+            :to="{ path: adminPath(`events/${uploadableMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
             class="editorial-action max-w-full self-start whitespace-nowrap lg:shrink-0"
           >
             Upload Missing CSV
@@ -229,8 +235,8 @@ onMounted(fetchAttendanceLedger);
                 </p>
               </div>
               <RouterLink
-                v-if="completedMissing[0]"
-                :to="{ path: adminPath(`events/${completedMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
+                v-if="uploadableMissing[0]"
+                :to="{ path: adminPath(`events/${uploadableMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
                 class="editorial-secondary-action mt-5 justify-center px-4 py-2 text-xs"
               >
                 Upload next missing CSV
@@ -345,9 +351,16 @@ onMounted(fetchAttendanceLedger);
                       <p class="attendance-ledger-filename">{{ item.import?.source_filename ?? 'No Luma CSV yet' }}</p>
                       <p v-if="item.import" class="attendance-ledger-imported">{{ formatDateTime(item.import.imported_at) }}</p>
                     </div>
-                    <RouterLink :to="{ path: adminPath(`events/${item.event.id}/attendance`), query: { from: 'attendance' } }" class="editorial-secondary-action attendance-ledger-action">
+                    <RouterLink
+                      v-if="item.import || item.upload_available"
+                      :to="{ path: adminPath(`events/${item.event.id}/attendance`), query: { from: 'attendance' } }"
+                      class="editorial-secondary-action attendance-ledger-action"
+                    >
                       {{ item.import ? 'Review' : 'Upload' }}
                     </RouterLink>
+                    <span v-else class="attendance-ledger-action rounded-md border border-dc-border bg-dc-paper-warm px-3 py-2 text-center font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                      Locked
+                    </span>
                   </div>
 
                   <div class="attendance-ledger-result">
@@ -366,8 +379,10 @@ onMounted(fetchAttendanceLedger);
                     <div v-else class="attendance-ledger-empty">
                       <span class="attendance-ledger-empty-dot" aria-hidden="true" />
                       <p>
-                        <span>Waiting for CSV</span>
-                        <small>Unlocks check-ins, no-shows, and rate.</small>
+                        <span>{{ item.upload_available ? 'Waiting for CSV' : 'Upload not open' }}</span>
+                        <small>
+                          {{ item.upload_available ? 'Unlocks check-ins, no-shows, and rate.' : (item.upload_unlocks_at ? `Opens ${formatUnlockDate(item.upload_unlocks_at)}.` : item.upload_unavailable_reason) }}
+                        </small>
                       </p>
                     </div>
                   </div>
@@ -439,8 +454,8 @@ onMounted(fetchAttendanceLedger);
                 <div v-else class="mt-4 rounded-md border border-dc-border bg-dc-paper-warm p-4">
                   <p class="text-sm leading-6 text-dc-gray">Upload a CSV to compare months. The strongest month will appear here after the first import.</p>
                   <RouterLink
-                    v-if="completedMissing[0]"
-                    :to="{ path: adminPath(`events/${completedMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
+                    v-if="uploadableMissing[0]"
+                    :to="{ path: adminPath(`events/${uploadableMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
                     class="mt-4 inline-flex font-mono text-xs font-bold uppercase tracking-wide text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4"
                   >
                     Upload first CSV

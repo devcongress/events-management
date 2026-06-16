@@ -305,6 +305,9 @@ export interface AttendanceLedgerEvent {
   import: EventAttendanceImport | null;
   summary: EventAttendanceSummary;
   upload_status: 'uploaded' | 'missing';
+  upload_available: boolean;
+  upload_unavailable_reason: string | null;
+  upload_unlocks_at: string | null;
 }
 
 export interface AttendanceSourceInsight {

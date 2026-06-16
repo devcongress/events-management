@@ -9,6 +9,9 @@ interface AttendanceResponse {
   event: CommunityEvent;
   import: EventAttendanceImport | null;
   summary: EventAttendanceSummary;
+  upload_available: boolean;
+  upload_unavailable_reason: string | null;
+  upload_unlocks_at: string | null;
 }
 
 const route = useRoute();
@@ -21,6 +24,9 @@ const importProgress = ref<number | null>(null);
 const event = ref<CommunityEvent | null>(null);
 const attendanceImport = ref<EventAttendanceImport | null>(null);
 const summary = ref<EventAttendanceSummary | null>(null);
+const uploadAvailable = ref(false);
+const uploadUnavailableReason = ref<string | null>(null);
+const uploadUnlocksAt = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const ATTENDANCE_CSV_MAX_BYTES = 2 * 1024 * 1024;
 
@@ -64,11 +70,21 @@ const importProgressCopy = computed(() => {
   if (importStage.value === 'processing') return 'Processing rows on server';
   return '';
 });
+const uploadBlockedCopy = computed(() => {
+  if (uploadAvailable.value) return '';
+  if (uploadUnlocksAt.value) {
+    return `${uploadUnavailableReason.value ?? 'Attendance CSV upload is not open yet'} Opens ${formatDate(uploadUnlocksAt.value)}.`;
+  }
+  return uploadUnavailableReason.value ?? 'Attendance CSV upload is not open for this meetup month.';
+});
 
 function hydrateAttendance(payload: AttendanceResponse) {
   event.value = payload.event;
   attendanceImport.value = payload.import;
   summary.value = payload.summary;
+  uploadAvailable.value = payload.upload_available;
+  uploadUnavailableReason.value = payload.upload_unavailable_reason;
+  uploadUnlocksAt.value = payload.upload_unlocks_at;
 }
 
 async function fetchAttendance() {
@@ -89,6 +105,10 @@ async function fetchAttendance() {
 
 function chooseCsv() {
   if (importing.value) return;
+  if (!uploadAvailable.value) {
+    error.value = uploadBlockedCopy.value;
+    return;
+  }
   if (fileInput.value) fileInput.value.value = '';
   fileInput.value?.click();
 }
@@ -231,6 +251,10 @@ function formatDateTime(value: string | null): string {
   }).format(new Date(value));
 }
 
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+}
+
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -269,9 +293,12 @@ onMounted(fetchAttendance);
               </Transition>
               <input ref="fileInput" class="sr-only" type="file" accept=".csv,text/csv" @change="handleFileChange" />
               <div class="flex shrink-0 flex-col gap-2">
-                <button type="button" class="editorial-action px-5 py-3 text-xs" :disabled="importing || removing" @click="chooseCsv">
+                <button type="button" class="editorial-action px-5 py-3 text-xs" :disabled="importing || removing || !uploadAvailable" @click="chooseCsv">
                   {{ importButtonLabel }}
                 </button>
+                <p v-if="!uploadAvailable" class="max-w-[15rem] text-xs font-semibold leading-5 text-dc-gray">
+                  {{ uploadBlockedCopy }}
+                </p>
                 <Transition name="attendance-remove-action">
                   <button
                     v-if="attendanceImport"
@@ -283,6 +310,9 @@ onMounted(fetchAttendance);
                     {{ removing ? 'Removing...' : 'Remove file' }}
                   </button>
                 </Transition>
+                <p v-if="attendanceImport" class="max-w-[15rem] text-xs font-semibold leading-5 text-dc-gray">
+                  Removing this CSV drops this meetup from attendance totals until a replacement is uploaded.
+                </p>
               </div>
             </div>
             <Transition name="attendance-progress">
@@ -311,6 +341,9 @@ onMounted(fetchAttendance);
             <p class="editorial-eyebrow">no import yet</p>
             <h2 class="text-3xl font-black tracking-tight text-dc-ink">No attendance data for {{ event?.name ?? 'this event' }}</h2>
             <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">Once a Luma CSV is imported, this page will show registrations, recorded check-ins, and no-shows for the organizer team.</p>
+            <p v-if="!uploadAvailable" class="mt-4 max-w-2xl rounded-md border border-dc-border bg-dc-paper-warm p-4 text-sm font-semibold leading-6 text-dc-gray">
+              {{ uploadBlockedCopy }}
+            </p>
           </section>
 
           <div v-else key="analysis">
