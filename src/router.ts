@@ -22,6 +22,7 @@ import NotFoundView from './views/NotFoundView.vue';
 import PlayCodeView from './views/PlayCodeView.vue';
 import PlayView from './views/PlayView.vue';
 import { adminPath, isAdminPath } from './admin-routes';
+import { fetchAdminSession } from './lib/api';
 
 const COMMUNITY_TITLE = 'DevCongress | Community';
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
@@ -57,18 +58,19 @@ export const router = createRouter({
   ],
 });
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   if (!isAdminPath(to.path) || to.path === adminPath('login')) {
     return true;
   }
 
+  if (isAdminPath(from.path) && from.path !== adminPath('login')) {
+    return true;
+  }
+
   try {
-    const response = await fetch('/api/auth/session', { credentials: 'include' });
-    if (response.ok) {
-      const session = await response.json();
-      if (session.authenticated) {
-        return true;
-      }
+    const session = await fetchAdminSession();
+    if (session.authenticated) {
+      return true;
     }
   } catch {
     // Fall through to login when the hosted API/session check is unreachable.
