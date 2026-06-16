@@ -968,12 +968,36 @@
     background: rgba(255, 253, 231, 0.38);
   }
 
+  .attendance-ledger-row--locked {
+    opacity: 0.64;
+  }
+
   .attendance-ledger-month {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     font-size: 1rem;
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1.2;
     color: #111111;
+  }
+
+  .attendance-ledger-lock {
+    display: inline-grid;
+    width: 1.15rem;
+    height: 1.15rem;
+    place-items: center;
+    flex: 0 0 auto;
+    border: 1px solid #b8b2a4;
+    border-radius: 999px;
+    background: #f5f2e8;
+    color: #555555;
+  }
+
+  .attendance-ledger-lock svg {
+    width: 0.72rem;
+    height: 0.72rem;
   }
 
   .attendance-ledger-imported,
@@ -1050,6 +1074,23 @@
     justify-content: center;
     padding: 0.62rem 1rem;
     font-size: 0.72rem;
+  }
+
+  .attendance-ledger-action--disabled {
+    display: inline-flex;
+    min-width: 2.65rem;
+    min-height: 2.45rem;
+    align-items: center;
+    border: 1px solid #d8d2c4;
+    border-radius: 0.375rem;
+    background: #f5f2e8;
+    color: #666666;
+    cursor: not-allowed;
+  }
+
+  .attendance-ledger-action--disabled svg {
+    width: 1rem;
+    height: 1rem;
   }
 
   .attendance-ledger-result {

@@ -134,11 +134,6 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
 }
 
-function formatUnlockDate(value: string | null): string {
-  if (!value) return '';
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
-}
-
 function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -335,10 +330,21 @@ onMounted(fetchAttendanceLedger);
                   v-for="item in paginatedLedger"
                   :key="item.event.id"
                   class="attendance-ledger-row motion-colors"
-                  :class="{ 'attendance-ledger-row--missing': !item.import }"
+                  :class="{
+                    'attendance-ledger-row--missing': !item.import,
+                    'attendance-ledger-row--locked': !item.import && !item.upload_available,
+                  }"
                 >
                   <div class="min-w-0">
-                    <p class="attendance-ledger-month">{{ item.month_label }}</p>
+                    <p class="attendance-ledger-month">
+                      <span>{{ item.month_label }}</span>
+                      <span v-if="!item.import && !item.upload_available" class="attendance-ledger-lock" aria-label="Upload locked">
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                          <path d="M6.5 8V6.5a3.5 3.5 0 0 1 7 0V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                          <path d="M5.75 8h8.5c.69 0 1.25.56 1.25 1.25v5.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-5.5c0-.69.56-1.25 1.25-1.25Z" stroke="currentColor" stroke-width="2" />
+                        </svg>
+                      </span>
+                    </p>
                     <p class="attendance-ledger-event">{{ item.event.name }}</p>
                     <p class="attendance-ledger-date">{{ item.attendance_month }} · {{ formatDate(item.event.event_date) }}</p>
                   </div>
@@ -358,8 +364,11 @@ onMounted(fetchAttendanceLedger);
                     >
                       {{ item.import ? 'Review' : 'Upload' }}
                     </RouterLink>
-                    <span v-else class="attendance-ledger-action rounded-md border border-dc-border bg-dc-paper-warm px-3 py-2 text-center font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                      Locked
+                    <span v-else class="attendance-ledger-action attendance-ledger-action--disabled" aria-label="Upload locked">
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M6.5 8V6.5a3.5 3.5 0 0 1 7 0V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        <path d="M5.75 8h8.5c.69 0 1.25.56 1.25 1.25v5.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-5.5c0-.69.56-1.25 1.25-1.25Z" stroke="currentColor" stroke-width="2" />
+                      </svg>
                     </span>
                   </div>
 
@@ -379,9 +388,9 @@ onMounted(fetchAttendanceLedger);
                     <div v-else class="attendance-ledger-empty">
                       <span class="attendance-ledger-empty-dot" aria-hidden="true" />
                       <p>
-                        <span>{{ item.upload_available ? 'Waiting for CSV' : 'Upload not open' }}</span>
+                        <span>Waiting for CSV</span>
                         <small>
-                          {{ item.upload_available ? 'Unlocks check-ins, no-shows, and rate.' : (item.upload_unlocks_at ? `Opens ${formatUnlockDate(item.upload_unlocks_at)}.` : item.upload_unavailable_reason) }}
+                          Unlocks check-ins, no-shows, and rate.
                         </small>
                       </p>
                     </div>

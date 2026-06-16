@@ -30,6 +30,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Hardened organizer sign-in so failed JSON checks no longer leave the button stuck, compacted the mobile sign-in card typography and password field, and kept the mobile topbar fixed/reachable across routes.
 - Gated attendance CSV uploads by meetup cycle: current-month uploads stay locked, next-month uploads open from this month’s last Saturday, and locked months show why in the Attendance Hub and event readout.
 - Clarified that removing an attendance CSV drops that meetup from aggregate attendance statistics until a replacement is uploaded.
+- Replaced the Attendance Hub's locked-month text treatment with a disabled row/action state and compact padlock icon.
 
 ## 2026-06-15 — CI badge and workflow
 
