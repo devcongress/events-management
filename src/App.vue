@@ -17,16 +17,36 @@ interface AdminEventSummary {
   name: string;
 }
 
+interface ScrollDebugSnapshot {
+  route: string;
+  time: string;
+  windowY: number;
+  innerHeight: number;
+  visualHeight: number | null;
+  visualOffsetTop: number | null;
+  docScrollHeight: number;
+  docClientHeight: number;
+  bodyScrollHeight: number;
+  mainScrollTop: number | null;
+  mainScrollHeight: number | null;
+  mainClientHeight: number | null;
+  mainOverflow: string | null;
+  shellOverflow: string | null;
+}
+
 const route = useRoute();
 const router = useRouter();
 const quizAvailable = ref(false);
 const adminEventNames = ref<Record<string, string>>({});
 const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
+const scrollDebugEnabled = ref(false);
+const scrollDebugSnapshot = ref<ScrollDebugSnapshot | null>(null);
 const logoSrc = '/brand/dev-con-logo.png';
 const showOrganizerLink = import.meta.env.VITE_SHOW_ORGANIZER_LINK !== 'false';
 const feedbackBotEnabled = import.meta.env.VITE_SHOW_FEEDBACK_BOT === 'true';
 let quizAvailabilityInterval: number | undefined;
+let scrollDebugInterval: number | undefined;
 
 const publicLinks: NavLink[] = [
   { href: '/', label: 'Home' },
@@ -74,6 +94,27 @@ const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
 const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
+const scrollDebugRows = computed(() => {
+  const snapshot = scrollDebugSnapshot.value;
+  if (!snapshot) return [];
+
+  return [
+    ['route', snapshot.route],
+    ['time', snapshot.time],
+    ['winY', snapshot.windowY],
+    ['innerH', snapshot.innerHeight],
+    ['vvH', snapshot.visualHeight ?? 'n/a'],
+    ['vvTop', snapshot.visualOffsetTop ?? 'n/a'],
+    ['docH', snapshot.docScrollHeight],
+    ['docClient', snapshot.docClientHeight],
+    ['bodyH', snapshot.bodyScrollHeight],
+    ['mainTop', snapshot.mainScrollTop ?? 'n/a'],
+    ['mainH', snapshot.mainScrollHeight ?? 'n/a'],
+    ['mainClient', snapshot.mainClientHeight ?? 'n/a'],
+    ['mainOv', snapshot.mainOverflow ?? 'n/a'],
+    ['shellOv', snapshot.shellOverflow ?? 'n/a'],
+  ];
+});
 const adminReturnSource = computed(() => {
   const value = route.query.from;
   if (value === 'attendance' || value === 'feedback') return value;
@@ -246,12 +287,64 @@ function resetMainScroll() {
   const scrollToTop = () => {
     document.querySelector('.app-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    updateScrollDebugSnapshot();
   };
 
   scrollToTop();
   void nextTick(scrollToTop);
   window.requestAnimationFrame(scrollToTop);
   window.setTimeout(scrollToTop, 280);
+}
+
+function readScrollDebugQuery() {
+  return route.query.debugScroll === '1' || new URLSearchParams(window.location.search).get('debugScroll') === '1';
+}
+
+function enableScrollDebug() {
+  scrollDebugEnabled.value = true;
+  window.sessionStorage.setItem('devcon-scroll-debug', '1');
+  updateScrollDebugSnapshot();
+}
+
+function disableScrollDebug() {
+  scrollDebugEnabled.value = false;
+  scrollDebugSnapshot.value = null;
+  window.sessionStorage.removeItem('devcon-scroll-debug');
+}
+
+function updateScrollDebugSnapshot() {
+  if (!scrollDebugEnabled.value) return;
+
+  const main = document.querySelector<HTMLElement>('.app-main');
+  const shell = document.querySelector<HTMLElement>('.app-shell');
+  const visualViewport = window.visualViewport;
+
+  scrollDebugSnapshot.value = {
+    route: route.fullPath,
+    time: new Date().toLocaleTimeString(),
+    windowY: Math.round(window.scrollY),
+    innerHeight: Math.round(window.innerHeight),
+    visualHeight: visualViewport ? Math.round(visualViewport.height) : null,
+    visualOffsetTop: visualViewport ? Math.round(visualViewport.offsetTop) : null,
+    docScrollHeight: document.documentElement.scrollHeight,
+    docClientHeight: document.documentElement.clientHeight,
+    bodyScrollHeight: document.body.scrollHeight,
+    mainScrollTop: main ? Math.round(main.scrollTop) : null,
+    mainScrollHeight: main?.scrollHeight ?? null,
+    mainClientHeight: main?.clientHeight ?? null,
+    mainOverflow: main ? window.getComputedStyle(main).overflowY : null,
+    shellOverflow: shell ? window.getComputedStyle(shell).overflowY : null,
+  };
+}
+
+async function copyScrollDebugSnapshot() {
+  if (!scrollDebugSnapshot.value) return;
+
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(scrollDebugSnapshot.value, null, 2));
+  } catch {
+    // Ignore clipboard failures; screenshots still capture the visible values.
+  }
 }
 
 async function logout() {
@@ -281,6 +374,16 @@ async function refreshAdminEventNames() {
 }
 
 onMounted(() => {
+  if (readScrollDebugQuery() || window.sessionStorage.getItem('devcon-scroll-debug') === '1') {
+    enableScrollDebug();
+  }
+
+  window.addEventListener('scroll', updateScrollDebugSnapshot, { passive: true });
+  window.addEventListener('resize', updateScrollDebugSnapshot);
+  window.visualViewport?.addEventListener('resize', updateScrollDebugSnapshot);
+  window.visualViewport?.addEventListener('scroll', updateScrollDebugSnapshot);
+  scrollDebugInterval = window.setInterval(updateScrollDebugSnapshot, 500);
+
   void refreshQuizAvailability();
   void refreshAdminEventNames();
   quizAvailabilityInterval = window.setInterval(() => {
@@ -290,6 +393,9 @@ onMounted(() => {
 
 watch(() => route.path, (toPath, fromPath) => {
   closeMobileMenu();
+  if (readScrollDebugQuery()) {
+    enableScrollDebug();
+  }
   resetMainScroll();
   updateRouteTransition(toPath, fromPath);
   void refreshAdminEventNames();
@@ -299,6 +405,13 @@ onUnmounted(() => {
   if (quizAvailabilityInterval !== undefined) {
     window.clearInterval(quizAvailabilityInterval);
   }
+  if (scrollDebugInterval !== undefined) {
+    window.clearInterval(scrollDebugInterval);
+  }
+  window.removeEventListener('scroll', updateScrollDebugSnapshot);
+  window.removeEventListener('resize', updateScrollDebugSnapshot);
+  window.visualViewport?.removeEventListener('resize', updateScrollDebugSnapshot);
+  window.visualViewport?.removeEventListener('scroll', updateScrollDebugSnapshot);
 });
 </script>
 
@@ -492,5 +605,20 @@ onUnmounted(() => {
 
     <FeedbackBot v-if="showFeedbackBot" />
     <AppToaster />
+    <aside v-if="scrollDebugEnabled && !mobileMenuOpen" class="scroll-debug-panel" aria-label="Scroll debug values">
+      <div class="scroll-debug-header">
+        <strong>Scroll Debug</strong>
+        <div class="scroll-debug-actions">
+          <button type="button" @click="copyScrollDebugSnapshot">Copy</button>
+          <button type="button" aria-label="Close scroll debug" @click="disableScrollDebug">x</button>
+        </div>
+      </div>
+      <dl class="scroll-debug-grid">
+        <template v-for="[label, value] in scrollDebugRows" :key="label">
+          <dt>{{ label }}</dt>
+          <dd>{{ value }}</dd>
+        </template>
+      </dl>
+    </aside>
   </div>
 </template>

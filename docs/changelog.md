@@ -7,6 +7,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-06-15 — Mobile route fit and feedback UX
 
+- Added an opt-in `?debugScroll=1` phone diagnostics overlay that reports document, visual viewport, and app-main scroll metrics during real-device route testing.
 - Moved mobile community pages back to normal document scrolling instead of the nested app `<main>` scroller so real phone browsers own visual-viewport and address-bar scroll behavior.
 - Disabled the floating public feedback bot by default behind `VITE_SHOW_FEEDBACK_BOT=true` so mobile scroll testing can isolate route layout without the launcher.
 - Locked the app shell to the visual viewport so document/body overscroll no longer creates phantom vertical scrolling after route content ends.
