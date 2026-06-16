@@ -244,7 +244,8 @@ function toggleMobileMenu() {
 
 function resetMainScroll() {
   const scrollToTop = () => {
-    document.querySelector('main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.querySelector('.app-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };
 
   scrollToTop();
@@ -302,7 +303,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink">
+  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--community': !isAdminRoute }">
     <header class="app-header sticky top-0 z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
         <RouterLink to="/" class="group flex min-h-11 items-center">

@@ -2748,6 +2748,41 @@
   }
 
   @media (max-width: 640px) {
+    html,
+    body {
+      height: auto;
+      min-height: 100%;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    #app {
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    .app-shell.app-shell--community {
+      height: auto;
+      min-height: 100vh;
+      min-height: 100svh;
+      max-height: none;
+      overflow: visible !important;
+    }
+
+    .app-shell.app-shell--community .app-main {
+      flex: 0 0 auto;
+      min-height: calc(100svh - 3.75rem);
+      overflow: visible !important;
+      -webkit-overflow-scrolling: auto;
+    }
+
+    .app-shell.app-shell--community .page-route-stack,
+    .app-shell.app-shell--community .page-route-stack > .page-view,
+    .app-shell.app-shell--community .page-view {
+      min-height: calc(100svh - 3.75rem);
+    }
+
     .app-header-inner {
       grid-template-columns: 1fr auto !important;
       gap: 0.35rem 0.65rem !important;
