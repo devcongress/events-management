@@ -8,6 +8,8 @@ type DropdownOption = {
   label: string;
 };
 
+let dropdownInstanceCount = 0;
+
 const props = defineProps<{
   modelValue: DropdownValue;
   options: DropdownOption[];
@@ -23,6 +25,7 @@ const emit = defineEmits<{
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 const placement = ref<'bottom' | 'top'>('bottom');
+const dropdownId = `app-dropdown-${++dropdownInstanceCount}`;
 
 const estimatedMenuHeight = computed(() => {
   const optionHeight = 42;
@@ -40,8 +43,13 @@ function choose(value: DropdownValue) {
 }
 
 function toggle() {
-  if (!props.disabled) {
-    open.value = !open.value;
+  if (props.disabled) return;
+
+  if (open.value) {
+    open.value = false;
+  } else {
+    window.dispatchEvent(new CustomEvent('app-dropdown:open', { detail: { id: dropdownId } }));
+    open.value = true;
   }
 }
 
@@ -70,9 +78,17 @@ function handleEscape(event: KeyboardEvent) {
   }
 }
 
+function handleDropdownOpen(event: Event) {
+  const detail = (event as CustomEvent<{ id?: string }>).detail;
+  if (detail?.id !== dropdownId) {
+    open.value = false;
+  }
+}
+
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick);
   document.addEventListener('keydown', handleEscape);
+  window.addEventListener('app-dropdown:open', handleDropdownOpen);
   window.addEventListener('resize', updatePlacement);
   window.addEventListener('scroll', updatePlacement, true);
 });
@@ -80,6 +96,7 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick);
   document.removeEventListener('keydown', handleEscape);
+  window.removeEventListener('app-dropdown:open', handleDropdownOpen);
   window.removeEventListener('resize', updatePlacement);
   window.removeEventListener('scroll', updatePlacement, true);
 });
