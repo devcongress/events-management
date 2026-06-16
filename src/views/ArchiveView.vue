@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
+import { computed, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import { fetchOverview, queryKeys } from '@/src/lib/api';
 import type { Event, Talk } from '@/types';
 
-interface OverviewResponse {
-  events: Event[];
-  talks: Talk[];
-}
-
-const overview = ref<OverviewResponse | null>(null);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const overviewQuery = useQuery({
+  queryKey: queryKeys.overview,
+  queryFn: fetchOverview,
+});
+const overview = computed(() => overviewQuery.data.value ?? null);
+const loading = computed(() => overviewQuery.isPending.value);
+const error = computed(() => overviewQuery.error.value?.message ?? null);
 const selectedYear = ref<number | null>(null);
 const query = ref('');
 const selectedTopic = ref('');
@@ -123,20 +124,16 @@ function clearFilters() {
   selectedSpeaker.value = '';
 }
 
-onMounted(async () => {
-  try {
-    const response = await fetch('/api/overview');
-    if (!response.ok) {
-      throw new Error(`Archive request failed: ${response.status}`);
-    }
-    overview.value = await response.json();
-    selectedYear.value = years.value[0] ?? null;
-  } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Unable to load archive';
-  } finally {
-    loading.value = false;
+watch(years, (availableYears) => {
+  if (availableYears.length === 0) {
+    selectedYear.value = null;
+    return;
   }
-});
+
+  if (selectedYear.value === null || !availableYears.includes(selectedYear.value)) {
+    selectedYear.value = availableYears[0];
+  }
+}, { immediate: true });
 </script>
 
 <template>

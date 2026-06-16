@@ -19,6 +19,7 @@
     "@fontsource/inter": "^5.2.8",
     "@hono/vite-dev-server": "^0.26.0",
     "@supabase/supabase-js": "^2.106.2",
+    "@tanstack/vue-query": "^5.101.0",
     "@types/qrcode": "^1.5.6",
     "@usenavii/core": "^0.6.0",
     "@vitejs/plugin-vue": "^5.2.4",

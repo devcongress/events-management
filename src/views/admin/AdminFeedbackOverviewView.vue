@@ -1,94 +1,30 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { computed, ref, watch } from 'vue';
 import { adminPath } from '@/src/admin-routes';
 import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import {
+  fetchFeedbackMonths,
+  fetchJson,
+  fetchRouteFeedbackInbox,
+  queryKeys,
+  summarizeRouteFeedback,
+  type FeedbackMonth,
+  type FeedbackMonthEvent,
+  type RouteFeedbackInboxResponse,
+  type RouteFeedbackSubmission,
+  type RouteFeedbackSummary,
+} from '@/src/lib/api';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
-interface FeedbackMonthEvent {
-  event: {
-    id: string;
-    name: string;
-    event_date: string;
-    status: string;
-  };
-  campaign: {
-    id: string;
-    title: string;
-    status: string;
-    auto_open_on_event_completion: boolean;
-  } | null;
-  campaign_configured: boolean;
-  response_count: number;
-  feedback_window: {
-    opens_at: string | null;
-    closes_at: string | null;
-  };
-  is_open: boolean;
-  insights: {
-    average_rating: number | null;
-    rating_count: number;
-    attend_again_percent: number | null;
-    attend_again_count: number;
-    top_talk_label: string | null;
-    top_talk_count: number;
-    comment_count: number;
-  };
-  public_url: string;
-}
-
-interface FeedbackMonth {
-  month: string;
-  label: string;
-  total_responses: number;
-  event_count: number;
-  comment_count: number;
-  average_rating: number | null;
-  attend_again_percent: number | null;
-  top_talk_label: string | null;
-  top_talk_count: number;
-  events: FeedbackMonthEvent[];
-}
-
-interface RouteFeedbackSubmission {
-  id: string;
-  tester_name: string;
-  type: FeedbackKind;
-  message: string;
-  trigger_source: string | null;
-  page_path: string | null;
-  user_agent: string | null;
-  viewport_width: number | null;
-  viewport_height: number | null;
-  status: FeedbackStatus;
-  admin_note: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface RouteFeedbackSummary {
-  total: number;
-  new: number;
-  reviewing: number;
-  done: number;
-  wont_fix: number;
-}
-
-const loading = ref(true);
-const error = ref('');
-const months = ref<FeedbackMonth[]>([]);
-const selectedMonthKey = ref('');
-const selectedYear = ref('');
-const routeFeedbackLoading = ref(true);
-const routeFeedbackError = ref('');
-const routeFeedbackItems = ref<RouteFeedbackSubmission[]>([]);
-const routeFeedbackSummary = ref<RouteFeedbackSummary>({
+const FEEDBACK_START_MONTH = '2026-01';
+const emptyRouteFeedbackSummary: RouteFeedbackSummary = {
   total: 0,
   new: 0,
   reviewing: 0,
   done: 0,
   wont_fix: 0,
-});
-const FEEDBACK_START_MONTH = '2026-01';
+};
 const routeFeedbackStatuses: { value: FeedbackStatus; label: string }[] = [
   { value: 'new', label: 'New' },
   { value: 'reviewing', label: 'Reviewing' },
@@ -96,6 +32,25 @@ const routeFeedbackStatuses: { value: FeedbackStatus; label: string }[] = [
   { value: 'wont_fix', label: "Won't fix" },
 ];
 
+const queryClient = useQueryClient();
+const selectedMonthKey = ref('');
+const selectedYear = ref('');
+const routeFeedbackActionError = ref('');
+const feedbackMonthsQuery = useQuery({
+  queryKey: queryKeys.feedbackMonths,
+  queryFn: fetchFeedbackMonths,
+});
+const routeFeedbackQuery = useQuery({
+  queryKey: queryKeys.routeFeedbackInbox,
+  queryFn: fetchRouteFeedbackInbox,
+});
+const loading = computed(() => feedbackMonthsQuery.isPending.value);
+const error = computed(() => feedbackMonthsQuery.error.value?.message ?? '');
+const months = computed(() => (feedbackMonthsQuery.data.value?.months ?? []).filter((month) => month.month >= FEEDBACK_START_MONTH));
+const routeFeedbackLoading = computed(() => routeFeedbackQuery.isPending.value);
+const routeFeedbackError = computed(() => routeFeedbackActionError.value || routeFeedbackQuery.error.value?.message || '');
+const routeFeedbackItems = computed(() => routeFeedbackQuery.data.value?.submissions ?? []);
+const routeFeedbackSummary = computed(() => routeFeedbackQuery.data.value?.summary ?? emptyRouteFeedbackSummary);
 const selectedMonth = computed(() => months.value.find((month) => month.month === selectedMonthKey.value) ?? months.value[0] ?? null);
 const availableYears = computed(() => {
   const years = new Set(months.value.map((month) => month.month.slice(0, 4)));
@@ -137,23 +92,22 @@ const monthSummaryCards = computed(() => {
   ];
 });
 
-async function fetchFeedbackMonths() {
-  loading.value = true;
-  error.value = '';
-
-  const response = await fetch('/api/feedback/monthly');
-  if (response.ok) {
-    const payload = await response.json() as { months: FeedbackMonth[] };
-    months.value = payload.months.filter((month) => month.month >= FEEDBACK_START_MONTH);
-    selectedMonthKey.value = months.value[0]?.month ?? '';
-    selectedYear.value = selectedMonthKey.value.slice(0, 4);
-  } else {
-    const payload = await response.json().catch(() => ({}));
-    error.value = payload.error ?? 'Unable to load feedback months';
+watch(months, (availableMonths) => {
+  if (availableMonths.length === 0) {
+    selectedMonthKey.value = '';
+    selectedYear.value = '';
+    return;
   }
 
-  loading.value = false;
-}
+  if (!selectedMonthKey.value || !availableMonths.some((month) => month.month === selectedMonthKey.value)) {
+    selectedMonthKey.value = availableMonths[0].month;
+  }
+
+  const monthYear = selectedMonthKey.value.slice(0, 4);
+  if (!selectedYear.value || !availableYears.value.includes(selectedYear.value)) {
+    selectedYear.value = monthYear;
+  }
+}, { immediate: true });
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
@@ -203,49 +157,60 @@ function monthShortLabel(month: FeedbackMonth): string {
   return new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(date);
 }
 
-async function fetchRouteFeedback() {
-  routeFeedbackLoading.value = true;
-  routeFeedbackError.value = '';
+const routeFeedbackStatusMutation = useMutation({
+  mutationFn: ({ feedbackId, status }: { feedbackId: string; status: FeedbackStatus }) => fetchJson<RouteFeedbackSubmission>(
+    `/api/feedback/inbox/${feedbackId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+  ),
+  onMutate: async ({ feedbackId, status }) => {
+    routeFeedbackActionError.value = '';
+    await queryClient.cancelQueries({ queryKey: queryKeys.routeFeedbackInbox });
 
-  const response = await fetch('/api/feedback/inbox');
-  if (response.ok) {
-    const payload = await response.json() as { submissions: RouteFeedbackSubmission[]; summary: RouteFeedbackSummary };
-    routeFeedbackItems.value = payload.submissions;
-    routeFeedbackSummary.value = payload.summary;
-    window.dispatchEvent(new CustomEvent('route-feedback-summary-updated', { detail: payload.summary }));
-  } else {
-    const payload = await response.json().catch(() => ({}));
-    routeFeedbackError.value = payload.error ?? 'Unable to load app feedback inbox';
-  }
+    const previous = queryClient.getQueryData<RouteFeedbackInboxResponse>(queryKeys.routeFeedbackInbox);
+    if (previous) {
+      const submissions = previous.submissions.map((entry) => (entry.id === feedbackId ? { ...entry, status } : entry));
+      queryClient.setQueryData<RouteFeedbackInboxResponse>(queryKeys.routeFeedbackInbox, {
+        submissions,
+        summary: summarizeRouteFeedback(submissions),
+      });
+    }
 
-  routeFeedbackLoading.value = false;
+    return { previous };
+  },
+  onError: (caught, _variables, context) => {
+    if (context?.previous) {
+      queryClient.setQueryData(queryKeys.routeFeedbackInbox, context.previous);
+    }
+    routeFeedbackActionError.value = caught instanceof Error ? caught.message : 'Unable to update feedback status';
+  },
+  onSuccess: (updated) => {
+    const current = queryClient.getQueryData<RouteFeedbackInboxResponse>(queryKeys.routeFeedbackInbox);
+    if (!current) return;
+
+    const submissions = current.submissions.map((entry) => (entry.id === updated.id ? updated : entry));
+    queryClient.setQueryData<RouteFeedbackInboxResponse>(queryKeys.routeFeedbackInbox, {
+      submissions,
+      summary: summarizeRouteFeedback(submissions),
+    });
+  },
+  onSettled: () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.routeFeedbackInbox });
+  },
+});
+
+function updateRouteFeedbackStatus(item: RouteFeedbackSubmission, status: FeedbackStatus) {
+  if (item.status === status) return;
+  routeFeedbackStatusMutation.mutate({ feedbackId: item.id, status });
 }
 
-async function updateRouteFeedbackStatus(item: RouteFeedbackSubmission, status: FeedbackStatus) {
-  if (item.status === status) return;
-
-  const previousStatus = item.status;
-  item.status = status;
-
-  const response = await fetch(`/api/feedback/inbox/${item.id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  });
-
-  if (response.ok) {
-    const updated = await response.json() as RouteFeedbackSubmission;
-    const index = routeFeedbackItems.value.findIndex((entry) => entry.id === item.id);
-    if (index >= 0) {
-      routeFeedbackItems.value[index] = updated;
-    }
-    await fetchRouteFeedback();
-    return;
-  }
-
-  item.status = previousStatus;
-  const payload = await response.json().catch(() => ({}));
-  routeFeedbackError.value = payload.error ?? 'Unable to update feedback status';
+function isUpdatingRouteFeedback(feedbackId: string, status: FeedbackStatus) {
+  return routeFeedbackStatusMutation.isPending.value
+    && routeFeedbackStatusMutation.variables.value?.feedbackId === feedbackId
+    && routeFeedbackStatusMutation.variables.value?.status === status;
 }
 
 function formatDateTime(value: string): string {
@@ -276,11 +241,6 @@ function feedbackStatusClass(status: FeedbackStatus): string {
   };
   return classes[status] ?? classes.new;
 }
-
-onMounted(() => {
-  void fetchFeedbackMonths();
-  void fetchRouteFeedback();
-});
 </script>
 
 <template>
@@ -380,8 +340,9 @@ onMounted(() => {
                   v-for="status in routeFeedbackStatuses"
                   :key="status.value"
                   type="button"
-                  class="rounded-md border px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide"
+                  class="rounded-md border px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide disabled:cursor-wait disabled:opacity-60"
                   :class="item.status === status.value ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
+                  :disabled="isUpdatingRouteFeedback(item.id, status.value)"
                   @click="updateRouteFeedbackStatus(item, status.value)"
                 >
                   {{ status.label }}

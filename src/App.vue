@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AdminEventTabs from './components/AdminEventTabs.vue';
 import AppToaster from './components/ui/AppToaster.vue';
 import FeedbackBot from './components/FeedbackBot.vue';
 import { adminPath, isAdminPath } from './admin-routes';
+import { fetchRouteFeedbackInbox, queryKeys, type RouteFeedbackSummary } from './lib/api';
 
 interface NavLink {
   href: string;
@@ -17,14 +19,6 @@ interface AdminEventSummary {
   name: string;
 }
 
-interface RouteFeedbackSummary {
-  total: number;
-  new: number;
-  reviewing: number;
-  done: number;
-  wont_fix: number;
-}
-
 const route = useRoute();
 const router = useRouter();
 const quizAvailable = ref(false);
@@ -33,7 +27,6 @@ const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
-const routeFeedbackSummary = ref<RouteFeedbackSummary | null>(null);
 const logoSrc = '/brand/dev-con-logo.png';
 const showOrganizerLink = import.meta.env.VITE_SHOW_ORGANIZER_LINK !== 'false';
 const feedbackBotEnabled = import.meta.env.VITE_SHOW_FEEDBACK_BOT !== 'false';
@@ -86,6 +79,16 @@ const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
 const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
+const shouldLoadRouteFeedbackSummary = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
+const routeFeedbackInboxQuery = useQuery({
+  queryKey: queryKeys.routeFeedbackInbox,
+  queryFn: fetchRouteFeedbackInbox,
+  enabled: shouldLoadRouteFeedbackSummary,
+});
+const routeFeedbackSummary = computed<RouteFeedbackSummary | null>(() => {
+  if (!shouldLoadRouteFeedbackSummary.value) return null;
+  return routeFeedbackInboxQuery.data.value?.summary ?? null;
+});
 const routeFeedbackBadgeCount = computed(() => routeFeedbackSummary.value?.new ?? 0);
 const keyboardDismissStyle = computed(() => ({
   transform: `translate3d(0, -${keyboardInset.value}px, 0)`,
@@ -347,43 +350,15 @@ async function refreshAdminEventNames() {
   }
 }
 
-async function refreshRouteFeedbackSummary() {
-  if (!isAdminRoute.value || route.path === adminPath('login')) {
-    routeFeedbackSummary.value = null;
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/feedback/inbox');
-    if (!response.ok) {
-      routeFeedbackSummary.value = null;
-      return;
-    }
-
-    const payload = await response.json() as { summary: RouteFeedbackSummary };
-    routeFeedbackSummary.value = payload.summary;
-  } catch {
-    routeFeedbackSummary.value = null;
-  }
-}
-
-function handleRouteFeedbackSummaryUpdated(event: Event) {
-  const detail = (event as CustomEvent<RouteFeedbackSummary>).detail;
-  if (!detail) return;
-  routeFeedbackSummary.value = detail;
-}
-
 onMounted(() => {
   document.addEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.addEventListener('focusin', syncKeyboardDismissVisibility);
   document.addEventListener('focusout', syncKeyboardDismissVisibility);
-  window.addEventListener('route-feedback-summary-updated', handleRouteFeedbackSummaryUpdated);
   window.addEventListener('resize', syncKeyboardDismissVisibility);
   window.visualViewport?.addEventListener('resize', updateKeyboardInset);
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
   void refreshQuizAvailability();
   void refreshAdminEventNames();
-  void refreshRouteFeedbackSummary();
   quizAvailabilityInterval = window.setInterval(() => {
     void refreshQuizAvailability();
   }, 15000);
@@ -395,7 +370,6 @@ watch(() => route.path, (toPath, fromPath) => {
   resetMainScroll();
   updateRouteTransition(toPath, fromPath);
   void refreshAdminEventNames();
-  void refreshRouteFeedbackSummary();
 });
 
 onUnmounted(() => {
@@ -403,7 +377,6 @@ onUnmounted(() => {
   document.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.removeEventListener('focusin', syncKeyboardDismissVisibility);
   document.removeEventListener('focusout', syncKeyboardDismissVisibility);
-  window.removeEventListener('route-feedback-summary-updated', handleRouteFeedbackSummaryUpdated);
   window.removeEventListener('resize', syncKeyboardDismissVisibility);
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);

@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import { queryKeys } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventChecklistItem, EventChecklistPhase, EventStatus } from '@/types';
 
 const route = useRoute();
+const queryClient = useQueryClient();
 const event = ref<CommunityEvent | null>(null);
 const checklist = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
@@ -52,6 +55,16 @@ const checklistByPhase = computed(() => checklistPhaseOrder
     items: checklist.value.filter((item) => item.phase === phase),
   }))
   .filter((group) => group.items.length > 0));
+const currentEventId = computed(() => String(route.params.eventId));
+
+async function invalidateEventQueries() {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.events }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.overview }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.event(currentEventId.value) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.eventChecklist(currentEventId.value) }),
+  ]);
+}
 
 async function fetchOverview() {
   const eventId = route.params.eventId;
@@ -83,6 +96,7 @@ async function toggleChecklistItem(item: EventChecklistItem) {
       const payload = await response.json();
       checklist.value = payload.items ?? checklist.value;
       if (payload.event) event.value = payload.event;
+      await invalidateEventQueries();
     }
   } finally {
     checklistSavingId.value = null;
@@ -112,6 +126,7 @@ async function savePhotos(photos: NonNullable<CommunityEvent['photos']>, success
     }
 
     event.value = await response.json();
+    await invalidateEventQueries();
     notify.success(successMessage);
   } catch (error) {
     photoError.value = error instanceof Error ? error.message : 'Failed to update photos';
@@ -294,6 +309,7 @@ async function uploadMediaFile(file: File, purpose: 'cover' | 'photo') {
 
     const payload = await response.json();
     event.value = payload.event ?? event.value;
+    await invalidateEventQueries();
     const savedPercent = file.size > 0 ? Math.max(0, Math.round((1 - compressedFile.size / file.size) * 100)) : 0;
     notify.success(
       purpose === 'cover'

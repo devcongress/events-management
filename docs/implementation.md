@@ -10,6 +10,8 @@
 | `src/router.ts` | Active Vue route table |
 | `src/components/ui/AppToaster.vue` | Globally mounted app-themed Sonner toaster |
 | `src/components/ui/ViewSkeleton.vue` | Shared page-shaped skeleton loader variants for loading states |
+| `src/lib/query.ts` | Shared TanStack Query client defaults for client-side API caching and invalidation |
+| `src/lib/api.ts` | Shared browser fetch helpers, query keys, and common API response types |
 | `src/lib/notify.ts` | Typed notification helper that targets the app toaster |
 | `src/views/DashboardView.vue` | DEV::CON[] landing page backed by current mock data |
 | `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public archive and talk detail surfaces |
@@ -116,19 +118,21 @@
 
 ### Vue App (`src/`)
 
-- `src/main.ts` mounts Vue, Pinia, and Vue Router.
-- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, and polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active.
+- `src/main.ts` mounts Vue, Pinia, Vue Router, and the shared TanStack Query plugin.
+- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, and reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache.
 - `src/App.vue` renders `src/components/AdminEventTabs.vue` once for event-scoped organizer routes, keeping sub-section tabs stable while routed event pages change underneath.
 - `src/components/ui/AppToaster.vue` wraps `vue-sonner` with the DevCongress editorial/ops toast theme; app code should call `notify` from `src/lib/notify.ts` instead of importing `toast` directly.
 - `src/components/ui/ViewSkeleton.vue` provides reusable skeleton variants for full-page loading states; prefer it over bare loading text so routed views preserve their header, panel, table, and form structure while data fetches.
 - `src/components/FeedbackBot.vue` mounts globally on public routes only; it captures typed or anonymous route feedback and inserts `feedback_submissions` with `trigger_source = route_feedback`, page path, user agent, and viewport context. On small screens, the launcher routes to `src/views/RouteFeedbackView.vue` instead of opening an overlay.
 - `src/views/FeedbackView.vue` renders an event-scoped campaign from `/api/feedback/events/:eventId`; campaigns are open when manually set to `active`, or when draft with auto-open enabled and the event status is `completed`. The default auto-open response window starts at the event date and closes 3 days later unless an explicit campaign close time is set.
 - `src/views/ArchiveEventView.vue` checks `/api/feedback/events/:eventId/status` and shows the community “Give Feedback” CTA only while the form is open.
-- `src/views/DashboardView.vue` renders the community hub: featured event/CFP, live quiz join, recent talks, and top members from `/api/overview`.
-- `src/views/ArchiveView.vue` filters completed events by year, query, topic, and speaker.
+- `src/views/DashboardView.vue` renders the community hub: featured event/CFP, live quiz join, recent talks, and top members from the shared `/api/overview` query.
+- `src/views/ArchiveView.vue` filters completed events by year, query, topic, and speaker while reusing the same shared `/api/overview` query cache as the home route.
 - `src/views/NotFoundView.vue` is mounted by the final Vue Router catch-all route for unknown client paths.
 - `src/views/admin/AdminAttendanceOverviewView.vue` renders the monthly attendance ledger, import coverage, source-quality readout, repeat-attendee count, and venue-planning summary from `/api/attendance/monthly`.
-- `src/views/admin/AdminFeedbackOverviewView.vue` renders the route-level App Feedback Inbox from `/api/feedback/inbox` above the monthly event-feedback report, and lets organizers move route feedback through `new`, `reviewing`, `done`, and `wont_fix`.
+- `src/views/admin/AdminFeedbackOverviewView.vue` renders the route-level App Feedback Inbox from the shared `/api/feedback/inbox` query above the monthly event-feedback report, and uses optimistic mutation plus query invalidation when organizers move route feedback through `new`, `reviewing`, `done`, and `wont_fix`.
+- `src/views/admin/AdminEventsView.vue` reads the organizer event list through the shared TanStack query layer and invalidates the event-list plus overview queries after creating a new event.
+- `src/views/admin/AdminEventView.vue` invalidates shared event/overview queries after checklist, photo-link, and media-upload mutations so status and media changes stay visible across routes.
 - `src/views/admin/AdminAttendanceView.vue` uploads/replaces a Luma CSV and renders post-event import metrics, source/ticket breakdowns, checked-in guests, and approved no-shows.
 - `src/views/admin/AdminEventView.vue` renders the shared chronological event checklist from `/api/events/:eventId/checklist`; checking status milestones can advance the event state, while the status dropdown remains available for manual correction.
 - `src/views/admin/AdminEventView.vue` also manages event media: organizers can upload selected cover/photo images to Supabase Storage or add website-compatible `{ url, type }` links where `type` is `image` for direct media or `folder` for shared galleries.

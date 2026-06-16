@@ -8,8 +8,18 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ## 2026-06-16 — Feedback form gating and iOS admin input fix
 
 - Disabled route-feedback submission until the form has a name, an explicitly selected feedback type, a sufficiently detailed note, and a resolved Turnstile token.
-- Moved public route-feedback validation into a shared Zod schema so the floating feedback bot and standalone /feedback route enforce the same requirements and reset state consistently.
+- Moved public route-feedback validation into a shared Zod schema so the floating feedback bot and standalone `/feedback` route enforce the same requirements and reset state consistently.
 - Raised the organizer sign-in password input back to the iOS-safe 16px mobile text size so Safari no longer zooms the admin login form on focus.
+
+## 2026-06-16 — TanStack Query cache foundation
+
+- Added `@tanstack/vue-query` with a shared query client so client-side API reads can reuse cached results instead of each view re-fetching in isolation.
+- Centralized common `/api/overview`, `/api/feedback/monthly`, and `/api/feedback/inbox` fetchers plus shared response typing in `src/lib/api.ts`.
+- Moved the Home and Archive routes onto the shared overview query so those screens can reuse the same cached event/talk payload and avoid duplicate loading logic.
+- Moved the organizer Feedback Hub route feedback inbox onto TanStack Query with optimistic status updates and cache invalidation instead of a manual re-fetch loop.
+- Replaced the app-shell route-feedback badge sync event with the shared feedback inbox query so the Feedback Hub badge and inbox stay aligned through one cache entry.
+- Added optional Cloudflare Turnstile support for the feedback bot and `/feedback`, including server-side Siteverify enforcement when the Worker secret is configured.
+- Invalidated shared event and overview queries after organizer event creation plus event-level checklist/media updates so newly created or updated meetups appear immediately instead of waiting for cache expiry.
 
 ## 2026-06-15 — Mobile route fit and feedback UX
 

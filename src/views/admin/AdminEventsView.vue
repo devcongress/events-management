@@ -1,14 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { computed, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import { fetchEvents, queryKeys } from '@/src/lib/api';
 import type { Event, EventStatus } from '@/types';
 import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
 const router = useRouter();
-const events = ref<Event[]>([]);
-const loading = ref(true);
+const queryClient = useQueryClient();
+const eventsQuery = useQuery({
+  queryKey: queryKeys.events,
+  queryFn: fetchEvents,
+});
 const saving = ref(false);
 const error = ref<string | null>(null);
 const form = reactive({
@@ -77,19 +82,13 @@ const lifecycleStages: Array<{
 ];
 
 const creating = computed(() => route.path.endsWith('/new'));
+const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()));
+const loading = computed(() => eventsQuery.isPending.value);
+const eventsError = computed(() => eventsQuery.error.value?.message ?? null);
 const pageCount = computed(() => Math.max(1, Math.ceil(events.value.length / pageSize)));
 const paginatedEvents = computed(() => events.value.slice((page.value - 1) * pageSize, page.value * pageSize));
 const pageStart = computed(() => (events.value.length === 0 ? 0 : (page.value - 1) * pageSize + 1));
 const pageEnd = computed(() => Math.min(events.value.length, page.value * pageSize));
-
-async function fetchEvents() {
-  const response = await fetch('/api/events');
-  if (response.ok) {
-    events.value = (await response.json()).sort((a: Event, b: Event) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
-    page.value = Math.min(page.value, pageCount.value);
-  }
-  loading.value = false;
-}
 
 async function createNewEvent() {
   saving.value = true;
@@ -120,6 +119,10 @@ async function createNewEvent() {
 
   if (response.ok) {
     const event = await response.json();
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.events }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.overview }),
+    ]);
     await router.push(adminPath(`events/${event.id}`));
   } else {
     const data = await response.json();
@@ -165,8 +168,6 @@ function statusActionPath(event: Event): string {
 function goToPage(nextPage: number) {
   page.value = Math.min(pageCount.value, Math.max(1, nextPage));
 }
-
-onMounted(fetchEvents);
 </script>
 
 <template>
@@ -243,6 +244,7 @@ onMounted(fetchEvents);
         </div>
 
         <ViewSkeleton v-if="loading" variant="table" :rows="6" />
+        <div v-else-if="eventsError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ eventsError }}</div>
         <template v-else>
           <section class="mb-6 overflow-hidden rounded-lg border border-dc-border bg-dc-paper shadow-[0_1px_0_rgba(17,17,17,0.08)]">
             <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-4">

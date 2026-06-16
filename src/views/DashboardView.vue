@@ -1,19 +1,18 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
-import type { Event, LeaderboardEntry, QuizSession, Talk } from '@/types';
+import { fetchOverview, queryKeys } from '@/src/lib/api';
+import type { Event, LeaderboardEntry, Talk } from '@/types';
 
-interface OverviewResponse {
-  events: Event[];
-  talks: Talk[];
-  leaderboard: LeaderboardEntry[];
-  activeSession: QuizSession | null;
-}
-
-const overview = ref<OverviewResponse | null>(null);
-const error = ref<string | null>(null);
-const loading = ref(true);
+const overviewQuery = useQuery({
+  queryKey: queryKeys.overview,
+  queryFn: fetchOverview,
+});
+const overview = computed(() => overviewQuery.data.value ?? null);
+const error = computed(() => overviewQuery.error.value?.message ?? null);
+const loading = computed(() => overviewQuery.isPending.value);
 const activeMeetupPhoto = ref(0);
 const isMeetupPhotoShifting = ref(false);
 let meetupPhotoTimer: number | undefined;
@@ -104,19 +103,7 @@ function rotateMeetupPhotos() {
   }, 280);
 }
 
-onMounted(async () => {
-  try {
-    const response = await fetch('/api/overview');
-    if (!response.ok) {
-      throw new Error(`Overview request failed: ${response.status}`);
-    }
-    overview.value = await response.json();
-  } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Unable to load community hub';
-  } finally {
-    loading.value = false;
-  }
-
+onMounted(() => {
   const shouldReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!shouldReduceMotion) {
     meetupPhotoTimer = window.setInterval(rotateMeetupPhotos, 3600);
