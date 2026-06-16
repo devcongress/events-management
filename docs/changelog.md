@@ -25,6 +25,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Reduced feedback launcher prominence with route-view interval gating and mobile routing to a standalone `/feedback` page instead of an overlay.
 - Added the `/feedback` route to documentation and noted the mobile feedback behavior for community testers.
 - Made the header sticky at the top on mobile viewports only, leaving larger layouts non-sticky.
+- Hardened organizer sign-in so failed JSON/session checks no longer leave the button stuck, and compacted the mobile sign-in card typography and password field.
 
 ## 2026-06-15 — CI badge and workflow
 

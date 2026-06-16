@@ -9,34 +9,56 @@ const password = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
+async function readErrorMessage(response: Response): Promise<string> {
+  try {
+    const data = await response.json();
+    return typeof data.error === 'string' ? data.error : 'Unable to sign in';
+  } catch {
+    return 'Unable to sign in. Please check your connection and try again.';
+  }
+}
+
 async function login() {
   loading.value = true;
   error.value = null;
 
-  const response = await fetch('/api/auth/admin/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: password.value }),
-  });
+  try {
+    const response = await fetch('/api/auth/admin/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password.value }),
+    });
 
-  if (!response.ok) {
-    const data = await response.json();
-    error.value = data.error || 'Unable to sign in';
+    if (!response.ok) {
+      error.value = await readErrorMessage(response);
+      return;
+    }
+
+    const sessionResponse = await fetch('/api/auth/session', { credentials: 'include' });
+    const session = sessionResponse.ok ? await sessionResponse.json().catch(() => null) : null;
+
+    if (!session?.authenticated) {
+      error.value = 'Sign-in worked, but your browser blocked the organizer session. Open this app on the same domain as the API or allow cross-site cookies for this test deployment.';
+      return;
+    }
+
+    await router.push(String(route.query.redirect ?? adminPath('events')));
+  } catch {
+    error.value = 'Unable to sign in. Please check your connection and try again.';
+  } finally {
     loading.value = false;
-    return;
   }
-
-  await router.push(String(route.query.redirect ?? adminPath('events')));
 }
 </script>
 
 <template>
   <div class="editorial-page">
-    <div class="flex min-h-[calc(100vh-6rem)] items-center justify-center px-4 py-12">
-      <form class="editorial-panel w-full max-w-md p-8 sm:p-10" @submit.prevent="login">
+    <div class="admin-login-wrap flex min-h-[calc(100vh-6rem)] items-center justify-center px-4 py-12">
+      <form class="admin-login-card editorial-panel w-full max-w-md p-8 sm:p-10" @submit.prevent="login">
         <p class="editorial-eyebrow">organizer access</p>
-        <h1 class="mt-3 text-4xl font-black tracking-tight text-dc-ink">Admin Sign In</h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray">
+        <h1 class="admin-login-title mt-3 text-4xl font-black tracking-tight text-dc-ink">Admin Sign In</h1>
+        <p class="admin-login-copy mt-3 text-sm leading-6 text-dc-gray">
           Use the local admin password to manage events, talks, speakers, attendance, and feedback.
         </p>
 
@@ -57,7 +79,7 @@ async function login() {
           {{ error }}
         </div>
 
-        <button type="submit" :disabled="loading" class="editorial-action mt-6 w-full justify-center disabled:opacity-60">
+        <button type="submit" :disabled="loading" class="admin-login-submit editorial-action mt-6 w-full justify-center disabled:opacity-60">
           {{ loading ? 'Signing in...' : 'Sign In' }}
         </button>
       </form>

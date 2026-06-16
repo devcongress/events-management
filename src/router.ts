@@ -62,12 +62,16 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  const response = await fetch('/api/auth/session');
-  if (response.ok) {
-    const session = await response.json();
-    if (session.authenticated) {
-      return true;
+  try {
+    const response = await fetch('/api/auth/session', { credentials: 'include' });
+    if (response.ok) {
+      const session = await response.json();
+      if (session.authenticated) {
+        return true;
+      }
     }
+  } catch {
+    // Fall through to login when the hosted API/session check is unreachable.
   }
 
   return {
