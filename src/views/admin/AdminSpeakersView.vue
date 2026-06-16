@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AdminSpeakersPageSkeleton from '@/src/components/ui/page-skeletons/AdminSpeakersPageSkeleton.vue';
 import type { Event, EventSpeaker } from '@/types';
 
 const route = useRoute();
@@ -52,7 +52,7 @@ onMounted(fetchAll);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <ViewSkeleton v-if="loading" variant="form" :rows="2" />
+      <AdminSpeakersPageSkeleton v-if="loading" />
       <template v-else>
         <div class="editorial-header">
           <p class="editorial-eyebrow">speaker access</p>

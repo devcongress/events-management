@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppNumberStepper from '@/src/components/AppNumberStepper.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AdminQuizPageSkeleton from '@/src/components/ui/page-skeletons/AdminQuizPageSkeleton.vue';
 import type { GeneratedQuizFromPaperSummary, Question, QuizSession } from '@/types';
 import { adminPath } from '@/src/admin-routes';
 
@@ -337,7 +337,7 @@ onUnmounted(() => {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <ViewSkeleton v-if="loading" variant="quiz" />
+      <AdminQuizPageSkeleton v-if="loading" />
 
       <div v-else-if="!session" class="editorial-panel relative overflow-hidden p-12 text-center">
         <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />

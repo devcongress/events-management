@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import type { Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
@@ -92,7 +92,7 @@ onMounted(fetchTalks);
       <div v-if="message" class="mb-4 rounded-md border border-dc-success bg-dc-success-soft px-4 py-3 text-sm font-semibold text-dc-success">{{ message }}</div>
       <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
 
-      <ViewSkeleton v-if="loading" variant="table" :rows="5" />
+      <AdminTalksPageSkeleton v-if="loading" />
       <template v-else>
         <section v-for="group in groupedTalks.filter((item) => item.talks.length > 0)" :key="group.label" class="mb-8">
           <h2 class="mb-3 flex items-center gap-3 text-lg font-black tracking-tight text-dc-ink">

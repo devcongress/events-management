@@ -48,7 +48,7 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 
 ## Organizer Login
 
-Organizer routes use a prototype shared-password session. In local development, set these values in `.env.local` if you do not want defaults:
+Hosted organizer routes use Supabase email OTP and app-owned HTTP-only sessions. In local development, if Supabase admin auth is not configured, the login screen falls back to a shared password. Set these values in `.env.local` if you do not want defaults:
 
 ```bash
 VITE_SHOW_ORGANIZER_LINK=true
@@ -56,8 +56,8 @@ ADMIN_PASSWORD=devcon-admin
 ADMIN_SESSION_SECRET=replace-this-locally
 ```
 
-Do not use development defaults in a public deployment.
-Set `VITE_SHOW_ORGANIZER_LINK=false` in public deployments when you want to hide the Organizer button from the public header. This is only a visibility toggle; organizer routes still require real auth hardening before production use.
+Do not use development defaults in a public deployment. Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` for hosted admin auth, then bootstrap the first owner as described in [Admin Auth](../auth.md).
+Set `VITE_SHOW_ORGANIZER_LINK=false` in public deployments when you want to hide the Organizer button from the public header. This is only a visibility toggle; organizer routes remain directly reachable and require auth.
 
 ## Common Troubleshooting
 

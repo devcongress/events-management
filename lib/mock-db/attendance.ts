@@ -1,7 +1,7 @@
 import { parseLumaAttendanceCsv, summarizeAttendance } from '@/lib/luma-attendance';
 import { attendanceUploadWindowForMonth } from '@/lib/attendance-upload-window';
 import { generateId, now } from '@/lib/utils';
-import type { AttendanceLedgerEvent, AttendanceMonthlyInsights, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
+import type { AttendanceBreakdownItem, AttendanceLedgerMonth, AttendanceLedgerMonthEvent, AttendanceMonthlyInsights, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
 import { readData, writeData } from './index';
 
 const FILE = 'event-attendance-imports';
@@ -62,6 +62,63 @@ export function attendanceMonthLabel(month: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
+function isMonthlyMeetupEvent(event: Event): boolean {
+  return !event.name.toLowerCase().includes('quarterly');
+}
+
+function monthRange(startMonth: string, endMonth: string): string[] {
+  const [startYear, startMonthNumber] = startMonth.split('-').map(Number);
+  const [endYear, endMonthNumber] = endMonth.split('-').map(Number);
+  const cursor = new Date(Date.UTC(startYear, startMonthNumber - 1, 1));
+  const limit = new Date(Date.UTC(endYear, endMonthNumber - 1, 1));
+  const months: string[] = [];
+
+  while (cursor.getTime() <= limit.getTime()) {
+    months.push(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return months;
+}
+
+function mergeBreakdowns(items: AttendanceBreakdownItem[][]): AttendanceBreakdownItem[] {
+  const counts = new Map<string, number>();
+
+  for (const breakdown of items) {
+    for (const item of breakdown) {
+      counts.set(item.label, (counts.get(item.label) ?? 0) + item.count);
+    }
+  }
+
+  return Array.from(counts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function combineAttendanceSummaries(summaries: EventAttendanceSummary[]): EventAttendanceSummary {
+  const total_registrations = summaries.reduce((total, summary) => total + summary.total_registrations, 0);
+  const approved_registrations = summaries.reduce((total, summary) => total + summary.approved_registrations, 0);
+  const checked_in = summaries.reduce((total, summary) => total + summary.checked_in, 0);
+  const approved_checked_in = summaries.reduce((total, summary) => total + summary.approved_checked_in, 0);
+  const approved_no_shows = summaries.reduce((total, summary) => total + summary.approved_no_shows, 0);
+  const pending_registrations = summaries.reduce((total, summary) => total + summary.pending_registrations, 0);
+  const declined_registrations = summaries.reduce((total, summary) => total + summary.declined_registrations, 0);
+
+  return {
+    total_registrations,
+    approved_registrations,
+    checked_in,
+    approved_checked_in,
+    approved_no_shows,
+    pending_registrations,
+    declined_registrations,
+    check_in_rate: approved_registrations === 0 ? 0 : approved_checked_in / approved_registrations,
+    registration_to_attendance_gap: approved_registrations - approved_checked_in,
+    source_breakdown: mergeBreakdowns(summaries.map((summary) => summary.source_breakdown)),
+    ticket_breakdown: mergeBreakdowns(summaries.map((summary) => summary.ticket_breakdown)),
+  };
+}
+
 function latestImportByEvent(imports: EventAttendanceImport[]): Map<string, EventAttendanceImport> {
   const map = new Map<string, EventAttendanceImport>();
 
@@ -75,10 +132,12 @@ function latestImportByEvent(imports: EventAttendanceImport[]): Map<string, Even
   return map;
 }
 
-export function buildAttendanceLedger(events: Event[], imports: EventAttendanceImport[]): AttendanceLedgerEvent[] {
-  const importsByEvent = latestImportByEvent(imports);
-
-  return [...events]
+export function buildAttendanceLedger(events: Event[], imports: EventAttendanceImport[]): AttendanceLedgerMonth[] {
+  const monthlyEvents = events.filter(isMonthlyMeetupEvent);
+  const monthlyEventIds = new Set(monthlyEvents.map((event) => event.id));
+  const monthlyImports = imports.filter((attendanceImport) => monthlyEventIds.has(attendanceImport.event_id));
+  const importsByEvent = latestImportByEvent(monthlyImports);
+  const eventRows: AttendanceLedgerMonthEvent[] = [...monthlyEvents]
     .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
     .map((event) => {
       const attendanceImport = importsByEvent.get(event.id) ?? null;
@@ -87,8 +146,6 @@ export function buildAttendanceLedger(events: Event[], imports: EventAttendanceI
 
       return {
         event,
-        attendance_month: attendanceMonth,
-        month_label: attendanceMonthLabel(attendanceMonth),
         import: attendanceImport,
         summary: buildAttendanceSummary(attendanceImport),
         upload_status: attendanceImport ? 'uploaded' : 'missing',
@@ -97,6 +154,46 @@ export function buildAttendanceLedger(events: Event[], imports: EventAttendanceI
         upload_unlocks_at: uploadWindow.unlocks_at,
       };
     });
+  const monthKeys = new Set<string>();
+
+  for (const event of monthlyEvents) {
+    monthKeys.add(attendanceMonthForEvent(event));
+  }
+  for (const attendanceImport of monthlyImports) {
+    if (attendanceImport.attendance_month) {
+      monthKeys.add(attendanceImport.attendance_month);
+    }
+  }
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const earliestMonth = Array.from(monthKeys).sort()[0] ?? currentMonth;
+  const months = monthRange(earliestMonth, currentMonth);
+
+  return months
+    .map((month) => {
+      const monthEvents = eventRows.filter((item) => (item.import?.attendance_month ?? attendanceMonthForEvent(item.event)) === month);
+      const monthSummary = combineAttendanceSummaries(monthEvents.map((item) => item.summary));
+      const completedEventCount = monthEvents.filter((item) => item.event.status === 'completed').length;
+      const uploadedEventCount = monthEvents.filter((item) => item.import).length;
+      const uploadAvailableRow = monthEvents.find((item) => !item.import && item.upload_available) ?? null;
+      const lockedRow = monthEvents.find((item) => !item.import && !item.upload_available) ?? null;
+
+      return {
+        attendance_month: month,
+        month_label: attendanceMonthLabel(month),
+        events: monthEvents,
+        event_count: monthEvents.length,
+        uploaded_event_count: uploadedEventCount,
+        completed_event_count: completedEventCount,
+        has_import: uploadedEventCount > 0,
+        upload_status: uploadedEventCount > 0 ? 'uploaded' : 'missing',
+        upload_available: Boolean(uploadAvailableRow),
+        upload_unavailable_reason: uploadAvailableRow ? null : lockedRow?.upload_unavailable_reason ?? null,
+        upload_unlocks_at: uploadAvailableRow?.upload_unlocks_at ?? lockedRow?.upload_unlocks_at ?? null,
+        summary: monthSummary,
+      } satisfies AttendanceLedgerMonth;
+    })
+    .sort((a, b) => b.attendance_month.localeCompare(a.attendance_month));
 }
 
 function percentile(values: number[], percentileValue: number): number {
@@ -128,10 +225,10 @@ function sourceQuality(records: LumaAttendanceRecord[]): AttendanceSourceInsight
     .sort((a, b) => b.checked_in - a.checked_in || b.check_in_rate - a.check_in_rate || a.label.localeCompare(b.label));
 }
 
-export function buildAttendanceInsights(ledger: AttendanceLedgerEvent[]): AttendanceMonthlyInsights {
-  const imported = ledger.filter((item) => item.import);
+export function buildAttendanceInsights(ledger: AttendanceLedgerMonth[]): AttendanceMonthlyInsights {
+  const imported = ledger.filter((item) => item.has_import);
   const checkedInCounts = imported.map((item) => item.summary.checked_in);
-  const allRecords = imported.flatMap((item) => item.import?.records ?? []);
+  const allRecords = imported.flatMap((item) => item.events.flatMap((event) => event.import?.records ?? []));
   const attendeeEmails = allRecords
     .map((record) => record.email?.toLowerCase().trim())
     .filter((email): email is string => Boolean(email));
@@ -150,7 +247,7 @@ export function buildAttendanceInsights(ledger: AttendanceLedgerEvent[]): Attend
   return {
     total_months: ledger.length,
     imported_months: imported.length,
-    missing_completed_months: ledger.filter((item) => item.event.status === 'completed' && !item.import).length,
+    missing_completed_months: ledger.filter((item) => item.completed_event_count > 0 && !item.has_import).length,
     total_registrations: imported.reduce((total, item) => total + item.summary.total_registrations, 0),
     total_checked_in: imported.reduce((total, item) => total + item.summary.checked_in, 0),
     total_no_shows: imported.reduce((total, item) => total + item.summary.approved_no_shows, 0),

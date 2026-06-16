@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import type { Event } from '@/types';
 
 const route = useRoute();
@@ -88,7 +88,7 @@ onMounted(async () => {
 <template>
   <div class="min-h-screen bg-dc-cream text-dc-ink">
     <div v-if="loading" class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-      <ViewSkeleton variant="form" :rows="3" />
+      <CfpPageSkeleton />
     </div>
 
     <div v-else-if="!event" class="flex min-h-screen items-center justify-center p-4 text-center">

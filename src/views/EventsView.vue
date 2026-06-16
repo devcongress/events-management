@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import EventsPageSkeleton from '@/src/components/ui/page-skeletons/EventsPageSkeleton.vue';
 
 type MeetupStatus = 'upcoming' | 'live' | 'past';
 
@@ -113,7 +113,7 @@ onMounted(async () => {
         :description="loading ? 'Loading the community calendar.' : `${sortedMeetups.length} meetup${sortedMeetups.length !== 1 ? 's' : ''}, ${totalPublishedTalks} published talk${totalPublishedTalks !== 1 ? 's' : ''}, and the next rooms we are gathering in.`"
       />
 
-      <ViewSkeleton v-if="loading" variant="cards" :rows="4" />
+      <EventsPageSkeleton v-if="loading" />
 
       <div v-else-if="error" class="rounded-lg border-2 border-red-500 bg-red-50 p-10 text-center font-mono text-red-700">
         {{ error }}

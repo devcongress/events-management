@@ -3,12 +3,139 @@ export type FeedbackStatus = 'new' | 'reviewing' | 'done' | 'wont_fix';
 export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type CommunityEventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
+export type AdminRole = 'owner' | 'organizer';
+export type AdminMembershipStatus = 'active' | 'disabled';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export interface Database {
   public: {
     Tables: {
+      admin_memberships: {
+        Row: {
+          id: string;
+          email: string;
+          display_name: string | null;
+          role: AdminRole;
+          status: AdminMembershipStatus;
+          added_by: string | null;
+          last_login_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          display_name?: string | null;
+          role?: AdminRole;
+          status?: AdminMembershipStatus;
+          added_by?: string | null;
+          last_login_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          display_name?: string | null;
+          role?: AdminRole;
+          status?: AdminMembershipStatus;
+          added_by?: string | null;
+          last_login_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      admin_sessions: {
+        Row: {
+          id: string;
+          token_hash: string;
+          user_id: string;
+          membership_id: string;
+          email: string;
+          role: AdminRole;
+          created_at: string;
+          expires_at: string;
+          last_seen_at: string;
+          revoked_at: string | null;
+          user_agent: string | null;
+          ip_address: string | null;
+        };
+        Insert: {
+          id?: string;
+          token_hash: string;
+          user_id: string;
+          membership_id: string;
+          email: string;
+          role: AdminRole;
+          created_at?: string;
+          expires_at: string;
+          last_seen_at?: string;
+          revoked_at?: string | null;
+          user_agent?: string | null;
+          ip_address?: string | null;
+        };
+        Update: {
+          id?: string;
+          token_hash?: string;
+          user_id?: string;
+          membership_id?: string;
+          email?: string;
+          role?: AdminRole;
+          created_at?: string;
+          expires_at?: string;
+          last_seen_at?: string;
+          revoked_at?: string | null;
+          user_agent?: string | null;
+          ip_address?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'admin_sessions_membership_id_fkey';
+            columns: ['membership_id'];
+            isOneToOne: false;
+            referencedRelation: 'admin_memberships';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      admin_audit_log: {
+        Row: {
+          id: string;
+          actor_user_id: string | null;
+          actor_email: string | null;
+          actor_role: AdminRole | null;
+          action: string;
+          target_type: string | null;
+          target_id: string | null;
+          metadata: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_user_id?: string | null;
+          actor_email?: string | null;
+          actor_role?: AdminRole | null;
+          action: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          actor_user_id?: string | null;
+          actor_email?: string | null;
+          actor_role?: AdminRole | null;
+          action?: string;
+          target_type?: string | null;
+          target_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       community_events: {
         Row: {
           id: string;
@@ -129,6 +256,7 @@ export interface Database {
           viewport_height: number | null;
           status: FeedbackStatus;
           admin_note: string | null;
+          archived_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -149,6 +277,7 @@ export interface Database {
           viewport_height?: number | null;
           status?: FeedbackStatus;
           admin_note?: string | null;
+          archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -169,6 +298,7 @@ export interface Database {
           viewport_height?: number | null;
           status?: FeedbackStatus;
           admin_note?: string | null;
+          archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -271,6 +401,8 @@ export interface Database {
       feedback_campaign_status: FeedbackCampaignStatus;
       feedback_question_type: FeedbackQuestionType;
       community_event_status: CommunityEventStatus;
+      admin_role: AdminRole;
+      admin_membership_status: AdminMembershipStatus;
     };
     CompositeTypes: Record<string, never>;
   };

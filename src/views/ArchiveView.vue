@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import ArchivePageSkeleton from '@/src/components/ui/page-skeletons/ArchivePageSkeleton.vue';
 import { fetchOverview, queryKeys } from '@/src/lib/api';
 import type { Event, Talk } from '@/types';
 
@@ -145,7 +145,7 @@ watch(years, (availableYears) => {
         description="Find the talks, speakers, topics, and slide decks that keep the community useful after event night."
       />
 
-      <ViewSkeleton v-if="loading" variant="ledger" :rows="4" />
+      <ArchivePageSkeleton v-if="loading" />
       <div v-else-if="error" class="border-2 border-red-500/60 bg-red-950/30 p-12 text-center font-mono text-red-100">
         {{ error }}
       </div>

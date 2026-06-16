@@ -26,8 +26,9 @@ The public header's Organizer button can be hidden with `VITE_SHOW_ORGANIZER_LIN
 
 | Route | Purpose |
 |---|---|
-| `/organizer-console/login` | Prototype organizer login |
+| `/organizer-console/login` | Organizer sign-in, using Supabase email OTP when configured or local password fallback otherwise |
 | `/organizer-console/events` | Organizer event list |
+| `/organizer-console/organizers` | Owner-only organizer email allowlist |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
 | `/organizer-console/events/:eventId/talks` | Talk review pipeline |
 | `/organizer-console/events/:eventId/speakers` | Speaker access and follow-up |
@@ -48,5 +49,6 @@ The public header's Organizer button can be hidden with `VITE_SHOW_ORGANIZER_LIN
 | `/api/feedback*` | App feedback, event campaigns, public feedback submission |
 | `/api/quiz*` | Quiz sessions, questions, explicit state advancement, join/play/host state |
 | `/api/public/meetups*` | Read-only website integration API |
-| `/api/auth/*` | Prototype organizer login/logout/session |
+| `/api/auth/*` | Organizer session, Supabase email OTP login, token exchange/callback, and logout |
+| `/api/admin/organizers*` | Owner-only organizer email allowlist management |
 | `/api/health/*` | Local and Supabase readiness checks |

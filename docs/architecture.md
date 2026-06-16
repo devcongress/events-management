@@ -5,7 +5,7 @@
 Vue 3 + Vite + TypeScript 5 — community tech conference platform. Full-stack monorepo: Vue SPA, Hono API, and Bun production server in one app process.
 
 **Intended production stack:** Supabase (auth, PostgreSQL, storage, realtime).
-**Current state:** Prototype — JSON flat-file mock DB, same-origin prototype admin cookie session, no production user auth yet.
+**Current state:** Prototype data still uses JSON flat files in several areas, while hosted admin auth uses Supabase email OTP with app-owned HTTP-only sessions and a local shared-password fallback for development.
 
 ---
 
@@ -106,7 +106,8 @@ devcongress-comm-idea/
 - `/api/health/supabase` — Supabase config/table reachability smoke check
 - `/api/overview` — events, talks, and leaderboard summary for the Vue shell
 - `/api/public/meetups*` — read-only DevCongress.org integration contract with CORS and short public cache headers
-- `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/logout` — same-origin prototype admin session
+- `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/admin/exchange`, `/api/auth/admin/callback`, `/api/auth/logout` — organizer auth and app-owned session lifecycle
+- `/api/admin/organizers*` — owner-only organizer email allowlist management
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail/status update

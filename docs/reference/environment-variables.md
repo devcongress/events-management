@@ -13,8 +13,8 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `VITE_SHOW_ORGANIZER_LINK` | No | Yes | Public header visibility for the Organizer entry point; set to `false` to hide the button in production |
 | `VITE_SHOW_FEEDBACK_BOT` | No | Yes | Public feedback launcher visibility; set to `false` to hide the route-aware feedback bot |
 | `VITE_TURNSTILE_SITE_KEY` | No | Yes | Optional browser-safe Cloudflare Turnstile sitekey override used to render the route-feedback human check on the floating bot and `/feedback` page |
-| `ADMIN_PASSWORD` | No locally, yes for deployments | No | Prototype organizer login password |
-| `ADMIN_SESSION_SECRET` | No locally, yes for deployments | No | Prototype organizer cookie/session secret |
+| `ADMIN_PASSWORD` | No | No | Local-development fallback organizer password when Supabase admin auth is not configured |
+| `ADMIN_SESSION_SECRET` | No locally, yes for local fallback deployments | No | Secret used to sign the local fallback organizer cookie |
 | `PUBLIC_APP_URL` | No | No | Absolute base URL used in API payloads when request origin is unavailable |
 | `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | No | Allowed browser origin for credentialed API CORS, for example the Cloudflare Pages URL |
 | `TURNSTILE_SECRET_KEY` | No | No | Server-only Cloudflare Turnstile secret used by `/api/feedback` to validate feedback-form tokens |
@@ -30,6 +30,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - `VITE_SHOW_ORGANIZER_LINK=false` only hides the public navigation button; it does not secure organizer routes.
 - `VITE_SHOW_FEEDBACK_BOT=false` hides only the floating launcher; `/feedback` remains directly reachable.
 - Route-feedback Turnstile can use a baked-in public sitekey, but `TURNSTILE_SECRET_KEY` must stay server-only on the Worker.
+- Hosted organizer auth requires `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`; `ADMIN_PASSWORD` is only a fallback when Supabase admin auth is not configured.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.

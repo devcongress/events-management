@@ -4,6 +4,14 @@
 
 ---
 
+## ADR-013: Supabase Admin Auth With App-Owned Sessions
+
+**Date:** 2026-06-16
+**Why:** Organizer access needs per-admin identity, role checks, and auditability before hosted use. Supabase Auth already fits the production data plan, while Hono-owned HTTP-only sessions preserve the same-origin cookie contract and avoid storing Supabase tokens in the browser.
+**Tradeoffs:** The app now owns session rows and organizer membership checks, so auth is more code than the prototype password. The local shared-password fallback remains only for development environments without Supabase auth configured.
+**Alternatives considered:** Keep the shared password (too weak for hosted admin workflows), use Cloudflare Access only (good outer gate, but not enough for API-level roles and audit logs), or store Supabase browser sessions directly (higher XSS blast radius and weaker same-origin control).
+**Revisit when:** Owner MFA is enforced, Cloudflare Access is added as an outer production gate, or Supabase Auth custom claims become the source of role truth.
+
 ## ADR-012: Explicit Quiz Phase Advance Command
 
 **Date:** 2026-06-15
@@ -47,10 +55,11 @@
 ## ADR-008: Same-Origin Prototype Admin Session
 
 **Date:** 2026-05-29
+**Status:** Superseded by ADR-013 for hosted admin auth.
 **Why:** The Vue/Bun migration must keep UI and API on one origin so future cookie auth does not require cross-origin workarounds. A small Hono cookie session now protects organizer routes and mutating admin APIs while keeping speaker/player flows public.
 **Tradeoffs:** This is still prototype auth: one shared admin password, JSON data, no roles, no password reset, and local defaults for development. It is enough to prevent accidental public admin mutations during product work, but not production-ready.
 **Alternatives considered:** Shipping all admin endpoints open until Supabase (too risky for continued iteration), adding a second auth/API server (rejected because same-origin auth is a project constraint), integrating Supabase Auth now (correct long term, too much infrastructure for this migration checkpoint).
-**Revisit when:** Supabase Auth is introduced; replace the shared password with per-admin identities and middleware-backed role checks.
+**Revisit when:** Reviewing the local development fallback; hosted auth now uses Supabase email OTP and per-admin memberships.
 
 ---
 

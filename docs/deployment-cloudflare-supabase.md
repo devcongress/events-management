@@ -387,8 +387,7 @@ Goal: separate static frontend hosting from Worker API hosting.
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `ADMIN_SESSION_SECRET`
-   - `ADMIN_PASSWORD` only until real admin auth replaces it
+   - `ADMIN_SESSION_SECRET` only if a non-Supabase fallback environment is intentionally deployed
 6. Test preview deploys before binding the production domain.
 
 Exit check:
@@ -483,8 +482,8 @@ pnpm install
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-ADMIN_PASSWORD=...
-ADMIN_SESSION_SECRET=...
+ADMIN_PASSWORD=devcon-admin
+ADMIN_SESSION_SECRET=replace-this-locally
 ```
 
 3. Run Supabase migrations from `supabase/migrations`.

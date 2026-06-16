@@ -104,7 +104,8 @@
   - `/api/health`
   - `/api/health/supabase`
   - `/api/public/meetups`, `/api/public/meetups/[slug]`, `/api/public/meetups/[slug]/talks`
-  - `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/logout`
+  - `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/admin/exchange`, `/api/auth/admin/callback`, `/api/auth/logout`
+  - `/api/admin/organizers`
   - `/api/overview`
   - `/api/attendance/monthly`
   - `/api/feedback/inbox`, `/api/feedback/inbox/[feedbackId]`
@@ -114,7 +115,7 @@
 - **Public website contract:** `/api/public/meetups*` reads Supabase `community_events` first, then falls back to current `Event` + published `Talk` JSON data. It returns a DevCongress.org-friendly meetup DTO with `slug`, `start`, `end`, `cover`, `location`, `speakers`, `schedule`, `photos`, counts, and app route URLs. These endpoints are read-only, CORS-enabled, and cacheable for short-lived website consumption.
 - **Public website verification:** `pnpm verify:public-api` validates the public meetup response shape against the current `devcongress.org` Astro meetup schema expectations, plus CORS headers, cache headers, detail lookup, and talks lookup against `PUBLIC_API_BASE_URL` before the Astro website is wired to consume it.
 - **Public events page:** `/events` consumes `/api/public/meetups` inside this app so organizers can inspect the same public event stream the website will later consume.
-- **Auth note:** Admin routes and organizer mutations use a same-origin HTTP-only cookie session. Set `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` outside local development; otherwise the prototype falls back to local defaults.
+- **Auth note:** Hosted admin routes use Supabase email OTP plus app-owned HTTP-only sessions stored in `admin_sessions`; owner-only organizer email management lives at `/organizer-console/organizers`. Local development falls back to `ADMIN_PASSWORD` only when Supabase admin auth is not configured.
 
 ### Vue App (`src/`)
 

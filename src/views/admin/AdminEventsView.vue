@@ -2,7 +2,7 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
 import { fetchEvents, queryKeys } from '@/src/lib/api';
 import type { Event, EventStatus } from '@/types';
 import { adminPath } from '@/src/admin-routes';
@@ -243,7 +243,7 @@ function goToPage(nextPage: number) {
           <RouterLink :to="adminPath('events/new')" class="editorial-action shrink-0 self-start sm:self-auto">CREATE EVENT</RouterLink>
         </div>
 
-        <ViewSkeleton v-if="loading" variant="table" :rows="6" />
+        <AdminEventsPageSkeleton v-if="loading" />
         <div v-else-if="eventsError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ eventsError }}</div>
         <template v-else>
           <section class="mb-6 overflow-hidden rounded-lg border border-dc-border bg-dc-paper shadow-[0_1px_0_rgba(17,17,17,0.08)]">

@@ -217,9 +217,10 @@
 
   .app-nav-badge {
     position: absolute;
-    top: -0.55rem;
-    right: -0.55rem;
+    top: 0;
+    right: 0;
     z-index: 20;
+    transform: translate3d(35%, -30%, 0);
     box-shadow: 1px 1px 0 #111111;
   }
 
@@ -1044,7 +1045,7 @@
   .attendance-ledger-status {
     display: inline-flex;
     border: 1px solid currentColor;
-    border-radius: 0.42rem;
+    border-radius: 0.125rem;
     padding: 0.33rem 0.55rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.64rem;
@@ -1949,6 +1950,13 @@
       background-color 200ms var(--motion-smooth),
       border-color 200ms var(--motion-smooth),
       box-shadow 200ms var(--motion-spring);
+  }
+
+  .app-primary-nav {
+    margin-top: -0.3rem;
+    margin-right: -0.3rem;
+    padding-top: 0.3rem;
+    padding-right: 0.3rem;
   }
 
   .app-nav-link[aria-current='page'] {

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
 import type { EventFeedbackSubmission, FeedbackCampaign, FeedbackQuestion, FeedbackQuestionType } from '@/types';
 
 interface FeedbackCampaignResponse {
@@ -225,7 +225,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <ViewSkeleton v-if="loading" variant="form" :rows="4" />
+      <AdminFeedbackPageSkeleton v-if="loading" />
 
       <template v-else>
         <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

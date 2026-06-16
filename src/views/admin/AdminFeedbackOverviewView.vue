@@ -2,14 +2,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { adminPath } from '@/src/admin-routes';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AppDropdown from '@/src/components/AppDropdown.vue';
+import AdminFeedbackOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackOverviewPageSkeleton.vue';
+import AdminFeedbackInboxSectionSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackInboxSectionSkeleton.vue';
 import {
   fetchFeedbackMonths,
   fetchJson,
   fetchRouteFeedbackInbox,
   queryKeys,
   summarizeRouteFeedback,
-  type FeedbackMonth,
+type FeedbackMonth,
   type FeedbackMonthEvent,
   type RouteFeedbackInboxResponse,
   type RouteFeedbackSubmission,
@@ -31,11 +33,29 @@ const routeFeedbackStatuses: { value: FeedbackStatus; label: string }[] = [
   { value: 'done', label: 'Done' },
   { value: 'wont_fix', label: "Won't fix" },
 ];
+const routeFeedbackSectionMeta = [
+  {
+    key: 'new',
+    title: 'New',
+    description: 'Fresh notes that still need a first pass.',
+  },
+  {
+    key: 'reviewing',
+    title: 'Reviewing',
+    description: 'Feedback that someone has picked up and is working through.',
+  },
+  {
+    key: 'resolved',
+    title: 'Resolved',
+    description: 'Closed feedback, including shipped fixes and items we will not change.',
+  },
+] as const;
 
 const queryClient = useQueryClient();
 const selectedMonthKey = ref('');
 const selectedYear = ref('');
 const routeFeedbackActionError = ref('');
+const expandedRouteFeedbackIds = ref<string[]>([]);
 const feedbackMonthsQuery = useQuery({
   queryKey: queryKeys.feedbackMonths,
   queryFn: fetchFeedbackMonths,
@@ -43,6 +63,9 @@ const feedbackMonthsQuery = useQuery({
 const routeFeedbackQuery = useQuery({
   queryKey: queryKeys.routeFeedbackInbox,
   queryFn: fetchRouteFeedbackInbox,
+  refetchInterval: 15000,
+  refetchOnWindowFocus: true,
+  staleTime: 5000,
 });
 const loading = computed(() => feedbackMonthsQuery.isPending.value);
 const error = computed(() => feedbackMonthsQuery.error.value?.message ?? '');
@@ -51,6 +74,26 @@ const routeFeedbackLoading = computed(() => routeFeedbackQuery.isPending.value);
 const routeFeedbackError = computed(() => routeFeedbackActionError.value || routeFeedbackQuery.error.value?.message || '');
 const routeFeedbackItems = computed(() => routeFeedbackQuery.data.value?.submissions ?? []);
 const routeFeedbackSummary = computed(() => routeFeedbackQuery.data.value?.summary ?? emptyRouteFeedbackSummary);
+const routeFeedbackLastUpdatedAt = computed(() => routeFeedbackQuery.dataUpdatedAt.value ?? 0);
+const routeFeedbackRefreshing = computed(() => routeFeedbackQuery.isFetching.value && !routeFeedbackQuery.isPending.value);
+const routeFeedbackSections = computed(() => {
+  const items = routeFeedbackItems.value;
+
+  return routeFeedbackSectionMeta.map((section) => {
+    const sectionItems = items.filter((item) => {
+      if (section.key === 'resolved') {
+        return item.status === 'done' || item.status === 'wont_fix';
+      }
+
+      return item.status === section.key;
+    });
+
+    return {
+      ...section,
+      items: sectionItems,
+    };
+  }).filter((section) => section.items.length > 0);
+});
 const selectedMonth = computed(() => months.value.find((month) => month.month === selectedMonthKey.value) ?? months.value[0] ?? null);
 const availableYears = computed(() => {
   const years = new Set(months.value.map((month) => month.month.slice(0, 4)));
@@ -202,6 +245,40 @@ const routeFeedbackStatusMutation = useMutation({
   },
 });
 
+const archiveResolvedRouteFeedbackMutation = useMutation({
+  mutationFn: () => fetchJson<{ archived_count: number }>(
+    '/api/feedback/inbox/archive-resolved',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    },
+  ),
+  onMutate: async () => {
+    routeFeedbackActionError.value = '';
+    await queryClient.cancelQueries({ queryKey: queryKeys.routeFeedbackInbox });
+
+    const previous = queryClient.getQueryData<RouteFeedbackInboxResponse>(queryKeys.routeFeedbackInbox);
+    if (previous) {
+      const submissions = previous.submissions.filter((entry) => entry.status !== 'done' && entry.status !== 'wont_fix');
+      queryClient.setQueryData<RouteFeedbackInboxResponse>(queryKeys.routeFeedbackInbox, {
+        submissions,
+        summary: summarizeRouteFeedback(submissions),
+      });
+    }
+
+    return { previous };
+  },
+  onError: (caught, _variables, context) => {
+    if (context?.previous) {
+      queryClient.setQueryData(queryKeys.routeFeedbackInbox, context.previous);
+    }
+    routeFeedbackActionError.value = caught instanceof Error ? caught.message : 'Unable to clear resolved feedback';
+  },
+  onSettled: () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.routeFeedbackInbox });
+  },
+});
+
 function updateRouteFeedbackStatus(item: RouteFeedbackSubmission, status: FeedbackStatus) {
   if (item.status === status) return;
   routeFeedbackStatusMutation.mutate({ feedbackId: item.id, status });
@@ -241,12 +318,69 @@ function feedbackStatusClass(status: FeedbackStatus): string {
   };
   return classes[status] ?? classes.new;
 }
+
+function feedbackMetaBits(item: RouteFeedbackSubmission): string[] {
+  const bits = [`From ${item.tester_name}`];
+
+  if (item.page_path) {
+    bits.push(item.page_path);
+  }
+
+  if (item.viewport_width && item.viewport_height) {
+    bits.push(`${item.viewport_width} x ${item.viewport_height}`);
+  }
+
+  return bits;
+}
+
+function isLongRouteFeedback(item: RouteFeedbackSubmission): boolean {
+  return item.message.length > 180 || item.message.split('\n').length > 3;
+}
+
+function isRouteFeedbackExpanded(feedbackId: string): boolean {
+  return expandedRouteFeedbackIds.value.includes(feedbackId);
+}
+
+function toggleRouteFeedbackExpanded(feedbackId: string) {
+  expandedRouteFeedbackIds.value = isRouteFeedbackExpanded(feedbackId)
+    ? expandedRouteFeedbackIds.value.filter((entryId) => entryId !== feedbackId)
+    : [...expandedRouteFeedbackIds.value, feedbackId];
+}
+
+function feedbackStatusOptionLabel(status: FeedbackStatus): string {
+  return routeFeedbackStatuses.find((option) => option.value === status)?.label ?? status;
+}
+
+function formatRefreshTimestamp(value: number): string {
+  if (!value) return 'Waiting for first sync';
+
+  return new Intl.DateTimeFormat('en', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(value));
+}
+
+async function refreshRouteFeedback() {
+  routeFeedbackActionError.value = '';
+  await routeFeedbackQuery.refetch();
+}
+
+async function archiveResolvedRouteFeedback() {
+  const resolvedCount = routeFeedbackSections.value.find((section) => section.key === 'resolved')?.items.length ?? 0;
+  if (resolvedCount === 0) return;
+
+  const confirmed = window.confirm(`Archive ${resolvedCount} resolved feedback item${resolvedCount === 1 ? '' : 's'}? They will disappear from the active inbox.`);
+  if (!confirmed) return;
+
+  await archiveResolvedRouteFeedbackMutation.mutateAsync();
+}
 </script>
 
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <ViewSkeleton v-if="loading" variant="ledger" :rows="5" />
+      <AdminFeedbackOverviewPageSkeleton v-if="loading" />
 
       <template v-else>
         <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -277,29 +411,42 @@ function feedbackStatusClass(status: FeedbackStatus): string {
                   Bug, confusing, and suggestion notes sent from the floating feedback widget. This is separate from post-event attendee feedback.
                 </p>
               </div>
-              <div class="grid grid-cols-4 gap-2 text-center font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray sm:min-w-[360px]">
-                <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
-                  <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.new }}</strong>
-                  New
+              <div class="flex flex-col gap-3 lg:items-end">
+                <div class="grid grid-cols-4 gap-2 text-center font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray sm:min-w-[360px]">
+                  <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
+                    <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.new }}</strong>
+                    New
+                  </div>
+                  <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
+                    <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.reviewing }}</strong>
+                    Review
+                  </div>
+                  <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
+                    <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.done + routeFeedbackSummary.wont_fix }}</strong>
+                    Resolved
+                  </div>
+                  <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
+                    <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.total }}</strong>
+                    Total
+                  </div>
                 </div>
-                <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
-                  <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.reviewing }}</strong>
-                  Review
-                </div>
-                <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
-                  <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.done }}</strong>
-                  Done
-                </div>
-                <div class="rounded-md border border-dc-ink bg-dc-paper px-3 py-2">
-                  <strong class="block text-xl text-dc-ink">{{ routeFeedbackSummary.total }}</strong>
-                  Total
+                <div class="flex flex-wrap items-center gap-3 text-sm font-semibold text-dc-gray">
+                  <span>{{ routeFeedbackRefreshing ? 'Refreshing…' : `Updated ${formatRefreshTimestamp(routeFeedbackLastUpdatedAt)}` }}</span>
+                  <button
+                    type="button"
+                    class="editorial-secondary-action px-4 py-2 text-xs disabled:cursor-wait disabled:opacity-60"
+                    :disabled="routeFeedbackRefreshing"
+                    @click="refreshRouteFeedback"
+                  >
+                    Refresh
+                  </button>
                 </div>
               </div>
             </div>
           </div>
 
           <div v-if="routeFeedbackLoading" class="p-5">
-            <ViewSkeleton variant="ledger" :rows="3" />
+            <AdminFeedbackInboxSectionSkeleton />
           </div>
           <div v-else-if="routeFeedbackItems.length === 0" class="p-5">
             <div class="rounded-lg border border-dashed border-dc-border bg-dc-paper-warm p-5">
@@ -308,47 +455,102 @@ function feedbackStatusClass(status: FeedbackStatus): string {
               <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">When people use the floating feedback widget, their notes will land here with page and viewport context.</p>
             </div>
           </div>
-          <div v-else class="divide-y divide-dc-border">
-            <article
-              v-for="item in routeFeedbackItems"
-              :key="item.id"
-              class="grid gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start"
+          <div v-else class="space-y-6 p-5">
+            <section
+              v-for="section in routeFeedbackSections"
+              :key="section.key"
+              class="space-y-3"
             >
-              <div class="min-w-0">
-                <div class="mb-2 flex flex-wrap items-center gap-2">
-                  <span class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="feedbackStatusClass(item.status)">
-                    {{ item.status.replace('_', ' ') }}
-                  </span>
-                  <span class="rounded-md border border-dc-border bg-dc-paper-warm px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                    {{ feedbackTypeLabel(item.type) }}
-                  </span>
-                  <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                    {{ formatDateTime(item.created_at) }}
-                  </span>
+              <div class="flex flex-col gap-1 border-b border-dc-border pb-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ section.title }}</h3>
+                  <p class="text-sm leading-6 text-dc-gray">{{ section.description }}</p>
                 </div>
-                <p class="text-base font-semibold leading-7 text-dc-ink whitespace-pre-line">{{ item.message }}</p>
-                <div class="mt-3 grid gap-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray md:grid-cols-2">
-                  <p>From: <span class="text-dc-ink">{{ item.tester_name }}</span></p>
-                  <p v-if="item.page_path">Page: <span class="break-all text-dc-info">{{ item.page_path }}</span></p>
-                  <p v-if="item.viewport_width && item.viewport_height">Viewport: <span class="text-dc-ink">{{ item.viewport_width }} x {{ item.viewport_height }}</span></p>
-                  <p v-if="item.user_agent" class="md:col-span-2">Agent: <span class="break-all normal-case tracking-normal text-dc-gray">{{ item.user_agent }}</span></p>
+                <div class="flex flex-wrap items-center gap-3">
+                  <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                    {{ section.items.length }} item{{ section.items.length === 1 ? '' : 's' }}
+                  </p>
+                  <button
+                    v-if="section.key === 'resolved'"
+                    type="button"
+                    class="editorial-secondary-action px-4 py-2 text-xs disabled:cursor-wait disabled:opacity-60"
+                    :disabled="archiveResolvedRouteFeedbackMutation.isPending.value"
+                    @click="archiveResolvedRouteFeedback"
+                  >
+                    {{ archiveResolvedRouteFeedbackMutation.isPending.value ? 'Clearing…' : 'Clear resolved' }}
+                  </button>
                 </div>
               </div>
 
-              <div class="flex flex-wrap gap-2 lg:justify-end">
-                <button
-                  v-for="status in routeFeedbackStatuses"
-                  :key="status.value"
-                  type="button"
-                  class="rounded-md border px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide disabled:cursor-wait disabled:opacity-60"
-                  :class="item.status === status.value ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
-                  :disabled="isUpdatingRouteFeedback(item.id, status.value)"
-                  @click="updateRouteFeedbackStatus(item, status.value)"
-                >
-                  {{ status.label }}
-                </button>
-              </div>
-            </article>
+              <article
+                v-for="item in section.items"
+                :key="item.id"
+                class="grid gap-4 rounded-lg border border-dc-border bg-dc-paper px-4 py-4 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-start"
+                :class="section.key === 'resolved' ? 'bg-dc-paper-warm' : ''"
+              >
+                <div class="min-w-0">
+                  <div class="mb-3 flex flex-wrap items-center gap-2">
+                    <span class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="feedbackStatusClass(item.status)">
+                      {{ item.status.replace('_', ' ') }}
+                    </span>
+                    <span class="rounded-md border border-dc-border bg-dc-paper-warm px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                      {{ feedbackTypeLabel(item.type) }}
+                    </span>
+                    <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                      {{ formatDateTime(item.created_at) }}
+                    </span>
+                  </div>
+                  <p
+                    class="text-base font-semibold leading-7 text-dc-ink whitespace-pre-line"
+                    :class="[
+                      isLongRouteFeedback(item) && !isRouteFeedbackExpanded(item.id) ? 'line-clamp-3 whitespace-normal' : '',
+                      section.key === 'resolved' ? 'text-dc-gray' : '',
+                    ]"
+                  >
+                    {{ item.message }}
+                  </p>
+                  <button
+                    v-if="isLongRouteFeedback(item)"
+                    type="button"
+                    class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4"
+                    @click="toggleRouteFeedbackExpanded(item.id)"
+                  >
+                    {{ isRouteFeedbackExpanded(item.id) ? 'Show less' : 'Read full note' }}
+                  </button>
+                  <div
+                    class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold"
+                    :class="section.key === 'resolved' ? 'text-dc-gray/90' : 'text-dc-gray'"
+                  >
+                    <span
+                      v-for="meta in feedbackMetaBits(item)"
+                      :key="meta"
+                      class="min-w-0"
+                    >
+                      {{ meta }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="w-full lg:justify-self-end">
+                  <p class="mb-2 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Status</p>
+                  <AppDropdown
+                    :model-value="item.status"
+                    :options="routeFeedbackStatuses"
+                    :disabled="routeFeedbackStatusMutation.isPending.value || archiveResolvedRouteFeedbackMutation.isPending.value"
+                    @update:model-value="(value) => updateRouteFeedbackStatus(item, value as FeedbackStatus)"
+                  />
+                  <p
+                    v-if="isUpdatingRouteFeedback(item.id, item.status)"
+                    class="mt-2 text-right font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray"
+                  >
+                    Saving…
+                  </p>
+                  <p v-else class="mt-2 text-right font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">
+                    {{ feedbackStatusOptionLabel(item.status) }}
+                  </p>
+                </div>
+              </article>
+            </section>
           </div>
         </section>
 

@@ -298,16 +298,29 @@ export interface EventAttendanceSummary {
   ticket_breakdown: AttendanceBreakdownItem[];
 }
 
-export interface AttendanceLedgerEvent {
+export interface AttendanceLedgerMonthEvent {
   event: Event;
-  attendance_month: string;
-  month_label: string;
   import: EventAttendanceImport | null;
   summary: EventAttendanceSummary;
   upload_status: 'uploaded' | 'missing';
   upload_available: boolean;
   upload_unavailable_reason: string | null;
   upload_unlocks_at: string | null;
+}
+
+export interface AttendanceLedgerMonth {
+  attendance_month: string;
+  month_label: string;
+  events: AttendanceLedgerMonthEvent[];
+  event_count: number;
+  uploaded_event_count: number;
+  completed_event_count: number;
+  has_import: boolean;
+  upload_status: 'uploaded' | 'missing';
+  upload_available: boolean;
+  upload_unavailable_reason: string | null;
+  upload_unlocks_at: string | null;
+  summary: EventAttendanceSummary;
 }
 
 export interface AttendanceSourceInsight {
@@ -330,8 +343,8 @@ export interface AttendanceMonthlyInsights {
   repeat_attendees: number;
   unique_attendees: number;
   source_quality: AttendanceSourceInsight[];
-  best_month: AttendanceLedgerEvent | null;
-  weakest_month: AttendanceLedgerEvent | null;
+  best_month: AttendanceLedgerMonth | null;
+  weakest_month: AttendanceLedgerMonth | null;
 }
 
 // ---- API payloads ----

@@ -2,9 +2,9 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import DashboardPageSkeleton from '@/src/components/ui/page-skeletons/DashboardPageSkeleton.vue';
 import { fetchOverview, queryKeys } from '@/src/lib/api';
-import type { Event, LeaderboardEntry, Talk } from '@/types';
+import type { Event, Talk } from '@/types';
 
 const overviewQuery = useQuery({
   queryKey: queryKeys.overview,
@@ -52,18 +52,7 @@ const publishedTalks = computed(() => {
 });
 
 const recentTalks = computed(() => publishedTalks.value.slice(0, 4));
-const topMembers = computed(() => (overview.value?.leaderboard ?? []).slice(0, 3));
-const leaderboardPreviewMembers = computed(() => {
-  const members = topMembers.value;
-
-  if (members.length > 0) return members;
-
-  return [
-    { user_id: 'preview-1', nickname: 'First meetup player', rank: 1, total_score: 0, streak_count: 0 },
-    { user_id: 'preview-2', nickname: 'Speaker streak', rank: 2, total_score: 0, streak_count: 0 },
-    { user_id: 'preview-3', nickname: 'Community regular', rank: 3, total_score: 0, streak_count: 0 },
-  ];
-});
+const topRegulars = computed(() => (overview.value?.regulars ?? []).slice(0, 3));
 const layeredMeetupPhotos = computed(() => {
   return meetupPhotos.map((photo, index) => ({
     ...photo,
@@ -77,11 +66,7 @@ function eventForTalk(talk: Talk): Event | null {
   return overview.value?.events.find((event) => event.id === talk.event_id) ?? null;
 }
 
-function memberSeed(member: LeaderboardEntry): string {
-  return member.user_id || `${member.nickname}-${member.rank}`;
-}
-
-function memberMedal(rank: number): string {
+function rankLabel(rank: number): string {
   if (rank === 1) return '01';
   if (rank === 2) return '02';
   if (rank === 3) return '03';
@@ -135,7 +120,7 @@ onUnmounted(() => {
       />
 
       <div class="home-hero-inner relative mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-20">
-        <ViewSkeleton v-if="loading" variant="dashboard" class="lg:col-span-2" />
+        <DashboardPageSkeleton v-if="loading" class="lg:col-span-2" />
 
         <div v-else-if="error" class="max-w-xl border-2 border-dc-ink bg-dc-paper p-6 font-mono text-dc-pink shadow-[3px_3px_0_#111111]">
           {{ error }}
@@ -209,24 +194,24 @@ onUnmounted(() => {
     </div>
 
     <div v-if="!loading && !error" class="editorial-wrap">
-      <section class="home-summary-grid grid gap-4 sm:grid-cols-2">
-        <article class="editorial-panel p-5">
-          <p class="editorial-eyebrow">events</p>
-          <p class="font-mono text-4xl font-bold text-dc-ink">{{ completedEvents.length }}</p>
-          <p class="mt-2 text-sm text-dc-gray">completed community nights</p>
-        </article>
-        <article class="editorial-panel p-5">
-          <p class="editorial-eyebrow">talks</p>
-          <p class="font-mono text-4xl font-bold text-dc-ink">{{ publishedTalks.length }}</p>
-          <p class="mt-2 text-sm text-dc-gray">published sessions in the archive</p>
-        </article>
-      </section>
-
-      <section class="mt-8 grid items-start gap-8 lg:grid-cols-[1fr_360px]">
+      <section class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div>
-          <div class="editorial-header mb-6">
-            <p class="editorial-eyebrow">from the archive</p>
-            <h2 class="editorial-title text-3xl sm:text-4xl">Recent Community Talks</h2>
+          <div class="home-summary-grid mb-8 grid max-w-4xl gap-4 sm:grid-cols-2">
+            <article class="editorial-panel px-5 py-4">
+              <p class="editorial-eyebrow">events</p>
+              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ completedEvents.length }}</p>
+              <p class="mt-1 text-sm text-dc-gray">completed community nights</p>
+            </article>
+            <article class="editorial-panel px-5 py-4">
+              <p class="editorial-eyebrow">talks</p>
+              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ publishedTalks.length }}</p>
+              <p class="mt-1 text-sm text-dc-gray">published sessions in the archive</p>
+            </article>
+          </div>
+
+          <div class="mb-5 border-b border-dc-ink pb-4">
+            <p class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">from the archive</p>
+            <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">Recent Community Talks</h2>
           </div>
 
           <div v-if="recentTalks.length === 0" class="editorial-panel p-8">
@@ -234,44 +219,63 @@ onUnmounted(() => {
             <p class="mt-2 text-dc-gray">When talks are published, this becomes the front-page reading list.</p>
           </div>
 
-          <div v-else class="space-y-3">
+          <div v-else class="divide-y divide-dc-border">
             <RouterLink
               v-for="talk in recentTalks"
               :key="talk.id"
               :to="`/archive/${talk.event_id}`"
-              class="motion-colors group block border-b-2 border-dc-border py-5 hover:border-dc-ink"
+              class="motion-colors group block py-4"
             >
-              <p class="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-dc-pink">
-                {{ talk.topic || 'General' }}
-              </p>
-              <h3 class="mt-2 text-2xl font-black tracking-tight text-dc-ink group-hover:text-dc-pink">
+              <h3 class="text-xl font-black tracking-tight text-dc-ink/90 group-hover:text-dc-pink">
                 {{ talk.title }}
               </h3>
-              <p class="mt-2 text-sm text-dc-gray">
-                {{ talk.speaker_name }} <span v-if="eventForTalk(talk)">· {{ eventForTalk(talk)?.name }}</span>
+              <p class="mt-1 text-sm leading-6 text-dc-gray">
+                {{ talk.speaker_name }}
+                <span class="mx-1 text-dc-border">/</span>
+                <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">{{ talk.topic || 'General' }}</span>
+                <span v-if="eventForTalk(talk)" class="mx-1 text-dc-border">/</span>
+                <span v-if="eventForTalk(talk)">{{ eventForTalk(talk)?.name }}</span>
               </p>
             </RouterLink>
           </div>
         </div>
 
-        <aside class="editorial-panel coming-soon-card self-start p-6 pt-12">
-          <div class="community-masthead-ribbon">Coming soon</div>
-          <p class="editorial-eyebrow">community board</p>
-          <h2 class="mb-5 text-2xl font-black tracking-tight text-dc-ink">Top Members</h2>
-          <div v-if="topMembers.length === 0" class="mb-4 text-sm text-dc-gray">
-            Rankings will come back once the live quiz feature is ready for community sessions.
-          </div>
-          <ol class="space-y-4">
-            <li v-for="member in leaderboardPreviewMembers" :key="member.user_id || member.nickname" class="flex items-center gap-4 border-b-2 border-dc-border pb-4 opacity-70 last:border-b-0 last:pb-0">
-              <span class="w-9 shrink-0 font-mono text-xl font-black leading-none text-dc-pink" :aria-label="`Rank ${member.rank}`">{{ memberMedal(member.rank) }}</span>
-              <NaviiAvatar :seed="memberSeed(member)" :title="`${member.nickname} avatar`" :size="44" />
-              <div class="min-w-0">
-                <p class="truncate font-bold text-dc-ink">{{ member.nickname }}</p>
-                <p class="font-mono text-xs uppercase tracking-wide text-dc-gray">community member</p>
+        <div class="space-y-4">
+          <aside class="editorial-panel self-start p-6">
+            <p class="editorial-eyebrow">attendance board</p>
+            <h2 class="mb-5 text-2xl font-black tracking-tight text-dc-ink">Top Regulars</h2>
+            <div v-if="topRegulars.length === 0" class="mb-4 text-sm text-dc-gray">
+              Repeat attendance will appear after a few monthly CSV uploads.
+            </div>
+            <ol v-else class="space-y-4">
+              <li v-for="(regular, index) in topRegulars" :key="regular.key" class="flex items-center gap-4 border-b-2 border-dc-border pb-4 last:border-b-0 last:pb-0">
+                <span class="w-9 shrink-0 font-mono text-xl font-black leading-none text-dc-pink" :aria-label="`Rank ${index + 1}`">{{ rankLabel(index + 1) }}</span>
+                <NaviiAvatar :seed="regular.key" :title="`${regular.name} avatar`" :size="44" />
+                <div class="min-w-0">
+                  <p class="truncate font-bold text-dc-ink">{{ regular.name }}</p>
+                  <p class="font-mono text-xs uppercase tracking-wide text-dc-gray">
+                    {{ regular.checked_in_count }} check-in{{ regular.checked_in_count === 1 ? '' : 's' }} / {{ Math.round(regular.check_in_rate * 100) }}%
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </aside>
+
+          <aside class="editorial-panel self-start border-dc-border bg-dc-paper-warm p-6 opacity-75">
+            <div class="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p class="editorial-eyebrow">kahoot board</p>
+                <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Kahoot Leaderboard</h2>
               </div>
-            </li>
-          </ol>
-        </aside>
+              <span class="rounded-sm border border-dc-border bg-dc-paper px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Coming soon</span>
+            </div>
+            <div class="rounded-md border border-dashed border-dc-border bg-dc-paper px-4 py-5">
+              <p class="text-sm font-semibold leading-6 text-dc-gray">
+                Kahoot rankings will land here once the phase-one board is ready to publish.
+              </p>
+            </div>
+          </aside>
+        </div>
       </section>
     </div>
   </div>

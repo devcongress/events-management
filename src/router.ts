@@ -10,6 +10,7 @@ import AdminEventsView from './views/admin/AdminEventsView.vue';
 import AdminFeedbackOverviewView from './views/admin/AdminFeedbackOverviewView.vue';
 import AdminFeedbackView from './views/admin/AdminFeedbackView.vue';
 import AdminLoginView from './views/admin/AdminLoginView.vue';
+import AdminOrganizersView from './views/admin/AdminOrganizersView.vue';
 import AdminQuizView from './views/admin/AdminQuizView.vue';
 import AdminSpeakersView from './views/admin/AdminSpeakersView.vue';
 import AdminTalksView from './views/admin/AdminTalksView.vue';
@@ -46,6 +47,7 @@ export const router = createRouter({
     { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
+    { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
     { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },
     { path: adminPath('events/:eventId'), name: 'admin-event', component: AdminEventView },
     { path: adminPath('events/:eventId/talks'), name: 'admin-talks', component: AdminTalksView },

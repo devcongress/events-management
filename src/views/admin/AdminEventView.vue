@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
 import { queryKeys } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventChecklistItem, EventChecklistPhase, EventStatus } from '@/types';
@@ -353,7 +353,7 @@ onMounted(fetchOverview);
 <template>
   <div class="editorial-page event-overview-page">
     <div class="editorial-wrap event-overview-wrap">
-      <ViewSkeleton v-if="loading" variant="event-overview" />
+      <AdminEventOverviewPageSkeleton v-if="loading" />
       <div v-else-if="!event" class="py-12 text-center font-mono text-dc-gray">EVENT NOT FOUND</div>
 
       <template v-else>

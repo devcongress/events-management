@@ -128,8 +128,8 @@ function badge(status: string) {
 
         <div v-if="talks.length === 0" class="border-2 border-dc-ink bg-dc-paper p-12 text-center shadow-[3px_3px_0_#111111]">
           <p class="font-mono text-dc-gray">No talk submissions found for this email</p>
-          <RouterLink to="/" class="mt-6 inline-block font-mono text-sm text-dc-pink hover:text-dc-ink">
-            VIEW EVENTS WITH OPEN CFP &rarr;
+          <RouterLink to="/archive" class="mt-6 inline-block font-mono text-sm text-dc-pink hover:text-dc-ink">
+            BROWSE THE ARCHIVE &rarr;
           </RouterLink>
         </div>
 

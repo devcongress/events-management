@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { adminPath } from '@/src/admin-routes';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
-import type { AttendanceLedgerEvent, AttendanceMonthlyInsights } from '@/types';
+import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import AdminAttendanceOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminAttendanceOverviewPageSkeleton.vue';
+import type { AttendanceLedgerMonth, AttendanceLedgerMonthEvent, AttendanceMonthlyInsights } from '@/types';
+
+interface ConsistencyPersonRow {
+  key: string;
+  name: string;
+  email: string | null;
+  registeredCount: number;
+  checkedInCount: number;
+  lastSeenAt: string | null;
+}
 
 const loading = ref(true);
 const error = ref('');
-const ledger = ref<AttendanceLedgerEvent[]>([]);
+const ledger = ref<AttendanceLedgerMonth[]>([]);
 const insights = ref<AttendanceMonthlyInsights | null>(null);
 const selectedStatus = ref<'all' | 'uploaded' | 'missing'>('all');
 const selectedYear = ref(String(new Date().getFullYear()));
-const selectedMonth = ref<'all' | string>('all');
 const page = ref(1);
 const pageSize = 6;
 const ATTENDANCE_START_YEAR = 2026;
@@ -18,21 +27,6 @@ const today = new Date();
 const currentYear = today.getFullYear();
 const currentMonth = today.getMonth() + 1;
 const statusOptions: Array<'all' | 'uploaded' | 'missing'> = ['all', 'uploaded', 'missing'];
-const monthOptions = [
-  { value: '01', label: 'Jan' },
-  { value: '02', label: 'Feb' },
-  { value: '03', label: 'Mar' },
-  { value: '04', label: 'Apr' },
-  { value: '05', label: 'May' },
-  { value: '06', label: 'Jun' },
-  { value: '07', label: 'Jul' },
-  { value: '08', label: 'Aug' },
-  { value: '09', label: 'Sep' },
-  { value: '10', label: 'Oct' },
-  { value: '11', label: 'Nov' },
-  { value: '12', label: 'Dec' },
-];
-
 function monthParts(month: string): { year: number; month: number } {
   const [year, monthNumber] = month.split('-').map(Number);
   return { year, month: monthNumber };
@@ -50,59 +44,103 @@ const collectableLedger = computed(() => ledger.value.filter((item) => isCollect
 const availableYears = computed(() => Array.from(new Set(collectableLedger.value.map((item) => item.attendance_month.slice(0, 4))))
   .sort((a, b) => Number(b) - Number(a)));
 const yearLedger = computed(() => collectableLedger.value.filter((item) => item.attendance_month.startsWith(`${selectedYear.value}-`)));
-const availableMonthOptions = computed(() => {
-  const months = new Set(yearLedger.value.map((item) => item.attendance_month.slice(5, 7)));
-  return monthOptions.filter((month) => months.has(month.value));
-});
 const selectedYearLabel = computed(() => selectedYear.value || String(new Date().getFullYear()));
-const selectedMonthLabel = computed(() => {
-  if (selectedMonth.value === 'all') return `All ${selectedYearLabel.value}`;
-  return `${monthOptions.find((month) => month.value === selectedMonth.value)?.label ?? selectedMonth.value} ${selectedYearLabel.value}`;
-});
 
 const filteredLedger = computed(() => {
   return yearLedger.value.filter((item) => {
-    const monthMatches = selectedMonth.value === 'all' || item.attendance_month.endsWith(`-${selectedMonth.value}`);
     const statusMatches = selectedStatus.value === 'all' || item.upload_status === selectedStatus.value;
-    return monthMatches && statusMatches;
+    return statusMatches;
   });
 });
 const pageCount = computed(() => Math.max(1, Math.ceil(filteredLedger.value.length / pageSize)));
 const pageStart = computed(() => (filteredLedger.value.length === 0 ? 0 : (page.value - 1) * pageSize + 1));
 const pageEnd = computed(() => Math.min(filteredLedger.value.length, page.value * pageSize));
 const paginatedLedger = computed(() => filteredLedger.value.slice((page.value - 1) * pageSize, page.value * pageSize));
-const completedMissing = computed(() => yearLedger.value.filter((item) => item.event.status === 'completed' && !item.import));
-const uploadableMissing = computed(() => completedMissing.value.filter((item) => item.upload_available));
-const selectedYearUploaded = computed(() => yearLedger.value.filter((item) => item.import).length);
-const selectedYearMissing = computed(() => yearLedger.value.filter((item) => !item.import).length);
-const selectedYearCompletedMissing = computed(() => yearLedger.value.filter((item) => item.event.status === 'completed' && !item.import).length);
-const importedYearLedger = computed(() => yearLedger.value.filter((item) => item.import));
-const yearAverageCheckInRate = computed(() => {
-  if (importedYearLedger.value.length === 0) return 0;
-  return importedYearLedger.value.reduce((total, item) => total + item.summary.check_in_rate, 0) / importedYearLedger.value.length;
-});
-const yearCheckedInTotal = computed(() => yearLedger.value.reduce((total, item) => total + item.summary.checked_in, 0));
-const yearRegistrationTotal = computed(() => yearLedger.value.reduce((total, item) => total + item.summary.total_registrations, 0));
+const completedMissing = computed(() => yearLedger.value.filter((item) => item.completed_event_count > 0 && !item.has_import));
+const uploadableMissing = computed(() => completedMissing.value.filter((item) => item.upload_available && primaryUploadEvent(item)));
+const selectedYearUploaded = computed(() => yearLedger.value.filter((item) => item.has_import).length);
+const selectedYearMissing = computed(() => yearLedger.value.filter((item) => !item.has_import).length);
+const importedYearLedger = computed(() => yearLedger.value.filter((item) => item.has_import));
 const yearMedianCheckedIn = computed(() => percentile(importedYearLedger.value.map((item) => item.summary.checked_in), 50));
 const yearP80CheckedIn = computed(() => percentile(importedYearLedger.value.map((item) => item.summary.checked_in), 80));
-const bestYearMonth = computed(() => [...importedYearLedger.value]
-  .filter((item) => item.summary.approved_registrations > 0)
-  .sort((a, b) => b.summary.check_in_rate - a.summary.check_in_rate)[0] ?? null);
-const headlineCards = computed(() => {
-  return [
-    {
-      label: 'Avg check-in',
-      value: formatPercent(yearAverageCheckInRate.value),
-      detail: `${yearCheckedInTotal.value} checked in from ${yearRegistrationTotal.value} registrations`,
-      tone: 'text-dc-success',
-    },
-    {
-      label: 'Venue guide',
-      value: String(yearP80CheckedIn.value),
-      detail: `80th percentile attendance; median is ${yearMedianCheckedIn.value}`,
-      tone: 'text-dc-info',
-    },
-  ];
+const roomCapacityGuide = computed(() => yearP80CheckedIn.value === 0 ? 0 : Math.ceil(yearP80CheckedIn.value * 1.15));
+const peakYearMonth = computed(() => [...importedYearLedger.value]
+  .sort((a, b) => b.summary.checked_in - a.summary.checked_in)[0] ?? null);
+const planningCards = computed(() => [
+  {
+    label: 'Most people',
+    value: peakYearMonth.value ? `${formatMonthLabel(peakYearMonth.value.month_label)}` : '-',
+    detail: peakYearMonth.value ? `${peakYearMonth.value.summary.checked_in} checked in` : 'Upload CSVs to compare months',
+    meta: 'Peak',
+  },
+  {
+    label: 'Expected turnout',
+    value: yearP80CheckedIn.value || '-',
+    detail: yearP80CheckedIn.value ? 'Plan from the high end of normal' : 'No attendance baseline yet',
+    meta: 'P80',
+  },
+  {
+    label: 'Space capacity',
+    value: roomCapacityGuide.value || '-',
+    detail: roomCapacityGuide.value ? `Includes a 15% buffer` : 'Needs uploaded CSVs',
+    meta: 'Guide',
+  },
+  {
+    label: 'CSV coverage',
+    value: `${selectedYearUploaded.value}/${yearLedger.value.length}`,
+    detail: `${selectedYearMissing.value} missing / median turnout ${yearMedianCheckedIn.value || '-'}`,
+    meta: 'CSVs',
+  },
+]);
+const consistentPeople = computed<ConsistencyPersonRow[]>(() => {
+  const people = new Map<string, {
+    key: string;
+    name: string;
+    email: string | null;
+    registeredEvents: Set<string>;
+    checkedInEvents: Set<string>;
+    lastSeenAt: string | null;
+  }>();
+
+  for (const month of importedYearLedger.value) {
+    for (const eventItem of month.events) {
+      if (!eventItem.import) continue;
+
+      for (const record of eventItem.import.records) {
+        const key = record.email?.trim().toLowerCase() || record.guest_id;
+        const existing = people.get(key) ?? {
+          key,
+          name: record.name || record.email || record.guest_id,
+          email: record.email,
+          registeredEvents: new Set<string>(),
+          checkedInEvents: new Set<string>(),
+          lastSeenAt: null,
+        };
+
+        existing.name = existing.name || record.name || record.email || record.guest_id;
+        existing.email = existing.email ?? record.email;
+        existing.registeredEvents.add(eventItem.event.id);
+        if (record.checked_in_at) existing.checkedInEvents.add(eventItem.event.id);
+        if (!existing.lastSeenAt || new Date(eventItem.event.event_date).getTime() > new Date(existing.lastSeenAt).getTime()) {
+          existing.lastSeenAt = eventItem.event.event_date;
+        }
+        people.set(key, existing);
+      }
+    }
+  }
+
+  return Array.from(people.values())
+    .map((person) => ({
+      key: person.key,
+      name: person.name,
+      email: person.email,
+      registeredCount: person.registeredEvents.size,
+      checkedInCount: person.checkedInEvents.size,
+      lastSeenAt: person.lastSeenAt,
+    }))
+    .filter((person) => person.registeredCount > 1 || person.checkedInCount > 1)
+    .sort((a, b) => b.checkedInCount - a.checkedInCount || b.registeredCount - a.registeredCount || a.name.localeCompare(b.name))
+    .slice(0, 8);
 });
 
 async function fetchAttendanceLedger() {
@@ -112,7 +150,7 @@ async function fetchAttendanceLedger() {
   const response = await fetch('/api/attendance/monthly');
 
   if (response.ok) {
-    const payload = await response.json() as { ledger: AttendanceLedgerEvent[]; insights: AttendanceMonthlyInsights };
+    const payload = await response.json() as { ledger: AttendanceLedgerMonth[]; insights: AttendanceMonthlyInsights };
     ledger.value = payload.ledger;
     insights.value = payload.insights;
     if (!availableYears.value.includes(selectedYear.value)) {
@@ -130,8 +168,8 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
 
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value));
+function formatMonthLabel(value: string): string {
+  return value.replace(/^([A-Za-z]{3})[a-z]*/, '$1');
 }
 
 function formatPercent(value: number): string {
@@ -145,10 +183,11 @@ function percentile(values: number[], percentileValue: number): number {
   return sorted[Math.max(0, Math.min(sorted.length - 1, index))];
 }
 
-function statusClass(item: AttendanceLedgerEvent): string {
-  if (item.import) return 'border-dc-success bg-dc-success-soft text-dc-success';
-  if (item.event.status === 'completed') return 'border-dc-pink bg-pink-50 text-dc-pink';
-  return 'border-dc-border bg-dc-paper-warm text-dc-gray';
+function primaryUploadEvent(item: AttendanceLedgerMonth): AttendanceLedgerMonthEvent | null {
+  return item.events.find((eventItem) => !eventItem.import && eventItem.upload_available)
+    ?? item.events.find((eventItem) => !eventItem.import)
+    ?? item.events[0]
+    ?? null;
 }
 
 function previousPage() {
@@ -159,14 +198,8 @@ function nextPage() {
   page.value = Math.min(pageCount.value, page.value + 1);
 }
 
-watch([selectedStatus, selectedYear, selectedMonth], () => {
+watch([selectedStatus, selectedYear], () => {
   page.value = 1;
-});
-
-watch(availableMonthOptions, () => {
-  if (selectedMonth.value !== 'all' && !availableMonthOptions.value.some((month) => month.value === selectedMonth.value)) {
-    selectedMonth.value = 'all';
-  }
 });
 
 watch(pageCount, () => {
@@ -179,18 +212,18 @@ onMounted(fetchAttendanceLedger);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <ViewSkeleton v-if="loading" variant="ledger" :rows="6" />
+      <AdminAttendanceOverviewPageSkeleton v-if="loading" />
 
       <template v-else>
         <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p class="editorial-eyebrow">attendance command</p>
-            <h1 class="text-[2.25rem] font-black leading-none tracking-tight text-dc-ink sm:text-5xl">Monthly attendance</h1>
+            <h1 class="text-[2.25rem] font-black leading-none tracking-tight text-dc-ink/90 sm:text-5xl">Monthly attendance</h1>
             <p class="mt-3 max-w-[34rem] text-base leading-7 text-dc-gray sm:text-lg">Track one Luma CSV per meetup month, spot missing uploads, and turn old exports into venue-planning signals.</p>
           </div>
           <RouterLink
-            v-if="uploadableMissing[0]"
-            :to="{ path: adminPath(`events/${uploadableMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
+            v-if="uploadableMissing[0] && primaryUploadEvent(uploadableMissing[0])"
+            :to="{ path: adminPath(`events/${primaryUploadEvent(uploadableMissing[0])!.event.id}/attendance`), query: { from: 'attendance' } }"
             class="editorial-action max-w-full self-start whitespace-nowrap lg:shrink-0"
           >
             Upload Missing CSV
@@ -201,121 +234,46 @@ onMounted(fetchAttendanceLedger);
 
         <section v-if="ledger.length === 0" class="editorial-panel p-8">
           <p class="editorial-eyebrow">fresh start</p>
-          <h2 class="text-3xl font-black tracking-tight text-dc-ink">No event months yet.</h2>
+          <h2 class="text-3xl font-black tracking-tight text-dc-ink/90">No event months yet.</h2>
           <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">Create monthly events first. Each event month can hold one current Luma attendance CSV.</p>
         </section>
 
         <template v-else-if="insights">
-          <section class="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.42fr)] lg:items-stretch">
-            <article class="ops-panel overflow-hidden">
-              <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-4">
-                <p class="editorial-eyebrow mb-1">year signal</p>
-                <h2 class="text-2xl font-black tracking-tight text-dc-ink">{{ selectedYearLabel }} attendance read</h2>
-              </div>
-              <div class="grid gap-0 divide-y divide-dc-border md:grid-cols-2 md:divide-x md:divide-y-0">
-                <div v-for="card in headlineCards" :key="card.label" class="p-5">
-                  <p class="font-mono text-[11px] font-bold uppercase tracking-wide" :class="card.tone">{{ card.label }}</p>
-                  <p class="mt-3 text-5xl font-black leading-none tracking-tight text-dc-ink">{{ card.value }}</p>
-                  <p class="mt-3 max-w-sm text-sm font-semibold leading-6 text-dc-gray">{{ card.detail }}</p>
-                </div>
-              </div>
-            </article>
-
-            <aside class="ops-panel flex flex-col justify-between p-5">
-              <div>
-                <p class="editorial-eyebrow">coverage</p>
-                <p class="mt-3 text-4xl font-black leading-none tracking-tight text-dc-ink">{{ selectedYearUploaded }}/{{ yearLedger.length }}</p>
-                <p class="mt-3 text-sm font-semibold leading-6 text-dc-gray">
-                  {{ selectedYearCompletedMissing }} completed month{{ selectedYearCompletedMissing === 1 ? '' : 's' }} still need a Luma CSV.
-                </p>
-              </div>
-              <RouterLink
-                v-if="uploadableMissing[0]"
-                :to="{ path: adminPath(`events/${uploadableMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
-                class="editorial-secondary-action mt-5 justify-center px-4 py-2 text-xs"
-              >
-                Upload next missing CSV
-              </RouterLink>
-            </aside>
-          </section>
-
-          <section class="space-y-6">
-            <div class="ops-panel min-w-0 overflow-hidden">
+          <section class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(13rem,0.24fr)] lg:items-stretch">
+            <section class="ops-panel min-w-0 overflow-hidden">
               <div class="ops-panel-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p class="editorial-eyebrow mb-1">monthly ledger</p>
-                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">{{ selectedMonthLabel }} attendance</h2>
-                  <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">For {{ selectedYearLabel }}, each monthly meetup has one current Luma CSV. Use All for the year view, or jump into a specific month when the organizer team is catching up uploads.</p>
+                  <h2 class="text-2xl font-black tracking-tight text-dc-ink/90">{{ selectedYearLabel }} attendance</h2>
+                  <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                    {{ selectedYearUploaded }} uploaded / {{ selectedYearMissing }} missing / room guide {{ yearP80CheckedIn || '-' }}
+                  </p>
                 </div>
-                <div class="grid gap-2 text-sm sm:grid-cols-4 lg:min-w-[32rem]">
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Months</p>
-                    <p class="font-black text-dc-ink">{{ yearLedger.length }}</p>
-                  </div>
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Uploaded</p>
-                    <p class="font-black text-dc-success">{{ selectedYearUploaded }}</p>
-                  </div>
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Missing</p>
-                    <p class="font-black text-dc-pink">{{ selectedYearMissing }}</p>
-                  </div>
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Missing done</p>
-                    <p class="font-black text-dc-pink">{{ selectedYearCompletedMissing }}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="border-b border-dc-border bg-dc-paper px-5 py-4">
-                <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                  <div class="space-y-3">
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="year in availableYears"
-                        :key="year"
-                        type="button"
-                        class="motion-press rounded-md border-2 px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide"
-                        :class="selectedYear === year ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
-                        @click="selectedYear = year"
-                      >
-                        {{ year }}
-                      </button>
-                    </div>
-
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        class="motion-press rounded-md border-2 px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide"
-                        :class="selectedMonth === 'all' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
-                        @click="selectedMonth = 'all'"
-                      >
-                        All
-                      </button>
-                      <button
-                        v-for="month in availableMonthOptions"
-                        :key="month.value"
-                        type="button"
-                        class="motion-press rounded-md border-2 px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide"
-                        :class="selectedMonth === month.value ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
-                        @click="selectedMonth = month.value"
-                      >
-                        {{ month.label }}
-                      </button>
-                    </div>
+                <div class="flex flex-col gap-2 lg:items-end">
+                  <div class="flex flex-wrap gap-1.5 lg:justify-end">
+                    <button
+                      v-for="year in availableYears"
+                      :key="year"
+                      type="button"
+                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-bold uppercase tracking-wide"
+                      :class="selectedYear === year ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
+                      @click="selectedYear = year"
+                    >
+                      {{ year }}
+                    </button>
                   </div>
 
-                  <div class="flex flex-wrap gap-2">
-                  <button
-                    v-for="option in statusOptions"
-                    :key="option"
-                    type="button"
-                    class="motion-press rounded-md border-2 px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide"
-                    :class="selectedStatus === option ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
-                    @click="selectedStatus = option"
-                  >
-                    {{ option }}
-                  </button>
+                  <div class="flex flex-wrap gap-1.5 lg:justify-end">
+                    <button
+                      v-for="option in statusOptions"
+                      :key="option"
+                      type="button"
+                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-bold uppercase tracking-wide"
+                      :class="selectedStatus === option ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
+                      @click="selectedStatus = option"
+                    >
+                      {{ option }}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -328,71 +286,43 @@ onMounted(fetchAttendanceLedger);
 
                 <article
                   v-for="item in paginatedLedger"
-                  :key="item.event.id"
-                  class="attendance-ledger-row motion-colors"
-                  :class="{
-                    'attendance-ledger-row--missing': !item.import,
-                    'attendance-ledger-row--locked': !item.import && !item.upload_available,
-                  }"
+                  :key="item.attendance_month"
+                  class="px-5 py-4"
+                  :class="{ 'bg-dc-paper-warm/50': item.event_count === 0 }"
                 >
-                  <div class="min-w-0">
-                    <p class="attendance-ledger-month">
-                      <span>{{ item.month_label }}</span>
-                      <span v-if="!item.import && !item.upload_available" class="attendance-ledger-lock" aria-label="Upload locked">
-                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                          <path d="M6.5 8V6.5a3.5 3.5 0 0 1 7 0V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                          <path d="M5.75 8h8.5c.69 0 1.25.56 1.25 1.25v5.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-5.5c0-.69.56-1.25 1.25-1.25Z" stroke="currentColor" stroke-width="2" />
-                        </svg>
-                      </span>
-                    </p>
-                    <p class="attendance-ledger-event">{{ item.event.name }}</p>
-                    <p class="attendance-ledger-date">{{ item.attendance_month }} · {{ formatDate(item.event.event_date) }}</p>
-                  </div>
-
-                  <div class="attendance-ledger-file">
+                  <div class="grid gap-3 lg:grid-cols-[minmax(8rem,0.38fr)_minmax(0,1fr)_auto] lg:items-center">
                     <div class="min-w-0">
-                      <span class="attendance-ledger-status" :class="statusClass(item)">
-                        {{ item.import ? 'Uploaded' : 'Missing' }}
-                      </span>
-                      <p class="attendance-ledger-filename">{{ item.import?.source_filename ?? 'No Luma CSV yet' }}</p>
-                      <p v-if="item.import" class="attendance-ledger-imported">{{ formatDateTime(item.import.imported_at) }}</p>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-xl font-black tracking-tight text-dc-ink/90 sm:text-2xl">{{ formatMonthLabel(item.month_label) }}</p>
+                      </div>
                     </div>
-                    <RouterLink
-                      v-if="item.import || item.upload_available"
-                      :to="{ path: adminPath(`events/${item.event.id}/attendance`), query: { from: 'attendance' } }"
-                      class="editorial-secondary-action attendance-ledger-action"
-                    >
-                      {{ item.import ? 'Review' : 'Upload' }}
-                    </RouterLink>
-                    <span v-else class="attendance-ledger-action attendance-ledger-action--disabled" aria-label="Upload locked">
-                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path d="M6.5 8V6.5a3.5 3.5 0 0 1 7 0V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                        <path d="M5.75 8h8.5c.69 0 1.25.56 1.25 1.25v5.5c0 .69-.56 1.25-1.25 1.25h-8.5c-.69 0-1.25-.56-1.25-1.25v-5.5c0-.69.56-1.25 1.25-1.25Z" stroke="currentColor" stroke-width="2" />
-                      </svg>
-                    </span>
-                  </div>
 
-                  <div class="attendance-ledger-result">
-                    <template v-if="item.import">
-                      <div class="attendance-ledger-result-head">
-                        <p class="attendance-ledger-result-number">{{ item.summary.checked_in }}</p>
-                        <p class="attendance-ledger-result-label">of {{ item.summary.approved_registrations }} approved checked in</p>
+                    <div class="min-w-0">
+                      <div v-if="item.event_count > 0" class="mt-2 space-y-2">
+                        <div
+                          v-for="eventItem in item.events"
+                          :key="eventItem.event.id"
+                          class="grid gap-2 border-t border-dc-border/70 pt-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                        >
+                          <div class="min-w-0">
+                            <p class="truncate text-sm font-black text-dc-ink/90">{{ eventItem.event.name }}</p>
+                            <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ formatDate(eventItem.event.event_date) }}</p>
+                          </div>
+                          <p class="justify-self-start font-mono text-[11px] font-bold uppercase tracking-wide sm:justify-self-end" :class="eventItem.import ? 'text-dc-success' : eventItem.event.status === 'completed' ? 'text-dc-pink' : 'text-dc-gray'">
+                            {{ eventItem.import ? `${eventItem.summary.checked_in} came / ${formatPercent(eventItem.summary.check_in_rate)}` : eventItem.upload_available ? 'Waiting for CSV' : 'Not open yet' }}
+                          </p>
+                        </div>
                       </div>
-                      <div class="attendance-ledger-progress">
-                        <div class="attendance-ledger-progress-fill" :style="{ transform: `scaleX(${item.summary.check_in_rate})` }" />
-                      </div>
-                      <p class="attendance-ledger-result-meta">
-                        {{ item.summary.approved_no_shows }} no-show{{ item.summary.approved_no_shows === 1 ? '' : 's' }} · {{ formatPercent(item.summary.check_in_rate) }} rate
-                      </p>
-                    </template>
-                    <div v-else class="attendance-ledger-empty">
-                      <span class="attendance-ledger-empty-dot" aria-hidden="true" />
-                      <p>
-                        <span>Waiting for CSV</span>
-                        <small>
-                          Unlocks check-ins, no-shows, and rate.
-                        </small>
-                      </p>
+                    </div>
+
+                    <div class="flex lg:justify-end">
+                      <RouterLink
+                        v-if="primaryUploadEvent(item) && (primaryUploadEvent(item)!.import || primaryUploadEvent(item)!.upload_available)"
+                        :to="{ path: adminPath(`events/${primaryUploadEvent(item)!.event.id}/attendance`), query: { from: 'attendance' } }"
+                        class="editorial-secondary-action px-4 py-2 text-xs"
+                      >
+                        {{ primaryUploadEvent(item)!.import ? 'Review' : 'Upload' }}
+                      </RouterLink>
                     </div>
                   </div>
                 </article>
@@ -426,51 +356,68 @@ onMounted(fetchAttendanceLedger);
                   </button>
                 </div>
               </div>
+            </section>
+
+            <aside class="grid gap-3 lg:h-full lg:grid-rows-4">
+              <article v-for="card in planningCards" :key="card.label" class="ops-panel flex min-h-[7.5rem] flex-col justify-between p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ card.label }}</p>
+                  <span class="shrink-0 rounded-sm border border-dc-border bg-dc-paper-warm px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wide text-dc-gray">
+                    {{ card.meta }}
+                  </span>
+                </div>
+                <div>
+                  <p class="mt-3 text-[1.7rem] font-black leading-none tracking-tight text-dc-ink/90">{{ card.value }}</p>
+                  <div class="my-2 h-px bg-dc-border" aria-hidden="true" />
+                  <p class="text-xs leading-5 text-dc-gray">{{ card.detail }}</p>
+                </div>
+              </article>
+            </aside>
+          </section>
+
+          <section class="ops-panel mt-6 overflow-hidden">
+            <div class="ops-panel-header flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p class="editorial-eyebrow mb-1">regulars</p>
+                <h2 class="text-2xl font-black tracking-tight text-dc-ink/90">Consistent people</h2>
+              </div>
+              <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+                {{ selectedYearLabel }} uploaded CSVs
+              </p>
             </div>
 
-            <div class="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
-              <section class="editorial-panel p-5 sm:p-6">
-                <p class="editorial-eyebrow">hindsight</p>
-                <h2 class="text-3xl font-black tracking-tight text-dc-ink">Plan the room for {{ yearP80CheckedIn }} people.</h2>
-                <p class="mt-3 max-w-2xl text-sm leading-6 text-dc-gray">That is the {{ selectedYearLabel }} 80th percentile from uploaded CSVs. Median checked-in attendance is {{ yearMedianCheckedIn }}, so this leaves a useful buffer without planning around the loudest registration number.</p>
-                <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">P80</p>
-                    <p class="text-2xl font-black text-dc-ink">{{ yearP80CheckedIn }}</p>
-                  </div>
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Median</p>
-                    <p class="text-2xl font-black text-dc-ink">{{ yearMedianCheckedIn }}</p>
-                  </div>
-                  <div class="rounded-md border border-dc-border bg-dc-paper px-3 py-2">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">CSVs</p>
-                    <p class="text-2xl font-black text-dc-ink">{{ selectedYearUploaded }}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="ops-panel p-5 sm:p-6">
-                <p class="editorial-eyebrow">best month</p>
-                <template v-if="bestYearMonth">
-                  <p class="mt-3 text-3xl font-black leading-tight tracking-tight text-dc-ink">{{ bestYearMonth.month_label }}</p>
-                  <p class="mt-3 text-sm leading-6 text-dc-gray">{{ bestYearMonth.event.name }} converted registrations into actual room attendance best.</p>
-                  <div class="mt-5 rounded-md border-2 border-dc-ink bg-dc-yellow p-4 shadow-[3px_3px_0_#111111]">
-                    <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink/70">Check-in rate</p>
-                    <p class="mt-1 text-4xl font-black leading-none text-dc-ink">{{ formatPercent(bestYearMonth.summary.check_in_rate) }}</p>
-                    <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink/70">{{ bestYearMonth.summary.checked_in }}/{{ bestYearMonth.summary.approved_registrations }} approved checked in</p>
-                  </div>
-                </template>
-                <div v-else class="mt-4 rounded-md border border-dc-border bg-dc-paper-warm p-4">
-                  <p class="text-sm leading-6 text-dc-gray">Upload a CSV to compare months. The strongest month will appear here after the first import.</p>
-                  <RouterLink
-                    v-if="uploadableMissing[0]"
-                    :to="{ path: adminPath(`events/${uploadableMissing[0].event.id}/attendance`), query: { from: 'attendance' } }"
-                    class="mt-4 inline-flex font-mono text-xs font-bold uppercase tracking-wide text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4"
-                  >
-                    Upload first CSV
-                  </RouterLink>
-                </div>
-              </section>
+            <div v-if="consistentPeople.length === 0" class="px-5 py-8 text-sm text-dc-gray">
+              Upload at least two monthly CSVs to see repeat registrations and check-ins.
+            </div>
+            <div v-else class="overflow-x-auto">
+              <table class="w-full min-w-[680px] text-left">
+                <thead class="border-y border-dc-border bg-dc-paper-warm font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                  <tr>
+                    <th class="px-5 py-3">Person</th>
+                    <th class="px-5 py-3">Registered</th>
+                    <th class="px-5 py-3">Came</th>
+                    <th class="px-5 py-3">Rate</th>
+                    <th class="px-5 py-3">Last seen</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-dc-border">
+                  <tr v-for="person in consistentPeople" :key="person.key">
+                    <td class="px-5 py-3">
+                      <div class="flex items-center gap-3">
+                        <NaviiAvatar :seed="person.key" :title="`${person.name} avatar`" :size="38" />
+                        <div class="min-w-0">
+                          <p class="truncate text-sm font-black text-dc-ink/90">{{ person.name }}</p>
+                          <p v-if="person.email" class="mt-0.5 truncate text-xs text-dc-gray">{{ person.email }}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-5 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ person.registeredCount }}</td>
+                    <td class="px-5 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-success">{{ person.checkedInCount }}</td>
+                    <td class="px-5 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ formatPercent(person.checkedInCount / person.registeredCount) }}</td>
+                    <td class="px-5 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ person.lastSeenAt ? formatDate(person.lastSeenAt) : '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </section>
         </template>

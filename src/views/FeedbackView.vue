@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import PublicFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/PublicFeedbackPageSkeleton.vue';
 import type { Event as CommunityEvent, FeedbackCampaign, Talk } from '@/types';
 
 interface FeedbackPublicResponse {
@@ -103,7 +103,7 @@ onMounted(fetchFeedbackForm);
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap max-w-4xl">
-      <ViewSkeleton v-if="loading" variant="form" :rows="4" />
+      <PublicFeedbackPageSkeleton v-if="loading" />
 
       <section v-else-if="submitted" class="editorial-panel overflow-hidden">
         <div class="border-b-2 border-dc-ink bg-dc-yellow p-6">

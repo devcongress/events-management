@@ -52,6 +52,7 @@ const adminLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
+  { href: adminPath('organizers'), label: 'Organizers' },
 ];
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
@@ -148,6 +149,11 @@ const breadcrumbItems = computed(() => {
 
     if (path === adminPath('feedback')) {
       items.push({ label: 'Feedback' });
+      return items;
+    }
+
+    if (path === adminPath('organizers')) {
+      items.push({ label: 'Organizers' });
       return items;
     }
 
@@ -438,7 +444,7 @@ onUnmounted(() => {
               v-for="link in group"
               :key="link.href"
               :to="link.href"
-              class="app-nav-link motion-press relative flex min-h-11 shrink-0 items-center overflow-hidden rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/35"
+              class="app-nav-link motion-press relative flex min-h-11 shrink-0 items-center rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/35"
               :class="[link.accent ? 'sm:px-3' : '', linkClass(link)]"
               :aria-current="isActive(link.href) ? 'page' : undefined"
             >

@@ -5,6 +5,20 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-16 — Supabase admin auth and organizer allowlist
+
+- Replaced hosted admin sign-in with Supabase email OTP, a token exchange endpoint, and an app-owned HTTP-only admin session cookie, while preserving the shared `ADMIN_PASSWORD` fallback for local development without Supabase auth.
+- Added Supabase `admin_memberships`, `admin_sessions`, and `admin_audit_log` tables for organizer email allowlisting, opaque session validation, and security-sensitive action logs.
+- Added owner-only organizer email management at `/organizer-console/organizers`, including role assignment and disable access actions.
+- Replaced the organizer role picker native select with the app-native dropdown component so the menu styling stays inside the DevCongress UI system.
+- Replaced the old shared page loader with route-specific skeleton components across public and organizer pages, plus a dedicated feedback inbox section skeleton where that page has nested loading states.
+- Reworked the organizer route-feedback inbox into grouped New, Reviewing, and Resolved sections with quieter shared row styling, compact metadata, expandable long notes, one status dropdown per item, auto-refresh plus focus-refresh behavior with a visible manual refresh control, and a soft-archive `Clear resolved` action that removes closed items from the active inbox without deleting them.
+- Refactored the attendance overview from event rows into true month buckets, so each month appears once, empty months remain visible, and same-month events render inside that month instead of duplicating the month label.
+- Tightened the attendance overview into a narrower monthly ledger with a slimmer vertical stack of visual planning cards for peak month, expected turnout, room-capacity buffer, and CSV coverage.
+- Hardened organizer magic-link requests with generic success responses that no longer reveal allowlist membership, added IP/email rate limiting and resend cooldowns, and deduped login toasts so repeated attempts do not stack noisy errors.
+- Added DevCongress-branded Supabase confirmation and magic-link email templates with logo, app copy, and production-safe `{{ .ConfirmationURL }}` links.
+- Documented the admin auth flow, first-owner bootstrap SQL, local fallback, role model, and deployment security notes in `docs/auth.md`.
+
 ## 2026-06-16 — Feedback form gating and iOS admin input fix
 
 - Disabled route-feedback submission until the form has a name, an explicitly selected feedback type, a sufficiently detailed note, and a resolved Turnstile token.

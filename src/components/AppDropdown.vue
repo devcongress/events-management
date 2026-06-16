@@ -9,6 +9,7 @@ type DropdownOption = {
 };
 
 let dropdownInstanceCount = 0;
+let activeDropdownId: string | null = null;
 
 const props = defineProps<{
   modelValue: DropdownValue;
@@ -39,16 +40,24 @@ const selectedOption = computed(() => {
 
 function choose(value: DropdownValue) {
   emit('update:modelValue', value);
+  closeDropdown();
+}
+
+function closeDropdown() {
   open.value = false;
+  if (activeDropdownId === dropdownId) {
+    activeDropdownId = null;
+  }
 }
 
 function toggle() {
   if (props.disabled) return;
 
   if (open.value) {
-    open.value = false;
+    closeDropdown();
   } else {
-    window.dispatchEvent(new CustomEvent('app-dropdown:open', { detail: { id: dropdownId } }));
+    document.dispatchEvent(new CustomEvent('app-dropdown:open', { detail: { id: dropdownId } }));
+    activeDropdownId = dropdownId;
     open.value = true;
   }
 }
@@ -69,12 +78,12 @@ function handleDocumentClick(event: MouseEvent) {
   if (root.value?.contains(event.target as Node)) {
     return;
   }
-  open.value = false;
+  closeDropdown();
 }
 
 function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape') {
-    open.value = false;
+    closeDropdown();
   }
 }
 
@@ -88,7 +97,7 @@ function handleDropdownOpen(event: Event) {
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick);
   document.addEventListener('keydown', handleEscape);
-  window.addEventListener('app-dropdown:open', handleDropdownOpen);
+  document.addEventListener('app-dropdown:open', handleDropdownOpen as EventListener);
   window.addEventListener('resize', updatePlacement);
   window.addEventListener('scroll', updatePlacement, true);
 });
@@ -96,9 +105,12 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick);
   document.removeEventListener('keydown', handleEscape);
-  window.removeEventListener('app-dropdown:open', handleDropdownOpen);
+  document.removeEventListener('app-dropdown:open', handleDropdownOpen as EventListener);
   window.removeEventListener('resize', updatePlacement);
   window.removeEventListener('scroll', updatePlacement, true);
+  if (activeDropdownId === dropdownId) {
+    activeDropdownId = null;
+  }
 });
 
 watch(open, async (isOpen) => {
@@ -107,6 +119,9 @@ watch(open, async (isOpen) => {
     updatePlacement();
   } else {
     placement.value = 'bottom';
+    if (activeDropdownId === dropdownId) {
+      activeDropdownId = null;
+    }
   }
 });
 </script>
@@ -134,7 +149,7 @@ watch(open, async (isOpen) => {
       </span>
     </button>
 
-    <Transition name="dropdown-menu">
+    <Transition name="dropdown-menu" :duration="{ enter: 180, leave: 0 }">
       <div
         v-if="open"
         class="app-dropdown-menu absolute left-0 z-50 w-full overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]"

@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import LeaderboardPageSkeleton from '@/src/components/ui/page-skeletons/LeaderboardPageSkeleton.vue';
 
 interface LeaderboardEntry {
   rank: number;
@@ -238,7 +238,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <ViewSkeleton v-if="loading" variant="leaderboard" :rows="8" />
+        <LeaderboardPageSkeleton v-if="loading" />
 
         <template v-else>
           <div ref="leaderboardPanel" class="editorial-panel">

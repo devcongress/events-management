@@ -1,10 +1,21 @@
 import type { Event, LeaderboardEntry, QuizSession, Talk } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
+import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
+
+export interface OverviewRegular {
+  key: string;
+  name: string;
+  registered_count: number;
+  checked_in_count: number;
+  check_in_rate: number;
+  last_seen_at: string | null;
+}
 
 export interface OverviewResponse {
   events: Event[];
   talks: Talk[];
   leaderboard: LeaderboardEntry[];
+  regulars: OverviewRegular[];
   activeSession: QuizSession | null;
 }
 
@@ -86,11 +97,38 @@ export interface RouteFeedbackInboxResponse {
   summary: RouteFeedbackSummary;
 }
 
+export interface AdminSessionResponse {
+  authenticated: boolean;
+  auth_mode: 'supabase' | 'local';
+  user?: {
+    email: string | null;
+    display_name: string | null;
+    role: AdminRole;
+  };
+}
+
+export interface OrganizerMembership {
+  id: string;
+  email: string;
+  display_name: string | null;
+  role: AdminRole;
+  status: AdminMembershipStatus;
+  last_login_at: string | null;
+  created_at: string | null;
+}
+
+export interface OrganizerMembershipsResponse {
+  organizers: OrganizerMembership[];
+  auth_mode: 'supabase' | 'local';
+}
+
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
+  adminSession: ['admin-session'] as const,
+  adminOrganizers: ['admin-organizers'] as const,
   event: (eventId: string) => ['events', eventId] as const,
   eventChecklist: (eventId: string) => ['event-checklist', eventId] as const,
 };
@@ -133,4 +171,12 @@ export function fetchFeedbackMonths() {
 
 export function fetchRouteFeedbackInbox() {
   return fetchJson<RouteFeedbackInboxResponse>('/api/feedback/inbox');
+}
+
+export function fetchAdminSession() {
+  return fetchJson<AdminSessionResponse>('/api/auth/session', { credentials: 'include' });
+}
+
+export function fetchAdminOrganizers() {
+  return fetchJson<OrganizerMembershipsResponse>('/api/admin/organizers', { credentials: 'include' });
 }

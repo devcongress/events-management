@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { cors } from 'hono/cors';
 import { SIMULATED_DELAY_MS } from '@/lib/constants';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
@@ -17,6 +16,7 @@ import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSes
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import { adminLoginErrorPath, completeSupabaseAdminCallback, completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession, startSupabaseAdminOtp } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
@@ -30,7 +30,6 @@ import type { Event, EventChecklistItem, FeedbackAnswer, FeedbackCampaign, Feedb
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 const app = new Hono();
-const ADMIN_SESSION_COOKIE = 'devcon_admin';
 const PUBLIC_MEETUP_COVERS = [
   '/images/apr-meetup.jpg',
   '/images/fido-dev-0375.jpg',
@@ -100,22 +99,6 @@ const STOP_WORDS = new Set([
   'would',
 ]);
 
-function configuredFrontendOrigins(c: Context): Set<string> {
-  return new Set([
-    envValue('PUBLIC_FRONTEND_ORIGIN', c),
-    envValue('PUBLIC_APP_URL', c),
-  ]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => {
-      try {
-        return new URL(value).origin;
-      } catch {
-        return null;
-      }
-    })
-    .filter((value): value is string => Boolean(value)));
-}
-
 function corsOrigin(origin: string | undefined, c: Context): string | undefined {
   if (!origin) return undefined;
 
@@ -140,14 +123,6 @@ app.use('/api/*', cors({
   credentials: true,
   maxAge: 86400,
 }));
-
-function adminPassword(c: Context): string {
-  return envValue('ADMIN_PASSWORD', c) ?? 'devcon-admin';
-}
-
-function adminSessionToken(c: Context): string {
-  return envValue('ADMIN_SESSION_SECRET', c) ?? 'devcon-local-session';
-}
 
 async function getAllEvents(c?: Context): Promise<Event[]> {
   return (await getSupabaseCommunityEvents(c)) ?? getAllMockEvents();
@@ -186,18 +161,6 @@ async function updateEvent(id: string, updates: Partial<Omit<Event, 'id' | 'crea
   const event = await updateSupabaseCommunityEvent(id, updates, c);
   if (event !== null && event !== undefined) return event;
   return updateMockEvent(id, updates);
-}
-
-function isAdminRequest(c: Context): boolean {
-  return getCookie(c, ADMIN_SESSION_COOKIE) === adminSessionToken(c);
-}
-
-function requireAdmin(c: Context): globalThis.Response | null {
-  if (isAdminRequest(c)) {
-    return null;
-  }
-
-  return c.json({ error: 'Admin session required' }, 401);
 }
 
 function setPublicApiCache(c: Context) {
@@ -635,9 +598,24 @@ app.get('/api/health', (c) => {
   });
 });
 
-app.get('/api/auth/session', (c) => {
+app.get('/api/auth/session', async (c) => {
+  const session = await getAdminSession(c);
+
+  if (!session.authenticated) {
+    return c.json({
+      authenticated: false,
+      auth_mode: isSupabaseAdminAuthConfigured(c) ? 'supabase' : 'local',
+    });
+  }
+
   return c.json({
-    authenticated: isAdminRequest(c),
+    authenticated: true,
+    auth_mode: session.mode,
+    user: {
+      email: session.email,
+      display_name: session.display_name,
+      role: session.role,
+    },
   });
 });
 
@@ -775,7 +753,7 @@ app.post('/api/feedback', async (c) => {
 });
 
 app.get('/api/feedback/inbox', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -791,6 +769,7 @@ app.get('/api/feedback/inbox', async (c) => {
     .from('feedback_submissions')
     .select('id, tester_name, type, message, trigger_source, page_path, user_agent, viewport_width, viewport_height, status, admin_note, created_at, updated_at')
     .is('event_id', null)
+    .is('archived_at', null)
     .or('trigger_source.eq.route_feedback,trigger_source.is.null')
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -819,7 +798,7 @@ app.get('/api/feedback/inbox', async (c) => {
 });
 
 app.patch('/api/feedback/inbox/:feedbackId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -838,6 +817,7 @@ app.patch('/api/feedback/inbox/:feedbackId', async (c) => {
     .update({ status })
     .eq('id', c.req.param('feedbackId'))
     .is('event_id', null)
+    .is('archived_at', null)
     .or('trigger_source.eq.route_feedback,trigger_source.is.null')
     .select('id, tester_name, type, message, trigger_source, page_path, user_agent, viewport_width, viewport_height, status, admin_note, created_at, updated_at')
     .maybeSingle();
@@ -853,8 +833,33 @@ app.patch('/api/feedback/inbox/:feedbackId', async (c) => {
   return c.json(data);
 });
 
+app.post('/api/feedback/inbox/archive-resolved', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({ error: 'Feedback is not configured' }, 503);
+  }
+
+  const supabase = getSupabaseAdminClient(c);
+  const { data, error } = await supabase
+    .from('feedback_submissions')
+    .update({ archived_at: new Date().toISOString() })
+    .is('event_id', null)
+    .is('archived_at', null)
+    .or('trigger_source.eq.route_feedback,trigger_source.is.null')
+    .in('status', ['done', 'wont_fix'])
+    .select('id');
+
+  if (error) {
+    return c.json({ error: 'Unable to archive resolved feedback' }, 500);
+  }
+
+  return c.json({ archived_count: data?.length ?? 0 });
+});
+
 app.get('/api/feedback/monthly', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const [events, campaigns, submissions, talks] = await Promise.all([
@@ -973,7 +978,7 @@ app.get('/api/feedback/monthly', async (c) => {
 });
 
 app.get('/api/events/:eventId/feedback-campaign', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -998,7 +1003,7 @@ app.get('/api/events/:eventId/feedback-campaign', async (c) => {
 });
 
 app.patch('/api/events/:eventId/feedback-campaign', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1140,38 +1145,273 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
 });
 
 app.post('/api/auth/admin/login', async (c) => {
-  const { password } = await c.req.json();
+  const body = await c.req.json();
 
-  if (String(password ?? '') !== adminPassword(c)) {
+  if (isSupabaseAdminAuthConfigured(c)) {
+    const result = await startSupabaseAdminOtp(c, {
+      email: body.email,
+      redirectTo: body.redirect_to,
+    });
+
+    if (!result.ok) {
+      return c.json(
+        {
+          error: result.error,
+          retry_after_ms: 'retryAfterMs' in result ? result.retryAfterMs : undefined,
+        },
+        { status: result.status as 400 | 403 | 429 | 500 },
+      );
+    }
+
+    return c.json({
+      authenticated: false,
+      auth_mode: 'supabase',
+      email_sent: true,
+      retry_after_ms: result.retryAfterMs,
+      message: 'If this email is allowed, a secure organizer sign-in link has been sent.',
+    });
+  }
+
+  if (!startLocalAdminSession(c, body.password)) {
     return c.json({ error: 'Invalid admin password' }, 401);
   }
 
-  setCookie(c, ADMIN_SESSION_COOKIE, adminSessionToken(c), {
-    httpOnly: true,
-    sameSite: configuredFrontendOrigins(c).size > 0 ? 'None' : 'Lax',
-    secure: envValue('NODE_ENV', c) === 'production' || configuredFrontendOrigins(c).size > 0,
-    path: '/',
-    maxAge: 60 * 60 * 12,
+  return c.json({
+    authenticated: true,
+    auth_mode: 'local',
   });
-
-  return c.json({ authenticated: true });
 });
 
-app.post('/api/auth/logout', (c) => {
-  deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
+app.get('/api/auth/admin/callback', async (c) => {
+  const code = String(c.req.query('code') ?? '');
+  const next = String(c.req.query('next') ?? defaultAdminRedirectPath(c));
+
+  if (!code) {
+    return c.redirect(adminLoginErrorPath(c, 'Organizer sign-in link is missing a code.'));
+  }
+
+  const result = await completeSupabaseAdminCallback(c, code);
+  if (!result.ok) {
+    return c.redirect(adminLoginErrorPath(c, result.error));
+  }
+
+  return c.redirect(next.startsWith('/') && !next.startsWith('//') ? next : defaultAdminRedirectPath(c));
+});
+
+app.post('/api/auth/admin/exchange', async (c) => {
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Supabase admin auth is not configured.' }, 503);
+  }
+
+  const body = await c.req.json();
+  const accessToken = String(body.access_token ?? '');
+  const result = await completeSupabaseAdminToken(c, accessToken);
+  if (!result.ok) {
+    return c.json({ error: result.error }, { status: result.status as 401 | 403 | 500 });
+  }
+
+  return c.json({
+    authenticated: true,
+    auth_mode: 'supabase',
+  });
+});
+
+app.post('/api/auth/logout', async (c) => {
+  await revokeAdminSession(c);
   return c.json({ authenticated: false });
 });
 
+app.get('/api/admin/organizers', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({
+      organizers: [{
+        id: 'local',
+        email: 'local-admin@devcongress.local',
+        display_name: 'Local admin',
+        role: 'owner',
+        status: 'active',
+        last_login_at: null,
+        created_at: null,
+      }],
+      auth_mode: 'local',
+    });
+  }
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    return c.json({ error: 'Unable to load organizers' }, 500);
+  }
+
+  return c.json({
+    organizers: data ?? [],
+    auth_mode: 'supabase',
+  });
+});
+
+app.post('/api/admin/organizers', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Organizer email management requires Supabase auth.' }, 503);
+  }
+
+  const session = await getAdminSession(c);
+  if (!session.authenticated) {
+    return c.json({ error: 'Admin session required' }, 401);
+  }
+  const body = await c.req.json();
+  const email = String(body.email ?? '').trim().toLowerCase();
+  const displayName = String(body.display_name ?? '').trim() || null;
+  const role = body.role === 'owner' ? 'owner' : 'organizer';
+
+  if (!email || !email.includes('@')) {
+    return c.json({ error: 'Enter a valid organizer email.' }, 400);
+  }
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .upsert({
+      email,
+      display_name: displayName,
+      role,
+      status: 'active',
+      added_by: session.user_id,
+    }, { onConflict: 'email' })
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .single();
+
+  if (error) {
+    return c.json({ error: 'Unable to save organizer email.' }, 500);
+  }
+
+  await recordAdminAudit(c, {
+    actor_user_id: session.user_id,
+    actor_email: session.email,
+    actor_role: session.role,
+    action: 'admin.organizer.upsert',
+    target_type: 'admin_membership',
+    target_id: data.id,
+    metadata: { email, role },
+  });
+
+  return c.json(data, 201);
+});
+
+app.delete('/api/admin/organizers/:organizerId', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Organizer email management requires Supabase auth.' }, 503);
+  }
+
+  const session = await getAdminSession(c);
+  if (!session.authenticated) {
+    return c.json({ error: 'Admin session required' }, 401);
+  }
+  const organizerId = c.req.param('organizerId');
+
+  if (organizerId === session.membership_id) {
+    return c.json({ error: 'You cannot disable your own organizer access.' }, 400);
+  }
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .update({ status: 'disabled' })
+    .eq('id', organizerId)
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .maybeSingle();
+
+  if (error) {
+    return c.json({ error: 'Unable to disable organizer.' }, 500);
+  }
+
+  if (!data) {
+    return c.json({ error: 'Organizer was not found.' }, 404);
+  }
+
+  await recordAdminAudit(c, {
+    actor_user_id: session.user_id,
+    actor_email: session.email,
+    actor_role: session.role,
+    action: 'admin.organizer.disable',
+    target_type: 'admin_membership',
+    target_id: data.id,
+    metadata: { email: data.email },
+  });
+
+  return c.json(data);
+});
+
+function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllEvents>>, imports: Awaited<ReturnType<typeof getAttendanceImports>>) {
+  const people = new Map<string, {
+    key: string;
+    name: string;
+    registeredEvents: Set<string>;
+    checkedInEvents: Set<string>;
+    lastSeenAt: string | null;
+  }>();
+  const ledger = buildAttendanceLedger(events, imports);
+
+  for (const month of ledger.filter((item) => item.has_import)) {
+    for (const eventItem of month.events) {
+      if (!eventItem.import) continue;
+
+      for (const record of eventItem.import.records) {
+        const key = record.email?.trim().toLowerCase() || record.guest_id;
+        const existing = people.get(key) ?? {
+          key,
+          name: record.name || 'Community member',
+          registeredEvents: new Set<string>(),
+          checkedInEvents: new Set<string>(),
+          lastSeenAt: null,
+        };
+
+        existing.name = existing.name || record.name || 'Community member';
+        existing.registeredEvents.add(eventItem.event.id);
+        if (record.checked_in_at) existing.checkedInEvents.add(eventItem.event.id);
+        if (!existing.lastSeenAt || new Date(eventItem.event.event_date).getTime() > new Date(existing.lastSeenAt).getTime()) {
+          existing.lastSeenAt = eventItem.event.event_date;
+        }
+        people.set(key, existing);
+      }
+    }
+  }
+
+  return Array.from(people.values())
+    .map((person) => ({
+      key: person.key,
+      name: person.name,
+      registered_count: person.registeredEvents.size,
+      checked_in_count: person.checkedInEvents.size,
+      check_in_rate: person.registeredEvents.size === 0 ? 0 : person.checkedInEvents.size / person.registeredEvents.size,
+      last_seen_at: person.lastSeenAt,
+    }))
+    .filter((person) => person.checked_in_count > 1 || person.registered_count > 1)
+    .sort((a, b) => b.checked_in_count - a.checked_in_count || b.registered_count - a.registered_count || a.name.localeCompare(b.name))
+    .slice(0, 3);
+}
+
 app.get('/api/overview', async (c) => {
-  const [events, talks, leaderboard, sessions] = await Promise.all([
+  const [events, talks, leaderboard, sessions, attendanceImports] = await Promise.all([
     getAllEvents(c),
     getAllTalks(),
     buildLeaderboard(),
     getAllQuizSessions(),
+    getAttendanceImports(),
   ]);
   const activeSession = sessions.find((session) => session.status === 'waiting' || session.status === 'active') ?? null;
+  const regulars = buildPublicAttendanceRegulars(events, attendanceImports);
 
-  return c.json({ events, talks, leaderboard, activeSession });
+  return c.json({ events, talks, leaderboard, regulars, activeSession });
 });
 
 app.get('/api/public/meetups', async (c) => {
@@ -1225,7 +1465,7 @@ app.get('/api/events', async (c) => {
 });
 
 app.post('/api/events', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const body = await c.req.json();
@@ -1262,7 +1502,7 @@ app.get('/api/events/:eventId', async (c) => {
 });
 
 app.get('/api/events/:eventId/checklist', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1281,7 +1521,7 @@ app.get('/api/events/:eventId/checklist', async (c) => {
 });
 
 app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1320,7 +1560,7 @@ app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
 });
 
 app.patch('/api/events/:eventId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   try {
@@ -1337,7 +1577,7 @@ app.patch('/api/events/:eventId', async (c) => {
 });
 
 app.post('/api/events/:eventId/media', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1397,7 +1637,7 @@ app.get('/api/events/:eventId/speakers', async (c) => {
 });
 
 app.get('/api/attendance/monthly', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const [events, imports] = await Promise.all([
@@ -1413,7 +1653,7 @@ app.get('/api/attendance/monthly', async (c) => {
 });
 
 app.get('/api/events/:eventId/attendance', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1437,7 +1677,7 @@ app.get('/api/events/:eventId/attendance', async (c) => {
 });
 
 app.post('/api/events/:eventId/attendance/import', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1490,7 +1730,7 @@ app.post('/api/events/:eventId/attendance/import', async (c) => {
 });
 
 app.delete('/api/events/:eventId/attendance', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -1514,7 +1754,7 @@ app.delete('/api/events/:eventId/attendance', async (c) => {
 });
 
 app.post('/api/events/:eventId/speakers', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const body = await c.req.json();
@@ -1536,7 +1776,7 @@ app.post('/api/events/:eventId/speakers', async (c) => {
 });
 
 app.delete('/api/events/:eventId/speakers/:speakerId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   try {
@@ -1572,7 +1812,7 @@ app.patch('/api/talks/:talkId', async (c) => {
   const updates: Record<string, unknown> = {};
 
   if (body.status) {
-    const adminError = requireAdmin(c);
+    const adminError = await requireAdmin(c);
     if (adminError) return adminError;
 
     updates.status = body.status;
@@ -1600,7 +1840,7 @@ app.patch('/api/talks/:talkId', async (c) => {
 });
 
 app.post('/api/talks/:talkId/reminder', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const talk = await getTalkById(c.req.param('talkId'));
@@ -1715,7 +1955,7 @@ app.get('/api/quiz/sessions', async (c) => {
 });
 
 app.post('/api/quiz/sessions', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const { event_id } = await c.req.json();
@@ -1741,7 +1981,7 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
 });
 
 app.patch('/api/quiz/sessions/:sessionId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   try {
@@ -1752,7 +1992,7 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
 });
 
 app.post('/api/quiz/questions', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const body = await c.req.json();
@@ -1779,7 +2019,7 @@ app.post('/api/quiz/questions', async (c) => {
 });
 
 app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   if (envValue('ENABLE_PDF_QUIZ_UPLOADS', c) !== 'true') {
@@ -1874,7 +2114,7 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
 });
 
 app.patch('/api/quiz/questions/:questionId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   try {
@@ -1918,7 +2158,7 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
 });
 
 app.delete('/api/quiz/questions/:questionId', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   try {
@@ -1930,7 +2170,7 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
 });
 
 app.post('/api/quiz/questions/reorder', async (c) => {
-  const adminError = requireAdmin(c);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const { session_id, question_ids } = await c.req.json();

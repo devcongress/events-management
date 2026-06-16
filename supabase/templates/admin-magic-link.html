@@ -1,0 +1,35 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0;padding:0;background:#f5f0e7;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#111111;">
+  <tr>
+    <td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:620px;background:#fffaf0;border:3px solid #111111;border-radius:16px;box-shadow:6px 6px 0 #111111;overflow:hidden;">
+        <tr>
+          <td style="padding:34px 34px 22px;">
+            <img src="{{ .SiteURL }}/brand/dev-con-logo.png" width="210" alt="DevCongress" style="display:block;width:210px;max-width:100%;height:auto;margin:0 0 36px;">
+            <p style="margin:0 0 14px;font-family:'IBM Plex Mono','Courier New',monospace;font-size:12px;line-height:18px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#e91684;">Organizer sign-in</p>
+            <h1 style="margin:0;font-size:42px;line-height:46px;font-weight:900;letter-spacing:0;color:#111111;">Your secure DevCongress sign-in link</h1>
+            <p style="margin:22px 0 0;font-size:18px;line-height:30px;color:#555555;">Open the organizer console with this one-time link. Keep it private; it signs you in as {{ .Email }}.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 34px 34px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0;">
+              <tr>
+                <td bgcolor="#e91684" style="border:3px solid #111111;border-radius:10px;box-shadow:4px 4px 0 #111111;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:18px 28px;font-family:'IBM Plex Mono','Courier New',monospace;font-size:15px;line-height:18px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;color:#ffffff;text-decoration:none;">Open organizer console</a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:26px 0 0;font-size:14px;line-height:22px;color:#6b6b6b;">This link expires shortly and can only be used once. If you did not request this sign-in link, you can ignore this email.</p>
+            <p style="margin:18px 0 0;font-size:13px;line-height:20px;color:#777777;">Having trouble with the button? Copy and paste this link into your browser:</p>
+            <p style="margin:8px 0 0;word-break:break-all;font-size:12px;line-height:18px;color:#555555;">{{ .ConfirmationURL }}</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:22px 34px;background:#111111;">
+            <p style="margin:0;font-family:'IBM Plex Mono','Courier New',monospace;font-size:11px;line-height:18px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#f5e642;">DevCongress Community</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>

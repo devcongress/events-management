@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import ViewSkeleton from '@/src/components/ui/ViewSkeleton.vue';
+import ArchiveEventPageSkeleton from '@/src/components/ui/page-skeletons/ArchiveEventPageSkeleton.vue';
 import type { Event, Talk } from '@/types';
 
 const route = useRoute();
@@ -71,7 +71,7 @@ onMounted(async () => {
         <span>&larr;</span> BACK TO ARCHIVE
       </RouterLink>
 
-      <ViewSkeleton v-if="loading" variant="detail" :rows="3" />
+      <ArchiveEventPageSkeleton v-if="loading" />
       <div v-else-if="error || !event" class="flex min-h-[50vh] items-center justify-center p-4">
         <div class="text-center">
           <p class="font-mono text-dc-ink">EVENT NOT FOUND</p>
