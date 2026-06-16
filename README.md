@@ -20,6 +20,17 @@ The current app is a Vue 3 + Vite frontend served by a Bun/Hono API. It is still
 
 ---
 
+## Feature Highlights
+
+- **Mobile-first community experience** with compact phone layouts, sticky header navigation, route-aware feedback entry, and iOS-safe input behavior across public and organizer flows.
+- **Event publishing and archive management** for upcoming meetups, past meetup archives, public slide links, and website-facing event metadata that can feed `devcongress.org`.
+- **Organizer operations workspace** for event creation, talk review, speaker follow-up, event checklists, media management, and a prototype admin console backed by same-origin auth.
+- **Attendance operations and month gating** with Luma CSV imports, attendance summaries, no-show/check-in analysis, and calendar rules that prevent uploads before the allowed meetup window opens.
+- **Two-layer feedback protection** with a public floating feedback bot, standalone mobile feedback page, organizer feedback inbox, server-side rate limiting, and Cloudflare Turnstile verification on route feedback.
+- **Cloudflare-ready deployment path** with a live Pages frontend, Worker API deployment, same-origin `/api/*` proxying, and focused production checks around auth, feedback, and public meetup reads.
+
+---
+
 ## What You Can Do
 
 **For community members**
@@ -28,7 +39,7 @@ The current app is a Vue 3 + Vite frontend served by a Bun/Hono API. It is still
 - Submit CFP talks for open events
 - View published talk archives and slide links
 - Join live quiz sessions when a host opens one
-- Send route-level app feedback while testing
+- Send protected route-level app feedback while testing
 - Complete post-event feedback forms
 
 **For organizers**
@@ -36,9 +47,9 @@ The current app is a Vue 3 + Vite frontend served by a Bun/Hono API. It is still
 - Create and publish meetup events
 - Manage CFP status, talk review, and speaker access
 - Track event run-sheet milestones
-- Import Luma attendance CSV exports
+- Import Luma attendance CSV exports during the allowed month window
 - Review no-shows, check-in rates, and monthly attendance trends
-- Build feedback forms and review responses
+- Review route feedback in the Feedback Hub and manage post-event feedback forms
 - Prepare quiz sessions from manual questions or uploaded papers
 
 ---
