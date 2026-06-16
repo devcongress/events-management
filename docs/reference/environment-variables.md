@@ -6,7 +6,8 @@ Use `.env.local` for local development. Do not commit real credentials.
 |---|---:|---:|---|
 | `VITE_SUPABASE_URL` | Optional locally | Yes | Supabase project URL used by browser and server helpers |
 | `VITE_SUPABASE_ANON_KEY` | Optional locally | Yes | Public Supabase anon key for browser-safe operations |
-| `VITE_API_BASE_URL` | Required for split Cloudflare Pages + Worker deployments until same-domain routing exists | Yes | Worker origin used by the Pages frontend for `/api/*` calls, for example `https://devcongress-comm-api.<account>.workers.dev` |
+| `VITE_API_BASE_URL` | No | Yes | Optional Worker origin used only when `VITE_FORCE_API_BASE_URL=true`; the Pages `_worker.js` proxy is preferred for organizer auth |
+| `VITE_FORCE_API_BASE_URL` | No | Yes | Set to `true` only for public-read smoke tests that intentionally bypass the Pages `/api/*` proxy |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional locally, required for server Supabase writes | No | Server-only key for privileged Supabase operations |
 | `VITE_ADMIN_BASE_PATH` | No | Yes | Organizer route prefix; defaults to `/organizer-console` |
 | `VITE_SHOW_ORGANIZER_LINK` | No | Yes | Public header visibility for the Organizer entry point; set to `false` to hide the button in production |
@@ -21,9 +22,10 @@ Use `.env.local` for local development. Do not commit real credentials.
 
 - Only variables prefixed with `VITE_` are exposed to browser code.
 - Never prefix the Supabase service-role key with `VITE_`.
-- Keep `VITE_API_BASE_URL` pointed at the Worker origin only; do not include a trailing slash.
+- Prefer the committed Cloudflare Pages `_worker.js` proxy for `/api/*` so organizer cookies stay on the Pages hostname.
+- If `VITE_FORCE_API_BASE_URL=true`, keep `VITE_API_BASE_URL` pointed at the Worker origin only; do not include a trailing slash.
 - `VITE_SHOW_ORGANIZER_LINK=false` only hides the public navigation button; it does not secure organizer routes.
 - `VITE_SHOW_FEEDBACK_BOT=false` hides only the floating launcher; `/feedback` remains directly reachable.
-- Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever `VITE_API_BASE_URL` points the browser to a different origin, otherwise admin cookies and non-public API calls will be blocked by CORS.
+- Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.

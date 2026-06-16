@@ -25,7 +25,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Reduced feedback launcher prominence with route-view interval gating and mobile routing to a standalone `/feedback` page instead of an overlay.
 - Added the `/feedback` route to documentation and noted the mobile feedback behavior for community testers.
 - Made the header sticky at the top on mobile viewports only, leaving larger layouts non-sticky.
-- Hardened organizer sign-in so failed JSON/session checks no longer leave the button stuck, and compacted the mobile sign-in card typography and password field.
+- Hardened organizer sign-in so failed JSON checks no longer leave the button stuck, compacted the mobile sign-in card typography and password field, and kept the mobile topbar fixed/reachable across routes.
 
 ## 2026-06-15 — CI badge and workflow
 
@@ -36,6 +36,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 - Added a Cloudflare Worker entrypoint for the Hono API with Wrangler config and a `pnpm deploy:worker` script.
 - Added `VITE_API_BASE_URL` support so the Cloudflare Pages frontend can call a separate Worker API origin before same-domain `/api/*` routing exists.
+- Added a Cloudflare Pages `_worker.js` `/api/*` proxy and made same-origin API calls the default again so mobile organizer auth can use first-party cookies.
 - Added credentialed API CORS support for split Pages/Worker origins, controlled by `PUBLIC_FRONTEND_ORIGIN`.
 - Deferred hosted PDF-to-quiz generation behind `ENABLE_PDF_QUIZ_UPLOADS` and removed the PDF parser from the Worker top-level import path so Cloudflare can validate the API bundle.
 - Documented the split Cloudflare Pages + Worker deploy steps and clarified that server-only secrets belong on the Worker, not in the Pages frontend environment.

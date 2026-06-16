@@ -2802,9 +2802,15 @@
     }
 
     .app-header {
-      position: sticky;
+      position: fixed;
       top: 0;
-      z-index: 50;
+      left: 0;
+      right: 0;
+      z-index: 70;
+    }
+
+    .app-main {
+      padding-top: 3.65rem;
     }
 
     .app-shell.app-shell--community .page-route-stack,
@@ -3028,35 +3034,45 @@
     }
 
     .admin-login-wrap {
-      min-height: calc(100svh - 3.75rem) !important;
-      align-items: center !important;
-      padding: 1rem !important;
+      min-height: calc(100svh - 7rem) !important;
+      align-items: start !important;
+      padding: 1.2rem 0.7rem 1rem !important;
     }
 
     .admin-login-card {
       max-width: 25rem !important;
-      padding: 1.35rem !important;
+      padding: 1.15rem !important;
     }
 
     .admin-login-title {
-      font-size: 2.35rem !important;
-      line-height: 0.96 !important;
+      font-size: 2rem !important;
+      line-height: 1 !important;
       letter-spacing: 0 !important;
     }
 
     .admin-login-copy {
-      font-size: 0.95rem !important;
-      line-height: 1.45 !important;
+      font-size: 0.84rem !important;
+      line-height: 1.42 !important;
+    }
+
+    .admin-login-card label.mt-8 {
+      margin-top: 1.15rem !important;
     }
 
     .admin-login-card .editorial-input {
-      min-height: 3rem;
-      font-size: 0.95rem !important;
+      min-height: 2.8rem;
+      font-size: 0.86rem !important;
       line-height: 1.2 !important;
     }
 
+    .admin-login-error {
+      padding: 0.75rem !important;
+      font-size: 0.82rem !important;
+      line-height: 1.35 !important;
+    }
+
     .admin-login-submit {
-      min-height: 3rem !important;
+      min-height: 2.85rem !important;
       font-size: 0.72rem !important;
     }
 

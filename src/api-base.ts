@@ -1,6 +1,7 @@
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '');
+const forceSplitApiOrigin = import.meta.env.VITE_FORCE_API_BASE_URL === 'true';
 
-if (configuredApiBaseUrl) {
+if (configuredApiBaseUrl && forceSplitApiOrigin) {
   const nativeFetch = window.fetch.bind(window);
   const withApiCredentials = (init?: RequestInit): RequestInit => ({
     ...init,

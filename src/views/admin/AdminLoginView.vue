@@ -35,14 +35,6 @@ async function login() {
       return;
     }
 
-    const sessionResponse = await fetch('/api/auth/session', { credentials: 'include' });
-    const session = sessionResponse.ok ? await sessionResponse.json().catch(() => null) : null;
-
-    if (!session?.authenticated) {
-      error.value = 'Sign-in worked, but your browser blocked the organizer session. Open this app on the same domain as the API or allow cross-site cookies for this test deployment.';
-      return;
-    }
-
     await router.push(String(route.query.redirect ?? adminPath('events')));
   } catch {
     error.value = 'Unable to sign in. Please check your connection and try again.';
@@ -75,7 +67,7 @@ async function login() {
           >
         </label>
 
-        <div v-if="error" class="mt-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+        <div v-if="error" class="admin-login-error mt-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           {{ error }}
         </div>
 

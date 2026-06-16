@@ -144,7 +144,7 @@ npx wrangler secret put PUBLIC_FRONTEND_ORIGIN
 
 Use the service-role key only on the Worker. Do not add `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, or `ADMIN_SESSION_SECRET` to Cloudflare Pages environment variables.
 
-For the first Pages deploy, set `VITE_API_BASE_URL` to the Worker `workers.dev` URL so browser calls to `/api/*` are rewritten to the Worker. Set `PUBLIC_FRONTEND_ORIGIN` on the Worker to the exact Pages origin, such as `https://devcongress-community.pages.dev`, so credentialed admin requests can pass CORS. Once a custom domain exists, route `devcongress-community.example.com/api/*` to the Worker and remove `VITE_API_BASE_URL` if same-origin API calls are preferred.
+For the first Pages deploy, keep browser API calls on the Pages hostname and let the committed `public/_worker.js` Pages advanced-mode worker proxy `/api/*` to the API Worker. This preserves the same-origin cookie contract for organizer auth while still serving the API from Workers. Keep `PUBLIC_FRONTEND_ORIGIN` on the Worker for defensive CORS coverage, but do not enable `VITE_FORCE_API_BASE_URL` for normal organizer testing. Use `VITE_FORCE_API_BASE_URL=true` only for explicit split-origin smoke tests where cookie auth is not being exercised.
 
 Leave `ENABLE_PDF_QUIZ_UPLOADS` unset on Cloudflare Workers during phase one. The PDF-to-quiz prototype depends on a PDF parser that expects browser matrix APIs not available in Workers, and quiz generation is intentionally deferred for the low-cost launch.
 
