@@ -388,6 +388,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Updated admin navigation, auth redirects, event tabs, and admin back links to build URLs through the shared route helper.
 - Added a catch-all client route so old or unknown paths recover through the branded 404 instead of exposing an admin entry point.
 
+## 2026-06-20 — TV-safe feedback QR cleanup
+
+- Simplified the organizer feedback display route by removing the visible URL and campaign-settings actions from the live QR screen.
+- Increased the QR code size and widened the display layout so the screen reads better from across a room.
+- Kept the unavailable state focused on returning to the feedback hub instead of exposing extra controls on the display surface.
+
 ## 2026-05-29 — Branded 404 page
 
 - Added a Vue catch-all route for unknown client paths.

@@ -16,7 +16,6 @@ const available = ref(false);
 const feedbackWindow = ref<{ opens_at: string | null; closes_at: string | null } | null>(null);
 
 const eventId = computed(() => String(route.params.eventId ?? ''));
-const organizerFeedbackPath = computed(() => adminPath(`events/${eventId.value}/feedback`));
 const canShowQr = computed(() => available.value && Boolean(publicUrl.value) && Boolean(qrCodeUrl.value));
 
 function formatWindowDate(value: string | null): string | null {
@@ -42,7 +41,7 @@ const windowCopy = computed(() => {
 async function buildQrCode(url: string) {
   qrCodeUrl.value = await QRCode.toDataURL(url, {
     margin: 1,
-    width: 360,
+    width: 520,
     color: {
       dark: '#0b0b0d',
       light: '#fff7bf',
@@ -111,28 +110,17 @@ onMounted(() => {
               <img :src="qrCodeUrl as string" :alt="`QR code for ${event.name} feedback form`" class="feedback-display-qr" />
             </div>
             <div class="feedback-display-copy">
-              <div>
-                <p class="feedback-display-kicker">Scan to share feedback</p>
-                <p class="feedback-display-url">{{ publicUrl }}</p>
-              </div>
+              <p class="feedback-display-kicker">Scan to share feedback</p>
               <div class="feedback-display-meta">
                 <p><strong>Window</strong> {{ windowCopy }}</p>
-                <p><strong>Fallback</strong> Open the link directly if scanning is awkward.</p>
-              </div>
-              <div class="feedback-display-actions">
-                <a :href="publicUrl as string" target="_blank" rel="noreferrer" class="editorial-action">Open feedback form</a>
-                <RouterLink :to="organizerFeedbackPath" class="editorial-secondary-action">Campaign settings</RouterLink>
               </div>
             </div>
           </div>
 
           <div v-else class="feedback-display-empty">
             <p class="feedback-display-kicker">Feedback form unavailable</p>
-            <p class="feedback-display-empty-copy">Use the campaign settings to open the form first. Once the feedback window is live, this page becomes your TV-safe QR screen.</p>
-            <div class="feedback-display-actions">
-              <RouterLink :to="organizerFeedbackPath" class="editorial-action">Open campaign settings</RouterLink>
-              <RouterLink :to="adminPath('feedback')" class="editorial-secondary-action">Back to feedback</RouterLink>
-            </div>
+            <p class="feedback-display-empty-copy">Open or publish the feedback flow for this event first. Once the feedback window is live, this page becomes your TV-safe QR screen.</p>
+            <RouterLink :to="adminPath('feedback')" class="editorial-secondary-action">Back to feedback</RouterLink>
           </div>
         </div>
       </template>
