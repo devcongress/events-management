@@ -161,6 +161,8 @@ const selectedSubmission = computed(() => (
 ));
 
 function hydrateCampaign(data: FeedbackCampaignResponse) {
+  const shouldGenerateFromActivities = isDefaultCampaignDraft(data.campaign);
+
   event.value = data.event;
   talks.value = data.talks;
   Object.assign(form, {
@@ -179,18 +181,26 @@ function hydrateCampaign(data: FeedbackCampaignResponse) {
     activities.value = buildActivityDrafts(data.event, data.talks);
     activitiesHydrated.value = true;
   }
+
+  if (shouldGenerateFromActivities && selectedActivityCount.value > 0) {
+    generateQuestionsFromActivities();
+  }
 }
 
 async function fetchCampaign() {
   loading.value = true;
   error.value = '';
 
-  const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`);
-  if (response.ok) {
-    hydrateCampaign(await response.json());
-  } else {
-    const payload = await response.json().catch(() => ({}));
-    error.value = payload.error ?? 'Unable to load feedback campaign';
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`);
+    if (response.ok) {
+      hydrateCampaign(await response.json());
+    } else {
+      const payload = await response.json().catch(() => ({}));
+      error.value = payload.error ?? `Unable to load feedback campaign (${response.status})`;
+    }
+  } catch (loadError) {
+    error.value = loadError instanceof Error ? loadError.message : 'Unable to load feedback campaign';
   }
 
   loading.value = false;
@@ -257,6 +267,19 @@ function isFeedbackActivity(item: PublicMeetupScheduleItem): boolean {
   if (item.type === 'break' || item.type === 'networking') return false;
   if (/^welcome\b/i.test(title)) return false;
   return true;
+}
+
+function isDefaultCampaignDraft(campaign: FeedbackCampaign): boolean {
+  if (campaign.status !== 'draft') return false;
+  if (campaign.title !== 'How was the meetup?') return false;
+  if (campaign.intro !== 'Tell us what landed, what dragged, and what should change next month.') return false;
+
+  const labels = campaign.questions.map((question) => question.label);
+  return labels.length === 4
+    && labels.includes('How would you rate today\'s event?')
+    && labels.includes('Which talk or session was most useful?')
+    && labels.includes('Would you attend the next DevCongress community event?')
+    && labels.includes('Other comments');
 }
 
 function buildActivityDrafts(sourceEvent: CommunityEvent, sourceTalks: Talk[]): FeedbackActivityDraft[] {

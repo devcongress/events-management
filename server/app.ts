@@ -26,7 +26,7 @@ import { getPublicLumaEventByUrl, type LumaImportDraft } from '@/lib/luma/events
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
-import { now } from '@/lib/utils';
+import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
@@ -473,6 +473,108 @@ function isFeedbackCampaignOpen(event: Event, campaign: FeedbackCampaign): boole
     || (campaign.status === 'draft' && campaign.auto_open_on_event_completion);
 
   return statusOpen && afterOpen && beforeClose;
+}
+
+function feedbackActivityLabelKey(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function feedbackScheduleActivityLabel(item: PublicMeetupScheduleItem): string {
+  const title = item.title.trim();
+  const lead = item.lead?.trim();
+  if (!lead || title.toLowerCase().includes(lead.toLowerCase())) {
+    return title;
+  }
+
+  return `${title} by ${lead}`;
+}
+
+function isFeedbackScheduleActivity(item: PublicMeetupScheduleItem): boolean {
+  const title = item.title.trim();
+  if (!title) return false;
+  if (item.type === 'break' || item.type === 'networking') return false;
+  if (/^welcome\b/i.test(title)) return false;
+  return true;
+}
+
+function feedbackActivityLabelsForEvent(event: Event, eventTalks: Talk[]): string[] {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+
+  function addLabel(label: string) {
+    const normalized = label.trim();
+    const key = feedbackActivityLabelKey(normalized);
+    if (!normalized || seen.has(key)) return;
+    seen.add(key);
+    labels.push(normalized);
+  }
+
+  for (const talk of eventTalks) {
+    addLabel(`${talk.title} by ${talk.speaker_name}`);
+  }
+
+  for (const item of event.schedule ?? []) {
+    if (isFeedbackScheduleActivity(item)) {
+      addLabel(feedbackScheduleActivityLabel(item));
+    }
+  }
+
+  return labels;
+}
+
+function isDefaultFeedbackCampaign(campaign: FeedbackCampaign): boolean {
+  if (campaign.status !== 'draft') return false;
+  if (campaign.title !== 'How was the meetup?') return false;
+  if (campaign.intro !== 'Tell us what landed, what dragged, and what should change next month.') return false;
+
+  const labels = campaign.questions.map((question) => question.label);
+  return labels.length === 4
+    && labels.includes('How would you rate today\'s event?')
+    && labels.includes('Which talk or session was most useful?')
+    && labels.includes('Would you attend the next DevCongress community event?')
+    && labels.includes('Other comments');
+}
+
+function feedbackQuestionsFromActivityLabels(labels: string[]): FeedbackQuestion[] {
+  return [
+    ...labels.map((label, index) => ({
+      id: generateId(),
+      type: 'rating' as const,
+      label,
+      required: false,
+      options: [],
+      order_index: index,
+    })),
+    {
+      id: generateId(),
+      type: 'yes_no' as const,
+      label: 'Would you attend another DevCongress meetup like this?',
+      required: false,
+      options: [],
+      order_index: labels.length,
+    },
+    {
+      id: generateId(),
+      type: 'text' as const,
+      label: 'Other comments',
+      required: false,
+      options: [],
+      order_index: labels.length + 1,
+    },
+  ];
+}
+
+async function hydrateDefaultFeedbackCampaignFromEvent(event: Event, campaign: FeedbackCampaign, eventTalks: Talk[]): Promise<FeedbackCampaign> {
+  if (!isDefaultFeedbackCampaign(campaign)) return campaign;
+
+  const labels = feedbackActivityLabelsForEvent(event, eventTalks);
+  if (labels.length === 0) return campaign;
+
+  return updateFeedbackCampaign(event.id, {
+    title: `How was ${event.name}?`,
+    intro: 'On a scale of 1 - 5, rate the sessions you joined where 1 is extremely unsatisfied and 5 is extremely satisfied.',
+    questions: feedbackQuestionsFromActivityLabels(labels),
+  });
 }
 
 function normalizeEventFeedbackResponseToken(input: unknown): string | null {
@@ -1152,17 +1254,19 @@ app.get('/api/events/:eventId/feedback-campaign', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const [campaign, submissions, talks] = await Promise.all([
+  const [baseCampaign, submissions, talks] = await Promise.all([
     getOrCreateFeedbackCampaign(eventId),
     getFeedbackSubmissionsByEvent(eventId),
     getTalksByEvent(eventId),
   ]);
+  const visibleTalks = talks.filter((talk) => talk.status !== 'rejected');
+  const campaign = await hydrateDefaultFeedbackCampaignFromEvent(event, baseCampaign, visibleTalks);
 
   return c.json({
     event,
     campaign,
     submissions,
-    talks: talks.filter((talk) => talk.status !== 'rejected'),
+    talks: visibleTalks,
     public_url: `${publicAppOrigin(c)}/feedback/${eventId}`,
     feedback_window: feedbackCampaignWindow(event, campaign),
     is_open: isFeedbackCampaignOpen(event, campaign),
