@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-20 — Android mobile scroll fix
+
+- Released the mobile app shell from the desktop inner-scroll layout on every route, including organizer/admin pages, so Android Chrome can scroll the document normally.
+- Kept the desktop fixed-shell behavior intact while adding a minimum-height guard to the main scroll container.
+
 ## 2026-06-20 — Monthly system design sessions
 
 - Added `System design` as a first-class program outline item type so monthly architecture scenarios can sit alongside talks, panels, workshops, and discussion slots.

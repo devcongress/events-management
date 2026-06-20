@@ -617,7 +617,7 @@ onUnmounted(() => {
       </ol>
     </nav>
 
-    <main class="app-main page-transition-host flex-1 overflow-y-auto overflow-x-hidden">
+    <main class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
       <div v-if="showAdminEventTabs && adminEventId" class="bg-dc-cream text-dc-ink">
         <div class="editorial-wrap event-tabs-wrap pb-0">
           <RouterLink
