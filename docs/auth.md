@@ -9,11 +9,15 @@ DevCon-Comm uses Supabase Auth with Google OAuth for hosted organizer access and
 3. The organizer signs in from `/organizer-console/login`.
 4. The organizer chooses Google sign-in from `/organizer-console/login`.
 5. Supabase handles the Google OAuth redirect and returns to `/api/auth/admin/callback` with an authorization code.
-6. Hono exchanges the code with Supabase, checks the verified email against active `admin_memberships`, stores an app-owned row in `admin_sessions`, and sets the `devcon_admin` HTTP-only cookie.
-7. The callback route redirects into the organizer console.
-8. Organizer APIs call `requireAdmin`, which validates the session cookie, active membership, role, and request origin.
+6. Hono forwards the code to `/organizer-console/auth/callback`, where the browser completes the Supabase PKCE exchange.
+7. The browser posts the temporary Supabase access token to `/api/auth/admin/exchange`.
+8. Hono verifies the token, checks the verified email against active `admin_memberships`, stores an app-owned row in `admin_sessions`, and sets the `devcon_admin` HTTP-only cookie.
+9. The callback route clears the browser Supabase session and redirects into the organizer console.
+10. Organizer APIs call `requireAdmin`, which validates the session cookie, active membership, role, and request origin.
 
-The browser does not persist Supabase access or refresh tokens. The app cookie contains only an opaque random session token; the hashed token is stored in Supabase.
+The browser Supabase client uses PKCE storage so the code verifier survives the external Google redirect. After the app-owned session cookie is created, the callback signs out of Supabase in the browser. The app cookie contains only an opaque random session token; the hashed token is stored in Supabase.
+
+The login screen stores the intended organizer destination in session storage before starting Google OAuth. If Supabase falls back to the configured Site URL and returns the OAuth code to a public route, the router forwards that code to `/organizer-console/auth/callback` and resumes the organizer sign-in flow.
 
 ## Roles
 

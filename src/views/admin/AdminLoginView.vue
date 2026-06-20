@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { adminPath } from '@/src/admin-routes';
+import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
@@ -36,6 +36,8 @@ async function login() {
 
       const callbackUrl = new URL('/api/auth/admin/callback', window.location.origin);
       callbackUrl.searchParams.set('next', redirectTo.value);
+
+      window.sessionStorage.setItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY, redirectTo.value);
 
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',

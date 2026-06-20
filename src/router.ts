@@ -25,11 +25,25 @@ import MyTalksView from './views/MyTalksView.vue';
 import NotFoundView from './views/NotFoundView.vue';
 import PlayCodeView from './views/PlayCodeView.vue';
 import PlayView from './views/PlayView.vue';
-import { adminPath, isAdminPath } from './admin-routes';
+import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
 import { fetchAdminSession } from './lib/api';
 
 const COMMUNITY_TITLE = 'DevCongress | Community';
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
+
+function safeInternalRedirect(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  if (!value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+}
+
+function storedAdminOAuthRedirect(): string {
+  try {
+    return safeInternalRedirect(window.sessionStorage.getItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY)) ?? adminPath('events');
+  } catch {
+    return adminPath('events');
+  }
+}
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -67,11 +81,21 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to, from) => {
-  if (!isAdminPath(to.path) || to.path === adminPath('login') || to.path === adminPath('auth/callback')) {
-    return true;
+  const oauthCode = typeof to.query.code === 'string' ? to.query.code : '';
+  const oauthError = typeof to.query.error_description === 'string' ? to.query.error_description : '';
+
+  if ((oauthCode || oauthError) && to.path !== adminPath('auth/callback')) {
+    return {
+      path: adminPath('auth/callback'),
+      query: {
+        next: safeInternalRedirect(to.query.next) ?? safeInternalRedirect(to.query.redirect) ?? storedAdminOAuthRedirect(),
+        ...(oauthCode ? { code: oauthCode } : {}),
+        ...(oauthError ? { error: oauthError } : {}),
+      },
+    };
   }
 
-  if (isAdminPath(from.path) && from.path !== adminPath('login')) {
+  if (!isAdminPath(to.path) || to.path === adminPath('login') || to.path === adminPath('auth/callback')) {
     return true;
   }
 

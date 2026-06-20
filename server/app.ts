@@ -18,7 +18,7 @@ import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSes
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
-import { adminLoginErrorPath, completeSupabaseAdminCallback, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
+import { adminLoginErrorPath, completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { getPublicLumaEventByUrl, type LumaImportDraft } from '@/lib/luma/events';
@@ -1324,17 +1324,41 @@ app.post('/api/auth/admin/login', async (c) => {
 app.get('/api/auth/admin/callback', async (c) => {
   const code = String(c.req.query('code') ?? '');
   const next = String(c.req.query('next') ?? defaultAdminRedirectPath(c));
+  const callbackError = String(c.req.query('error_description') ?? c.req.query('error') ?? '');
+  const basePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : defaultAdminRedirectPath(c);
+  const clientCallback = new URL(`${basePath}/auth/callback`, new URL(c.req.url).origin);
+  clientCallback.searchParams.set('next', safeNext);
+
+  if (callbackError) {
+    clientCallback.searchParams.set('error', callbackError);
+    return c.redirect(clientCallback.toString());
+  }
 
   if (!code) {
     return c.redirect(adminLoginErrorPath(c, 'Google organizer sign-in did not return a code. Please try again.'));
   }
 
-  const result = await completeSupabaseAdminCallback(c, code);
-  if (!result.ok) {
-    return c.redirect(adminLoginErrorPath(c, result.error));
+  clientCallback.searchParams.set('code', code);
+  return c.redirect(clientCallback.toString());
+});
+
+app.post('/api/auth/admin/exchange', async (c) => {
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Supabase admin auth is not configured.' }, 503);
   }
 
-  return c.redirect(next.startsWith('/') && !next.startsWith('//') ? next : defaultAdminRedirectPath(c));
+  const body = await c.req.json();
+  const accessToken = String(body.access_token ?? '');
+  const result = await completeSupabaseAdminToken(c, accessToken);
+  if (!result.ok) {
+    return c.json({ error: result.error }, { status: result.status as 401 | 403 | 500 });
+  }
+
+  return c.json({
+    authenticated: true,
+    auth_mode: 'supabase',
+  });
 });
 
 app.post('/api/auth/logout', async (c) => {

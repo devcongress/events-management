@@ -10,6 +10,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Replaced hosted organizer magic-link sign-in with Supabase Google OAuth while keeping the existing app-owned `admin_sessions` cookie model and `admin_memberships` allowlist.
 - Changed the organizer login screen to launch Google directly and disabled the hosted `/api/auth/admin/login` magic-link path, while preserving the local shared-password fallback for non-Supabase environments.
 - Moved the hosted organizer callback completion fully onto `/api/auth/admin/callback`, and repurposed the old frontend callback route as a safe recovery page for stale magic-link returns.
+- Fixed the PKCE callback handoff so the browser keeps the Supabase code verifier across the Google redirect, exchanges the code, then clears the browser Supabase session after the app-owned cookie is created.
+- Added a router recovery path for OAuth codes that land on the public Site URL and tightened organizer route guards so protected pages re-check the app session instead of trusting prior organizer navigation.
 - Updated the auth and deployment docs with Google provider setup requirements, and removed the obsolete email-link flow references.
 
 ## 2026-06-17 — Cloudflare organizer auth deploy drift

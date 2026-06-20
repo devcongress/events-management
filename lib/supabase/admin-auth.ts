@@ -208,18 +208,17 @@ async function createAdminSessionForUser(c: Context, input: { userId: string; em
   return { ok: true as const };
 }
 
-export async function completeSupabaseAdminCallback(c: Context, code: string) {
-  const supabase = getBrowserSafeSupabaseClient(c);
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+export async function completeSupabaseAdminToken(c: Context, accessToken: string) {
+  const { data, error } = await getBrowserSafeSupabaseClient(c).auth.getUser(accessToken);
 
   if (error || !data.user?.email) {
     return { ok: false as const, status: 401, error: 'Google organizer sign-in could not be completed. Please try again.' };
   }
 
-  const email = normalizeEmail(data.user.email);
-  const result = await createAdminSessionForUser(c, { userId: data.user.id, email });
-  await supabase.auth.signOut();
-  return result;
+  return createAdminSessionForUser(c, {
+    userId: data.user.id,
+    email: data.user.email,
+  });
 }
 
 export function startLocalAdminSession(c: Context, password: unknown): boolean {

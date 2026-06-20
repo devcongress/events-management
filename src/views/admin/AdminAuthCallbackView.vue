@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { adminPath } from '@/src/admin-routes';
+import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
+import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession } from '@/src/lib/api';
 
 const route = useRoute();
@@ -11,6 +12,8 @@ const loading = ref(true);
 const redirectTo = computed(() => String(route.query.next ?? route.query.redirect ?? adminPath('events')));
 
 async function redirectToLogin(message?: string) {
+  window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+
   const query: Record<string, string> = {
     redirect: redirectTo.value,
   };
@@ -26,6 +29,53 @@ async function redirectToLogin(message?: string) {
 }
 
 onMounted(async () => {
+  const code = typeof route.query.code === 'string' ? route.query.code : '';
+  const callbackError = typeof route.query.error === 'string' ? route.query.error : '';
+
+  if (callbackError) {
+    await redirectToLogin(callbackError);
+    return;
+  }
+
+  if (code) {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      await redirectToLogin('Google organizer sign-in is not configured yet.');
+      return;
+    }
+
+    try {
+      const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError || !data.session?.access_token) {
+        console.warn('Organizer Google OAuth code exchange failed:', exchangeError?.message ?? 'Missing access token');
+        await redirectToLogin('Google organizer sign-in could not be completed. Please try again.');
+        return;
+      }
+
+      const response = await fetch('/api/auth/admin/exchange', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: data.session.access_token }),
+      });
+
+      await supabase.auth.signOut();
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        await redirectToLogin(payload?.error ?? 'Google organizer sign-in could not be completed. Please try again.');
+        return;
+      }
+
+      await router.replace(redirectTo.value);
+      window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+      return;
+    } catch {
+      await redirectToLogin('Google organizer sign-in could not be completed. Please try again.');
+      return;
+    }
+  }
+
   try {
     const session = await fetchAdminSession();
     if (session.authenticated) {

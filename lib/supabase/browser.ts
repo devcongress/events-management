@@ -22,9 +22,10 @@ export function getSupabaseBrowserClient(): BrowserSupabaseClient | null {
     anonKey,
     {
       auth: {
-        persistSession: false,
+        persistSession: true,
         autoRefreshToken: false,
         detectSessionInUrl: false,
+        flowType: 'pkce',
       },
     },
   );

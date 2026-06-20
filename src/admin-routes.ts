@@ -1,4 +1,5 @@
 const FALLBACK_ADMIN_BASE_PATH = '/organizer-console';
+export const ADMIN_OAUTH_REDIRECT_STORAGE_KEY = 'devcon-admin-oauth-redirect';
 
 function normalizeBasePath(value: string | undefined): string {
   const trimmed = value?.trim() || FALLBACK_ADMIN_BASE_PATH;
