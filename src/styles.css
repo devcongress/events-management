@@ -707,6 +707,48 @@
 	    padding: clamp(1rem, 2vw, 1.4rem);
 	  }
 
+	  .event-outline-bulk {
+	    display: grid;
+	    gap: 0.65rem;
+	    align-items: start;
+	    border: 1px dashed #c8c2b8;
+	    border-radius: 0.65rem;
+	    background: rgba(255, 253, 236, 0.36);
+	    padding: 0.85rem;
+	  }
+
+	  .event-outline-bulk label {
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.68rem;
+	    font-weight: 900;
+	    letter-spacing: 0.14em;
+	    text-transform: uppercase;
+	    color: #e8117f;
+	  }
+
+	  .event-outline-bulk-input {
+	    min-height: 8rem;
+	    resize: vertical;
+	    border: 1px solid #d8d4ca;
+	    border-radius: 0.5rem;
+	    background: #ffffff;
+	    padding: 0.8rem;
+	    color: #111111;
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.85rem;
+	    font-weight: 700;
+	    line-height: 1.6;
+	    transition:
+	      border-color 150ms var(--motion-fast),
+	      box-shadow 150ms var(--motion-fast);
+	  }
+
+	  .event-outline-bulk-input:focus {
+	    border-color: #e8117f;
+	    outline: none;
+	    box-shadow: 0 0 0 3px rgba(232, 17, 127, 0.14);
+	  }
+
 	  .event-outline-row {
 	    display: grid;
 	    grid-template-columns: 7.5rem minmax(0, 1fr) auto;

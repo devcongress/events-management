@@ -9,6 +9,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 - Added an optional Program outline editor to the organizer event overview so events can store structured time/title/type/lead rows when a run of show exists, while leaving events with no outline unchanged.
 - Saved outlines into the existing `event.schedule` field so public meetup schedules and feedback activity drafts can reuse the same structured event flow.
+- Added a paste parser for plain text program outlines, including `PROGRAM OUTLINE` headings, final time ranges, `by Speaker`, and `- Speaker` lead formats.
 
 ## 2026-06-20 — Pages asset fallback fix
 

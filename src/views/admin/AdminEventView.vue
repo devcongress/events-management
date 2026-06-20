@@ -32,6 +32,7 @@ const outlineEditing = ref(false);
 const outlineSaving = ref(false);
 const outlineError = ref<string | null>(null);
 const outlineDrafts = ref<PublicMeetupScheduleItem[]>([]);
+const outlineBulkText = ref('');
 const seriesTypeDraft = ref<EventSeriesType>('monthly');
 const seriesTypeSaving = ref(false);
 const seriesTypeError = ref<string | null>(null);
@@ -123,6 +124,66 @@ function syncOutlineDrafts() {
   outlineDrafts.value = eventOutline.value.map((item) => createOutlineDraft(item));
 }
 
+function inferOutlineType(title: string): PublicMeetupScheduleItem['type'] {
+  const normalized = title.toLowerCase();
+  if (normalized.includes('break')) return 'break';
+  if (normalized.includes('network')) return 'networking';
+  if (normalized.includes('demo')) return 'workshop';
+  if (normalized.includes('panel')) return 'panel';
+  if (normalized.includes('session') || normalized.includes('address')) return 'open_discussion';
+  return 'talk';
+}
+
+function parseOutlineLine(rawLine: string): PublicMeetupScheduleItem | null {
+  const line = rawLine
+    .replace(/\u200b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!line || /^program outline$/i.test(line)) return null;
+
+  const timeMatch = line.match(/(?:\s+[-–—]\s*)?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*[-–—]\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*$/i);
+  const time = timeMatch?.[1]?.replace(/\s*[-–—]\s*/g, ' - ').trim() ?? 'TBD';
+  let titlePart = timeMatch ? line.slice(0, timeMatch.index).trim() : line;
+  let lead: string | null = null;
+
+  const byLeadMatch = titlePart.match(/^(.*)\s+\bby\b\s+(.+)$/i);
+  const dashLeadMatch = titlePart.match(/^(.*)\s+[-–—]\s+(.+)$/);
+
+  if (byLeadMatch?.[1] && byLeadMatch[2]) {
+    titlePart = byLeadMatch[1].trim();
+    lead = byLeadMatch[2].trim();
+  } else if (dashLeadMatch?.[1] && dashLeadMatch[2]) {
+    titlePart = dashLeadMatch[1].trim();
+    lead = dashLeadMatch[2].trim();
+  }
+
+  if (!titlePart) return null;
+
+  return createOutlineDraft({
+    time,
+    title: titlePart,
+    lead,
+    type: inferOutlineType(titlePart),
+  });
+}
+
+function parseBulkOutline() {
+  const parsed = outlineBulkText.value
+    .split(/\r?\n/)
+    .map(parseOutlineLine)
+    .filter((item): item is PublicMeetupScheduleItem => Boolean(item));
+
+  if (parsed.length === 0) {
+    outlineError.value = 'Paste at least one outline item with a title.';
+    return;
+  }
+
+  outlineDrafts.value = parsed;
+  outlineBulkText.value = '';
+  outlineError.value = null;
+}
+
 function syncSeriesTypeDraft() {
   if (!event.value) return;
   seriesTypeDraft.value = resolveEventSeriesType(event.value);
@@ -167,6 +228,26 @@ function publishStatusForEvent(currentEvent: CommunityEvent): EventStatus {
 async function publishEvent() {
   if (!event.value || publishSaving.value) return;
 
+  const publishPayload: {
+    publish_to_website: boolean;
+    status: EventStatus;
+    schedule?: PublicMeetupScheduleItem[];
+  } = {
+    publish_to_website: true,
+    status: isDraftEvent.value ? publishStatusForEvent(event.value) : event.value.status,
+  };
+
+  if (outlineEditing.value) {
+    try {
+      publishPayload.schedule = normalizeOutlineDrafts();
+    } catch (error) {
+      outlineError.value = error instanceof Error ? error.message : 'Check the outline rows before publishing.';
+      publishError.value = 'Fix the program outline before publishing.';
+      notify.error(publishError.value);
+      return;
+    }
+  }
+
   publishSaving.value = true;
   publishError.value = null;
 
@@ -174,10 +255,7 @@ async function publishEvent() {
     const response = await fetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        publish_to_website: true,
-        status: isDraftEvent.value ? publishStatusForEvent(event.value) : event.value.status,
-      }),
+      body: JSON.stringify(publishPayload),
     });
 
     if (!response.ok) {
@@ -186,6 +264,11 @@ async function publishEvent() {
     }
 
     event.value = await response.json();
+    if (outlineEditing.value) {
+      syncOutlineDrafts();
+      outlineEditing.value = false;
+      outlineError.value = null;
+    }
     await invalidateEventQueries();
     notify.success('Event published to community');
   } catch (error) {
@@ -251,6 +334,7 @@ function startOutlineEdit() {
   if (outlineDrafts.value.length === 0) {
     outlineDrafts.value = [createOutlineDraft()];
   }
+  outlineBulkText.value = '';
   outlineError.value = null;
   outlineEditing.value = true;
 }
@@ -258,6 +342,7 @@ function startOutlineEdit() {
 function cancelOutlineEdit() {
   if (outlineSaving.value) return;
   syncOutlineDrafts();
+  outlineBulkText.value = '';
   outlineError.value = null;
   outlineEditing.value = false;
 }
@@ -633,116 +718,135 @@ onMounted(fetchOverview);
                     {{ seriesTypeSaving ? 'SAVING...' : 'SAVE SERIES TYPE' }}
                   </button>
                   <p v-if="seriesTypeError" class="event-overview-copy-error">{{ seriesTypeError }}</p>
-                </div>
-              </aside>
-            </div>
-          </div>
-        </div>
+	                </div>
+	              </aside>
 
-        <section class="event-outline-panel">
-          <div class="event-outline-header">
-            <div class="min-w-0">
-              <p class="editorial-eyebrow">program outline</p>
-              <h2 class="event-outline-title">Optional event flow</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
-                Add this only when the event already has a clear run of sessions. Feedback and the public schedule can reuse these rows.
-              </p>
-            </div>
-            <button
-              v-if="!outlineEditing"
-              type="button"
-              class="event-overview-copy-action"
-              @click="startOutlineEdit"
-            >
-              {{ eventOutline.length > 0 ? 'Edit outline' : 'Add outline' }}
-            </button>
-          </div>
+	              <section class="event-outline-panel xl:col-span-2">
+	                <div class="event-outline-header">
+	                  <div class="min-w-0">
+	                    <p class="editorial-eyebrow">program outline</p>
+	                    <h2 class="event-outline-title">Optional event flow</h2>
+	                    <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
+	                      Add this only when the event already has a clear run of sessions. Feedback and the public schedule can reuse these rows.
+	                    </p>
+	                  </div>
+	                  <button
+	                    v-if="!outlineEditing"
+	                    type="button"
+	                    class="event-overview-copy-action"
+	                    @click="startOutlineEdit"
+	                  >
+	                    {{ eventOutline.length > 0 ? 'Edit outline' : 'Add outline' }}
+	                  </button>
+	                </div>
 
-          <div v-if="outlineEditing" class="event-outline-editor">
-            <div
-              v-for="(item, index) in outlineDrafts"
-              :key="index"
-              class="event-outline-edit-row"
-            >
-              <label>
-                <span>Time</span>
-                <input v-model="item.time" class="event-outline-input" placeholder="6:30 PM" />
-              </label>
-              <label>
-                <span>Title</span>
-                <input v-model="item.title" class="event-outline-input" placeholder="Session title" />
-              </label>
-              <label>
-                <span>Type</span>
-                <select v-model="item.type" class="event-outline-input">
-                  <option
-                    v-for="option in outlineTypeOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-              <label>
-                <span>Lead</span>
-                <input
-                  :value="item.lead ?? ''"
-                  class="event-outline-input"
-                  placeholder="Optional"
-                  @input="updateOutlineLeadFromEvent(index, $event)"
-                />
-              </label>
-              <button
-                type="button"
-                class="event-outline-remove"
-                :disabled="outlineSaving"
-                @click="removeOutlineRow(index)"
-              >
-                Remove
-              </button>
-            </div>
+	                <div v-if="outlineEditing" class="event-outline-editor">
+	                  <div class="event-outline-bulk">
+	                    <label for="event-outline-bulk">Paste outline</label>
+	                    <textarea
+	                      id="event-outline-bulk"
+	                      v-model="outlineBulkText"
+	                      class="event-outline-bulk-input"
+	                      rows="6"
+	                      placeholder="PROGRAM OUTLINE&#10;Welcome address 11:00 - 11:05&#10;Talk title by Speaker - 12:00 - 12:30"
+	                    />
+	                    <button
+	                      type="button"
+	                      class="event-overview-copy-action"
+	                      :disabled="outlineSaving"
+	                      @click="parseBulkOutline"
+	                    >
+	                      Parse outline
+	                    </button>
+	                  </div>
 
-            <p v-if="outlineError" class="event-overview-copy-error">{{ outlineError }}</p>
-            <div class="event-overview-copy-actions">
-              <button type="button" class="event-overview-copy-action" :disabled="outlineSaving" @click="addOutlineRow">
-                Add row
-              </button>
-              <button type="button" class="editorial-action" :disabled="outlineSaving" @click="saveOutline">
-                {{ outlineSaving ? 'SAVING...' : 'SAVE OUTLINE' }}
-              </button>
-              <button
-                type="button"
-                class="event-overview-copy-cancel"
-                :disabled="outlineSaving"
-                @click="cancelOutlineEdit"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+	                  <div
+	                    v-for="(item, index) in outlineDrafts"
+	                    :key="index"
+	                    class="event-outline-edit-row"
+	                  >
+	                    <label>
+	                      <span>Time</span>
+	                      <input v-model="item.time" class="event-outline-input" placeholder="6:30 PM" />
+	                    </label>
+	                    <label>
+	                      <span>Title</span>
+	                      <input v-model="item.title" class="event-outline-input" placeholder="Session title" />
+	                    </label>
+	                    <label>
+	                      <span>Type</span>
+	                      <select v-model="item.type" class="event-outline-input">
+	                        <option
+	                          v-for="option in outlineTypeOptions"
+	                          :key="option.value"
+	                          :value="option.value"
+	                        >
+	                          {{ option.label }}
+	                        </option>
+	                      </select>
+	                    </label>
+	                    <label>
+	                      <span>Lead</span>
+	                      <input
+	                        :value="item.lead ?? ''"
+	                        class="event-outline-input"
+	                        placeholder="Optional"
+	                        @input="updateOutlineLeadFromEvent(index, $event)"
+	                      />
+	                    </label>
+	                    <button
+	                      type="button"
+	                      class="event-outline-remove"
+	                      :disabled="outlineSaving"
+	                      @click="removeOutlineRow(index)"
+	                    >
+	                      Remove
+	                    </button>
+	                  </div>
 
-          <div v-else-if="eventOutline.length > 0" class="event-outline-list">
-            <div
-              v-for="(item, index) in eventOutline"
-              :key="`${item.time}-${item.title}-${index}`"
-              class="event-outline-row"
-            >
-              <span class="event-outline-time">{{ item.time }}</span>
-              <span class="event-outline-copy">
-                <strong>{{ item.title }}</strong>
-                <span v-if="item.lead">Led by {{ item.lead }}</span>
-              </span>
-              <span class="event-outline-type">{{ item.type.replace('_', ' ') }}</span>
-            </div>
-          </div>
+	                  <p v-if="outlineError" class="event-overview-copy-error">{{ outlineError }}</p>
+	                  <div class="event-overview-copy-actions">
+	                    <button type="button" class="event-overview-copy-action" :disabled="outlineSaving" @click="addOutlineRow">
+	                      Add row
+	                    </button>
+	                    <button type="button" class="editorial-action" :disabled="outlineSaving" @click="saveOutline">
+	                      {{ outlineSaving ? 'SAVING...' : 'SAVE OUTLINE' }}
+	                    </button>
+	                    <button
+	                      type="button"
+	                      class="event-overview-copy-cancel"
+	                      :disabled="outlineSaving"
+	                      @click="cancelOutlineEdit"
+	                    >
+	                      Cancel
+	                    </button>
+	                  </div>
+	                </div>
 
-          <div v-else class="event-outline-empty">
-            No program outline yet. That is okay for events that do not have one.
-          </div>
-        </section>
+	                <div v-else-if="eventOutline.length > 0" class="event-outline-list">
+	                  <div
+	                    v-for="(item, index) in eventOutline"
+	                    :key="`${item.time}-${item.title}-${index}`"
+	                    class="event-outline-row"
+	                  >
+	                    <span class="event-outline-time">{{ item.time }}</span>
+	                    <span class="event-outline-copy">
+	                      <strong>{{ item.title }}</strong>
+	                      <span v-if="item.lead">Led by {{ item.lead }}</span>
+	                    </span>
+	                    <span class="event-outline-type">{{ item.type.replace('_', ' ') }}</span>
+	                  </div>
+	                </div>
 
-        <section class="event-checklist-panel">
+	                <div v-else class="event-outline-empty">
+	                  No program outline yet. That is okay for events that do not have one.
+	                </div>
+	              </section>
+	            </div>
+	          </div>
+	        </div>
+
+	        <section class="event-checklist-panel">
           <div class="event-checklist-header">
             <div class="min-w-0">
               <p class="editorial-eyebrow">event timeline</p>
