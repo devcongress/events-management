@@ -182,6 +182,16 @@ export interface PublicMeetupPreviewResponse {
   already_imported: boolean;
 }
 
+export interface FeedbackEventStatusResponse {
+  available: boolean;
+  feedback_window: {
+    opens_at: string | null;
+    closes_at: string | null;
+  } | null;
+  public_url: string | null;
+  error?: string;
+}
+
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
@@ -288,6 +298,10 @@ export function fetchRouteFeedbackInbox() {
 
 export function fetchAdminSession() {
   return fetchJson<AdminSessionResponse>('/api/auth/session', { credentials: 'include' });
+}
+
+export function fetchFeedbackEventStatus(eventId: string) {
+  return fetchJson<FeedbackEventStatusResponse>(`/api/feedback/events/${eventId}/status`, { credentials: 'include' });
 }
 
 export function fetchAdminOrganizers() {

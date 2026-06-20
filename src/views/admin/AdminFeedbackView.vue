@@ -46,6 +46,7 @@ const activities = ref<FeedbackActivityDraft[]>([]);
 const activitiesHydrated = ref(false);
 const lastGeneratedActivitySignature = ref<string | null>(null);
 const copyState = ref<'idle' | 'copying' | 'copied'>('idle');
+const responseDrawerSubmissionId = ref<string | null>(null);
 let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 const form = reactive<FeedbackCampaign>({
   id: '',
@@ -108,6 +109,48 @@ const windowCopy = computed(() => {
   const closes = new Date(feedbackWindow.value.closes_at).toLocaleDateString('en', { month: 'short', day: 'numeric' });
   return `${opens} to ${closes}`;
 });
+const publishedCampaign = computed(() => form.status === 'active' || form.status === 'closed');
+const responsesMode = computed(() => publishedCampaign.value || route.query.view === 'responses');
+const responseSummary = computed(() => {
+  const ratings: number[] = [];
+  const attendAgainValues: boolean[] = [];
+  let comments = 0;
+
+  for (const submission of submissions.value) {
+    for (const answer of submission.answers) {
+      const question = form.questions.find((item) => item.id === answer.question_id);
+      if (!question) continue;
+
+      if (question.type === 'rating' && typeof answer.value === 'number') {
+        ratings.push(answer.value);
+      }
+
+      if (question.type === 'yes_no' && typeof answer.value === 'boolean') {
+        attendAgainValues.push(answer.value);
+      }
+
+      if (question.type === 'text' && typeof answer.value === 'string' && answer.value.trim()) {
+        comments += 1;
+      }
+    }
+  }
+
+  const averageRating = ratings.length > 0
+    ? Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 10) / 10
+    : null;
+  const attendAgainPercent = attendAgainValues.length > 0
+    ? Math.round((attendAgainValues.filter(Boolean).length / attendAgainValues.length) * 100)
+    : null;
+
+  return {
+    averageRating,
+    attendAgainPercent,
+    comments,
+  };
+});
+const selectedSubmission = computed(() => (
+  submissions.value.find((submission) => submission.id === responseDrawerSubmissionId.value) ?? null
+));
 
 function hydrateCampaign(data: FeedbackCampaignResponse) {
   event.value = data.event;
@@ -360,6 +403,59 @@ function answerPreview(submission: EventFeedbackSubmission) {
     .join(' | ');
 }
 
+function answerQuestionLabel(questionId: string): string {
+  return form.questions.find((item) => item.id === questionId)?.label ?? 'Question';
+}
+
+function answerValueCopy(answer: EventFeedbackSubmission['answers'][number]): string {
+  if (answer.value === null || answer.value === '') return 'No answer';
+  if (typeof answer.value === 'boolean') return answer.value ? 'Yes' : 'No';
+  return String(answer.value);
+}
+
+function submissionAverageRating(submission: EventFeedbackSubmission): number | null {
+  const ratings = submission.answers
+    .map((answer) => {
+      const question = form.questions.find((item) => item.id === answer.question_id);
+      return question?.type === 'rating' && typeof answer.value === 'number' ? answer.value : null;
+    })
+    .filter((value): value is number => value !== null);
+
+  if (ratings.length === 0) return null;
+  return Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 10) / 10;
+}
+
+function submissionCommentPreview(submission: EventFeedbackSubmission): string | null {
+  const textAnswer = submission.answers.find((answer) => {
+    const question = form.questions.find((item) => item.id === answer.question_id);
+    return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
+  });
+
+  if (!textAnswer || typeof textAnswer.value !== 'string') return null;
+
+  const normalized = textAnswer.value.trim().replace(/\s+/g, ' ');
+  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
+}
+
+function submissionCommentCount(submission: EventFeedbackSubmission): number {
+  return submission.answers.filter((answer) => {
+    const question = form.questions.find((item) => item.id === answer.question_id);
+    return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
+  }).length;
+}
+
+function submissionAnsweredCount(submission: EventFeedbackSubmission): number {
+  return submission.answers.filter((answer) => answer.value !== null && answer.value !== '').length;
+}
+
+function openResponseDrawer(submissionId: string) {
+  responseDrawerSubmissionId.value = submissionId;
+}
+
+function closeResponseDrawer() {
+  responseDrawerSubmissionId.value = null;
+}
+
 function previewDraftStorageKey() {
   return `devcon:event-feedback-preview:${String(route.params.eventId ?? '')}`;
 }
@@ -410,8 +506,8 @@ onBeforeUnmount(() => {
         <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p class="editorial-eyebrow">event feedback</p>
-            <h1 class="editorial-title">Feedback form</h1>
-            <p class="editorial-subtitle">Shape the form people see after the event, then open it manually or let it unlock when the event is completed.</p>
+            <h1 class="editorial-title">{{ responsesMode ? 'Responses' : 'Feedback form' }}</h1>
+            <p class="editorial-subtitle">{{ responsesMode ? 'Read what attendees actually sent after the event, with the live form summary and each submission in one place.' : 'Shape the form people see after the event, then open it manually or let it unlock when the event is completed.' }}</p>
           </div>
           <div class="editorial-panel p-4">
             <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Status</p>
@@ -422,7 +518,132 @@ onBeforeUnmount(() => {
         </header>
 
         <div v-if="error" class="mb-6 rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error }}</div>
-        <section class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <template v-if="responsesMode">
+          <section class="space-y-6">
+            <div class="grid gap-4 md:grid-cols-4">
+              <section class="editorial-panel p-5">
+                <p class="editorial-eyebrow">responses</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ submissions.length }}</p>
+              </section>
+              <section class="editorial-panel p-5">
+                <p class="editorial-eyebrow">avg rating</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.averageRating ?? '-' }}</p>
+              </section>
+              <section class="editorial-panel p-5">
+                <p class="editorial-eyebrow">attend again</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.attendAgainPercent === null ? '-' : `${responseSummary.attendAgainPercent}%` }}</p>
+              </section>
+              <section class="editorial-panel p-5">
+                <p class="editorial-eyebrow">comments</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.comments }}</p>
+              </section>
+            </div>
+
+            <section class="editorial-panel p-5">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p class="editorial-eyebrow">response inbox</p>
+                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">What people submitted</h2>
+                </div>
+                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ submissions.length }} submission{{ submissions.length === 1 ? '' : 's' }}</p>
+              </div>
+
+              <div v-if="submissions.length === 0" class="mt-5 rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray">
+                This form is published, but no attendee responses have landed yet.
+              </div>
+
+              <div v-else class="mt-5 overflow-hidden rounded-md border border-dc-border bg-dc-paper">
+                <article
+                  v-for="submission in submissions"
+                  :key="submission.id"
+                  class="feedback-response-row"
+                >
+                  <div class="feedback-response-row__identity">
+                    <p class="feedback-response-row__name">{{ submission.respondent_name || 'Anonymous attendee' }}</p>
+                    <p class="feedback-response-row__email">{{ submission.respondent_email || 'No email provided' }}</p>
+                  </div>
+                  <div class="feedback-response-row__summary">
+                    <div class="feedback-response-row__meta">
+                      <span>{{ submissionAverageRating(submission) === null ? 'No rating' : `${submissionAverageRating(submission)}/5 avg` }}</span>
+                      <span>{{ submissionAnsweredCount(submission) }} answer{{ submissionAnsweredCount(submission) === 1 ? '' : 's' }}</span>
+                      <span>{{ submissionCommentCount(submission) }} comment{{ submissionCommentCount(submission) === 1 ? '' : 's' }}</span>
+                    </div>
+                    <p class="feedback-response-row__preview">
+                      {{ submissionCommentPreview(submission) ?? 'No written comment. Open to review the full response.' }}
+                    </p>
+                  </div>
+                  <div class="feedback-response-row__timestamp">
+                    {{ new Date(submission.created_at).toLocaleString() }}
+                  </div>
+                  <div class="feedback-response-row__action">
+                    <button
+                      type="button"
+                      class="feedback-response-row__open-button"
+                      @click="openResponseDrawer(submission.id)"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </section>
+
+          <Teleport to="body">
+            <Transition name="feedback-response-drawer">
+              <div
+                v-if="selectedSubmission"
+                class="feedback-response-drawer-shell"
+                role="presentation"
+                @click.self="closeResponseDrawer"
+              >
+                <aside
+                  class="feedback-response-drawer"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="feedback-response-drawer-title"
+                >
+                  <div class="feedback-response-drawer__header">
+                    <div>
+                      <p class="editorial-eyebrow">submission detail</p>
+                      <h2 id="feedback-response-drawer-title" class="mt-2 text-3xl font-black tracking-tight text-dc-ink">
+                        {{ selectedSubmission.respondent_name || 'Anonymous attendee' }}
+                      </h2>
+                      <p class="mt-2 text-sm font-semibold text-dc-gray">{{ selectedSubmission.respondent_email || 'No email provided' }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="feedback-response-drawer__close"
+                      aria-label="Close response details"
+                      @click="closeResponseDrawer"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <div class="feedback-response-drawer__stats">
+                    <span>{{ new Date(selectedSubmission.created_at).toLocaleString() }}</span>
+                    <span>{{ submissionAverageRating(selectedSubmission) === null ? 'No rating' : `${submissionAverageRating(selectedSubmission)}/5 average` }}</span>
+                    <span>{{ submissionAnsweredCount(selectedSubmission) }} answer{{ submissionAnsweredCount(selectedSubmission) === 1 ? '' : 's' }}</span>
+                  </div>
+
+                  <dl class="feedback-response-drawer__answers">
+                    <div
+                      v-for="answer in selectedSubmission.answers"
+                      :key="`${selectedSubmission.id}-${answer.question_id}`"
+                      class="feedback-response-answer"
+                    >
+                      <dt class="feedback-response-answer__question">{{ answerQuestionLabel(answer.question_id) }}</dt>
+                      <dd class="feedback-response-answer__value">{{ answerValueCopy(answer) }}</dd>
+                    </div>
+                  </dl>
+                </aside>
+              </div>
+            </Transition>
+          </Teleport>
+        </template>
+
+        <section v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
           <form class="space-y-6" @submit.prevent="publishCampaign()">
             <div class="editorial-panel p-5">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

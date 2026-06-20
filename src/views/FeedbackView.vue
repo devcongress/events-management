@@ -18,11 +18,6 @@ interface PreviewDraftPayload {
   questions: FeedbackCampaign['questions'];
 }
 
-interface QuestionDisplayCopy {
-  title: string;
-  meta: string | null;
-}
-
 const EVENT_FEEDBACK_COMMENT_MAX_CHARS = 1500;
 
 const route = useRoute();
@@ -111,7 +106,7 @@ function choiceOptions(options: string[]) {
   ];
 }
 
-function toTitleCaseLabel(value: string): string {
+function normalizeQuestionLabel(value: string): string {
   return value
     .split(/\s+/)
     .filter(Boolean)
@@ -122,51 +117,6 @@ function toTitleCaseLabel(value: string): string {
       return word;
     })
     .join(' ');
-}
-
-function questionDisplayCopy(label: string): QuestionDisplayCopy {
-  const trimmed = label.trim();
-  const byMatch = trimmed.match(/^(.*?)(?:\s+by\s+)([^]+)$/i);
-
-  if (byMatch) {
-    const main = byMatch[1].trim();
-    const speaker = byMatch[2].trim();
-
-    if (main.includes(':')) {
-      const [lead, tail] = main.split(/:\s+(.+)/).filter(Boolean);
-      if (lead && tail) {
-        return {
-          title: lead.trim(),
-          meta: `${tail.trim()} • ${speaker}`,
-        };
-      }
-    }
-
-    const demoMatch = main.match(/^(.*?)(?:\s+demo)$/i);
-    if (demoMatch?.[1]) {
-      return {
-        title: `${demoMatch[1].trim()} demo`,
-        meta: speaker,
-      };
-    }
-
-    return {
-      title: main,
-      meta: speaker,
-    };
-  }
-
-  if (/session$/i.test(trimmed)) {
-    return {
-      title: toTitleCaseLabel(trimmed),
-      meta: 'Session',
-    };
-  }
-
-  return {
-    title: trimmed,
-    meta: null,
-  };
 }
 
 function previewDraftStorageKey(): string {
@@ -326,14 +276,11 @@ onMounted(fetchFeedbackForm);
             class="feedback-public-question editorial-panel p-5"
             :style="{ zIndex: orderedQuestions.length - index }"
           >
-            <legend class="feedback-public-question-header">
+            <div class="feedback-public-question-header">
               <span class="feedback-public-question-title">
-                {{ questionDisplayCopy(question.label).title }} <span v-if="question.required" class="text-dc-pink">*</span>
+                {{ normalizeQuestionLabel(question.label) }} <span v-if="question.required" class="text-dc-pink">*</span>
               </span>
-              <span v-if="questionDisplayCopy(question.label).meta" class="feedback-public-question-meta">
-                {{ questionDisplayCopy(question.label).meta }}
-              </span>
-            </legend>
+            </div>
 
               <div v-if="question.type === 'rating'" class="mt-3 grid grid-cols-5 gap-2">
                 <button

@@ -15,6 +15,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Updated the Luma import review step to ask organizers which series the event belongs to before import, and threaded that choice into both organizer-side import and public preview payloads.
 - Added a simple series-type editor on the organizer event overview page so an imported event can be corrected later without renaming it.
 - Replaced the old title-based monthly/quarterly checks in organizer tabs and attendance logic with the new shared field, while keeping a safe fallback for older rows until the Supabase migration is applied.
+- Added an organizer feedback QR display page plus a `Show QR` action on live event-feedback rows, so organizers can open a TV-safe screen that attendees can scan directly into the published feedback form.
 
 ## 2026-06-20 — Feedback Hub redesign
 
@@ -28,11 +29,14 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Smoothed event-period switching with a keyed fade/slide transition while letting the report container resize to the selected month.
 - Changed the desktop event-period picker to six columns so a complete year stays within two rows.
 - Removed the redundant report-level configure action because each event row already links to its own feedback configuration.
+- Defaulted event reports to the current month when it exists, and redesigned each event row into a calmer summary with inline status, a compact response stat strip, and cleaner right-aligned actions.
+- Trimmed event rows again so the left column stays lighter, the stats own a full desktop strip, and the action sits in a dedicated far-right slot instead of compressing the summary.
 - Split event feedback row status tags into their own left-aligned column and muted zero-response counts for draft or unconfigured forms that have not been published.
 - Generated event-aware draft questions for the June 2026 feedback campaign, using optional per-session 1-5 ratings for the Fido talks, discussions, and demos instead of the generic default copy.
 - Added a final-activity workspace to the event feedback configure screen so organizers can remove skipped sessions, add last-minute activities, generate per-activity rating questions, and preview the draft form before saving.
 - Added a standard `Other comments` text question as the final prompt on event feedback forms, with a conservative comment-length cap to stay inside the current Supabase submission limit.
-- Reworked public event-feedback question cards so long session labels split into a readable in-card title and a quieter metadata line, improving legibility consistently across talks, demos, and session-based prompts.
+- Reworked public event-feedback question cards so prompts sit fully inside each card as readable sans titles with a two-line cap, giving long talk, demo, and session labels a consistent layout without relying on border text treatment.
+- Changed published event-feedback rows to send organizers straight into a dedicated responses workspace, removing the old configure/preview actions once a form is live and replacing the cramped sidebar summary with full submission cards.
 
 ## 2026-06-20 — Nav route warmup
 

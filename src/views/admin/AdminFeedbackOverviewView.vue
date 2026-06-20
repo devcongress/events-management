@@ -169,6 +169,14 @@ function responseCountDisabled(event: FeedbackMonthEvent): boolean {
   return event.response_count === 0 && !wasPublished;
 }
 
+function eventCampaignPublished(event: FeedbackMonthEvent): boolean {
+  return event.is_open || event.campaign?.status === 'active' || event.campaign?.status === 'closed';
+}
+
+function feedbackDisplayPath(event: FeedbackMonthEvent) {
+  return adminPath(`feedback-display/${event.event.id}`);
+}
+
 function setYear(year: string) {
   selectedYear.value = year;
   const currentMonthKey = currentFeedbackMonthKey();
@@ -639,71 +647,64 @@ async function archiveResolvedRouteFeedback() {
                     </div>
 
                     <article v-for="item in selectedMonth.events" :key="item.event.id" class="feedback-event-row">
-                      <div class="min-w-0">
-                        <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ item.event.name }}</h3>
-                        <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ formatDate(item.event.event_date) }} / {{ formatWindow(item) }}</p>
-                        <p class="mt-2 text-sm leading-6 text-dc-gray">
-                          {{ item.campaign?.title ?? 'Default post-event feedback form will be used until configured.' }}
-                        </p>
+                      <div class="feedback-event-main">
+                        <div class="feedback-event-title-row">
+                          <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ item.event.name }}</h3>
+                          <span class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="statusClass(item)">
+                            {{ eventStatusLabel(item) }}
+                          </span>
+                        </div>
+                        <p class="feedback-event-meta">{{ formatDate(item.event.event_date) }}</p>
                       </div>
 
-                      <div class="feedback-event-status">
-                        <span class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="statusClass(item)">
-                          {{ eventStatusLabel(item) }}
-                        </span>
-                      </div>
-
-                      <div
-                        class="feedback-event-response"
-                        :class="{ 'feedback-event-response--disabled': responseCountDisabled(item) }"
-                      >
-                        <div>
-                          <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Responses</p>
-                          <p class="text-xl font-black text-dc-ink">{{ item.response_count }}</p>
-                        </div>
-                        <div v-if="item.response_count > 0">
-                          <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Rating</p>
-                          <p class="text-xl font-black text-dc-ink">{{ item.insights.average_rating ?? '-' }}</p>
-                        </div>
-                        <div v-if="item.response_count > 0">
-                          <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Again</p>
-                          <p class="text-xl font-black text-dc-ink">{{ item.insights.attend_again_percent === null ? '-' : `${item.insights.attend_again_percent}%` }}</p>
-                        </div>
-                      </div>
-
-                      <div class="feedback-event-actions">
-                        <RouterLink
-                          :to="{ path: adminPath(`events/${item.event.id}/feedback`), query: { from: 'feedback' } }"
-                          class="editorial-secondary-action px-4 py-2 text-xs"
+                      <div class="feedback-event-side">
+                        <dl
+                          class="feedback-event-response"
+                          :class="{ 'feedback-event-response--disabled': responseCountDisabled(item) }"
                         >
-                          Configure
-                        </RouterLink>
-                        <RouterLink :to="`/feedback/${item.event.id}`" class="rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink">Preview</RouterLink>
+                          <div class="feedback-event-stat">
+                            <dt>Responses</dt>
+                            <dd>{{ item.response_count }}</dd>
+                          </div>
+                          <div class="feedback-event-stat">
+                            <dt>Rating</dt>
+                            <dd>{{ item.response_count > 0 ? (item.insights.average_rating ?? '-') : '-' }}</dd>
+                          </div>
+                          <div class="feedback-event-stat">
+                            <dt>Attend again</dt>
+                            <dd>{{ item.response_count > 0 && item.insights.attend_again_percent !== null ? `${item.insights.attend_again_percent}%` : '-' }}</dd>
+                          </div>
+                        </dl>
+
+                        <div class="feedback-event-actions">
+                          <RouterLink
+                            :to="{ path: adminPath(`events/${item.event.id}/feedback`), query: { from: 'feedback', view: 'responses' } }"
+                            class="editorial-secondary-action px-4 py-2 text-xs"
+                          >
+                            {{ eventCampaignPublished(item) ? 'View responses' : 'Configure' }}
+                          </RouterLink>
+                          <RouterLink
+                            v-if="item.is_open"
+                            :to="feedbackDisplayPath(item)"
+                            target="_blank"
+                            rel="noreferrer"
+                            class="rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink hover:bg-dc-yellow/80"
+                          >
+                            Show QR
+                          </RouterLink>
+                          <RouterLink
+                            v-if="!eventCampaignPublished(item)"
+                            :to="`/feedback/${item.event.id}`"
+                            class="rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
+                          >
+                            Preview
+                          </RouterLink>
+                        </div>
                       </div>
                     </article>
                   </div>
                 </Transition>
               </div>
-
-              <aside v-if="selectedMonthHasResponses" class="feedback-side-panel">
-                <section>
-                  <p class="editorial-eyebrow">combined signal</p>
-                  <h2>{{ selectedMonth.label }}</h2>
-                  <p>This combines every event in the selected period, even if the event was not a standard monthly meetup.</p>
-                </section>
-
-                <section>
-                <p class="editorial-eyebrow">most useful</p>
-                  <p v-if="selectedMonth.top_talk_label" class="text-lg font-black leading-7 text-dc-ink">{{ selectedMonth.top_talk_label }}</p>
-                  <p v-else class="text-sm leading-6 text-dc-gray">No talk-selection responses yet.</p>
-                <p v-if="selectedMonth.top_talk_count" class="mt-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ selectedMonth.top_talk_count }} mention{{ selectedMonth.top_talk_count === 1 ? '' : 's' }}</p>
-              </section>
-
-                <section>
-                <p class="editorial-eyebrow">next read</p>
-                <p class="text-sm leading-6 text-dc-gray">Once responses exist, this panel can grow into theme extraction: what landed, what dragged, and what should change next month.</p>
-              </section>
-            </aside>
             </div>
           </section>
         </template>
