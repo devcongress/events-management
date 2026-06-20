@@ -5,6 +5,10 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-20 — Pages asset fallback fix
+
+- Updated the Cloudflare Pages worker so stale `/assets/*.js` requests no longer receive `index.html` as `text/html`, preventing strict module MIME failures after a deploy or during organizer sign-in redirects.
+
 ## 2026-06-20 — Event lifecycle stage details
 
 - Added hover and keyboard-focus detail popovers to the organizer event lifecycle legend so each status explains the stage purpose, expected organizer move, and next action without expanding the page chrome.
