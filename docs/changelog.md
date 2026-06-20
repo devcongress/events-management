@@ -8,6 +8,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ## 2026-06-20 — Android mobile scroll fix
 
 - Released the mobile app shell from the desktop inner-scroll layout on every route, including organizer/admin pages, so Android Chrome can scroll the document normally.
+- Added a coarse-touch fallback so Pixel/Android devices still get document scrolling even when Chrome reports a viewport wider than the small-screen breakpoint.
 - Kept the desktop fixed-shell behavior intact while adding a minimum-height guard to the main scroll container.
 
 ## 2026-06-20 — Monthly system design sessions
