@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
+import { EVENT_SERIES_HELP_TEXT, EVENT_SERIES_LABELS, EVENT_SERIES_TYPES, resolveEventSeriesType, type EventSeriesType } from '@/lib/event-series';
 import { queryKeys } from '@/src/lib/api';
 import {
   compressionSavingsPercent,
@@ -21,6 +22,15 @@ const event = ref<CommunityEvent | null>(null);
 const checklist = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
 const checklistSavingId = ref<string | null>(null);
+const publishSaving = ref(false);
+const publishError = ref<string | null>(null);
+const descriptionEditing = ref(false);
+const descriptionSaving = ref(false);
+const descriptionError = ref<string | null>(null);
+const descriptionDraft = ref('');
+const seriesTypeDraft = ref<EventSeriesType>('monthly');
+const seriesTypeSaving = ref(false);
+const seriesTypeError = ref<string | null>(null);
 const photoSaving = ref(false);
 const photoError = ref<string | null>(null);
 const photoUrl = ref('');
@@ -51,6 +61,8 @@ const checklistProgress = computed(() => {
 });
 const nextChecklistItem = computed(() => checklist.value.find((item) => !item.completed) ?? null);
 const eventPhotos = computed(() => event.value?.photos ?? []);
+const isDraftEvent = computed(() => event.value?.status === 'draft');
+const isPublishedEvent = computed(() => Boolean(event.value?.publish_to_website));
 const checklistByPhase = computed(() => checklistPhaseOrder
   .map((phase) => ({
     phase,
@@ -59,14 +71,34 @@ const checklistByPhase = computed(() => checklistPhaseOrder
   }))
   .filter((group) => group.items.length > 0));
 const currentEventId = computed(() => String(route.params.eventId));
+const eventSeriesTypeOptions = EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
+const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeDraft.value]);
+
+function broadcastPublicMeetupsRefresh() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('dc-public-meetups-refresh'));
+  window.localStorage.setItem('dc-public-meetups-refresh', String(Date.now()));
+}
 
 async function invalidateEventQueries() {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.events }),
     queryClient.invalidateQueries({ queryKey: queryKeys.overview }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups }),
+    queryClient.invalidateQueries({ queryKey: ['public-meetup'] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.event(currentEventId.value) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.eventChecklist(currentEventId.value) }),
   ]);
+  broadcastPublicMeetupsRefresh();
+}
+
+function syncDescriptionDraft() {
+  descriptionDraft.value = event.value?.description ?? '';
+}
+
+function syncSeriesTypeDraft() {
+  if (!event.value) return;
+  seriesTypeDraft.value = resolveEventSeriesType(event.value);
 }
 
 async function fetchOverview() {
@@ -76,12 +108,150 @@ async function fetchOverview() {
     fetch(`/api/events/${eventId}/checklist`),
   ]);
 
-  if (eventResponse.ok) event.value = await eventResponse.json();
+  if (eventResponse.ok) {
+    event.value = await eventResponse.json();
+    syncDescriptionDraft();
+    syncSeriesTypeDraft();
+  }
   if (checklistResponse.ok) {
     const payload = await checklistResponse.json();
     checklist.value = payload.items ?? [];
   }
   loading.value = false;
+}
+
+function publishStatusForEvent(currentEvent: CommunityEvent): EventStatus {
+  const startsAt = new Date(currentEvent.event_date);
+  const endsAt = new Date(currentEvent.end_date ?? currentEvent.event_date);
+  const nowMs = Date.now();
+  const startsAtMs = startsAt.getTime();
+  const endsAtMs = endsAt.getTime();
+
+  if (!Number.isFinite(startsAtMs) || !Number.isFinite(endsAtMs)) {
+    return 'upcoming';
+  }
+
+  if (nowMs < startsAtMs) return 'upcoming';
+  if (nowMs <= endsAtMs) return 'live';
+  return 'completed';
+}
+
+async function publishEvent() {
+  if (!event.value || publishSaving.value) return;
+
+  publishSaving.value = true;
+  publishError.value = null;
+
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        publish_to_website: true,
+        status: isDraftEvent.value ? publishStatusForEvent(event.value) : event.value.status,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? 'Failed to publish event');
+    }
+
+    event.value = await response.json();
+    await invalidateEventQueries();
+    notify.success('Event published to community');
+  } catch (error) {
+    publishError.value = error instanceof Error ? error.message : 'Failed to publish event';
+    notify.error(publishError.value);
+  } finally {
+    publishSaving.value = false;
+  }
+}
+
+function startDescriptionEdit() {
+  syncDescriptionDraft();
+  descriptionError.value = null;
+  descriptionEditing.value = true;
+}
+
+function cancelDescriptionEdit() {
+  if (descriptionSaving.value) return;
+  syncDescriptionDraft();
+  descriptionError.value = null;
+  descriptionEditing.value = false;
+}
+
+async function saveDescription() {
+  if (!event.value || descriptionSaving.value) return;
+
+  const nextDescription = descriptionDraft.value.trim();
+  if (!nextDescription) {
+    descriptionError.value = 'Add the public About copy before saving.';
+    return;
+  }
+
+  descriptionSaving.value = true;
+  descriptionError.value = null;
+
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: nextDescription }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? 'Failed to update the event description');
+    }
+
+    event.value = await response.json();
+    syncDescriptionDraft();
+    descriptionEditing.value = false;
+    await invalidateEventQueries();
+    notify.success('About copy updated');
+  } catch (error) {
+    descriptionError.value = error instanceof Error ? error.message : 'Failed to update the event description';
+    notify.error(descriptionError.value);
+  } finally {
+    descriptionSaving.value = false;
+  }
+}
+
+async function saveSeriesType() {
+  if (!event.value || seriesTypeSaving.value) return;
+
+  const currentSeriesType = resolveEventSeriesType(event.value);
+  if (seriesTypeDraft.value === currentSeriesType) {
+    seriesTypeError.value = null;
+    return;
+  }
+
+  seriesTypeSaving.value = true;
+  seriesTypeError.value = null;
+
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ series_type: seriesTypeDraft.value }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? 'Failed to update the event series type');
+    }
+
+    event.value = await response.json();
+    syncSeriesTypeDraft();
+    await invalidateEventQueries();
+    notify.success('Event series updated');
+  } catch (error) {
+    seriesTypeError.value = error instanceof Error ? error.message : 'Failed to update the event series type';
+    notify.error(seriesTypeError.value);
+  } finally {
+    seriesTypeSaving.value = false;
+  }
 }
 
 async function toggleChecklistItem(item: EventChecklistItem) {
@@ -243,8 +413,99 @@ onMounted(fetchOverview);
         <div class="event-overview-hero border-b border-dc-border">
           <div class="min-w-0">
             <p class="editorial-eyebrow">event control</p>
-            <h1 class="event-overview-title font-black tracking-tight text-dc-ink">{{ event.name }}</h1>
-            <p v-if="event.description" class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">{{ event.description }}</p>
+            <div class="event-overview-title-row">
+              <h1 class="event-overview-title font-black tracking-tight text-dc-ink">{{ event.name }}</h1>
+              <button
+                v-if="!isPublishedEvent"
+                type="button"
+                class="event-overview-publish-action"
+                :disabled="publishSaving"
+                @click="publishEvent"
+              >
+                {{ publishSaving ? 'Publishing...' : 'Publish' }}
+              </button>
+              <span
+                v-else
+                class="event-overview-publish-chip"
+              >
+                Published
+              </span>
+            </div>
+            <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
+            <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div class="rounded-lg border border-dc-border bg-dc-paper p-4">
+                <div class="event-overview-copy-header">
+                  <div class="min-w-0">
+                    <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">About page</p>
+                    <p class="mt-1 text-sm leading-6 text-dc-gray">This copy appears in the public meetup About section.</p>
+                  </div>
+                  <button
+                    v-if="!descriptionEditing"
+                    type="button"
+                    class="event-overview-copy-action"
+                    @click="startDescriptionEdit"
+                  >
+                    Edit
+                  </button>
+                </div>
+
+                <div v-if="descriptionEditing" class="mt-4 space-y-3">
+                  <label class="sr-only" for="event-about-copy">About page copy</label>
+                  <textarea
+                    id="event-about-copy"
+                    v-model="descriptionDraft"
+                    class="event-overview-copy-input"
+                    rows="7"
+                    placeholder="Write the public About copy for this meetup."
+                  />
+                  <p v-if="descriptionError" class="event-overview-copy-error">{{ descriptionError }}</p>
+                  <div class="event-overview-copy-actions">
+                    <button
+                      type="button"
+                      class="editorial-action"
+                      :disabled="descriptionSaving"
+                      @click="saveDescription"
+                    >
+                      {{ descriptionSaving ? 'SAVING...' : 'SAVE ABOUT COPY' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="event-overview-copy-cancel"
+                      :disabled="descriptionSaving"
+                      @click="cancelDescriptionEdit"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+
+                <p v-else-if="event.description" class="mt-4 text-sm leading-7 text-dc-gray">{{ event.description }}</p>
+                <p v-else class="mt-4 text-sm leading-6 text-dc-gray">No About copy yet. Add the text you want people to read on the public event page.</p>
+              </div>
+
+              <aside class="rounded-lg border border-dc-border bg-dc-paper p-4">
+                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Event profile</p>
+                <h2 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Series type</h2>
+                <p class="mt-2 text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
+                <div class="mt-4 space-y-3">
+                  <AppDropdown
+                    v-model="seriesTypeDraft"
+                    label="Series type"
+                    :options="eventSeriesTypeOptions"
+                    :disabled="seriesTypeSaving"
+                  />
+                  <button
+                    type="button"
+                    class="editorial-action w-full justify-center"
+                    :disabled="seriesTypeSaving"
+                    @click="saveSeriesType"
+                  >
+                    {{ seriesTypeSaving ? 'SAVING...' : 'SAVE SERIES TYPE' }}
+                  </button>
+                  <p v-if="seriesTypeError" class="event-overview-copy-error">{{ seriesTypeError }}</p>
+                </div>
+              </aside>
+            </div>
           </div>
         </div>
 

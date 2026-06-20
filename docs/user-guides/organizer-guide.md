@@ -14,7 +14,7 @@ The base path can be changed with `VITE_ADMIN_BASE_PATH`.
 
 ## Manage Events
 
-Use the event list to create, edit, and publish meetups. Event records can include website-facing fields such as public summary, cover image, location, RSVP links, and publish status.
+Use the event list to create, edit, publish, and remove meetups. If a Luma import comes in with the wrong event shell, remove it from the organizer list and import the corrected public URL again.
 
 ## Follow the Event Checklist
 

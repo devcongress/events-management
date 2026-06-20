@@ -1,7 +1,8 @@
 import type { Context } from 'hono';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
 import type { Event, EventStatus, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
-import type { CommunityEventStatus, Database, Json } from '@/types/supabase';
+import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } from '@/types/supabase';
+import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
@@ -18,6 +19,7 @@ export type CreateCommunityEventInput = {
   name: string;
   description: string | null;
   event_date: string;
+  series_type?: Event['series_type'];
   end_date?: string | null;
   slug?: string | null;
   cover?: string | null;
@@ -109,6 +111,7 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
     slug: input.slug?.trim() || uniqueSlug(slugify(input.name)),
     name: input.name,
     description: input.description,
+    series_type: input.series_type ?? inferEventSeriesType(input.name),
     starts_at: startsAt.toISOString(),
     ends_at: endsAt.toISOString(),
     status: 'draft',
@@ -135,6 +138,18 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
     .select('*')
     .single();
 
+  if (error && isMissingSeriesTypeColumn(error.message)) {
+    const { series_type: _seriesType, ...fallbackInsert } = insertWithExternal;
+    const fallback = await getSupabaseAdminClient(c)
+      .from('community_events')
+      .insert(fallbackInsert)
+      .select('*')
+      .single();
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return toEvent(fallback.data);
+  }
+
   if (error && hasExternalMetadata(input) && isMissingExternalMetadataColumn(error.message)) {
     const fallback = await getSupabaseAdminClient(c)
       .from('community_events')
@@ -159,6 +174,11 @@ function isMissingExternalMetadataColumn(message: string): boolean {
     && /(column|schema cache|does not exist|could not find)/i.test(message);
 }
 
+function isMissingSeriesTypeColumn(message: string): boolean {
+  return /series_type/i.test(message)
+    && /(column|schema cache|does not exist|could not find)/i.test(message);
+}
+
 export async function updateSupabaseCommunityEvent(
   id: string,
   input: Partial<Event> & Record<string, unknown>,
@@ -170,6 +190,9 @@ export async function updateSupabaseCommunityEvent(
 
   if (typeof input.name === 'string') update.name = input.name;
   if ('description' in input) update.description = typeof input.description === 'string' ? input.description : null;
+  if ('series_type' in input) {
+    update.series_type = isEventSeriesType(input.series_type) ? input.series_type as CommunityEventSeriesType : null;
+  }
   if (typeof input.event_date === 'string') update.starts_at = new Date(input.event_date).toISOString();
   if (typeof input.end_date === 'string') update.ends_at = new Date(input.end_date).toISOString();
   if (typeof input.status === 'string') update.status = input.status as CommunityEventStatus;
@@ -200,6 +223,19 @@ export async function updateSupabaseCommunityEvent(
     .select('*')
     .maybeSingle();
 
+  if (error && 'series_type' in update && isMissingSeriesTypeColumn(error.message)) {
+    const { series_type: _seriesType, ...fallbackUpdate } = update;
+    const fallback = await getSupabaseAdminClient(c)
+      .from('community_events')
+      .update(fallbackUpdate)
+      .eq('id', id)
+      .select('*')
+      .maybeSingle();
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ? toEvent(fallback.data) : undefined;
+  }
+
   if (error) throw new Error(error.message);
   return data ? toEvent(data) : undefined;
 }
@@ -214,6 +250,49 @@ export async function deleteSupabaseCommunityEvent(id: string, c?: Context): Pro
 
   if (error) throw new Error(error.message);
   return (count ?? 0) > 0;
+}
+
+export async function deleteSupabaseCommunityEventsByImportMatch(
+  input: Pick<Event, 'id' | 'external_source' | 'external_id' | 'registration_url'>,
+  c?: Context,
+): Promise<string[] | null> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const matchedIds = new Set<string>();
+
+  matchedIds.add(input.id);
+
+  if (input.external_source && input.external_id) {
+    const { data, error } = await getSupabaseAdminClient(c)
+      .from('community_events')
+      .select('id')
+      .eq('external_source', input.external_source)
+      .eq('external_id', input.external_id);
+
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) matchedIds.add(row.id);
+  }
+
+  if (input.registration_url) {
+    const { data, error } = await getSupabaseAdminClient(c)
+      .from('community_events')
+      .select('id')
+      .eq('registration_url', input.registration_url);
+
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) matchedIds.add(row.id);
+  }
+
+  const ids = Array.from(matchedIds);
+  if (ids.length === 0) return [];
+
+  const { error } = await getSupabaseAdminClient(c)
+    .from('community_events')
+    .delete()
+    .in('id', ids);
+
+  if (error) throw new Error(error.message);
+  return ids;
 }
 
 export async function getSupabasePublicMeetups(origin: string, c?: Context): Promise<PublicMeetup[] | null> {
@@ -235,6 +314,7 @@ function toEvent(row: CommunityEventRow): Event {
     slug: row.slug,
     name: row.name,
     description: row.description,
+    series_type: isEventSeriesType(row.series_type) ? row.series_type : null,
     event_date: row.starts_at,
     end_date: row.ends_at,
     status: row.status as EventStatus,

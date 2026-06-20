@@ -50,7 +50,7 @@ The public header's Organizer button can be hidden with `VITE_SHOW_ORGANIZER_LIN
 | `/api/speakers*` | Speaker access workflows |
 | `/api/attendance*` | Luma CSV import, removal, summaries, monthly ledger |
 | `/api/feedback*` | App feedback, event campaigns, public feedback submission |
-| `/api/integrations/luma*` | Organizer-only Luma event preview and confirmed import |
+| `/api/integrations/luma*` | Organizer-only Luma event shell preview, public-page preview, and confirmed import |
 | `/api/quiz*` | Quiz sessions, questions, explicit state advancement, join/play/host state |
 | `/api/public/meetups*` | Read-only website integration API |
 | `/api/auth/*` | Organizer session, local password fallback login, Google OAuth callback, and logout |

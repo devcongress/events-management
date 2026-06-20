@@ -89,6 +89,7 @@
 - `supabase/migrations/20260613000000_event_feedback_campaigns.sql` adds event feedback campaigns, dynamic questions, structured answers, and event/campaign submission fields.
 - `supabase/migrations/20260617001000_event_feedback_response_tokens.sql` adds hashed anonymous response tokens so event feedback can reject repeat submissions from the same browser/event pair.
 - `supabase/migrations/20260615000000_community_events.sql` adds `community_events`, modeled from the current `devcongress.org` Astro meetup collection and seeded with the existing website meetup YAML entries.
+- `supabase/migrations/20260620032000_event_series_type.sql` adds an explicit `series_type` field (`monthly`, `quarterly`, or `special`) so organizers stop relying on event titles to drive attendance and organizer workflow decisions.
 - `supabase/migrations/20260615001000_meetup_media_bucket.sql` adds the public `meetup-media` Supabase Storage bucket for selected image uploads.
 - Row-level security allows public reads of active tester names and public inserts of new feedback, but not public reads of submitted feedback; organizer reads and status updates go through authenticated server routes using the service role.
 - Row-level security allows public reads of `community_events` only when `publish_to_website = true`; trusted organizer writes use the server-side service role.
@@ -97,7 +98,8 @@
 - `/api/health/supabase/storage` verifies that the `meetup-media` bucket is reachable.
 - `/api/events` reads, writes, and removes Supabase `community_events` when configured, falling back to JSON events if Supabase is unavailable or the table has not been migrated.
 - `/api/integrations/luma/preview` is the organizer-only read-only Luma step. It returns the event shell and duplicate-import state without creating a `community_events` row.
-- `/api/integrations/luma/import` imports from a public Luma event URL only after organizer confirmation, requires Supabase-backed `community_events`, and stores source metadata to prevent duplicate imports when the Luma metadata migration is present. Before that migration is applied, import falls back to registration-URL dedupe and saves the event without `external_*` metadata.
+- `/api/integrations/luma/public-preview` turns the current Luma draft into the same public meetup DTO used by `/events/:slug`, so organizers can inspect the website-style event shell before importing even when schedule, speakers, and gallery details are still empty.
+- `/api/integrations/luma/import` imports from a public Luma event URL only after organizer confirmation, requires Supabase-backed `community_events`, lets the organizer choose whether the event is monthly, quarterly, or special, stores source metadata to prevent duplicate imports when the Luma metadata migration is present, and keeps the new event unpublished in organizer draft mode until the organizer explicitly publishes it. Before those migrations are applied, import falls back to registration-URL dedupe and saves the event without unsupported columns.
 
 ### Hono Server (`server/`)
 
@@ -125,7 +127,7 @@
 ### Vue App (`src/`)
 
 - `src/main.ts` mounts Vue, Pinia, Vue Router, and the shared TanStack Query plugin.
-- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, and reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache.
+- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache, and redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated.
 - `src/App.vue` renders `src/components/AdminEventTabs.vue` once for event-scoped organizer routes, keeping sub-section tabs stable while routed event pages change underneath.
 - `src/components/ui/AppToaster.vue` wraps `vue-sonner` with the DevCongress editorial/ops toast theme; app code should call `notify` from `src/lib/notify.ts` instead of importing `toast` directly.
 - `src/components/ui/ViewSkeleton.vue` provides reusable skeleton variants for full-page loading states; prefer it over bare loading text so routed views preserve their header, panel, table, and form structure while data fetches.
@@ -133,13 +135,14 @@
 - `src/views/FeedbackView.vue` renders an event-scoped campaign from `/api/feedback/events/:eventId`; campaigns are open when manually set to `active`, or when draft with auto-open enabled and the event status is `completed`. The default auto-open response window starts at the event date and closes 3 days later unless an explicit campaign close time is set. Public event feedback also sends a per-event anonymous browser token so the server can reject duplicate submissions without requiring attendee email.
 - `src/views/ArchiveEventView.vue` checks `/api/feedback/events/:eventId/status` and shows the community “Give Feedback” CTA only while the form is open.
 - `src/views/DashboardView.vue` renders the community hub: featured event/CFP, live quiz join, recent talks, and top members from the shared `/api/overview` query.
-- `src/views/EventsView.vue` now mirrors the DevCongress website meetup listing shape and routes cards into `src/views/EventView.vue`, keeping meetup context separate from the archive.
+- `src/views/EventsView.vue` now mirrors the DevCongress website meetup listing shape, reads `/api/public/meetups` through the shared TanStack Query cache, and routes cards into `src/views/EventView.vue`, keeping meetup context separate from the archive.
 - `src/views/EventView.vue` consumes `/api/public/meetups/:slug` to render the meetup cover, schedule, speakers, photos, and status CTA, while `Archive` remains the talk/slides recap surface.
 - `src/views/ArchiveView.vue` filters completed events by year, query, topic, and speaker while reusing the same shared `/api/overview` query cache as the home route.
 - `src/views/NotFoundView.vue` is mounted by the final Vue Router catch-all route for unknown client paths.
 - `src/views/admin/AdminAttendanceOverviewView.vue` renders the monthly attendance ledger, import coverage, source-quality readout, repeat-attendee count, and venue-planning summary from `/api/attendance/monthly`.
-- `src/views/admin/AdminFeedbackOverviewView.vue` renders the route-level App Feedback Inbox from the shared `/api/feedback/inbox` query above the monthly event-feedback report, and uses optimistic mutation plus query invalidation when organizers move route feedback through `new`, `reviewing`, `done`, and `wont_fix`.
-- `src/views/admin/AdminEventsView.vue` reads the organizer event list through the shared TanStack query layer, can upload a picked cover image during event creation, imports existing Luma events into Supabase from the create-event page, and invalidates the event-list plus overview queries after creating a new event.
+- `src/views/admin/AdminFeedbackOverviewView.vue` renders the Feedback Hub as two quiet entry cards: website feedback from the shared `/api/feedback/inbox` query, and event feedback reports grouped by selectable period. Detailed stream content stays hidden until an organizer opens one card, the website inbox only fetches after a manual load/refresh action, and website feedback uses optimistic mutation plus query invalidation when organizers move notes through `new`, `reviewing`, `done`, and `wont_fix`.
+- `src/views/admin/AdminEventsView.vue` reads the organizer event list through the shared TanStack query layer, shows focusable detail popovers for the compact lifecycle legend, can upload a picked cover image during event creation, imports existing Luma events into Supabase from the create-event page, and invalidates the event-list plus overview queries after creating a new event.
+- `src/views/admin/AdminAuditLogView.vue` reads audit rows through the shared TanStack query layer and now swaps directly into a dedicated audit-log skeleton while the route data is loading.
 - `src/views/admin/AdminEventView.vue` invalidates shared event/overview queries after checklist, photo-link, and media-upload mutations so status and media changes stay visible across routes.
 - `src/lib/meetup-media-client.ts` centralizes browser-side meetup image validation, compression, and upload helpers so organizer create/edit surfaces share the same storage limits and encoding behavior.
 - `src/lib/event-form.ts` centralizes Zod validation for organizer event creation so the create form and `/api/events` server endpoint share the same required-field, slug, date, and URL rules.

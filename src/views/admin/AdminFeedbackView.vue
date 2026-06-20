@@ -4,17 +4,32 @@ import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
-import type { EventFeedbackSubmission, FeedbackCampaign, FeedbackQuestion, FeedbackQuestionType } from '@/types';
+import type { Event as CommunityEvent, EventFeedbackSubmission, FeedbackCampaign, FeedbackQuestion, FeedbackQuestionType, PublicMeetupScheduleItem, Talk } from '@/types';
 
 interface FeedbackCampaignResponse {
+  event: CommunityEvent;
   campaign: FeedbackCampaign;
   submissions: EventFeedbackSubmission[];
+  talks: Talk[];
   public_url: string;
   feedback_window: {
     opens_at: string | null;
     closes_at: string | null;
   };
   is_open: boolean;
+}
+
+interface FeedbackActivityDraft {
+  id: string;
+  label: string;
+  source: 'schedule' | 'talk' | 'custom';
+  enabled: boolean;
+}
+
+interface PreviewDraftPayload {
+  title: string;
+  intro: string | null;
+  questions: FeedbackQuestion[];
 }
 
 const route = useRoute();
@@ -25,6 +40,11 @@ const publicUrl = ref('');
 const isOpen = ref(false);
 const feedbackWindow = ref<FeedbackCampaignResponse['feedback_window']>({ opens_at: null, closes_at: null });
 const submissions = ref<EventFeedbackSubmission[]>([]);
+const event = ref<CommunityEvent | null>(null);
+const talks = ref<Talk[]>([]);
+const activities = ref<FeedbackActivityDraft[]>([]);
+const activitiesHydrated = ref(false);
+const lastGeneratedActivitySignature = ref<string | null>(null);
 const copyState = ref<'idle' | 'copying' | 'copied'>('idle');
 let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 const form = reactive<FeedbackCampaign>({
@@ -63,6 +83,18 @@ const copyLinkLabel = computed(() => {
   if (copyState.value === 'copied') return 'Copied';
   return 'Copy Link';
 });
+const selectedActivityCount = computed(() => activities.value.filter((activity) => activity.enabled && activity.label.trim()).length);
+const currentActivitySignature = computed(() => JSON.stringify(
+  activities.value.map((activity) => ({
+    label: activity.label.trim(),
+    enabled: activity.enabled,
+    source: activity.source,
+  })),
+));
+const canGenerateQuestions = computed(() => (
+  selectedActivityCount.value > 0
+  && currentActivitySignature.value !== lastGeneratedActivitySignature.value
+));
 const windowCopy = computed(() => {
   if (form.status === 'active' && !feedbackWindow.value.closes_at) {
     return 'Manual testing window';
@@ -78,6 +110,8 @@ const windowCopy = computed(() => {
 });
 
 function hydrateCampaign(data: FeedbackCampaignResponse) {
+  event.value = data.event;
+  talks.value = data.talks;
   Object.assign(form, {
     ...data.campaign,
     questions: data.campaign.questions.map((question) => ({
@@ -89,6 +123,11 @@ function hydrateCampaign(data: FeedbackCampaignResponse) {
   publicUrl.value = data.public_url;
   feedbackWindow.value = data.feedback_window;
   isOpen.value = data.is_open;
+
+  if (!activitiesHydrated.value) {
+    activities.value = buildActivityDrafts(data.event, data.talks);
+    activitiesHydrated.value = true;
+  }
 }
 
 async function fetchCampaign() {
@@ -106,7 +145,7 @@ async function fetchCampaign() {
   loading.value = false;
 }
 
-async function saveCampaign() {
+async function saveCampaign(options: { overrideStatus?: FeedbackCampaign['status']; successMessage?: string } = {}) {
   saving.value = true;
   error.value = '';
 
@@ -116,7 +155,7 @@ async function saveCampaign() {
     body: JSON.stringify({
       title: form.title,
       intro: form.intro,
-      status: form.status,
+      status: options.overrideStatus ?? form.status,
       auto_open_on_event_completion: form.auto_open_on_event_completion,
       opens_at: form.opens_at,
       closes_at: form.closes_at,
@@ -127,7 +166,7 @@ async function saveCampaign() {
   if (response.ok) {
     const data = await response.json();
     hydrateCampaign({ ...data, submissions: submissions.value });
-    notify.success('Feedback campaign saved.', { id: 'feedback-campaign-saved' });
+    notify.success(options.successMessage ?? 'Feedback campaign saved.', { id: 'feedback-campaign-saved' });
   } else {
     const payload = await response.json().catch(() => ({}));
     error.value = payload.error ?? 'Unable to save feedback campaign';
@@ -145,6 +184,115 @@ function addQuestion(type: FeedbackQuestionType = 'text') {
     options: type === 'choice' ? [''] : [],
     order_index: form.questions.length,
   });
+}
+
+function activityLabelKey(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function scheduleActivityLabel(item: PublicMeetupScheduleItem): string {
+  const title = item.title.trim();
+  const lead = item.lead?.trim();
+  if (!lead || title.toLowerCase().includes(lead.toLowerCase())) {
+    return title;
+  }
+
+  return `${title} by ${lead}`;
+}
+
+function isFeedbackActivity(item: PublicMeetupScheduleItem): boolean {
+  const title = item.title.trim();
+  if (!title) return false;
+  if (item.type === 'break' || item.type === 'networking') return false;
+  if (/^welcome\b/i.test(title)) return false;
+  return true;
+}
+
+function buildActivityDrafts(sourceEvent: CommunityEvent, sourceTalks: Talk[]): FeedbackActivityDraft[] {
+  const drafts: FeedbackActivityDraft[] = [];
+  const seen = new Set<string>();
+
+  function addActivity(label: string, source: FeedbackActivityDraft['source']) {
+    const normalizedLabel = label.trim();
+    const key = activityLabelKey(normalizedLabel);
+    if (!normalizedLabel || seen.has(key)) return;
+    seen.add(key);
+    drafts.push({
+      id: crypto.randomUUID(),
+      label: normalizedLabel,
+      source,
+      enabled: true,
+    });
+  }
+
+  for (const talk of sourceTalks) {
+    addActivity(`${talk.title} by ${talk.speaker_name}`, 'talk');
+  }
+
+  for (const item of sourceEvent.schedule ?? []) {
+    if (isFeedbackActivity(item)) {
+      addActivity(scheduleActivityLabel(item), 'schedule');
+    }
+  }
+
+  return drafts;
+}
+
+function addActivityDraft() {
+  activities.value.push({
+    id: crypto.randomUUID(),
+    label: '',
+    source: 'custom',
+    enabled: true,
+  });
+}
+
+function generateQuestionsFromActivities() {
+  const selectedActivities = activities.value
+    .filter((activity) => activity.enabled && activity.label.trim())
+    .map((activity) => activity.label.trim());
+
+  if (selectedActivities.length === 0) {
+    error.value = 'Add at least one activity before generating questions.';
+    return;
+  }
+
+  error.value = '';
+  form.title = event.value ? `How was ${event.value.name}?` : 'How was the meetup?';
+  form.intro = 'On a scale of 1 - 5, rate the sessions you joined where 1 is extremely unsatisfied and 5 is extremely satisfied.';
+  form.questions = [
+    ...selectedActivities.map((label, index) => ({
+      id: crypto.randomUUID(),
+      type: 'rating' as const,
+      label,
+      required: false,
+      options: [],
+      order_index: index,
+    })),
+    {
+      id: crypto.randomUUID(),
+      type: 'yes_no' as const,
+      label: 'Would you attend another DevCongress meetup like this?',
+      required: false,
+      options: [],
+      order_index: selectedActivities.length,
+    },
+    {
+      id: crypto.randomUUID(),
+      type: 'text' as const,
+      label: 'Other comments',
+      required: false,
+      options: [],
+      order_index: selectedActivities.length + 1,
+    },
+  ];
+  lastGeneratedActivitySignature.value = currentActivitySignature.value;
+}
+
+function syncQuestionsToLatestSelection() {
+  if (canGenerateQuestions.value) {
+    generateQuestionsFromActivities();
+  }
 }
 
 function removeQuestion(questionId: string) {
@@ -212,6 +360,38 @@ function answerPreview(submission: EventFeedbackSubmission) {
     .join(' | ');
 }
 
+function previewDraftStorageKey() {
+  return `devcon:event-feedback-preview:${String(route.params.eventId ?? '')}`;
+}
+
+function openPreviewPublicForm() {
+  syncQuestionsToLatestSelection();
+
+  try {
+    const draft: PreviewDraftPayload = {
+      title: form.title,
+      intro: form.intro,
+      questions: form.questions.map((question) => ({
+        ...question,
+        options: [...question.options],
+      })),
+    };
+    window.localStorage.setItem(previewDraftStorageKey(), JSON.stringify(draft));
+  } catch {
+    // If storage is unavailable, fall back to the last saved campaign preview.
+  }
+
+  window.open(`/feedback/${route.params.eventId}?preview=1`, '_blank', 'noopener,noreferrer');
+}
+
+async function publishCampaign() {
+  syncQuestionsToLatestSelection();
+  await saveCampaign({
+    overrideStatus: 'active',
+    successMessage: 'Feedback form published.',
+  });
+}
+
 onMounted(fetchCampaign);
 
 onBeforeUnmount(() => {
@@ -243,7 +423,41 @@ onBeforeUnmount(() => {
 
         <div v-if="error" class="mb-6 rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error }}</div>
         <section class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-          <form class="space-y-6" @submit.prevent="saveCampaign">
+          <form class="space-y-6" @submit.prevent="publishCampaign()">
+            <div class="editorial-panel p-5">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p class="editorial-eyebrow">final activity list</p>
+                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">What actually happened</h2>
+                </div>
+                <button type="button" class="editorial-secondary-action" @click="addActivityDraft">Add Activity</button>
+              </div>
+
+              <div class="mt-5 space-y-3">
+                <div
+                  v-for="activity in activities"
+                  :key="activity.id"
+                  class="grid gap-3 rounded-md border-2 border-dc-border bg-dc-paper px-3 py-3 md:grid-cols-[2.5rem_minmax(0,1fr)_6.5rem] md:items-center"
+                >
+                  <label class="flex items-center gap-3 md:justify-center">
+                    <input v-model="activity.enabled" type="checkbox" class="size-5 accent-dc-pink" />
+                    <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray md:hidden">Use</span>
+                  </label>
+                  <input v-model="activity.label" class="editorial-input min-h-11" type="text" placeholder="Activity name" />
+                  <span class="rounded bg-dc-paper-warm px-2 py-2 text-center font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ activity.source }}</span>
+                </div>
+
+                <div v-if="activities.length === 0" class="rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray">
+                  Add the final talks, sessions, demos, or discussions before generating questions.
+                </div>
+              </div>
+
+              <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ selectedActivityCount }} selected</p>
+                <button type="button" class="editorial-action" :disabled="!canGenerateQuestions" @click="generateQuestionsFromActivities">Generate Questions</button>
+              </div>
+            </div>
+
             <div class="editorial-panel p-5">
               <div class="grid gap-4 md:grid-cols-2">
                 <label class="block md:col-span-2">
@@ -317,8 +531,15 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="flex flex-col gap-3 sm:flex-row">
-              <button type="submit" class="editorial-action" :disabled="saving">{{ saving ? 'Saving...' : 'Save Form' }}</button>
-              <RouterLink v-if="publicUrl" :to="`/feedback/${route.params.eventId}`" class="editorial-secondary-action">Preview Public Form</RouterLink>
+              <button
+                v-if="publicUrl"
+                type="button"
+                class="editorial-secondary-action"
+                @click="openPreviewPublicForm"
+              >
+                Preview
+              </button>
+              <button type="submit" class="editorial-action" :disabled="saving">{{ saving ? 'Publishing...' : 'Publish' }}</button>
             </div>
           </form>
 

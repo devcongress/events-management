@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EVENT_SERIES_TYPES } from '@/lib/event-series';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const OPTIONAL_URL_MESSAGE = 'Enter a full URL that starts with http:// or https://.';
@@ -22,6 +23,7 @@ export const createEventFormSchema = z.object({
   name: z.string().trim().min(1, 'Add the meetup name.'),
   description: z.string().trim().min(1, 'Add a short description for the meetup.'),
   event_date: z.string().trim().regex(ISO_DATE_PATTERN, 'Choose the meetup date.'),
+  series_type: z.enum(EVENT_SERIES_TYPES).default('monthly'),
   end_date: z.string().trim().optional().default(''),
   slug: z.string().trim().optional().default(''),
   cover: z.string().trim().optional().default(''),
@@ -89,6 +91,7 @@ export function toCreateEventApiPayload(value: CreateEventFormPayload) {
     name: value.name,
     description: value.description,
     event_date: value.event_date,
+    series_type: value.series_type,
     end_date: emptyToNull(value.end_date),
     slug: emptyToNull(value.slug),
     cover: emptyToNull(value.cover),

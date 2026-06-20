@@ -3,6 +3,7 @@ export type FeedbackStatus = 'new' | 'reviewing' | 'done' | 'wont_fix';
 export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type CommunityEventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
+export type CommunityEventSeriesType = 'monthly' | 'quarterly' | 'special';
 export type AdminRole = 'owner' | 'organizer';
 export type AdminMembershipStatus = 'active' | 'disabled';
 
@@ -154,6 +155,7 @@ export interface Database {
           slug: string;
           name: string;
           description: string | null;
+          series_type: CommunityEventSeriesType | null;
           starts_at: string;
           ends_at: string;
           status: CommunityEventStatus;
@@ -182,6 +184,7 @@ export interface Database {
           slug: string;
           name: string;
           description?: string | null;
+          series_type?: CommunityEventSeriesType | null;
           starts_at: string;
           ends_at: string;
           status?: CommunityEventStatus;
@@ -210,6 +213,7 @@ export interface Database {
           slug?: string;
           name?: string;
           description?: string | null;
+          series_type?: CommunityEventSeriesType | null;
           starts_at?: string;
           ends_at?: string;
           status?: CommunityEventStatus;

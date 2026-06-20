@@ -1,18 +1,45 @@
 <script setup lang="ts">
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { fetchPublicMeetup } from '@/src/lib/api';
+import { isEventSeriesType } from '@/lib/event-series';
+import { fetchPreviewPublicMeetup, fetchPublicMeetup, queryKeys } from '@/src/lib/api';
 import type { PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 
 const route = useRoute();
-const meetup = ref<PublicMeetup | null>(null);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const queryClient = useQueryClient();
 const activeMeetupPhoto = ref(0);
 const isMeetupPhotoShifting = ref(false);
 let meetupPhotoTimer: number | undefined;
 let meetupPhotoShiftTimer: number | undefined;
 
+const isLumaPreview = computed(() => route.query.preview === 'luma' && typeof route.query.eventUrl === 'string');
+const previewEventUrl = computed(() => (typeof route.query.eventUrl === 'string' ? route.query.eventUrl : ''));
+const previewSeriesType = computed(() => (isEventSeriesType(route.query.seriesType) ? route.query.seriesType : undefined));
+const meetupSlug = computed(() => String(route.params.slug ?? ''));
+const backLink = computed(() => ({
+  to: '/events',
+  label: 'All meetups',
+}));
+const meetupQuery = useQuery({
+  queryKey: computed(() => (isLumaPreview.value
+    ? ['public-meetup-preview', previewEventUrl.value, previewSeriesType.value ?? 'default']
+    : queryKeys.publicMeetup(meetupSlug.value))),
+  queryFn: async () => {
+    if (isLumaPreview.value && previewEventUrl.value) {
+      const payload = await fetchPreviewPublicMeetup(previewEventUrl.value, previewSeriesType.value);
+      return payload.data;
+    }
+
+    const payload = await fetchPublicMeetup(meetupSlug.value);
+    return payload.data;
+  },
+  enabled: computed(() => (isLumaPreview.value ? Boolean(previewEventUrl.value) : Boolean(meetupSlug.value))),
+  staleTime: 0,
+});
+const meetup = computed<PublicMeetup | null>(() => meetupQuery.data.value ?? null);
+const loading = computed(() => meetupQuery.isPending.value);
+const error = computed(() => meetupQuery.error.value?.message ?? null);
 const imagePhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => !photo.type || photo.type === 'image'));
 const folderPhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => photo.type === 'folder'));
 const stackedImagePhotos = computed(() => {
@@ -154,33 +181,36 @@ function startMeetupPhotoRotation() {
   meetupPhotoTimer = window.setInterval(rotateMeetupPhotos, 3600);
 }
 
-async function loadMeetup() {
-  loading.value = true;
-  error.value = null;
+function refreshMeetupQueries() {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
 
-  try {
-    const slug = String(route.params.slug);
-    const payload = await fetchPublicMeetup(slug);
-    meetup.value = payload.data;
-    activeMeetupPhoto.value = 0;
-  } catch (caught) {
-    meetup.value = null;
-    error.value = caught instanceof Error ? caught.message : 'Unable to load meetup';
-  } finally {
-    loading.value = false;
-    startMeetupPhotoRotation();
+  if (!isLumaPreview.value && meetupSlug.value) {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetup(meetupSlug.value) });
   }
 }
 
-onMounted(() => {
-  void loadMeetup();
+function handlePublicMeetupRefresh(event: StorageEvent) {
+  if (event.key !== 'dc-public-meetups-refresh') return;
+  refreshMeetupQueries();
+}
+
+function handlePublicMeetupRefreshSignal() {
+  refreshMeetupQueries();
+}
+
+watch(meetup, () => {
+  activeMeetupPhoto.value = 0;
+  startMeetupPhotoRotation();
 });
 
-watch(() => route.params.slug, () => {
-  void loadMeetup();
+onMounted(() => {
+  window.addEventListener('storage', handlePublicMeetupRefresh);
+  window.addEventListener('dc-public-meetups-refresh', handlePublicMeetupRefreshSignal);
 });
 
 onUnmounted(() => {
+  window.removeEventListener('storage', handlePublicMeetupRefresh);
+  window.removeEventListener('dc-public-meetups-refresh', handlePublicMeetupRefreshSignal);
   stopMeetupPhotoRotation();
 });
 
@@ -247,9 +277,16 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
       </section>
 
       <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
-        <RouterLink to="/events" class="mb-8 inline-flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-gray transition-colors hover:text-dc-pink">
-          <span>&larr;</span> All meetups
+        <RouterLink v-if="!isLumaPreview" :to="backLink.to" class="mb-8 inline-flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-gray transition-colors hover:text-dc-pink">
+          <span>&larr;</span> {{ backLink.label }}
         </RouterLink>
+
+        <section v-if="isLumaPreview" class="mb-8 rounded-lg border border-dc-border bg-dc-paper-warm px-5 py-4">
+          <p class="editorial-eyebrow">preview mode</p>
+          <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
+            This is the public meetup page shell from the current Luma import. Schedule, speakers, gallery, and recap details can be added later after the event shell is imported.
+          </p>
+        </section>
 
         <section class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div>

@@ -26,10 +26,12 @@ import NotFoundView from './views/NotFoundView.vue';
 import PlayCodeView from './views/PlayCodeView.vue';
 import PlayView from './views/PlayView.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
-import { fetchAdminSession } from './lib/api';
+import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
+import { queryClient } from './lib/query';
 
 const COMMUNITY_TITLE = 'DevCongress | Community';
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
+const ownerOnlyPaths = new Set([adminPath('audit-log')]);
 
 function safeInternalRedirect(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -99,9 +101,31 @@ router.beforeEach(async (to, from) => {
     return true;
   }
 
+  const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+  if (cachedSession?.authenticated) {
+    void queryClient.fetchQuery({
+      queryKey: queryKeys.adminSession,
+      queryFn: fetchAdminSession,
+      staleTime: 0,
+    }).catch(() => undefined);
+
+    if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== 'owner') {
+      return adminPath('events');
+    }
+
+    return true;
+  }
+
   try {
-    const session = await fetchAdminSession();
+    const session = await queryClient.fetchQuery({
+      queryKey: queryKeys.adminSession,
+      queryFn: fetchAdminSession,
+    });
     if (session.authenticated) {
+      if (ownerOnlyPaths.has(to.path) && session.user?.role !== 'owner') {
+        return adminPath('events');
+      }
+
       return true;
     }
   } catch {

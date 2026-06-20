@@ -151,6 +151,7 @@ export interface LumaEventPreview {
   name: string;
   description: string | null;
   event_date: string;
+  series_type?: Event['series_type'];
   end_date: string | null;
   cover: string | null;
   registration_url: string | null;
@@ -176,9 +177,16 @@ export interface PublicMeetupResponse {
   data: PublicMeetup;
 }
 
+export interface PublicMeetupPreviewResponse {
+  data: PublicMeetup;
+  already_imported: boolean;
+}
+
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
+  publicMeetups: ['public-meetups'] as const,
+  publicMeetup: (slug: string) => ['public-meetup', slug] as const,
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
   adminSession: ['admin-session'] as const,
@@ -220,6 +228,10 @@ export function fetchEvents() {
   return fetchJson<Event[]>('/api/events');
 }
 
+export function fetchEventById(eventId: string) {
+  return fetchJson<Event>(`/api/events/${eventId}`);
+}
+
 export function deleteEventById(eventId: string) {
   return fetchJson<{ ok: true }>(`/api/events/${eventId}`, {
     method: 'DELETE',
@@ -228,28 +240,41 @@ export function deleteEventById(eventId: string) {
 }
 
 export function fetchPublicMeetups() {
-  return fetchJson<PublicMeetupsResponse>('/api/public/meetups');
+  return fetchJson<PublicMeetupsResponse>('/api/public/meetups', {
+    cache: 'no-store',
+  });
 }
 
 export function fetchPublicMeetup(slug: string) {
-  return fetchJson<PublicMeetupResponse>(`/api/public/meetups/${slug}`);
+  return fetchJson<PublicMeetupResponse>(`/api/public/meetups/${slug}`, {
+    cache: 'no-store',
+  });
 }
 
-export function importLumaEventUrl(eventUrl: string) {
+export function fetchPreviewPublicMeetup(eventUrl: string, seriesType?: Event['series_type']) {
+  return fetchJson<PublicMeetupPreviewResponse>('/api/integrations/luma/public-preview', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_url: eventUrl, ...(seriesType ? { series_type: seriesType } : {}) }),
+  });
+}
+
+export function importLumaEventUrl(eventUrl: string, seriesType: Event['series_type']) {
   return fetchJson<LumaImportResponse>('/api/integrations/luma/import', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_url: eventUrl }),
+    body: JSON.stringify({ event_url: eventUrl, series_type: seriesType }),
   });
 }
 
-export function previewLumaEventUrl(eventUrl: string) {
+export function previewLumaEventUrl(eventUrl: string, seriesType?: Event['series_type']) {
   return fetchJson<LumaPreviewResponse>('/api/integrations/luma/preview', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_url: eventUrl }),
+    body: JSON.stringify({ event_url: eventUrl, ...(seriesType ? { series_type: seriesType } : {}) }),
   });
 }
 

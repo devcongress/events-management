@@ -5,12 +5,72 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-20 — Event lifecycle stage details
+
+- Added hover and keyboard-focus detail popovers to the organizer event lifecycle legend so each status explains the stage purpose, expected organizer move, and next action without expanding the page chrome.
+
+## 2026-06-20 — Explicit event series type
+
+- Added an explicit event `series_type` (`monthly`, `quarterly`, or `special`) across the organizer flow so event behavior no longer depends on whether the word `quarterly` appears in the title.
+- Updated the Luma import review step to ask organizers which series the event belongs to before import, and threaded that choice into both organizer-side import and public preview payloads.
+- Added a simple series-type editor on the organizer event overview page so an imported event can be corrected later without renaming it.
+- Replaced the old title-based monthly/quarterly checks in organizer tabs and attendance logic with the new shared field, while keeping a safe fallback for older rows until the Supabase migration is applied.
+
+## 2026-06-20 — Feedback Hub redesign
+
+- Reworked the organizer Feedback Hub around two clear categories: website feedback from the floating widget, and event feedback from monthly, quarterly, or one-off event forms.
+- Replaced the heavy yellow route-feedback block with quieter paper-toned panels, restrained metrics, and simpler empty/loading states that match the existing DevCongress palette without dominating the page.
+- Made the two feedback category cards the primary entry points, hiding detailed website and event feedback sections until an organizer explicitly opens one.
+- Disabled automatic website-feedback inbox fetching on the Feedback Hub; organizers now load or refresh that inbox manually.
+- Loosened the event report header layout so the explanatory copy and period/configuration controls no longer crowd each other.
+- Removed the redundant selected-month banner from event feedback reports so the event rows start immediately after the period summary.
+- Simplified the event report body by showing only active event periods, labeling period buttons by event count instead of response count, and removing aggregate month metrics from the hub so per-event rows carry the work.
+- Smoothed event-period switching with a keyed fade/slide transition while letting the report container resize to the selected month.
+- Changed the desktop event-period picker to six columns so a complete year stays within two rows.
+- Removed the redundant report-level configure action because each event row already links to its own feedback configuration.
+- Split event feedback row status tags into their own left-aligned column and muted zero-response counts for draft or unconfigured forms that have not been published.
+- Generated event-aware draft questions for the June 2026 feedback campaign, using optional per-session 1-5 ratings for the Fido talks, discussions, and demos instead of the generic default copy.
+- Added a final-activity workspace to the event feedback configure screen so organizers can remove skipped sessions, add last-minute activities, generate per-activity rating questions, and preview the draft form before saving.
+- Added a standard `Other comments` text question as the final prompt on event feedback forms, with a conservative comment-length cap to stay inside the current Supabase submission limit.
+- Reworked public event-feedback question cards so long session labels split into a readable in-card title and a quieter metadata line, improving legibility consistently across talks, demos, and session-based prompts.
+
+## 2026-06-20 — Nav route warmup
+
+- Removed the navbar prefetch path and kept route changes immediate, letting pages swap on-screen first and then show their own skeleton loaders while data resolves.
+- Reworked organizer route protection to reuse the cached admin session for in-console navigation, then refresh `/api/auth/session` in the background so organizer nav no longer waits on that request before switching pages.
+- Moved the public Events page onto the shared TanStack Query cache so later revisits can reuse the same meetup payload instead of always waiting for a fresh mount-time fetch.
+- Added a dedicated audit-log skeleton so every top-level organizer destination now has an on-route loading state instead of a text-only wait message.
+
+## 2026-06-20 — Organizer event removal
+
+- Added a clearer organizer remove flow for event rows, including imported-event labeling plus confirmation copy that makes it obvious an imported Luma event can be removed and re-imported if it came in wrong.
+- Fixed organizer event list pagination after a removal so deleting the last row on a page snaps back to a valid page instead of leaving the list on an empty page.
+- Made organizer event rows themselves the primary next-step navigation target, so hovering anywhere on a row signals clickability and clicking or pressing Enter/Space opens the event's next organizer page without needing the far-right action text.
+- Limited quarterly meetup event tabs to Overview and Feedback so the organizer surface matches the lighter quarterly workflow instead of showing monthly-only sections.
+- Reworked Luma import preview so organizers can open the real public meetup page shell before import, while the preview page clearly explains that schedule, speakers, gallery, and recap details can be added later.
+- Added an organizer-side About editor on the event overview page so organizers can update the public meetup description copy in place without leaving the control screen.
+- Removed the back-link affordance from Luma preview mode so the public preview opens as a clean standalone page in its own tab, without import-flow navigation copy.
+- Locked the top Luma URL field and `Preview event` action once a preview is available, so the import flow stays focused on `Preview event page`, `Import event`, or `Clear`.
+- Changed Luma import so it creates an organizer-only draft instead of publishing immediately, and added an explicit publish action on the draft event overview that pushes the event into the public community meetup list.
+- Updated the shared confirmation dialog so event deletion can show `Removing...` instead of the generic `Working...` while the request is in flight.
+- Added lightweight cross-tab refresh for the public Events list so community tabs refetch after organizer-side publish and About-copy updates, without needing a manual sync button.
+- Moved the public meetup detail page onto TanStack Query as well, added same-tab refresh signaling for organizer-side publish and About-copy edits, and disabled browser caching on public meetup API reads so description and publish changes appear immediately instead of hanging on stale responses.
+- Made imported-event removal final for Luma matches by deleting every Supabase row tied to the same external id or registration URL, and changed Luma import to refuse silent reuse of published matches in favor of an explicit `Remove and re-import` organizer path that creates a fresh draft.
+- Simplified the organizer event lifecycle guide into a compact status legend so the event list gets priority and the page no longer spends a full panel explaining the workflow.
+- Added compact month and event-type filters to the organizer event table, covering monthly, quarterly, and special events while keeping pagination counts in sync with the filtered rows.
+- Refined the shared dropdown treatment with a compact density for table filters, softer menus, lighter trigger borders, and quieter scrollbars.
+
 ## 2026-06-19 — Organizer Google sign-in
 
 - Replaced hosted organizer magic-link sign-in with Supabase Google OAuth while keeping the existing app-owned `admin_sessions` cookie model and `admin_memberships` allowlist.
 - Changed the organizer login screen to launch Google directly and disabled the hosted `/api/auth/admin/login` magic-link path, while preserving the local shared-password fallback for non-Supabase environments.
 - Moved the hosted organizer callback completion fully onto `/api/auth/admin/callback`, and repurposed the old frontend callback route as a safe recovery page for stale magic-link returns.
 - Fixed the PKCE callback handoff so the browser keeps the Supabase code verifier across the Google redirect, exchanges the code, then clears the browser Supabase session after the app-owned cookie is created.
+- Fixed split-origin Cloudflare callbacks so the API Worker forwards browser-facing OAuth returns to the Pages frontend origin from `PUBLIC_APP_URL` instead of its own Worker origin.
+- Reused the organizer session fetched by the route guard so owner-only nav items render immediately for owners, and redirected non-owners away from owner-only organizer routes.
+- Relaxed organizer access management so organizers can add or disable other organizers, while owner creation, owner updates, owner disablement, and audit log access remain owner-only.
+- Softened the shared skeleton system with quieter paper-tone fills, lower-contrast surfaces, and a slower pulse so loading states feel calm across both light and dark views.
+- Changed the shared toast layer to reuse a single app-status toast by default, so follow-up success and error messages replace the current toast instead of stacking multiple alerts.
 - Added a router recovery path for OAuth codes that land on the public Site URL and tightened organizer route guards so protected pages re-check the app session instead of trusting prior organizer navigation.
 - Updated the auth and deployment docs with Google provider setup requirements, and removed the obsolete email-link flow references.
 

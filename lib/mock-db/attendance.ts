@@ -1,5 +1,6 @@
 import { parseLumaAttendanceCsv, summarizeAttendance } from '@/lib/luma-attendance';
 import { attendanceUploadWindowForMonth } from '@/lib/attendance-upload-window';
+import { resolveEventSeriesType } from '@/lib/event-series';
 import { generateId, now } from '@/lib/utils';
 import type { AttendanceBreakdownItem, AttendanceLedgerMonth, AttendanceLedgerMonthEvent, AttendanceMonthlyInsights, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
 import { readData, writeData } from './index';
@@ -63,7 +64,7 @@ export function attendanceMonthLabel(month: string): string {
 }
 
 function isMonthlyMeetupEvent(event: Event): boolean {
-  return !event.name.toLowerCase().includes('quarterly');
+  return resolveEventSeriesType(event) === 'monthly';
 }
 
 function monthRange(startMonth: string, endMonth: string): string[] {

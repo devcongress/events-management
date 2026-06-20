@@ -9,6 +9,7 @@ export type SlidesType = 'url' | 'file' | null;
 export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type LumaAttendanceApprovalStatus = 'approved' | 'pending' | 'declined' | 'unknown';
+export type EventSeriesType = 'monthly' | 'quarterly' | 'special';
 
 // ---- Entities ----
 export interface Event {
@@ -16,6 +17,7 @@ export interface Event {
   name: string;
   description: string | null;
   event_date: string;          // ISO date string
+  series_type?: EventSeriesType | null;
   status: EventStatus;
   created_at: string;
   updated_at: string;

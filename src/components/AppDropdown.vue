@@ -16,6 +16,7 @@ const props = defineProps<{
   options: DropdownOption[];
   label?: string;
   disabled?: boolean;
+  density?: 'default' | 'compact';
   menuAlign?: 'left' | 'right';
   menuClass?: string;
 }>();
@@ -38,6 +39,13 @@ const estimatedMenuHeight = computed(() => {
 const selectedOption = computed(() => {
   return props.options.find((option) => option.value === props.modelValue) ?? props.options[0] ?? null;
 });
+const triggerClasses = computed(() => props.density === 'compact'
+  ? 'min-h-10 px-3 py-2 text-sm'
+  : 'min-h-[50px] px-4 py-3 text-base');
+const optionClasses = computed(() => props.density === 'compact'
+  ? 'px-2.5 py-2 text-sm'
+  : 'px-3 py-2.5 text-sm');
+const iconClasses = computed(() => props.density === 'compact' ? 'size-5' : 'size-6');
 
 function choose(value: DropdownValue) {
   emit('update:modelValue', value);
@@ -141,10 +149,11 @@ watch(open, async (isOpen) => {
     <span v-if="label" class="editorial-label">{{ label }}</span>
     <button
       type="button"
-      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border-2 bg-dc-paper px-4 py-3 text-left text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(232,17,127,0.14)] disabled:cursor-not-allowed disabled:opacity-50"
+      class="motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-semibold text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(232,17,127,0.14)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
+        triggerClasses,
         label ? 'mt-2' : '',
-        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(232,17,127,0.14)]' : 'border-dc-ink',
+        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(232,17,127,0.14)]' : 'border-dc-border',
       ]"
       :disabled="disabled"
       :aria-expanded="open"
@@ -152,9 +161,9 @@ watch(open, async (isOpen) => {
       @click.stop="toggle"
     >
       <span class="min-w-0 truncate">{{ selectedOption?.label }}</span>
-      <span class="motion-icon grid size-6 shrink-0 place-items-center rounded-full border border-dc-ink text-dc-pink" :class="open ? 'rotate-180' : ''">
-        <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
-          <path d="M5 8l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <span class="motion-icon grid shrink-0 place-items-center rounded-full border border-dc-border text-dc-pink" :class="[iconClasses, open ? 'rotate-180 border-dc-pink' : '']">
+        <svg viewBox="0 0 20 20" class="size-3.5" fill="none" aria-hidden="true">
+          <path d="M5.5 8l4.5 4.5L14.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </span>
     </button>
@@ -162,7 +171,7 @@ watch(open, async (isOpen) => {
     <Transition name="dropdown-menu" :duration="{ enter: 180, leave: 0 }">
       <div
         v-if="open"
-        class="app-dropdown-menu absolute z-50 w-full overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]"
+        class="app-dropdown-menu absolute z-50 w-full min-w-44 overflow-hidden rounded-md border border-dc-border bg-white shadow-[0_18px_36px_rgba(17,17,17,0.14)]"
         :class="[
           menuAlign === 'right' ? 'left-auto right-0' : 'left-0',
           placement === 'top' ? 'bottom-[calc(100%+0.5rem)]' : 'top-[calc(100%+0.5rem)]',
@@ -170,13 +179,13 @@ watch(open, async (isOpen) => {
         ]"
         :data-placement="placement"
       >
-        <div class="max-h-72 overflow-y-auto p-1.5" role="listbox">
+        <div class="app-dropdown-scroll max-h-64 overflow-y-auto p-1.5" role="listbox">
           <button
             v-for="option in options"
             :key="`${option.value}`"
             type="button"
-            class="motion-colors flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm"
-            :class="modelValue === option.value ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink'"
+            class="motion-colors flex w-full items-center gap-2.5 rounded text-left"
+            :class="[optionClasses, modelValue === option.value ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink']"
             role="option"
             :aria-selected="modelValue === option.value"
             @click="choose(option.value)"

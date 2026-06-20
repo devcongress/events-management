@@ -4,11 +4,13 @@ withDefaults(defineProps<{
   title: string;
   message: string;
   confirmLabel?: string;
+  busyLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
   danger?: boolean;
 }>(), {
   confirmLabel: 'Confirm',
+  busyLabel: 'Working...',
   cancelLabel: 'Cancel',
   busy: false,
   danger: false,
@@ -54,7 +56,7 @@ const emit = defineEmits<{
             :disabled="busy"
             @click="emit('confirm')"
           >
-            {{ busy ? 'Working...' : confirmLabel }}
+            {{ busy ? busyLabel : confirmLabel }}
           </button>
         </div>
       </section>

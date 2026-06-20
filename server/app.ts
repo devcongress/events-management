@@ -6,6 +6,7 @@ import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
+import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { ROUTE_FEEDBACK_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
@@ -18,8 +19,8 @@ import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSes
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
-import { adminLoginErrorPath, completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
-import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
+import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, deleteSupabaseCommunityEventsByImportMatch, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { getPublicLumaEventByUrl, type LumaImportDraft } from '@/lib/luma/events';
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
@@ -29,7 +30,7 @@ import { now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
-import type { Event, EventChecklistItem, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, Talk, User } from '@/types';
+import type { Event, EventChecklistItem, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, Talk, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 const app = new Hono();
@@ -54,11 +55,14 @@ const FEEDBACK_AUTO_OPEN_DAYS = 3;
 const FEEDBACK_AUTO_OPEN_MS = FEEDBACK_AUTO_OPEN_DAYS * 24 * 60 * 60 * 1000;
 const EVENT_FEEDBACK_TOKEN_MIN_CHARS = 20;
 const EVENT_FEEDBACK_TOKEN_MAX_CHARS = 160;
+const EVENT_FEEDBACK_COMMENT_MAX_CHARS = 1500;
+const FEEDBACK_SUBMISSION_MESSAGE_MAX_CHARS = 4000;
 const FEEDBACK_CAMPAIGN_STATUSES = new Set<FeedbackCampaignStatus>(['draft', 'active', 'closed']);
 const FEEDBACK_QUESTION_TYPES = new Set<FeedbackQuestionType>(['rating', 'text', 'choice', 'talk_select', 'yes_no']);
 const ROUTE_FEEDBACK_STATUSES = new Set<FeedbackStatus>(['new', 'reviewing', 'done', 'wont_fix']);
 const lumaImportSchema = z.object({
   event_url: z.string().trim().url(),
+  series_type: z.enum(['monthly', 'quarterly', 'special']).optional(),
 });
 const addOrganizerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -177,6 +181,7 @@ async function createEvent(data: {
   name: string;
   description: string | null;
   event_date: string;
+  series_type?: EventSeriesType | null;
   end_date?: string | null;
   slug?: string | null;
   cover?: string | null;
@@ -193,6 +198,7 @@ async function createEvent(data: {
     name: data.name,
     description: data.description,
     event_date: data.event_date,
+    series_type: data.series_type,
   });
 }
 
@@ -208,16 +214,33 @@ async function deleteEvent(id: string, c?: Context): Promise<void> {
   await deleteMockEvent(id);
 }
 
+async function deleteImportedEvent(event: Event, c?: Context): Promise<{ deleted_ids: string[]; deleted: boolean }> {
+  const deletedIds = await deleteSupabaseCommunityEventsByImportMatch(event, c);
+  if (deletedIds !== null) {
+    return {
+      deleted_ids: deletedIds,
+      deleted: deletedIds.length > 0,
+    };
+  }
+
+  await deleteMockEvent(event.id);
+  return {
+    deleted_ids: [event.id],
+    deleted: true,
+  };
+}
+
 function lumaDraftToEventInput(lumaEvent: LumaImportDraft) {
   return {
     name: lumaEvent.name,
     description: lumaEvent.description,
     event_date: lumaEvent.event_date,
+    series_type: inferEventSeriesType(lumaEvent.name),
     end_date: lumaEvent.end_date,
-    cover: lumaEvent.cover,
+    cover: lumaEvent.cover ?? undefined,
     registration_url: lumaEvent.registration_url,
     location: lumaEvent.location,
-    publish_to_website: true,
+    publish_to_website: false,
     external_source: 'luma',
     external_id: lumaEvent.external_id,
     external_url: lumaEvent.external_url,
@@ -237,7 +260,7 @@ async function findExistingLumaEvent(lumaEvent: LumaImportDraft, c: Context): Pr
 }
 
 function setPublicApiCache(c: Context) {
-  c.header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  c.header('Cache-Control', 'no-store');
 }
 
 function slugify(value: string): string {
@@ -391,16 +414,49 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
   };
 }
 
+function toPreviewPublicMeetup(
+  lumaEvent: LumaImportDraft,
+  origin: string,
+  existingEvent?: Event,
+  seriesType?: EventSeriesType,
+): PublicMeetup {
+  const previewEvent: Event = {
+    id: existingEvent?.id ?? `preview-${lumaEvent.external_id}`,
+    name: lumaEvent.name,
+    description: lumaEvent.description,
+    event_date: lumaEvent.event_date,
+    series_type: existingEvent?.series_type ?? seriesType ?? inferEventSeriesType(lumaEvent.name),
+    end_date: lumaEvent.end_date ?? undefined,
+    status: existingEvent?.status ?? 'upcoming',
+    created_at: existingEvent?.created_at ?? now(),
+    updated_at: now(),
+    slug: existingEvent?.slug ?? slugify(lumaEvent.name),
+    cover: lumaEvent.cover ?? undefined,
+    location: lumaEvent.location,
+    registration_url: lumaEvent.registration_url,
+    schedule: existingEvent?.schedule ?? [],
+    photos: existingEvent?.photos ?? [],
+    videos: existingEvent?.videos ?? [],
+    publish_to_website: true,
+    external_source: 'luma',
+    external_id: lumaEvent.external_id,
+    external_url: lumaEvent.external_url,
+    external_synced_at: new Date().toISOString(),
+  };
+
+  return toPublicMeetup(previewEvent, [], origin);
+}
+
 async function buildPublicMeetups(origin: string, c?: Context) {
   const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
   return events
-    .filter((event) => event.status !== 'draft')
+    .filter((event) => event.publish_to_website ?? event.status !== 'draft')
     .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), origin))
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
 }
 
 function publicAppOrigin(c: Context): string {
-  return envValue('PUBLIC_APP_URL', c) ?? new URL(c.req.url).origin;
+  return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? new URL(c.req.url).origin;
 }
 
 function feedbackCampaignWindow(event: Event, campaign: FeedbackCampaign): { opens_at: string | null; closes_at: string | null } {
@@ -1116,14 +1172,17 @@ app.get('/api/events/:eventId/feedback-campaign', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const [campaign, submissions] = await Promise.all([
+  const [campaign, submissions, talks] = await Promise.all([
     getOrCreateFeedbackCampaign(eventId),
     getFeedbackSubmissionsByEvent(eventId),
+    getTalksByEvent(eventId),
   ]);
 
   return c.json({
+    event,
     campaign,
     submissions,
+    talks: talks.filter((talk) => talk.status !== 'rejected'),
     public_url: `${publicAppOrigin(c)}/feedback/${eventId}`,
     feedback_window: feedbackCampaignWindow(event, campaign),
     is_open: isFeedbackCampaignOpen(event, campaign),
@@ -1176,7 +1235,9 @@ app.patch('/api/events/:eventId/feedback-campaign', async (c) => {
   });
 
   return c.json({
+    event,
     campaign,
+    talks: (await getTalksByEvent(eventId)).filter((talk) => talk.status !== 'rejected'),
     public_url: `${publicAppOrigin(c)}/feedback/${eventId}`,
     feedback_window: feedbackCampaignWindow(event, campaign),
     is_open: isFeedbackCampaignOpen(event, campaign),
@@ -1186,6 +1247,7 @@ app.patch('/api/events/:eventId/feedback-campaign', async (c) => {
 app.get('/api/feedback/events/:eventId', async (c) => {
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+  const previewRequested = c.req.query('preview') === '1';
 
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
@@ -1193,8 +1255,9 @@ app.get('/api/feedback/events/:eventId', async (c) => {
 
   const existingCampaign = await getFeedbackCampaignByEvent(eventId);
   const campaign = existingCampaign ?? (event.status === 'completed' ? await getOrCreateFeedbackCampaign(eventId) : undefined);
+  const previewAllowed = previewRequested && !(await requireAdmin(c));
 
-  if (!campaign || !isFeedbackCampaignOpen(event, campaign)) {
+  if (!campaign || (!previewAllowed && !isFeedbackCampaignOpen(event, campaign))) {
     return c.json({ error: 'Feedback is not open for this event' }, 404);
   }
 
@@ -1205,6 +1268,7 @@ app.get('/api/feedback/events/:eventId', async (c) => {
     campaign,
     feedback_window: feedbackCampaignWindow(event, campaign),
     talks: talks.filter((talk) => talk.status !== 'rejected'),
+    preview_mode: previewAllowed,
   });
 });
 
@@ -1243,15 +1307,34 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   }
 
   const body = await c.req.json();
+  const respondentName = typeof body.respondent_name === 'string' ? body.respondent_name.trim() : '';
+  const respondentEmail = typeof body.respondent_email === 'string' ? body.respondent_email.trim() : '';
+
+  if (!respondentName) {
+    return c.json({ error: 'Please enter your name.' }, 400);
+  }
+
+  if (!z.string().email().safeParse(respondentEmail).success) {
+    return c.json({ error: 'Please enter a valid email address.' }, 400);
+  }
+
   const answers = normalizeFeedbackAnswers(body.answers);
   const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer.value]));
   const missingRequired = campaign.questions.some((question) => {
     const value = answersByQuestion.get(question.id);
     return question.required && (value === undefined || value === null || String(value).trim() === '');
   });
+  const textAnswerTooLong = campaign.questions.some((question) => {
+    const value = answersByQuestion.get(question.id);
+    return question.type === 'text' && typeof value === 'string' && value.length > EVENT_FEEDBACK_COMMENT_MAX_CHARS;
+  });
 
   if (missingRequired) {
     return c.json({ error: 'Please answer all required questions' }, 400);
+  }
+
+  if (textAnswerTooLong) {
+    return c.json({ error: `Keep each comment under ${EVENT_FEEDBACK_COMMENT_MAX_CHARS} characters.` }, 400);
   }
 
   const responseToken = normalizeEventFeedbackResponseToken(body.response_token);
@@ -1270,11 +1353,16 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
     }, 409);
   }
 
+  const serializedAnswers = JSON.stringify(answers);
+  if (serializedAnswers.length > FEEDBACK_SUBMISSION_MESSAGE_MAX_CHARS) {
+    return c.json({ error: 'Your response is too long. Please shorten the written comments a little.' }, 400);
+  }
+
   const submission = await createEventFeedbackSubmission({
     campaign_id: campaign.id,
     event_id: eventId,
-    respondent_name: typeof body.respondent_name === 'string' && body.respondent_name.trim() ? body.respondent_name.trim() : null,
-    respondent_email: typeof body.respondent_email === 'string' && body.respondent_email.trim() ? body.respondent_email.trim() : null,
+    respondent_name: respondentName,
+    respondent_email: respondentEmail,
     answers,
     page_path: typeof body.page_path === 'string' ? body.page_path : null,
     user_agent: c.req.header('user-agent') ?? null,
@@ -1286,10 +1374,10 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
     await supabase.from('feedback_submissions').insert({
       event_id: eventId,
       campaign_id: campaign.id,
-      tester_name: submission.respondent_name ?? 'Anonymous attendee',
-      tester_email: submission.respondent_email,
+      tester_name: respondentName,
+      tester_email: respondentEmail,
       type: 'suggestion',
-      message: JSON.stringify(answers),
+      message: serializedAnswers,
       structured_answers: answers,
       response_token_hash: responseTokenHash,
       trigger_source: 'event_feedback_form',
@@ -1327,7 +1415,8 @@ app.get('/api/auth/admin/callback', async (c) => {
   const callbackError = String(c.req.query('error_description') ?? c.req.query('error') ?? '');
   const basePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : defaultAdminRedirectPath(c);
-  const clientCallback = new URL(`${basePath}/auth/callback`, new URL(c.req.url).origin);
+  const clientOrigin = publicAppOrigin(c);
+  const clientCallback = new URL(`${basePath}/auth/callback`, clientOrigin);
   clientCallback.searchParams.set('next', safeNext);
 
   if (callbackError) {
@@ -1336,7 +1425,9 @@ app.get('/api/auth/admin/callback', async (c) => {
   }
 
   if (!code) {
-    return c.redirect(adminLoginErrorPath(c, 'Google organizer sign-in did not return a code. Please try again.'));
+    const loginUrl = new URL(`${basePath}/login`, clientOrigin);
+    loginUrl.searchParams.set('error', 'Google organizer sign-in did not return a code. Please try again.');
+    return c.redirect(loginUrl.toString());
   }
 
   clientCallback.searchParams.set('code', code);
@@ -1371,7 +1462,7 @@ app.post('/api/auth/logout', async (c) => {
 });
 
 app.get('/api/admin/organizers', async (c) => {
-  const adminError = await requireAdmin(c, ['owner']);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -1405,7 +1496,7 @@ app.get('/api/admin/organizers', async (c) => {
 });
 
 app.post('/api/admin/organizers', async (c) => {
-  const adminError = await requireAdmin(c, ['owner']);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -1424,6 +1515,26 @@ app.post('/api/admin/organizers', async (c) => {
   const email = parsed.data.email;
   const displayName = parsed.data.display_name || null;
   const role = parsed.data.role;
+
+  const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, role, status')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (existingMembershipError) {
+    return c.json({ error: 'Unable to verify organizer access.' }, 500);
+  }
+
+  if (session.role !== 'owner') {
+    if (role !== 'organizer') {
+      return c.json({ error: 'Only owners can grant owner access.' }, 403);
+    }
+
+    if (existingMembership?.role === 'owner') {
+      return c.json({ error: 'Only owners can update another owner.' }, 403);
+    }
+  }
 
   const { data, error } = await getSupabaseAdminClient(c)
     .from('admin_memberships')
@@ -1455,7 +1566,7 @@ app.post('/api/admin/organizers', async (c) => {
 });
 
 app.delete('/api/admin/organizers/:organizerId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner']);
+  const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -1472,6 +1583,40 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
     return c.json({ error: 'You cannot disable your own organizer access.' }, 400);
   }
 
+  const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .eq('id', organizerId)
+    .maybeSingle();
+
+  if (existingMembershipError) {
+    return c.json({ error: 'Unable to verify organizer access.' }, 500);
+  }
+
+  if (!existingMembership) {
+    return c.json({ error: 'Organizer was not found.' }, 404);
+  }
+
+  if (existingMembership.role === 'owner' && session.role !== 'owner') {
+    return c.json({ error: 'Only owners can disable another owner.' }, 403);
+  }
+
+  if (existingMembership.role === 'owner') {
+    const { count: activeOwnerCount, error: ownerCountError } = await getSupabaseAdminClient(c)
+      .from('admin_memberships')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'owner')
+      .eq('status', 'active');
+
+    if (ownerCountError) {
+      return c.json({ error: 'Unable to verify owner coverage.' }, 500);
+    }
+
+    if ((activeOwnerCount ?? 0) <= 1) {
+      return c.json({ error: 'At least one active owner must remain.' }, 400);
+    }
+  }
+
   const { data, error } = await getSupabaseAdminClient(c)
     .from('admin_memberships')
     .update({ status: 'disabled' })
@@ -1482,11 +1627,9 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
   if (error) {
     return c.json({ error: 'Unable to disable organizer.' }, 500);
   }
-
   if (!data) {
     return c.json({ error: 'Organizer was not found.' }, 404);
   }
-
   await recordAdminAudit(c, {
     actor_user_id: session.user_id,
     actor_email: session.email,
@@ -1567,14 +1710,53 @@ app.post('/api/integrations/luma/preview', async (c) => {
     }
 
     const existingEvent = await findExistingLumaEvent(lumaEvent, c);
+    const seriesType = isEventSeriesType(parsed.data.series_type)
+      ? parsed.data.series_type
+      : existingEvent?.series_type ?? inferEventSeriesType(lumaEvent.name);
 
     return c.json({
-      preview: lumaDraftToEventInput(lumaEvent),
+      preview: {
+        ...lumaDraftToEventInput(lumaEvent),
+        series_type: seriesType,
+      },
       existing_event: existingEvent ?? null,
       already_imported: Boolean(existingEvent),
     });
   } catch {
     return c.json({ error: 'Unable to preview Luma event right now.' }, 502);
+  }
+});
+
+app.post('/api/integrations/luma/public-preview', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  if (!isSupabaseServerConfigured(c)) {
+    return c.json({ error: 'Supabase community events must be configured before previewing Luma imports.' }, 503);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = lumaImportSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'Enter a valid public Luma event URL.' }, 400);
+  }
+
+  try {
+    const lumaEvent = await getPublicLumaEventByUrl(parsed.data.event_url);
+    if (!lumaEvent) {
+      return c.json({ error: 'Luma event was not found.' }, 404);
+    }
+
+    const existingEvent = await findExistingLumaEvent(lumaEvent, c);
+    const seriesType = isEventSeriesType(parsed.data.series_type)
+      ? parsed.data.series_type
+      : existingEvent?.series_type ?? inferEventSeriesType(lumaEvent.name);
+    return c.json({
+      data: toPreviewPublicMeetup(lumaEvent, publicAppOrigin(c), existingEvent, seriesType),
+      already_imported: Boolean(existingEvent),
+    });
+  } catch {
+    return c.json({ error: 'Unable to build the event preview right now.' }, 502);
   }
 });
 
@@ -1604,11 +1786,26 @@ app.post('/api/integrations/luma/import', async (c) => {
     }
 
     const existingEvent = await findExistingLumaEvent(lumaEvent, c);
+    const seriesType = isEventSeriesType(parsed.data.series_type)
+      ? parsed.data.series_type
+      : existingEvent?.series_type ?? inferEventSeriesType(lumaEvent.name);
     if (existingEvent) {
+      if (existingEvent.publish_to_website) {
+        return c.json({
+          error: 'This Luma event is already published in community. Remove it and re-import to start a fresh draft.',
+          event: existingEvent,
+          already_imported: true,
+          requires_reimport: true,
+        }, 409);
+      }
+
       return c.json({ event: existingEvent, already_imported: true });
     }
 
-    const event = await createSupabaseCommunityEvent(lumaDraftToEventInput(lumaEvent), c);
+    const event = await createSupabaseCommunityEvent({
+      ...lumaDraftToEventInput(lumaEvent),
+      series_type: seriesType,
+    }, c);
 
     if (!event) {
       return c.json({ error: 'Unable to import Luma event.' }, 500);
@@ -1624,6 +1821,7 @@ app.post('/api/integrations/luma/import', async (c) => {
       metadata: {
         external_id: lumaEvent.external_id,
         external_url: lumaEvent.external_url,
+        series_type: seriesType,
       },
     });
 
@@ -1755,6 +1953,7 @@ app.post('/api/events', async (c) => {
     name: body.name,
     description: body.description,
     event_date: body.event_date,
+    series_type: body.series_type,
     end_date: body.end_date ?? '',
     slug: body.slug ?? '',
     cover: body.cover ?? '',
@@ -1776,6 +1975,7 @@ app.post('/api/events', async (c) => {
     embed_stream: Boolean(body.embed_stream),
     photos: normalizeEventPhotos(body.photos),
     location: payload.location,
+    series_type: payload.series_type,
   }, c);
 
   await auditAdminAction(c, {
@@ -1810,7 +2010,9 @@ app.delete('/api/events/:eventId', async (c) => {
   }
 
   try {
-    await deleteEvent(eventId, c);
+    const deletion = await (event.external_source === 'luma'
+      ? deleteImportedEvent(event, c)
+      : deleteEvent(eventId, c).then(() => ({ deleted_ids: [eventId], deleted: true })));
     await auditAdminAction(c, {
       action: 'event.delete',
       targetType: 'event',
@@ -1819,6 +2021,10 @@ app.delete('/api/events/:eventId', async (c) => {
         name: event.name,
         event_date: event.event_date,
         status: event.status,
+        external_source: event.external_source ?? null,
+        external_id: event.external_id ?? null,
+        registration_url: event.registration_url ?? null,
+        deleted_event_ids: deletion.deleted_ids,
       },
     });
 

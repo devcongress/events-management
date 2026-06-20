@@ -5,10 +5,12 @@ type NotifyOptions = ExternalToast;
 type NotifyPromiseMessages<T> = Parameters<typeof toast.promise<T>>[1];
 
 const APP_TOASTER_ID = 'app';
+const APP_TOAST_STATUS_ID = 'app-status';
 
 function withDefaults(options: NotifyOptions = {}): NotifyOptions {
   return {
     toasterId: APP_TOASTER_ID,
+    id: APP_TOAST_STATUS_ID,
     ...options,
   };
 }
@@ -35,6 +37,7 @@ export const notify = {
   promise<T>(promise: Promise<T> | (() => Promise<T>), messages: NotifyPromiseMessages<T>) {
     return toast.promise<T>(promise, {
       toasterId: APP_TOASTER_ID,
+      id: APP_TOAST_STATUS_ID,
       ...messages,
     });
   },

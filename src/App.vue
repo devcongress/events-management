@@ -52,9 +52,9 @@ const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
+  { href: adminPath('organizers'), label: 'Organizers' },
 ];
 const ownerAdminLinks: NavLink[] = [
-  { href: adminPath('organizers'), label: 'Organizers' },
   { href: adminPath('audit-log'), label: 'Audit Log' },
 ];
 
@@ -92,11 +92,16 @@ const navGroups = computed(() => {
 });
 const modeSwitchLink = computed(() => (isAdminRoute.value ? '/' : adminPath('events')));
 const modeSwitchLabel = computed(() => (isAdminRoute.value ? 'Community' : 'Organizer'));
+const brandHomeLink = computed(() => (isAdminRoute.value ? adminPath('events') : '/'));
 const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
 const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
-const shouldLoadRouteFeedbackSummary = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
+const shouldLoadRouteFeedbackSummary = computed(() => (
+  isAdminRoute.value
+  && route.path !== adminPath('login')
+  && route.path !== adminPath('feedback')
+));
 const routeFeedbackInboxQuery = useQuery({
   queryKey: queryKeys.routeFeedbackInbox,
   queryFn: fetchRouteFeedbackInbox,
@@ -399,6 +404,26 @@ watch(() => route.path, (toPath, fromPath) => {
   void refreshAdminEventNames();
 });
 
+watch(
+  () => ({
+    authenticated: adminSessionQuery.data.value?.authenticated,
+    routePath: route.path,
+    routeFullPath: route.fullPath,
+  }),
+  ({ authenticated, routePath, routeFullPath }) => {
+    if (!isAdminPath(routePath) || routePath === adminPath('login') || routePath === adminPath('auth/callback')) {
+      return;
+    }
+
+    if (authenticated === false) {
+      void router.replace({
+        path: adminPath('login'),
+        query: { redirect: routeFullPath },
+      });
+    }
+  },
+);
+
 onUnmounted(() => {
   window.clearTimeout(keyboardFocusTimer);
   document.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
@@ -417,7 +442,7 @@ onUnmounted(() => {
   <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--community': !isAdminRoute }">
     <header class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
-        <RouterLink to="/" class="group flex min-h-11 items-center">
+        <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">
           <img
             :src="logoSrc"
             alt="DevCongress"

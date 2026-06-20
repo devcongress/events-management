@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+import { computed, onMounted, onUnmounted } from 'vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import EventsPageSkeleton from '@/src/components/ui/page-skeletons/EventsPageSkeleton.vue';
-import { fetchPublicMeetups } from '@/src/lib/api';
+import { fetchPublicMeetups, queryKeys } from '@/src/lib/api';
 import type { PublicMeetup, PublicMeetupStatus } from '@/types';
 
-const meetups = ref<PublicMeetup[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const queryClient = useQueryClient();
+const meetupsQuery = useQuery({
+  queryKey: queryKeys.publicMeetups,
+  queryFn: fetchPublicMeetups,
+});
+const meetups = computed<PublicMeetup[]>(() => meetupsQuery.data.value?.data ?? []);
+const loading = computed(() => meetupsQuery.isPending.value);
+const error = computed(() => meetupsQuery.error.value?.message ?? null);
 
 const sortedMeetups = computed(() => {
   return [...meetups.value].sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
@@ -50,15 +56,23 @@ function primaryAction(meetup: PublicMeetup): { href: string; label: string; ext
   };
 }
 
-onMounted(async () => {
-  try {
-    const payload = await fetchPublicMeetups();
-    meetups.value = payload.data;
-  } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Unable to load events';
-  } finally {
-    loading.value = false;
-  }
+function handlePublicMeetupRefresh(event: StorageEvent) {
+  if (event.key !== 'dc-public-meetups-refresh') return;
+  void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
+}
+
+function handlePublicMeetupRefreshSignal() {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
+}
+
+onMounted(() => {
+  window.addEventListener('storage', handlePublicMeetupRefresh);
+  window.addEventListener('dc-public-meetups-refresh', handlePublicMeetupRefreshSignal);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('storage', handlePublicMeetupRefresh);
+  window.removeEventListener('dc-public-meetups-refresh', handlePublicMeetupRefreshSignal);
 });
 </script>
 
@@ -106,11 +120,11 @@ onMounted(async () => {
               <span class="text-dc-pink">{{ meetup.location.label ?? meetup.location.name }}</span>
             </div>
 
-            <h2 class="text-2xl font-black leading-tight tracking-tight text-dc-ink sm:text-3xl">
+            <h2 class="community-meetup-card-title text-2xl font-black leading-tight tracking-tight text-dc-ink sm:text-3xl">
               {{ meetup.name }}
             </h2>
 
-            <p class="line-clamp-3 flex-1 text-sm leading-6 text-dc-gray">
+            <p class="community-meetup-card-description flex-1 text-sm leading-6 text-dc-gray">
               {{ meetup.description }}
             </p>
 

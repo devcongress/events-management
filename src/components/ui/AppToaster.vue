@@ -25,7 +25,7 @@ const toastOptions = {
     expand
     :duration="4600"
     :gap="10"
-    :visible-toasts="4"
+    :visible-toasts="1"
     :offset="{ bottom: '1rem', right: '1rem' }"
     :mobile-offset="{ bottom: '0.75rem', right: '0.75rem', left: '0.75rem' }"
     :swipe-directions="['right']"

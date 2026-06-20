@@ -9,7 +9,7 @@ DevCon-Comm uses Supabase Auth with Google OAuth for hosted organizer access and
 3. The organizer signs in from `/organizer-console/login`.
 4. The organizer chooses Google sign-in from `/organizer-console/login`.
 5. Supabase handles the Google OAuth redirect and returns to `/api/auth/admin/callback` with an authorization code.
-6. Hono forwards the code to `/organizer-console/auth/callback`, where the browser completes the Supabase PKCE exchange.
+6. Hono forwards the code to `/organizer-console/auth/callback` on `PUBLIC_APP_URL`, where the browser completes the Supabase PKCE exchange.
 7. The browser posts the temporary Supabase access token to `/api/auth/admin/exchange`.
 8. Hono verifies the token, checks the verified email against active `admin_memberships`, stores an app-owned row in `admin_sessions`, and sets the `devcon_admin` HTTP-only cookie.
 9. The callback route clears the browser Supabase session and redirects into the organizer console.
@@ -19,12 +19,14 @@ The browser Supabase client uses PKCE storage so the code verifier survives the 
 
 The login screen stores the intended organizer destination in session storage before starting Google OAuth. If Supabase falls back to the configured Site URL and returns the OAuth code to a public route, the router forwards that code to `/organizer-console/auth/callback` and resumes the organizer sign-in flow.
 
+On Cloudflare, `/api/*` requests can be proxied from Pages to the API Worker. The Worker must still redirect browser-facing OAuth callbacks back to the Pages origin from `PUBLIC_APP_URL` or `PUBLIC_FRONTEND_ORIGIN`; the Worker origin does not serve the Vue organizer routes.
+
 ## Roles
 
 | Role | Access |
 |---|---|
-| `owner` | Full organizer access plus organizer email management and audit log review |
-| `organizer` | Organizer console and admin mutations, excluding organizer email management |
+| `owner` | Full organizer access, can grant owner or organizer access, can disable other owners while keeping at least one active owner, and can review the audit log |
+| `organizer` | Organizer console and admin mutations, including adding or disabling other organizers, but cannot grant or revoke owner access |
 
 ## Tables
 

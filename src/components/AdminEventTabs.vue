@@ -1,19 +1,28 @@
 <script setup lang="ts">
+import { useQuery } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
+import { fetchEventById, queryKeys } from '@/src/lib/api';
+import { resolveEventSeriesType } from '@/lib/event-series';
 
 const props = defineProps<{
   eventId: string;
 }>();
+
+type AdminEventTab = {
+  href: string;
+  label: string;
+  soon?: boolean;
+};
 
 const route = useRoute();
 const tabsTrack = ref<HTMLElement | null>(null);
 const tabElements = ref<HTMLElement[]>([]);
 const indicator = ref({ left: 0, width: 0, ready: false });
 
-const tabs = [
+const fullTabs: AdminEventTab[] = [
   { href: '', label: 'Overview' },
   { href: 'talks', label: 'Talks' },
   { href: 'speakers', label: 'Speakers' },
@@ -21,6 +30,17 @@ const tabs = [
   { href: 'quiz', label: 'Quiz', soon: true },
   { href: 'feedback', label: 'Feedback' },
 ];
+const quarterlyTabs: AdminEventTab[] = [
+  { href: '', label: 'Overview' },
+  { href: 'feedback', label: 'Feedback' },
+];
+const eventQuery = useQuery({
+  queryKey: queryKeys.event(props.eventId),
+  queryFn: () => fetchEventById(props.eventId),
+  enabled: Boolean(props.eventId),
+});
+const isQuarterlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'quarterly' : false);
+const tabs = computed<AdminEventTab[]>(() => (isQuarterlyEvent.value ? quarterlyTabs : fullTabs));
 
 function tabPath(href: string) {
   return href ? adminPath(`events/${props.eventId}/${href}`) : adminPath(`events/${props.eventId}`);
@@ -43,7 +63,7 @@ function isActive(href: string) {
   return route.path === path || route.path.startsWith(`${path}/`);
 }
 
-const activeIndex = computed(() => tabs.findIndex((tab) => isActive(tab.href)));
+const activeIndex = computed(() => tabs.value.findIndex((tab) => isActive(tab.href)));
 const indicatorStyle = computed(() => ({
   opacity: indicator.value.ready ? '1' : '0',
   transform: `translate3d(${indicator.value.left}px, 0, 0)`,
@@ -90,6 +110,11 @@ onUnmounted(() => {
 });
 
 watch(() => route.path, () => {
+  void nextTick(updateIndicator);
+});
+
+watch(tabs, () => {
+  tabElements.value = [];
   void nextTick(updateIndicator);
 });
 </script>
