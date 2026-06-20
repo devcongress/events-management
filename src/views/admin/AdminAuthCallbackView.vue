@@ -3,7 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { fetchAdminSession } from '@/src/lib/api';
+import { fetchAdminSession, queryKeys } from '@/src/lib/api';
+import { queryClient } from '@/src/lib/query';
 
 const route = useRoute();
 const router = useRouter();
@@ -64,6 +65,16 @@ onMounted(async () => {
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { error?: string } | null;
         await redirectToLogin(payload?.error ?? 'Google organizer sign-in could not be completed. Please try again.');
+        return;
+      }
+
+      const session = await queryClient.fetchQuery({
+        queryKey: queryKeys.adminSession,
+        queryFn: fetchAdminSession,
+        staleTime: 0,
+      });
+      if (!session.authenticated) {
+        await redirectToLogin('Google organizer sign-in could not be completed. Please try again.');
         return;
       }
 

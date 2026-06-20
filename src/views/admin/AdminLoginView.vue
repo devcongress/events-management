@@ -3,7 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { fetchAdminSession } from '@/src/lib/api';
+import { fetchAdminSession, queryKeys } from '@/src/lib/api';
+import { queryClient } from '@/src/lib/query';
 import { notify } from '@/src/lib/notify';
 
 const route = useRoute();
@@ -68,6 +69,11 @@ async function login() {
       return;
     }
 
+    await queryClient.fetchQuery({
+      queryKey: queryKeys.adminSession,
+      queryFn: fetchAdminSession,
+      staleTime: 0,
+    });
     await router.push(redirectTo.value);
   } catch {
     notifyAdminLogin('error', 'Unable to sign in. Please check your connection and try again.', 7000);

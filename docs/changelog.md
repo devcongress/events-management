@@ -8,6 +8,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ## 2026-06-20 — Pages asset fallback fix
 
 - Updated the Cloudflare Pages worker so stale `/assets/*.js` requests no longer receive `index.html` as `text/html`, preventing strict module MIME failures after a deploy or during organizer sign-in redirects.
+- Refreshed the shared admin-session query immediately after local or Google organizer sign-in completes, preventing stale unauthenticated cache state from sending admins back through sign-in a second time.
 
 ## 2026-06-20 — Event lifecycle stage details
 
