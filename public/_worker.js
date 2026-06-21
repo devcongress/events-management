@@ -1,4 +1,4 @@
-const WORKER_API_ORIGIN = 'https://devcongress-comm-api.elvis-yt211.workers.dev';
+const WORKER_API_ORIGIN = 'https://events-management.admins-a7d.workers.dev';
 const STALE_ASSET_RELOAD_KEY = 'devcon-stale-asset-reload';
 
 async function proxyApiRequest(request) {

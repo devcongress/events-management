@@ -1,9 +1,9 @@
 # DevCongress Community
 
-[![CI](https://github.com/Elvis020/devCon-comm/actions/workflows/ci.yml/badge.svg)](https://github.com/Elvis020/devCon-comm/actions/workflows/ci.yml)
+[![CI](https://github.com/devcongress/events-management/actions/workflows/ci.yml/badge.svg)](https://github.com/devcongress/events-management/actions/workflows/ci.yml)
 [![Status](https://img.shields.io/badge/status-prototype-e8117f?style=flat-square)](docs/README.md)
-[![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-deployed-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://devcon-comm.pages.dev)
-[![Cloudflare Worker](https://img.shields.io/badge/Cloudflare%20Worker-deployed-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://devcongress-comm-api.elvis-yt211.workers.dev)
+[![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-deployed-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://events-management.pages.dev)
+[![Cloudflare Worker](https://img.shields.io/badge/Cloudflare%20Worker-deployed-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://events-management.admins-a7d.workers.dev)
 
 [![Vue 3](https://img.shields.io/badge/Vue-3-42b883?style=flat-square&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
