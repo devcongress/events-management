@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-21 — README documentation gateway
+
+- Shortened the root README into a contributor-friendly entry point that links into the centralized `docs/` folder instead of duplicating detailed product, setup, and feature guidance.
+- Kept quick-start commands, key capabilities, documentation tables, technology stack, contribution guidance, security, and license information in the root file.
+
 ## 2026-06-20 — Android mobile scroll fix
 
 - Released the mobile app shell from the desktop inner-scroll layout on every route, including organizer/admin pages, so Android Chrome can scroll the document normally.
