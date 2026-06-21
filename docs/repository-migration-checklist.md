@@ -25,14 +25,14 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 - [x] Reconnect the existing Pages project to `devcongress/events-management`, or create a new Pages project from the new repo.
 - [x] Keep build command as `pnpm build`.
 - [x] Keep build output directory as `dist`.
-- [ ] Deploy the repo changes through Cloudflare Pages so the Pages `_worker.js` proxy uses `https://events-management.admins-a7d.workers.dev`.
-- [ ] Re-add or verify Pages environment variables:
+- [x] Deploy the repo changes through Cloudflare Pages so the Pages `_worker.js` proxy uses `https://events-management.admins-a7d.workers.dev`.
+- [x] Re-add or verify Pages environment variables:
   - [x] `VITE_SUPABASE_URL`
   - [x] `VITE_SUPABASE_ANON_KEY`
-  - [ ] `VITE_ADMIN_BASE_PATH`
-  - [ ] `VITE_SHOW_ORGANIZER_LINK`
-  - [ ] `VITE_SHOW_FEEDBACK_BOT`
-  - [ ] `VITE_TURNSTILE_SITE_KEY`, if overriding the baked-in key
+  - [x] `VITE_ADMIN_BASE_PATH`
+  - [x] `VITE_SHOW_ORGANIZER_LINK`
+  - [x] `VITE_SHOW_FEEDBACK_BOT`
+  - [x] `VITE_TURNSTILE_SITE_KEY`, if overriding the baked-in key
 - [ ] Confirm preview and production branch settings match the new repo flow.
 
 ### Cloudflare Worker
@@ -48,28 +48,28 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 
 ### Cloudflare Secrets
 
-- [ ] Reconfirm Worker secrets after moving or redeploying:
-  - [ ] `SUPABASE_SERVICE_ROLE_KEY`
-  - [ ] `ADMIN_PASSWORD`
-  - [ ] `ADMIN_SESSION_SECRET`
-  - [ ] `VITE_SUPABASE_URL`
-  - [ ] `VITE_SUPABASE_ANON_KEY`
-  - [ ] `TURNSTILE_SECRET_KEY`, if Turnstile is enabled
-  - [ ] `TURNSTILE_EXPECTED_HOSTNAME`, if strict hostname checking is enabled
-- [ ] Keep server-only secrets off Cloudflare Pages environment variables.
+- [x] Reconfirm Worker secrets after moving or redeploying:
+  - [x] `SUPABASE_SERVICE_ROLE_KEY`
+  - [x] `ADMIN_PASSWORD`
+  - [x] `ADMIN_SESSION_SECRET`
+  - [x] `VITE_SUPABASE_URL`
+  - [x] `VITE_SUPABASE_ANON_KEY`
+  - [x] `TURNSTILE_SECRET_KEY`, if Turnstile is enabled
+  - [x] `TURNSTILE_EXPECTED_HOSTNAME`, if strict hostname checking is enabled
+- [x] Keep server-only secrets off Cloudflare Pages environment variables.
 
 ### Supabase Auth
 
-- [ ] If the public app URL changes, update Supabase Site URL.
-- [ ] If the public app URL changes, update Supabase redirect URLs.
-- [ ] Confirm organizer login still returns through `/api/auth/admin/callback`.
-- [ ] Confirm the Worker has `PUBLIC_APP_URL` pointing at the browser-facing Pages origin.
+- [x] If the public app URL changes, update Supabase Site URL.
+- [x] If the public app URL changes, update Supabase redirect URLs.
+- [x] Confirm organizer login still returns through `/api/auth/admin/callback`.
+- [x] Confirm the Worker has `PUBLIC_APP_URL` pointing at the browser-facing Pages origin.
 
 ### Google OAuth
 
-- [ ] If the Cloudflare Pages domain changes, update Google Cloud Authorized JavaScript origins.
-- [ ] Keep the Supabase callback URI as the Google Authorized redirect URI.
-- [ ] Run an organizer Google sign-in smoke test after Cloudflare and Supabase URL changes.
+- [x] If the Cloudflare Pages domain changes, update Google Cloud Authorized JavaScript origins.
+- [x] Keep the Supabase callback URI as the Google Authorized redirect URI.
+- [x] Run an organizer Google sign-in smoke test after Cloudflare and Supabase URL changes.
 
 ## Should Update
 
@@ -78,14 +78,15 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 - [x] If the hostname changes, update Cloudflare Turnstile allowed domains.
 - [x] If strict hostname checking is enabled, update `TURNSTILE_EXPECTED_HOSTNAME`.
 - [ ] Test the floating feedback bot or `/feedback` page after deployment.
+  - 2026-06-21: `/feedback` renders the Turnstile widget with the old fallback site key, but Cloudflare returns client error `110200`. The Worker-side `TURNSTILE_SECRET_KEY` and `TURNSTILE_EXPECTED_HOSTNAME` are set for `events-management`; set the matching public site key as `VITE_TURNSTILE_SITE_KEY` in Cloudflare Pages and redeploy Pages.
 
 ### Docs
 
-- [ ] Update `docs/deployment-cloudflare-supabase.md` with the final repo and Cloudflare project names.
-- [ ] Update `docs/auth.md` if the production app URL or OAuth setup changes.
-- [ ] Update `docs/reference/environment-variables.md` if required variables change.
+- [x] Update `docs/deployment-cloudflare-supabase.md` with the final repo and Cloudflare project names.
+- [x] Update `docs/auth.md` if the production app URL or OAuth setup changes.
+- [x] Update `docs/reference/environment-variables.md` if required variables change.
 - [x] Update README badges and deployment links.
-- [ ] Update `docs/changelog.md` when migration milestones land.
+- [x] Update `docs/changelog.md` when migration milestones land.
 
 ### Git Local Setup
 
@@ -112,17 +113,17 @@ git push -u events-management feature/some-work
 
 ### Package Name
 
-- [ ] Decide whether to rename `package.json` from `devcon-comm` to `events-management`.
-- [ ] If renamed, check generated artifacts, lockfile metadata, deployment dashboards, and docs for name references.
+- [x] Decide whether to rename `package.json` from `devcon-comm` to `events-management`.
+- [x] If renamed, check generated artifacts, lockfile metadata, deployment dashboards, and docs for name references.
 
 ## Final Verification
 
-- [ ] New repo `main` receives CI runs.
+- [x] New repo `main` receives CI runs.
 - [x] Cloudflare Pages deploys from `devcongress/events-management`.
-- [ ] Cloudflare Pages frontend can call same-origin `/api/*` through the new `events-management` Worker proxy.
+- [x] Cloudflare Pages frontend can call same-origin `/api/*` through the new `events-management` Worker proxy.
 - [x] `/api/health/supabase` passes.
 - [x] `/api/auth/session` reports hosted Supabase auth when deployed.
-- [ ] Organizer Google login works.
+- [x] Organizer Google login works.
 - [x] Public meetup API returns `200` from the final Cloudflare URL.
 - [ ] Public meetup API contract verifier passes against the final Cloudflare URL:
 
@@ -130,6 +131,9 @@ git push -u events-management feature/some-work
 PUBLIC_API_BASE_URL=https://events-management.pages.dev pnpm verify:public-api
 ```
 
+  - 2026-06-21: Local code passes `pnpm verify:public-api`, sends public cache headers, and keeps `/api/public/*` on wildcard CORS; rerun against Cloudflare after redeploy.
+
 - [x] Public pages load from the final Cloudflare URL.
 - [ ] Feedback bot or `/feedback` can submit when Turnstile is configured.
+  - Blocked by Turnstile client error `110200` on `events-management.pages.dev`.
 - [ ] Old repo/deploy path is intentionally archived, redirected, or left as a known fallback.

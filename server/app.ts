@@ -158,13 +158,22 @@ app.use('/api/public/*', cors({
   maxAge: 86400,
 }));
 
-app.use('/api/*', cors({
+const credentialedApiCors = cors({
   origin: corsOrigin,
   allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type'],
   credentials: true,
   maxAge: 86400,
-}));
+});
+
+app.use('/api/*', async (c, next) => {
+  if (c.req.path.startsWith('/api/public/')) {
+    await next();
+    return;
+  }
+
+  await credentialedApiCors(c, next);
+});
 
 async function getAllEvents(c?: Context): Promise<Event[]> {
   return (await getSupabaseCommunityEvents(c)) ?? getAllMockEvents();
@@ -316,7 +325,7 @@ async function findExistingLumaEvent(lumaEvent: LumaImportDraft, c: Context): Pr
 }
 
 function setPublicApiCache(c: Context) {
-  c.header('Cache-Control', 'no-store');
+  c.header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
 }
 
 function slugify(value: string): string {
