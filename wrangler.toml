@@ -1,4 +1,4 @@
-name = "devcongress-comm-api"
+name = "events-management"
 main = "server/worker.ts"
 compatibility_date = "2026-06-15"
 compatibility_flags = ["nodejs_compat"]
