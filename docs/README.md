@@ -29,12 +29,14 @@ This folder keeps the README lightweight. Use this page to find the right level 
 | [Routes](reference/routes.md) | Locate public, organizer, and API routes |
 | [Environment Variables](reference/environment-variables.md) | Configure local or deployed environments |
 | [Deployment Plan](deployment-cloudflare-supabase.md) | Understand the Cloudflare/Supabase direction |
+| [Repository Migration Checklist](repository-migration-checklist.md) | Track the move from the old GitHub repo to `devcongress/events-management` |
 
 ## For Maintainers
 
 | Read | Why |
 |---|---|
 | [Decisions](decisions.md) | Review architectural decisions and tradeoffs |
+| [Repository Migration Checklist](repository-migration-checklist.md) | Update repo, Cloudflare, Supabase, and OAuth migration tasks |
 | [Migration Parity](migration-parity.md) | Track remaining Next-to-Vue parity work |
 | [Technical Debt](reference/technical-debt.md) | Prioritized debt register for production readiness and contributor issue planning |
 | [Changelog](changelog.md) | Keep feature-level history current |

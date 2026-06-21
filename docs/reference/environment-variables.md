@@ -18,7 +18,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `PUBLIC_APP_URL` | No | Yes | Absolute public app origin used for server-generated auth and public integration links |
 | `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS, for example the Cloudflare Pages URL |
 | `TURNSTILE_SECRET_KEY` | No | No | Server-only Cloudflare Turnstile secret used by `/api/feedback` to validate feedback-form tokens |
-| `TURNSTILE_EXPECTED_HOSTNAME` | No | No | Optional strict hostname check for Turnstile verification, for example `devcon-comm.pages.dev` in production |
+| `TURNSTILE_EXPECTED_HOSTNAME` | No | No | Optional strict hostname check for Turnstile verification, for example `events-management.pages.dev` in production |
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 
 ## Rules

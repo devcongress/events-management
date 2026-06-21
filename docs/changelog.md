@@ -5,6 +5,17 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-21 — Cloudflare migration wiring
+
+- Updated repository configuration and docs to point at the new DevCongress Cloudflare Pages and Worker deployment URLs.
+- Renamed the Wrangler Worker target from `devcongress-comm-api` to `events-management` and updated the Pages API proxy origin.
+- Marked the completed GitHub, Pages, Worker URL, health-check, auth-mode, Turnstile hostname, and README-link migration tasks in the repository migration checklist.
+
+## 2026-06-21 — Repository migration checklist
+
+- Added a central checklist for moving active development from `Elvis020/devCon-comm` to `devcongress/events-management`, covering GitHub, Cloudflare, Supabase Auth, Google OAuth, Turnstile, docs, and final smoke checks.
+- Linked the checklist from the documentation map for integrators and maintainers.
+
 ## 2026-06-21 — README documentation gateway
 
 - Shortened the root README into a contributor-friendly entry point that links into the centralized `docs/` folder instead of duplicating detailed product, setup, and feature guidance.

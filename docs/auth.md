@@ -64,7 +64,7 @@ Configure Google in Supabase Dashboard → Authentication → Sign In / Provider
 Required setup:
 
 1. In Google Cloud, create a Web OAuth client.
-2. Add your app origins to Authorized JavaScript origins, for example `https://devcon-comm.pages.dev` and `http://localhost:5173`.
+2. Add your app origins to Authorized JavaScript origins, for example `https://events-management.pages.dev` and `http://localhost:5173`.
 3. Add the Supabase-hosted callback URI shown on the Google provider page to Authorized redirect URIs.
 4. Paste the Google client id and client secret into the Supabase Google provider settings.
 5. Keep Supabase Site URL pointed at the deployed app origin so post-auth redirects return to the organizer surface.

@@ -13,7 +13,7 @@ describe('turnstile validation', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({
       success: true,
       action: ROUTE_FEEDBACK_TURNSTILE_ACTION,
-      hostname: 'devcon-comm.pages.dev',
+      hostname: 'events-management.pages.dev',
       'error-codes': [],
     })));
 
@@ -22,7 +22,7 @@ describe('turnstile validation', () => {
       secretKey: 'secret-123',
       remoteIp: '127.0.0.1',
       expectedAction: ROUTE_FEEDBACK_TURNSTILE_ACTION,
-      expectedHostname: 'devcon-comm.pages.dev',
+      expectedHostname: 'events-management.pages.dev',
     });
 
     expect(result).toEqual({ ok: true });
@@ -51,7 +51,7 @@ describe('turnstile validation', () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({
       success: true,
       action: 'wrong-action',
-      hostname: 'devcon-comm.pages.dev',
+      hostname: 'events-management.pages.dev',
       'error-codes': [],
     })));
 
@@ -59,7 +59,7 @@ describe('turnstile validation', () => {
       token: 'token-123',
       secretKey: 'secret-123',
       expectedAction: ROUTE_FEEDBACK_TURNSTILE_ACTION,
-      expectedHostname: 'devcon-comm.pages.dev',
+      expectedHostname: 'events-management.pages.dev',
     });
 
     expect(result).toEqual({

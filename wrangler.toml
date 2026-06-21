@@ -1,11 +1,12 @@
-name = "devcongress-comm-api"
+name = "events-management"
 main = "server/worker.ts"
 compatibility_date = "2026-06-15"
 compatibility_flags = ["nodejs_compat"]
+keep_vars = true
 
 [vars]
-PUBLIC_APP_URL = "https://devcon-comm.pages.dev"
-PUBLIC_FRONTEND_ORIGIN = "https://devcon-comm.pages.dev"
+PUBLIC_APP_URL = "https://events-management.pages.dev"
+PUBLIC_FRONTEND_ORIGIN = "https://events-management.pages.dev"
 
 [observability]
 enabled = true

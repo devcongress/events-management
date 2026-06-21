@@ -122,7 +122,7 @@ Pages environment variables:
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
 | `VITE_ADMIN_BASE_PATH` | Organizer base path, for example `/organizer-console` |
 | `VITE_SHOW_ORGANIZER_LINK` | `true` or `false` |
-| `VITE_API_BASE_URL` | Worker URL, for example `https://devcongress-comm-api.<account>.workers.dev` |
+| `VITE_API_BASE_URL` | Worker URL, for example `https://events-management.admins-a7d.workers.dev` |
 
 Deploy the API Worker separately:
 
