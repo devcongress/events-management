@@ -9,7 +9,9 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 - Updated repository configuration and docs to point at the new DevCongress Cloudflare Pages and Worker deployment URLs.
 - Renamed the Wrangler Worker target from `devcongress-comm-api` to `events-management` and updated the Pages API proxy origin.
-- Marked the completed GitHub, Pages, Worker URL, health-check, auth-mode, Turnstile hostname, and README-link migration tasks in the repository migration checklist.
+- Marked the completed GitHub, Pages, Worker URL, Worker secrets, Supabase Auth, Google OAuth, health-check, auth-mode, Turnstile hostname, and README-link migration tasks in the repository migration checklist.
+- Recorded the remaining Turnstile feedback-form blocker: the live `/feedback` widget returns client error `110200` for the compiled site key on the new Pages hostname.
+- Renamed the package metadata to `events-management` and restored the public meetup API's cache/CORS headers so the website integration verifier can pass after redeploy.
 
 ## 2026-06-21 — Repository migration checklist
 
