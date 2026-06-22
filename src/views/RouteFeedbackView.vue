@@ -21,6 +21,10 @@ const turnstileToken = ref('');
 const turnstileError = ref<string | null>(null);
 const FEEDBACK_MAX_LENGTH = 4000;
 const FEEDBACK_TEXTAREA_MAX_HEIGHT = 240;
+const FEEDBACK_SUBMISSIONS_KEY = 'devcon-feedback-bot-submissions';
+const FEEDBACK_COOLDOWN_MS = 10 * 60 * 1000;
+const FEEDBACK_DAILY_LIMIT = 3;
+const FEEDBACK_DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const feedbackTypeSelectOptions = [
   { value: FEEDBACK_TYPE_PLACEHOLDER, label: 'Select feedback type' },
@@ -43,12 +47,66 @@ const validationMessage = computed(() => {
 });
 const canSubmit = computed(() => feedbackFormValidation.value.success
   && !submitting.value
+  && !feedbackLimitMessage.value
   && (!turnstileActive || turnstileToken.value.length > 0));
 const feedbackLengthLabel = computed(() => `${message.value.length}/${FEEDBACK_MAX_LENGTH}`);
 const pagePath = computed(() => {
   const from = route.query.from;
   return typeof from === 'string' && from ? from : route.fullPath;
 });
+const feedbackLimitMessage = computed(() => {
+  const recent = recentSubmissionTimestamps();
+  const latest = recent[0] ?? 0;
+  const cooldownRemaining = latest + FEEDBACK_COOLDOWN_MS - Date.now();
+
+  if (cooldownRemaining > 0) {
+    const minutes = Math.max(1, Math.ceil(cooldownRemaining / 60000));
+    return `Feedback received. You can send another note in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+  }
+
+  if (recent.length >= FEEDBACK_DAILY_LIMIT) {
+    return 'Thanks for all the notes. This browser has reached today\'s feedback limit.';
+  }
+
+  return '';
+});
+const feedbackReceiptMessages = computed(() => {
+  const messages: string[] = [];
+
+  if (submitted.value) {
+    messages.push('Feedback sent. Thank you.');
+  }
+
+  if (feedbackLimitMessage.value) {
+    messages.push(feedbackLimitMessage.value);
+  }
+
+  return messages;
+});
+const hasFeedbackReceipt = computed(() => feedbackReceiptMessages.value.length > 0);
+
+function recentSubmissionTimestamps(now = Date.now()) {
+  return readSubmissionTimestamps()
+    .filter((timestamp) => Number.isFinite(timestamp) && now - timestamp < FEEDBACK_DAILY_WINDOW_MS)
+    .sort((a, b) => b - a);
+}
+
+function readSubmissionTimestamps() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FEEDBACK_SUBMISSIONS_KEY) ?? '[]');
+    return Array.isArray(parsed)
+      ? parsed.filter((value) => typeof value === 'number' && Number.isFinite(value))
+      : [];
+  } catch {
+    window.localStorage.removeItem(FEEDBACK_SUBMISSIONS_KEY);
+    return [];
+  }
+}
+
+function recordSuccessfulSubmission() {
+  const timestamps = [Date.now(), ...recentSubmissionTimestamps()];
+  window.localStorage.setItem(FEEDBACK_SUBMISSIONS_KEY, JSON.stringify(timestamps));
+}
 
 function syncFeedbackTextareaHeight() {
   const element = feedbackTextarea.value;
@@ -73,7 +131,7 @@ async function submitFeedback() {
   const formValidation = feedbackFormValidation.value;
 
   if (!canSubmit.value || !formValidation.success) {
-    error.value = turnstileError.value || validationMessage.value || null;
+    error.value = turnstileError.value || feedbackLimitMessage.value || validationMessage.value || null;
     return;
   }
 
@@ -106,6 +164,7 @@ async function submitFeedback() {
     }
 
     submitted.value = true;
+    recordSuccessfulSubmission();
     message.value = '';
     feedbackType.value = FEEDBACK_TYPE_PLACEHOLDER;
     name.value = '';
@@ -144,16 +203,25 @@ watch([name, feedbackType], () => {
     <div class="route-feedback-wrap mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8 lg:py-12">
       <header class="route-feedback-header">
         <p class="editorial-eyebrow">field notes</p>
-        <h1 class="text-3xl font-black tracking-tight text-dc-ink sm:text-5xl">Tell us what felt off.</h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray sm:text-base">
+        <h1 class="text-3xl font-black tracking-tight text-dc-ink sm:text-5xl">
+          {{ hasFeedbackReceipt ? 'Feedback received.' : 'Tell us what felt off.' }}
+        </h1>
+        <p v-if="!hasFeedbackReceipt" class="mt-3 text-sm leading-6 text-dc-gray sm:text-base">
           Send quick feedback about this app. Bugs, confusing moments, and suggestions all help shape the next pass.
         </p>
       </header>
 
-      <section v-if="submitted" class="editorial-panel mt-5 p-5">
-        <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">feedback sent</p>
-        <h2 class="mt-2 text-2xl font-black text-dc-ink">Thank you.</h2>
-        <p class="mt-2 text-sm leading-6 text-dc-gray">Your note is in the organizer inbox.</p>
+      <section v-if="hasFeedbackReceipt" class="editorial-panel mt-5 p-5" role="status" aria-live="polite">
+        <div class="grid gap-3">
+          <p class="font-mono text-[11px] uppercase tracking-wide text-dc-gray">
+            Page: <span class="feedback-bot-route break-all">{{ pagePath }}</span>
+          </p>
+          <div class="feedback-bot-receipt-copy">
+            <p v-for="receiptMessage in feedbackReceiptMessages" :key="receiptMessage">
+              {{ receiptMessage }}
+            </p>
+          </div>
+        </div>
         <RouterLink to="/" class="editorial-secondary-action mt-5">Back Home</RouterLink>
       </section>
 

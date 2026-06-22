@@ -4082,6 +4082,21 @@
     margin-top: 1.25rem;
   }
 
+  .feedback-bot-receipt {
+    display: grid;
+    gap: 0.85rem;
+    margin-top: 1.25rem;
+  }
+
+  .feedback-bot-receipt-copy {
+    display: grid;
+    gap: 0.35rem;
+    color: #111111;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
   .feedback-bot-actions {
     position: relative;
     z-index: 1;
