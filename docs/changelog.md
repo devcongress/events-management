@@ -5,6 +5,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-22 — Migration verification wrap-up
+
+- Switched this checkout's `origin` remote and branch tracking to `devcongress/events-management` now that the new repo is the active home.
+- Re-ran the public meetup API contract verifier against `https://events-management.pages.dev` and confirmed the deployed Cloudflare app passes.
+- Cleared the remaining Turnstile migration blocker after verifying both the floating feedback bot and the standalone `/feedback` route can submit on the final Pages hostname.
+
 ## 2026-06-21 — Cloudflare migration wiring
 
 - Updated repository configuration and docs to point at the new DevCongress Cloudflare Pages and Worker deployment URLs.
@@ -12,6 +18,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Marked the completed GitHub, Pages, Worker URL, Worker secrets, Supabase Auth, Google OAuth, health-check, auth-mode, Turnstile hostname, and README-link migration tasks in the repository migration checklist.
 - Recorded the remaining Turnstile feedback-form blocker: the live `/feedback` widget returns client error `110200` for the compiled site key on the new Pages hostname.
 - Renamed the package metadata to `events-management` and restored the public meetup API's cache/CORS headers so the website integration verifier can pass after redeploy.
+- Collapsed both the floating feedback bot and the standalone `/feedback` route into a high-contrast receipt-only state after a browser sends feedback or enters the cooldown window.
 
 ## 2026-06-21 — Repository migration checklist
 

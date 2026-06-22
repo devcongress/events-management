@@ -77,8 +77,8 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 
 - [x] If the hostname changes, update Cloudflare Turnstile allowed domains.
 - [x] If strict hostname checking is enabled, update `TURNSTILE_EXPECTED_HOSTNAME`.
-- [ ] Test the floating feedback bot or `/feedback` page after deployment.
-  - 2026-06-21: `/feedback` renders the Turnstile widget with the old fallback site key, but Cloudflare returns client error `110200`. The Worker-side `TURNSTILE_SECRET_KEY` and `TURNSTILE_EXPECTED_HOSTNAME` are set for `events-management`; set the matching public site key as `VITE_TURNSTILE_SITE_KEY` in Cloudflare Pages and redeploy Pages.
+- [x] Test the floating feedback bot or `/feedback` page after deployment.
+  - 2026-06-22: `/feedback` and the floating feedback bot submit successfully on `events-management.pages.dev` after the final Turnstile site key update.
 
 ### Docs
 
@@ -90,23 +90,23 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 
 ### Git Local Setup
 
-- [ ] Once the new repo is the real home, change `origin`:
+- [x] Once the new repo is the real home, change `origin`:
 
 ```bash
 git remote set-url origin git@github.com:devcongress/events-management.git
 ```
 
-- [ ] After changing `origin`, verify:
+- [x] After changing `origin`, verify:
 
 ```bash
 git remote -v
 git branch -vv
 ```
 
-- [ ] Until then, keep `origin` as the old repo and push new-repo branches explicitly:
+- [x] Local branches now track the new repo through `origin`.
 
 ```bash
-git push -u events-management feature/some-work
+git push -u origin feature/some-work
 ```
 
 ## Probably Optional
@@ -125,15 +125,15 @@ git push -u events-management feature/some-work
 - [x] `/api/auth/session` reports hosted Supabase auth when deployed.
 - [x] Organizer Google login works.
 - [x] Public meetup API returns `200` from the final Cloudflare URL.
-- [ ] Public meetup API contract verifier passes against the final Cloudflare URL:
+- [x] Public meetup API contract verifier passes against the final Cloudflare URL:
 
 ```bash
 PUBLIC_API_BASE_URL=https://events-management.pages.dev pnpm verify:public-api
 ```
 
-  - 2026-06-21: Local code passes `pnpm verify:public-api`, sends public cache headers, and keeps `/api/public/*` on wildcard CORS; rerun against Cloudflare after redeploy.
+  - 2026-06-22: Passed against Cloudflare with `ok: true`, `meetups: 8`, and `checked_slug: devcongress-july-meetup-mqlvyz26`.
 
 - [x] Public pages load from the final Cloudflare URL.
-- [ ] Feedback bot or `/feedback` can submit when Turnstile is configured.
-  - Blocked by Turnstile client error `110200` on `events-management.pages.dev`.
+- [x] Feedback bot or `/feedback` can submit when Turnstile is configured.
+  - 2026-06-22: Verified after the final Pages Turnstile site key update.
 - [ ] Old repo/deploy path is intentionally archived, redirected, or left as a known fallback.

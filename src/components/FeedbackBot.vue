@@ -83,6 +83,20 @@ const feedbackLimitMessage = computed(() => {
 
   return '';
 });
+const feedbackReceiptMessages = computed(() => {
+  const messages: string[] = [];
+
+  if (submitted.value) {
+    messages.push('Feedback sent. Thank you.');
+  }
+
+  if (feedbackLimitMessage.value) {
+    messages.push(feedbackLimitMessage.value);
+  }
+
+  return messages;
+});
+const hasFeedbackReceipt = computed(() => feedbackReceiptMessages.value.length > 0);
 const botBubbleText = computed(() => submitted.value ? 'Feedback received. We will check it out.' : 'Got feedback?');
 const botAriaLabel = computed(() => submitted.value ? 'Feedback received' : 'Open feedback bot');
 let feedbackLimitTimer: number | undefined;
@@ -281,14 +295,27 @@ onUnmounted(() => {
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-dc-yellow">field notes</p>
-            <h2 class="mt-2 text-xl font-black tracking-tight text-white">Tell me what felt off.</h2>
+            <h2 class="mt-2 text-xl font-black tracking-normal text-[#111111]">
+              {{ hasFeedbackReceipt ? 'Feedback received.' : 'Tell me what felt off.' }}
+            </h2>
           </div>
           <button class="feedback-bot-icon-button" type="button" aria-label="Close feedback" @click="snoozeFeedbackBot">
             <span aria-hidden="true">x</span>
           </button>
         </div>
 
-        <form class="feedback-bot-form" @submit.prevent="submitFeedback">
+        <div v-if="hasFeedbackReceipt" class="feedback-bot-receipt" role="status" aria-live="polite">
+          <p class="font-mono text-[11px] uppercase tracking-wide text-dc-gray">
+            Page: <span class="feedback-bot-route break-all">{{ route.fullPath }}</span>
+          </p>
+          <div class="feedback-bot-receipt-copy">
+            <p v-for="receiptMessage in feedbackReceiptMessages" :key="receiptMessage">
+              {{ receiptMessage }}
+            </p>
+          </div>
+        </div>
+
+        <form v-else class="feedback-bot-form" @submit.prevent="submitFeedback">
           <div class="feedback-bot-form-body space-y-4">
             <div class="space-y-3">
               <label class="block">
@@ -353,12 +380,6 @@ onUnmounted(() => {
             </div>
             <div v-else-if="turnstileError" class="rounded-md border border-red-500/30 bg-red-950/20 p-3 text-sm text-red-100">
               {{ turnstileError }}
-            </div>
-            <div v-if="feedbackLimitMessage" class="rounded-md border border-dc-yellow/30 bg-dc-yellow/[0.08] p-3 text-sm text-dc-yellow">
-              {{ feedbackLimitMessage }}
-            </div>
-            <div v-if="submitted" class="rounded-md border border-dc-yellow/25 bg-dc-yellow/[0.07] p-3 text-sm text-dc-yellow">
-              Feedback sent. Thank you.
             </div>
           </div>
 
