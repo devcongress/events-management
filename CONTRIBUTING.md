@@ -28,7 +28,7 @@ Thank you for helping improve DevCongress Community. This app is built for a rea
 
 ```bash
 git clone <repository-url>
-cd devcongress-comm-idea
+cd events-management
 pnpm install
 cp .env.example .env.local
 pnpm seed
