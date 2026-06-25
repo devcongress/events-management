@@ -5,6 +5,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-25 — Migration closeout
+
+- Archived the old `Elvis020/devCon-comm` GitHub repository now that `devcongress/events-management` is the active home.
+- Confirmed Cloudflare Pages production deployments are still coming from `main`, with the latest listed source commit present in the new repository, while documenting the historical `devcon-comm` Pages project name.
+- Updated the contributor setup path from the old local folder name to `events-management` and re-ran the deployed public meetup API verifier against the final Pages URL.
+
 ## 2026-06-22 — Migration verification wrap-up
 
 - Switched this checkout's `origin` remote and branch tracking to `devcongress/events-management` now that the new repo is the active home.

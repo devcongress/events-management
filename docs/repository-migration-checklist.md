@@ -33,7 +33,8 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
   - [x] `VITE_SHOW_ORGANIZER_LINK`
   - [x] `VITE_SHOW_FEEDBACK_BOT`
   - [x] `VITE_TURNSTILE_SITE_KEY`, if overriding the baked-in key
-- [ ] Confirm preview and production branch settings match the new repo flow.
+- [x] Confirm preview and production branch settings match the new repo flow.
+  - 2026-06-25: `wrangler pages deployment list --project-name devcon-comm` shows production deployments from `main`; the latest listed source commit `27f5981` exists in `devcongress/events-management`. The Cloudflare Pages project still uses the historical project name/domain `devcon-comm`, while the browser-facing app URL remains `https://events-management.pages.dev`.
 
 ### Cloudflare Worker
 
@@ -132,8 +133,10 @@ PUBLIC_API_BASE_URL=https://events-management.pages.dev pnpm verify:public-api
 ```
 
   - 2026-06-22: Passed against Cloudflare with `ok: true`, `meetups: 8`, and `checked_slug: devcongress-july-meetup-mqlvyz26`.
+  - 2026-06-25: Re-checked with the direct `tsx` verifier against `https://events-management.pages.dev`; passed with `ok: true`, `meetups: 8`, `checked_slug: devcongress-july-meetup-mqlvyz26`, and `talks: 0`.
 
 - [x] Public pages load from the final Cloudflare URL.
 - [x] Feedback bot or `/feedback` can submit when Turnstile is configured.
   - 2026-06-22: Verified after the final Pages Turnstile site key update.
-- [ ] Old repo/deploy path is intentionally archived, redirected, or left as a known fallback.
+- [x] Old repo/deploy path is intentionally archived, redirected, or left as a known fallback.
+  - 2026-06-25: Archived the old GitHub repository `Elvis020/devCon-comm`; active development now lives in `devcongress/events-management`. The historical Cloudflare Pages project name/domain `devcon-comm` remains as an implementation detail behind the final browser-facing app URL.
