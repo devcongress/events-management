@@ -15,7 +15,7 @@ DevCon-Comm uses Supabase Auth with Google OAuth for hosted organizer access and
 9. The callback route clears the browser Supabase session and redirects into the organizer console.
 10. Organizer APIs call `requireAdmin`, which validates the session cookie, active membership, role, and request origin.
 
-The browser Supabase client uses PKCE storage so the code verifier survives the external Google redirect. After the app-owned session cookie is created, the callback signs out of Supabase in the browser. The app cookie contains only an opaque random session token; the hashed token is stored in Supabase.
+The browser Supabase client uses tab-scoped `sessionStorage` for PKCE storage so the code verifier survives the external Google redirect without being shared across multiple organizer tabs. After the app-owned session cookie is created, the callback signs out of Supabase in the browser. The app cookie contains only an opaque random session token; the hashed token is stored in Supabase.
 
 The login screen stores the intended organizer destination in session storage before starting Google OAuth. If Supabase falls back to the configured Site URL and returns the OAuth code to a public route, the router forwards that code to `/organizer-console/auth/callback` and resumes the organizer sign-in flow.
 
