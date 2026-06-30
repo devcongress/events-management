@@ -69,5 +69,9 @@ export function attendanceUploadWindowForEvent(event: Pick<Event, 'event_date' |
     return { available: true, reason: null, unlocks_at: null };
   }
 
-  return attendanceUploadWindowForMonth(attendanceMonthForDate(event.event_date), now);
+  return {
+    available: false,
+    reason: 'Attendance CSV upload opens after this event ends.',
+    unlocks_at: event.end_date ?? null,
+  };
 }

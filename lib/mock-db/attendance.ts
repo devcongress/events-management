@@ -1,5 +1,5 @@
 import { parseLumaAttendanceCsv, summarizeAttendance } from '@/lib/luma-attendance';
-import { attendanceUploadWindowForMonth } from '@/lib/attendance-upload-window';
+import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { generateId, now } from '@/lib/utils';
 import type { AttendanceBreakdownItem, AttendanceLedgerMonth, AttendanceLedgerMonthEvent, AttendanceMonthlyInsights, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
@@ -142,8 +142,7 @@ export function buildAttendanceLedger(events: Event[], imports: EventAttendanceI
     .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
     .map((event) => {
       const attendanceImport = importsByEvent.get(event.id) ?? null;
-      const attendanceMonth = attendanceImport?.attendance_month ?? attendanceMonthForEvent(event);
-      const uploadWindow = attendanceUploadWindowForMonth(attendanceMonth);
+      const uploadWindow = attendanceUploadWindowForEvent(event);
 
       return {
         event,

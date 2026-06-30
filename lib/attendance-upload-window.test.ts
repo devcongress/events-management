@@ -39,7 +39,7 @@ describe('attendance upload window', () => {
     });
   });
 
-  it('keeps a current-month event locked before it ends', () => {
+  it('keeps an event locked before it ends', () => {
     const window = attendanceUploadWindowForEvent({
       status: 'upcoming',
       event_date: '2026-06-30T18:00:00Z',
@@ -48,7 +48,22 @@ describe('attendance upload window', () => {
 
     expect(window).toMatchObject({
       available: false,
-      reason: 'Attendance CSV upload is not open for the current meetup month.',
+      reason: 'Attendance CSV upload opens after this event ends.',
+      unlocks_at: '2026-06-30T21:00:00Z',
+    });
+  });
+
+  it('keeps a next-month event locked even after this month last Saturday', () => {
+    const window = attendanceUploadWindowForEvent({
+      status: 'upcoming',
+      event_date: '2026-07-25T10:00:00Z',
+      end_date: '2026-07-25T15:00:00Z',
+    }, new Date('2026-06-30T12:00:00Z'));
+
+    expect(window).toMatchObject({
+      available: false,
+      reason: 'Attendance CSV upload opens after this event ends.',
+      unlocks_at: '2026-07-25T15:00:00Z',
     });
   });
 
