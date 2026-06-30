@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-30 — Attendance event gate fix
+
+- Kept event attendance CSV import locked until the actual meetup has ended, so next-month events no longer become uploadable just because the previous month reached its last Saturday.
+- Applied the same event-completion gate to Attendance Hub rows so future meetup months show as not open and do not expose upload actions early.
+
 ## 2026-06-30 — Audit log page polish
 
 - Scoped Supabase organizer OAuth PKCE storage to the current browser tab so parallel organizer sign-in attempts cannot overwrite each other's verifier before callback.
