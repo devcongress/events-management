@@ -45,3 +45,8 @@ next-env.d.ts
 
 # uploaded files
 /public/uploads/
+
+# local agent/indexer/security scan artifacts
+/.codebase-indexer/
+/.sentinel/
+/.codex/

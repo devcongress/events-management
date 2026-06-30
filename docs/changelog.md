@@ -7,6 +7,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-06-30 — Audit log page polish
 
+- Scoped Supabase organizer OAuth PKCE storage to the current browser tab so parallel organizer sign-in attempts cannot overwrite each other's verifier before callback.
 - Removed the redundant open-state badge from Feedback Hub event rows while keeping preview and QR actions as the explicit ways to access forms.
 - Routed upcoming-event `Prepare` actions to the event overview instead of the paused quiz page so the Overview tab is highlighted after navigation.
 - Increased spacing between event-list primary actions and the destructive Remove control so organizers are less likely to misclick while reviewing events.
