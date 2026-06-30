@@ -17,8 +17,13 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 | `GET /api/public/meetups` | Lists public meetup summaries and page data |
 | `GET /api/public/meetups/:slug` | Returns one meetup by slug or event id |
 | `GET /api/public/meetups/:slug/talks` | Returns the published talks for a meetup |
+| `GET /api/public/archive` | Returns completed published meetup archive cards plus public talk metadata |
+| `GET /api/public/archive/:eventId` | Returns one completed published meetup archive entry with public talks and feedback availability |
+| `GET /api/public/home` | Returns the public homepage counts and recent published talks |
 
-All public meetup endpoints:
+Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
+
+All public `/api/public/*` endpoints:
 
 - are unauthenticated read-only endpoints
 - send permissive CORS headers for static-site consumption
@@ -70,6 +75,8 @@ The meetup DTO follows the current `devcongress.org` Astro meetup schema where p
 - `location.url`, `stream_url`, `registration_url`, speaker images, schedule resource URLs, videos, `cfp_url`, and `archive_url` are full URLs when present.
 - `cover` and `photos[].url` may be app-relative paths because the Astro schema allows relative image paths.
 - `photos[]` supports direct image links and shared gallery/folder links. Each item uses `{ "url": string, "type": "image" | "folder" }`.
+- `schedule[]` carries public system-design rows too, including recap copy in `description` and prompt-deck links in `resources`, so archive or meetup pages can render that content inline without a separate system-design endpoint.
+- When a meetup keeps a generic outline slot such as `System Design session`, that same `schedule[]` row can also carry an optional `system_design_title` so the app can keep the public scenario title and prompt-deck metadata attached to the real session slot instead of creating a duplicate outline row.
 - Supabase rows are exposed only when `publish_to_website` is true.
 
 The consuming website should resolve relative image paths against this app's deployed origin.

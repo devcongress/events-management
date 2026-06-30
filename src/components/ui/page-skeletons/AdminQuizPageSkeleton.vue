@@ -5,7 +5,7 @@
         <div class="skeleton-form-card skeleton-form-card--tall" />
         <div class="skeleton-panel overflow-hidden">
           <div class="skeleton-panel-header" />
-          <div v-for="item in 4" :key="item" class="skeleton-row skeleton-row--question">
+          <div v-for="item in 3" :key="item" class="skeleton-row skeleton-row--question">
             <div class="skeleton-line skeleton-line--two-thirds" />
             <div class="mt-4 grid gap-3 sm:grid-cols-4">
               <div v-for="option in 4" :key="option" class="skeleton-option" />

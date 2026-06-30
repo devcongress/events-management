@@ -9,7 +9,7 @@ import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { ROUTE_FEEDBACK_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
-import { getEventChecklist, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
+import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
@@ -17,6 +17,7 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
+import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired } from '@/lib/mock-db/speaker-intake-links';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
@@ -27,14 +28,22 @@ import { getPublicLumaEventByUrl, type LumaImportDraft } from '@/lib/luma/events
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
+import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
+import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
+import { withRequestEnv } from '@/server/request-env';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
-import type { Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, Talk, User } from '@/types';
+import type { Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, SpeakerIntakeLink, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 const app = new Hono();
+
+app.use('*', async (c, next) => {
+  return withRequestEnv(c.env as Record<string, unknown> | undefined, next);
+});
+
 const PUBLIC_MEETUP_COVERS = [
   '/images/apr-meetup.jpg',
   '/images/fido-dev-0375.jpg',
@@ -63,6 +72,11 @@ const lumaImportSchema = z.object({
   event_url: z.string().trim().url(),
   series_type: z.enum(['monthly', 'quarterly', 'special']).optional(),
 });
+const systemDesignDraftRequestSchema = z.object({
+  prompt_url: z.string().trim().url(),
+  title: z.string().trim().optional(),
+  lead: z.string().trim().optional(),
+});
 const addOrganizerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   display_name: z.string().trim().optional(),
@@ -73,6 +87,21 @@ const auditLogQuerySchema = z.object({
   actor: z.string().trim().optional(),
   action: z.string().trim().optional(),
   target_type: z.string().trim().optional(),
+});
+const adminCreateTalkSchema = z.object({
+  speaker_name: z.string().trim().min(1, 'Speaker name is required'),
+  speaker_email: z.string().trim().toLowerCase().email('Speaker email must be valid'),
+  github_username: z.string().trim().optional().default(''),
+  title: z.string().trim().min(1, 'Talk title is required'),
+  topic: z.string().trim().optional().default('General'),
+  abstract: z.string().trim().optional().default(''),
+  bio: z.string().trim().optional().default(''),
+  slides_url: z.string().trim().optional().default(''),
+  publish: z.boolean().optional().default(false),
+});
+const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
+const speakerIntakeLinkRequestSchema = z.object({
+  expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 });
 const STOP_WORDS = new Set([
   'about',
@@ -152,6 +181,41 @@ function corsOrigin(origin: string | undefined, c: Context): string | undefined 
   return undefined;
 }
 
+function isPublicFeedbackEventRequest(path: string, method: string): boolean {
+  return (method === 'GET' && /^\/api\/feedback\/events\/[^/]+$/.test(path))
+    || (method === 'POST' && /^\/api\/feedback\/events\/[^/]+\/submissions$/.test(path));
+}
+
+function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
+  return (method === 'GET' || method === 'POST') && /^\/api\/events\/[^/]+\/speaker-intake\/[^/]+$/.test(path);
+}
+
+function isUnauthenticatedApiRequest(path: string, method: string): boolean {
+  return (method === 'GET' && (
+    path === '/api/public/meetups'
+    || path.startsWith('/api/public/meetups/')
+    || path === '/api/public/archive'
+    || path.startsWith('/api/public/archive/')
+    || path === '/api/public/home'
+    || path.startsWith('/api/health')
+    || path === '/api/my-talks'
+    || path === '/api/auth/session'
+    || path === '/api/auth/admin/callback'
+  ))
+    || (method === 'PATCH' && /^\/api\/talks\/[^/]+$/.test(path))
+    || (method === 'POST' && (
+      path === '/api/feedback'
+      || path === '/api/auth/admin/login'
+      || path === '/api/auth/admin/exchange'
+    ))
+    || isPublicFeedbackEventRequest(path, method)
+    || isSpeakerTalkIntakeRequest(path, method);
+}
+
+function isLogoutPath(path: string): boolean {
+  return path === '/api/auth/logout';
+}
+
 app.use('/api/public/*', cors({
   origin: '*',
   allowMethods: ['GET', 'OPTIONS'],
@@ -175,14 +239,27 @@ app.use('/api/*', async (c, next) => {
   await credentialedApiCors(c, next);
 });
 
+app.use('/api/*', async (c, next) => {
+  if (c.req.method === 'OPTIONS' || isUnauthenticatedApiRequest(c.req.path, c.req.method)) {
+    await next();
+    return;
+  }
+
+  const adminError = await requireAdmin(c);
+  if (adminError && !(isLogoutPath(c.req.path) && adminError.status === 401)) return adminError;
+  await next();
+});
+
 async function getAllEvents(c?: Context): Promise<Event[]> {
-  return (await getSupabaseCommunityEvents(c)) ?? getAllMockEvents();
+  const events = (await getSupabaseCommunityEvents(c)) ?? await getAllMockEvents();
+  return events.map(canonicalizeEventSchedule);
 }
 
 async function getEventById(id: string, c?: Context): Promise<Event | undefined> {
   const event = await getSupabaseCommunityEventById(id, c);
-  if (event !== null) return event;
-  return getMockEventById(id);
+  if (event !== null) return event ? canonicalizeEventSchedule(event) : event;
+  const fallback = await getMockEventById(id);
+  return fallback ? canonicalizeEventSchedule(fallback) : fallback;
 }
 
 async function createEvent(data: {
@@ -201,19 +278,19 @@ async function createEvent(data: {
   publish_to_website?: boolean;
 }, c?: Context): Promise<Event> {
   const event = await createSupabaseCommunityEvent(data, c);
-  if (event) return event;
-  return createMockEvent({
+  if (event) return canonicalizeEventSchedule(event);
+  return canonicalizeEventSchedule(await createMockEvent({
     name: data.name,
     description: data.description,
     event_date: data.event_date,
     series_type: data.series_type,
-  });
+  }));
 }
 
 async function updateEvent(id: string, updates: Partial<Omit<Event, 'id' | 'created_at'>>, c?: Context): Promise<Event> {
   const event = await updateSupabaseCommunityEvent(id, updates, c);
-  if (event !== null && event !== undefined) return event;
-  return updateMockEvent(id, updates);
+  if (event !== null && event !== undefined) return canonicalizeEventSchedule(event);
+  return canonicalizeEventSchedule(await updateMockEvent(id, updates));
 }
 
 async function deleteEvent(id: string, c?: Context): Promise<void> {
@@ -313,6 +390,19 @@ function lumaDraftToEventInput(lumaEvent: LumaImportDraft) {
   };
 }
 
+function canonicalizeEventSchedule(event: Event): Event {
+  const normalizedEvent = withResolvedEventStatus(event);
+
+  if (!normalizedEvent.schedule || normalizedEvent.schedule.length === 0) {
+    return normalizedEvent;
+  }
+
+  return {
+    ...normalizedEvent,
+    schedule: canonicalizeSystemDesignSchedule(normalizedEvent.schedule),
+  };
+}
+
 async function findExistingLumaEvent(lumaEvent: LumaImportDraft, c: Context): Promise<Event | undefined> {
   const existingByExternalId = await getSupabaseCommunityEventByExternalId('luma', lumaEvent.external_id, c) ?? undefined;
   if (existingByExternalId) return existingByExternalId;
@@ -352,9 +442,10 @@ function meetupEndDate(start: string): string {
 }
 
 function publicMeetupStatus(event: Event): PublicMeetup['status'] {
-  if (event.status === 'live') return 'live';
-  if (event.status === 'completed') return 'past';
-  return new Date(event.event_date).getTime() > Date.now() ? 'upcoming' : 'past';
+  const status = resolveEventStatus(event);
+  if (status === 'live') return 'live';
+  if (status === 'completed') return 'past';
+  return 'upcoming';
 }
 
 function coverForEvent(event: Event): string {
@@ -449,6 +540,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
   const location = event.location ?? DEFAULT_MEETUP_LOCATION;
   const endDate = event.end_date ? toWebsiteDateTime(event.end_date) : meetupEndDate(event.event_date);
   const photos = normalizeEventPhotos(event.photos);
+  const schedule = canonicalizeSystemDesignSchedule(event.schedule ?? scheduleForTalks(eventTalks));
 
   const cfpUrl = event.status === 'cfp_open'
     ? absoluteAppUrl(origin, `/cfp/${event.id}`)
@@ -468,7 +560,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     embed_stream: event.embed_stream ?? false,
     registration_url: registrationUrl,
     speakers: speakersForTalks(eventTalks, origin),
-    schedule: event.schedule ?? scheduleForTalks(eventTalks),
+    schedule,
     photos,
     videos: event.videos ?? [],
     talks_count: eventTalks.length,
@@ -476,6 +568,115 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     cfp_url: cfpUrl,
     archive_url: absoluteAppUrl(origin, `/archive/${event.id}`),
     updated_at: toWebsiteDateTime(event.updated_at),
+  };
+}
+
+function isPublicArchiveEvent(event: Event): boolean {
+  return Boolean(event.publish_to_website) && resolveEventStatus(event) === 'completed';
+}
+
+function toPublicArchiveEvent(event: Event): PublicArchiveEvent {
+  return {
+    id: event.id,
+    name: event.name,
+    description: event.description,
+    event_date: event.event_date,
+    schedule: canonicalizeSystemDesignSchedule(event.schedule ?? []),
+  };
+}
+
+function publicSlidesUrl(talk: Talk): string | null {
+  if (talk.slides_type === 'file' && talk.storage_path) {
+    return talk.storage_path;
+  }
+  if (talk.slides_type === 'url' && validExternalUrl(talk.slides_url)) {
+    return talk.slides_url;
+  }
+  return null;
+}
+
+function toPublicArchiveTalk(talk: Talk, event: Event): PublicArchiveTalk {
+  return {
+    id: talk.id,
+    event_id: talk.event_id,
+    event_name: event.name,
+    title: talk.title,
+    speaker_name: talk.speaker_name,
+    topic: talk.topic,
+    abstract: talk.abstract,
+    bio: talk.bio,
+    slides_url: publicSlidesUrl(talk),
+    updated_at: talk.updated_at,
+  };
+}
+
+async function publicArchivePayload(c: Context) {
+  const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
+  const archiveEvents = events
+    .filter(isPublicArchiveEvent)
+    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+  const eventById = new Map(archiveEvents.map((event) => [event.id, event]));
+  const publicTalks = talks
+    .filter((talk) => talk.status === 'published')
+    .flatMap((talk) => {
+      const event = eventById.get(talk.event_id);
+      return event ? [toPublicArchiveTalk(talk, event)] : [];
+    })
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+  return {
+    events: archiveEvents.map(toPublicArchiveEvent),
+    talks: publicTalks,
+  };
+}
+
+async function publicArchiveEventPayload(eventId: string, c: Context): Promise<PublicArchiveEventResponse | null> {
+  const event = await getEventById(eventId, c);
+  if (!event || !isPublicArchiveEvent(event)) {
+    return null;
+  }
+
+  const [talks, campaign] = await Promise.all([
+    getTalksByEvent(eventId),
+    getFeedbackCampaignByEventStore(eventId, c),
+  ]);
+  const available = campaign ? isFeedbackCampaignOpen(event, campaign) : false;
+
+  return {
+    event: toPublicArchiveEvent(event),
+    talks: talks
+      .filter((talk) => talk.status === 'published')
+      .map((talk) => toPublicArchiveTalk(talk, event))
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
+    feedback: {
+      available,
+      closes_at: campaign?.closes_at ?? null,
+      public_url: available ? `${publicAppOrigin(c)}/feedback/${eventId}` : null,
+    },
+  };
+}
+
+async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
+  const [events, talks, attendanceImports] = await Promise.all([getAllEvents(c), getAllTalks(), getAttendanceImports()]);
+  const publicEvents = events.filter((event) => Boolean(event.publish_to_website));
+  const archiveEvents = publicEvents.filter(isPublicArchiveEvent);
+  const eventById = new Map(publicEvents.map((event) => [event.id, event]));
+  const recentTalks = talks
+    .filter((talk) => talk.status === 'published')
+    .flatMap((talk) => {
+      const event = eventById.get(talk.event_id);
+      return event ? [toPublicArchiveTalk(talk, event)] : [];
+    })
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, 4);
+  const cfpEvent = publicEvents.find((event) => event.status === 'cfp_open') ?? null;
+
+  return {
+    completed_events_count: archiveEvents.length,
+    published_talks_count: talks.filter((talk) => talk.status === 'published' && eventById.has(talk.event_id)).length,
+    recent_talks: recentTalks,
+    regulars: buildPublicAttendanceRegulars(events, attendanceImports),
+    cfp_event: cfpEvent ? { id: cfpEvent.id, name: cfpEvent.name } : null,
   };
 }
 
@@ -520,8 +721,26 @@ async function buildPublicMeetups(origin: string, c?: Context) {
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
 }
 
+async function publicMeetupsForApi(c: Context): Promise<PublicMeetup[]> {
+  return (await getSupabasePublicMeetups(publicAppOrigin(c), c)) ?? await buildPublicMeetups(publicAppOrigin(c), c);
+}
+
+function isLocalRequestOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
 function publicAppOrigin(c: Context): string {
-  return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? new URL(c.req.url).origin;
+  const requestOrigin = new URL(c.req.url).origin;
+  if (envValue('NODE_ENV', c) !== 'production' && isLocalRequestOrigin(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? requestOrigin;
 }
 
 function feedbackCampaignWindow(_event: Event, campaign: FeedbackCampaign): { opens_at: string | null; closes_at: string | null } {
@@ -739,6 +958,160 @@ function normalizeFeedbackAnswers(input: unknown): FeedbackAnswer[] {
     .filter((answer) => answer.question_id);
 }
 
+function extractGoogleSlidesPresentationId(input: string): string | null {
+  if (!URL.canParse(input)) return null;
+
+  const url = new URL(input);
+  if (url.hostname !== 'docs.google.com') return null;
+
+  const match = url.pathname.match(/\/presentation\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]+)/);
+  return match?.[1] ?? null;
+}
+
+function googleSlidesExportUrl(input: string): string | null {
+  const presentationId = extractGoogleSlidesPresentationId(input);
+  if (!presentationId) return null;
+  return `https://docs.google.com/presentation/d/${presentationId}/export/txt`;
+}
+
+function normalizeSlideText(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function slideTextLines(text: string): string[] {
+  return normalizeSlideText(text)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function isLikelyPresenterLine(line: string): boolean {
+  const lower = line.toLowerCase();
+  return lower.includes('@') || lower.includes('linkedin') || lower.includes('twitter') || lower.includes('everywhere');
+}
+
+function titleCandidateScore(line: string, frequency: number): number {
+  const wordCount = line.split(/\s+/).length;
+  const hasTerminalPunctuation = /[.?!:]$/.test(line);
+  const isAllCaps = line === line.toUpperCase();
+  let score = frequency * 20 + Math.min(wordCount, 10) * 4 + Math.min(line.length, 90) / 6;
+
+  if (isLikelyPresenterLine(line)) score -= 30;
+  if (/^\d+$/.test(line)) score -= 40;
+  if (hasTerminalPunctuation) score -= 8;
+  if (isAllCaps) score -= 6;
+  if (wordCount < 3) score -= 12;
+
+  return score;
+}
+
+function inferSlidesTitle(lines: string[], fallbackTitle?: string): string {
+  const frequencies = new Map<string, number>();
+  for (const line of lines) {
+    frequencies.set(line, (frequencies.get(line) ?? 0) + 1);
+  }
+
+  const best = [...frequencies.entries()]
+    .map(([line, frequency]) => ({ line, score: titleCandidateScore(line, frequency) }))
+    .sort((a, b) => b.score - a.score)[0];
+
+  return best?.line ?? fallbackTitle?.trim() ?? 'Monthly system design scenario';
+}
+
+function summarizeList(items: string[]): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+function cleanSummaryLine(line: string): string {
+  return line
+    .replace(/\s+/g, ' ')
+    .replace(/\bIts\b/g, "It's")
+    .trim()
+    .replace(/[.?!:;,]+$/, '');
+}
+
+function inferSlidesSummary(text: string, title: string, lead?: string): string {
+  const lines = slideTextLines(text);
+  const normalizedTitle = title.trim().toLowerCase();
+  const uniqueLines = [...new Set(lines)];
+  const contentLines = uniqueLines.filter((line) => {
+    if (/^\d+$/.test(line)) return false;
+    if (line.toLowerCase() === normalizedTitle) return false;
+    if (isLikelyPresenterLine(line)) return false;
+    return true;
+  });
+
+  const conceptLines = contentLines
+    .filter((line) => line.length >= 18 && line.length <= 90 && !/[.?!]$/.test(line))
+    .slice(0, 3)
+    .map(cleanSummaryLine);
+  const scenarioLine = contentLines
+    .find((line) => line.length >= 70 && line.length <= 260);
+  const facilitatorCopy = lead?.trim() ? ` It is facilitated by ${lead.trim()}.` : '';
+
+  const parts = [`This month's system design session uses "${title}" as the prompt deck.${facilitatorCopy}`];
+
+  if (conceptLines.length > 0) {
+    parts.push(`The deck frames the room around ${summarizeList(conceptLines)}.`);
+  }
+
+  if (scenarioLine) {
+    parts.push(`${cleanSummaryLine(scenarioLine)}.`);
+  }
+
+  if (parts.length === 1) {
+    parts.push('Share the prompt deck with the room, then replace this draft after the meetup with the actual decisions, tradeoffs, and recap.');
+  }
+
+  return parts.join('\n\n');
+}
+
+async function fetchGoogleSlidesDraft(input: {
+  promptUrl: string;
+  fallbackTitle?: string;
+  lead?: string;
+}): Promise<{ title: string; content: string; summary: string; export_url: string }> {
+  const exportUrl = googleSlidesExportUrl(input.promptUrl);
+  if (!exportUrl) {
+    throw new Error('Use a public Google Slides presentation link to generate a draft.');
+  }
+
+  const response = await fetch(exportUrl, {
+    headers: {
+      Accept: 'text/plain, text/*;q=0.9, */*;q=0.1',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(response.status === 403
+      ? 'This Google Slides deck is not publicly readable. Open sharing or use a public presentation link.'
+      : 'Could not read this Google Slides deck.');
+  }
+
+  const text = normalizeSlideText(await response.text());
+  if (!text) {
+    throw new Error('Google Slides returned an empty deck export.');
+  }
+
+  const lines = slideTextLines(text);
+  const title = inferSlidesTitle(lines, input.fallbackTitle);
+
+  return {
+    title,
+    content: text,
+    summary: inferSlidesSummary(text, title, input.lead),
+    export_url: exportUrl,
+  };
+}
+
 function eventMonthKey(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -826,6 +1199,43 @@ function checklistProgress(items: EventChecklistItem[]) {
   };
 }
 
+function eventUpdatesForCompletedChecklistItem(item: EventChecklistItem): Partial<Omit<Event, 'id' | 'created_at'>> {
+  if (item.label === 'Publish archive') {
+    return {
+      publish_to_website: true,
+      status: 'completed',
+    };
+  }
+
+  if (item.status_on_complete) {
+    return { status: item.status_on_complete };
+  }
+
+  return {};
+}
+
+function supabaseProjectRef(c?: Context): string | null {
+  const supabaseUrl = envValue('VITE_SUPABASE_URL', c);
+  if (!supabaseUrl) return null;
+
+  try {
+    return new URL(supabaseUrl).hostname.split('.')[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function canReachSupabaseDocumentStore(c: Context): Promise<boolean> {
+  if (!isSupabaseServerConfigured(c)) return false;
+
+  const { error } = await getSupabaseAdminClient(c)
+    .from('app_json_documents')
+    .select('key')
+    .limit(1);
+
+  return !error;
+}
+
 app.get('/api/health/supabase', async (c) => {
   if (!isSupabaseServerConfigured(c)) {
     return c.json({
@@ -853,6 +1263,38 @@ app.get('/api/health/supabase', async (c) => {
   return c.json({
     ok: true,
     configured: true,
+  });
+});
+
+app.get('/api/health/data-sources', async (c) => {
+  const supabaseConfigured = isSupabaseServerConfigured(c);
+  const supabaseSource = supabaseConfigured ? 'supabase' : 'local-json';
+  const documentStoreAvailable = await canReachSupabaseDocumentStore(c);
+  const documentSource = documentStoreAvailable ? 'supabase-json' : 'local-json';
+
+  return c.json({
+    ok: true,
+    supabase: {
+      configured: supabaseConfigured,
+      project_ref: supabaseProjectRef(c),
+      document_store_available: documentStoreAvailable,
+    },
+    sources: {
+      community_events: supabaseSource,
+      event_feedback_campaigns: supabaseSource,
+      event_feedback_submissions: supabaseSource,
+      route_feedback: supabaseConfigured ? 'supabase' : 'unavailable',
+      talks: documentSource,
+      speaker_intake_links: documentSource,
+      speakers: documentSource,
+      attendance_imports: documentSource,
+      event_checklists: documentSource,
+      quiz_sessions: documentSource,
+      quiz_questions: documentSource,
+      quiz_participants: documentSource,
+      quiz_responses: documentSource,
+      quiz_users: documentSource,
+    },
   });
 });
 
@@ -1195,12 +1637,22 @@ app.get('/api/feedback/monthly', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
-  const [events, campaigns, submissions, talks] = await Promise.all([
+  const [events, talks] = await Promise.all([
     getAllEvents(c),
-    getAllFeedbackCampaigns(),
-    getAllFeedbackSubmissions(),
     getAllTalks(),
   ]);
+  const feedbackByEvent = await Promise.all(events.map(async (event) => {
+    const [campaign, submissions] = await Promise.all([
+      getFeedbackCampaignByEventStore(event.id, c),
+      getFeedbackSubmissionsByEventStore(event.id, c),
+    ]);
+
+    return { eventId: event.id, campaign, submissions };
+  }));
+  const campaigns = feedbackByEvent
+    .filter((item): item is typeof item & { campaign: FeedbackCampaign } => Boolean(item.campaign))
+    .map((item) => item.campaign);
+  const submissions = feedbackByEvent.flatMap((item) => item.submissions);
   const campaignsByEvent = new Map(campaigns.map((campaign) => [campaign.event_id, campaign]));
   const submissionsByEvent = new Map<string, typeof submissions>();
   const talksByEvent = new Map<string, Talk[]>();
@@ -1448,10 +1900,25 @@ app.get('/api/feedback/events/:eventId', async (c) => {
   const talks = await getTalksByEvent(eventId);
 
   return c.json({
-    event,
-    campaign,
+    event: {
+      id: event.id,
+      name: event.name,
+      event_date: event.event_date,
+    },
+    campaign: {
+      id: campaign.id,
+      title: campaign.title,
+      intro: campaign.intro,
+      questions: campaign.questions,
+    },
     feedback_window: feedbackCampaignWindow(event, campaign),
-    talks: talks.filter((talk) => talk.status !== 'rejected'),
+    talks: talks
+      .filter((talk) => talk.status !== 'rejected')
+      .map((talk) => ({
+        id: talk.id,
+        title: talk.title,
+        speaker_name: talk.speaker_name,
+      })),
     preview_mode: previewAllowed,
   });
 });
@@ -2031,6 +2498,31 @@ function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllE
     }
   }
 
+  function regularRank(
+    a: {
+      name: string;
+      registered_count: number;
+      checked_in_count: number;
+      check_in_rate: number;
+      last_seen_at: string | null;
+    },
+    b: {
+      name: string;
+      registered_count: number;
+      checked_in_count: number;
+      check_in_rate: number;
+      last_seen_at: string | null;
+    },
+  ) {
+    return (
+      b.checked_in_count - a.checked_in_count
+      || b.check_in_rate - a.check_in_rate
+      || b.registered_count - a.registered_count
+      || new Date(b.last_seen_at ?? 0).getTime() - new Date(a.last_seen_at ?? 0).getTime()
+      || a.name.localeCompare(b.name)
+    );
+  }
+
   return Array.from(people.values())
     .map((person) => ({
       key: person.key,
@@ -2041,7 +2533,7 @@ function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllE
       last_seen_at: person.lastSeenAt,
     }))
     .filter((person) => person.checked_in_count > 1 || person.registered_count > 1)
-    .sort((a, b) => b.checked_in_count - a.checked_in_count || b.registered_count - a.registered_count || a.name.localeCompare(b.name))
+    .sort(regularRank)
     .slice(0, 3);
 }
 
@@ -2061,9 +2553,8 @@ app.get('/api/overview', async (c) => {
 
 app.get('/api/public/meetups', async (c) => {
   setPublicApiCache(c);
-  const supabaseMeetups = await getSupabasePublicMeetups(publicAppOrigin(c), c);
   return c.json({
-    data: supabaseMeetups ?? await buildPublicMeetups(publicAppOrigin(c), c),
+    data: await publicMeetupsForApi(c),
     meta: {
       source: 'devcongress-comm',
       version: 1,
@@ -2071,10 +2562,31 @@ app.get('/api/public/meetups', async (c) => {
   });
 });
 
+app.get('/api/public/archive', async (c) => {
+  setPublicApiCache(c);
+  return c.json(await publicArchivePayload(c));
+});
+
+app.get('/api/public/archive/:eventId', async (c) => {
+  setPublicApiCache(c);
+  const payload = await publicArchiveEventPayload(c.req.param('eventId'), c);
+
+  if (!payload) {
+    return c.json({ error: 'Archive event not found' }, 404);
+  }
+
+  return c.json(payload);
+});
+
+app.get('/api/public/home', async (c) => {
+  setPublicApiCache(c);
+  return c.json(await publicHomePayload(c));
+});
+
 app.get('/api/public/meetups/:slug', async (c) => {
   setPublicApiCache(c);
   const slug = c.req.param('slug');
-  const meetups = (await getSupabasePublicMeetups(publicAppOrigin(c), c)) ?? await buildPublicMeetups(publicAppOrigin(c), c);
+  const meetups = await publicMeetupsForApi(c);
   const meetup = meetups.find((item) => item.slug === slug || item.id === slug);
 
   if (!meetup) {
@@ -2087,7 +2599,7 @@ app.get('/api/public/meetups/:slug', async (c) => {
 app.get('/api/public/meetups/:slug/talks', async (c) => {
   setPublicApiCache(c);
   const slug = c.req.param('slug');
-  const meetups = (await getSupabasePublicMeetups(publicAppOrigin(c), c)) ?? await buildPublicMeetups(publicAppOrigin(c), c);
+  const meetups = await publicMeetupsForApi(c);
   const meetup = meetups.find((item) => item.slug === slug || item.id === slug);
 
   if (!meetup) {
@@ -2163,6 +2675,46 @@ app.get('/api/events/:eventId', async (c) => {
   return c.json(event);
 });
 
+app.post('/api/events/:eventId/system-design/draft', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = systemDesignDraftRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: 'A valid prompt_url is required.' }, 400);
+  }
+
+  try {
+    const draft = await fetchGoogleSlidesDraft({
+      promptUrl: parsed.data.prompt_url,
+      fallbackTitle: parsed.data.title,
+      lead: parsed.data.lead,
+    });
+
+    await auditAdminAction(c, {
+      action: 'event.system_design.generate_draft',
+      targetType: 'event',
+      targetId: event.id,
+      metadata: {
+        prompt_url: parsed.data.prompt_url,
+        generated_title: draft.title,
+      },
+    });
+
+    return c.json(draft);
+  } catch (error) {
+    return c.json({
+      error: error instanceof Error ? error.message : 'Unable to generate a draft from this prompt deck.',
+    }, 422);
+  }
+});
+
 app.delete('/api/events/:eventId', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
@@ -2232,17 +2784,51 @@ app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
 
   const body = await c.req.json().catch(() => ({}));
 
-  if (typeof body.completed !== 'boolean') {
-    return c.json({ error: 'completed is required' }, 400);
-  }
-
   try {
+    if (typeof body.disabled === 'boolean') {
+      if (event.publish_to_website) {
+        return c.json({ error: 'Published event checklists cannot be changed this way' }, 409);
+      }
+
+      const item = await setEventChecklistItemDisabled(
+        eventId,
+        itemId,
+        body.disabled,
+        typeof body.disabled_by === 'string' ? body.disabled_by : 'Organizer',
+      );
+      const items = await getEventChecklist(eventId, event.status);
+
+      await auditAdminAction(c, {
+        action: 'event.checklist.disable',
+        targetType: 'event',
+        targetId: eventId,
+        metadata: {
+          item_id: itemId,
+          label: item.label,
+          disabled: Boolean(item.disabled_at),
+          event_status: event.status,
+        },
+      });
+
+      return c.json({
+        item,
+        event,
+        progress: checklistProgress(items),
+        items,
+      });
+    }
+
+    if (typeof body.completed !== 'boolean') {
+      return c.json({ error: 'completed is required' }, 400);
+    }
+
     const item = await updateEventChecklistItem(eventId, itemId, {
       completed: body.completed,
       completed_by: typeof body.completed_by === 'string' ? body.completed_by : 'Organizer',
     });
-    const updatedEvent = item.completed && item.status_on_complete
-      ? await updateEvent(eventId, { status: item.status_on_complete }, c)
+    const eventUpdates = item.completed ? eventUpdatesForCompletedChecklistItem(item) : {};
+    const updatedEvent = Object.keys(eventUpdates).length > 0
+      ? await updateEvent(eventId, eventUpdates, c)
       : event;
     const items = await getEventChecklist(eventId, updatedEvent.status);
 
@@ -2253,6 +2839,7 @@ app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
       metadata: {
         item_id: itemId,
         completed: item.completed,
+        changed_event_fields: Object.keys(eventUpdates).sort(),
         event_status: updatedEvent.status,
       },
     });
@@ -2355,8 +2942,283 @@ app.post('/api/events/:eventId/media', async (c) => {
   }
 });
 
+type SpeakerTalkIntakeInput = z.infer<typeof speakerTalkIntakeSchema>;
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function speakerIntakeLinkStatus(link: Pick<SpeakerIntakeLink, 'used_at' | 'expires_at'>): 'active' | 'used' | 'expired' {
+  if (link.used_at) return 'used';
+  return speakerIntakeLinkExpired(link) ? 'expired' : 'active';
+}
+
+function serializeSpeakerIntakeLink(link: Pick<
+  SpeakerIntakeLink,
+  'id' | 'event_id' | 'event_month' | 'expires_at' | 'used_at' | 'used_talk_id' | 'created_at' | 'updated_at'
+>) {
+  return {
+    id: link.id,
+    event_id: link.event_id,
+    event_month: link.event_month,
+    expires_at: link.expires_at,
+    used_at: link.used_at,
+    used_talk_id: link.used_talk_id,
+    created_at: link.created_at,
+    updated_at: link.updated_at,
+    status: speakerIntakeLinkStatus(link),
+  };
+}
+
+function speakerIntakeLinkError(link: SpeakerIntakeLink | undefined): { error: string; status: 404 | 410 } | null {
+  if (!link) {
+    return { error: 'Speaker form link is invalid', status: 404 };
+  }
+
+  if (link.used_at) {
+    return { error: 'Speaker form link has already been used', status: 410 };
+  }
+
+  if (speakerIntakeLinkExpired(link)) {
+    return { error: 'Speaker form link has expired', status: 410 };
+  }
+
+  return null;
+}
+
+async function createBackfilledTalkForEvent(
+  eventId: string,
+  data: SpeakerTalkIntakeInput & { publish?: boolean },
+): Promise<{ talk: Talk; speakerCreated: boolean }> {
+  const slidesUrl = data.slides_url || null;
+
+  if (slidesUrl) {
+    try {
+      new URL(slidesUrl);
+    } catch {
+      throw new Error('Slides URL must be a valid URL');
+    }
+  }
+
+  const existingTalks = await getTalksByEvent(eventId);
+  const duplicate = existingTalks.find((talk) => (
+    talk.speaker_email.toLowerCase() === data.speaker_email.toLowerCase()
+    && talk.title.trim().toLowerCase() === data.title.toLowerCase()
+  ));
+
+  if (duplicate) {
+    throw new Error('This talk has already been submitted for this event');
+  }
+
+  let speaker = await getSpeakerByEmail(eventId, data.speaker_email);
+  let speakerCreated = false;
+
+  if (!speaker) {
+    try {
+      speaker = await addSpeaker({
+        event_id: eventId,
+        email: data.speaker_email,
+        name: data.speaker_name,
+      });
+      speakerCreated = true;
+    } catch (error) {
+      speaker = await getSpeakerByEmail(eventId, data.speaker_email);
+      if (!speaker) throw error;
+    }
+  }
+
+  const talk = await createTalk({
+    event_id: eventId,
+    speaker_name: data.speaker_name,
+    speaker_email: data.speaker_email,
+    github_username: data.github_username || null,
+    title: data.title,
+    topic: data.topic || 'General',
+    abstract: data.abstract || null,
+    bio: data.bio || null,
+    slides_url: slidesUrl,
+    slides_type: slidesUrl ? 'url' : null,
+    storage_path: null,
+    slides_uploaded_at: slidesUrl ? now() : null,
+  });
+  const status: TalkStatus = data.publish ? 'published' : slidesUrl ? 'slides_received' : 'accepted';
+
+  return {
+    talk: await updateTalk(talk.id, { status }),
+    speakerCreated,
+  };
+}
+
 app.get('/api/events/:eventId/talks', async (c) => {
   return c.json(await getTalksByEvent(c.req.param('eventId')));
+});
+
+app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const links = await getSpeakerIntakeLinksByEvent(eventId);
+  return c.json({
+    event_month: eventMonthKey(event.event_date),
+    links: links.map(serializeSpeakerIntakeLink),
+  });
+});
+
+app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = speakerIntakeLinkRequestSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the link expiry' }, 400);
+  }
+
+  const { link, token } = await createSpeakerIntakeLink({
+    event_id: eventId,
+    event_month: eventMonthKey(event.event_date),
+    expires_at: addDays(new Date(), parsed.data.expires_in_days).toISOString(),
+  });
+
+  await auditAdminAction(c, {
+    action: 'speaker_intake_link.create',
+    targetType: 'speaker_intake_link',
+    targetId: link.id,
+    metadata: {
+      event_id: eventId,
+      event_month: link.event_month,
+      expires_at: link.expires_at,
+    },
+  });
+
+  return c.json({
+    link: serializeSpeakerIntakeLink(link),
+    token,
+  }, 201);
+});
+
+app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
+  const eventId = c.req.param('eventId');
+  const token = c.req.param('token');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const link = await getSpeakerIntakeLinkByToken(eventId, token);
+  const linkError = speakerIntakeLinkError(link);
+
+  if (linkError) {
+    return c.json({ error: linkError.error }, linkError.status);
+  }
+
+  return c.json({
+    event: {
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      event_date: event.event_date,
+      status: event.status,
+    },
+    link: serializeSpeakerIntakeLink(link!),
+  });
+});
+
+app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
+  const eventId = c.req.param('eventId');
+  const token = c.req.param('token');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const link = await getSpeakerIntakeLinkByToken(eventId, token);
+  const linkError = speakerIntakeLinkError(link);
+
+  if (linkError) {
+    return c.json({ error: linkError.error }, linkError.status);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = speakerTalkIntakeSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the talk details' }, 400);
+  }
+
+  try {
+    const { talk } = await createBackfilledTalkForEvent(eventId, parsed.data);
+    await consumeSpeakerIntakeLink(eventId, token, talk.id);
+    return c.json(talk, 201);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to submit talk details';
+    const status = message.includes('already been submitted')
+      ? 409
+      : message.includes('already been used') || message.includes('expired')
+        ? 410
+        : 400;
+    return c.json({ error: message }, status);
+  }
+});
+
+app.post('/api/events/:eventId/talks', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = adminCreateTalkSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the talk details' }, 400);
+  }
+
+  try {
+    const { talk: updatedTalk, speakerCreated } = await createBackfilledTalkForEvent(eventId, parsed.data);
+
+    await auditAdminAction(c, {
+      action: 'talk.manual.create',
+      targetType: 'talk',
+      targetId: updatedTalk.id,
+      metadata: {
+        event_id: eventId,
+        status: updatedTalk.status,
+        speaker_email: updatedTalk.speaker_email,
+        speaker_allowlist_created: speakerCreated,
+        slides_url_present: Boolean(updatedTalk.slides_url),
+      },
+    });
+
+    return c.json(updatedTalk, 201);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to add talk';
+    return c.json({ error: message }, message.includes('already been submitted') ? 409 : 400);
+  }
 });
 
 app.get('/api/events/:eventId/speakers', async (c) => {
@@ -2570,12 +3432,18 @@ app.get('/api/talks', async (c) => {
 app.patch('/api/talks/:talkId', async (c) => {
   const body = await c.req.json();
   const updates: Record<string, unknown> = {};
+  const talkId = c.req.param('talkId');
+  const requestedStatus = typeof body.status === 'string' ? body.status : null;
 
-  if (body.status) {
+  if (requestedStatus) {
     const adminError = await requireAdmin(c);
     if (adminError) return adminError;
 
-    updates.status = body.status;
+    if (!['accepted', 'rejected', 'slides_received', 'published'].includes(requestedStatus)) {
+      return c.json({ error: 'Unsupported talk status' }, 400);
+    }
+
+    updates.status = requestedStatus;
   }
 
   if (body.slides_url) {
@@ -2589,11 +3457,21 @@ app.patch('/api/talks/:talkId', async (c) => {
     updates.slides_type = 'url';
     updates.storage_path = null;
     updates.slides_uploaded_at = now();
-    updates.status = 'slides_received';
+    if (!requestedStatus) {
+      const existingTalk = await getTalkById(talkId);
+      if (!existingTalk) return c.json({ error: 'Talk not found' }, 404);
+      if (!['accepted', 'slides_received', 'published'].includes(existingTalk.status)) {
+        return c.json({ error: 'Slides can only be updated for accepted or published talks' }, 400);
+      }
+      updates.status = existingTalk.status === 'published' ? 'published' : 'slides_received';
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ error: 'No supported talk updates provided' }, 400);
   }
 
   try {
-    const talkId = c.req.param('talkId');
     const updatedTalk = await updateTalk(talkId, updates);
     if (body.status) {
       await auditAdminAction(c, {

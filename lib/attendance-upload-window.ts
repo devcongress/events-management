@@ -1,4 +1,5 @@
 import type { Event } from '@/types';
+import { resolveEventStatus } from '@/lib/event-status';
 
 export interface AttendanceUploadWindow {
   available: boolean;
@@ -63,6 +64,10 @@ export function attendanceUploadWindowForMonth(attendanceMonth: string, now = ne
   };
 }
 
-export function attendanceUploadWindowForEvent(event: Pick<Event, 'event_date'>, now = new Date()): AttendanceUploadWindow {
+export function attendanceUploadWindowForEvent(event: Pick<Event, 'event_date' | 'end_date' | 'status'>, now = new Date()): AttendanceUploadWindow {
+  if (resolveEventStatus(event, now.getTime()) === 'completed') {
+    return { available: true, reason: null, unlocks_at: null };
+  }
+
   return attendanceUploadWindowForMonth(attendanceMonthForDate(event.event_date), now);
 }

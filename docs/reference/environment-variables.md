@@ -34,6 +34,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Google OAuth client credentials live in the Supabase dashboard provider settings, not in this app repo.
 - Keep `PUBLIC_APP_URL` and `PUBLIC_FRONTEND_ORIGIN` in `wrangler.toml` for Cloudflare Worker deploys; dashboard-only Worker variables can be removed by subsequent `wrangler deploy` runs.
 - Luma event import uses public Luma event URLs and does not require a Luma API key. Supabase community events are required for saving imports.
+- Use `/api/health/data-sources` to compare local and deployed persistence. Matching `supabase.project_ref` values mean Supabase-backed domains are using the same project. Domains reported as `supabase-json` share the `app_json_documents` bridge table; domains reported as `local-json` still read from each runtime's local data files.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.

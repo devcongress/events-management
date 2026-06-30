@@ -146,8 +146,8 @@ onUnmounted(() => {
   <div class="min-h-screen bg-dc-cream text-dc-ink">
     <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <section class="coming-soon-banner">
+        <div class="coming-soon-ribbon">Coming soon</div>
         <div>
-          <p class="editorial-eyebrow">coming soon</p>
           <h1 class="text-4xl font-black tracking-tight text-dc-ink sm:text-6xl">Live quiz is paused.</h1>
           <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">
             This join-code route is kept for the future quiz rollout, but the first launch is focused on events, speaker slide links, attendance CSVs, and feedback.

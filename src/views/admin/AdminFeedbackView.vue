@@ -831,10 +831,10 @@ onBeforeUnmount(() => {
             <section class="editorial-panel p-5">
               <p class="editorial-eyebrow">community link</p>
               <p class="break-all font-mono text-sm font-bold text-dc-ink">{{ publicUrl }}</p>
-              <div class="mt-4 flex flex-wrap gap-3">
+              <div class="feedback-link-actions mt-4">
                 <button
                   type="button"
-                  class="editorial-secondary-action min-w-[124px] overflow-hidden"
+                  class="feedback-link-button feedback-link-button--copy motion-press min-w-[124px] overflow-hidden"
                   :class="copyState === 'copied' ? 'bg-dc-success-soft text-dc-success' : ''"
                   :disabled="copyState !== 'idle'"
                   :data-copy-state="copyState"
@@ -845,38 +845,20 @@ onBeforeUnmount(() => {
                     <span :key="copyState" class="inline-block">{{ copyLinkLabel }}</span>
                   </Transition>
                 </button>
-                <span class="rounded-md border-2 px-3 py-2 font-mono text-xs font-bold uppercase tracking-wide" :class="isOpen ? 'border-dc-success bg-dc-success-soft text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
+                <span class="feedback-link-status" :class="isOpen ? 'border-dc-success bg-dc-success-soft text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
                   {{ isOpen ? 'Open' : 'Not Open' }}
                 </span>
+                <button
+                  type="button"
+                  class="feedback-remove-action feedback-link-button feedback-link-button--remove motion-press"
+                  :disabled="removing || saving"
+                  @click="removeFeedbackForm"
+                >
+                  {{ removing ? 'Removing...' : 'Remove form' }}
+                </button>
               </div>
             </section>
 
-            <section class="editorial-panel p-5">
-              <p class="editorial-eyebrow">recent responses</p>
-              <div v-if="submissions.length === 0" class="mt-4 rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray">
-                Responses will land here once people submit the event form.
-              </div>
-              <div v-else class="mt-4 divide-y-2 divide-dc-border">
-                <article v-for="submission in submissions.slice(0, 6)" :key="submission.id" class="py-4">
-                  <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ new Date(submission.created_at).toLocaleString() }}</p>
-                  <p class="mt-2 text-sm leading-6 text-dc-ink">{{ answerPreview(submission) }}</p>
-                </article>
-              </div>
-            </section>
-
-            <section class="editorial-panel p-5">
-              <p class="editorial-eyebrow">rare action</p>
-              <h2 class="mt-2 text-xl font-black tracking-tight text-dc-ink">Remove this form</h2>
-              <p class="mt-2 text-sm font-semibold leading-6 text-dc-gray">Use this only when the event needs a fresh feedback setup. Existing responses stay available for reports.</p>
-              <button
-                type="button"
-                class="feedback-remove-action motion-press mt-4 min-h-10 rounded px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide"
-                :disabled="removing || saving"
-                @click="removeFeedbackForm"
-              >
-                {{ removing ? 'Removing...' : 'Remove form' }}
-              </button>
-            </section>
           </aside>
         </section>
       </template>

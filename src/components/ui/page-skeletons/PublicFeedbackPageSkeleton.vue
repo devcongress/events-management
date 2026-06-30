@@ -18,7 +18,7 @@
           <div class="skeleton-form-card skeleton-form-card--compact" />
         </div>
       </div>
-      <div v-for="item in 4" :key="item" class="skeleton-panel p-5">
+      <div v-for="item in 3" :key="item" class="skeleton-panel p-5">
         <div class="skeleton-line skeleton-line--two-thirds" />
         <div class="mt-4 grid gap-3 sm:grid-cols-4">
           <div v-for="option in 4" :key="option" class="skeleton-option" />

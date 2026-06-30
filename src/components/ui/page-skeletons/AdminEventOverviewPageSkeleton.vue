@@ -13,7 +13,7 @@
           </div>
         </div>
         <div class="skeleton-panel overflow-hidden">
-          <div v-for="item in 5" :key="item" class="skeleton-row skeleton-row--program">
+          <div v-for="item in 4" :key="item" class="skeleton-row skeleton-row--program">
             <div class="space-y-3">
               <div class="skeleton-line skeleton-line--half" />
               <div class="skeleton-line skeleton-line--two-thirds" />
@@ -25,7 +25,7 @@
       <aside class="space-y-4 xl:mt-20">
         <div class="skeleton-panel overflow-hidden">
           <div class="skeleton-panel-header" />
-          <div v-for="item in 4" :key="item" class="skeleton-row skeleton-row--action">
+          <div v-for="item in 3" :key="item" class="skeleton-row skeleton-row--action">
             <div class="skeleton-dot" />
             <div class="flex-1 space-y-3">
               <div class="skeleton-line skeleton-line--half" />
@@ -33,7 +33,6 @@
             </div>
           </div>
         </div>
-        <div class="skeleton-side-card" />
         <div class="skeleton-side-card" />
       </aside>
     </section>

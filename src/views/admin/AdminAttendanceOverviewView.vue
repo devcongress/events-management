@@ -139,9 +139,22 @@ const consistentPeople = computed<ConsistencyPersonRow[]>(() => {
       lastSeenAt: person.lastSeenAt,
     }))
     .filter((person) => person.registeredCount > 1 || person.checkedInCount > 1)
-    .sort((a, b) => b.checkedInCount - a.checkedInCount || b.registeredCount - a.registeredCount || a.name.localeCompare(b.name))
+    .sort(rankConsistentPeople)
     .slice(0, 8);
 });
+
+function rankConsistentPeople(a: ConsistencyPersonRow, b: ConsistencyPersonRow): number {
+  const aRate = a.registeredCount === 0 ? 0 : a.checkedInCount / a.registeredCount;
+  const bRate = b.registeredCount === 0 ? 0 : b.checkedInCount / b.registeredCount;
+
+  return (
+    b.checkedInCount - a.checkedInCount
+    || bRate - aRate
+    || b.registeredCount - a.registeredCount
+    || new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime()
+    || a.name.localeCompare(b.name)
+  );
+}
 
 async function fetchAttendanceLedger() {
   loading.value = true;
@@ -240,7 +253,7 @@ onMounted(fetchAttendanceLedger);
 
         <template v-else-if="insights">
           <section class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(13rem,0.24fr)] lg:items-stretch">
-            <section class="ops-panel min-w-0 overflow-hidden">
+            <section class="ops-panel flex min-h-[42rem] min-w-0 flex-col overflow-hidden">
               <div class="ops-panel-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p class="editorial-eyebrow mb-1">monthly ledger</p>
@@ -278,7 +291,7 @@ onMounted(fetchAttendanceLedger);
                 </div>
               </div>
 
-              <div class="divide-y divide-dc-border">
+              <div class="flex-1 divide-y divide-dc-border">
                 <div v-if="paginatedLedger.length === 0" class="px-5 py-10 text-center">
                   <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">No months match this filter</p>
                   <p class="mt-2 text-sm text-dc-gray">Try All months or switch between uploaded and missing CSVs.</p>
@@ -298,11 +311,11 @@ onMounted(fetchAttendanceLedger);
                     </div>
 
                     <div class="min-w-0">
-                      <div v-if="item.event_count > 0" class="mt-2 space-y-2">
+                      <div v-if="item.event_count > 0" class="space-y-2">
                         <div
                           v-for="eventItem in item.events"
                           :key="eventItem.event.id"
-                          class="grid gap-2 border-t border-dc-border/70 pt-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                          class="grid min-h-12 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                         >
                           <div class="min-w-0">
                             <p class="truncate text-sm font-black text-dc-ink/90">{{ eventItem.event.name }}</p>

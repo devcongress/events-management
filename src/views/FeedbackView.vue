@@ -3,12 +3,25 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import PublicFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/PublicFeedbackPageSkeleton.vue';
-import type { Event as CommunityEvent, FeedbackCampaign, Talk } from '@/types';
+import type { FeedbackCampaign, FeedbackQuestion } from '@/types';
 
 interface FeedbackPublicResponse {
-  event: CommunityEvent;
-  campaign: FeedbackCampaign;
-  talks: Talk[];
+  event: {
+    id: string;
+    name: string;
+    event_date: string;
+  };
+  campaign: {
+    id: string;
+    title: string;
+    intro: string | null;
+    questions: FeedbackQuestion[];
+  };
+  talks: {
+    id: string;
+    title: string;
+    speaker_name: string;
+  }[];
   preview_mode?: boolean;
 }
 
@@ -27,9 +40,9 @@ const submitted = ref(false);
 const duplicateSubmitted = ref(false);
 const error = ref('');
 const previewMode = ref(false);
-const event = ref<CommunityEvent | null>(null);
-const campaign = ref<FeedbackCampaign | null>(null);
-const talks = ref<Talk[]>([]);
+const event = ref<FeedbackPublicResponse['event'] | null>(null);
+const campaign = ref<FeedbackPublicResponse['campaign'] | null>(null);
+const talks = ref<FeedbackPublicResponse['talks']>([]);
 const respondent = reactive({
   name: '',
   email: '',
