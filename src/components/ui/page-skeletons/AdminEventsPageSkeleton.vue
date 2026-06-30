@@ -17,9 +17,9 @@
         <div class="skeleton-line skeleton-line--heading" />
       </div>
       <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <div v-for="item in 6" :key="item" class="skeleton-form-card skeleton-form-card--compact" />
+        <div v-for="item in 4" :key="item" class="skeleton-form-card skeleton-form-card--compact" />
       </div>
     </section>
-    <section class="skeleton-table" :style="{ '--skeleton-rows': '6' }" />
+    <section class="skeleton-table" :style="{ '--skeleton-rows': '4' }" />
   </div>
 </template>

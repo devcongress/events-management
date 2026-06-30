@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackOverviewPageSkeleton.vue';
@@ -20,6 +21,7 @@ import { notify } from '@/src/lib/notify';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 const FEEDBACK_START_MONTH = '2026-01';
+const FEEDBACK_MONTH_QUERY_PATTERN = /^\d{4}-\d{2}$/;
 const emptyRouteFeedbackSummary: RouteFeedbackSummary = {
   total: 0,
   new: 0,
@@ -51,10 +53,11 @@ const routeFeedbackSectionMeta = [
   },
 ] as const;
 
+const route = useRoute();
 const queryClient = useQueryClient();
-const selectedFeedbackStream = ref<'website' | 'event' | null>(null);
-const selectedMonthKey = ref('');
-const selectedYear = ref('');
+const selectedFeedbackStream = ref<'website' | 'event' | null>(feedbackStreamQueryValue());
+const selectedMonthKey = ref(feedbackMonthQueryValue() ?? '');
+const selectedYear = ref(feedbackMonthQueryValue()?.slice(0, 4) ?? '');
 const routeFeedbackRequested = ref(false);
 const routeFeedbackActionError = ref('');
 const expandedRouteFeedbackIds = ref<string[]>([]);
@@ -109,13 +112,34 @@ const eventPeriodsForSelectedYear = computed(() => {
   const activePeriods = monthsForSelectedYear.value.filter((month) => month.event_count > 0 || month.total_responses > 0);
   return activePeriods.length > 0 ? activePeriods : monthsForSelectedYear.value;
 });
-const selectedMonthHasResponses = computed(() => (selectedMonth.value?.total_responses ?? 0) > 0);
-
 function currentFeedbackMonthKey(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   return `${year}-${month}`;
+}
+
+function feedbackStreamQueryValue(): 'website' | 'event' | null {
+  return route.query.stream === 'website' || route.query.stream === 'event' ? route.query.stream : null;
+}
+
+function feedbackMonthQueryValue(): string | null {
+  const value = route.query.month;
+  return typeof value === 'string' && FEEDBACK_MONTH_QUERY_PATTERN.test(value) ? value : null;
+}
+
+function applyFeedbackHubQuery() {
+  const stream = feedbackStreamQueryValue();
+  const month = feedbackMonthQueryValue();
+
+  if (stream) {
+    selectedFeedbackStream.value = stream;
+  }
+
+  if (month) {
+    selectedMonthKey.value = month;
+    selectedYear.value = month.slice(0, 4);
+  }
 }
 
 watch(months, (availableMonths) => {
@@ -135,6 +159,8 @@ watch(months, (availableMonths) => {
     selectedYear.value = monthYear;
   }
 }, { immediate: true });
+
+watch(() => [route.query.stream, route.query.month], applyFeedbackHubQuery);
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
@@ -176,6 +202,10 @@ function responseCountDisabled(event: FeedbackMonthEvent): boolean {
 
 function eventCampaignPublished(event: FeedbackMonthEvent): boolean {
   return event.is_open || event.campaign?.status === 'active' || event.campaign?.status === 'closed';
+}
+
+function canViewEventResponses(event: FeedbackMonthEvent): boolean {
+  return eventCampaignPublished(event) && event.response_count > 0;
 }
 
 function feedbackDisplayPath(event: FeedbackMonthEvent) {
@@ -398,7 +428,9 @@ async function archiveResolvedRouteFeedback() {
             <h2>Website notes</h2>
             <p>Bug, confusing, and suggestion notes sent from the floating feedback widget.</p>
             <div class="feedback-category-meta">
-              <strong>{{ routeFeedbackOpenCount }}</strong>
+              <Transition name="feedback-count" mode="out-in">
+                <strong :key="routeFeedbackOpenCount">{{ routeFeedbackOpenCount }}</strong>
+              </Transition>
               <span>open</span>
             </div>
             <button
@@ -418,7 +450,9 @@ async function archiveResolvedRouteFeedback() {
             <h2>Meetup forms</h2>
             <p>Response signals from monthly, quarterly, and one-off event feedback campaigns.</p>
             <div class="feedback-category-meta">
-              <strong>{{ eventFeedbackTotalResponses }}</strong>
+              <Transition name="feedback-count" mode="out-in">
+                <strong :key="eventFeedbackTotalResponses">{{ eventFeedbackTotalResponses }}</strong>
+              </Transition>
               <span>{{ eventFeedbackCycleCount }} event{{ eventFeedbackCycleCount === 1 ? '' : 's' }}</span>
             </div>
             <button
@@ -432,7 +466,8 @@ async function archiveResolvedRouteFeedback() {
           </article>
         </section>
 
-        <section v-if="selectedFeedbackStream === 'website'" class="feedback-hub-section">
+        <Transition name="feedback-pane" mode="out-in">
+        <section v-if="selectedFeedbackStream === 'website'" key="website" class="feedback-hub-section">
           <div class="feedback-section-header">
             <div>
               <p class="editorial-eyebrow mb-2">website feedback</p>
@@ -510,6 +545,7 @@ async function archiveResolvedRouteFeedback() {
                 </div>
               </div>
 
+              <TransitionGroup name="feedback-row" tag="div" class="feedback-inbox-list">
               <article
                 v-for="item in section.items"
                 :key="item.id"
@@ -578,18 +614,18 @@ async function archiveResolvedRouteFeedback() {
                   </p>
                 </div>
               </article>
+              </TransitionGroup>
             </section>
           </div>
         </section>
 
-        <section v-if="selectedFeedbackStream === 'event' && months.length === 0" class="editorial-panel p-8">
+        <section v-else-if="selectedFeedbackStream === 'event' && months.length === 0" key="event-empty" class="editorial-panel p-8">
           <p class="editorial-eyebrow">fresh start</p>
           <h2 class="text-3xl font-black tracking-tight text-dc-ink">No event feedback yet.</h2>
           <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">Create events first. Completed, monthly, quarterly, and one-off events can all expose feedback forms.</p>
         </section>
 
-        <template v-else-if="selectedFeedbackStream === 'event' && selectedMonth">
-          <section class="feedback-hub-section mt-8">
+        <section v-else-if="selectedFeedbackStream === 'event' && selectedMonth" key="event-reports" class="feedback-hub-section mt-8">
             <div class="feedback-section-header feedback-section-header--reports">
               <div class="feedback-reports-header-layout">
                 <div class="feedback-reports-copy">
@@ -633,10 +669,7 @@ async function archiveResolvedRouteFeedback() {
               </div>
             </div>
 
-            <div
-              class="grid gap-0"
-              :class="selectedMonthHasResponses ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : ''"
-            >
+            <div class="grid gap-0">
               <div class="min-w-0">
                 <Transition name="feedback-event-list" mode="out-in">
                   <div
@@ -651,11 +684,12 @@ async function archiveResolvedRouteFeedback() {
                       </div>
                     </div>
 
+                    <TransitionGroup name="feedback-row" tag="div" class="feedback-event-rows">
                     <article v-for="item in selectedMonth.events" :key="item.event.id" class="feedback-event-row">
                       <div class="feedback-event-main">
                         <div class="feedback-event-title-row">
                           <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ item.event.name }}</h3>
-                          <span class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="statusClass(item)">
+                          <span v-if="!item.is_open" class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="statusClass(item)">
                             {{ eventStatusLabel(item) }}
                           </span>
                         </div>
@@ -669,25 +703,46 @@ async function archiveResolvedRouteFeedback() {
                         >
                           <div class="feedback-event-stat">
                             <dt>Responses</dt>
-                            <dd>{{ item.response_count }}</dd>
+                            <dd>
+                              <Transition name="feedback-count" mode="out-in">
+                                <span :key="item.response_count">{{ item.response_count }}</span>
+                              </Transition>
+                            </dd>
                           </div>
                           <div class="feedback-event-stat">
                             <dt>Rating</dt>
-                            <dd>{{ item.response_count > 0 ? (item.insights.average_rating ?? '-') : '-' }}</dd>
+                            <dd>
+                              <Transition name="feedback-count" mode="out-in">
+                                <span :key="item.response_count > 0 ? (item.insights.average_rating ?? '-') : '-'">{{ item.response_count > 0 ? (item.insights.average_rating ?? '-') : '-' }}</span>
+                              </Transition>
+                            </dd>
                           </div>
                           <div class="feedback-event-stat">
                             <dt>Attend again</dt>
-                            <dd>{{ item.response_count > 0 && item.insights.attend_again_percent !== null ? `${item.insights.attend_again_percent}%` : '-' }}</dd>
+                            <dd>
+                              <Transition name="feedback-count" mode="out-in">
+                                <span :key="item.response_count > 0 && item.insights.attend_again_percent !== null ? `${item.insights.attend_again_percent}%` : '-'">{{ item.response_count > 0 && item.insights.attend_again_percent !== null ? `${item.insights.attend_again_percent}%` : '-' }}</span>
+                              </Transition>
+                            </dd>
                           </div>
                         </dl>
 
                         <div class="feedback-event-actions">
                           <RouterLink
-                            :to="{ path: adminPath(`events/${item.event.id}/feedback`), query: { from: 'feedback', view: 'responses' } }"
+                            v-if="!eventCampaignPublished(item) || canViewEventResponses(item)"
+                            :to="{ path: adminPath(`events/${item.event.id}/feedback`), query: { from: 'feedback', view: 'responses', month: selectedMonthKey } }"
                             class="editorial-secondary-action px-4 py-2 text-xs"
                           >
                             {{ eventCampaignPublished(item) ? 'View responses' : 'Configure' }}
                           </RouterLink>
+                          <button
+                            v-else
+                            type="button"
+                            class="editorial-secondary-action px-4 py-2 text-xs"
+                            disabled
+                          >
+                            View responses
+                          </button>
                           <RouterLink
                             v-if="item.is_open"
                             :to="feedbackDisplayPath(item)"
@@ -707,12 +762,13 @@ async function archiveResolvedRouteFeedback() {
                         </div>
                       </div>
                     </article>
+                    </TransitionGroup>
                   </div>
                 </Transition>
               </div>
             </div>
           </section>
-        </template>
+        </Transition>
       </template>
     </div>
   </div>

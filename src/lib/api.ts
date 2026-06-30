@@ -1,4 +1,4 @@
-import type { Event, LeaderboardEntry, PublicMeetup, QuizSession, Talk } from '@/types';
+import type { Event, LeaderboardEntry, PublicArchiveEventResponse, PublicArchiveResponse, PublicHomeResponse, PublicMeetup, QuizSession, Talk } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
 
@@ -195,6 +195,9 @@ export interface FeedbackEventStatusResponse {
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
+  publicArchive: ['public-archive'] as const,
+  publicArchiveEvent: (eventId: string) => ['public-archive-event', eventId] as const,
+  publicHome: ['public-home'] as const,
   publicMeetups: ['public-meetups'] as const,
   publicMeetup: (slug: string) => ['public-meetup', slug] as const,
   feedbackMonths: ['feedback-months'] as const,
@@ -257,6 +260,24 @@ export function fetchPublicMeetups() {
 
 export function fetchPublicMeetup(slug: string) {
   return fetchJson<PublicMeetupResponse>(`/api/public/meetups/${slug}`, {
+    cache: 'no-store',
+  });
+}
+
+export function fetchPublicArchive() {
+  return fetchJson<PublicArchiveResponse>('/api/public/archive', {
+    cache: 'no-store',
+  });
+}
+
+export function fetchPublicArchiveEvent(eventId: string) {
+  return fetchJson<PublicArchiveEventResponse>(`/api/public/archive/${eventId}`, {
+    cache: 'no-store',
+  });
+}
+
+export function fetchPublicHome() {
+  return fetchJson<PublicHomeResponse>('/api/public/home', {
     cache: 'no-store',
   });
 }

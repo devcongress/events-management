@@ -381,12 +381,13 @@ function statusActionPath(event: CommunityEvent): string {
     draft: 'speakers',
     cfp_open: 'speakers',
     cfp_closed: 'talks',
-    upcoming: 'quiz',
+    upcoming: '',
     live: 'quiz/live',
     completed: 'attendance',
   };
 
-  return adminPath(`events/${event.id}/${subsectionByStatus[event.status]}`);
+  const subsection = subsectionByStatus[event.status];
+  return adminPath(`events/${event.id}${subsection ? `/${subsection}` : ''}`);
 }
 
 async function openEventNextStep(event: CommunityEvent) {
@@ -520,9 +521,7 @@ function goToPage(nextPage: number) {
         </section>
 
         <section class="editorial-panel relative overflow-hidden p-5 sm:p-6">
-          <div class="absolute -left-12 top-7 z-10 w-48 -rotate-45 border-y-2 border-dc-ink bg-dc-yellow py-1 text-center font-mono text-[11px] font-black uppercase tracking-wide text-dc-ink shadow-[0_2px_0_#111111]">
-            Coming soon
-          </div>
+          <div class="coming-soon-ribbon">Coming soon</div>
           <div class="pl-16 sm:pl-20">
             <p class="editorial-eyebrow">manual path</p>
             <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Event Form</h2>
@@ -636,7 +635,7 @@ function goToPage(nextPage: number) {
             </div>
           </div>
           <div class="overflow-x-auto">
-            <div class="min-w-[760px]">
+            <div class="min-w-[900px]">
               <div class="ops-panel-header event-list-grid">
                 <div class="ops-label">Event</div>
                 <div class="ops-label">Date</div>
@@ -694,11 +693,12 @@ function goToPage(nextPage: number) {
                       </div>
                       <span class="event-list-status-label">{{ statusMeta(event.status).label }}</span>
                     </div>
-                    <div class="flex items-center justify-end gap-4">
-                      <span class="font-mono text-sm font-bold uppercase text-dc-ink underline decoration-dc-yellow decoration-2 underline-offset-4">{{ statusActionLabel(event.status) }} &rarr;</span>
+                    <div class="event-list-actions">
+                      <span class="event-list-primary-action">{{ statusActionLabel(event.status) }} &rarr;</span>
                       <button
                         type="button"
-                        class="font-mono text-xs font-bold uppercase text-dc-gray hover:text-red-600"
+                        class="event-list-remove-action motion-press"
+                        :aria-label="`Remove ${event.name}`"
                         @click.stop="requestDeleteEvent(event)"
                         @keydown.stop
                       >

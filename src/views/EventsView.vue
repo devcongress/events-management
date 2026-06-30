@@ -40,6 +40,25 @@ function statusClass(status: PublicMeetupStatus) {
   return 'bg-dc-info-soft text-dc-info';
 }
 
+function isInternalAppHref(value: string) {
+  if (value.startsWith('/')) return true;
+  if (typeof window === 'undefined') return false;
+
+  try {
+    const url = new URL(value);
+    return url.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function toInternalAppPath(value: string) {
+  if (value.startsWith('/')) return value;
+
+  const url = new URL(value);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 function primaryAction(meetup: PublicMeetup): { href: string; label: string; external: boolean } {
   if (meetup.status === 'upcoming' && meetup.registration_url) {
     return { href: meetup.registration_url, label: 'Register', external: true };
@@ -49,9 +68,17 @@ function primaryAction(meetup: PublicMeetup): { href: string; label: string; ext
     return { href: meetup.stream_url, label: 'Follow live', external: true };
   }
 
+  if (meetup.status === 'past' && meetup.archive_url) {
+    return {
+      href: meetup.archive_url,
+      label: 'View recap',
+      external: !isInternalAppHref(meetup.archive_url),
+    };
+  }
+
   return {
     href: `/events/${meetup.slug}`,
-    label: meetup.status === 'past' ? 'View recap' : meetup.status === 'upcoming' ? 'Register' : 'View meetup',
+    label: meetup.status === 'upcoming' ? 'Register' : 'View meetup',
     external: false,
   };
 }
@@ -131,7 +158,7 @@ onUnmounted(() => {
             <div class="pt-2">
               <component
                 :is="primaryAction(meetup).external ? 'a' : 'RouterLink'"
-                :to="!primaryAction(meetup).external ? primaryAction(meetup).href : undefined"
+                :to="!primaryAction(meetup).external ? toInternalAppPath(primaryAction(meetup).href) : undefined"
                 :href="primaryAction(meetup).external ? primaryAction(meetup).href : undefined"
                 :target="primaryAction(meetup).external ? '_blank' : undefined"
                 :rel="primaryAction(meetup).external ? 'noopener noreferrer' : undefined"

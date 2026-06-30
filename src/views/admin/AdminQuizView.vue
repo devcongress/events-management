@@ -68,6 +68,7 @@ function eventQuizRoute(section = 'quiz') {
 
 const liveMode = computed(() => route.path.endsWith('/live'));
 const quizPaused = true;
+const quizCreationPaused = true;
 const playUrl = computed(() => {
   if (!session.value) return '';
   return `${window.location.origin}/play/${session.value.join_code}`;
@@ -340,15 +341,20 @@ onUnmounted(() => {
       <AdminQuizPageSkeleton v-if="loading" />
 
       <div v-else-if="!session" class="editorial-panel relative overflow-hidden p-12 text-center">
+        <div class="coming-soon-ribbon">Coming soon</div>
         <div class="absolute right-0 top-0 size-16 border-b-2 border-l-2 border-dc-yellow/20" />
         <p class="mb-8 font-mono text-dc-gray">No quiz has been created for this event yet.</p>
-        <button class="editorial-secondary-action" @click="createSession">Create Quiz</button>
+        <div class="flex justify-center">
+          <button type="button" class="editorial-secondary-action min-w-[160px]" :disabled="quizCreationPaused" @click="createSession">
+            Create Quiz
+          </button>
+        </div>
       </div>
 
       <template v-else-if="liveMode">
         <section class="coming-soon-banner">
+          <div class="coming-soon-ribbon">Coming soon</div>
           <div>
-            <p class="editorial-eyebrow">coming soon</p>
             <h1 class="text-4xl font-black tracking-tight text-dc-ink sm:text-6xl">Live quiz room is paused.</h1>
             <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">
               The lobby and host controls are being held back until the realtime plan is worth funding. For now, keep using Events, Talks, Speakers, Attendance, and Feedback.
@@ -443,8 +449,8 @@ onUnmounted(() => {
 
       <template v-else>
         <section class="coming-soon-banner mb-8">
+          <div class="coming-soon-ribbon">Coming soon</div>
           <div>
-            <p class="editorial-eyebrow">coming soon</p>
             <h2 class="text-2xl font-black tracking-tight text-dc-ink">Quiz is paused for the low-cost launch.</h2>
             <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
               We are preserving the builder path, but live quiz rooms, leaderboard scoring, and PDF generation should wait until DevCon is ready to fund or harden realtime infrastructure.

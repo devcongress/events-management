@@ -38,7 +38,7 @@
           <div class="skeleton-button skeleton-button--secondary" />
         </div>
         <div class="space-y-4">
-          <article v-for="item in 4" :key="item" class="skeleton-panel p-4">
+          <article v-for="item in 2" :key="item" class="skeleton-panel p-4">
             <div class="grid gap-5 lg:grid-cols-[116px_1fr]">
               <div class="space-y-3">
                 <div class="skeleton-stat-card h-[76px]" />
@@ -51,7 +51,7 @@
                   <div v-for="tag in 3" :key="tag" class="skeleton-chip !mb-0" />
                 </div>
                 <div class="grid gap-2">
-                  <div v-for="talk in 2" :key="talk" class="skeleton-form-card skeleton-form-card--compact" />
+                  <div v-for="talk in 1" :key="talk" class="skeleton-form-card skeleton-form-card--compact" />
                 </div>
               </div>
             </div>

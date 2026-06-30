@@ -5,6 +5,80 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-06-30 — Audit log page polish
+
+- Removed the redundant open-state badge from Feedback Hub event rows while keeping preview and QR actions as the explicit ways to access forms.
+- Routed upcoming-event `Prepare` actions to the event overview instead of the paused quiz page so the Overview tab is highlighted after navigation.
+- Increased spacing between event-list primary actions and the destructive Remove control so organizers are less likely to misclick while reviewing events.
+- Let organizers disable incomplete milestones on unpublished event checklists while keeping those rows visible and excluded from progress.
+- Replaced the audit log filter selects with the shared app dropdown component, removed the actor email search field, and added a grouped-by-email view toggle.
+- Kept the audit log filter bar sticky inside the organizer scroll area and paginated recent audit rows into compact pages for dense owner-only activity reviews.
+- Kept the audit activity summary and table header sticky under the filter controls while reviewing long owner-only logs.
+- Reduced audit-log page height with a smaller page size, compact row spacing, fixed table columns, and truncated summaries so pagination remains visible without horizontal overflow.
+- Aligned Feedback Hub event-row actions beside the response metrics on wide screens so the buttons no longer drop beneath the `Attend again` stat.
+- Removed the unused Feedback Hub reports side column so event rows get the full card width and their action buttons stay beside the metrics.
+- Disabled `View responses` on published event feedback rows with zero responses while leaving Configure and QR actions available where relevant.
+- Preserved the selected event-feedback month when drilling into an event's responses, so `Back to Feedback Hub` returns to the same period.
+- Reduced the attendance ledger page height with compact rows, truncated cells, and smaller pages so its pagination stays visible in the viewport.
+- Moved the feedback form remove action into the Community Link controls and removed the separate rare-action card.
+- Removed the duplicate Recent Responses sidebar card from the feedback form setup page because response review already lives in the main responses view.
+- Restored the public home Top Regulars card by including attendance regulars in `/api/public/home` and wiring the dashboard to that payload.
+- Ranked attendance regulars by check-ins first, then attendance rate, registration count, recency, and name so perfect repeat attendance wins tied check-in counts.
+- Removed organizer-only check-in counts and attendance percentages from the public Top Regulars card.
+- Added the original Luma source link to the organizer About Page card when an event was imported from Luma.
+- Matched the Audit Log skeleton loader to the current sticky filters, activity summary, fixed-column table, and pagination layout.
+- Capped and compacted organizer and community skeleton loaders so loading states no longer create their own page scrollbars.
+
+## 2026-06-30 — Attendance upload window fix
+
+- Opened attendance CSV import for same-month events once the specific event has ended, while keeping future current-month events locked.
+- Clarified the public archive system-design source action so the prompt deck or source sheet link reads as a clickable action instead of a decorative label.
+- Added a data-source health endpoint so local and deployed runtimes can confirm whether Supabase-backed domains share the same project and which remaining domains still use runtime-local JSON.
+- Fixed the Feedback Hub monthly response counts to use the same configured event-feedback store as the event detail page, so Supabase attendee submissions are counted in both places.
+- Smoothed Feedback Hub state changes with coordinated pane, row, and count transitions so stream switches, period changes, and response-count updates feel less abrupt.
+
+## 2026-06-30 — Speaker talk backfill
+
+- Added an organizer manual talk form for confirmed or past talks, with optional slide links and immediate archive publishing.
+- Added public speaker archive form links from Talk Management so organizers can generate month-scoped, expiring, one-time links for speakers to fill the same post-event details form.
+- Made the speaker form the default backfill mode and collapsed manual entry behind a toggle, with disabled controls and a short accordion/collapse transition.
+- Slowed the manual-entry collapse state and moved the speaker-link validity picker onto the shared app dropdown component.
+- Kept the event-admin tab rail sticky while organizer pages scroll, including the mobile fixed-header offset.
+- Kept manual talk entry aligned with speaker access by creating the speaker allowlist row when needed.
+- Kept the speaker My Talks lookup and event speaker-access management surfaces visually present but disabled with the coming-soon treatment.
+- Made the event checklist derive visible milestones from currently available features, hiding paused CFP, speaker-access, talk-material, quiz, and manual event-day-start work while keeping event creation, publishing, system design, completion, attendance, feedback, and archive tasks available.
+- Made the `Publish archive` checklist milestone explicitly publish the event to the public site and mark it completed, so published talks from speaker-intake links appear in the public archive without relying on paused workflows.
+- Documented the active URL-only slide-link flow and the backfill workflow for pre-app events.
+
+## 2026-06-30 — Quiz creation pause
+
+- Disabled the empty-state quiz creation button in the organizer quiz builder and marked the action with a coming-soon tag while the quiz workflow remains paused.
+- Standardized coming-soon labels onto the diagonal yellow corner-ribbon treatment used by paused panels and mastheads.
+- Gave paused event tabs such as Speakers and Quiz a disabled visual state instead of active or badge-style treatment.
+
+## 2026-06-30 — Local organizer auth redirects
+
+- Made non-production auth redirects prefer the current localhost request origin over deployed public origins, so local Google sign-in callbacks stay on the dev server instead of jumping to the Pages URL.
+- Documented the Supabase redirect allowlist entries needed when local development runs on a non-default port.
+
+## 2026-06-26 — System design prompt links
+
+- Extended the organizer Program outline editor with a one-click monthly system-design scenario row.
+- Added outline description and primary resource fields so organizers can save Google Slides prompt decks as structured `system_design` schedule resources.
+- Show saved outline descriptions and resource links in the event overview before publishing them to the public meetup page.
+- Kept timing ownership in the Program outline by removing the time field from the dedicated System Design artifact editor while preserving existing outline times on save.
+- Added a full-width draft generator for public system-design notes so organizers can prefill readable scenario copy from the title, facilitator, and prompt link before replacing it with the actual post-event recap.
+- Replaced the generic system-design draft placeholder with a server-backed Google Slides parser that reads public presentation text exports, infers a title, and generates a concrete recap draft from the actual deck content.
+- Simplified the dedicated System Design editor by removing the separate prompt-label field and making public/archive scenario titles themselves open the linked prompt deck.
+- Tightened shared button disabled states so in-progress actions stop showing hover/press affordances, and locked the System Design editor's sibling actions while draft generation is running.
+- Added a proper saved state to the dedicated System Design page so saved scenarios show a clear stored indicator plus explicit edit and remove actions instead of leaving organizers in an always-open form.
+- Kept public system-design discovery inside each meetup archive entry: public meetup system-design links now return to the parent archive page, archive search stays event-based, and archive meetup pages show the recap copy plus prompt-deck links inline.
+- Synced the dedicated System Design editor back into existing outline slots, so when an event already has a `System Design session` row the scenario title, recap, facilitator, and prompt-deck link now attach to that row instead of creating a duplicate `TBD` system-design entry.
+- Sent past-meetup `View recap` CTAs directly to the monthly archive entry and removed the duplicate standalone system-design recap block from the public meetup page so recap content now lives in one place.
+- Normalized stale event lifecycle statuses from event dates on server reads, so published meetups that already ended now show up in archive/dashboard flows as `completed` even if an organizer left the stored row on `live` or another earlier phase.
+- Gated non-public API routes behind organizer authentication so only `/api/public/meetups*` remains open for unauthenticated website consumption, with auth routes left available for sign-in.
+- Added narrow public home and archive APIs, moved the public dashboard/archive pages off `/api/overview`, and reduced public feedback form responses to attendee-safe event, campaign, and talk labels.
+
 ## 2026-06-25 — Migration closeout
 
 - Archived the old `Elvis020/devCon-comm` GitHub repository now that `devcongress/events-management` is the active home.

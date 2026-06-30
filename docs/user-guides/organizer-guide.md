@@ -24,13 +24,15 @@ Use the `System design` outline type for the monthly architecture scenario. The 
 
 Each event overview includes a chronological checklist. The checklist is the primary shared source of truth for event preparation and can advance event status when milestones are completed.
 
+Before an event is published publicly, organizers can disable incomplete checklist milestones that do not apply to that event. Disabled milestones stay visible, cannot be checked off, and do not count toward checklist progress.
+
 ## Review Talks
 
-The Talks section is the review pipeline for CFP submissions. Organizers can accept, reject, publish, and follow up for slides.
+The Talks section is the review pipeline for CFP submissions and the backfill workspace for talks that happened before this app was live. The default backfill path is an expiring one-time speaker archive form link for a speaker to fill. Turn the speaker form off when an organizer needs to enter a confirmed or past talk directly. Organizers can then accept/reject CFP submissions, publish archive entries, and follow up for public slide links. Speaker links are tied to the event month and close after one successful submission.
 
 ## Manage Speakers
 
-The Speakers section keeps the invite/access list aligned with the program.
+The Speakers section keeps the invite/access list aligned with the program. Adding a manual talk also keeps that speaker email available for speaker access.
 
 ## Review Attendance
 
@@ -56,4 +58,4 @@ The Quiz section supports building questions and hosting a live quiz. Quiz is cu
 
 ## Prepare System Design Sessions
 
-The System Design tab is the monthly scenario workspace. Add the scenario as a `System design` row in the event overview's program outline, then use the tab to publish the prompt link and short recap notes. Public meetup and archive pages show this section when the event has system design details.
+The System Design tab is the monthly scenario workspace. Add the scenario as a `System design` row in the event overview's program outline, then use the tab to publish the prompt link and short recap notes. Public meetup schedules link that row into the archive entry for the same meetup, where attendees can read the recap and open the prompt deck.

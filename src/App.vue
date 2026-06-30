@@ -27,11 +27,14 @@ const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
+const adminEventTabsShell = ref<HTMLElement | null>(null);
+const adminEventTabsHeight = ref(0);
 const logoSrc = '/brand/dev-con-logo.png';
 const showOrganizerLink = import.meta.env.VITE_SHOW_ORGANIZER_LINK !== 'false';
 const feedbackBotEnabled = import.meta.env.VITE_SHOW_FEEDBACK_BOT !== 'false';
 let quizAvailabilityInterval: number | undefined;
 let keyboardFocusTimer: number | undefined;
+let adminEventTabsResizeObserver: ResizeObserver | undefined;
 
 const publicLinks: NavLink[] = [
   { href: '/', label: 'Home' },
@@ -120,12 +123,33 @@ const adminReturnSource = computed(() => {
   if (value === 'attendance' || value === 'feedback') return value;
   return null;
 });
+const adminFeedbackReturnMonth = computed(() => {
+  const value = route.query.month;
+  return typeof value === 'string' && /^\d{4}-\d{2}$/.test(value) ? value : null;
+});
+const adminReturnSearch = computed(() => {
+  if (!adminReturnSource.value) return '';
+
+  const params = new URLSearchParams({ from: adminReturnSource.value });
+  if (adminReturnSource.value === 'feedback' && adminFeedbackReturnMonth.value) {
+    params.set('month', adminFeedbackReturnMonth.value);
+  }
+  return params.toString();
+});
 const adminReturnLink = computed(() => {
   if (adminReturnSource.value === 'attendance') {
     return { href: adminPath('attendance'), label: 'Attendance Hub' };
   }
 
   if (adminReturnSource.value === 'feedback') {
+    if (adminFeedbackReturnMonth.value) {
+      const params = new URLSearchParams({
+        stream: 'event',
+        month: adminFeedbackReturnMonth.value,
+      });
+      return { href: `${adminPath('feedback')}?${params.toString()}`, label: 'Feedback Hub' };
+    }
+
     return { href: adminPath('feedback'), label: 'Feedback Hub' };
   }
 
@@ -149,6 +173,9 @@ const currentEventLabel = computed(() => {
   return adminEventNames.value[adminEventId.value] ?? 'Event';
 });
 const showAdminEventTabs = computed(() => Boolean(adminEventId.value && route.path.startsWith(adminPath(`events/${adminEventId.value}`))));
+const appMainStyle = computed(() => ({
+  '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
+}));
 const breadcrumbItems = computed(() => {
   const items: { label: string; href?: string }[] = [];
   const path = route.path;
@@ -196,8 +223,8 @@ const breadcrumbItems = computed(() => {
         items.push({ label: 'Events', href: adminPath('events') });
       }
 
-      const eventHref = adminReturnSource.value
-        ? `${adminPath(`events/${adminEventId.value}`)}?from=${adminReturnSource.value}`
+      const eventHref = adminReturnSource.value && adminReturnSearch.value
+        ? `${adminPath(`events/${adminEventId.value}`)}?${adminReturnSearch.value}`
         : adminPath(`events/${adminEventId.value}`);
       items.push({ label: currentEventLabel.value, href: eventHref });
 
@@ -345,6 +372,22 @@ function dismissMobileKeyboard() {
   keyboardInset.value = 0;
 }
 
+function updateAdminEventTabsHeight() {
+  adminEventTabsHeight.value = adminEventTabsShell.value?.offsetHeight ?? 0;
+}
+
+function syncAdminEventTabsObserver() {
+  adminEventTabsResizeObserver?.disconnect();
+
+  if (!adminEventTabsShell.value) {
+    updateAdminEventTabsHeight();
+    return;
+  }
+
+  adminEventTabsResizeObserver?.observe(adminEventTabsShell.value);
+  updateAdminEventTabsHeight();
+}
+
 function handleDocumentPointerDown(event: PointerEvent) {
   if (!isMobileViewport() || !isEditableElement(document.activeElement)) return;
 
@@ -383,12 +426,18 @@ async function refreshAdminEventNames() {
 }
 
 onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined') {
+    adminEventTabsResizeObserver = new ResizeObserver(updateAdminEventTabsHeight);
+  }
+
   document.addEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.addEventListener('focusin', syncKeyboardDismissVisibility);
   document.addEventListener('focusout', syncKeyboardDismissVisibility);
   window.addEventListener('resize', syncKeyboardDismissVisibility);
+  window.addEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.addEventListener('resize', updateKeyboardInset);
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
+  void nextTick(syncAdminEventTabsObserver);
   void refreshQuizAvailability();
   void refreshAdminEventNames();
   quizAvailabilityInterval = window.setInterval(() => {
@@ -401,6 +450,7 @@ watch(() => route.path, (toPath, fromPath) => {
   dismissMobileKeyboard();
   resetMainScroll();
   updateRouteTransition(toPath, fromPath);
+  void nextTick(syncAdminEventTabsObserver);
   void refreshAdminEventNames();
 });
 
@@ -426,10 +476,12 @@ watch(
 
 onUnmounted(() => {
   window.clearTimeout(keyboardFocusTimer);
+  adminEventTabsResizeObserver?.disconnect();
   document.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.removeEventListener('focusin', syncKeyboardDismissVisibility);
   document.removeEventListener('focusout', syncKeyboardDismissVisibility);
   window.removeEventListener('resize', syncKeyboardDismissVisibility);
+  window.removeEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
   if (quizAvailabilityInterval !== undefined) {
@@ -617,8 +669,12 @@ onUnmounted(() => {
       </ol>
     </nav>
 
-    <main class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-      <div v-if="showAdminEventTabs && adminEventId" class="bg-dc-cream text-dc-ink">
+    <main
+      class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+      :class="{ 'app-main--with-event-tabs': showAdminEventTabs }"
+      :style="appMainStyle"
+    >
+      <div v-if="showAdminEventTabs && adminEventId" ref="adminEventTabsShell" class="admin-event-tabs-shell bg-dc-cream text-dc-ink">
         <div class="editorial-wrap event-tabs-wrap pb-0">
           <RouterLink
             v-if="adminReturnLink"

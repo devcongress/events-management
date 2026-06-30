@@ -21,7 +21,7 @@
             <div class="skeleton-form-card skeleton-form-card--compact" />
           </div>
         </div>
-        <div v-for="item in 3" :key="item" class="skeleton-panel p-5">
+        <div v-for="item in 2" :key="item" class="skeleton-panel p-5">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div class="skeleton-line skeleton-line--third" />
             <div class="skeleton-button skeleton-button--secondary" />
@@ -37,7 +37,6 @@
         </div>
       </div>
       <div class="space-y-4">
-        <div class="skeleton-side-card" />
         <div class="skeleton-side-card" />
         <div class="skeleton-side-card" />
       </div>

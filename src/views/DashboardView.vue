@@ -3,16 +3,16 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import DashboardPageSkeleton from '@/src/components/ui/page-skeletons/DashboardPageSkeleton.vue';
-import { fetchOverview, queryKeys } from '@/src/lib/api';
-import type { Event, Talk } from '@/types';
+import { fetchPublicHome, queryKeys } from '@/src/lib/api';
+import type { PublicArchiveTalk } from '@/types';
 
-const overviewQuery = useQuery({
-  queryKey: queryKeys.overview,
-  queryFn: fetchOverview,
+const homeQuery = useQuery({
+  queryKey: queryKeys.publicHome,
+  queryFn: fetchPublicHome,
 });
-const overview = computed(() => overviewQuery.data.value ?? null);
-const error = computed(() => overviewQuery.error.value?.message ?? null);
-const loading = computed(() => overviewQuery.isPending.value);
+const home = computed(() => homeQuery.data.value ?? null);
+const error = computed(() => homeQuery.error.value?.message ?? null);
+const loading = computed(() => homeQuery.isPending.value);
 const activeMeetupPhoto = ref(0);
 const isMeetupPhotoShifting = ref(false);
 let meetupPhotoTimer: number | undefined;
@@ -35,24 +35,11 @@ const meetupPhotos = [
   },
 ];
 
-const completedEvents = computed(() => {
-  return [...(overview.value?.events ?? [])]
-    .filter((event) => event.status === 'completed')
-    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
-});
-
-const cfpOpenEvent = computed(() => {
-  return (overview.value?.events ?? []).find((event) => event.status === 'cfp_open') ?? null;
-});
-
-const publishedTalks = computed(() => {
-  return [...(overview.value?.talks ?? [])]
-    .filter((talk) => talk.status === 'published')
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-});
-
-const recentTalks = computed(() => publishedTalks.value.slice(0, 4));
-const topRegulars = computed(() => (overview.value?.regulars ?? []).slice(0, 3));
+const completedEventsCount = computed(() => home.value?.completed_events_count ?? 0);
+const publishedTalksCount = computed(() => home.value?.published_talks_count ?? 0);
+const cfpOpenEvent = computed(() => home.value?.cfp_event ?? null);
+const recentTalks = computed(() => home.value?.recent_talks ?? []);
+const topRegulars = computed(() => home.value?.regulars ?? []);
 const layeredMeetupPhotos = computed(() => {
   return meetupPhotos.map((photo, index) => ({
     ...photo,
@@ -62,8 +49,8 @@ const layeredMeetupPhotos = computed(() => {
 });
 const activeMeetupPhotoNumber = computed(() => activeMeetupPhoto.value + 1);
 
-function eventForTalk(talk: Talk): Event | null {
-  return overview.value?.events.find((event) => event.id === talk.event_id) ?? null;
+function eventNameForTalk(talk: PublicArchiveTalk): string {
+  return talk.event_name;
 }
 
 function rankLabel(rank: number): string {
@@ -199,12 +186,12 @@ onUnmounted(() => {
           <div class="home-summary-grid mb-8 grid max-w-4xl gap-4 sm:grid-cols-2">
             <article class="editorial-panel px-5 py-4">
               <p class="editorial-eyebrow">events</p>
-              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ completedEvents.length }}</p>
+              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ completedEventsCount }}</p>
               <p class="mt-1 text-sm text-dc-gray">completed community nights</p>
             </article>
             <article class="editorial-panel px-5 py-4">
               <p class="editorial-eyebrow">talks</p>
-              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ publishedTalks.length }}</p>
+              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ publishedTalksCount }}</p>
               <p class="mt-1 text-sm text-dc-gray">published sessions in the archive</p>
             </article>
           </div>
@@ -233,8 +220,8 @@ onUnmounted(() => {
                 {{ talk.speaker_name }}
                 <span class="mx-1 text-dc-border">/</span>
                 <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">{{ talk.topic || 'General' }}</span>
-                <span v-if="eventForTalk(talk)" class="mx-1 text-dc-border">/</span>
-                <span v-if="eventForTalk(talk)">{{ eventForTalk(talk)?.name }}</span>
+                <span class="mx-1 text-dc-border">/</span>
+                <span>{{ eventNameForTalk(talk) }}</span>
               </p>
             </RouterLink>
           </div>
@@ -253,21 +240,18 @@ onUnmounted(() => {
                 <NaviiAvatar :seed="regular.key" :title="`${regular.name} avatar`" :size="44" />
                 <div class="min-w-0">
                   <p class="truncate font-bold text-dc-ink">{{ regular.name }}</p>
-                  <p class="font-mono text-xs uppercase tracking-wide text-dc-gray">
-                    {{ regular.checked_in_count }} check-in{{ regular.checked_in_count === 1 ? '' : 's' }} / {{ Math.round(regular.check_in_rate * 100) }}%
-                  </p>
                 </div>
               </li>
             </ol>
           </aside>
 
-          <aside class="editorial-panel self-start border-dc-border bg-dc-paper-warm p-6 opacity-75">
-            <div class="mb-5 flex items-start justify-between gap-3">
+          <aside class="editorial-panel relative self-start overflow-hidden border-dc-border bg-dc-paper-warm p-6 opacity-75">
+            <div class="coming-soon-ribbon">Coming soon</div>
+            <div class="mb-5 flex items-start justify-between gap-3 pl-16 sm:pl-20">
               <div>
                 <p class="editorial-eyebrow">kahoot board</p>
                 <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Kahoot Leaderboard</h2>
               </div>
-              <span class="rounded-sm border border-dc-border bg-dc-paper px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Coming soon</span>
             </div>
             <div class="rounded-md border border-dashed border-dc-border bg-dc-paper px-4 py-5">
               <p class="text-sm font-semibold leading-6 text-dc-gray">

@@ -114,7 +114,9 @@ devcongress-comm-idea/
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail, status update, and admin-only removal
 - `/api/events/[eventId]/checklist` — admin-only chronological organizer checklist with status-changing milestones
-- `/api/events/[eventId]/talks` — talks for event
+- `/api/events/[eventId]/talks` — talks for event; organizer manual/backfill talk creation
+- `/api/events/[eventId]/speaker-intake-links` — admin-generated, month-scoped, expiring one-time speaker form links
+- `/api/events/[eventId]/speaker-intake/[token]` — public post-event speaker archive detail submission through a valid token
 - `/api/events/[eventId]/attendance` — admin-only attendance summary for the latest Luma import
 - `/api/events/[eventId]/attendance/import` — admin-only CSV import endpoint for Luma guest exports
 - `DELETE /api/events/[eventId]/attendance` — admin-only removal of the stored Luma import
@@ -128,7 +130,7 @@ devcongress-comm-idea/
 - `/api/feedback/events/[eventId]/submissions` — public structured event feedback submission
 - `/api/cfp` — CFP submission
 - `/api/talks` — all talks, optional `eventId` query filter
-- `/api/talks/[talkId]` — admin talk status update or speaker slide URL update
+- `/api/talks/[talkId]` — admin talk status update or speaker self-service slide URL update
 - `/api/talks/[talkId]/reminder` — logs organizer slide reminders for accepted talks
 - `/api/my-talks` — speaker talk lookup
 - `/api/leaderboard` — all-time, monthly, or session leaderboard

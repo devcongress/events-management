@@ -17,7 +17,7 @@
     </section>
     <section class="skeleton-panel mt-8 overflow-hidden">
       <div class="skeleton-panel-header" />
-      <div v-for="item in 4" :key="item" class="skeleton-row skeleton-row--action">
+      <div v-for="item in 3" :key="item" class="skeleton-row skeleton-row--action">
         <div class="flex-1 space-y-3">
           <div class="skeleton-line skeleton-line--half" />
           <div class="skeleton-line skeleton-line--third" />

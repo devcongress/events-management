@@ -12,7 +12,7 @@
       <div class="skeleton-line skeleton-line--two-thirds mt-3" />
     </div>
     <div class="skeleton-panel p-6 sm:p-8">
-      <div v-for="item in 6" :key="item" class="mb-5 space-y-3 last:mb-0">
+      <div v-for="item in 4" :key="item" class="mb-5 space-y-3 last:mb-0">
         <div class="skeleton-eyebrow" />
         <div class="skeleton-form-card skeleton-form-card--compact" />
       </div>

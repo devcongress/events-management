@@ -10,7 +10,7 @@
         </div>
       </div>
     </header>
-    <section v-for="group in 3" :key="group" class="mb-8">
+    <section v-for="group in 2" :key="group" class="mb-6">
       <div class="mb-3 flex items-center gap-3">
         <div class="skeleton-line skeleton-line--half" />
         <div class="skeleton-line skeleton-line--third" />
@@ -23,7 +23,7 @@
             <div class="skeleton-line" />
           </div>
           <div class="mt-4 flex flex-wrap gap-2">
-            <div v-for="action in 4" :key="action" class="skeleton-button skeleton-button--secondary" />
+            <div v-for="action in 3" :key="action" class="skeleton-button skeleton-button--secondary" />
           </div>
         </div>
       </div>

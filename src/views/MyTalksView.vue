@@ -17,14 +17,21 @@ const error = ref<string | null>(null);
 async function checkTalks() {
   loading.value = true;
   error.value = null;
-  const response = await fetch(`/api/my-talks?email=${encodeURIComponent(email.value)}`);
-  if (response.ok) {
-    talks.value = await response.json();
-    checked.value = true;
-  } else {
+  message.value = null;
+
+  try {
+    const response = await fetch(`/api/my-talks?email=${encodeURIComponent(email.value)}`);
+    if (response.ok) {
+      talks.value = await response.json();
+      checked.value = true;
+    } else {
+      error.value = 'Failed to fetch talks';
+    }
+  } catch {
     error.value = 'Failed to fetch talks';
+  } finally {
+    loading.value = false;
   }
-  loading.value = false;
 }
 
 async function refreshTalks() {
@@ -69,6 +76,24 @@ function slideDeadline(talk: TalkWithEvent): string | null {
   return deadline.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+function eventHasPassed(talk: TalkWithEvent): boolean {
+  if (!talk.event) return false;
+  return new Date(talk.event.event_date).getTime() < Date.now();
+}
+
+function reminderCopy(talk: TalkWithEvent): string {
+  if (talk.reminder_sent_count === 0) return '';
+  return ` Organizers have logged ${talk.reminder_sent_count} reminder${talk.reminder_sent_count === 1 ? '' : 's'}.`;
+}
+
+function slidePrompt(talk: TalkWithEvent): string {
+  if (eventHasPassed(talk)) {
+    return `Share a public slide link so organizers can complete the archive.${reminderCopy(talk)}`;
+  }
+
+  return `Share a public slide link before ${slideDeadline(talk) ?? 'event week'} so organizers can publish the archive on time.${reminderCopy(talk)}`;
+}
+
 function eventDate(talk: TalkWithEvent): string | null {
   if (!talk.event) return null;
   return new Date(talk.event.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -92,7 +117,7 @@ function badge(status: string) {
       <CommunityMasthead
         eyebrow="speaker desk"
         title="My Talks"
-        description="Look up submissions, track review status, and share a public slide link before event day."
+        description="Look up confirmed talks, track review status, and share a public slide link."
         ribbon="Coming soon"
       />
 
@@ -103,7 +128,7 @@ function badge(status: string) {
         <div class="my-talks-card-header mb-6 text-center">
           <div class="my-talks-kicker mb-4 inline-block border-2 border-dc-ink bg-dc-yellow px-3 py-1 font-mono text-xs font-bold text-dc-ink shadow-[2px_2px_0_#111111]">SPEAKER ACCESS</div>
           <h2 class="mb-2 font-mono text-2xl font-bold text-dc-ink">Check Your Talks</h2>
-          <p class="font-mono text-sm text-dc-gray">Speaker self-serve access is not open yet. Organizers will enable this flow in a later phase.</p>
+          <p class="font-mono text-sm text-dc-gray">Use the email organizers have on file for your talk.</p>
         </div>
 
         <form class="my-talks-form space-y-6" @submit.prevent>
@@ -111,7 +136,7 @@ function badge(status: string) {
             <label class="mb-2 block font-mono text-xs font-bold uppercase text-dc-ink">Email Address</label>
             <input v-model="email" disabled type="email" placeholder="speaker@example.com" class="editorial-input cursor-not-allowed font-mono opacity-70" />
           </div>
-          <button type="submit" disabled class="my-talks-submit w-full rounded-md border-2 border-dc-ink bg-dc-pink py-4 font-mono text-lg font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] opacity-55">
+          <button type="submit" disabled class="my-talks-submit w-full rounded-md border-2 border-dc-ink bg-dc-pink py-4 font-mono text-lg font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] opacity-55 disabled:cursor-not-allowed">
             View My Talks
           </button>
         </form>
@@ -152,14 +177,11 @@ function badge(status: string) {
 
             <p class="mb-4 line-clamp-2 text-sm text-dc-gray">{{ talk.abstract }}</p>
 
-            <div v-if="talk.status === 'accepted' || talk.status === 'slides_received'" class="mt-4 border-t-2 border-dc-border pt-4">
-              <div v-if="talk.status === 'accepted' && !slidesViewUrl(talk)" class="mb-4 border-2 border-dc-ink bg-dc-paper-warm p-4">
+            <div v-if="talk.status === 'accepted' || talk.status === 'slides_received' || talk.status === 'published'" class="mt-4 border-t-2 border-dc-border pt-4">
+              <div v-if="!slidesViewUrl(talk)" class="mb-4 border-2 border-dc-ink bg-dc-paper-warm p-4">
                 <p class="font-mono text-xs font-bold uppercase tracking-[0.2em] text-dc-pink">Action needed</p>
                 <p class="mt-2 text-sm text-dc-gray">
-                  Share a public slide link before {{ slideDeadline(talk) ?? 'event week' }} so organizers can publish the archive on time.
-                  <span v-if="talk.reminder_sent_count > 0">
-                    Organizers have logged {{ talk.reminder_sent_count }} reminder{{ talk.reminder_sent_count === 1 ? '' : 's' }}.
-                  </span>
+                  {{ slidePrompt(talk) }}
                 </p>
               </div>
               <div v-if="slidesViewUrl(talk)" class="flex items-center justify-between">

@@ -2,6 +2,8 @@
 import { useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { canonicalizeSystemDesignSchedule, hasSystemDesignTitleMarker } from '@/lib/system-design';
+import { resolveEventStatus } from '@/lib/event-status';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
 import { EVENT_SERIES_HELP_TEXT, EVENT_SERIES_LABELS, EVENT_SERIES_TYPES, resolveEventSeriesType, type EventSeriesType } from '@/lib/event-series';
@@ -22,6 +24,7 @@ const event = ref<CommunityEvent | null>(null);
 const checklist = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
 const checklistSavingId = ref<string | null>(null);
+const checklistDisablingId = ref<string | null>(null);
 const publishSaving = ref(false);
 const publishError = ref<string | null>(null);
 const descriptionEditing = ref(false);
@@ -62,10 +65,86 @@ const checklistPhaseLabels: Record<EventChecklistPhase, string> = {
   event_day: 'Event day',
   post_event: 'Post-event',
 };
+const availableChecklistFeatures = {
+  cfp: false,
+  speakerAccess: false,
+  quiz: false,
+  talkManagement: false,
+  systemDesign: true,
+  eventDayStart: false,
+  attendance: true,
+  feedback: true,
+  archive: true,
+};
+
+type ChecklistViewItem = EventChecklistItem & {
+  label: string;
+  description: string;
+};
+
+function checklistItemAvailable(item: EventChecklistItem): boolean {
+  switch (item.label) {
+    case 'Open CFP':
+    case 'Close CFP':
+      return availableChecklistFeatures.cfp;
+    case 'Confirm speakers and talks':
+      return availableChecklistFeatures.speakerAccess || availableChecklistFeatures.talkManagement;
+    case 'Collect slides and prep quiz':
+      return availableChecklistFeatures.talkManagement || availableChecklistFeatures.quiz;
+    case 'Prepare system design session':
+      return availableChecklistFeatures.systemDesign;
+    case 'Start event day':
+      return availableChecklistFeatures.eventDayStart;
+    case 'Run live quiz':
+      return availableChecklistFeatures.quiz;
+    case 'Import attendance CSV':
+      return availableChecklistFeatures.attendance;
+    case 'Open and review feedback':
+      return availableChecklistFeatures.feedback;
+    case 'Publish archive':
+      return availableChecklistFeatures.archive;
+    default:
+      return true;
+  }
+}
+
+function checklistViewItem(item: EventChecklistItem): ChecklistViewItem {
+  if (item.label === 'Confirm speakers and talks' && !availableChecklistFeatures.speakerAccess) {
+    return {
+      ...item,
+      label: 'Confirm talks',
+      description: 'Accept talks and make the program clear.',
+    };
+  }
+
+  if (item.label === 'Collect slides and prep quiz' && !availableChecklistFeatures.quiz) {
+    return {
+      ...item,
+      label: 'Collect talk materials',
+      description: 'Use talk management and archive form links to gather post-event talk details.',
+    };
+  }
+
+  return item;
+}
+
+function checklistViewOrder(item: ChecklistViewItem): number {
+  if (item.label === 'Import attendance CSV') {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return item.order_index;
+}
+
+const availableChecklist = computed<ChecklistViewItem[]>(() => checklist.value
+  .filter(checklistItemAvailable)
+  .map(checklistViewItem)
+  .sort((a, b) => checklistViewOrder(a) - checklistViewOrder(b)));
+const activeChecklist = computed(() => availableChecklist.value.filter((item) => !item.disabled_at));
 
 const checklistProgress = computed(() => {
-  const completed = checklist.value.filter((item) => item.completed).length;
-  const total = checklist.value.length;
+  const completed = activeChecklist.value.filter((item) => item.completed).length;
+  const total = activeChecklist.value.length;
 
   return {
     completed,
@@ -73,7 +152,7 @@ const checklistProgress = computed(() => {
     percent: total > 0 ? Math.round((completed / total) * 100) : 0,
   };
 });
-const nextChecklistItem = computed(() => checklist.value.find((item) => !item.completed) ?? null);
+const nextChecklistItem = computed(() => activeChecklist.value.find((item) => !item.completed) ?? null);
 const eventPhotos = computed(() => event.value?.photos ?? []);
 const isDraftEvent = computed(() => event.value?.status === 'draft');
 const isPublishedEvent = computed(() => Boolean(event.value?.publish_to_website));
@@ -81,13 +160,13 @@ const checklistByPhase = computed(() => checklistPhaseOrder
   .map((phase) => ({
     phase,
     label: checklistPhaseLabels[phase],
-    items: checklist.value.filter((item) => item.phase === phase),
+    items: availableChecklist.value.filter((item) => item.phase === phase),
   }))
   .filter((group) => group.items.length > 0));
 const currentEventId = computed(() => String(route.params.eventId));
 const eventSeriesTypeOptions = EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
 const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeDraft.value]);
-const eventOutline = computed(() => event.value?.schedule ?? []);
+const eventOutline = computed(() => canonicalizeSystemDesignSchedule(event.value?.schedule ?? []));
 
 function broadcastPublicMeetupsRefresh() {
   if (typeof window === 'undefined') return;
@@ -118,6 +197,7 @@ function createOutlineDraft(item?: Partial<PublicMeetupScheduleItem>): PublicMee
     type: item?.type ?? 'talk',
     lead: item?.lead ?? null,
     description: item?.description ?? null,
+    system_design_title: item?.system_design_title ?? null,
     resources: item?.resources ?? [],
   };
 }
@@ -213,19 +293,7 @@ async function fetchOverview() {
 }
 
 function publishStatusForEvent(currentEvent: CommunityEvent): EventStatus {
-  const startsAt = new Date(currentEvent.event_date);
-  const endsAt = new Date(currentEvent.end_date ?? currentEvent.event_date);
-  const nowMs = Date.now();
-  const startsAtMs = startsAt.getTime();
-  const endsAtMs = endsAt.getTime();
-
-  if (!Number.isFinite(startsAtMs) || !Number.isFinite(endsAtMs)) {
-    return 'upcoming';
-  }
-
-  if (nowMs < startsAtMs) return 'upcoming';
-  if (nowMs <= endsAtMs) return 'live';
-  return 'completed';
+  return resolveEventStatus({ ...currentEvent, status: 'upcoming' });
 }
 
 async function publishEvent() {
@@ -354,6 +422,17 @@ function addOutlineRow() {
   outlineDrafts.value.push(createOutlineDraft());
 }
 
+function addSystemDesignScenario() {
+  outlineDrafts.value.push(createOutlineDraft({
+    time: 'TBD',
+    title: 'Monthly architecture scenario',
+    type: 'system_design',
+    lead: null,
+    description: 'Paste the scenario brief here so attendees can understand the design prompt before opening the deck.',
+    resources: [{ title: 'Prompt deck', url: '' }],
+  }));
+}
+
 function removeOutlineRow(index: number) {
   outlineDrafts.value.splice(index, 1);
   if (outlineDrafts.value.length === 0) {
@@ -371,6 +450,61 @@ function updateOutlineLeadFromEvent(index: number, inputEvent: Event) {
   updateOutlineLead(index, inputEvent.target instanceof HTMLInputElement ? inputEvent.target.value : '');
 }
 
+function updateOutlineDescription(index: number, value: string) {
+  const item = outlineDrafts.value[index];
+  if (!item) return;
+  item.description = value;
+}
+
+function updateOutlineDescriptionFromEvent(index: number, inputEvent: Event) {
+  updateOutlineDescription(index, inputEvent.target instanceof HTMLTextAreaElement ? inputEvent.target.value : '');
+}
+
+function primaryResource(item: PublicMeetupScheduleItem) {
+  return item.resources[0] ?? { title: '', url: '' };
+}
+
+function updateOutlineResourceTitle(index: number, value: string) {
+  const item = outlineDrafts.value[index];
+  if (!item) return;
+  const current = primaryResource(item);
+  item.resources = [{ title: value, url: current.url }];
+}
+
+function updateOutlineResourceUrl(index: number, value: string) {
+  const item = outlineDrafts.value[index];
+  if (!item) return;
+  const current = primaryResource(item);
+  item.resources = [{ title: current.title || 'Resource', url: value }];
+}
+
+function updateOutlineResourceTitleFromEvent(index: number, inputEvent: Event) {
+  updateOutlineResourceTitle(index, inputEvent.target instanceof HTMLInputElement ? inputEvent.target.value : '');
+}
+
+function updateOutlineResourceUrlFromEvent(index: number, inputEvent: Event) {
+  updateOutlineResourceUrl(index, inputEvent.target instanceof HTMLInputElement ? inputEvent.target.value : '');
+}
+
+function normalizedOutlineResources(item: PublicMeetupScheduleItem): PublicMeetupScheduleItem['resources'] {
+  const resource = item.resources[0];
+  const title = resource?.title?.trim() ?? '';
+  const url = resource?.url?.trim() ?? '';
+
+  if (!url) return [];
+
+  try {
+    const parsedUrl = new URL(url);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      throw new Error('Unsupported protocol');
+    }
+  } catch {
+    throw new Error(`Use a valid http(s) resource URL for "${item.title.trim() || 'Untitled outline item'}".`);
+  }
+
+  return [{ title: title || 'Resource', url }];
+}
+
 function normalizeOutlineDrafts(): PublicMeetupScheduleItem[] {
   const schedule: PublicMeetupScheduleItem[] = [];
 
@@ -378,7 +512,10 @@ function normalizeOutlineDrafts(): PublicMeetupScheduleItem[] {
     const time = item.time.trim();
     const title = item.title.trim();
     const lead = item.lead?.trim() ?? '';
-    const hasAnyContent = Boolean(time || title || lead);
+    const description = item.description?.trim() ?? '';
+    const systemDesignTitle = item.system_design_title?.trim() ?? '';
+    const resources = normalizedOutlineResources(item);
+    const hasAnyContent = Boolean(time || title || lead || description || resources.length > 0);
 
     if (!hasAnyContent) continue;
     if (!title) {
@@ -390,8 +527,11 @@ function normalizeOutlineDrafts(): PublicMeetupScheduleItem[] {
       title,
       type: item.type,
       lead: lead || null,
-      description: item.description?.trim() || null,
-      resources: item.resources ?? [],
+      description: description || null,
+      system_design_title: (item.type === 'system_design' || hasSystemDesignTitleMarker(title)) && systemDesignTitle
+        ? systemDesignTitle
+        : null,
+      resources,
     });
   }
 
@@ -474,7 +614,7 @@ async function saveSeriesType() {
 }
 
 async function toggleChecklistItem(item: EventChecklistItem) {
-  if (checklistSavingId.value) return;
+  if (checklistSavingId.value || checklistDisablingId.value || item.disabled_at) return;
 
   checklistSavingId.value = item.id;
   try {
@@ -487,11 +627,54 @@ async function toggleChecklistItem(item: EventChecklistItem) {
     if (response.ok) {
       const payload = await response.json();
       checklist.value = payload.items ?? checklist.value;
-      if (payload.event) event.value = payload.event;
+      if (payload.event) {
+        event.value = payload.event;
+        syncDescriptionDraft();
+        syncOutlineDrafts();
+        syncSeriesTypeDraft();
+      }
       await invalidateEventQueries();
     }
   } finally {
     checklistSavingId.value = null;
+  }
+}
+
+function canDisableChecklistItem(item: EventChecklistItem): boolean {
+  return !isPublishedEvent.value && !item.completed;
+}
+
+async function setChecklistItemDisabled(item: EventChecklistItem, disabled: boolean) {
+  if (!canDisableChecklistItem(item) || checklistSavingId.value || checklistDisablingId.value) return;
+
+  checklistDisablingId.value = item.id;
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.error ?? 'Failed to update checklist item');
+    }
+
+    checklist.value = payload.items ?? checklist.value;
+    if (payload.event) {
+      event.value = payload.event;
+      syncDescriptionDraft();
+      syncOutlineDrafts();
+      syncSeriesTypeDraft();
+    }
+    await invalidateEventQueries();
+    notify.success(disabled ? 'Checklist item disabled' : 'Checklist item enabled');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update checklist item';
+    notify.error(message);
+  } finally {
+    checklistDisablingId.value = null;
   }
 }
 
@@ -651,7 +834,7 @@ onMounted(fetchOverview);
               </span>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
-            <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div class="mt-5 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div class="rounded-lg border border-dc-border bg-dc-paper p-4">
                 <div class="event-overview-copy-header">
                   <div class="min-w-0">
@@ -700,6 +883,10 @@ onMounted(fetchOverview);
 
                 <p v-else-if="event.description" class="mt-4 text-sm leading-7 text-dc-gray">{{ event.description }}</p>
                 <p v-else class="mt-4 text-sm leading-6 text-dc-gray">No About copy yet. Add the text you want people to read on the public event page.</p>
+                <div v-if="event.external_url" class="event-overview-source-link">
+                  <span>Generated from</span>
+                  <a :href="event.external_url" target="_blank" rel="noopener noreferrer">Luma event</a>
+                </div>
               </div>
 
               <aside class="rounded-lg border border-dc-border bg-dc-paper p-4">
@@ -764,6 +951,21 @@ onMounted(fetchOverview);
 	                    </button>
 	                  </div>
 
+	                  <div class="event-outline-scenario-helper">
+	                    <div class="min-w-0">
+	                      <p class="event-outline-scenario-title">Monthly system design</p>
+	                      <p class="event-outline-scenario-copy">Add a reusable scenario row with room for the Google Slides prompt deck.</p>
+	                    </div>
+	                    <button
+	                      type="button"
+	                      class="event-overview-copy-action"
+	                      :disabled="outlineSaving"
+	                      @click="addSystemDesignScenario"
+	                    >
+	                      Add scenario
+	                    </button>
+	                  </div>
+
 	                  <div
 	                    v-for="(item, index) in outlineDrafts"
 	                    :key="index"
@@ -796,6 +998,34 @@ onMounted(fetchOverview);
 	                        class="event-outline-input"
 	                        placeholder="Optional"
 	                        @input="updateOutlineLeadFromEvent(index, $event)"
+	                      />
+	                    </label>
+	                    <label class="event-outline-description-field">
+	                      <span>Description</span>
+	                      <textarea
+	                        :value="item.description ?? ''"
+	                        class="event-outline-input event-outline-textarea"
+	                        rows="3"
+	                        placeholder="Scenario brief, session context, or attendee instructions"
+	                        @input="updateOutlineDescriptionFromEvent(index, $event)"
+	                      />
+	                    </label>
+	                    <label>
+	                      <span>Resource label</span>
+	                      <input
+	                        :value="primaryResource(item).title"
+	                        class="event-outline-input"
+	                        placeholder="Prompt deck"
+	                        @input="updateOutlineResourceTitleFromEvent(index, $event)"
+	                      />
+	                    </label>
+	                    <label class="event-outline-resource-url-field">
+	                      <span>Resource URL</span>
+	                      <input
+	                        :value="primaryResource(item).url"
+	                        class="event-outline-input"
+	                        placeholder="https://docs.google.com/presentation/d/..."
+	                        @input="updateOutlineResourceUrlFromEvent(index, $event)"
 	                      />
 	                    </label>
 	                    <button
@@ -837,6 +1067,16 @@ onMounted(fetchOverview);
 	                    <span class="event-outline-copy">
 	                      <strong>{{ item.title }}</strong>
 	                      <span v-if="item.lead">Led by {{ item.lead }}</span>
+	                      <span v-if="item.description">{{ item.description }}</span>
+	                      <a
+	                        v-if="item.resources[0]"
+	                        :href="item.resources[0].url"
+	                        target="_blank"
+	                        rel="noopener noreferrer"
+	                        class="event-outline-resource-link"
+	                      >
+	                        {{ item.resources[0].title || 'Resource' }}
+	                      </a>
 	                    </span>
 	                    <span class="event-outline-type">{{ item.type.replace('_', ' ') }}</span>
 	                  </div>
@@ -891,30 +1131,47 @@ onMounted(fetchOverview);
                 <span>{{ group.label }}</span>
               </div>
               <div class="event-checklist-items">
-                <button
+                <div
                   v-for="item in group.items"
                   :key="item.id"
-                  type="button"
-                  class="event-checklist-item motion-colors"
-                  :class="{ 'event-checklist-item--done': item.completed }"
-                  :aria-pressed="item.completed"
-                  :disabled="checklistSavingId === item.id"
-                  @click="toggleChecklistItem(item)"
+                  class="event-checklist-item-wrap"
+                  :class="{ 'event-checklist-item-wrap--disabled': item.disabled_at }"
                 >
-                  <span class="event-checklist-check" aria-hidden="true">
-                    <span v-if="item.completed">✓</span>
-                  </span>
-                  <span class="min-w-0 text-left">
-                    <span class="event-checklist-item-label">{{ item.label }}</span>
-                    <span class="event-checklist-item-description">{{ item.description }}</span>
-                    <span v-if="item.completed_at" class="event-checklist-item-meta">
-                      Done by {{ item.completed_by ?? 'Organizer' }} · {{ formatShortDateTime(item.completed_at) }}
+                  <button
+                    type="button"
+                    class="event-checklist-item motion-colors"
+                    :class="{ 'event-checklist-item--done': item.completed, 'event-checklist-item--disabled': item.disabled_at }"
+                    :aria-pressed="item.completed"
+                    :disabled="checklistSavingId === item.id || checklistDisablingId === item.id || Boolean(item.disabled_at)"
+                    @click="toggleChecklistItem(item)"
+                  >
+                    <span class="event-checklist-check" aria-hidden="true">
+                      <span v-if="item.completed">✓</span>
                     </span>
-                  </span>
-                  <span v-if="item.status_on_complete" class="event-checklist-status-chip">
-                    sets {{ formatStatus(item.status_on_complete) }}
-                  </span>
-                </button>
+                    <span class="min-w-0 text-left">
+                      <span class="event-checklist-item-label">{{ item.label }}</span>
+                      <span class="event-checklist-item-description">{{ item.description }}</span>
+                      <span v-if="item.completed_at" class="event-checklist-item-meta">
+                        Done by {{ item.completed_by ?? 'Organizer' }} · {{ formatShortDateTime(item.completed_at) }}
+                      </span>
+                      <span v-else-if="item.disabled_at" class="event-checklist-item-meta">
+                        Disabled for this event
+                      </span>
+                    </span>
+                    <span v-if="item.status_on_complete" class="event-checklist-status-chip">
+                      sets {{ formatStatus(item.status_on_complete) }}
+                    </span>
+                  </button>
+                  <button
+                    v-if="canDisableChecklistItem(item)"
+                    type="button"
+                    class="event-checklist-disable motion-press"
+                    :disabled="Boolean(checklistSavingId) || Boolean(checklistDisablingId)"
+                    @click="setChecklistItemDisabled(item, !item.disabled_at)"
+                  >
+                    {{ checklistDisablingId === item.id ? 'Saving' : item.disabled_at ? 'Enable' : 'Disable' }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -59,6 +59,8 @@ export interface EventChecklistItem {
   completed: boolean;
   completed_at: string | null;
   completed_by: string | null;
+  disabled_at?: string | null;
+  disabled_by?: string | null;
   updated_at: string;
 }
 
@@ -91,6 +93,18 @@ export interface Talk {
   updated_at: string;
 }
 
+export interface SpeakerIntakeLink {
+  id: string;
+  event_id: string;
+  event_month: string;
+  token_hash: string;
+  expires_at: string;
+  used_at: string | null;
+  used_talk_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ---- Public website API ----
 export type PublicMeetupStatus = 'upcoming' | 'live' | 'past';
 
@@ -115,6 +129,7 @@ export interface PublicMeetupScheduleItem {
   type: 'networking' | 'talk' | 'panel' | 'workshop' | 'system_design' | 'open_discussion' | 'break';
   lead: string | null;
   description?: string | null;
+  system_design_title?: string | null;
   resources: {
     title: string;
     url: string;
@@ -153,6 +168,62 @@ export interface PublicMeetup {
   cfp_url: string | null;
   archive_url: string;
   updated_at: string;
+}
+
+export interface PublicArchiveEvent {
+  id: string;
+  name: string;
+  description: string | null;
+  event_date: string;
+  schedule: PublicMeetupScheduleItem[];
+}
+
+export interface PublicArchiveTalk {
+  id: string;
+  event_id: string;
+  event_name: string;
+  title: string;
+  speaker_name: string;
+  topic: string;
+  abstract: string | null;
+  bio: string | null;
+  slides_url: string | null;
+  updated_at: string;
+}
+
+export interface PublicArchiveResponse {
+  events: PublicArchiveEvent[];
+  talks: PublicArchiveTalk[];
+}
+
+export interface PublicArchiveEventResponse {
+  event: PublicArchiveEvent;
+  talks: PublicArchiveTalk[];
+  feedback: {
+    available: boolean;
+    closes_at: string | null;
+    public_url: string | null;
+  };
+}
+
+export interface PublicHomeRegular {
+  key: string;
+  name: string;
+  registered_count: number;
+  checked_in_count: number;
+  check_in_rate: number;
+  last_seen_at: string | null;
+}
+
+export interface PublicHomeResponse {
+  completed_events_count: number;
+  published_talks_count: number;
+  recent_talks: PublicArchiveTalk[];
+  regulars: PublicHomeRegular[];
+  cfp_event: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface User {

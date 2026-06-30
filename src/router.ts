@@ -3,6 +3,7 @@ import ArchiveEventView from './views/ArchiveEventView.vue';
 import ArchiveView from './views/ArchiveView.vue';
 import FeedbackView from './views/FeedbackView.vue';
 import RouteFeedbackView from './views/RouteFeedbackView.vue';
+import SpeakerTalkIntakeView from './views/SpeakerTalkIntakeView.vue';
 import AdminAttendanceOverviewView from './views/admin/AdminAttendanceOverviewView.vue';
 import AdminAttendanceView from './views/admin/AdminAttendanceView.vue';
 import AdminAuditLogView from './views/admin/AdminAuditLogView.vue';
@@ -59,6 +60,7 @@ export const router = createRouter({
     { path: '/archive/:eventId', name: 'archive-event', component: ArchiveEventView },
     { path: '/leaderboard', name: 'leaderboard', component: LeaderboardView },
     { path: '/cfp/:eventId', name: 'cfp', component: CfpView },
+    { path: '/speaker-talks/:eventId/:token', name: 'speaker-talk-intake', component: SpeakerTalkIntakeView },
     { path: '/feedback', name: 'route-feedback', component: RouteFeedbackView },
     { path: '/feedback/:eventId', name: 'feedback', component: FeedbackView },
     { path: '/my-talks', name: 'my-talks', component: MyTalksView },

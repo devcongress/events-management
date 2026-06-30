@@ -1,20 +1,36 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
-import { computed, reactive } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
 import { fetchAdminAuditLog, queryKeys, type AdminAuditLogEntry } from '@/src/lib/api';
 
+const AUDIT_LOG_LIMIT = 80;
+const AUDIT_LOG_PAGE_SIZE = 4;
+
+interface AuditLogGroup {
+  key: string;
+  actorLabel: string;
+  count: number;
+  logs: AdminAuditLogEntry[];
+}
+
 const filters = reactive({
-  actor: '',
   action: '',
   target_type: '',
 });
+const groupByActorEmail = ref(false);
+const page = ref(1);
+const auditFiltersShell = ref<HTMLElement | null>(null);
+const auditActivitySummary = ref<HTMLElement | null>(null);
+const auditFiltersHeight = ref(0);
+const auditActivitySummaryHeight = ref(0);
+let auditStickyResizeObserver: ResizeObserver | undefined;
 
 const auditFilters = computed(() => ({
-  actor: filters.actor.trim(),
   action: filters.action.trim(),
   target_type: filters.target_type.trim(),
-  limit: '80',
+  limit: String(AUDIT_LOG_LIMIT),
 }));
 
 const auditQuery = useQuery({
@@ -28,6 +44,101 @@ const loading = computed(() => auditQuery.isPending.value);
 const error = computed(() => auditQuery.error.value?.message ?? '');
 const actionOptions = computed(() => [...new Set(logs.value.map((log) => log.action))].sort());
 const targetTypeOptions = computed(() => [...new Set(logs.value.map((log) => log.target_type).filter((value): value is string => Boolean(value)))].sort());
+const actionDropdownOptions = computed(() => [
+  { value: '', label: 'All actions' },
+  ...actionOptions.value.map((action) => ({ value: action, label: actionLabel(action) })),
+]);
+const targetTypeDropdownOptions = computed(() => [
+  { value: '', label: 'All targets' },
+  ...targetTypeOptions.value.map((targetType) => ({ value: targetType, label: targetType })),
+]);
+const orderedLogs = computed(() => {
+  const nextLogs = [...logs.value];
+  if (!groupByActorEmail.value) return nextLogs;
+
+  return nextLogs.sort((first, second) => {
+    const actorComparison = actorLabel(first).localeCompare(actorLabel(second), undefined, { sensitivity: 'base' });
+    if (actorComparison !== 0) return actorComparison;
+    return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
+  });
+});
+const pageCount = computed(() => Math.max(1, Math.ceil(orderedLogs.value.length / AUDIT_LOG_PAGE_SIZE)));
+const pageStart = computed(() => (orderedLogs.value.length === 0 ? 0 : (page.value - 1) * AUDIT_LOG_PAGE_SIZE + 1));
+const pageEnd = computed(() => Math.min(orderedLogs.value.length, page.value * AUDIT_LOG_PAGE_SIZE));
+const paginatedLogs = computed(() => {
+  const start = (page.value - 1) * AUDIT_LOG_PAGE_SIZE;
+  return orderedLogs.value.slice(start, start + AUDIT_LOG_PAGE_SIZE);
+});
+const actorLogCounts = computed(() => orderedLogs.value.reduce((counts, log) => {
+  const key = actorKey(log);
+  counts.set(key, (counts.get(key) ?? 0) + 1);
+  return counts;
+}, new Map<string, number>()));
+const visibleLogGroups = computed<AuditLogGroup[]>(() => {
+  if (!groupByActorEmail.value) {
+    return [{ key: 'all', actorLabel: '', count: paginatedLogs.value.length, logs: paginatedLogs.value }];
+  }
+
+  return paginatedLogs.value.reduce<AuditLogGroup[]>((groups, log) => {
+    const key = actorKey(log);
+    let group = groups.find((item) => item.key === key);
+    if (!group) {
+      group = {
+        key,
+        actorLabel: actorLabel(log),
+        count: actorLogCounts.value.get(key) ?? 0,
+        logs: [],
+      };
+      groups.push(group);
+    }
+    group.logs.push(log);
+    return groups;
+  }, []);
+});
+const hasActiveAuditControls = computed(() => Boolean(filters.action || filters.target_type || groupByActorEmail.value));
+const auditStickyStyle = computed(() => ({
+  '--audit-log-filters-height': `${auditFiltersHeight.value}px`,
+  '--audit-log-activity-summary-height': `${auditActivitySummaryHeight.value}px`,
+}));
+const auditActivitySummaryStyle = computed(() => ({
+  top: 'var(--audit-log-filters-height)',
+}));
+const auditTableHeaderStyle = computed(() => ({
+  top: 'calc(var(--audit-log-filters-height) + var(--audit-log-activity-summary-height))',
+}));
+
+function updateAuditStickyHeights() {
+  auditFiltersHeight.value = auditFiltersShell.value?.offsetHeight ?? 0;
+  auditActivitySummaryHeight.value = auditActivitySummary.value?.offsetHeight ?? 0;
+}
+
+function syncAuditStickyObserver() {
+  auditStickyResizeObserver?.disconnect();
+
+  if (auditFiltersShell.value) {
+    auditStickyResizeObserver?.observe(auditFiltersShell.value);
+  }
+
+  if (auditActivitySummary.value) {
+    auditStickyResizeObserver?.observe(auditActivitySummary.value);
+  }
+
+  updateAuditStickyHeights();
+}
+
+watch(pageCount, (nextPageCount) => {
+  if (page.value > nextPageCount) {
+    page.value = nextPageCount;
+  }
+});
+
+watch([() => filters.action, () => filters.target_type, groupByActorEmail], () => {
+  page.value = 1;
+});
+
+watch(loading, () => {
+  void nextTick(syncAuditStickyObserver);
+});
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -52,11 +163,42 @@ function metadataSummary(log: AdminAuditLogEntry): string {
   return entries.map(([key, value]) => `${key}: ${String(value)}`).join(' / ');
 }
 
+function actorLabel(log: AdminAuditLogEntry): string {
+  return log.actor_email?.trim() || 'System';
+}
+
+function actorKey(log: AdminAuditLogEntry): string {
+  return actorLabel(log).toLowerCase();
+}
+
+function goToPage(nextPage: number) {
+  page.value = Math.min(pageCount.value, Math.max(1, nextPage));
+}
+
+function toggleGroupByActorEmail() {
+  groupByActorEmail.value = !groupByActorEmail.value;
+}
+
 function clearFilters() {
-  filters.actor = '';
   filters.action = '';
   filters.target_type = '';
+  groupByActorEmail.value = false;
+  page.value = 1;
 }
+
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined') {
+    auditStickyResizeObserver = new ResizeObserver(updateAuditStickyHeights);
+  }
+
+  window.addEventListener('resize', updateAuditStickyHeights);
+  void nextTick(syncAuditStickyObserver);
+});
+
+onUnmounted(() => {
+  auditStickyResizeObserver?.disconnect();
+  window.removeEventListener('resize', updateAuditStickyHeights);
+});
 </script>
 
 <template>
@@ -76,38 +218,53 @@ function clearFilters() {
 
       <AdminAuditLogPageSkeleton v-if="loading" />
 
-      <div v-else class="flex flex-1 min-h-0 flex-col">
-        <section class="mb-5 rounded-md border border-dc-border bg-dc-paper p-4">
-          <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_13rem_11rem_auto] md:items-end">
-            <label>
-              <span class="editorial-label">Actor</span>
-              <input v-model="filters.actor" type="search" class="editorial-input mt-2" placeholder="email">
-            </label>
-            <label>
-              <span class="editorial-label">Action</span>
-              <select v-model="filters.action" class="editorial-input mt-2">
-                <option value="">All actions</option>
-                <option v-for="action in actionOptions" :key="action" :value="action">{{ actionLabel(action) }}</option>
-              </select>
-            </label>
-            <label>
-              <span class="editorial-label">Target</span>
-              <select v-model="filters.target_type" class="editorial-input mt-2">
-                <option value="">All targets</option>
-                <option v-for="targetType in targetTypeOptions" :key="targetType" :value="targetType">{{ targetType }}</option>
-              </select>
-            </label>
-            <button type="button" class="editorial-secondary-action min-h-[50px] justify-center px-4" @click="clearFilters">
-              Clear
-            </button>
+      <div v-else class="flex flex-1 min-h-0 flex-col" :style="auditStickyStyle">
+        <section ref="auditFiltersShell" data-audit-filters class="sticky top-0 z-30 mb-5 bg-dc-cream/95 pb-3 pt-1 backdrop-blur">
+          <div class="rounded-md border border-dc-border bg-dc-paper p-4">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,16rem)_minmax(0,16rem)_auto_auto] lg:items-end">
+              <AppDropdown
+                v-model="filters.action"
+                label="Action"
+                :options="actionDropdownOptions"
+                menu-class="lg:w-72"
+              />
+              <AppDropdown
+                v-model="filters.target_type"
+                label="Target"
+                :options="targetTypeDropdownOptions"
+                menu-class="lg:w-64"
+              />
+              <button
+                type="button"
+                class="motion-press min-h-[50px] rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/30"
+                :class="groupByActorEmail ? 'bg-dc-yellow' : 'bg-dc-paper hover:bg-dc-paper-warm'"
+                :aria-pressed="groupByActorEmail"
+                @click="toggleGroupByActorEmail"
+              >
+                {{ groupByActorEmail ? 'Grouped by email' : 'Group by email' }}
+              </button>
+              <button
+                type="button"
+                class="editorial-secondary-action min-h-[50px] justify-center px-4"
+                :disabled="!hasActiveAuditControls"
+                @click="clearFilters"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </section>
 
-        <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-dc-border bg-dc-paper">
-          <div class="shrink-0 flex flex-col gap-2 border-b border-dc-border bg-dc-paper-warm px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+        <section class="flex flex-col rounded-md border border-dc-border bg-dc-paper">
+          <div
+            ref="auditActivitySummary"
+            data-audit-activity-summary
+            class="sticky z-20 shrink-0 flex flex-col gap-2 rounded-t-md border-b border-dc-border bg-dc-paper-warm px-4 py-3 sm:flex-row sm:items-end sm:justify-between"
+            :style="auditActivitySummaryStyle"
+          >
             <div>
               <p class="editorial-eyebrow mb-1">activity</p>
-              <h2 class="text-xl font-black tracking-tight text-dc-ink">{{ logs.length }} recent item{{ logs.length === 1 ? '' : 's' }}</h2>
+              <h2 class="text-xl font-black tracking-tight text-dc-ink">{{ orderedLogs.length }} recent item{{ orderedLogs.length === 1 ? '' : 's' }}</h2>
             </div>
             <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
               Owner only
@@ -120,35 +277,103 @@ function clearFilters() {
           <div v-else-if="logs.length === 0" class="flex-1 px-4 py-10 text-sm text-dc-gray">
             No audit rows match these filters.
           </div>
-          <div v-else class="min-h-0 flex-1 overflow-auto">
-            <table class="w-full min-w-[920px] text-left">
-              <thead class="sticky top-0 z-10 border-b border-dc-border bg-dc-paper-warm font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                <tr>
-                  <th class="px-4 py-3">Time</th>
-                  <th class="px-4 py-3">Actor</th>
-                  <th class="px-4 py-3">Action</th>
-                  <th class="px-4 py-3">Target</th>
-                  <th class="px-4 py-3">Summary</th>
-                  <th class="px-4 py-3">IP</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-dc-border">
-                <tr v-for="log in logs" :key="log.id">
-                  <td class="px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ formatDateTime(log.created_at) }}</td>
-                  <td class="px-4 py-3">
-                    <p class="max-w-[13rem] truncate text-sm font-semibold text-dc-ink">{{ log.actor_email ?? 'System' }}</p>
-                    <p class="mt-1 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ log.actor_role ?? '-' }}</p>
-                  </td>
-                  <td class="px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink">{{ actionLabel(log.action) }}</td>
-                  <td class="px-4 py-3">
-                    <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ log.target_type ?? '-' }}</p>
-                    <p class="mt-1 max-w-[10rem] truncate text-xs text-dc-gray">{{ log.target_id ?? '-' }}</p>
-                  </td>
-                  <td class="px-4 py-3 max-w-[20rem] truncate text-sm text-dc-gray">{{ metadataSummary(log) }}</td>
-                  <td class="px-4 py-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ log.ip_address ?? '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <template v-else>
+            <div
+              data-audit-table-header
+              class="sticky z-10 overflow-hidden border-b border-dc-border bg-dc-paper-warm"
+              :style="auditTableHeaderStyle"
+            >
+              <table class="w-full table-fixed text-left">
+                <colgroup>
+                  <col class="w-[10%]">
+                  <col class="w-[22%]">
+                  <col class="w-[18%]">
+                  <col class="w-[18%]">
+                  <col class="w-[24%]">
+                  <col class="w-[8%]">
+                </colgroup>
+                <thead class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                  <tr>
+                    <th class="px-4 py-2.5">Time</th>
+                    <th class="px-4 py-2.5">Actor</th>
+                    <th class="px-4 py-2.5">Action</th>
+                    <th class="px-4 py-2.5">Target</th>
+                    <th class="px-4 py-2.5">Summary</th>
+                    <th class="px-4 py-2.5">IP</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <div class="overflow-hidden">
+              <table class="w-full table-fixed text-left">
+                <colgroup>
+                  <col class="w-[10%]">
+                  <col class="w-[22%]">
+                  <col class="w-[18%]">
+                  <col class="w-[18%]">
+                  <col class="w-[24%]">
+                  <col class="w-[8%]">
+                </colgroup>
+                <tbody class="divide-y divide-dc-border">
+                  <template v-for="group in visibleLogGroups" :key="group.key">
+                    <tr v-if="groupByActorEmail" class="bg-dc-cream/70">
+                      <td colspan="6" class="px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                        <span class="text-dc-ink">{{ group.actorLabel }}</span>
+                        <span class="ml-2">{{ group.count }} item{{ group.count === 1 ? '' : 's' }}</span>
+                      </td>
+                    </tr>
+                    <tr v-for="log in group.logs" :key="log.id">
+                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-bold uppercase leading-snug tracking-wide text-dc-gray">{{ formatDateTime(log.created_at) }}</td>
+                      <td class="px-4 py-2.5 align-top">
+                        <p class="w-full truncate text-sm font-semibold text-dc-ink">{{ log.actor_email ?? 'System' }}</p>
+                        <p class="mt-1 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ log.actor_role ?? '-' }}</p>
+                      </td>
+                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink">
+                        <span class="block truncate">{{ actionLabel(log.action) }}</span>
+                      </td>
+                      <td class="px-4 py-2.5 align-top">
+                        <p class="w-full truncate font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ log.target_type ?? '-' }}</p>
+                        <p class="mt-1 w-full truncate text-xs text-dc-gray">{{ log.target_id ?? '-' }}</p>
+                      </td>
+                      <td class="px-4 py-2.5 align-top text-sm text-dc-gray">
+                        <span class="block w-full truncate">{{ metadataSummary(log) }}</span>
+                      </td>
+                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                        <span class="block truncate">{{ log.ip_address ?? '-' }}</span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+          <div v-if="orderedLogs.length > AUDIT_LOG_PAGE_SIZE" class="pagination-footer shrink-0">
+            <p class="pagination-summary">
+              Showing {{ pageStart }}-{{ pageEnd }} of {{ orderedLogs.length }}
+            </p>
+            <div class="pagination-controls">
+              <button
+                type="button"
+                class="pagination-button"
+                :disabled="page === 1"
+                @click="goToPage(page - 1)"
+              >
+                <span aria-hidden="true">‹</span>
+                Prev
+              </button>
+              <span class="pagination-count" aria-live="polite">
+                Page {{ page }} of {{ pageCount }}
+              </span>
+              <button
+                type="button"
+                class="pagination-button"
+                :disabled="page === pageCount"
+                @click="goToPage(page + 1)"
+              >
+                Next
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
           </div>
         </section>
       </div>

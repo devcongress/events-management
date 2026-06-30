@@ -23,7 +23,7 @@
         <div class="skeleton-button skeleton-button--secondary" />
       </div>
       <div class="skeleton-panel overflow-hidden">
-        <div v-for="item in 3" :key="item" class="skeleton-row skeleton-row--article">
+        <div v-for="item in 2" :key="item" class="skeleton-row skeleton-row--article">
           <div class="space-y-3">
             <div class="skeleton-line skeleton-line--third" />
             <div class="skeleton-line skeleton-line--two-thirds" />

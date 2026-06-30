@@ -16,7 +16,7 @@
         <div v-for="item in 4" :key="item" class="skeleton-stat-card" />
       </div>
       <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div class="skeleton-table" :style="{ '--skeleton-rows': '5' }" />
+        <div class="skeleton-table" :style="{ '--skeleton-rows': '4' }" />
         <div class="space-y-4">
           <div class="skeleton-side-card" />
           <div class="skeleton-side-card" />

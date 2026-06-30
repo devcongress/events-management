@@ -19,14 +19,14 @@
         </div>
       </div>
       <div class="divide-y divide-dc-border">
-        <div v-for="item in 3" :key="item" class="skeleton-row skeleton-row--action">
+        <div v-for="item in 2" :key="item" class="skeleton-row skeleton-row--action">
           <div class="flex-1 space-y-3">
             <div class="skeleton-line skeleton-line--half" />
             <div class="skeleton-line" />
             <div class="skeleton-line skeleton-line--two-thirds" />
           </div>
           <div class="flex flex-wrap gap-2">
-            <div v-for="action in 4" :key="action" class="skeleton-button skeleton-button--secondary" />
+            <div v-for="action in 3" :key="action" class="skeleton-button skeleton-button--secondary" />
           </div>
         </div>
       </div>
@@ -35,7 +35,7 @@
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div v-for="item in 4" :key="item" class="skeleton-stat-card" />
       </div>
-      <div class="skeleton-table" :style="{ '--skeleton-rows': '5' }" />
+      <div class="skeleton-table" :style="{ '--skeleton-rows': '3' }" />
     </section>
   </div>
 </template>

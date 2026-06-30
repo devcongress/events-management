@@ -149,6 +149,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      app_json_documents: {
+        Row: {
+          key: string;
+          data: Json[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          key: string;
+          data?: Json[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          key?: string;
+          data?: Json[];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       community_events: {
         Row: {
           id: string;

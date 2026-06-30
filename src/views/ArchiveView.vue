@@ -4,24 +4,23 @@ import { computed, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import ArchivePageSkeleton from '@/src/components/ui/page-skeletons/ArchivePageSkeleton.vue';
-import { fetchOverview, queryKeys } from '@/src/lib/api';
-import type { Event, Talk } from '@/types';
+import { fetchPublicArchive, queryKeys } from '@/src/lib/api';
+import type { PublicArchiveTalk } from '@/types';
 
-const overviewQuery = useQuery({
-  queryKey: queryKeys.overview,
-  queryFn: fetchOverview,
+const archiveQuery = useQuery({
+  queryKey: queryKeys.publicArchive,
+  queryFn: fetchPublicArchive,
 });
-const overview = computed(() => overviewQuery.data.value ?? null);
-const loading = computed(() => overviewQuery.isPending.value);
-const error = computed(() => overviewQuery.error.value?.message ?? null);
+const archive = computed(() => archiveQuery.data.value ?? null);
+const loading = computed(() => archiveQuery.isPending.value);
+const error = computed(() => archiveQuery.error.value?.message ?? null);
 const selectedYear = ref<number | null>(null);
 const query = ref('');
 const selectedTopic = ref('');
 const selectedSpeaker = ref('');
 
 const completedEvents = computed(() => {
-  return [...(overview.value?.events ?? [])]
-    .filter((event) => event.status === 'completed')
+  return [...(archive.value?.events ?? [])]
     .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
 });
 
@@ -30,7 +29,7 @@ const years = computed(() => {
 });
 
 const activeYear = computed(() => selectedYear.value ?? years.value[0] ?? new Date().getFullYear());
-const publishedTalks = computed(() => (overview.value?.talks ?? []).filter((talk) => talk.status === 'published'));
+const publishedTalks = computed(() => archive.value?.talks ?? []);
 
 const topics = computed(() => {
   return [...new Set(publishedTalks.value.map((talk) => talk.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -47,8 +46,11 @@ const selectedYearEvents = computed(() => {
     .filter((event) => new Date(event.event_date).getFullYear() === activeYear.value)
     .filter((event) => {
       const talks = publishedTalksFor(event.id);
+      const schedule = event.schedule ?? [];
       const matchesTopic = !selectedTopic.value || talks.some((talk) => talk.topic === selectedTopic.value);
-      const matchesSpeaker = !selectedSpeaker.value || talks.some((talk) => talk.speaker_name === selectedSpeaker.value);
+      const matchesSpeaker = !selectedSpeaker.value
+        || talks.some((talk) => talk.speaker_name === selectedSpeaker.value)
+        || schedule.some((item) => item.lead === selectedSpeaker.value);
 
       if (!matchesTopic || !matchesSpeaker) {
         return false;
@@ -62,6 +64,7 @@ const selectedYearEvents = computed(() => {
         event.name,
         event.description,
         ...talks.flatMap((talk) => [talk.title, talk.abstract ?? '', talk.speaker_name, talk.topic ?? '']),
+        ...schedule.flatMap((item) => [item.title, item.description ?? '', item.lead ?? '']),
       ]
         .join(' ')
         .toLowerCase();
@@ -74,16 +77,22 @@ const hasActiveFilters = computed(() => query.value.trim() !== '' || selectedTop
 const selectedYearTalkCount = computed(() => {
   return selectedYearEvents.value.reduce((total, event) => total + publishedTalksFor(event.id).length, 0);
 });
+const hasArchiveMatches = computed(() => selectedYearEvents.value.length > 0);
 const topicOptions = computed(() => [
   { value: '', label: 'All topics' },
   ...topics.value.map((topic) => ({ value: topic, label: topic })),
 ]);
 const speakerOptions = computed(() => [
   { value: '', label: 'All speakers' },
-  ...speakers.value.map((speaker) => ({ value: speaker, label: speaker })),
+  ...[...new Set([
+    ...speakers.value,
+    ...completedEvents.value.flatMap((event) => (event.schedule ?? []).map((item) => item.lead).filter((lead): lead is string => Boolean(lead))),
+  ])]
+    .sort((a, b) => a.localeCompare(b))
+    .map((speaker) => ({ value: speaker, label: speaker })),
 ]);
 
-function publishedTalksFor(eventId: string): Talk[] {
+function publishedTalksFor(eventId: string): PublicArchiveTalk[] {
   return publishedTalks.value.filter((talk) => talk.event_id === eventId);
 }
 
@@ -105,7 +114,7 @@ function yearEventCount(year: number) {
   return completedEvents.value.filter((event) => new Date(event.event_date).getFullYear() === year).length;
 }
 
-function talksPreviewFor(eventId: string): Talk[] {
+function talksPreviewFor(eventId: string): PublicArchiveTalk[] {
   return publishedTalksFor(eventId).slice(0, 3);
 }
 
@@ -211,7 +220,7 @@ watch(years, (availableYears) => {
                 v-model="query"
                 class="editorial-input mt-2"
                 type="search"
-                placeholder="Search event, talk, speaker, topic"
+                placeholder="Search event, talk, speaker, topic, system design"
               >
             </label>
 
@@ -240,12 +249,12 @@ watch(years, (availableYears) => {
             </button>
           </section>
 
-          <div v-if="selectedYearEvents.length === 0" class="editorial-panel p-8">
+          <div v-if="!hasArchiveMatches" class="editorial-panel p-8">
             <h3 class="text-2xl font-black tracking-tight text-dc-ink">No archive matches</h3>
             <p class="mt-2 text-dc-gray">Try a broader topic, speaker, or search term.</p>
           </div>
 
-          <div class="grid gap-4">
+          <div v-else class="grid gap-4">
             <RouterLink
               v-for="event in selectedYearEvents"
               :key="event.id"

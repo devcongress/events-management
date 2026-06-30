@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
+import { fetchPublicArchiveEvent } from '@/src/lib/api';
 import ArchiveEventPageSkeleton from '@/src/components/ui/page-skeletons/ArchiveEventPageSkeleton.vue';
-import type { Event, Talk } from '@/types';
+import type { PublicArchiveEvent, PublicArchiveTalk, PublicMeetupScheduleItem } from '@/types';
 
 const route = useRoute();
-const event = ref<Event | null>(null);
-const talks = ref<Talk[]>([]);
+const event = ref<PublicArchiveEvent | null>(null);
+const talks = ref<PublicArchiveTalk[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const feedbackAvailable = ref(false);
 const feedbackClosesAt = ref<string | null>(null);
 
-const publishedTalks = computed(() => talks.value.filter((talk) => talk.status === 'published'));
-const systemDesignItems = computed(() => (event.value?.schedule ?? []).filter((item) => item.type === 'system_design'));
+const publishedTalks = computed(() => talks.value);
+const scheduleItems = computed(() => canonicalizeSystemDesignSchedule(event.value?.schedule ?? []));
+const systemDesignItems = computed(() => scheduleItems.value.filter((item) => isSystemDesignSessionItem(item)));
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -23,40 +26,36 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function slidesUrl(talk: Talk): string | null {
-  if (talk.slides_type === 'file' && talk.storage_path) {
-    return talk.storage_path;
+function slidesUrl(talk: PublicArchiveTalk): string | null {
+  return talk.slides_url;
+}
+
+function systemDesignResourceTitle(resource: PublicMeetupScheduleItem['resources'][number], index: number): string {
+  const label = resource.title.trim();
+  if (!label || (index === 0 && label.toLowerCase() === 'view scenario prompt')) {
+    return index === 0 ? 'Prompt deck' : 'Resource link';
   }
-  if (talk.slides_type === 'url' && talk.slides_url) {
-    return talk.slides_url;
-  }
-  return null;
+
+  return label;
+}
+
+function systemDesignResourceActionLabel(resource: PublicMeetupScheduleItem['resources'][number], index: number): string {
+  const title = resource.title.toLowerCase();
+  const url = resource.url.toLowerCase();
+
+  if (title.includes('sheet') || url.includes('/spreadsheets/')) return 'Open source sheet';
+  if (title.includes('deck') || url.includes('/presentation/') || index === 0) return 'Open prompt deck';
+  return 'Open resource';
 }
 
 onMounted(async () => {
   try {
     const eventId = String(route.params.eventId);
-    const [eventResponse, talksResponse] = await Promise.all([
-      fetch(`/api/events/${eventId}`),
-      fetch(`/api/events/${eventId}/talks`),
-    ]);
-
-    if (!eventResponse.ok) {
-      throw new Error('Event not found');
-    }
-    if (!talksResponse.ok) {
-      throw new Error('Unable to load event talks');
-    }
-
-    event.value = await eventResponse.json();
-    talks.value = await talksResponse.json();
-
-    const feedbackResponse = await fetch(`/api/feedback/events/${eventId}/status`);
-    if (feedbackResponse.ok) {
-      const feedbackStatus = await feedbackResponse.json();
-      feedbackAvailable.value = Boolean(feedbackStatus.available);
-      feedbackClosesAt.value = feedbackStatus.feedback_window?.closes_at ?? null;
-    }
+    const payload = await fetchPublicArchiveEvent(eventId);
+    event.value = payload.event;
+    talks.value = payload.talks;
+    feedbackAvailable.value = payload.feedback.available;
+    feedbackClosesAt.value = payload.feedback.closes_at;
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'Unable to load event';
   } finally {
@@ -116,31 +115,45 @@ onMounted(async () => {
 
           <div class="grid gap-4">
             <article
-              v-for="item in systemDesignItems"
-              :key="`${item.time}-${item.title}`"
-              class="rounded-lg border-2 border-dc-ink bg-dc-paper p-5 shadow-[3px_3px_0_#111111] sm:p-6"
+              v-for="(session, index) in systemDesignItems"
+              :key="`${session.time}-${session.title}-${index}`"
+              class="flex flex-col rounded-lg border-2 border-dc-ink bg-dc-paper p-5 shadow-[3px_3px_0_#111111] sm:p-6"
             >
-              <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+              <div>
                 <div>
-                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ item.time }}</p>
-                  <h3 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">{{ item.title }}</h3>
-                  <p v-if="item.lead" class="mt-2 text-sm font-semibold text-dc-gray">
-                    Led by {{ item.lead }}
+                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ session.time }}</p>
+                  <h3 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">
+                    {{ systemDesignDisplayTitle(session) }}
+                  </h3>
+                  <p v-if="session.lead" class="mt-2 text-sm font-semibold text-dc-gray">
+                    Led by {{ session.lead }}
                   </p>
                 </div>
-                <a
-                  v-if="item.resources[0]"
-                  :href="item.resources[0].url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="editorial-secondary-action whitespace-nowrap"
-                >
-                  {{ item.resources[0].title || 'View prompt' }} &rarr;
-                </a>
               </div>
-              <p v-if="item.description" class="mt-5 max-w-4xl whitespace-pre-line text-base leading-8 text-dc-gray">
-                {{ item.description }}
+              <p v-if="session.description" class="mt-5 max-w-4xl whitespace-pre-line text-base leading-8 text-dc-gray">
+                {{ session.description }}
               </p>
+              <p v-else class="mt-5 max-w-4xl text-base leading-8 text-dc-gray">
+                This meetup included a system design scenario, but the public recap has not been added yet.
+              </p>
+              <div v-if="session.resources.length > 0" class="mt-8 flex flex-wrap justify-start gap-3 sm:justify-end">
+                <div
+                  v-for="(resource, resourceIndex) in session.resources"
+                  :key="resource.url"
+                  class="flex max-w-full flex-col items-start gap-2 sm:items-end"
+                >
+                  <a
+                    :href="resource.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="editorial-secondary-action group max-w-full gap-2 whitespace-nowrap"
+                    :aria-label="`${systemDesignResourceActionLabel(resource, resourceIndex)}: ${systemDesignResourceTitle(resource, resourceIndex)}`"
+                  >
+                    <span>{{ systemDesignResourceActionLabel(resource, resourceIndex) }}</span>
+                    <span class="transition-transform group-hover:translate-x-0.5" aria-hidden="true">&nearr;</span>
+                  </a>
+                </div>
+              </div>
             </article>
           </div>
         </section>

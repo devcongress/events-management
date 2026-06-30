@@ -11,6 +11,7 @@ const loading = ref(true);
 const adding = ref(false);
 const error = ref<string | null>(null);
 const form = reactive({ email: '', name: '' });
+const speakerAccessPaused = true;
 
 async function fetchAll() {
   const [eventResponse, speakersResponse] = await Promise.all([
@@ -60,17 +61,21 @@ onMounted(fetchAll);
           <p class="editorial-subtitle">{{ event?.name }}</p>
         </div>
 
-        <section class="ops-panel mb-8 p-5">
-          <h2 class="mb-4 text-2xl font-black tracking-tight text-dc-ink">Add Speaker</h2>
+        <section class="ops-panel relative mb-8 overflow-hidden p-5">
+          <div class="coming-soon-ribbon">Coming soon</div>
+          <div class="pl-16 sm:pl-20">
+            <h2 class="mb-2 text-2xl font-black tracking-tight text-dc-ink">Add Speaker</h2>
+            <p class="mb-4 text-sm leading-6 text-dc-gray">Speaker access is paused while this workflow stays organizer-led.</p>
+          </div>
           <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
-          <form class="space-y-4" @submit.prevent="addNewSpeaker">
-            <input v-model="form.email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
-            <input v-model="form.name" required placeholder="Speaker Name" class="editorial-input font-mono" />
-            <button type="submit" :disabled="adding" class="editorial-action disabled:opacity-50">{{ adding ? 'ADDING...' : 'ADD SPEAKER' }}</button>
+          <form class="space-y-4 opacity-60" @submit.prevent>
+            <input v-model="form.email" disabled type="email" placeholder="speaker@example.com" class="editorial-input cursor-not-allowed font-mono" />
+            <input v-model="form.name" disabled placeholder="Speaker Name" class="editorial-input cursor-not-allowed font-mono" />
+            <button type="submit" disabled class="editorial-action disabled:cursor-not-allowed disabled:opacity-50">ADD SPEAKER</button>
           </form>
         </section>
 
-        <section class="ops-panel p-5">
+        <section class="ops-panel p-5 opacity-75">
           <h2 class="mb-4 text-2xl font-black tracking-tight text-dc-ink">Approved Speakers <span class="text-base text-dc-gray">({{ speakers.length }})</span></h2>
           <p v-if="speakers.length === 0" class="py-8 text-center font-mono text-dc-gray">NO SPEAKERS ADDED YET</p>
           <div v-else class="space-y-3">
@@ -79,7 +84,7 @@ onMounted(fetchAll);
                 <p class="font-mono font-bold text-dc-ink">{{ speaker.name }}</p>
                 <p class="font-mono text-sm text-dc-gray">{{ speaker.email }}</p>
               </div>
-              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-4 py-2 font-mono text-sm font-bold uppercase text-red-700 hover:bg-red-100" @click="removeExistingSpeaker(speaker.id)">REMOVE</button>
+              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-4 py-2 font-mono text-sm font-bold uppercase text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45" :disabled="speakerAccessPaused" @click="removeExistingSpeaker(speaker.id)">REMOVE</button>
             </div>
           </div>
         </section>

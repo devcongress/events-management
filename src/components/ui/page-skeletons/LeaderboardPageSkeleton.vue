@@ -12,7 +12,7 @@
     </header>
     <section class="skeleton-panel overflow-hidden">
       <div class="h-14 bg-dc-yellow" />
-      <div v-for="item in 8" :key="item" class="skeleton-row skeleton-row--leaderboard">
+      <div v-for="item in 5" :key="item" class="skeleton-row skeleton-row--leaderboard">
         <div class="skeleton-rank" />
         <div class="skeleton-avatar" />
         <div class="flex-1 space-y-3">

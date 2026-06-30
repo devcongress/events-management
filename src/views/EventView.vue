@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { isEventSeriesType } from '@/lib/event-series';
+import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem } from '@/lib/system-design';
 import { fetchPreviewPublicMeetup, fetchPublicMeetup, queryKeys } from '@/src/lib/api';
 import type { PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 
@@ -40,9 +41,10 @@ const meetupQuery = useQuery({
 const meetup = computed<PublicMeetup | null>(() => meetupQuery.data.value ?? null);
 const loading = computed(() => meetupQuery.isPending.value);
 const error = computed(() => meetupQuery.error.value?.message ?? null);
+const scheduleItems = computed(() => canonicalizeSystemDesignSchedule(meetup.value?.schedule ?? []));
 const imagePhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => !photo.type || photo.type === 'image'));
 const folderPhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => photo.type === 'folder'));
-const systemDesignItems = computed(() => (meetup.value?.schedule ?? []).filter((item) => item.type === 'system_design'));
+const systemDesignArchivePath = computed(() => meetup.value ? `/archive/${meetup.value.id}` : '');
 const stackedImagePhotos = computed(() => {
   const photos = imagePhotos.value;
   if (photos.length === 0) return [];
@@ -94,6 +96,10 @@ function statusLabel(status: PublicMeetup['status']) {
   if (status === 'live') return 'Live now';
   if (status === 'upcoming') return 'Upcoming';
   return 'Past';
+}
+
+function systemDesignActionLabel(status: PublicMeetup['status']) {
+  return status === 'past' ? 'View recap' : 'View details';
 }
 
 function primaryAction(meetupItem: PublicMeetup): { href: string | null; label: string | null } {
@@ -300,7 +306,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
             <div class="mt-6 flex flex-wrap gap-2 font-mono text-xs uppercase tracking-wide text-dc-gray">
               <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ meetup.published_talks_count }} published talks</span>
               <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ meetup.photos.length }} photos</span>
-              <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ meetup.schedule.length }} schedule items</span>
+              <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ scheduleItems.length }} schedule items</span>
             </div>
           </div>
 
@@ -361,7 +367,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
           </div>
         </section>
 
-        <section v-if="meetup.schedule.length > 0" class="mt-12">
+        <section v-if="scheduleItems.length > 0" class="mt-12">
           <div class="mb-5">
             <p class="editorial-eyebrow">{{ meetup.status === 'past' ? 'recap' : 'schedule' }}</p>
             <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">
@@ -371,7 +377,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
 
           <ol class="space-y-3">
             <li
-              v-for="(item, index) in meetup.schedule"
+              v-for="(item, index) in scheduleItems"
               :key="`${item.time}-${item.title}-${index}`"
               class="grid gap-4 rounded-lg border border-dc-border bg-dc-paper px-4 py-4 md:grid-cols-[160px_1fr]"
             >
@@ -384,7 +390,15 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
                   </span>
                 </div>
                 <p v-if="item.lead" class="mt-2 text-sm text-dc-gray">Led by {{ item.lead }}</p>
-                <div v-if="item.resources.length > 0" class="mt-3 flex flex-wrap gap-2">
+                <div v-if="isSystemDesignSessionItem(item) && systemDesignArchivePath" class="mt-3 flex flex-wrap gap-2">
+                  <RouterLink
+                    :to="systemDesignArchivePath"
+                    class="rounded-md border border-dc-border px-3 py-1.5 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm"
+                  >
+                    {{ systemDesignActionLabel(meetup.status) }}
+                  </RouterLink>
+                </div>
+                <div v-else-if="item.resources.length > 0" class="mt-3 flex flex-wrap gap-2">
                   <a
                     v-for="resource in item.resources"
                     :key="resource.url"
@@ -399,43 +413,6 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
               </div>
             </li>
           </ol>
-        </section>
-
-        <section v-if="systemDesignItems.length > 0" class="mt-12">
-          <div class="mb-5">
-            <p class="editorial-eyebrow">system design</p>
-            <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">Monthly architecture scenario</h2>
-          </div>
-
-          <div class="grid gap-4">
-            <article
-              v-for="item in systemDesignItems"
-              :key="`${item.time}-${item.title}`"
-              class="rounded-lg border-2 border-dc-ink bg-dc-paper p-5 shadow-[3px_3px_0_#111111] sm:p-6"
-            >
-              <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                <div>
-                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ item.time }}</p>
-                  <h3 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">{{ item.title }}</h3>
-                  <p v-if="item.lead" class="mt-2 text-sm font-semibold text-dc-gray">
-                    Led by {{ item.lead }}
-                  </p>
-                </div>
-                <a
-                  v-if="item.resources[0]"
-                  :href="item.resources[0].url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="editorial-secondary-action whitespace-nowrap"
-                >
-                  {{ item.resources[0].title || 'View prompt' }} &rarr;
-                </a>
-              </div>
-              <p v-if="item.description" class="mt-5 max-w-4xl whitespace-pre-line text-base leading-8 text-dc-gray">
-                {{ item.description }}
-              </p>
-            </article>
-          </div>
         </section>
 
         <section v-if="imagePhotos.length > 0 || folderPhotos.length > 0" class="mt-12">

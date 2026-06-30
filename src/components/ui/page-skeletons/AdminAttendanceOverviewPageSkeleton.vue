@@ -27,10 +27,10 @@
       <div class="border-b border-dc-border p-5">
         <div class="skeleton-title" />
         <div class="mt-4 flex flex-wrap gap-2">
-          <div v-for="item in 8" :key="item" class="skeleton-chip !mb-0" />
+          <div v-for="item in 5" :key="item" class="skeleton-chip !mb-0" />
         </div>
       </div>
-      <div class="skeleton-table" :style="{ '--skeleton-rows': '6' }" />
+      <div class="skeleton-table" :style="{ '--skeleton-rows': '4' }" />
     </section>
   </div>
 </template>

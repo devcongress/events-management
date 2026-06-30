@@ -14,6 +14,7 @@ const mastheadStats = [
         eyebrow="live quiz"
         title="Play"
         description="Live quiz is coming soon after the low-cost launch foundations are stable."
+        ribbon="Coming soon"
         :stats="mastheadStats"
       />
     </div>
@@ -21,7 +22,6 @@ const mastheadStats = [
     <section class="editorial-wrap flex items-center pb-10 lg:pb-14">
       <div class="grid w-full gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
         <div>
-          <p class="editorial-eyebrow">coming soon</p>
           <div class="mt-4 border-b-2 border-dc-ink pb-7">
             <h1 class="max-w-4xl text-5xl font-black leading-none tracking-tight text-dc-ink sm:text-6xl lg:text-7xl">
               Live quiz is paused for phase one.

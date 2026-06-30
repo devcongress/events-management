@@ -22,7 +22,7 @@
         <div class="skeleton-title mt-3" />
       </div>
       <div class="divide-y-2 divide-dc-border">
-        <div v-for="item in 4" :key="item" class="grid gap-4 p-5 md:grid-cols-[1fr_150px_150px_auto] md:items-center">
+        <div v-for="item in 3" :key="item" class="grid gap-4 p-5 md:grid-cols-[1fr_150px_150px_auto] md:items-center">
           <div class="space-y-3">
             <div class="skeleton-line skeleton-line--half" />
             <div class="skeleton-line skeleton-line--third" />

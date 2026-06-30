@@ -14,7 +14,7 @@ const props = defineProps<{
 type AdminEventTab = {
   href: string;
   label: string;
-  soon?: boolean;
+  disabled?: boolean;
 };
 
 const route = useRoute();
@@ -25,11 +25,11 @@ const indicator = ref({ left: 0, width: 0, ready: false });
 const fullTabs: AdminEventTab[] = [
   { href: '', label: 'Overview' },
   { href: 'talks', label: 'Talks' },
-  { href: 'speakers', label: 'Speakers' },
-  { href: 'attendance', label: 'Attendance' },
-  { href: 'quiz', label: 'Quiz', soon: true },
+  { href: 'speakers', label: 'Speakers', disabled: true },
+  { href: 'quiz', label: 'Quiz', disabled: true },
   { href: 'system-design', label: 'System Design' },
   { href: 'feedback', label: 'Feedback' },
+  { href: 'attendance', label: 'Attendance' },
 ];
 const quarterlyTabs: AdminEventTab[] = [
   { href: '', label: 'Overview' },
@@ -49,10 +49,15 @@ function tabPath(href: string) {
 
 function tabTo(href: string) {
   const from = route.query.from;
+  const month = route.query.month;
   const path = tabPath(href);
 
   if (from === 'attendance' || from === 'feedback') {
-    return { path, query: { from } };
+    const query: { from: 'attendance' | 'feedback'; month?: string } = { from };
+    if (from === 'feedback' && typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
+      query.month = month;
+    }
+    return { path, query };
   }
 
   return path;
@@ -64,7 +69,7 @@ function isActive(href: string) {
   return route.path === path || route.path.startsWith(`${path}/`);
 }
 
-const activeIndex = computed(() => tabs.value.findIndex((tab) => isActive(tab.href)));
+const activeIndex = computed(() => tabs.value.findIndex((tab) => !tab.disabled && isActive(tab.href)));
 const indicatorStyle = computed(() => ({
   opacity: indicator.value.ready ? '1' : '0',
   transform: `translate3d(${indicator.value.left}px, 0, 0)`,
@@ -121,8 +126,8 @@ watch(tabs, () => {
 </script>
 
 <template>
-  <nav class="mb-5 overflow-x-auto border-b-2 border-dc-border pb-3">
-    <div ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 font-mono text-xs font-bold uppercase tracking-wide">
+  <nav class="mb-5 overflow-x-auto">
+    <div ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 border-b-2 border-dc-border pb-3 font-mono text-xs font-bold uppercase tracking-wide">
       <span class="admin-event-tabs-indicator" :style="indicatorStyle" aria-hidden="true" />
       <RouterLink
         v-for="(tab, index) in tabs"
@@ -130,11 +135,17 @@ watch(tabs, () => {
         :ref="(element) => setTabElement(element, index)"
         :to="tabTo(tab.href)"
         class="admin-event-tab motion-press"
-        :class="isActive(tab.href) ? 'text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:bg-dc-paper-warm hover:text-dc-ink'"
+        :class="[
+          tab.disabled
+            ? 'admin-event-tab--disabled'
+            : isActive(tab.href)
+              ? 'text-dc-ink'
+              : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:bg-dc-paper-warm hover:text-dc-ink',
+        ]"
         :aria-current="isActive(tab.href) ? 'page' : undefined"
+        :aria-disabled="tab.disabled ? 'true' : undefined"
       >
         <span>{{ tab.label }}</span>
-        <span v-if="tab.soon" class="admin-event-tab-soon">Soon</span>
       </RouterLink>
     </div>
   </nav>

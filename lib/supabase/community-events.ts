@@ -3,6 +3,7 @@ import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
 import type { Event, EventStatus, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } from '@/types/supabase';
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
+import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
@@ -374,7 +375,8 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
 }
 
 function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
-  return value
+  return canonicalizeSystemDesignSchedule(
+    value
     .filter(isRecord)
     .map((item) => ({
       time: stringValue(item.time, 'TBD'),
@@ -382,13 +384,15 @@ function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
       type: scheduleType(item.type),
       lead: typeof item.lead === 'string' ? item.lead : null,
       description: typeof item.description === 'string' ? item.description : null,
+      system_design_title: typeof item.system_design_title === 'string' ? item.system_design_title : null,
       resources: Array.isArray(item.resources)
         ? item.resources.filter(isRecord).map((resource) => ({
           title: stringValue(resource.title, 'Resource'),
           url: stringValue(resource.url, '#'),
         }))
         : [],
-    }));
+    })),
+  );
 }
 
 function normalizeSpeakers(value: Json[]): PublicMeetupSpeaker[] {

@@ -29,7 +29,7 @@ const uploadUnavailableReason = ref<string | null>(null);
 const uploadUnlocksAt = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const ATTENDANCE_CSV_MAX_BYTES = 2 * 1024 * 1024;
-const ATTENDANCE_PAGE_SIZE = 20;
+const ATTENDANCE_PAGE_SIZE = 8;
 const searchQuery = ref('');
 const selectedAttendanceFilter = ref<'all' | 'said_yes' | 'came' | 'missed' | 'pending' | 'declined'>('all');
 const currentPage = ref(1);
@@ -468,10 +468,10 @@ onMounted(fetchAttendance);
 
                 <div class="overflow-x-auto border-b border-dc-border bg-dc-paper-warm">
                   <div class="grid min-w-[760px] grid-cols-[35%_35%_15%_15%] font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                    <div class="px-5 py-3">Person</div>
-                    <div class="px-5 py-3">Contact</div>
-                    <div class="px-5 py-3">Attendance</div>
-                    <div class="px-5 py-3">Context</div>
+                    <div class="px-4 py-2.5">Person</div>
+                    <div class="px-4 py-2.5">Contact</div>
+                    <div class="px-4 py-2.5">Attendance</div>
+                    <div class="px-4 py-2.5">Context</div>
                   </div>
                 </div>
               </div>
@@ -489,44 +489,55 @@ onMounted(fetchAttendance);
                   </colgroup>
                   <thead class="sr-only">
                     <tr>
-                      <th class="px-5 py-3">Person</th>
-                      <th class="px-5 py-3">Contact</th>
-                      <th class="px-5 py-3">Attendance</th>
-                      <th class="px-5 py-3">Context</th>
+                      <th class="px-4 py-2.5">Person</th>
+                      <th class="px-4 py-2.5">Contact</th>
+                      <th class="px-4 py-2.5">Attendance</th>
+                      <th class="px-4 py-2.5">Context</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-dc-border">
                     <tr v-for="record in paginatedAttendanceRecords" :key="record.guest_id">
-                      <td class="px-5 py-3 text-sm font-bold text-dc-ink">{{ attendeeName(record) }}</td>
-                      <td class="px-5 py-3 text-sm text-dc-gray">{{ record.email ?? '-' }}</td>
-                      <td class="px-5 py-3 font-mono text-xs font-bold uppercase tracking-wide" :class="attendanceOutcomeClass(record)">
-                        {{ attendanceOutcome(record) }}
+                      <td class="px-4 py-2.5 align-middle text-sm font-bold text-dc-ink">
+                        <span class="block w-full truncate">{{ attendeeName(record) }}</span>
                       </td>
-                      <td class="px-5 py-3 text-sm text-dc-gray">{{ attendanceContext(record) }}</td>
+                      <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
+                        <span class="block w-full truncate">{{ record.email ?? '-' }}</span>
+                      </td>
+                      <td class="px-4 py-2.5 align-middle font-mono text-[11px] font-bold uppercase tracking-wide" :class="attendanceOutcomeClass(record)">
+                        <span class="block w-full truncate">{{ attendanceOutcome(record) }}</span>
+                      </td>
+                      <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
+                        <span class="block w-full truncate">{{ attendanceContext(record) }}</span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              <div v-if="filteredAttendanceRecords.length > ATTENDANCE_PAGE_SIZE" class="flex flex-col gap-3 border-t border-dc-border bg-dc-paper-warm/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                  Page {{ currentPage }} of {{ totalPages }}
+              <div v-if="filteredAttendanceRecords.length > ATTENDANCE_PAGE_SIZE" class="pagination-footer shrink-0">
+                <p class="pagination-summary">
+                  Showing {{ pageStartIndex }}-{{ pageEndIndex }} of {{ filteredAttendanceRecords.length }}
                 </p>
-                <div class="flex gap-2">
+                <div class="pagination-controls">
                   <button
                     type="button"
-                    class="motion-press min-h-10 rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-40"
+                    class="pagination-button"
                     :disabled="currentPage === 1"
                     @click="goToPreviousAttendancePage"
                   >
-                    Previous
+                    <span aria-hidden="true">‹</span>
+                    Prev
                   </button>
+                  <span class="pagination-count" aria-live="polite">
+                    Page {{ currentPage }} of {{ totalPages }}
+                  </span>
                   <button
                     type="button"
-                    class="motion-press min-h-10 rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-40"
+                    class="pagination-button"
                     :disabled="currentPage === totalPages"
                     @click="goToNextAttendancePage"
                   >
                     Next
+                    <span aria-hidden="true">›</span>
                   </button>
                 </div>
               </div>
