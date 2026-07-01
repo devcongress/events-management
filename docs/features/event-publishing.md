@@ -31,7 +31,7 @@ Event publishing lets organizers create meetup records in the app and expose pub
 
 ## Configuration
 
-Supabase community events are used when Supabase environment variables are configured. JSON event data remains the local fallback.
+Supabase community events are used when `APP_DATA_SOURCE=supabase` is set with Supabase credentials. JSON event data is the local/dev default.
 
 ## Testing
 

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AdminEventTabs from './components/AdminEventTabs.vue';
 import AppToaster from './components/ui/AppToaster.vue';
 import FeedbackBot from './components/FeedbackBot.vue';
 import { adminPath, isAdminPath } from './admin-routes';
-import { fetchAdminSession, fetchRouteFeedbackInbox, queryKeys, type RouteFeedbackSummary } from './lib/api';
+import { fetchAdminSession, fetchEventById, fetchRouteFeedbackInbox, queryKeys, type RouteFeedbackSummary } from './lib/api';
+import { queryClient } from './lib/query';
 
 interface NavLink {
   href: string;
@@ -19,12 +20,14 @@ interface AdminEventSummary {
   name: string;
 }
 
+const AdminMobileOrganizerView = defineAsyncComponent(() => import('./views/admin/AdminMobileOrganizerView.vue'));
 const route = useRoute();
 const router = useRouter();
 const quizAvailable = ref(false);
 const adminEventNames = ref<Record<string, string>>({});
 const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
+const phoneViewport = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
 const adminEventTabsShell = ref<HTMLElement | null>(null);
@@ -82,7 +85,17 @@ const adminEventId = computed(() => {
 });
 const primaryLinks = computed(() => (isAdminRoute.value ? adminLinks.value : publicLinks));
 const visiblePlayLinks = computed(() => (quizAvailable.value ? playLinks : []));
+const isOrganizerPhoneBypassRoute = computed(() => (
+  route.path === adminPath('login')
+  || route.path === adminPath('auth/callback')
+  || route.path.startsWith(adminPath('feedback-display/'))
+));
+const showOrganizerPhoneView = computed(() => isAdminRoute.value && phoneViewport.value && !isOrganizerPhoneBypassRoute.value);
 const navGroups = computed(() => {
+  if (showOrganizerPhoneView.value) {
+    return [[{ href: adminPath('events'), label: 'Mobile Ops' }]];
+  }
+
   if (isAdminRoute.value) {
     return [primaryLinks.value];
   }
@@ -102,6 +115,7 @@ const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.val
 const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
 const shouldLoadRouteFeedbackSummary = computed(() => (
   isAdminRoute.value
+  && !showOrganizerPhoneView.value
   && route.path !== adminPath('login')
   && route.path !== adminPath('feedback')
 ));
@@ -156,6 +170,10 @@ const adminReturnLink = computed(() => {
   return null;
 });
 const activeNavHref = computed(() => {
+  if (showOrganizerPhoneView.value) {
+    return adminPath('events');
+  }
+
   if (isAdminRoute.value && adminReturnLink.value && adminEventId.value) {
     return adminReturnLink.value.href;
   }
@@ -172,7 +190,11 @@ const currentEventLabel = computed(() => {
   if (!adminEventId.value) return 'Event';
   return adminEventNames.value[adminEventId.value] ?? 'Event';
 });
-const showAdminEventTabs = computed(() => Boolean(adminEventId.value && route.path.startsWith(adminPath(`events/${adminEventId.value}`))));
+const showAdminEventTabs = computed(() => Boolean(
+  !showOrganizerPhoneView.value
+  && adminEventId.value
+  && route.path.startsWith(adminPath(`events/${adminEventId.value}`)),
+));
 const appMainStyle = computed(() => ({
   '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
 }));
@@ -259,7 +281,7 @@ const breadcrumbItems = computed(() => {
 
   return items;
 });
-const showBreadcrumbs = computed(() => isAdminRoute.value && breadcrumbItems.value.length > 1);
+const showBreadcrumbs = computed(() => !showOrganizerPhoneView.value && isAdminRoute.value && breadcrumbItems.value.length > 1);
 
 const adminEventSectionOrder = ['', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
 
@@ -340,6 +362,10 @@ function isMobileViewport() {
   return window.matchMedia('(max-width: 640px)').matches;
 }
 
+function syncPhoneViewport() {
+  phoneViewport.value = window.matchMedia('(max-width: 767px)').matches;
+}
+
 function isEditableElement(element: Element | null): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false;
   if (element.isContentEditable) return true;
@@ -410,18 +436,44 @@ async function refreshQuizAvailability() {
 }
 
 async function refreshAdminEventNames() {
+  if (showOrganizerPhoneView.value) {
+    return;
+  }
+
   if (!isAdminRoute.value || route.path === adminPath('login')) {
     return;
   }
 
-  try {
-    const eventsResponse = await fetch('/api/events');
-    if (!eventsResponse.ok) return;
+  const eventId = adminEventId.value;
+  if (!eventId) return;
 
-    const events = (await eventsResponse.json()) as AdminEventSummary[];
-    adminEventNames.value = Object.fromEntries(events.map((event) => [event.id, event.name]));
+  const cachedEventName = adminEventNames.value[eventId]
+    ?? queryClient.getQueryData<AdminEventSummary[]>(queryKeys.events)?.find((event) => event.id === eventId)?.name
+    ?? queryClient.getQueryData<AdminEventSummary>(queryKeys.event(eventId))?.name;
+
+  if (cachedEventName) {
+    adminEventNames.value = {
+      ...adminEventNames.value,
+      [eventId]: cachedEventName,
+    };
+    return;
+  }
+
+  try {
+    const event = await queryClient.fetchQuery({
+      queryKey: queryKeys.event(eventId),
+      queryFn: () => fetchEventById(eventId),
+    });
+    if (adminEventId.value !== eventId) return;
+    adminEventNames.value = {
+      ...adminEventNames.value,
+      [eventId]: event.name,
+    };
   } catch {
-    adminEventNames.value = {};
+    adminEventNames.value = {
+      ...adminEventNames.value,
+      [eventId]: 'Event',
+    };
   }
 }
 
@@ -434,9 +486,11 @@ onMounted(() => {
   document.addEventListener('focusin', syncKeyboardDismissVisibility);
   document.addEventListener('focusout', syncKeyboardDismissVisibility);
   window.addEventListener('resize', syncKeyboardDismissVisibility);
+  window.addEventListener('resize', syncPhoneViewport);
   window.addEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.addEventListener('resize', updateKeyboardInset);
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
+  syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
   void refreshQuizAvailability();
   void refreshAdminEventNames();
@@ -481,6 +535,7 @@ onUnmounted(() => {
   document.removeEventListener('focusin', syncKeyboardDismissVisibility);
   document.removeEventListener('focusout', syncKeyboardDismissVisibility);
   window.removeEventListener('resize', syncKeyboardDismissVisibility);
+  window.removeEventListener('resize', syncPhoneViewport);
   window.removeEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
@@ -688,7 +743,8 @@ onUnmounted(() => {
       </div>
 
       <div class="page-route-stack">
-        <RouterView v-slot="{ Component, route }">
+        <AdminMobileOrganizerView v-if="showOrganizerPhoneView" class="page-view" />
+        <RouterView v-else v-slot="{ Component, route }">
           <Transition :name="routeTransitionName" @after-enter="resetMainScroll">
             <component :is="Component" :key="route.fullPath" class="page-view" />
           </Transition>

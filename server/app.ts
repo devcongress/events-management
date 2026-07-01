@@ -19,7 +19,7 @@ import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSes
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired } from '@/lib/mock-db/speaker-intake-links';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
-import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, deleteSupabaseCommunityEventsByImportMatch, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
@@ -1268,6 +1268,7 @@ app.get('/api/health/supabase', async (c) => {
 
 app.get('/api/health/data-sources', async (c) => {
   const supabaseConfigured = isSupabaseServerConfigured(c);
+  const supabaseEnabled = isSupabaseRuntimeEnabled(c);
   const supabaseSource = supabaseConfigured ? 'supabase' : 'local-json';
   const documentStoreAvailable = await canReachSupabaseDocumentStore(c);
   const documentSource = documentStoreAvailable ? 'supabase-json' : 'local-json';
@@ -1275,6 +1276,7 @@ app.get('/api/health/data-sources', async (c) => {
   return c.json({
     ok: true,
     supabase: {
+      enabled: supabaseEnabled,
       configured: supabaseConfigured,
       project_ref: supabaseProjectRef(c),
       document_store_available: documentStoreAvailable,
