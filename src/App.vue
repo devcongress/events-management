@@ -359,7 +359,7 @@ function resetMainScroll() {
 }
 
 function isMobileViewport() {
-  return window.matchMedia('(max-width: 640px)').matches;
+  return window.matchMedia('(max-width: 767px)').matches;
 }
 
 function syncPhoneViewport() {

@@ -9,6 +9,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 - Added a phone-only organizer ops surface that shows current/next event cards, public/registration/source links, and feedback QR access when feedback is open.
 - Blocked full organizer workspaces on phone-width routes while keeping organizer login/auth and feedback QR display available.
+- Aligned the mobile app-shell breakpoint with the organizer phone-view breakpoint so community and organizer routes use the same compact header/menu treatment through 767px.
+- Added mobile tap-action handling for pressable controls so phone interactions feel immediate without changing desktop behavior.
 - Lazy-loaded Vue route components so public visitors and mobile organizers do not download every page workspace in the initial app bundle.
 - Reused cached event data for organizer breadcrumbs and fell back to a single-event fetch, avoiding repeated full event-list requests while moving between event workspaces.
 - Added follow-up technical-debt notes requiring the `$thumb-first` suite for mobile/header artifact investigation, performance QA, and the structured organizer code-review/audit checklist.
