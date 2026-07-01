@@ -2819,6 +2819,10 @@
     min-height: 100%;
   }
 
+  .my-talks-mobile-coming-soon {
+    display: none;
+  }
+
   .route-feedback-header {
     border-bottom: 2px solid #111111;
     padding-bottom: 1rem;
@@ -5397,9 +5401,9 @@
     }
 
     .admin-login-wrap {
-      min-height: calc(100svh - 7rem) !important;
-      align-items: start !important;
-      padding: 1.2rem 0.7rem 1rem !important;
+      min-height: calc(100svh - 3.75rem) !important;
+      align-items: center !important;
+      padding: 1rem 0.7rem !important;
     }
 
     .admin-login-card {
@@ -5555,6 +5559,23 @@
 
     .my-talks-card {
       padding: 0.8rem !important;
+    }
+
+    .my-talks-mobile-coming-soon {
+      display: flex;
+      min-height: 2.25rem;
+      align-items: center;
+      justify-content: center;
+      margin: -0.8rem -0.8rem 1rem;
+      border-bottom: 2px solid #111111;
+      background: #f5e642;
+      color: #111111;
+      font-family: var(--font-mono), monospace;
+      font-size: 0.7rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      line-height: 1;
+      text-transform: uppercase;
     }
 
     .my-talks-card-header {
