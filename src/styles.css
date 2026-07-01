@@ -279,6 +279,10 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  .app-main:has(.view-skeleton) {
+    overflow-y: hidden;
+  }
+
   .editorial-header {
     @apply mb-10 border-b border-dc-ink pb-7;
   }
@@ -2024,9 +2028,13 @@
 
   .view-skeleton {
     @apply text-dc-gray;
-    max-height: min(30rem, calc(100svh - 27rem));
-    min-height: 0;
-    overflow: hidden;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .home-hero--loading {
+    overflow: visible;
   }
 
   .skeleton-header {
@@ -5544,6 +5552,20 @@
       margin-top: 0.9rem !important;
     }
 
+    .view-skeleton {
+      max-height: calc(100svh - 14rem);
+      overflow: hidden;
+    }
+
+    .home-hero--loading .view-skeleton {
+      max-height: calc(100svh - 6.75rem);
+    }
+
+    .view-skeleton .skeleton-card:nth-of-type(n+2),
+    .view-skeleton .skeleton-row:nth-of-type(n+4) {
+      display: none;
+    }
+
     .my-talks-wrap {
       display: flex;
       min-height: 100%;
@@ -5562,20 +5584,11 @@
     }
 
     .my-talks-mobile-coming-soon {
-      display: flex;
-      min-height: 2.25rem;
-      align-items: center;
-      justify-content: center;
-      margin: -0.8rem -0.8rem 1rem;
-      border-bottom: 2px solid #111111;
-      background: #f5e642;
-      color: #111111;
-      font-family: var(--font-mono), monospace;
-      font-size: 0.7rem;
-      font-weight: 900;
-      letter-spacing: 0.14em;
-      line-height: 1;
-      text-transform: uppercase;
+      display: block;
+      top: 0.78rem;
+      left: -3.35rem;
+      width: 10.5rem;
+      transform: rotate(-45deg);
     }
 
     .my-talks-card-header {
@@ -5614,6 +5627,10 @@
     }
 
     .leaderboard-wrap {
+      display: flex;
+      min-height: calc(100svh - 3.75rem);
+      flex-direction: column;
+      justify-content: flex-start;
       padding-top: 1rem !important;
       padding-bottom: 1rem !important;
     }
@@ -5661,6 +5678,13 @@
       align-items: start;
       padding-top: 1rem;
       padding-bottom: 1rem;
+    }
+
+    @media (min-height: 700px) {
+      .my-talks-wrap,
+      .leaderboard-wrap {
+        justify-content: center;
+      }
     }
 
     .route-feedback-header {

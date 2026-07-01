@@ -94,7 +94,7 @@ onUnmounted(() => {
 
 <template>
   <div class="editorial-page">
-    <div class="home-hero relative overflow-hidden border-b-2 border-dc-ink">
+    <div class="home-hero relative border-b-2 border-dc-ink" :class="loading ? 'home-hero--loading overflow-visible' : 'overflow-hidden'">
       <div class="absolute inset-0 bg-dc-cream" />
       <div
         class="absolute inset-0 opacity-100"
