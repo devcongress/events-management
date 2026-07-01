@@ -4,7 +4,7 @@ This app exposes a read-only meetup API for the future `devcongress.org` Astro i
 
 ## Source Of Truth
 
-When Supabase is configured and the `community_events` table exists, the public meetup API reads from Supabase first. The table is modeled from the current `devcongress.org` Astro meetup collection in `/Users/TT/Documents/personal/forks/website/content/meetups/*.yaml`.
+When `APP_DATA_SOURCE=supabase` is set and the `community_events` table exists, the public meetup API reads from Supabase first. Local/dev runs default to JSON event data. The table is modeled from the current `devcongress.org` Astro meetup collection in `/Users/TT/Documents/personal/forks/website/content/meetups/*.yaml`.
 
 The first Supabase event migration seeds the existing website meetups into `community_events` so the API can be tested before the Astro repo is changed. If Supabase is unavailable or the table has not been migrated yet, the API falls back to the local JSON event/talk data so development still works.
 

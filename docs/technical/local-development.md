@@ -22,7 +22,7 @@ The dev server runs Vite and the Hono API on the same origin. Open the local URL
 
 ## Environment Variables
 
-The app can run with empty Supabase values for many local prototype flows because JSON mock data is still available. Supabase is required for features that use browser/server Supabase helpers.
+The app defaults to JSON mock data in local/dev runs, even when Supabase credentials exist in `.env.local`. Leave `APP_DATA_SOURCE` unset locally unless you are intentionally testing deployed-style Supabase persistence.
 
 See [Environment Variables](../reference/environment-variables.md) for the full table.
 
@@ -48,7 +48,7 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 
 ## Organizer Login
 
-Hosted organizer routes use Supabase Google OAuth and app-owned HTTP-only sessions. In local development, if Supabase admin auth is not configured, the login screen falls back to a shared password. Set these values in `.env.local` if you do not want defaults:
+Hosted organizer routes use Supabase Google OAuth and app-owned HTTP-only sessions. In local development, the login screen falls back to a shared password unless you explicitly set `APP_DATA_SOURCE=supabase`. Set these values in `.env.local` if you do not want defaults:
 
 ```bash
 VITE_SHOW_ORGANIZER_LINK=true
@@ -56,7 +56,7 @@ ADMIN_PASSWORD=devcon-admin
 ADMIN_SESSION_SECRET=replace-this-locally
 ```
 
-Do not use development defaults in a public deployment. Configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` for hosted admin auth, then bootstrap the first owner as described in [Admin Auth](../auth.md).
+Do not use development defaults in a public deployment. Configure `APP_DATA_SOURCE=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` for hosted admin auth, then bootstrap the first owner as described in [Admin Auth](../auth.md).
 Set `VITE_SHOW_ORGANIZER_LINK=false` in public deployments when you want to hide the Organizer button from the public header. This is only a visibility toggle; organizer routes remain directly reachable and require auth.
 
 ## Common Troubleshooting
@@ -67,7 +67,7 @@ In non-production, localhost requests use the current dev-server origin for brow
 
 ### Supabase health checks fail
 
-Check `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. The service-role key must not have a `VITE_` prefix.
+Local/dev runs intentionally use JSON unless `APP_DATA_SOURCE=supabase` is set. If you are testing deployed-style Supabase locally, check `APP_DATA_SOURCE`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`. The service-role key must not have a `VITE_` prefix.
 
 ### Organizer changes disappear
 
@@ -75,7 +75,7 @@ Run `pnpm seed` only when you intentionally want to reset local JSON data.
 
 ### Public meetup API shows fallback data
 
-That is expected when Supabase community events are not configured. The server falls back to JSON event data for local development.
+That is expected in local/dev mode. The server uses JSON event data unless `APP_DATA_SOURCE=supabase` is set with valid Supabase credentials.
 
 ### Production start fails
 

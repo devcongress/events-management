@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
+import { notify } from '@/src/lib/notify';
 import type { Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
@@ -11,7 +12,6 @@ const loading = ref(true);
 const addingTalk = ref(false);
 const creatingSpeakerLink = ref(false);
 const speakerFormEnabled = ref(true);
-const copiedSpeakerLink = ref(false);
 const speakerLinkExpiresInDays = ref(7);
 const generatedSpeakerIntakePath = ref('');
 const generatedSpeakerLinkExpiresAt = ref<string | null>(null);
@@ -113,7 +113,6 @@ async function generateSpeakerIntakeLink() {
   if (!speakerFormEnabled.value) return;
 
   creatingSpeakerLink.value = true;
-  copiedSpeakerLink.value = false;
   message.value = null;
   error.value = null;
 
@@ -129,7 +128,7 @@ async function generateSpeakerIntakeLink() {
       generatedSpeakerIntakePath.value = `/speaker-talks/${route.params.eventId}/${data.token}`;
       generatedSpeakerLinkExpiresAt.value = data.link?.expires_at ?? null;
       generatedSpeakerLinkMonth.value = data.link?.event_month ?? null;
-      message.value = 'One-time speaker link generated.';
+      notify.success('One-time speaker link generated.');
     } else {
       error.value = data.error || 'Could not generate speaker form link.';
     }
@@ -161,11 +160,7 @@ async function copySpeakerIntakeLink() {
       textarea.remove();
     }
 
-    copiedSpeakerLink.value = true;
-    message.value = 'Speaker form link copied.';
-    window.setTimeout(() => {
-      copiedSpeakerLink.value = false;
-    }, 2000);
+    notify.success('Speaker form link copied.');
   } catch {
     error.value = 'Could not copy the speaker form link.';
   }
@@ -233,7 +228,6 @@ function actionClass(isPrimary = false): string {
 
 function toggleSpeakerForm() {
   speakerFormEnabled.value = !speakerFormEnabled.value;
-  copiedSpeakerLink.value = false;
   message.value = null;
   error.value = null;
 }
@@ -302,7 +296,7 @@ onMounted(fetchTalks);
                 <input :value="generatedSpeakerIntakeUrl" readonly :disabled="!speakerFormEnabled" class="editorial-input mt-3 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-55" />
                 <div class="mt-3 flex flex-wrap gap-2">
                   <button type="button" :disabled="!speakerFormEnabled" :class="actionClass()" @click="copySpeakerIntakeLink">
-                    {{ copiedSpeakerLink ? 'Copied' : 'Copy link' }}
+                    Copy link
                   </button>
                   <a v-if="speakerFormEnabled" :href="generatedSpeakerIntakePath" target="_blank" rel="noopener noreferrer" :class="actionClass()">Open form</a>
                 </div>
