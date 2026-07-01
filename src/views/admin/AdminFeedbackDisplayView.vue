@@ -15,7 +15,22 @@ const qrCodeUrl = ref<string | null>(null);
 const available = ref(false);
 
 const eventId = computed(() => String(route.params.eventId ?? ''));
-const canShowQr = computed(() => available.value && Boolean(publicUrl.value) && Boolean(qrCodeUrl.value));
+const eventHasStarted = computed(() => (
+  event.value ? new Date(event.value.event_date).getTime() <= Date.now() : false
+));
+const canShowQr = computed(() => (
+  available.value
+  && eventHasStarted.value
+  && Boolean(publicUrl.value)
+  && Boolean(qrCodeUrl.value)
+));
+const unavailableCopy = computed(() => {
+  if (available.value && !eventHasStarted.value) {
+    return 'This event has not happened yet. The feedback QR becomes available after the event date.';
+  }
+
+  return 'Open or publish the feedback flow for this event first. Once the feedback window is live, this page becomes your TV-safe QR screen.';
+});
 
 const eventDateCopy = computed(() => {
   if (!event.value) return '';
@@ -51,7 +66,7 @@ async function loadDisplay() {
     available.value = statusPayload.available;
     publicUrl.value = statusPayload.public_url;
 
-    if (statusPayload.available && statusPayload.public_url) {
+    if (statusPayload.available && eventHasStarted.value && statusPayload.public_url) {
       await buildQrCode(statusPayload.public_url);
     } else {
       qrCodeUrl.value = null;
@@ -88,7 +103,7 @@ onMounted(() => {
           <p class="editorial-eyebrow">feedback display</p>
           <h1>{{ event.name }}</h1>
           <p v-if="canShowQr" class="feedback-display-lead">Scan the QR code to open the live feedback form on your phone.</p>
-          <p v-else class="feedback-display-lead">This event feedback form is not open yet. Open or publish the feedback campaign first, then come back here.</p>
+          <p v-else class="feedback-display-lead">{{ unavailableCopy }}</p>
         </header>
 
         <div class="feedback-display-card">
@@ -122,7 +137,7 @@ onMounted(() => {
 
           <div v-else class="feedback-display-empty">
             <p class="feedback-display-kicker">Feedback form unavailable</p>
-            <p class="feedback-display-empty-copy">Open or publish the feedback flow for this event first. Once the feedback window is live, this page becomes your TV-safe QR screen.</p>
+            <p class="feedback-display-empty-copy">{{ unavailableCopy }}</p>
             <RouterLink :to="adminPath('feedback')" class="editorial-secondary-action">Back to feedback</RouterLink>
           </div>
         </div>

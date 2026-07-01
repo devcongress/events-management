@@ -125,6 +125,7 @@ function badge(status: string) {
       <div v-if="error" class="mb-4 border border-red-700/50 bg-red-100 px-4 py-3 text-sm text-red-800">{{ error }}</div>
 
       <div v-if="!checked" class="my-talks-card editorial-panel relative mx-auto max-w-md overflow-hidden border-dc-border bg-dc-paper-warm p-8 opacity-80 sm:p-12">
+        <div class="my-talks-mobile-coming-soon">Coming soon</div>
         <div class="my-talks-card-header mb-6 text-center">
           <div class="my-talks-kicker mb-4 inline-block border-2 border-dc-ink bg-dc-yellow px-3 py-1 font-mono text-xs font-bold text-dc-ink shadow-[2px_2px_0_#111111]">SPEAKER ACCESS</div>
           <h2 class="mb-2 font-mono text-2xl font-bold text-dc-ink">Check Your Talks</h2>

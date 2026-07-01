@@ -208,6 +208,14 @@ function canViewEventResponses(event: FeedbackMonthEvent): boolean {
   return eventCampaignPublished(event) && event.response_count > 0;
 }
 
+function eventHasStarted(event: FeedbackMonthEvent): boolean {
+  return new Date(event.event.event_date).getTime() <= Date.now();
+}
+
+function canShowFeedbackQr(event: FeedbackMonthEvent): boolean {
+  return event.is_open && eventHasStarted(event);
+}
+
 function feedbackDisplayPath(event: FeedbackMonthEvent) {
   return adminPath(`feedback-display/${event.event.id}`);
 }
@@ -744,7 +752,7 @@ async function archiveResolvedRouteFeedback() {
                             View responses
                           </button>
                           <RouterLink
-                            v-if="item.is_open"
+                            v-if="canShowFeedbackQr(item)"
                             :to="feedbackDisplayPath(item)"
                             target="_blank"
                             rel="noreferrer"

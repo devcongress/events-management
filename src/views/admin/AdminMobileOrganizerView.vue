@@ -65,6 +65,10 @@ const blockedWorkspaces = [
   'Audit logs and organizer management',
 ];
 
+function eventHasStarted(event: CommunityEvent): boolean {
+  return new Date(event.event_date).getTime() <= Date.now();
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', {
     month: 'short',
@@ -107,7 +111,7 @@ function eventSeriesLabel(event: CommunityEvent): string {
 function eventActions(event: CommunityEvent): MobileEventAction[] {
   const actions: MobileEventAction[] = [];
 
-  if (feedbackOpenEventIds.value.has(event.id)) {
+  if (feedbackOpenEventIds.value.has(event.id) && eventHasStarted(event)) {
     actions.push({
       label: 'Show feedback QR',
       href: adminPath(`feedback-display/${event.id}`),
