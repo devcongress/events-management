@@ -16,7 +16,6 @@ const speakerLinkExpiresInDays = ref(7);
 const generatedSpeakerIntakePath = ref('');
 const generatedSpeakerLinkExpiresAt = ref<string | null>(null);
 const generatedSpeakerLinkMonth = ref<string | null>(null);
-const message = ref<string | null>(null);
 const error = ref<string | null>(null);
 const groups: { label: string; statuses: TalkStatus[] }[] = [
   { label: 'Pending review', statuses: ['submitted'] },
@@ -73,7 +72,6 @@ async function addManualTalk() {
   if (!manualEntryEnabled.value) return;
 
   addingTalk.value = true;
-  message.value = null;
   error.value = null;
 
   const shouldPublish = manualTalkForm.publish;
@@ -87,7 +85,7 @@ async function addManualTalk() {
     if (response.ok) {
       resetManualTalkForm();
       await fetchTalks();
-      message.value = shouldPublish ? 'Talk published to the archive.' : 'Talk added to the program.';
+      notify.success(shouldPublish ? 'Talk published to the archive.' : 'Talk added to the program.');
     } else {
       const data = await response.json();
       error.value = data.error || 'Failed to add talk';
@@ -113,7 +111,6 @@ async function generateSpeakerIntakeLink() {
   if (!speakerFormEnabled.value) return;
 
   creatingSpeakerLink.value = true;
-  message.value = null;
   error.value = null;
 
   try {
@@ -142,7 +139,6 @@ async function generateSpeakerIntakeLink() {
 async function copySpeakerIntakeLink() {
   if (!speakerFormEnabled.value || !generatedSpeakerIntakeUrl.value) return;
 
-  message.value = null;
   error.value = null;
 
   try {
@@ -167,7 +163,6 @@ async function copySpeakerIntakeLink() {
 }
 
 async function setStatus(talkId: string, status: TalkStatus) {
-  message.value = null;
   error.value = null;
   const response = await fetch(`/api/talks/${talkId}`, {
     method: 'PATCH',
@@ -183,12 +178,11 @@ async function setStatus(talkId: string, status: TalkStatus) {
 }
 
 async function sendReminder(talkId: string) {
-  message.value = null;
   error.value = null;
 
   const response = await fetch(`/api/talks/${talkId}/reminder`, { method: 'POST' });
   if (response.ok) {
-    message.value = 'Reminder logged for speaker follow-up.';
+    notify.success('Reminder logged for speaker follow-up.');
     await fetchTalks();
   } else {
     const data = await response.json();
@@ -228,7 +222,6 @@ function actionClass(isPrimary = false): string {
 
 function toggleSpeakerForm() {
   speakerFormEnabled.value = !speakerFormEnabled.value;
-  message.value = null;
   error.value = null;
 }
 
@@ -244,7 +237,6 @@ onMounted(fetchTalks);
         <p class="editorial-subtitle">Review submissions, accept speakers, and publish talks into the public archive.</p>
       </div>
 
-      <div v-if="message" class="mb-4 rounded-md border border-dc-success bg-dc-success-soft px-4 py-3 text-sm font-semibold text-dc-success">{{ message }}</div>
       <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
 
       <AdminTalksPageSkeleton v-if="loading" />

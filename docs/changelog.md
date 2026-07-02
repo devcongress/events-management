@@ -5,11 +5,18 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-02 — Mobile paused-state centering fix
+
+- Vertically centered the paused My Talks and Leaderboard content on normal-height phone screens while keeping short phone screens top-safe.
+- Reworked page skeleton loaders into first-viewport previews on mobile so they show useful structure without creating fake loading-page scroll.
+- Prevented organizer route skeletons from making the desktop organizer work area scroll while loading, then restored normal scrolling after content loads.
+
 ## 2026-07-01 — Organizer mobile ops and route perf
 
-- Added a mobile-only coming-soon strip to the speaker My Talks form so the paused state remains visible when the compact phone layout hides the larger masthead.
+- Added a mobile-only 45-degree coming-soon ribbon to the speaker My Talks form so the paused state remains visible when the compact phone layout hides the larger masthead.
 - Centered the admin sign-in card in the mobile viewport instead of pinning it near the top below the app header.
 - Gated feedback QR access by event date so future events no longer expose the QR action even when their feedback window is already open.
+- Removed the remaining inline success banner from Talk Management so speaker-link generation, copy, manual talk creation, and reminders all use app toasts.
 - Added a phone-only organizer ops surface that shows current/next event cards, public/registration/source links, and feedback QR access when feedback is open.
 - Blocked full organizer workspaces on phone-width routes while keeping organizer login/auth and feedback QR display available.
 - Aligned the mobile app-shell breakpoint with the organizer phone-view breakpoint so community and organizer routes use the same compact header/menu treatment through 767px.
