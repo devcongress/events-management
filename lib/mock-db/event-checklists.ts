@@ -22,13 +22,13 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
   {
     phase: 'cfp',
     label: 'Open CFP',
-    description: 'Start accepting talk submissions for this meetup.',
+    description: 'Track that the speaker call has opened for this meetup.',
     status_on_complete: 'cfp_open',
   },
   {
     phase: 'cfp',
     label: 'Close CFP',
-    description: 'Stop new submissions and move into review/selection.',
+    description: 'Track that new speaker submissions have stopped and selection can begin.',
     status_on_complete: 'cfp_closed',
   },
   {

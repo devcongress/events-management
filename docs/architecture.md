@@ -116,13 +116,14 @@ devcongress-comm-idea/
 - `/api/events/[eventId]/checklist` — admin-only chronological organizer checklist with status-changing milestones
 - `/api/events/[eventId]/talks` — talks for event; organizer manual/backfill talk creation
 - `/api/events/[eventId]/speaker-intake-links` — admin-generated, month-scoped, expiring one-time speaker form links
-- `/api/events/[eventId]/speaker-intake/[token]` — public post-event speaker archive detail submission through a valid token
+- `/api/events/[eventId]/speaker-intake/[token]` — public selected-speaker confirmation or archive-backfill detail submission through a valid token
+- `/api/events/[eventId]/speaker-submissions` — admin-only CFP proposal inbox for organizer selection decisions
 - `/api/events/[eventId]/attendance` — admin-only attendance summary for the latest Luma import
 - `/api/events/[eventId]/attendance/import` — admin-only CSV import endpoint for Luma guest exports
 - `DELETE /api/events/[eventId]/attendance` — admin-only removal of the stored Luma import
 - `/api/events/[eventId]/speakers*` — speaker allowlist CRUD
 - `/api/events/[eventId]/feedback-campaign` — admin feedback campaign setup, public link, and response list
-- `/api/events/[eventId]/validate-speaker` — CFP speaker allowlist validation
+- `/api/events/[eventId]/validate-speaker` — speaker allowlist validation for legacy/manual speaker access checks
 - `/api/integrations/luma/preview` — organizer-only public Luma URL preview without creating an event
 - `/api/integrations/luma/import` — organizer-only public Luma URL import after preview
 - `/api/feedback/events/[eventId]` — public feedback campaign payload when open
@@ -168,7 +169,9 @@ devcongress-comm-idea/
 - `/api/events/[eventId]` (`GET`, `PATCH`)
 - `/api/events/[eventId]/speakers` (`GET`, `POST`)
 - `/api/events/[eventId]/speakers/[speakerId]` (`DELETE`)
-- `/api/events/[eventId]/validate-speaker` (`POST`)
+- `/api/events/[eventId]/speaker-submissions` (`GET`)
+- `/api/speaker-submissions/[submissionId]` (`PATCH`)
+- `/api/events/[eventId]/validate-speaker` (`POST`, legacy/manual speaker access check)
 - `/api/cfp` (`POST`)
 - `/api/talks/[talkId]` (`PATCH`)
 - `/api/talks/[talkId]/upload` (`POST`, multipart file upload)

@@ -378,8 +378,8 @@ function statusActionLabel(status: string): string {
 
 function statusActionPath(event: CommunityEvent): string {
   const subsectionByStatus: Record<EventStatus, string> = {
-    draft: 'speakers',
-    cfp_open: 'speakers',
+    draft: 'talks',
+    cfp_open: 'talks',
     cfp_closed: 'talks',
     upcoming: '',
     live: 'quiz/live',

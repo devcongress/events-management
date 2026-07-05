@@ -44,6 +44,7 @@ const error = computed(() => meetupQuery.error.value?.message ?? null);
 const scheduleItems = computed(() => canonicalizeSystemDesignSchedule(meetup.value?.schedule ?? []));
 const imagePhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => !photo.type || photo.type === 'image'));
 const folderPhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => photo.type === 'folder'));
+const isQuarterlyMeetup = computed(() => meetup.value?.series_type === 'quarterly');
 const systemDesignArchivePath = computed(() => meetup.value ? `/archive/${meetup.value.id}` : '');
 const stackedImagePhotos = computed(() => {
   const photos = imagePhotos.value;
@@ -140,6 +141,14 @@ function toInternalAppPath(value: string) {
 function speakerSocialLabel(platform: PublicMeetupSpeaker['socials'][number]['platform']) {
   if (platform === 'github') return 'GitHub';
   return 'Website';
+}
+
+function sharedLinkHost(value: string): string {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return 'Shared link';
+  }
 }
 
 function scheduleTypeLabel(type: PublicMeetupScheduleItem['type']) {
@@ -408,6 +417,18 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
                     class="rounded-md border border-dc-border px-3 py-1.5 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm"
                   >
                     {{ resource.title }}
+                  </a>
+                </div>
+                <div v-else-if="isQuarterlyMeetup && item.shared_links && item.shared_links.length > 0" class="mt-3 flex flex-wrap gap-2">
+                  <a
+                    v-for="link in item.shared_links"
+                    :key="link"
+                    :href="link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="rounded-md border border-dc-border px-3 py-1.5 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm"
+                  >
+                    {{ sharedLinkHost(link) }}
                   </a>
                 </div>
               </div>

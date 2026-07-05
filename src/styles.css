@@ -307,6 +307,305 @@
     @apply rounded-lg border border-dc-border bg-dc-paper shadow-[0_1px_0_rgba(17,17,17,0.08)];
   }
 
+  .cfp-control-panel {
+    display: grid;
+    grid-template-columns: minmax(14rem, 0.36fr) minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid #dedad1;
+    border-radius: 8px;
+    background: #fffdf7;
+    box-shadow: 0 1px 0 rgba(17, 17, 17, 0.08);
+  }
+
+  .cfp-control-visual {
+    position: relative;
+    min-height: 13rem;
+    overflow: hidden;
+    border-right: 1px solid #dedad1;
+    background-image:
+      linear-gradient(90deg, rgba(17, 17, 17, 0.76), rgba(17, 17, 17, 0.54) 58%, rgba(17, 17, 17, 0.18)),
+      url('/images/fido-dev-0375.jpg');
+    background-position: center;
+    background-size: cover;
+  }
+
+  .cfp-control-visual::after {
+    position: absolute;
+    inset: auto 1.1rem 1.1rem auto;
+    width: 4.25rem;
+    height: 4.25rem;
+    border: 1px solid rgba(17, 17, 17, 0.18);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 35%, rgba(235, 20, 126, 0.62), transparent 42%),
+      rgba(255, 249, 217, 0.38);
+    content: '';
+    opacity: 0.72;
+  }
+
+  .cfp-control-visual-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 13rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 1.6rem;
+  }
+
+  .cfp-control-visual h2 {
+    margin-top: 0.65rem;
+    color: #fffdf7;
+    font-size: 2.75rem;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: 0;
+  }
+
+  .cfp-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.35rem;
+    min-height: 2.45rem;
+    border: 1px solid rgba(17, 17, 17, 0.16);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.84);
+    padding: 0.55rem 0.8rem;
+    color: #111111;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 1px 0 rgba(17, 17, 17, 0.08);
+  }
+
+  .cfp-status-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    flex: 0 0 auto;
+    border-radius: 999px;
+  }
+
+  .cfp-status-dot--open {
+    background: #059669;
+    box-shadow: 0 0 0 0.28rem rgba(5, 150, 105, 0.12);
+  }
+
+  .cfp-status-dot--closed {
+    background: #686868;
+  }
+
+  .cfp-status-dot--idle {
+    background: #f7e733;
+    box-shadow: 0 0 0 0.28rem rgba(247, 231, 51, 0.18);
+  }
+
+  .cfp-control-main {
+    min-width: 0;
+    padding: 1.45rem 1.55rem;
+  }
+
+  .cfp-control-copy h3 {
+    margin-top: 0.45rem;
+    color: #111111;
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: 0;
+  }
+
+  .cfp-control-copy p {
+    margin-top: 0.55rem;
+    max-width: 58rem;
+    color: #5f5f5f;
+    font-size: 0.95rem;
+    font-weight: 650;
+    line-height: 1.55;
+  }
+
+  .cfp-share-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.75rem;
+    margin-top: 1.05rem;
+  }
+
+  .cfp-share-field {
+    display: block;
+    min-width: 0;
+  }
+
+  .cfp-share-field input {
+    height: 3rem;
+    margin-top: 0.45rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cfp-share-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .cfp-primary-action,
+  .cfp-secondary-action,
+  .cfp-danger-action {
+    display: inline-flex;
+    min-height: 2.9rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .cfp-primary-action {
+    border: 2px solid #111111;
+    background: #f7e733;
+    color: #111111;
+    box-shadow: 2px 2px 0 #111111;
+  }
+
+  .cfp-primary-action--copied {
+    border-color: #047857;
+    background: #d1fae5;
+    color: #065f46;
+    box-shadow: 2px 2px 0 #065f46;
+  }
+
+  .cfp-copy-check {
+    width: 0.95rem;
+    height: 0.95rem;
+    margin-right: 0.45rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2.6;
+  }
+
+  .cfp-secondary-action {
+    border: 2px solid #dedad1;
+    background: #ffffff;
+    color: #5f5f5f;
+  }
+
+  .cfp-danger-action {
+    border: 2px solid #ef4444;
+    background: #fff1f1;
+    color: #b91c1c;
+  }
+
+  .cfp-primary-action:disabled,
+  .cfp-secondary-action:disabled,
+  .cfp-danger-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .cfp-primary-action:not(:disabled):hover {
+      background: #fff9d9;
+    }
+
+    .cfp-primary-action--copied:not(:disabled):hover {
+      background: #a7f3d0;
+    }
+
+    .cfp-secondary-action:not(:disabled):hover {
+      border-color: #111111;
+      color: #111111;
+    }
+
+    .cfp-danger-action:not(:disabled):hover {
+      border-color: #b91c1c;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+  }
+
+  .cfp-idle-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.05rem;
+    max-width: 52rem;
+    border: 1px solid #dedad1;
+    border-radius: 8px;
+    background: #fff9d9;
+    padding: 0.85rem 1rem;
+  }
+
+  .cfp-idle-card p {
+    color: #5f5f5f;
+    font-size: 0.9rem;
+    font-weight: 650;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 1023px) {
+    .cfp-control-panel {
+      grid-template-columns: 1fr;
+    }
+
+    .cfp-control-visual {
+      min-height: 10rem;
+      border-right: 0;
+      border-bottom: 1px solid #dedad1;
+      background-image:
+        linear-gradient(90deg, rgba(17, 17, 17, 0.78), rgba(17, 17, 17, 0.56) 60%, rgba(17, 17, 17, 0.18)),
+        url('/images/fido-dev-0375.jpg');
+    }
+
+    .cfp-control-visual-content {
+      min-height: 10rem;
+      justify-content: center;
+      padding: 1.35rem;
+    }
+
+    .cfp-control-visual h2 {
+      font-size: 2.45rem;
+    }
+
+  }
+
+  @media (max-width: 767px) {
+    .cfp-control-main {
+      padding: 1.2rem;
+    }
+
+    .cfp-share-row {
+      grid-template-columns: 1fr;
+    }
+
+    .cfp-share-actions {
+      width: 100%;
+    }
+
+    .cfp-idle-card {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .cfp-primary-action,
+    .cfp-secondary-action,
+    .cfp-danger-action {
+      flex: 1 1 10rem;
+    }
+  }
+
   .ops-panel-header {
     @apply border-b border-dc-border bg-dc-paper-warm px-5 py-3;
   }
@@ -2613,6 +2912,213 @@
     @apply mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-ink;
   }
 
+  .cfp-topic-menu .app-dropdown-scroll {
+    max-height: min(16rem, calc(100vh - 12rem));
+  }
+
+  .cfp-public-page .editorial-input:focus {
+    border-color: #111111;
+    box-shadow: 0 0 0 3px rgba(247, 231, 51, 0.32);
+  }
+
+  .cfp-public-page button[aria-haspopup='listbox']:focus,
+  .cfp-public-page button[aria-haspopup='listbox'][aria-expanded='true'] {
+    border-color: #111111;
+    box-shadow: 0 0 0 3px rgba(247, 231, 51, 0.32);
+  }
+
+  .cfp-public-page .editorial-input.cfp-input-error:focus {
+    border-color: #b91c1c;
+    box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.14);
+  }
+
+  .cfp-success-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 0.38fr);
+    width: min(100%, 46rem);
+    overflow: hidden;
+    border: 2px solid #111111;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 4px 4px 0 #111111;
+    animation: cfp-success-enter 320ms var(--motion-smooth) both;
+  }
+
+  .cfp-success-shell {
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    padding: 1rem;
+  }
+
+  .cfp-success-body {
+    position: relative;
+    z-index: 1;
+    padding: clamp(1.25rem, 3vw, 2rem);
+  }
+
+  .cfp-success-visual {
+    position: relative;
+    min-height: 100%;
+    order: 2;
+    overflow: hidden;
+    border-left: 1px solid #dedad1;
+    background-image:
+      linear-gradient(180deg, rgba(17, 17, 17, 0), rgba(17, 17, 17, 0.28)),
+      url('/images/fido-dev-0539.jpg');
+    background-position: center;
+    background-size: cover;
+  }
+
+  .cfp-success-visual::before {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(17, 17, 17, 0.08), transparent 34%);
+    content: '';
+  }
+
+  .cfp-success-brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.35rem;
+    font-family: var(--font-mono), monospace;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #111111;
+  }
+
+  .cfp-success-topline {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .cfp-success-topline p {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #eb147e;
+  }
+
+  .cfp-success-mark {
+    display: grid;
+    width: 3rem;
+    height: 3rem;
+    place-items: center;
+    border: 2px solid #111111;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #047857;
+    box-shadow: 2px 2px 0 #111111;
+    animation: cfp-success-mark 420ms var(--motion-spring) 90ms both;
+  }
+
+  .cfp-success-mark svg {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  .cfp-success-body h2 {
+    color: #111111;
+    font-size: clamp(2.75rem, 8vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 0.92;
+  }
+
+  .cfp-success-copy {
+    margin-top: 0.9rem;
+    color: #555555;
+    font-size: clamp(0.98rem, 2vw, 1.1rem);
+    font-weight: 750;
+    line-height: 1.5;
+  }
+
+  .cfp-success-pass {
+    display: grid;
+    gap: 0.3rem;
+    margin-top: 1.1rem;
+    border-block: 1px solid #dedad1;
+    padding-block: 0.85rem;
+  }
+
+  .cfp-success-pass span,
+  .cfp-success-footnote {
+    font-family: var(--font-mono), monospace;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .cfp-success-pass span,
+  .cfp-success-footnote {
+    color: #555555;
+  }
+
+  .cfp-success-pass strong {
+    display: block;
+    margin-top: 0.25rem;
+    color: #111111;
+    font-size: clamp(1.02rem, 2vw, 1.2rem);
+    font-weight: 900;
+    line-height: 1.15;
+  }
+
+  .cfp-success-footnote {
+    margin-top: 1rem;
+  }
+
+  @media (max-width: 767px) {
+    .cfp-success-card {
+      grid-template-columns: 1fr;
+    }
+
+    .cfp-success-visual {
+      min-height: 7rem;
+      order: 0;
+      border-left: 0;
+      border-bottom: 1px solid #dedad1;
+      background-position: center 38%;
+    }
+
+    .cfp-success-shell {
+      padding: 0.85rem;
+    }
+  }
+
+  @keyframes cfp-success-enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0.75rem, 0) scale(0.98);
+    }
+
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  @keyframes cfp-success-mark {
+    from {
+      opacity: 0;
+      transform: scale(0.72) rotate(-4deg);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+  }
+
   .meetup-contact-sheet {
     position: relative;
     isolation: isolate;
@@ -2912,6 +3418,322 @@
     transform: translate3d(0, 0, 0);
   }
 
+  .talk-workflow-tabs {
+    --talk-workflow-gap: 0.35rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    overflow: hidden;
+    border: 2px solid #dedad1;
+    border-radius: 12px;
+    background: #fffdf7;
+    padding: var(--talk-workflow-gap);
+    box-shadow: 0 1px 0 rgba(17, 17, 17, 0.08);
+  }
+
+  .talk-workflow-tab-indicator {
+    position: absolute;
+    top: var(--talk-workflow-gap);
+    bottom: var(--talk-workflow-gap);
+    left: var(--talk-workflow-gap);
+    z-index: 0;
+    width: calc((100% - (var(--talk-workflow-gap) * 2)) / 4);
+    border: 2px solid #111111;
+    border-radius: 8px;
+    background: #f7e733;
+    box-shadow: 2px 2px 0 #111111;
+    transform: translate3d(0, 0, 0);
+    transition: transform 260ms var(--motion-smooth);
+    will-change: transform;
+  }
+
+  .talk-workflow-tab {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    min-width: 0;
+    min-height: 3.25rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    border-radius: 8px;
+    padding: 0.8rem 0.7rem;
+    color: #555555;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition:
+      transform 100ms var(--motion-fast),
+      color 160ms var(--motion-fast);
+  }
+
+  .talk-workflow-tab[aria-current='page'] {
+    color: #111111;
+  }
+
+  .talk-workflow-tab:focus-visible {
+    outline: 2px solid #eb147e;
+    outline-offset: -4px;
+  }
+
+  .talk-workflow-tab:active {
+    transform: scale(0.99);
+  }
+
+  .talk-workflow-tab-count {
+    display: inline-flex;
+    min-width: 1.45rem;
+    height: 1.45rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 0 0.35rem;
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .talk-workflow-tab:hover {
+      color: #111111;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .talk-workflow-tabs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: visible;
+    }
+
+    .talk-workflow-tab-indicator {
+      display: none;
+    }
+
+    .talk-workflow-tab[aria-current='page'] {
+      border: 2px solid #111111;
+      background: #f7e733;
+      box-shadow: 2px 2px 0 #111111;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .talk-workflow-tab-indicator {
+      transition: none;
+    }
+  }
+
+  .selected-speaker-inline-link {
+    display: grid;
+    gap: 0.75rem;
+    border-top: 1px solid #dedad1;
+    background: #fff9d9;
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  .selected-speaker-inline-link-actions {
+    display: grid;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+
+  .selected-speaker-inline-link-actions .editorial-input {
+    height: 2.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (min-width: 900px) {
+    .selected-speaker-inline-link {
+      grid-template-columns: minmax(12rem, 0.34fr) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .selected-speaker-inline-link-actions {
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+    }
+  }
+
+  .proposal-accordion {
+    display: grid;
+    grid-template-rows: 1fr;
+    overflow: hidden;
+  }
+
+  .proposal-accordion-enter-active,
+  .proposal-accordion-leave-active {
+    transition:
+      grid-template-rows 180ms var(--motion-smooth),
+      opacity 140ms var(--motion-fast);
+  }
+
+  .proposal-accordion-enter-from,
+  .proposal-accordion-leave-to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+
+  .proposal-accordion-enter-to,
+  .proposal-accordion-leave-from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .proposal-accordion-inner {
+    min-height: 0;
+    overflow: hidden;
+    transform-origin: top;
+    transition:
+      transform 180ms var(--motion-smooth),
+      opacity 140ms var(--motion-fast);
+  }
+
+  .proposal-detail-grid {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .proposal-detail-lower {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .proposal-detail-block {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .proposal-detail-block + .proposal-detail-block {
+    border-top: 1px solid #dedad1;
+    padding-top: 1rem;
+  }
+
+  .proposal-detail-block--abstract {
+    border-bottom: 1px solid #dedad1;
+    padding-bottom: 1rem;
+  }
+
+  .proposal-detail-label {
+    color: #eb147e;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .proposal-detail-text {
+    max-width: 108ch;
+    color: #555555;
+    font-size: 0.98rem;
+    font-weight: 600;
+    line-height: 1.62;
+  }
+
+  .proposal-detail-meta {
+    display: grid;
+    gap: 0.65rem;
+    align-self: start;
+    min-width: 0;
+    border-left: 1px solid #dedad1;
+    padding-left: 1rem;
+  }
+
+  .proposal-detail-meta-item {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .proposal-detail-meta-item + .proposal-detail-meta-item {
+    border-top: 1px solid #dedad1;
+    padding-top: 0.65rem;
+  }
+
+  .proposal-detail-meta dt {
+    color: #eb147e;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.64rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .proposal-detail-meta dd {
+    overflow-wrap: anywhere;
+    color: #555555;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1.45;
+  }
+
+  .proposal-row-trigger {
+    display: grid;
+    min-width: 0;
+    gap: 0.5rem;
+    text-align: left;
+  }
+
+  .proposal-row {
+    cursor: pointer;
+    transition:
+      background-color 140ms var(--motion-fast),
+      transform 100ms var(--motion-fast);
+  }
+
+  .proposal-row:focus-visible {
+    outline: 2px solid #eb147e;
+    outline-offset: -2px;
+  }
+
+  .proposal-row:active {
+    transform: scale(0.995);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .proposal-row:hover {
+      background: rgba(17, 17, 17, 0.025);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .proposal-detail-lower {
+      grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.24fr);
+      align-items: start;
+      gap: 1.35rem;
+    }
+
+    .proposal-detail-grid {
+      padding: 1rem 1.25rem 1.15rem;
+    }
+
+    .proposal-row-trigger {
+      grid-template-columns: minmax(0, 1.8fr) minmax(10rem, 0.7fr) minmax(8rem, 0.48fr);
+      align-items: center;
+    }
+  }
+
+  .proposal-accordion-enter-from .proposal-accordion-inner,
+  .proposal-accordion-leave-to .proposal-accordion-inner {
+    opacity: 0;
+    transform: translate3d(0, -0.35rem, 0);
+  }
+
+  .proposal-accordion-enter-to .proposal-accordion-inner,
+  .proposal-accordion-leave-from .proposal-accordion-inner {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
   .admin-event-tabs-track {
     position: relative;
     align-items: stretch;
@@ -2987,8 +3809,14 @@
   .app-primary-nav {
     margin-top: -0.3rem;
     margin-right: -0.3rem;
+    overflow-y: hidden;
     padding-top: 0.3rem;
     padding-right: 0.3rem;
+    scrollbar-width: none;
+  }
+
+  .app-primary-nav::-webkit-scrollbar {
+    display: none;
   }
 
   .app-nav-link[aria-current='page'] {
@@ -5904,6 +6732,8 @@
 	    .event-outline-remove,
 	    .event-outline-resource-link,
 	    .attendance-ledger-row,
+	    .proposal-accordion-enter-active,
+	    .proposal-accordion-leave-active,
     .attendance-ledger-progress-fill,
     .admin-event-tabs-indicator,
     .admin-event-tab,
@@ -5938,11 +6768,15 @@
 	    .lifecycle-stage-popover,
 	    .mobile-ops-action,
 	    .editorial-action,
-	    .editorial-secondary-action {
+	    .editorial-secondary-action,
+    .cfp-success-card,
+    .cfp-success-mark {
       transition-duration: 1ms !important;
+      animation: none !important;
     }
 
-    .manual-rollup-inner {
+    .manual-rollup-inner,
+    .proposal-accordion-inner {
       transform: none !important;
       transition-duration: 1ms !important;
     }

@@ -18,6 +18,7 @@ import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParti
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired } from '@/lib/mock-db/speaker-intake-links';
+import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
@@ -35,7 +36,7 @@ import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
-import type { Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, SpeakerIntakeLink, Talk, TalkStatus, User } from '@/types';
+import type { Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 const app = new Hono();
@@ -99,7 +100,30 @@ const adminCreateTalkSchema = z.object({
   slides_url: z.string().trim().optional().default(''),
   publish: z.boolean().optional().default(false),
 });
+const CFP_ABSTRACT_WORD_LIMIT = 120;
+const CFP_BIO_WORD_LIMIT = 80;
+function countWords(value: string): number {
+  return value.trim().split(/\s+/).filter(Boolean).length;
+}
+const speakerSubmissionCreateSchema = adminCreateTalkSchema
+  .omit({ slides_url: true, publish: true })
+  .extend({
+    event_id: z.string().trim().min(1, 'Event is required'),
+    topic: z.string().trim().min(1, 'Topic is required'),
+    abstract: z.string().trim().min(1, 'Abstract is required')
+      .refine((value) => countWords(value) <= CFP_ABSTRACT_WORD_LIMIT, `Abstract must be ${CFP_ABSTRACT_WORD_LIMIT} words or fewer`),
+    bio: z.string().trim().min(1, 'Speaker bio is required')
+      .refine((value) => countWords(value) <= CFP_BIO_WORD_LIMIT, `Speaker bio must be ${CFP_BIO_WORD_LIMIT} words or fewer`),
+  });
+const speakerSubmissionDecisionSchema = z.object({
+  status: z.enum(['selected', 'not_selected']),
+  internal_note: z.string().trim().max(1000).optional().default(''),
+  expires_in_days: z.coerce.number().int().min(1).max(31).optional().default(7),
+});
 const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
+const selectedSpeakerSlidesSchema = z.object({
+  slides_url: z.string().trim().min(1, 'Slides URL is required'),
+});
 const speakerIntakeLinkRequestSchema = z.object({
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 });
@@ -201,10 +225,11 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || path === '/api/my-talks'
     || path === '/api/auth/session'
     || path === '/api/auth/admin/callback'
-  ))
+    ))
     || (method === 'PATCH' && /^\/api\/talks\/[^/]+$/.test(path))
     || (method === 'POST' && (
-      path === '/api/feedback'
+      path === '/api/cfp'
+      || path === '/api/feedback'
       || path === '/api/auth/admin/login'
       || path === '/api/auth/admin/exchange'
     ))
@@ -550,6 +575,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     id: event.id,
     slug: eventSlug(event),
     name: event.name,
+    series_type: event.series_type ?? inferEventSeriesType(event.name),
     status: publicMeetupStatus(event),
     start: toWebsiteDateTime(event.event_date),
     end: endDate,
@@ -581,7 +607,10 @@ function toPublicArchiveEvent(event: Event): PublicArchiveEvent {
     name: event.name,
     description: event.description,
     event_date: event.event_date,
+    series_type: event.series_type ?? inferEventSeriesType(event.name),
+    cover: coverForEvent(event),
     schedule: canonicalizeSystemDesignSchedule(event.schedule ?? []),
+    photos: normalizeEventPhotos(event.photos),
   };
 }
 
@@ -1205,6 +1234,10 @@ function eventUpdatesForCompletedChecklistItem(item: EventChecklistItem): Partia
       publish_to_website: true,
       status: 'completed',
     };
+  }
+
+  if (item.label === 'Open CFP' || item.label === 'Close CFP') {
+    return {};
   }
 
   if (item.status_on_complete) {
@@ -2959,12 +2992,29 @@ function speakerIntakeLinkStatus(link: Pick<SpeakerIntakeLink, 'used_at' | 'expi
 
 function serializeSpeakerIntakeLink(link: Pick<
   SpeakerIntakeLink,
-  'id' | 'event_id' | 'event_month' | 'expires_at' | 'used_at' | 'used_talk_id' | 'created_at' | 'updated_at'
+  | 'id'
+  | 'event_id'
+  | 'event_month'
+  | 'purpose'
+  | 'speaker_submission_id'
+  | 'speaker_name'
+  | 'speaker_email'
+  | 'talk_title'
+  | 'expires_at'
+  | 'used_at'
+  | 'used_talk_id'
+  | 'created_at'
+  | 'updated_at'
 >) {
   return {
     id: link.id,
     event_id: link.event_id,
     event_month: link.event_month,
+    purpose: link.purpose ?? 'archive_backfill',
+    speaker_submission_id: link.speaker_submission_id ?? null,
+    speaker_name: link.speaker_name ?? null,
+    speaker_email: link.speaker_email ?? null,
+    talk_title: link.talk_title ?? null,
     expires_at: link.expires_at,
     used_at: link.used_at,
     used_talk_id: link.used_talk_id,
@@ -2990,19 +3040,22 @@ function speakerIntakeLinkError(link: SpeakerIntakeLink | undefined): { error: s
   return null;
 }
 
+function validateSlidesUrl(slidesUrl: string | null): void {
+  if (!slidesUrl) return;
+
+  try {
+    new URL(slidesUrl);
+  } catch {
+    throw new Error('Slides URL must be a valid URL');
+  }
+}
+
 async function createBackfilledTalkForEvent(
   eventId: string,
   data: SpeakerTalkIntakeInput & { publish?: boolean },
 ): Promise<{ talk: Talk; speakerCreated: boolean }> {
   const slidesUrl = data.slides_url || null;
-
-  if (slidesUrl) {
-    try {
-      new URL(slidesUrl);
-    } catch {
-      throw new Error('Slides URL must be a valid URL');
-    }
-  }
+  validateSlidesUrl(slidesUrl);
 
   const existingTalks = await getTalksByEvent(eventId);
   const duplicate = existingTalks.find((talk) => (
@@ -3053,8 +3106,138 @@ async function createBackfilledTalkForEvent(
   };
 }
 
+async function createSelectedSpeakerTalkForEvent(
+  eventId: string,
+  submission: SpeakerSubmission,
+  slidesUrl: string,
+): Promise<{ talk: Talk; speakerCreated: boolean }> {
+  return createBackfilledTalkForEvent(eventId, {
+    speaker_name: submission.speaker_name,
+    speaker_email: submission.speaker_email,
+    github_username: submission.github_username ?? '',
+    title: submission.title,
+    topic: submission.topic || 'General',
+    abstract: submission.abstract ?? '',
+    bio: submission.bio ?? '',
+    slides_url: slidesUrl,
+  });
+}
+
+function serializeSpeakerSubmission(submission: SpeakerSubmission) {
+  return submission;
+}
+
+function speakerSubmissionCounts(submissions: SpeakerSubmission[]): Record<SpeakerSubmissionStatus, number> {
+  return submissions.reduce<Record<SpeakerSubmissionStatus, number>>((counts, submission) => {
+    counts[submission.status] += 1;
+    return counts;
+  }, {
+    submitted: 0,
+    selected: 0,
+    not_selected: 0,
+    withdrawn: 0,
+  });
+}
+
+async function createSelectedSpeakerLinkForSubmission(
+  submission: SpeakerSubmission,
+  expiresInDays: number,
+  c: Context,
+): Promise<{ link: SpeakerIntakeLink; token: string }> {
+  const event = await getEventById(submission.event_id, c);
+
+  if (!event) {
+    throw new Error('Event not found');
+  }
+
+  return createSpeakerIntakeLink({
+    event_id: submission.event_id,
+    event_month: eventMonthKey(event.event_date),
+    expires_at: addDays(new Date(), expiresInDays).toISOString(),
+    purpose: 'selected_speaker_confirmation',
+    speaker_submission_id: submission.id,
+    speaker_name: submission.speaker_name,
+    speaker_email: submission.speaker_email,
+    talk_title: submission.title,
+  });
+}
+
 app.get('/api/events/:eventId/talks', async (c) => {
   return c.json(await getTalksByEvent(c.req.param('eventId')));
+});
+
+app.get('/api/events/:eventId/speaker-submissions', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  const submissions = await getSpeakerSubmissionsByEvent(eventId);
+
+  return c.json({
+    event_id: eventId,
+    counts: speakerSubmissionCounts(submissions),
+    submissions: submissions.map(serializeSpeakerSubmission),
+  });
+});
+
+app.patch('/api/speaker-submissions/:submissionId', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = speakerSubmissionDecisionSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the speaker decision' }, 400);
+  }
+
+  const existing = await getSpeakerSubmissionById(c.req.param('submissionId'));
+
+  if (!existing) {
+    return c.json({ error: 'Speaker submission not found' }, 404);
+  }
+
+  try {
+    let selectedLink: SpeakerIntakeLink | null = null;
+    let token: string | null = null;
+
+    if (parsed.data.status === 'selected') {
+      const result = await createSelectedSpeakerLinkForSubmission(existing, parsed.data.expires_in_days, c);
+      selectedLink = result.link;
+      token = result.token;
+    }
+
+    const submission = await updateSpeakerSubmission(existing.id, {
+      status: parsed.data.status,
+      internal_note: parsed.data.internal_note || null,
+      selected_intake_link_id: selectedLink?.id ?? existing.selected_intake_link_id,
+    });
+
+    await auditAdminAction(c, {
+      action: 'speaker_submission.decision',
+      targetType: 'speaker_submission',
+      targetId: submission.id,
+      metadata: {
+        event_id: submission.event_id,
+        status: submission.status,
+        selected_intake_link_id: submission.selected_intake_link_id,
+      },
+    });
+
+    return c.json({
+      submission: serializeSpeakerSubmission(submission),
+      link: selectedLink ? serializeSpeakerIntakeLink(selectedLink) : null,
+      token,
+    });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Failed to update speaker submission' }, 400);
+  }
 });
 
 app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
@@ -3132,6 +3315,10 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
     return c.json({ error: linkError.error }, linkError.status);
   }
 
+  const submission = link!.speaker_submission_id
+    ? await getSpeakerSubmissionById(link!.speaker_submission_id)
+    : null;
+
   return c.json({
     event: {
       id: event.id,
@@ -3141,6 +3328,15 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
       status: event.status,
     },
     link: serializeSpeakerIntakeLink(link!),
+    prefill: {
+      speaker_name: submission?.speaker_name ?? link!.speaker_name ?? '',
+      speaker_email: submission?.speaker_email ?? link!.speaker_email ?? '',
+      github_username: submission?.github_username ?? '',
+      title: submission?.title ?? link!.talk_title ?? '',
+      topic: submission?.topic ?? '',
+      abstract: submission?.abstract ?? '',
+      bio: submission?.bio ?? '',
+    },
   });
 });
 
@@ -3161,15 +3357,44 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
   }
 
   const body = await c.req.json().catch(() => ({}));
-  const parsed = speakerTalkIntakeSchema.safeParse(body);
-
-  if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the talk details' }, 400);
-  }
+  const selectedSpeakerLink = link?.purpose === 'selected_speaker_confirmation';
 
   try {
-    const { talk } = await createBackfilledTalkForEvent(eventId, parsed.data);
+    let talk: Talk;
+
+    if (selectedSpeakerLink) {
+      const parsed = selectedSpeakerSlidesSchema.safeParse(body);
+      if (!parsed.success) {
+        return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the slides link' }, 400);
+      }
+
+      if (!link?.speaker_submission_id) {
+        return c.json({ error: 'Selected speaker proposal was not found for this link' }, 404);
+      }
+
+      const submission = await getSpeakerSubmissionById(link.speaker_submission_id);
+      if (!submission) {
+        return c.json({ error: 'Selected speaker proposal was not found for this link' }, 404);
+      }
+
+      const result = await createSelectedSpeakerTalkForEvent(eventId, submission, parsed.data.slides_url);
+      talk = result.talk;
+    } else {
+      const parsed = speakerTalkIntakeSchema.safeParse(body);
+      if (!parsed.success) {
+        return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the talk details' }, 400);
+      }
+
+      const result = await createBackfilledTalkForEvent(eventId, parsed.data);
+      talk = result.talk;
+    }
+
     await consumeSpeakerIntakeLink(eventId, token, talk.id);
+    if (link?.speaker_submission_id) {
+      await updateSpeakerSubmission(link.speaker_submission_id, {
+        selected_talk_id: talk.id,
+      });
+    }
     return c.json(talk, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to submit talk details';
@@ -3541,14 +3766,14 @@ app.get('/api/my-talks', async (c) => {
 });
 
 app.post('/api/cfp', async (c) => {
-  const body = await c.req.json();
-  const { event_id, speaker_name, speaker_email, github_username, title, abstract, bio } = body;
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = speakerSubmissionCreateSchema.safeParse(body);
 
-  if (!event_id || !speaker_name || !speaker_email || !title) {
-    return c.json({ error: 'Missing required fields' }, 400);
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the speaker proposal' }, 400);
   }
 
-  const event = await getEventById(event_id, c);
+  const event = await getEventById(parsed.data.event_id, c);
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
   }
@@ -3557,27 +3782,23 @@ app.post('/api/cfp', async (c) => {
     return c.json({ error: 'CFP is not open for this event' }, 400);
   }
 
-  const speaker = await getSpeakerByEmail(event_id, speaker_email);
-  if (!speaker) {
-    return c.json({ error: 'Email not on the approved speakers list for this event' }, 403);
+  try {
+    const submission = await createSpeakerSubmission({
+      event_id: parsed.data.event_id,
+      speaker_name: parsed.data.speaker_name,
+      speaker_email: parsed.data.speaker_email,
+      github_username: parsed.data.github_username || null,
+      title: parsed.data.title,
+      topic: parsed.data.topic || 'General',
+      abstract: parsed.data.abstract || null,
+      bio: parsed.data.bio || null,
+    });
+
+    return c.json(serializeSpeakerSubmission(submission), 201);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to submit speaker proposal';
+    return c.json({ error: message }, message.includes('already been submitted') ? 409 : 400);
   }
-
-  const talk = await createTalk({
-    event_id,
-    speaker_name,
-    speaker_email,
-    github_username: github_username || null,
-    title,
-    topic: body.topic || 'General',
-    abstract: abstract || null,
-    bio: bio || null,
-    slides_url: null,
-    slides_type: null,
-    storage_path: null,
-    slides_uploaded_at: null,
-  });
-
-  return c.json(talk, 201);
 });
 
 app.get('/api/leaderboard', async (c) => {

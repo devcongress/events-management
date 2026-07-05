@@ -65,6 +65,7 @@ const ownerAdminLinks: NavLink[] = [
 ];
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
+const isStandalonePublicRoute = computed(() => route.name === 'cfp');
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
@@ -112,7 +113,7 @@ const brandHomeLink = computed(() => (isAdminRoute.value ? adminPath('events') :
 const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
 const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
-const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !route.path.startsWith('/feedback'));
+const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !isStandalonePublicRoute.value && !route.path.startsWith('/feedback'));
 const shouldLoadRouteFeedbackSummary = computed(() => (
   isAdminRoute.value
   && !showOrganizerPhoneView.value
@@ -318,6 +319,16 @@ function updateRouteTransition(toPath: string, fromPath?: string) {
 
 function isActive(href: string) {
   return activeNavHref.value === href;
+}
+
+function routeViewKey(routeForKey: typeof route) {
+  if (routeForKey.name === 'admin-talks') {
+    const value = routeForKey.params.eventId;
+    const eventId = Array.isArray(value) ? value[0] : value;
+    return `admin-talks:${String(eventId ?? '')}`;
+  }
+
+  return routeForKey.fullPath;
 }
 
 function isFeedbackHubLink(link: NavLink) {
@@ -546,8 +557,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--community': !isAdminRoute }">
-    <header class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
+  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--community': !isAdminRoute, 'app-shell--standalone': isStandalonePublicRoute }">
+    <header v-if="!isStandalonePublicRoute" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
         <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">
           <img
@@ -617,7 +628,7 @@ onUnmounted(() => {
 
     <Transition name="mobile-menu">
       <div
-        v-if="mobileMenuOpen"
+        v-if="mobileMenuOpen && !isStandalonePublicRoute"
         id="mobile-menu-panel"
         class="app-mobile-menu"
         role="dialog"
@@ -746,7 +757,7 @@ onUnmounted(() => {
         <AdminMobileOrganizerView v-if="showOrganizerPhoneView" class="page-view" />
         <RouterView v-else v-slot="{ Component, route }">
           <Transition :name="routeTransitionName" @after-enter="resetMainScroll">
-            <component :is="Component" :key="route.fullPath" class="page-view" />
+            <component :is="Component" :key="routeViewKey(route)" class="page-view" />
           </Transition>
         </RouterView>
       </div>

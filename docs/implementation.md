@@ -42,14 +42,15 @@
 - **Event + CFP flow**
   - Active Vue pages: `src/views/CfpView.vue`, `src/views/admin/AdminEventsView.vue`, `src/views/admin/AdminEventView.vue`
   - Public CFP page: `app/(public)/cfp/[eventId]/page.tsx`
-  - APIs: `/api/events/[eventId]`, `/api/events/[eventId]/checklist`, `/api/events/[eventId]/validate-speaker`, `/api/integrations/luma/import`, `/api/cfp`
+  - APIs: `/api/events/[eventId]`, `/api/events/[eventId]/checklist`, `/api/events/[eventId]/speaker-submissions`, `/api/integrations/luma/import`, `/api/cfp`
   - Mock DB: `lib/mock-db/event-checklists.ts` stores per-event organizer run sheets and status-changing milestones.
 - **Speaker management**
   - Active Vue page: `src/views/admin/AdminSpeakersView.vue`
   - APIs: `/api/events/[eventId]/speakers` (`GET`/`POST`), `/api/events/[eventId]/speakers/[speakerId]` (`DELETE`)
 - **Talk review + slides**
   - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/SpeakerTalkIntakeView.vue`, `src/views/MyTalksView.vue`
-  - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`, `/api/my-talks`
+  - Talk Management subroutes: `/talks/cfp`, `/talks/proposals`, `/talks/program`, and temporary `/talks/backfill`
+  - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`, `/api/my-talks`
 - **Quiz authoring + live ops**
   - Active Vue pages: `src/views/admin/AdminQuizView.vue`, `src/views/PlayView.vue`, `src/views/PlayCodeView.vue`
   - Builder: `app/(admin)/admin/events/[eventId]/quiz/page.tsx`
@@ -124,7 +125,7 @@
   - `/api/integrations/luma/import`
   - `/api/talks`
   - `/api/leaderboard`
-- **Public website contract:** `/api/public/meetups*` reads Supabase `community_events` first only when the server Supabase runtime is enabled, then falls back to current `Event` + published `Talk` JSON data. It returns a DevCongress.org-friendly meetup DTO with `slug`, `start`, `end`, `cover`, `location`, `speakers`, `schedule`, `photos`, counts, and app route URLs. System-design recap text and prompt-deck links travel inside the meetup `schedule` rows, and the public archive renders them inline inside the parent meetup archive page. `/api/public/archive*` and `/api/public/home` provide narrow public page payloads so the public Vue pages do not need the broad `/api/overview` aggregate. These endpoints are read-only, CORS-enabled, and cacheable for short-lived website consumption; internal `/api/*` routes require organizer auth except auth and minimal attendee-feedback endpoints.
+- **Public website contract:** `/api/public/meetups*` reads Supabase `community_events` first only when the server Supabase runtime is enabled, then falls back to current `Event` + published `Talk` JSON data. It returns a DevCongress.org-friendly meetup DTO with `slug`, `series_type`, `start`, `end`, `cover`, `location`, `speakers`, `schedule`, `photos`, counts, and app route URLs. System-design recap text and prompt-deck links travel inside the meetup `schedule` rows. Quarterly meetup recaps can also carry raw `shared_links` URLs in schedule rows, and public pages render those links only for quarterly meetups. `/api/public/archive*` returns narrow public archive payloads with event recap metadata, series type, cover, photos, feedback availability, shared links, and published talks so quarterly recaps can be media-first without showing an empty talk archive. `/api/public/home` provides the public landing aggregate without the broad `/api/overview` payload. These endpoints are read-only, CORS-enabled, and cacheable for short-lived website consumption; internal `/api/*` routes require organizer auth except auth and minimal attendee-feedback endpoints.
 - **Public website verification:** `pnpm verify:public-api` validates the public meetup response shape against the current `devcongress.org` Astro meetup schema expectations, plus CORS headers, cache headers, detail lookup, and talks lookup against `PUBLIC_API_BASE_URL` before the Astro website is wired to consume it.
 - **Public events page:** `/events` consumes `/api/public/meetups` inside this app so organizers can inspect the same public event stream the website will later consume.
 - **Auth note:** Hosted admin routes use Supabase Google OAuth plus app-owned HTTP-only sessions stored in `admin_sessions`; owner-only organizer email management lives at `/organizer-console/organizers`, and owner-only audit review lives at `/organizer-console/audit-log`. Local development falls back to `ADMIN_PASSWORD` unless `APP_DATA_SOURCE=supabase` enables the Supabase runtime.
@@ -139,7 +140,7 @@
 - `src/components/ui/ViewSkeleton.vue` provides reusable skeleton variants for full-page loading states; prefer it over bare loading text so routed views preserve their header, panel, table, and form structure while data fetches.
 - `src/components/FeedbackBot.vue` mounts globally on public routes only; it captures typed or anonymous route feedback and inserts `feedback_submissions` with `trigger_source = route_feedback`, page path, user agent, and viewport context. On small screens, the launcher routes to `src/views/RouteFeedbackView.vue` instead of opening an overlay.
 - `src/views/FeedbackView.vue` renders an event-scoped campaign from a minimal attendee-safe `/api/feedback/events/:eventId` payload; campaigns are open when manually set to `active`, or when draft with auto-open enabled and the event status is `completed`. The default auto-open response window starts at the event date and closes 3 days later unless an explicit campaign close time is set. Public event feedback also sends a per-event anonymous browser token so the server can reject duplicate submissions without requiring attendee email.
-- `src/views/ArchiveEventView.vue` reads `/api/public/archive/:eventId` and shows the community “Give Feedback” CTA only while that public archive payload says the form is open.
+- `src/views/ArchiveEventView.vue` reads `/api/public/archive/:eventId`, shows uploaded recap photos and quarterly-only raw links shared during the meetup, hides the empty talk archive for talkless quarterly meetups, and shows the community “Give Feedback” CTA only while that public archive payload says the form is open.
 - `src/views/DashboardView.vue` renders the community hub from `/api/public/home`, using only public counts, recent published talk cards, and an optional public CFP event pointer instead of the broad organizer overview aggregate.
 - `src/views/EventsView.vue` now mirrors the DevCongress website meetup listing shape, reads `/api/public/meetups` through the shared TanStack Query cache, and sends past-meetup `View recap` CTAs straight into `src/views/ArchiveEventView.vue` while upcoming/live cards stay in the public meetup flow.
 - `src/views/EventView.vue` consumes `/api/public/meetups/:slug` to render the meetup cover, schedule, speakers, photos, and status CTA; system-design rows point into the meetup archive page, and the public meetup page itself no longer repeats the archive recap block inline.
@@ -156,7 +157,7 @@
 - `src/lib/event-form.ts` centralizes Zod validation for organizer event creation so the create form and `/api/events` server endpoint share the same required-field, slug, date, and URL rules.
 - `src/views/admin/AdminAttendanceView.vue` uploads/replaces a Luma CSV and renders post-event import metrics, source/ticket breakdowns, checked-in guests, and approved no-shows.
 - `src/views/admin/AdminEventView.vue` renders the shared chronological event checklist from `/api/events/:eventId/checklist`; checking status milestones can advance the event state, while the status dropdown remains available for manual correction. Unpublished events can disable incomplete checklist milestones that do not apply to that event.
-- `src/views/admin/AdminEventView.vue` also manages optional program outlines in `event.schedule`, letting organizers add structured time/title/type/lead/description/resource rows when a meetup has a run of show. The editor includes a monthly system-design scenario helper for Google Slides prompt decks, empty outlines are allowed, and event feedback can reuse saved schedule rows as activity prompts.
+- `src/views/admin/AdminEventView.vue` also manages optional program outlines in `event.schedule`, letting organizers add structured time/title/type/lead/description/resource rows when a meetup has a run of show. A separate quarterly-only Shared links panel lets organizers paste raw recap URLs without titles; those links are saved into a dedicated schedule bucket and preserved when the outline is edited. The editor includes a monthly system-design scenario helper for Google Slides prompt decks, empty outlines are allowed, and event feedback can reuse saved schedule rows as activity prompts.
 - `src/views/admin/AdminSystemDesignView.vue` now calls `/api/events/:eventId/system-design/draft` when organizers click `Generate Draft` with a Google Slides prompt URL, fills the scenario title if it was blank, writes the returned summary into the full-width public recap field, and switches back to a saved/read-only state after persistence with explicit edit/remove actions for each saved scenario. When the event already has a matching system-design slot in the program outline, this editor now updates that existing row in place instead of appending a duplicate `system_design` row at the bottom.
 - `src/views/admin/AdminEventView.vue` also manages event media: organizers can upload selected cover/photo images to Supabase Storage or add website-compatible `{ url, type }` links where `type` is `image` for direct media or `folder` for shared galleries.
 - `src/views/admin/AdminQuizView.vue` generates local QR-code join links for the live lobby.
@@ -222,9 +223,17 @@ All constants are in `lib/constants.ts`.
 ### CFP Submission
 ```
 POST /api/cfp
-  body: { event_id, speaker_name, speaker_email, github_username?, title, abstract?, bio? }
-  → creates Talk with status 'submitted'
-  → requires approved speaker email for the event
+  body: { event_id, speaker_name, speaker_email, github_username?, title, topic?, abstract?, bio? }
+  → creates a speaker proposal for organizer selection
+  → does not create a confirmed talk or require a prior speaker allowlist row
+
+GET /api/events/[eventId]/speaker-submissions
+  → organizer-only speaker proposal inbox for the event
+
+PATCH /api/speaker-submissions/[submissionId]
+  body: { status: 'selected' | 'not_selected', internal_note?, expires_in_days? }
+  → records the organizer decision
+  → selecting generates a one-time selected-speaker confirmation link
 ```
 
 ### Manual Talk Entry (Admin)
@@ -247,9 +256,11 @@ GET  /api/events/[eventId]/speaker-intake/[token]
   → returns public event context only when the link is active
 
 POST /api/events/[eventId]/speaker-intake/[token]
-  body: { speaker_name, speaker_email, title, topic?, abstract?, bio?, github_username?, slides_url? }
+  body for archive_backfill links: { speaker_name, speaker_email, title, topic?, abstract?, bio?, github_username?, slides_url? }
+  body for selected_speaker_confirmation links: { slides_url }
   → creates/keeps the speaker allowlist row for that email
-  → creates an accepted or slides_received talk for organizer review
+  → archive-backfill links create accepted or slides_received talks from submitted details
+  → selected-speaker links create slides_received talks from the original CFP proposal plus the submitted slides URL
   → marks the speaker link as used after a successful submission
   → expired or used links return closed-link errors
   → never publishes directly from the public form

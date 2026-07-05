@@ -12,6 +12,7 @@ const SHARED_DOCUMENT_FILES = new Set([
   'quiz-sessions',
   'responses',
   'speaker-intake-links',
+  'speaker-submissions',
   'speakers',
   'talks',
   'users',
