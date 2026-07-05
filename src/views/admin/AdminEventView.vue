@@ -87,6 +87,10 @@ type ChecklistViewItem = EventChecklistItem & {
   description: string;
 };
 
+function currentEventIsQuarterly(): boolean {
+  return event.value ? resolveEventSeriesType(event.value) === 'quarterly' : false;
+}
+
 function checklistItemAvailable(item: EventChecklistItem): boolean {
   switch (item.label) {
     case 'Open CFP':
@@ -103,7 +107,7 @@ function checklistItemAvailable(item: EventChecklistItem): boolean {
     case 'Run live quiz':
       return availableChecklistFeatures.quiz;
     case 'Import attendance CSV':
-      return availableChecklistFeatures.attendance;
+      return availableChecklistFeatures.attendance && !currentEventIsQuarterly();
     case 'Open and review feedback':
       return availableChecklistFeatures.feedback;
     case 'Publish archive':
@@ -188,7 +192,7 @@ const currentEventId = computed(() => String(route.params.eventId));
 const eventSeriesTypeOptions = EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
 const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeDraft.value]);
 const rawEventSchedule = computed(() => event.value?.schedule ?? []);
-const isQuarterlyEvent = computed(() => (event.value ? resolveEventSeriesType(event.value) === 'quarterly' : false));
+const isQuarterlyEvent = computed(currentEventIsQuarterly);
 const eventSharedLinks = computed(() => rawEventSchedule.value.flatMap((item) => item.shared_links ?? []));
 const eventOutline = computed(() => canonicalizeSystemDesignSchedule(rawEventSchedule.value.filter((item) => !isSharedLinksScheduleItem(item))));
 

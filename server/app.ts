@@ -2797,7 +2797,7 @@ app.get('/api/events/:eventId/checklist', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const items = await getEventChecklist(eventId, event.status);
+  const items = await getEventChecklist(eventId, event.status, event);
   return c.json({
     event_status: event.status,
     progress: checklistProgress(items),
@@ -2831,7 +2831,7 @@ app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
         body.disabled,
         typeof body.disabled_by === 'string' ? body.disabled_by : 'Organizer',
       );
-      const items = await getEventChecklist(eventId, event.status);
+      const items = await getEventChecklist(eventId, event.status, event);
 
       await auditAdminAction(c, {
         action: 'event.checklist.disable',
@@ -2865,7 +2865,7 @@ app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
     const updatedEvent = Object.keys(eventUpdates).length > 0
       ? await updateEvent(eventId, eventUpdates, c)
       : event;
-    const items = await getEventChecklist(eventId, updatedEvent.status);
+    const items = await getEventChecklist(eventId, updatedEvent.status, updatedEvent);
 
     await auditAdminAction(c, {
       action: 'event.checklist.update',

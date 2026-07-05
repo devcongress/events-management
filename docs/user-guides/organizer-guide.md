@@ -24,6 +24,8 @@ Use the `System design` outline type for the monthly architecture scenario. The 
 
 Each event overview includes a chronological checklist. The checklist is the primary shared source of truth for event preparation and can advance event status when milestones are completed.
 
+Quarterly meetup checklists are intentionally short: create the event shell, then update it with the G-Meet link from Edem.
+
 Before an event is published publicly, organizers can disable incomplete checklist milestones that do not apply to that event. Disabled milestones stay visible, cannot be checked off, and do not count toward checklist progress.
 
 ## Review Talks

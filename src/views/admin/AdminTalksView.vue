@@ -21,8 +21,10 @@ const updatingCfp = ref(false);
 const refreshingSubmissions = ref(false);
 const closeCfpDialogOpen = ref(false);
 const cfpLinkCopied = ref(false);
+const speakerIntakeLinkCopied = ref(false);
 const expandedSubmissionId = ref<string | null>(null);
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
+let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerFormEnabled = ref(true);
 const speakerLinkExpiresInDays = ref(7);
 const generatedSpeakerIntakePath = ref('');
@@ -248,6 +250,7 @@ async function generateSpeakerIntakeLink() {
       generatedSpeakerLinkSubmissionId.value = '';
       generatedSpeakerLinkTitle.value = '';
       generatedSpeakerLinkSpeakerName.value = '';
+      resetSpeakerIntakeLinkCopied();
       notify.success('One-time speaker link generated.');
     } else {
       error.value = data.error || 'Could not generate speaker form link.';
@@ -284,6 +287,7 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
         generatedSpeakerLinkSubmissionId.value = data.submission?.id ?? submissionId;
         generatedSpeakerLinkTitle.value = data.submission?.title ?? '';
         generatedSpeakerLinkSpeakerName.value = data.submission?.speaker_name ?? '';
+        resetSpeakerIntakeLinkCopied();
         notify.success('Slides link generated.');
       } else {
         notify.success('Speaker marked as not selected.');
@@ -388,9 +392,22 @@ async function copySpeakerIntakeLink() {
       textarea.remove();
     }
 
-    notify.success('Speaker form link copied.');
+    speakerIntakeLinkCopied.value = true;
+    if (speakerIntakeLinkCopiedResetTimer) clearTimeout(speakerIntakeLinkCopiedResetTimer);
+    speakerIntakeLinkCopiedResetTimer = setTimeout(() => {
+      speakerIntakeLinkCopied.value = false;
+      speakerIntakeLinkCopiedResetTimer = null;
+    }, 2200);
   } catch {
     error.value = 'Could not copy the speaker form link.';
+  }
+}
+
+function resetSpeakerIntakeLinkCopied() {
+  speakerIntakeLinkCopied.value = false;
+  if (speakerIntakeLinkCopiedResetTimer) {
+    clearTimeout(speakerIntakeLinkCopiedResetTimer);
+    speakerIntakeLinkCopiedResetTimer = null;
   }
 }
 
@@ -473,6 +490,7 @@ onMounted(fetchPageData);
 
 onUnmounted(() => {
   if (cfpLinkCopiedResetTimer) clearTimeout(cfpLinkCopiedResetTimer);
+  if (speakerIntakeLinkCopiedResetTimer) clearTimeout(speakerIntakeLinkCopiedResetTimer);
 });
 </script>
 
@@ -616,8 +634,22 @@ onUnmounted(() => {
                 </p>
                 <input :value="generatedArchiveBackfillUrl" readonly :disabled="!speakerFormEnabled" class="editorial-input mt-3 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-55" />
                 <div class="mt-3 flex flex-wrap gap-2">
-                  <button type="button" :disabled="!speakerFormEnabled" :class="actionClass()" @click="copySpeakerIntakeLink">
-                    Copy link
+                  <button
+                    type="button"
+                    :disabled="!speakerFormEnabled"
+                    class="inline-flex items-center gap-1.5"
+                    :class="actionClass()"
+                    :aria-label="speakerIntakeLinkCopied ? 'Speaker form link copied' : 'Copy speaker form link'"
+                    @click="copySpeakerIntakeLink"
+                  >
+                    <svg v-if="speakerIntakeLinkCopied" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                      <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
+                    </svg>
+                    <span>{{ speakerIntakeLinkCopied ? 'Copied' : 'Copy link' }}</span>
                   </button>
                   <a v-if="speakerFormEnabled" :href="generatedSpeakerIntakePath" target="_blank" rel="noopener noreferrer" :class="actionClass()">Open form</a>
                 </div>
@@ -786,8 +818,21 @@ onUnmounted(() => {
                     </div>
                     <div class="selected-speaker-inline-link-actions">
                       <input :value="generatedSelectedSpeakerUrl" readonly class="editorial-input font-mono text-sm" />
-                      <button type="button" :class="actionClass()" @click="copySpeakerIntakeLink">
-                        Copy
+                      <button
+                        type="button"
+                        class="inline-flex items-center gap-1.5"
+                        :class="actionClass()"
+                        :aria-label="speakerIntakeLinkCopied ? 'Slides link copied' : 'Copy slides link'"
+                        @click="copySpeakerIntakeLink"
+                      >
+                        <svg v-if="speakerIntakeLinkCopied" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                          <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                          <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
+                        </svg>
+                        <span>{{ speakerIntakeLinkCopied ? 'Copied' : 'Copy' }}</span>
                       </button>
                       <a :href="generatedSpeakerIntakePath" target="_blank" rel="noopener noreferrer" :class="actionClass()">Open</a>
                     </div>

@@ -10,6 +10,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Added archive event media to the public recap payload so uploaded meetup photos appear on `/archive/:eventId`, not only on `/events/:slug`.
 - Hid the empty Published Talks section for quarterly recap pages when there are no published talks, since quarterly meetups are recap/media-first.
 - Added raw `shared_links` support for quarterly meetup recap links, gave organizers a quarterly-only Shared links editor on the event overview page, and seeded the July quarterly recap with the six links shared during the room.
+- Routed completed quarterly meetups to Feedback instead of Attendance and hid attendance checklist/access points from quarterly event workspaces for now.
+- Replaced the monthly CFP/program checklist with a two-item quarterly meetup checklist: create the event shell, then update it with the G-Meet link from Edem.
 
 ## 2026-07-03 — Talk Management workflow split
 
@@ -19,6 +21,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Stabilized switching between Talk Management workflow sections and replaced the nested pills with a wide sliding segmented control.
 - Refined expanded proposal details into readable abstract/bio sections with a separate metadata panel for submitted date, email, and GitHub.
 - Added per-row selected-speaker slides link generation so organizers can create, copy, and open the confirmation link from the selected speaker list.
+- Changed speaker-link copy feedback from a toast to a temporary inline Copied/checkmark button state.
 
 ## 2026-07-02 — CFP speaker selection workflow
 

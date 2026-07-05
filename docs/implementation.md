@@ -83,7 +83,7 @@
   - `writeData<T>(filename, data)` — serializes writes via a per-filename promise queue and replaces files through temp-file write + rename.
 - **Non-obvious logic:** The write queue chains promises per file key — concurrent writes to `events` and `sessions` can overlap, but concurrent writes to the same file are serialized inside one process. Atomic rename reduces partial-write corruption, but JSON files are still not a multi-process production store.
 - Each entity module (`events.ts`, `talks.ts`, etc.) exports typed helpers like `getAll*`, `get*ById`, `create*`, `update*`.
-- `event-checklists.ts` creates a default chronological run sheet on first read. For existing events, it infers already-reached milestones from the current event status so completed events start with post-event tasks instead of a blank checklist. Event-specific disabled milestones stay visible but do not count toward progress or status backfill.
+- `event-checklists.ts` creates a default chronological run sheet on first read. Monthly events use the full CFP/program/post-event checklist, while quarterly meetups use the short setup checklist for creating the event shell and adding the G-Meet link. For existing events, it infers already-reached milestones from the current event status so completed events start with post-event tasks instead of a blank checklist. Event-specific disabled milestones stay visible but do not count toward progress or status backfill.
 
 ### Supabase (`lib/supabase/`, `supabase/`)
 
