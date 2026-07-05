@@ -31,6 +31,10 @@ const descriptionEditing = ref(false);
 const descriptionSaving = ref(false);
 const descriptionError = ref<string | null>(null);
 const descriptionDraft = ref('');
+const sharedLinksEditing = ref(false);
+const sharedLinksSaving = ref(false);
+const sharedLinksError = ref<string | null>(null);
+const sharedLinksDraftText = ref('');
 const outlineEditing = ref(false);
 const outlineSaving = ref(false);
 const outlineError = ref<string | null>(null);
@@ -48,6 +52,7 @@ const photoTypeOptions = [
   { value: 'folder', label: 'Gallery / folder' },
   { value: 'image', label: 'Single image' },
 ];
+const SHARED_LINKS_SCHEDULE_TITLE = 'Links shared during the meetup';
 const outlineTypeOptions: { value: PublicMeetupScheduleItem['type']; label: string }[] = [
   { value: 'talk', label: 'Talk' },
   { value: 'system_design', label: 'System design' },
@@ -66,10 +71,10 @@ const checklistPhaseLabels: Record<EventChecklistPhase, string> = {
   post_event: 'Post-event',
 };
 const availableChecklistFeatures = {
-  cfp: false,
+  cfp: true,
   speakerAccess: false,
   quiz: false,
-  talkManagement: false,
+  talkManagement: true,
   systemDesign: true,
   eventDayStart: false,
   attendance: true,
@@ -81,6 +86,10 @@ type ChecklistViewItem = EventChecklistItem & {
   label: string;
   description: string;
 };
+
+function currentEventIsQuarterly(): boolean {
+  return event.value ? resolveEventSeriesType(event.value) === 'quarterly' : false;
+}
 
 function checklistItemAvailable(item: EventChecklistItem): boolean {
   switch (item.label) {
@@ -98,7 +107,7 @@ function checklistItemAvailable(item: EventChecklistItem): boolean {
     case 'Run live quiz':
       return availableChecklistFeatures.quiz;
     case 'Import attendance CSV':
-      return availableChecklistFeatures.attendance;
+      return availableChecklistFeatures.attendance && !currentEventIsQuarterly();
     case 'Open and review feedback':
       return availableChecklistFeatures.feedback;
     case 'Publish archive':
@@ -109,6 +118,22 @@ function checklistItemAvailable(item: EventChecklistItem): boolean {
 }
 
 function checklistViewItem(item: EventChecklistItem): ChecklistViewItem {
+  if (item.label === 'Open CFP') {
+    return {
+      ...item,
+      status_on_complete: null,
+      description: 'Track that the speaker call has opened. Open CFP from the Talks section.',
+    };
+  }
+
+  if (item.label === 'Close CFP') {
+    return {
+      ...item,
+      status_on_complete: null,
+      description: 'Track that the speaker call has closed. Close CFP from the Talks section.',
+    };
+  }
+
   if (item.label === 'Confirm speakers and talks' && !availableChecklistFeatures.speakerAccess) {
     return {
       ...item,
@@ -166,7 +191,22 @@ const checklistByPhase = computed(() => checklistPhaseOrder
 const currentEventId = computed(() => String(route.params.eventId));
 const eventSeriesTypeOptions = EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
 const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeDraft.value]);
-const eventOutline = computed(() => canonicalizeSystemDesignSchedule(event.value?.schedule ?? []));
+const rawEventSchedule = computed(() => event.value?.schedule ?? []);
+const isQuarterlyEvent = computed(currentEventIsQuarterly);
+const eventSharedLinks = computed(() => rawEventSchedule.value.flatMap((item) => item.shared_links ?? []));
+const eventOutline = computed(() => canonicalizeSystemDesignSchedule(rawEventSchedule.value.filter((item) => !isSharedLinksScheduleItem(item))));
+
+function isSharedLinksScheduleItem(item: PublicMeetupScheduleItem): boolean {
+  return item.title === SHARED_LINKS_SCHEDULE_TITLE;
+}
+
+function sharedLinkHost(value: string): string {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return value;
+  }
+}
 
 function broadcastPublicMeetupsRefresh() {
   if (typeof window === 'undefined') return;
@@ -190,6 +230,10 @@ function syncDescriptionDraft() {
   descriptionDraft.value = event.value?.description ?? '';
 }
 
+function syncSharedLinksDraft() {
+  sharedLinksDraftText.value = eventSharedLinks.value.join('\n');
+}
+
 function createOutlineDraft(item?: Partial<PublicMeetupScheduleItem>): PublicMeetupScheduleItem {
   return {
     time: item?.time ?? '',
@@ -199,6 +243,7 @@ function createOutlineDraft(item?: Partial<PublicMeetupScheduleItem>): PublicMee
     description: item?.description ?? null,
     system_design_title: item?.system_design_title ?? null,
     resources: item?.resources ?? [],
+    shared_links: item?.shared_links ?? [],
   };
 }
 
@@ -282,6 +327,7 @@ async function fetchOverview() {
   if (eventResponse.ok) {
     event.value = await eventResponse.json();
     syncDescriptionDraft();
+    syncSharedLinksDraft();
     syncOutlineDrafts();
     syncSeriesTypeDraft();
   }
@@ -308,15 +354,34 @@ async function publishEvent() {
     status: isDraftEvent.value ? publishStatusForEvent(event.value) : event.value.status,
   };
 
+  let nextSchedule: PublicMeetupScheduleItem[] | null = null;
+
   if (outlineEditing.value) {
     try {
-      publishPayload.schedule = normalizeOutlineDrafts();
+      nextSchedule = normalizeOutlineDrafts();
     } catch (error) {
       outlineError.value = error instanceof Error ? error.message : 'Check the outline rows before publishing.';
       publishError.value = 'Fix the program outline before publishing.';
       notify.error(publishError.value);
       return;
     }
+  }
+
+  if (sharedLinksEditing.value && isQuarterlyEvent.value) {
+    try {
+      nextSchedule = scheduleWithSharedLinks(nextSchedule ?? rawEventSchedule.value, parseSharedLinksDraft());
+    } catch (error) {
+      sharedLinksError.value = error instanceof Error ? error.message : 'Check the shared recap links before publishing.';
+      publishError.value = 'Fix the shared recap links before publishing.';
+      notify.error(publishError.value);
+      return;
+    }
+  } else if (nextSchedule && isQuarterlyEvent.value) {
+    nextSchedule = scheduleWithSharedLinks(nextSchedule, eventSharedLinks.value);
+  }
+
+  if (nextSchedule) {
+    publishPayload.schedule = nextSchedule;
   }
 
   publishSaving.value = true;
@@ -339,6 +404,11 @@ async function publishEvent() {
       syncOutlineDrafts();
       outlineEditing.value = false;
       outlineError.value = null;
+    }
+    if (sharedLinksEditing.value) {
+      syncSharedLinksDraft();
+      sharedLinksEditing.value = false;
+      sharedLinksError.value = null;
     }
     await invalidateEventQueries();
     notify.success('Event published to community');
@@ -397,6 +467,115 @@ async function saveDescription() {
     notify.error(descriptionError.value);
   } finally {
     descriptionSaving.value = false;
+  }
+}
+
+function parseSharedLinksDraft(): string[] {
+  const links = sharedLinksDraftText.value
+    .split(/\r?\n/)
+    .map((link) => link.trim())
+    .filter(Boolean);
+
+  const uniqueLinks = [...new Set(links)];
+
+  for (const link of uniqueLinks) {
+    try {
+      const parsedUrl = new URL(link);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new Error('Unsupported protocol');
+      }
+    } catch {
+      throw new Error(`Use a valid http(s) URL: ${link}`);
+    }
+  }
+
+  return uniqueLinks;
+}
+
+function scheduleWithSharedLinks(schedule: PublicMeetupScheduleItem[], links: string[]): PublicMeetupScheduleItem[] {
+  const scheduleWithoutSharedLinks = schedule
+    .filter((item) => !isSharedLinksScheduleItem(item))
+    .map((item) => ({
+      ...item,
+      shared_links: undefined,
+    }));
+
+  if (links.length === 0) {
+    return scheduleWithoutSharedLinks;
+  }
+
+  return [
+    ...scheduleWithoutSharedLinks,
+    {
+      time: 'TBD',
+      title: SHARED_LINKS_SCHEDULE_TITLE,
+      type: 'open_discussion',
+      lead: null,
+      description: null,
+      system_design_title: null,
+      resources: [],
+      shared_links: links,
+    },
+  ];
+}
+
+function startSharedLinksEdit() {
+  if (!isQuarterlyEvent.value) return;
+
+  syncSharedLinksDraft();
+  sharedLinksError.value = null;
+  sharedLinksEditing.value = true;
+}
+
+function cancelSharedLinksEdit() {
+  if (sharedLinksSaving.value) return;
+  syncSharedLinksDraft();
+  sharedLinksError.value = null;
+  sharedLinksEditing.value = false;
+}
+
+async function saveSharedLinks() {
+  if (!event.value || sharedLinksSaving.value) return;
+  if (!isQuarterlyEvent.value) {
+    sharedLinksError.value = 'Shared links are only available for quarterly meetups.';
+    return;
+  }
+
+  let links: string[];
+  try {
+    links = parseSharedLinksDraft();
+  } catch (error) {
+    sharedLinksError.value = error instanceof Error ? error.message : 'Check the shared links.';
+    return;
+  }
+
+  const schedule = scheduleWithSharedLinks(rawEventSchedule.value, links);
+  sharedLinksSaving.value = true;
+  sharedLinksError.value = null;
+
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ schedule }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error ?? 'Failed to update shared recap links');
+    }
+
+    event.value = await response.json();
+    syncSharedLinksDraft();
+    syncOutlineDrafts();
+    sharedLinksEditing.value = false;
+    await invalidateEventQueries();
+    notify.success(links.length > 0 ? 'Shared recap links updated' : 'Shared recap links cleared');
+  } catch (error) {
+    sharedLinksError.value = error instanceof Error ? error.message : 'Failed to update shared recap links';
+    notify.error(sharedLinksError.value);
+  } finally {
+    sharedLinksSaving.value = false;
   }
 }
 
@@ -515,7 +694,8 @@ function normalizeOutlineDrafts(): PublicMeetupScheduleItem[] {
     const description = item.description?.trim() ?? '';
     const systemDesignTitle = item.system_design_title?.trim() ?? '';
     const resources = normalizedOutlineResources(item);
-    const hasAnyContent = Boolean(time || title || lead || description || resources.length > 0);
+    const sharedLinks = item.shared_links?.filter((link) => link.trim().length > 0) ?? [];
+    const hasAnyContent = Boolean(time || title || lead || description || resources.length > 0 || sharedLinks.length > 0);
 
     if (!hasAnyContent) continue;
     if (!title) {
@@ -532,6 +712,7 @@ function normalizeOutlineDrafts(): PublicMeetupScheduleItem[] {
         ? systemDesignTitle
         : null,
       resources,
+      shared_links: sharedLinks,
     });
   }
 
@@ -543,7 +724,7 @@ async function saveOutline() {
 
   let schedule: PublicMeetupScheduleItem[];
   try {
-    schedule = normalizeOutlineDrafts();
+    schedule = scheduleWithSharedLinks(normalizeOutlineDrafts(), isQuarterlyEvent.value ? eventSharedLinks.value : []);
   } catch (error) {
     outlineError.value = error instanceof Error ? error.message : 'Check the outline rows.';
     return;
@@ -565,10 +746,11 @@ async function saveOutline() {
     }
 
     event.value = await response.json();
+    syncSharedLinksDraft();
     syncOutlineDrafts();
     outlineEditing.value = false;
     await invalidateEventQueries();
-    notify.success(schedule.length > 0 ? 'Program outline updated' : 'Program outline cleared');
+    notify.success(eventOutline.value.length > 0 ? 'Program outline updated' : 'Program outline cleared');
   } catch (error) {
     outlineError.value = error instanceof Error ? error.message : 'Failed to update the program outline';
     notify.error(outlineError.value);
@@ -912,10 +1094,78 @@ onMounted(fetchOverview);
 	                </div>
 	              </aside>
 
-	              <section class="event-outline-panel xl:col-span-2">
-	                <div class="event-outline-header">
-	                  <div class="min-w-0">
-	                    <p class="editorial-eyebrow">program outline</p>
+		              <section v-if="isQuarterlyEvent" class="event-outline-panel xl:col-span-2">
+		                <div class="event-outline-header">
+		                  <div class="min-w-0">
+		                    <p class="editorial-eyebrow">recap links</p>
+		                    <h2 class="event-outline-title">Shared links</h2>
+		                    <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
+		                      Paste links that came up during the meetup. Titles are not required; the public recap labels them from the URL.
+		                    </p>
+		                  </div>
+		                  <button
+		                    v-if="!sharedLinksEditing"
+		                    type="button"
+		                    class="event-overview-copy-action"
+		                    @click="startSharedLinksEdit"
+		                  >
+		                    {{ eventSharedLinks.length > 0 ? 'Edit links' : 'Add links' }}
+		                  </button>
+		                </div>
+
+		                <div v-if="sharedLinksEditing" class="event-outline-editor">
+		                  <label class="event-outline-description-field">
+		                    <span>One URL per line</span>
+		                    <textarea
+		                      v-model="sharedLinksDraftText"
+		                      class="event-outline-input event-outline-textarea"
+		                      rows="7"
+		                      placeholder="https://example.com/article&#10;https://github.com/example/project"
+		                    />
+		                  </label>
+		                  <p v-if="sharedLinksError" class="event-overview-copy-error">{{ sharedLinksError }}</p>
+		                  <div class="event-overview-copy-actions">
+		                    <button type="button" class="editorial-action" :disabled="sharedLinksSaving" @click="saveSharedLinks">
+		                      {{ sharedLinksSaving ? 'SAVING...' : 'SAVE LINKS' }}
+		                    </button>
+		                    <button
+		                      type="button"
+		                      class="event-overview-copy-cancel"
+		                      :disabled="sharedLinksSaving"
+		                      @click="cancelSharedLinksEdit"
+		                    >
+		                      Cancel
+		                    </button>
+		                  </div>
+		                </div>
+
+		                <div v-else-if="eventSharedLinks.length > 0" class="event-outline-list">
+		                  <a
+		                    v-for="link in eventSharedLinks"
+		                    :key="link"
+		                    :href="link"
+		                    target="_blank"
+		                    rel="noopener noreferrer"
+		                    class="event-outline-row no-underline"
+		                  >
+		                    <span class="event-outline-time">Link</span>
+		                    <span class="event-outline-copy">
+		                      <strong>{{ sharedLinkHost(link) }}</strong>
+		                      <span>{{ link }}</span>
+		                    </span>
+		                    <span class="event-outline-type">open</span>
+		                  </a>
+		                </div>
+
+		                <div v-else class="event-outline-empty">
+		                  No shared recap links yet. That is okay for meetups where links were not part of the conversation.
+		                </div>
+		              </section>
+
+		              <section class="event-outline-panel xl:col-span-2">
+		                <div class="event-outline-header">
+		                  <div class="min-w-0">
+		                    <p class="editorial-eyebrow">program outline</p>
 	                    <h2 class="event-outline-title">Optional event flow</h2>
 	                    <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
 	                      Add this only when the event already has a clear run of sessions. Feedback and the public schedule can reuse these rows.

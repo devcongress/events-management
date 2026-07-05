@@ -2,6 +2,8 @@
 export type EventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
 export type EventChecklistPhase = 'setup' | 'cfp' | 'program' | 'event_day' | 'post_event';
 export type TalkStatus = 'submitted' | 'accepted' | 'rejected' | 'slides_received' | 'published';
+export type SpeakerSubmissionStatus = 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
+export type SpeakerIntakeLinkPurpose = 'archive_backfill' | 'selected_speaker_confirmation';
 export type QuizStatus = 'draft' | 'waiting' | 'active' | 'finished';
 export type QuestionPhase = 'answering' | 'revealing' | 'scoreboard';
 export type Role = 'admin' | 'speaker' | 'player';
@@ -97,10 +99,34 @@ export interface SpeakerIntakeLink {
   id: string;
   event_id: string;
   event_month: string;
+  purpose?: SpeakerIntakeLinkPurpose;
+  speaker_submission_id?: string | null;
+  speaker_name?: string | null;
+  speaker_email?: string | null;
+  talk_title?: string | null;
   token_hash: string;
   expires_at: string;
   used_at: string | null;
   used_talk_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SpeakerSubmission {
+  id: string;
+  event_id: string;
+  speaker_name: string;
+  speaker_email: string;
+  github_username: string | null;
+  title: string;
+  topic: string;
+  abstract: string | null;
+  bio: string | null;
+  status: SpeakerSubmissionStatus;
+  internal_note: string | null;
+  selected_intake_link_id: string | null;
+  selected_talk_id: string | null;
+  decided_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -134,12 +160,14 @@ export interface PublicMeetupScheduleItem {
     title: string;
     url: string;
   }[];
+  shared_links?: string[];
 }
 
 export interface PublicMeetup {
   id: string;
   slug: string;
   name: string;
+  series_type: EventSeriesType;
   status: PublicMeetupStatus;
   start: string;
   end: string;
@@ -175,7 +203,13 @@ export interface PublicArchiveEvent {
   name: string;
   description: string | null;
   event_date: string;
+  series_type: EventSeriesType;
+  cover: string;
   schedule: PublicMeetupScheduleItem[];
+  photos: {
+    url: string;
+    type: 'image' | 'folder';
+  }[];
 }
 
 export interface PublicArchiveTalk {

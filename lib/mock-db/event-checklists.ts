@@ -1,6 +1,7 @@
 import { readData, writeData } from './index';
+import { resolveEventSeriesType } from '@/lib/event-series';
 import { generateId, now } from '@/lib/utils';
-import type { EventChecklistItem, EventChecklistPhase, EventStatus } from '@/types';
+import type { Event, EventChecklistItem, EventChecklistPhase, EventStatus } from '@/types';
 
 const FILE = 'event-checklists';
 const STATUS_ORDER: EventStatus[] = ['draft', 'cfp_open', 'cfp_closed', 'upcoming', 'live', 'completed'];
@@ -22,13 +23,13 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
   {
     phase: 'cfp',
     label: 'Open CFP',
-    description: 'Start accepting talk submissions for this meetup.',
+    description: 'Track that the speaker call has opened for this meetup.',
     status_on_complete: 'cfp_open',
   },
   {
     phase: 'cfp',
     label: 'Close CFP',
-    description: 'Stop new submissions and move into review/selection.',
+    description: 'Track that new speaker submissions have stopped and selection can begin.',
     status_on_complete: 'cfp_closed',
   },
   {
@@ -93,14 +94,33 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
   },
 ];
 
-function initialCompletedCutoff(status: EventStatus | null): number {
+const QUARTERLY_CHECKLIST: ChecklistTemplateItem[] = [
+  {
+    phase: 'setup',
+    label: 'Create event shell',
+    description: 'Confirm the quarterly meetup date, title, and working description.',
+    status_on_complete: 'draft',
+  },
+  {
+    phase: 'setup',
+    label: 'Update with g-meet link from Edem',
+    description: 'Add the Google Meet link once Edem shares it.',
+    status_on_complete: 'upcoming',
+  },
+];
+
+function checklistTemplateForEvent(event: Pick<Event, 'name' | 'series_type'> | null): ChecklistTemplateItem[] {
+  return event && resolveEventSeriesType(event) === 'quarterly' ? QUARTERLY_CHECKLIST : DEFAULT_CHECKLIST;
+}
+
+function initialCompletedCutoff(template: ChecklistTemplateItem[], status: EventStatus | null): number {
   if (!status) return -1;
 
   const statusRank = STATUS_ORDER.indexOf(status);
   if (statusRank === -1) return -1;
 
-  for (let index = DEFAULT_CHECKLIST.length - 1; index >= 0; index -= 1) {
-    const statusOnComplete = DEFAULT_CHECKLIST[index].status_on_complete;
+  for (let index = template.length - 1; index >= 0; index -= 1) {
+    const statusOnComplete = template[index].status_on_complete;
     if (statusOnComplete !== null && STATUS_ORDER.indexOf(statusOnComplete) <= statusRank) {
       return index;
     }
@@ -109,11 +129,31 @@ function initialCompletedCutoff(status: EventStatus | null): number {
   return -1;
 }
 
-function createDefaultChecklist(eventId: string, status: EventStatus | null = null): EventChecklistItem[] {
-  const timestamp = now();
-  const completedCutoff = initialCompletedCutoff(status);
+function normalizeToTemplate(eventItems: EventChecklistItem[], template: ChecklistTemplateItem[]): EventChecklistItem[] {
+  return template.flatMap((templateItem, index) => {
+    const item = eventItems.find((candidate) => candidate.label === templateItem.label);
+    if (!item) return [];
 
-  return DEFAULT_CHECKLIST.map((item, index) => ({
+    return [{
+      ...item,
+      phase: templateItem.phase,
+      description: templateItem.description,
+      order_index: index,
+      status_on_complete: templateItem.status_on_complete,
+    }];
+  });
+}
+
+function createDefaultChecklist(
+  eventId: string,
+  status: EventStatus | null = null,
+  event: Pick<Event, 'name' | 'series_type'> | null = null,
+): EventChecklistItem[] {
+  const timestamp = now();
+  const template = checklistTemplateForEvent(event);
+  const completedCutoff = initialCompletedCutoff(template, status);
+
+  return template.map((item, index) => ({
     id: generateId(),
     event_id: eventId,
     phase: item.phase,
@@ -134,39 +174,52 @@ async function backfillMissingTemplateItems(
   allItems: EventChecklistItem[],
   eventItems: EventChecklistItem[],
   eventId: string,
+  template: ChecklistTemplateItem[],
+  status: EventStatus | null,
 ): Promise<EventChecklistItem[]> {
   const existingLabels = new Set(eventItems.map((item) => item.label));
-  const missingTemplateItems = DEFAULT_CHECKLIST.filter((item) => !existingLabels.has(item.label));
+  const missingTemplateItems = template.filter((item) => !existingLabels.has(item.label));
 
   if (missingTemplateItems.length === 0) {
-    return eventItems;
+    return normalizeToTemplate(eventItems, template);
   }
 
   const timestamp = now();
   const nextOrderIndex = eventItems.reduce((max, item) => Math.max(max, item.order_index), -1) + 1;
-  const missingItems = missingTemplateItems.map((item, index) => ({
-    id: generateId(),
-    event_id: eventId,
-    phase: item.phase,
-    label: item.label,
-    description: item.description,
-    order_index: nextOrderIndex + index,
-    status_on_complete: item.status_on_complete,
-    completed: false,
-    completed_at: null,
-    completed_by: null,
-    disabled_at: null,
-    disabled_by: null,
-    updated_at: timestamp,
-  }));
+  const completedCutoff = initialCompletedCutoff(template, status);
+  const missingItems = missingTemplateItems.map((item, index) => {
+    const templateIndex = template.findIndex((templateItem) => templateItem.label === item.label);
+    const completed = completedCutoff >= templateIndex;
+
+    return {
+      id: generateId(),
+      event_id: eventId,
+      phase: item.phase,
+      label: item.label,
+      description: item.description,
+      order_index: nextOrderIndex + index,
+      status_on_complete: item.status_on_complete,
+      completed,
+      completed_at: completed ? timestamp : null,
+      completed_by: completed ? 'System' : null,
+      disabled_at: null,
+      disabled_by: null,
+      updated_at: timestamp,
+    };
+  });
 
   await writeData<EventChecklistItem>(FILE, [...allItems, ...missingItems]);
 
-  return [...eventItems, ...missingItems].sort((a, b) => a.order_index - b.order_index);
+  return normalizeToTemplate([...eventItems, ...missingItems], template);
 }
 
-export async function getEventChecklist(eventId: string, status: EventStatus | null = null): Promise<EventChecklistItem[]> {
+export async function getEventChecklist(
+  eventId: string,
+  status: EventStatus | null = null,
+  event: Pick<Event, 'name' | 'series_type'> | null = null,
+): Promise<EventChecklistItem[]> {
   const items = await readData<EventChecklistItem>(FILE);
+  const template = checklistTemplateForEvent(event);
   const eventItems = items
     .filter((item) => item.event_id === eventId)
     .sort((a, b) => a.order_index - b.order_index);
@@ -174,7 +227,7 @@ export async function getEventChecklist(eventId: string, status: EventStatus | n
   if (eventItems.length > 0) {
     const activeEventItems = eventItems.filter((item) => !item.disabled_at);
     if (status && status !== 'draft' && activeEventItems.length > 0 && activeEventItems.every((item) => !item.completed)) {
-      const completedCutoff = initialCompletedCutoff(status);
+      const completedCutoff = initialCompletedCutoff(template, status);
       const timestamp = now();
       const nextItems = items.map((item) => {
         if (item.event_id !== eventId || item.disabled_at) return item;
@@ -193,13 +246,13 @@ export async function getEventChecklist(eventId: string, status: EventStatus | n
         .filter((item) => item.event_id === eventId)
         .sort((a, b) => a.order_index - b.order_index);
 
-      return backfillMissingTemplateItems(nextItems, nextEventItems, eventId);
+      return backfillMissingTemplateItems(nextItems, nextEventItems, eventId, template, status);
     }
 
-    return backfillMissingTemplateItems(items, eventItems, eventId);
+    return backfillMissingTemplateItems(items, eventItems, eventId, template, status);
   }
 
-  const defaults = createDefaultChecklist(eventId, status);
+  const defaults = createDefaultChecklist(eventId, status, event);
   await writeData(FILE, [...items, ...defaults]);
   return defaults;
 }

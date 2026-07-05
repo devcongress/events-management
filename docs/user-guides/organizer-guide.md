@@ -24,11 +24,13 @@ Use the `System design` outline type for the monthly architecture scenario. The 
 
 Each event overview includes a chronological checklist. The checklist is the primary shared source of truth for event preparation and can advance event status when milestones are completed.
 
+Quarterly meetup checklists are intentionally short: create the event shell, then update it with the G-Meet link from Edem.
+
 Before an event is published publicly, organizers can disable incomplete checklist milestones that do not apply to that event. Disabled milestones stay visible, cannot be checked off, and do not count toward checklist progress.
 
 ## Review Talks
 
-The Talks section is the review pipeline for CFP submissions and the backfill workspace for talks that happened before this app was live. The default backfill path is an expiring one-time speaker archive form link for a speaker to fill. Turn the speaker form off when an organizer needs to enter a confirmed or past talk directly. Organizers can then accept/reject CFP submissions, publish archive entries, and follow up for public slide links. Speaker links are tied to the event month and close after one successful submission.
+The Talks section is split into a workflow: CFP, Proposals, Program, and Legacy Backfill. Use CFP to open or close the public proposal form and copy the share link. Use Proposals to review public CFP submissions, select or reject speakers, and copy the slides-only link for selected speakers. Use Program to manage confirmed talks, slides, reminders, and publishing. Legacy Backfill is temporary cleanup for confirmed or past talks that did not go through the CFP flow; it still collects full talk details and should not shape the normal future workflow. Speaker links are tied to the event month and close after one successful submission.
 
 ## Manage Speakers
 

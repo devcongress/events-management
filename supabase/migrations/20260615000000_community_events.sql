@@ -250,7 +250,7 @@ insert into public.community_events (
   null,
   false,
   'https://luma.com/1e9h6c34',
-  '[]'::jsonb,
+  '[{"time":"TBD","title":"Links shared during the meetup","type":"open_discussion","lead":null,"resources":[],"shared_links":["https://openai.com/index/harness-engineering/","https://factory.strongdm.ai/techniques/dtu","https://sequoiacap.com/article/from-hierarchy-to-intelligence/","https://x.com/claudedevs/status/2071671418245492926?s=46","https://www.fastcompany.com/91499890/block-mass-layoffs-today-jack-dorsey-grim-prediction-ai-push","https://factory.strongdm.ai/"]}]'::jsonb,
   '[]'::jsonb,
   '[]'::jsonb,
   '[]'::jsonb,

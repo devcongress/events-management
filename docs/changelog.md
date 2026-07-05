@@ -5,6 +5,43 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-05 — Quarterly recap media fix
+
+- Added archive event media to the public recap payload so uploaded meetup photos appear on `/archive/:eventId`, not only on `/events/:slug`.
+- Hid the empty Published Talks section for quarterly recap pages when there are no published talks, since quarterly meetups are recap/media-first.
+- Added raw `shared_links` support for quarterly meetup recap links, gave organizers a quarterly-only Shared links editor on the event overview page, and seeded the July quarterly recap with the six links shared during the room.
+- Routed completed quarterly meetups to Feedback instead of Attendance and hid attendance checklist/access points from quarterly event workspaces for now.
+- Replaced the monthly CFP/program checklist with a two-item quarterly meetup checklist: create the event shell, then update it with the G-Meet link from Edem.
+
+## 2026-07-03 — Talk Management workflow split
+
+- Split Talk Management into nested CFP, Proposals, Program, and Legacy Backfill routes under the existing Talks event tab.
+- Made `/talks` redirect to the CFP setup step so the permanent CFP-to-program flow is the default path.
+- Kept Legacy Backfill separate and explicitly temporary so last-month cleanup no longer competes with the lasting CFP workflow.
+- Stabilized switching between Talk Management workflow sections and replaced the nested pills with a wide sliding segmented control.
+- Refined expanded proposal details into readable abstract/bio sections with a separate metadata panel for submitted date, email, and GitHub.
+- Added per-row selected-speaker slides link generation so organizers can create, copy, and open the confirmation link from the selected speaker list.
+- Changed speaker-link copy feedback from a toast to a temporary inline Copied/checkmark button state.
+
+## 2026-07-02 — CFP speaker selection workflow
+
+- Split public CFP interest from confirmed talks so proposals land in a speaker-submissions inbox before organizers select or reject them.
+- Added selected-speaker confirmation links that reuse the expiring one-time intake form without confusing them with archive backfill links.
+- Stopped requiring public CFP submitters to already be on the approved speaker list.
+- Moved CFP open/close controls into Talk Management, kept checklist CFP rows as process visibility, and collapsed the empty Talks page into one combined program empty state.
+- Reworked the CFP control panel into a compact status-and-share strip with copy/open actions and grouped state controls.
+- Improved the public CFP form with required field validation, red required markers, side-by-side contact/topic fields, searchable custom topics, and word-count limits for abstracts and speaker bios.
+- Kept CFP URLs public and shareable after organizers close submissions, showing visitors a polished closed-state message instead of an unavailable form.
+- Made the public CFP route standalone by hiding the app navigation/feedback chrome and replacing the plain submitted state with a more polished proposal receipt.
+- Added a manual refresh action to the organizer CFP inbox and compressed speaker proposals into single-open list rows with slim accordion detail previews.
+- Removed the redundant proposal Details button so the row itself opens the inline proposal detail.
+- Changed selected-speaker links into a slides-only flow that creates the confirmed talk from the original CFP proposal, while archive-backfill links keep the full details form.
+- Split generated link output so archive-backfill links stay in the archive panel and selected-speaker slides links appear in the CFP inbox context.
+
+## 2026-07-02 — Header reload scrollbar fix
+
+- Hid the primary header nav's internal scrollbar and clipped vertical overflow so organizer reloads no longer flash a black scrollbar thumb beside the mode/sign-out actions.
+
 ## 2026-07-02 — Mobile paused-state centering fix
 
 - Vertically centered the paused My Talks and Leaderboard content on normal-height phone screens while keeping short phone screens top-safe.

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
+import { resolveEventSeriesType } from '@/lib/event-series';
+import { adminPath } from '@/src/admin-routes';
 import AdminAttendancePageSkeleton from '@/src/components/ui/page-skeletons/AdminAttendancePageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
@@ -15,6 +17,7 @@ interface AttendanceResponse {
 }
 
 const route = useRoute();
+const router = useRouter();
 const loading = ref(true);
 const importing = ref(false);
 const removing = ref(false);
@@ -132,7 +135,14 @@ async function fetchAttendance() {
   const response = await fetch(`/api/events/${route.params.eventId}/attendance`);
 
   if (response.ok) {
-    hydrateAttendance(await response.json() as AttendanceResponse);
+    const payload = await response.json() as AttendanceResponse;
+    if (resolveEventSeriesType(payload.event) === 'quarterly') {
+      await router.replace(adminPath(`events/${payload.event.id}/feedback`));
+      loading.value = false;
+      return;
+    }
+
+    hydrateAttendance(payload);
   } else {
     const payload = await response.json().catch(() => ({}));
     error.value = payload.error ?? 'Unable to load attendance analysis';

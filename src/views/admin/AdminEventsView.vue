@@ -376,14 +376,18 @@ function statusActionLabel(status: string): string {
   return statusMeta(status).actionLabel;
 }
 
+function isQuarterlyEvent(event: CommunityEvent): boolean {
+  return resolveEventSeriesType(event) === 'quarterly';
+}
+
 function statusActionPath(event: CommunityEvent): string {
   const subsectionByStatus: Record<EventStatus, string> = {
-    draft: 'speakers',
-    cfp_open: 'speakers',
+    draft: 'talks',
+    cfp_open: 'talks',
     cfp_closed: 'talks',
     upcoming: '',
     live: 'quiz/live',
-    completed: 'attendance',
+    completed: isQuarterlyEvent(event) ? 'feedback' : 'attendance',
   };
 
   const subsection = subsectionByStatus[event.status];
