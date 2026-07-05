@@ -21,6 +21,11 @@ export async function createSpeakerIntakeLink(data: {
   event_id: string;
   event_month: string;
   expires_at: string;
+  purpose?: SpeakerIntakeLink['purpose'];
+  speaker_submission_id?: string | null;
+  speaker_name?: string | null;
+  speaker_email?: string | null;
+  talk_title?: string | null;
 }): Promise<{ link: SpeakerIntakeLink; token: string }> {
   const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
   const tokenHash = hashSpeakerIntakeToken(token);
@@ -29,6 +34,11 @@ export async function createSpeakerIntakeLink(data: {
     id: generateId(),
     event_id: data.event_id,
     event_month: data.event_month,
+    purpose: data.purpose ?? 'archive_backfill',
+    speaker_submission_id: data.speaker_submission_id ?? null,
+    speaker_name: data.speaker_name ?? null,
+    speaker_email: data.speaker_email ?? null,
+    talk_title: data.talk_title ?? null,
     token_hash: tokenHash,
     expires_at: data.expires_at,
     used_at: null,

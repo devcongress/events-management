@@ -2,13 +2,23 @@
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
-import type { Event } from '@/types';
+import type { Event, SpeakerIntakeLinkPurpose } from '@/types';
 
 type IntakeEvent = Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'status'>;
+type IntakePrefill = {
+  speaker_name?: string;
+  speaker_email?: string;
+  github_username?: string;
+  title?: string;
+  topic?: string;
+  abstract?: string;
+  bio?: string;
+};
 
 const route = useRoute();
 const event = ref<IntakeEvent | null>(null);
 const expiresAt = ref<string | null>(null);
+const linkPurpose = ref<SpeakerIntakeLinkPurpose>('archive_backfill');
 const loading = ref(true);
 const submitting = ref(false);
 const submitted = ref(false);
@@ -24,6 +34,10 @@ const form = reactive({
   bio: '',
   slides_url: '',
 });
+
+function isSelectedSpeakerLink() {
+  return linkPurpose.value === 'selected_speaker_confirmation';
+}
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
@@ -42,12 +56,15 @@ function formatDateTime(value: string): string {
 async function submitTalkDetails() {
   submitting.value = true;
   error.value = null;
+  const payload = isSelectedSpeakerLink()
+    ? { slides_url: form.slides_url }
+    : form;
 
   try {
     const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
@@ -70,6 +87,8 @@ onMounted(async () => {
     if (response.ok) {
       event.value = data.event;
       expiresAt.value = data.link?.expires_at ?? null;
+      linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
+      applyPrefill(data.prefill ?? {});
     } else {
       unavailableMessage.value = data.error || 'This speaker form link is no longer available.';
     }
@@ -77,6 +96,16 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+function applyPrefill(prefill: IntakePrefill) {
+  form.speaker_name = prefill.speaker_name || form.speaker_name;
+  form.speaker_email = prefill.speaker_email || form.speaker_email;
+  form.github_username = prefill.github_username || form.github_username;
+  form.title = prefill.title || form.title;
+  form.topic = prefill.topic || form.topic;
+  form.abstract = prefill.abstract || form.abstract;
+  form.bio = prefill.bio || form.bio;
+}
 </script>
 
 <template>
@@ -103,7 +132,9 @@ onMounted(async () => {
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
         <div class="mb-6 font-mono text-6xl font-black text-dc-pink">OK</div>
         <h2 class="mb-4 font-mono text-3xl font-bold text-dc-ink">RECEIVED</h2>
-        <p class="mb-6 font-mono text-dc-gray">Your talk details have been sent to the organizers. This link is now closed.</p>
+        <p class="mb-6 font-mono text-dc-gray">
+          {{ isSelectedSpeakerLink() ? 'Your slides link has been sent to the organizers. This link is now closed.' : 'Your talk details have been sent to the organizers. This link is now closed.' }}
+        </p>
         <RouterLink to="/" class="block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">
           BACK TO HOME
         </RouterLink>
@@ -112,8 +143,8 @@ onMounted(async () => {
 
     <div v-else class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
       <div class="editorial-header">
-        <p class="editorial-eyebrow">speaker archive</p>
-        <h1 class="editorial-title">Share Talk Details</h1>
+        <p class="editorial-eyebrow">{{ linkPurpose === 'selected_speaker_confirmation' ? 'selected speaker' : 'speaker archive' }}</p>
+        <h1 class="editorial-title">{{ linkPurpose === 'selected_speaker_confirmation' ? 'Send Your Slides' : 'Share Talk Details' }}</h1>
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
         </p>
@@ -129,50 +160,61 @@ onMounted(async () => {
       <form class="editorial-panel space-y-6 p-6 sm:p-8" @submit.prevent="submitTalkDetails">
         <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
-          <label class="block">
-            <span class="editorial-label">Your name *</span>
-            <input v-model="form.speaker_name" required placeholder="Speaker Name" class="editorial-input font-mono" />
-          </label>
-          <label class="block">
-            <span class="editorial-label">Email address *</span>
-            <input v-model="form.speaker_email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
-          </label>
+        <div v-if="isSelectedSpeakerLink()" class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
+          <p class="editorial-eyebrow">Selected talk</p>
+          <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">{{ form.title }}</h2>
+          <p class="mt-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+            {{ form.speaker_name }} <span class="mx-2 text-dc-pink">/</span> {{ form.topic || 'General' }}
+          </p>
+          <p v-if="form.abstract" class="mt-4 text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
+        <template v-else>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block">
+              <span class="editorial-label">Your name *</span>
+              <input v-model="form.speaker_name" required placeholder="Speaker Name" class="editorial-input font-mono" />
+            </label>
+            <label class="block">
+              <span class="editorial-label">Email address *</span>
+              <input v-model="form.speaker_email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
+            <label class="block">
+              <span class="editorial-label">Talk title *</span>
+              <input v-model="form.title" required placeholder="Talk title" class="editorial-input font-mono" />
+            </label>
+            <label class="block">
+              <span class="editorial-label">Topic</span>
+              <input v-model="form.topic" placeholder="General" class="editorial-input font-mono" />
+            </label>
+          </div>
+
           <label class="block">
-            <span class="editorial-label">Talk title *</span>
-            <input v-model="form.title" required placeholder="Talk title" class="editorial-input font-mono" />
+            <span class="editorial-label">GitHub username</span>
+            <input v-model="form.github_username" placeholder="octocat" class="editorial-input font-mono" />
           </label>
+
           <label class="block">
-            <span class="editorial-label">Topic</span>
-            <input v-model="form.topic" placeholder="General" class="editorial-input font-mono" />
+            <span class="editorial-label">Abstract</span>
+            <textarea v-model="form.abstract" rows="5" class="editorial-input min-h-36 resize-y font-mono" />
           </label>
-        </div>
+
+          <label class="block">
+            <span class="editorial-label">Speaker bio</span>
+            <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y font-mono" />
+          </label>
+        </template>
 
         <label class="block">
-          <span class="editorial-label">GitHub username</span>
-          <input v-model="form.github_username" placeholder="octocat" class="editorial-input font-mono" />
-        </label>
-
-        <label class="block">
-          <span class="editorial-label">Abstract</span>
-          <textarea v-model="form.abstract" rows="5" class="editorial-input min-h-36 resize-y font-mono" />
-        </label>
-
-        <label class="block">
-          <span class="editorial-label">Speaker bio</span>
-          <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y font-mono" />
-        </label>
-
-        <label class="block">
-          <span class="editorial-label">Slides URL</span>
-          <input v-model="form.slides_url" type="url" placeholder="https://..." class="editorial-input font-mono" />
+          <span class="editorial-label">Slides URL<span v-if="isSelectedSpeakerLink()"> *</span></span>
+          <input v-model="form.slides_url" :required="isSelectedSpeakerLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
         </label>
 
         <button type="submit" :disabled="submitting" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50">
-          {{ submitting ? 'SUBMITTING...' : 'SEND DETAILS' }}
+          {{ submitting ? 'SUBMITTING...' : isSelectedSpeakerLink() ? 'SEND SLIDES' : 'SEND DETAILS' }}
         </button>
       </form>
     </div>

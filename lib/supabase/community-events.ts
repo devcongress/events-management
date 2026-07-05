@@ -349,6 +349,7 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    series_type: isEventSeriesType(row.series_type) ? row.series_type : inferEventSeriesType(row.name),
     status: publicMeetupStatus(row.starts_at, row.ends_at),
     start: toWebsiteDateTime(row.starts_at),
     end: toWebsiteDateTime(row.ends_at),
@@ -390,6 +391,9 @@ function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
           title: stringValue(resource.title, 'Resource'),
           url: stringValue(resource.url, '#'),
         }))
+        : [],
+      shared_links: Array.isArray(item.shared_links)
+        ? item.shared_links.filter((link): link is string => typeof link === 'string' && link.trim().length > 0)
         : [],
     })),
   );

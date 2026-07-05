@@ -17,6 +17,14 @@ const feedbackClosesAt = ref<string | null>(null);
 const publishedTalks = computed(() => talks.value);
 const scheduleItems = computed(() => canonicalizeSystemDesignSchedule(event.value?.schedule ?? []));
 const systemDesignItems = computed(() => scheduleItems.value.filter((item) => isSystemDesignSessionItem(item)));
+const imagePhotos = computed(() => (event.value?.photos ?? []).filter((photo) => !photo.type || photo.type === 'image'));
+const folderPhotos = computed(() => (event.value?.photos ?? []).filter((photo) => photo.type === 'folder'));
+const isQuarterlyArchive = computed(() => event.value?.series_type === 'quarterly');
+const showPublishedTalksSection = computed(() => publishedTalks.value.length > 0 || !isQuarterlyArchive.value);
+const primaryGalleryLink = computed(() => folderPhotos.value[0]?.url ?? null);
+const sharedLinks = computed(() => (
+  isQuarterlyArchive.value ? scheduleItems.value.flatMap((item) => item.shared_links ?? []) : []
+));
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -28,6 +36,24 @@ function formatDate(value: string): string {
 
 function slidesUrl(talk: PublicArchiveTalk): string | null {
   return talk.slides_url;
+}
+
+function sharedLinkHost(value: string): string {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return 'Shared link';
+  }
+}
+
+function sharedLinkPath(value: string): string {
+  try {
+    const url = new URL(value);
+    const path = `${url.pathname}${url.search}`.replace(/\/$/, '');
+    return path && path !== '/' ? path : url.hostname.replace(/^www\./, '');
+  } catch {
+    return value;
+  }
 }
 
 function systemDesignResourceTitle(resource: PublicMeetupScheduleItem['resources'][number], index: number): string {
@@ -158,54 +184,131 @@ onMounted(async () => {
           </div>
         </section>
 
-        <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
-          <div>
-            <p class="editorial-eyebrow mb-2">presentations</p>
-            <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
-              Published Talks
-            </h2>
-          </div>
-          <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ publishedTalks.length }} total</span>
-        </div>
-
-        <div v-if="publishedTalks.length === 0" class="archive-event-empty editorial-panel p-12 text-center">
-          <p class="font-mono text-dc-gray">No presentations published yet</p>
-        </div>
-
-        <div v-else class="divide-y-2 divide-dc-border border-y-2 border-dc-ink">
-          <article
-            v-for="talk in publishedTalks"
-            :key="talk.id"
-            class="py-7"
-          >
-            <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
-              <div>
-                <p class="mb-2 font-mono text-xs uppercase tracking-wide text-dc-gray">
-                  {{ talk.topic || 'General' }}
-                </p>
-                <h3 class="text-2xl font-black tracking-tight text-dc-ink">
-                  {{ talk.title }}
-                </h3>
-                <p class="mt-2 text-sm text-dc-gray">
-                  {{ talk.speaker_name }}<span v-if="talk.bio">, {{ talk.bio }}</span>
-                </p>
-                <p v-if="talk.abstract" class="mt-5 max-w-3xl text-base leading-7 text-dc-gray">
-                  {{ talk.abstract }}
-                </p>
-              </div>
-
-              <a
-                v-if="slidesUrl(talk)"
-                :href="slidesUrl(talk) ?? undefined"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="motion-press inline-flex rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow-glow"
-              >
-                Slides &rarr;
-              </a>
+        <section v-if="imagePhotos.length > 0 || folderPhotos.length > 0" class="archive-event-gallery mb-12">
+          <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p class="editorial-eyebrow mb-2">photos</p>
+              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
+                Moments from the meetup
+              </h2>
             </div>
-          </article>
-        </div>
+            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ event.photos.length }} total</span>
+          </div>
+
+          <div v-if="imagePhotos.length > 0" class="grid gap-4 sm:grid-cols-2">
+            <a
+              v-for="(photo, index) in imagePhotos"
+              :key="photo.url"
+              :href="photo.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="archive-event-photo motion-press block overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-ink shadow-[3px_3px_0_#111111]"
+            >
+              <img
+                :src="photo.url"
+                :alt="`${event.name} meetup photo ${index + 1}`"
+                class="aspect-[16/10] w-full object-cover"
+                loading="lazy"
+              >
+            </a>
+          </div>
+
+          <div v-if="folderPhotos.length > 0" class="mt-5 flex flex-col gap-3 border-t-2 border-dc-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p class="max-w-xl text-sm leading-6 text-dc-gray">
+              Browse the shared gallery for more captured room moments, speaker moments, and post-event shots.
+            </p>
+            <a
+              v-if="primaryGalleryLink"
+              :href="primaryGalleryLink"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="editorial-action shrink-0"
+            >
+              Open gallery
+            </a>
+          </div>
+        </section>
+
+        <section v-if="sharedLinks.length > 0" class="archive-event-links mb-12">
+          <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p class="editorial-eyebrow mb-2">links</p>
+              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
+                Links shared during the meetup
+              </h2>
+            </div>
+            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ sharedLinks.length }} total</span>
+          </div>
+
+          <p class="mb-5 max-w-2xl text-sm leading-6 text-dc-gray">
+            A few links that came up in the room. Some may make more sense if you attended the conversation.
+          </p>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <a
+              v-for="link in sharedLinks"
+              :key="link"
+              :href="link"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="motion-press flex min-w-0 flex-col gap-1 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111]"
+            >
+              <span class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">{{ sharedLinkHost(link) }}</span>
+              <span class="truncate text-sm font-semibold text-dc-ink">{{ sharedLinkPath(link) }}</span>
+            </a>
+          </div>
+        </section>
+
+        <section v-if="showPublishedTalksSection">
+          <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p class="editorial-eyebrow mb-2">presentations</p>
+              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
+                Published Talks
+              </h2>
+            </div>
+            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ publishedTalks.length }} total</span>
+          </div>
+
+          <div v-if="publishedTalks.length === 0" class="archive-event-empty editorial-panel p-12 text-center">
+            <p class="font-mono text-dc-gray">No presentations published yet</p>
+          </div>
+
+          <div v-else class="divide-y-2 divide-dc-border border-y-2 border-dc-ink">
+            <article
+              v-for="talk in publishedTalks"
+              :key="talk.id"
+              class="py-7"
+            >
+              <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
+                <div>
+                  <p class="mb-2 font-mono text-xs uppercase tracking-wide text-dc-gray">
+                    {{ talk.topic || 'General' }}
+                  </p>
+                  <h3 class="text-2xl font-black tracking-tight text-dc-ink">
+                    {{ talk.title }}
+                  </h3>
+                  <p class="mt-2 text-sm text-dc-gray">
+                    {{ talk.speaker_name }}<span v-if="talk.bio">, {{ talk.bio }}</span>
+                  </p>
+                  <p v-if="talk.abstract" class="mt-5 max-w-3xl text-base leading-7 text-dc-gray">
+                    {{ talk.abstract }}
+                  </p>
+                </div>
+
+                <a
+                  v-if="slidesUrl(talk)"
+                  :href="slidesUrl(talk) ?? undefined"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="motion-press inline-flex rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow-glow"
+                >
+                  Slides &rarr;
+                </a>
+              </div>
+            </article>
+          </div>
+        </section>
       </template>
     </div>
   </div>

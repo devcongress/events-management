@@ -76,6 +76,7 @@ The meetup DTO follows the current `devcongress.org` Astro meetup schema where p
 - `cover` and `photos[].url` may be app-relative paths because the Astro schema allows relative image paths.
 - `photos[]` supports direct image links and shared gallery/folder links. Each item uses `{ "url": string, "type": "image" | "folder" }`.
 - `schedule[]` carries public system-design rows too, including recap copy in `description` and prompt-deck links in `resources`, so archive or meetup pages can render that content inline without a separate system-design endpoint.
+- `schedule[].shared_links` may carry raw URLs that came up during loose quarterly meetup discussions; clients should render them only when `series_type = "quarterly"` and derive display labels from the URL instead of requiring organizer-written titles.
 - When a meetup keeps a generic outline slot such as `System Design session`, that same `schedule[]` row can also carry an optional `system_design_title` so the app can keep the public scenario title and prompt-deck metadata attached to the real session slot instead of creating a duplicate outline row.
 - Supabase rows are exposed only when `publish_to_website` is true.
 
