@@ -71,6 +71,8 @@ Required setup:
 
 Organizer access still depends on `admin_memberships`. A successful Google login does not grant organizer permissions unless the verified email is active in the allowlist.
 
+For local development, keep Google OAuth pinned to `http://localhost:5173`. The login screen blocks Google sign-in on other local ports or `127.0.0.1` so Supabase does not fall back to the deployed Site URL.
+
 ## Local Fallback
 
 If Supabase admin auth is not enabled, `/organizer-console/login` falls back to the local shared password:

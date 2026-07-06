@@ -63,7 +63,12 @@ Set `VITE_SHOW_ORGANIZER_LINK=false` in public deployments when you want to hide
 
 ### Google sign-in returns to the wrong origin
 
-In non-production, localhost requests use the current dev-server origin for browser-facing auth redirects, even when `PUBLIC_APP_URL` or `PUBLIC_FRONTEND_ORIGIN` points at a deployed Pages URL. If local Google sign-in still fails, make sure the Supabase redirect allowlist matches the port printed by Vite. For the default dev server, allow `http://localhost:5173/api/auth/admin/callback` and `http://localhost:5173/**`; if you run on port `3000`, add the same entries for `http://localhost:3000`.
+Local Google sign-in is intentionally pinned to `http://localhost:5173`. If you open the app on `127.0.0.1`, `localhost` with another port, or any other local origin, the login screen now blocks OAuth and tells you to restart on `http://localhost:5173` instead of letting Supabase fall back to the deployed Site URL.
+
+Keep the Supabase and Google OAuth allowlists focused on the canonical local origin:
+
+- `http://localhost:5173`
+- `http://localhost:5173/api/auth/admin/callback`
 
 ### Supabase health checks fail
 

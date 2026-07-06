@@ -39,6 +39,7 @@ export async function createSpeakerIntakeLink(data: {
     speaker_name: data.speaker_name ?? null,
     speaker_email: data.speaker_email ?? null,
     talk_title: data.talk_title ?? null,
+    token,
     token_hash: tokenHash,
     expires_at: data.expires_at,
     used_at: null,
@@ -53,6 +54,21 @@ export async function createSpeakerIntakeLink(data: {
   }));
 
   return { link, token };
+}
+
+export async function deleteSpeakerIntakeLink(eventId: string, linkId: string): Promise<SpeakerIntakeLink> {
+  return updateData<SpeakerIntakeLink, SpeakerIntakeLink>(FILE, (links) => {
+    const link = links.find((item) => item.event_id === eventId && item.id === linkId);
+
+    if (!link) {
+      throw new Error('Speaker form link not found');
+    }
+
+    return {
+      data: links.filter((item) => item.id !== linkId),
+      result: link,
+    };
+  });
 }
 
 export async function getSpeakerIntakeLinkByToken(eventId: string, token: string): Promise<SpeakerIntakeLink | undefined> {

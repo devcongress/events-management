@@ -150,20 +150,12 @@ export default function CFPPage({ params }: { params: { eventId: string } }) {
           <p className="text-white font-mono mb-6">
             Your talk proposal has been received. We'll review it and notify you via email.
           </p>
-          <div className="space-y-3">
-            <button
-              onClick={() => router.push('/my-talks')}
-              className="w-full px-6 py-3 bg-dc-yellow text-dc-dark font-bold font-mono hover:shadow-glow transition-shadow uppercase tracking-wide"
-            >
-              VIEW MY TALKS
-            </button>
-            <button
-              onClick={() => router.push('/')}
-              className="w-full px-6 py-3 border-2 border-dc-yellow text-dc-yellow font-bold font-mono hover:shadow-glow-sm transition-all uppercase tracking-wide"
-            >
-              BACK TO HOME
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/')}
+            className="w-full px-6 py-3 border-2 border-dc-yellow text-dc-yellow font-bold font-mono hover:shadow-glow-sm transition-all uppercase tracking-wide"
+          >
+            BACK TO HOME
+          </button>
         </div>
       </div>
     );

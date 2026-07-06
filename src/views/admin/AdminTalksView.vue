@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -10,30 +10,40 @@ import type { Event, EventStatus, SpeakerSubmission, SpeakerSubmissionStatus, Ta
 
 const route = useRoute();
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
+type AdminSpeakerIntakeLink = {
+  id: string;
+  event_id: string;
+  event_month: string;
+  purpose: 'archive_backfill' | 'selected_speaker_confirmation';
+  speaker_submission_id: string | null;
+  speaker_name: string | null;
+  speaker_email: string | null;
+  talk_title: string | null;
+  token: string | null;
+  expires_at: string;
+  used_at: string | null;
+  used_talk_id: string | null;
+  created_at: string;
+  updated_at: string;
+  status: 'active' | 'used' | 'expired';
+};
 const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
+const speakerIntakeLinks = ref<AdminSpeakerIntakeLink[]>([]);
 const loading = ref(true);
-const addingTalk = ref(false);
 const creatingSpeakerLink = ref(false);
+const deletingSpeakerLinkId = ref<string | null>(null);
 const decidingSubmissionId = ref<string | null>(null);
 const updatingCfp = ref(false);
 const refreshingSubmissions = ref(false);
 const closeCfpDialogOpen = ref(false);
 const cfpLinkCopied = ref(false);
-const speakerIntakeLinkCopied = ref(false);
+const copiedSpeakerLinkId = ref<string | null>(null);
 const expandedSubmissionId = ref<string | null>(null);
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
-const speakerFormEnabled = ref(true);
 const speakerLinkExpiresInDays = ref(7);
-const generatedSpeakerIntakePath = ref('');
-const generatedSpeakerLinkExpiresAt = ref<string | null>(null);
-const generatedSpeakerLinkMonth = ref<string | null>(null);
-const generatedSpeakerLinkPurpose = ref<'archive_backfill' | 'selected_speaker_confirmation'>('archive_backfill');
-const generatedSpeakerLinkSubmissionId = ref('');
-const generatedSpeakerLinkTitle = ref('');
-const generatedSpeakerLinkSpeakerName = ref('');
 const error = ref<string | null>(null);
 const groups: { label: string; statuses: TalkStatus[] }[] = [
   { label: 'Pending review', statuses: ['submitted'] },
@@ -41,17 +51,6 @@ const groups: { label: string; statuses: TalkStatus[] }[] = [
   { label: 'Published', statuses: ['published'] },
   { label: 'Rejected', statuses: ['rejected'] },
 ];
-const manualTalkForm = reactive({
-  speaker_name: '',
-  speaker_email: '',
-  github_username: '',
-  title: '',
-  topic: '',
-  abstract: '',
-  bio: '',
-  slides_url: '',
-  publish: false,
-});
 
 const groupedTalks = computed(() => groups.map((group) => ({
   ...group,
@@ -71,6 +70,16 @@ const selectedAwaitingSlidesCount = computed(() => speakerSubmissions.value.filt
   submission.status === 'selected' && !submission.selected_talk_id
 )).length);
 const confirmedTalkCount = computed(() => talks.value.length);
+const archiveBackfillLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'archive_backfill'));
+const selectedSpeakerPendingSubmissions = computed(() => speakerSubmissions.value.filter((submission) => (
+  submission.status === 'selected' && !submission.selected_talk_id
+)));
+const selectedSpeakerLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'selected_speaker_confirmation'));
+const missingSelectedSpeakerLinkCount = computed(() => selectedSpeakerPendingSubmissions.value.filter((submission) => {
+  const link = selectedSpeakerLinkForSubmission(submission.id);
+  return !link || link.status !== 'active' || !link.token;
+}).length);
+const activeArchiveBackfillLinkCount = computed(() => archiveBackfillLinks.value.filter((link) => link.status === 'active').length);
 const talkSections: { id: TalkSection; label: string }[] = [
   { id: 'cfp', label: 'CFP' },
   { id: 'proposals', label: 'Proposals' },
@@ -96,28 +105,37 @@ const cfpFormUrl = computed(() => {
 const eventStatus = computed(() => event.value?.status ?? 'draft');
 const cfpIsOpen = computed(() => eventStatus.value === 'cfp_open');
 const cfpIsClosed = computed(() => eventStatus.value === 'cfp_closed');
-const cfpStatusLabel = computed(() => (cfpIsOpen.value ? 'Open' : cfpIsClosed.value ? 'Closed' : 'Not open'));
+const eventIsMonthly = computed(() => (event.value?.series_type ?? (event.value?.name?.toLowerCase().includes('quarterly') ? 'quarterly' : 'monthly')) === 'monthly');
+const eventIsUpcoming = computed(() => {
+  if (!event.value?.event_date) return false;
+  const eventDateMs = new Date(event.value.event_date).getTime();
+  return Number.isFinite(eventDateMs) && eventDateMs > Date.now();
+});
+const canOpenCfp = computed(() => eventIsMonthly.value && eventIsUpcoming.value);
+const cfpCanReceiveSubmissions = computed(() => cfpIsOpen.value && canOpenCfp.value);
+const cfpStatusLabel = computed(() => (
+  cfpIsOpen.value && !canOpenCfp.value ? 'Unavailable' : cfpIsOpen.value ? 'Open' : cfpIsClosed.value ? 'Closed' : 'Not open'
+));
 const cfpStatusHelp = computed(() => {
+  if (!eventIsMonthly.value) return 'CFP is only available for monthly meetups.';
+  if (!eventIsUpcoming.value) return 'CFP can only be opened before the monthly meetup date.';
   if (cfpIsOpen.value) return 'Share the public link. New proposals will land in the inbox below.';
   if (cfpIsClosed.value) return 'Submission is paused. Reopen only if organizers are still accepting proposals.';
   return 'Open CFP when this event is ready to receive speaker proposals.';
 });
-const manualEntryEnabled = computed(() => !speakerFormEnabled.value);
-const speakerLinkExpiryOptions = [3, 7, 14, 31].map((days) => ({
+const speakerLinkExpiryDurations = [3, 7, 14, 31];
+const activeBackfillDurations = computed(() => new Set(
+  archiveBackfillLinks.value
+    .filter((link) => link.status === 'active')
+    .map((link) => linkDurationDays(link))
+    .filter((days): days is number => days !== null),
+));
+const speakerLinkExpiryOptions = computed(() => speakerLinkExpiryDurations.map((days) => ({
   value: days,
   label: `${days} days`,
-}));
-const generatedSpeakerIntakeUrl = computed(() => {
-  if (!generatedSpeakerIntakePath.value) return '';
-  if (typeof window === 'undefined') return generatedSpeakerIntakePath.value;
-  return new URL(generatedSpeakerIntakePath.value, window.location.origin).toString();
-});
-const generatedArchiveBackfillUrl = computed(() => (
-  generatedSpeakerLinkPurpose.value === 'archive_backfill' ? generatedSpeakerIntakeUrl.value : ''
-));
-const generatedSelectedSpeakerUrl = computed(() => (
-  generatedSpeakerLinkPurpose.value === 'selected_speaker_confirmation' ? generatedSpeakerIntakeUrl.value : ''
-));
+  disabled: activeBackfillDurations.value.has(days),
+})));
+const selectedSpeakerLinkDurationActive = computed(() => activeBackfillDurations.value.has(speakerLinkExpiresInDays.value));
 
 function talkSectionPath(section: TalkSection): string {
   return adminPath(`events/${String(route.params.eventId)}/talks/${section}`);
@@ -126,6 +144,7 @@ function talkSectionPath(section: TalkSection): string {
 function talkSectionCount(section: TalkSection): number | null {
   if (section === 'proposals') return pendingSubmissionCount.value;
   if (section === 'program') return confirmedTalkCount.value;
+  if (section === 'backfill') return activeArchiveBackfillLinkCount.value;
   return null;
 }
 
@@ -150,50 +169,17 @@ async function fetchSpeakerSubmissions() {
   return false;
 }
 
-async function fetchPageData() {
-  await Promise.all([fetchEvent(), fetchTalks(), fetchSpeakerSubmissions()]);
-  loading.value = false;
-}
-
-function resetManualTalkForm() {
-  manualTalkForm.speaker_name = '';
-  manualTalkForm.speaker_email = '';
-  manualTalkForm.github_username = '';
-  manualTalkForm.title = '';
-  manualTalkForm.topic = '';
-  manualTalkForm.abstract = '';
-  manualTalkForm.bio = '';
-  manualTalkForm.slides_url = '';
-  manualTalkForm.publish = false;
-}
-
-async function addManualTalk() {
-  if (!manualEntryEnabled.value) return;
-
-  addingTalk.value = true;
-  error.value = null;
-
-  const shouldPublish = manualTalkForm.publish;
-  try {
-    const response = await fetch(`/api/events/${route.params.eventId}/talks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(manualTalkForm),
-    });
-
-    if (response.ok) {
-      resetManualTalkForm();
-      await fetchTalks();
-      notify.success(shouldPublish ? 'Talk published to the archive.' : 'Talk added to the program.');
-    } else {
-      const data = await response.json();
-      error.value = data.error || 'Failed to add talk';
-    }
-  } catch {
-    error.value = 'Failed to add talk';
-  } finally {
-    addingTalk.value = false;
+async function fetchSpeakerIntakeLinks() {
+  const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links`, { cache: 'no-store' });
+  if (response.ok) {
+    const data = await response.json();
+    speakerIntakeLinks.value = data.links ?? [];
   }
+}
+
+async function fetchPageData() {
+  await Promise.all([fetchEvent(), fetchTalks(), fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
+  loading.value = false;
 }
 
 function formatDateTime(value: string): string {
@@ -204,6 +190,23 @@ function formatDateTime(value: string): string {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function linkDurationDays(link: Pick<AdminSpeakerIntakeLink, 'created_at' | 'expires_at'>): number | null {
+  const createdAt = new Date(link.created_at).getTime();
+  const expiresAt = new Date(link.expires_at).getTime();
+  if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) return null;
+
+  const durationDays = Math.round((expiresAt - createdAt) / (24 * 60 * 60 * 1000));
+  return durationDays > 0 ? durationDays : null;
+}
+
+function linkShelfStatusLabel(link: AdminSpeakerIntakeLink): string {
+  if (link.status === 'used') return 'Used';
+  if (link.status === 'expired') return 'Expired';
+
+  const durationDays = linkDurationDays(link);
+  return durationDays ? `Expires in ${durationDays} days` : 'Active';
 }
 
 function submissionDetailsOpen(submissionId: string) {
@@ -229,7 +232,7 @@ async function refreshSpeakerSubmissions() {
 }
 
 async function generateSpeakerIntakeLink() {
-  if (!speakerFormEnabled.value) return;
+  if (selectedSpeakerLinkDurationActive.value) return;
 
   creatingSpeakerLink.value = true;
   error.value = null;
@@ -243,14 +246,8 @@ async function generateSpeakerIntakeLink() {
     const data = await response.json();
 
     if (response.ok) {
-      generatedSpeakerIntakePath.value = `/speaker-talks/${route.params.eventId}/${data.token}`;
-      generatedSpeakerLinkExpiresAt.value = data.link?.expires_at ?? null;
-      generatedSpeakerLinkMonth.value = data.link?.event_month ?? null;
-      generatedSpeakerLinkPurpose.value = data.link?.purpose ?? 'archive_backfill';
-      generatedSpeakerLinkSubmissionId.value = '';
-      generatedSpeakerLinkTitle.value = '';
-      generatedSpeakerLinkSpeakerName.value = '';
       resetSpeakerIntakeLinkCopied();
+      await fetchSpeakerIntakeLinks();
       notify.success('One-time speaker link generated.');
     } else {
       error.value = data.error || 'Could not generate speaker form link.';
@@ -278,15 +275,8 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
     const data = await response.json();
 
     if (response.ok) {
-      await fetchSpeakerSubmissions();
+      await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
       if (status === 'selected' && data.token) {
-        generatedSpeakerIntakePath.value = `/speaker-talks/${route.params.eventId}/${data.token}`;
-        generatedSpeakerLinkExpiresAt.value = data.link?.expires_at ?? null;
-        generatedSpeakerLinkMonth.value = data.link?.event_month ?? null;
-        generatedSpeakerLinkPurpose.value = 'selected_speaker_confirmation';
-        generatedSpeakerLinkSubmissionId.value = data.submission?.id ?? submissionId;
-        generatedSpeakerLinkTitle.value = data.submission?.title ?? '';
-        generatedSpeakerLinkSpeakerName.value = data.submission?.speaker_name ?? '';
         resetSpeakerIntakeLinkCopied();
         notify.success('Slides link generated.');
       } else {
@@ -299,6 +289,44 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
     error.value = 'Failed to update speaker submission';
   } finally {
     decidingSubmissionId.value = null;
+  }
+}
+
+async function generateSelectedSpeakerLinks() {
+  const submissionsNeedingLinks = selectedSpeakerPendingSubmissions.value.filter((submission) => {
+    const link = selectedSpeakerLinkForSubmission(submission.id);
+    return !link || link.status !== 'active' || !link.token;
+  });
+
+  if (submissionsNeedingLinks.length === 0) return;
+
+  creatingSpeakerLink.value = true;
+  error.value = null;
+
+  try {
+    for (const submission of submissionsNeedingLinks) {
+      const response = await fetch(`/api/speaker-submissions/${submission.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'selected',
+          expires_in_days: speakerLinkExpiresInDays.value,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || `Could not generate a slides link for ${submission.speaker_name}.`);
+      }
+    }
+
+    await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
+    resetSpeakerIntakeLinkCopied();
+    notify.success(submissionsNeedingLinks.length === 1 ? 'Slides link generated.' : 'Selected speaker links generated.');
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'Could not generate selected speaker links.';
+  } finally {
+    creatingSpeakerLink.value = false;
   }
 }
 
@@ -334,6 +362,8 @@ async function copyCfpFormLink() {
 }
 
 async function updateCfpStatus(status: Extract<EventStatus, 'cfp_open' | 'cfp_closed'>) {
+  if (status === 'cfp_open' && !canOpenCfp.value) return;
+
   updatingCfp.value = true;
   error.value = null;
 
@@ -372,17 +402,28 @@ async function confirmCloseCfp() {
   if (!error.value) closeCfpDialogOpen.value = false;
 }
 
-async function copySpeakerIntakeLink() {
-  if (!generatedSpeakerIntakeUrl.value) return;
+function speakerIntakePathForToken(token: string | null): string {
+  return token ? `/speaker-talks/${route.params.eventId}/${token}` : '';
+}
+
+function speakerIntakeUrlForToken(token: string | null): string {
+  const path = speakerIntakePathForToken(token);
+  if (!path) return '';
+  if (typeof window === 'undefined') return path;
+  return new URL(path, window.location.origin).toString();
+}
+
+async function copySpeakerIntakeLink(url: string, linkId: string) {
+  if (!url) return;
 
   error.value = null;
 
   try {
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(generatedSpeakerIntakeUrl.value);
+      await navigator.clipboard.writeText(url);
     } else {
       const textarea = document.createElement('textarea');
-      textarea.value = generatedSpeakerIntakeUrl.value;
+      textarea.value = url;
       textarea.setAttribute('readonly', '');
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
@@ -392,10 +433,10 @@ async function copySpeakerIntakeLink() {
       textarea.remove();
     }
 
-    speakerIntakeLinkCopied.value = true;
+    copiedSpeakerLinkId.value = linkId;
     if (speakerIntakeLinkCopiedResetTimer) clearTimeout(speakerIntakeLinkCopiedResetTimer);
     speakerIntakeLinkCopiedResetTimer = setTimeout(() => {
-      speakerIntakeLinkCopied.value = false;
+      copiedSpeakerLinkId.value = null;
       speakerIntakeLinkCopiedResetTimer = null;
     }, 2200);
   } catch {
@@ -404,10 +445,33 @@ async function copySpeakerIntakeLink() {
 }
 
 function resetSpeakerIntakeLinkCopied() {
-  speakerIntakeLinkCopied.value = false;
+  copiedSpeakerLinkId.value = null;
   if (speakerIntakeLinkCopiedResetTimer) {
     clearTimeout(speakerIntakeLinkCopiedResetTimer);
     speakerIntakeLinkCopiedResetTimer = null;
+  }
+}
+
+async function deleteSpeakerIntakeLink(linkId: string) {
+  deletingSpeakerLinkId.value = linkId;
+  error.value = null;
+
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links/${linkId}`, {
+      method: 'DELETE',
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      await fetchSpeakerIntakeLinks();
+      notify.success('Speaker form link removed.');
+    } else {
+      error.value = data.error || 'Could not remove speaker form link.';
+    }
+  } catch {
+    error.value = 'Could not remove speaker form link.';
+  } finally {
+    deletingSpeakerLinkId.value = null;
   }
 }
 
@@ -463,10 +527,23 @@ function slidesLink(talk: Talk): string | null {
   return null;
 }
 
-function selectedSpeakerLinkVisible(submission: SpeakerSubmission): boolean {
-  return generatedSpeakerLinkPurpose.value === 'selected_speaker_confirmation'
-    && generatedSpeakerLinkSubmissionId.value === submission.id
-    && Boolean(generatedSelectedSpeakerUrl.value);
+function selectedSpeakerLinkForSubmission(submissionId: string): AdminSpeakerIntakeLink | null {
+  const links = selectedSpeakerLinks.value
+    .filter((link) => link.speaker_submission_id === submissionId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  return links.find((link) => link.status === 'active') ?? links[0] ?? null;
+}
+
+function selectedSpeakerLinkLabel(submission: SpeakerSubmission): string {
+  const link = selectedSpeakerLinkForSubmission(submission.id);
+  if (!link) return 'Needs link';
+  if (!link.token) return 'Needs regeneration';
+  if (link.status === 'used') return 'Used';
+  if (link.status === 'expired') return 'Expired';
+
+  const durationDays = linkDurationDays(link);
+  return durationDays ? `Expires in ${durationDays} days` : 'Link ready';
 }
 
 function actionClass(isPrimary = false): string {
@@ -479,11 +556,6 @@ function proposalActionClass(isPrimary = false): string {
   return isPrimary
     ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
     : 'motion-press rounded-md border border-dc-border bg-dc-paper px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:opacity-40';
-}
-
-function toggleSpeakerForm() {
-  speakerFormEnabled.value = !speakerFormEnabled.value;
-  error.value = null;
 }
 
 onMounted(fetchPageData);
@@ -546,13 +618,14 @@ onUnmounted(() => {
             <div v-if="cfpIsOpen" class="cfp-share-row">
               <label class="cfp-share-field">
                 <span class="ops-label">public form</span>
-                <input :value="cfpFormUrl" readonly class="editorial-input font-mono text-sm" />
+                <input :value="cfpCanReceiveSubmissions ? cfpFormUrl : 'CFP unavailable for this event date'" readonly class="editorial-input font-mono text-sm" />
               </label>
               <div class="cfp-share-actions">
                 <button
                   type="button"
                   class="cfp-primary-action motion-press"
                   :class="{ 'cfp-primary-action--copied': cfpLinkCopied }"
+                  :disabled="!cfpCanReceiveSubmissions"
                   :aria-label="cfpLinkCopied ? 'CFP link copied' : 'Copy CFP link'"
                   @click="copyCfpFormLink"
                 >
@@ -561,7 +634,8 @@ onUnmounted(() => {
                   </svg>
                   <span>{{ cfpLinkCopied ? 'Copied' : 'Copy link' }}</span>
                 </button>
-                <a :href="cfpFormPath" target="_blank" rel="noopener noreferrer" class="cfp-secondary-action motion-press">Open form</a>
+                <a v-if="cfpCanReceiveSubmissions" :href="cfpFormPath" target="_blank" rel="noopener noreferrer" class="cfp-secondary-action motion-press">Open form</a>
+                <button v-else type="button" disabled class="cfp-secondary-action motion-press">Form unavailable</button>
                 <button
                   v-if="cfpIsOpen"
                   type="button"
@@ -578,38 +652,26 @@ onUnmounted(() => {
               <p>{{ cfpIsClosed ? 'Reopen when organizers want to accept more proposals.' : 'This will make the public CFP form available for this event.' }}</p>
               <button
                 type="button"
-                :disabled="updatingCfp"
+                :disabled="updatingCfp || !canOpenCfp"
                 class="cfp-primary-action motion-press"
                 @click="updateCfpStatus('cfp_open')"
               >
-                {{ cfpIsClosed ? 'Reopen CFP' : 'Open CFP' }}
+                {{ !canOpenCfp ? 'CFP unavailable' : cfpIsClosed ? 'Reopen CFP' : 'Open CFP' }}
               </button>
             </div>
           </div>
         </section>
 
         <section v-if="activeTalkSection === 'backfill'" class="ops-panel mb-8 p-5">
-          <div class="mb-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.7fr)]">
+          <div class="mb-6 grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(20rem,1fr)]">
             <div>
-              <p class="ops-label">manual entry</p>
-              <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Add Talk</h2>
-              <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Backfill confirmed or past talks yourself, with slides now or later. CFP proposals live in the inbox below until organizers make a final decision.</p>
-              <div v-if="!manualEntryEnabled" class="mt-5 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
-                <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Manual entry disabled</p>
-                <p class="mt-1 text-sm leading-6 text-dc-gray">Turn off the speaker form to enter talk details yourself.</p>
-              </div>
+              <p class="ops-label">legacy backfill</p>
+              <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Speaker Form Links</h2>
+              <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Generate one-time links for confirmed or past speakers who need to send archive details. Links stay visible here while they are active, and remain removable after use or expiry.</p>
             </div>
-            <div class="border-t border-dc-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" :class="{ 'opacity-55': !speakerFormEnabled }">
-              <div class="flex items-start justify-between gap-4">
-                <div>
-                  <p class="ops-label">archive backfill</p>
-                  <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Send a one-time link</h3>
-                </div>
-                <label class="motion-press flex shrink-0 cursor-pointer items-center gap-2 rounded-md border border-dc-border bg-dc-paper px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                  <input :checked="speakerFormEnabled" type="checkbox" class="size-4 accent-dc-pink" @change="toggleSpeakerForm" />
-                  <span>{{ speakerFormEnabled ? 'On' : 'Off' }}</span>
-                </label>
-              </div>
+            <div class="border-t border-dc-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              <p class="ops-label">archive backfill</p>
+              <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Send a one-time link</h3>
               <p class="mt-2 text-sm leading-6 text-dc-gray">Generate a month-specific archive/backfill link for one speaker. Selected CFP speakers get their own confirmation links from the inbox.</p>
 
               <div class="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -617,106 +679,93 @@ onUnmounted(() => {
                   :model-value="speakerLinkExpiresInDays"
                   label="Valid for"
                   :options="speakerLinkExpiryOptions"
-                  :disabled="!speakerFormEnabled"
                   density="compact"
                   menu-class="min-w-40"
                   @update:model-value="speakerLinkExpiresInDays = Number($event)"
                 />
-                <button type="button" :disabled="!speakerFormEnabled || creatingSpeakerLink" class="editorial-secondary-action self-end px-4 py-3 text-xs" @click="generateSpeakerIntakeLink">
-                  {{ creatingSpeakerLink ? 'Generating...' : 'Generate link' }}
+                <button type="button" :disabled="creatingSpeakerLink || selectedSpeakerLinkDurationActive" class="editorial-secondary-action self-end px-4 py-3 text-xs" @click="generateSpeakerIntakeLink">
+                  {{ creatingSpeakerLink ? 'Generating...' : selectedSpeakerLinkDurationActive ? 'Already active' : 'Generate link' }}
                 </button>
               </div>
+              <p v-if="selectedSpeakerLinkDurationActive" class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                Remove the active {{ speakerLinkExpiresInDays }} day link before generating another one.
+              </p>
 
-              <div v-if="generatedArchiveBackfillUrl" class="mt-4 rounded-md border border-dc-border bg-dc-paper-warm p-3">
-                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                  {{ generatedSpeakerLinkMonth ? `Archive backfill / ${generatedSpeakerLinkMonth}` : 'Archive backfill link' }}
-                  <span v-if="generatedSpeakerLinkExpiresAt"> / Expires {{ formatDateTime(generatedSpeakerLinkExpiresAt) }}</span>
-                </p>
-                <input :value="generatedArchiveBackfillUrl" readonly :disabled="!speakerFormEnabled" class="editorial-input mt-3 font-mono text-sm disabled:cursor-not-allowed disabled:opacity-55" />
-                <div class="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    :disabled="!speakerFormEnabled"
-                    class="inline-flex items-center gap-1.5"
-                    :class="actionClass()"
-                    :aria-label="speakerIntakeLinkCopied ? 'Speaker form link copied' : 'Copy speaker form link'"
-                    @click="copySpeakerIntakeLink"
-                  >
-                    <svg v-if="speakerIntakeLinkCopied" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                      <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
-                    </svg>
-                    <span>{{ speakerIntakeLinkCopied ? 'Copied' : 'Copy link' }}</span>
-                  </button>
-                  <a v-if="speakerFormEnabled" :href="generatedSpeakerIntakePath" target="_blank" rel="noopener noreferrer" :class="actionClass()">Open form</a>
-                </div>
-              </div>
             </div>
           </div>
 
-          <Transition name="manual-rollup">
-            <form v-show="manualEntryEnabled" class="manual-entry-form" @submit.prevent="addManualTalk">
-              <div class="manual-rollup-inner">
-                <fieldset :disabled="!manualEntryEnabled || addingTalk" class="space-y-4">
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <label class="block">
-                      <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Speaker name</span>
-                      <input v-model="manualTalkForm.speaker_name" required placeholder="Speaker Name" class="editorial-input font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                    </label>
-                    <label class="block">
-                      <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Speaker email</span>
-                      <input v-model="manualTalkForm.speaker_email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                    </label>
+          <section class="border-t border-dc-border pt-5">
+            <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p class="ops-label">generated links</p>
+                <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Backfill Link Shelf</h3>
+              </div>
+              <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ activeArchiveBackfillLinkCount }} active</p>
+            </div>
+
+            <div v-if="archiveBackfillLinks.length > 0" class="space-y-3">
+              <article
+                v-for="link in archiveBackfillLinks"
+                :key="link.id"
+                class="rounded-md border border-dc-border bg-dc-paper-warm p-3"
+              >
+                <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                  <div class="min-w-0">
+                    <div class="mb-2 flex flex-wrap items-center gap-2">
+                      <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Archive backfill / {{ link.event_month }}</p>
+                      <span class="rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ link.status }}</span>
+                    </div>
+                    <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                      {{ linkShelfStatusLabel(link) }}
+                    </p>
                   </div>
-
-                  <div class="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
-                    <label class="block">
-                      <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Talk title</span>
-                      <input v-model="manualTalkForm.title" required placeholder="Talk title" class="editorial-input font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                    </label>
-                    <label class="block">
-                      <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Topic</span>
-                      <input v-model="manualTalkForm.topic" placeholder="General" class="editorial-input font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                    </label>
-                  </div>
-
-                  <label class="block">
-                    <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">GitHub username</span>
-                    <input v-model="manualTalkForm.github_username" placeholder="octocat" class="editorial-input font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                  </label>
-
-                  <div class="grid gap-4 md:grid-cols-2">
-                    <label class="block">
-                      <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Abstract</span>
-                      <textarea v-model="manualTalkForm.abstract" rows="3" class="editorial-input min-h-28 resize-y font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                    </label>
-                    <label class="block">
-                      <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Speaker bio</span>
-                      <textarea v-model="manualTalkForm.bio" rows="3" class="editorial-input min-h-28 resize-y font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                    </label>
-                  </div>
-
-                  <label class="block">
-                    <span class="mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">Slides URL</span>
-                    <input v-model="manualTalkForm.slides_url" type="url" placeholder="https://..." class="editorial-input font-mono disabled:cursor-not-allowed disabled:opacity-55" />
-                  </label>
-
-                  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <label class="flex items-start gap-3 text-sm font-semibold leading-6 text-dc-gray">
-                      <input v-model="manualTalkForm.publish" type="checkbox" class="mt-1 size-4 shrink-0 accent-dc-pink disabled:cursor-not-allowed disabled:opacity-55" />
-                      <span>Publish this talk to the archive immediately</span>
-                    </label>
-                    <button type="submit" :disabled="!manualEntryEnabled || addingTalk" class="editorial-action shrink-0">
-                      {{ addingTalk ? 'ADDING...' : 'ADD TALK' }}
+                  <div class="flex flex-wrap gap-2 lg:justify-end">
+                    <button
+                      type="button"
+                      :disabled="!speakerIntakeUrlForToken(link.token)"
+                      class="inline-flex items-center gap-1.5"
+                      :class="actionClass()"
+                      :aria-label="copiedSpeakerLinkId === link.id ? 'Backfill link copied' : 'Copy backfill link'"
+                      @click="copySpeakerIntakeLink(speakerIntakeUrlForToken(link.token), link.id)"
+                    >
+                      <svg v-if="copiedSpeakerLinkId === link.id" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                      <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
+                      </svg>
+                      <span>{{ copiedSpeakerLinkId === link.id ? 'Copied' : 'Copy' }}</span>
+                    </button>
+                    <a
+                      v-if="speakerIntakePathForToken(link.token)"
+                      :href="speakerIntakePathForToken(link.token)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      :class="actionClass()"
+                    >
+                      Open
+                    </a>
+                    <button
+                      type="button"
+                      :disabled="deletingSpeakerLinkId === link.id"
+                      :class="actionClass()"
+                      @click="deleteSpeakerIntakeLink(link.id)"
+                    >
+                      {{ deletingSpeakerLinkId === link.id ? 'Removing...' : 'Remove' }}
                     </button>
                   </div>
-                </fieldset>
-              </div>
-            </form>
-          </Transition>
+                </div>
+                <p v-if="!link.token" class="mt-3 rounded-md border border-dc-border bg-dc-paper px-3 py-2 text-sm leading-6 text-dc-gray">
+                  This older link was generated before link recovery was enabled. Generate a new one if you need to copy it again.
+                </p>
+              </article>
+            </div>
+            <div v-else class="rounded-md border border-dc-border bg-dc-paper-warm p-5 text-center">
+              <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">No backfill links yet</p>
+              <p class="mt-2 text-sm leading-6 text-dc-gray">Generated links will stay here until you remove them.</p>
+            </div>
+          </section>
         </section>
 
         <section v-if="activeTalkSection === 'proposals'" class="mb-8">
@@ -745,6 +794,74 @@ onUnmounted(() => {
           </div>
 
           <div v-if="speakerSubmissions.length > 0" class="space-y-6">
+            <section v-if="selectedSpeakerPendingSubmissions.length > 0" class="ops-panel overflow-hidden">
+              <div class="flex flex-col gap-3 border-b border-dc-border bg-dc-paper-warm px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p class="ops-label">selected speaker links</p>
+                  <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Slides upload links</h3>
+                  <p class="mt-1 text-sm leading-6 text-dc-gray">Generate one private link per selected speaker, then copy or open them from here.</p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="creatingSpeakerLink || missingSelectedSpeakerLinkCount === 0"
+                  :class="proposalActionClass(true)"
+                  @click="generateSelectedSpeakerLinks"
+                >
+                  {{ creatingSpeakerLink ? 'Generating...' : missingSelectedSpeakerLinkCount === 0 ? 'Links ready' : `Generate ${missingSelectedSpeakerLinkCount} link${missingSelectedSpeakerLinkCount === 1 ? '' : 's'}` }}
+                </button>
+              </div>
+
+              <div class="divide-y divide-dc-border">
+                <article
+                  v-for="submission in selectedSpeakerPendingSubmissions"
+                  :key="`selected-link-${submission.id}`"
+                  class="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(16rem,1fr)_auto] lg:items-center"
+                >
+                  <div class="min-w-0">
+                    <h4 class="truncate text-sm font-black tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</h4>
+                    <p class="mt-1 truncate text-sm font-semibold text-dc-gray">{{ submission.speaker_name }}</p>
+                  </div>
+                  <input
+                    v-if="speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
+                    :value="speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
+                    readonly
+                    class="editorial-input font-mono text-sm"
+                  />
+                  <p v-else class="rounded-md border border-dc-border bg-dc-paper px-3 py-2 text-sm leading-6 text-dc-gray">
+                    {{ selectedSpeakerLinkLabel(submission) }}
+                  </p>
+                  <div class="flex flex-wrap gap-2 lg:justify-end">
+                    <button
+                      type="button"
+                      :disabled="!speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
+                      class="inline-flex items-center gap-1.5"
+                      :class="actionClass()"
+                      :aria-label="copiedSpeakerLinkId === `selected-${submission.id}` ? 'Slides link copied' : 'Copy slides link'"
+                      @click="copySpeakerIntakeLink(speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null), `selected-${submission.id}`)"
+                    >
+                      <svg v-if="copiedSpeakerLinkId === `selected-${submission.id}`" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                      <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
+                      </svg>
+                      <span>{{ copiedSpeakerLinkId === `selected-${submission.id}` ? 'Copied' : 'Copy' }}</span>
+                    </button>
+                    <a
+                      v-if="speakerIntakePathForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
+                      :href="speakerIntakePathForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      :class="actionClass()"
+                    >
+                      Open
+                    </a>
+                  </div>
+                </article>
+              </div>
+            </section>
+
             <section v-for="group in groupedSubmissions.filter((item) => item.submissions.length > 0)" :key="group.label">
               <h3 class="mb-3 flex items-center gap-3 text-lg font-black tracking-tight text-dc-ink">
                 {{ group.label }}
@@ -787,54 +904,18 @@ onUnmounted(() => {
                       >
                         Not selected
                       </button>
-                      <button
+                      <span
                         v-if="submission.status === 'selected' && !submission.selected_talk_id"
-                        :disabled="decidingSubmissionId === submission.id"
-                        :class="proposalActionClass(true)"
-                        @click="decideSpeakerSubmission(submission.id, 'selected')"
+                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray"
                       >
-                        {{ selectedSpeakerLinkVisible(submission) ? 'Regenerate link' : 'Generate link' }}
-                      </button>
+                        {{ selectedSpeakerLinkLabel(submission) }}
+                      </span>
                       <span
                         v-if="submission.status === 'selected' && submission.selected_talk_id"
                         class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray"
                       >
                         Slides received
                       </span>
-                    </div>
-                  </div>
-                  <div
-                    v-if="selectedSpeakerLinkVisible(submission)"
-                    class="selected-speaker-inline-link"
-                    @click.stop
-                    @keydown.stop
-                  >
-                    <div class="min-w-0">
-                      <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Slides link</p>
-                      <p class="mt-1 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                        {{ generatedSpeakerLinkSpeakerName || submission.speaker_name }}
-                        <span v-if="generatedSpeakerLinkExpiresAt"> / Expires {{ formatDateTime(generatedSpeakerLinkExpiresAt) }}</span>
-                      </p>
-                    </div>
-                    <div class="selected-speaker-inline-link-actions">
-                      <input :value="generatedSelectedSpeakerUrl" readonly class="editorial-input font-mono text-sm" />
-                      <button
-                        type="button"
-                        class="inline-flex items-center gap-1.5"
-                        :class="actionClass()"
-                        :aria-label="speakerIntakeLinkCopied ? 'Slides link copied' : 'Copy slides link'"
-                        @click="copySpeakerIntakeLink"
-                      >
-                        <svg v-if="speakerIntakeLinkCopied" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                          <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                        <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                          <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                          <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
-                        </svg>
-                        <span>{{ speakerIntakeLinkCopied ? 'Copied' : 'Copy' }}</span>
-                      </button>
-                      <a :href="generatedSpeakerIntakePath" target="_blank" rel="noopener noreferrer" :class="actionClass()">Open</a>
                     </div>
                   </div>
                   <Transition name="proposal-accordion">

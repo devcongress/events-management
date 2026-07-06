@@ -26,7 +26,6 @@ devcongress-comm-idea/
 │   │   ├── page.tsx            Landing page
 │   │   ├── archive/            Past events & talks
 │   │   ├── cfp/[eventId]/      CFP submission form
-│   │   ├── my-talks/           Speaker slide upload dashboard
 │   │   ├── play/               Quiz join + live player view
 │   │   └── leaderboard/        Global leaderboard
 │   ├── (admin)/           ← Organizer pages
@@ -82,8 +81,8 @@ devcongress-comm-idea/
 - `/archive/[eventId]` — published talks for one event
 - `/leaderboard` — public leaderboard and prototype account claim/merge tools
 - `/cfp/[eventId]` — speaker CFP submission
+- `/speaker-talks/[eventId]/[token]` — private selected-speaker or archive-backfill intake form
 - `/feedback/[eventId]` — public event feedback form for open feedback campaigns
-- `/my-talks` — speaker lookup and slide URL upload/update
 - `/play` — quiz join form
 - `/play/[code]` — live quiz player flow
 - `/:pathMatch(.*)*` — branded 404 for unknown client routes
@@ -131,9 +130,8 @@ devcongress-comm-idea/
 - `/api/feedback/events/[eventId]/submissions` — public structured event feedback submission
 - `/api/cfp` — CFP submission
 - `/api/talks` — all talks, optional `eventId` query filter
-- `/api/talks/[talkId]` — admin talk status update or speaker self-service slide URL update
+- `/api/talks/[talkId]` — admin talk status update
 - `/api/talks/[talkId]/reminder` — logs organizer slide reminders for accepted talks
-- `/api/my-talks` — speaker talk lookup
 - `/api/leaderboard` — all-time, monthly, or session leaderboard
 - `/api/users/claim`, `/api/users/merge` — prototype account tools
 - `/api/quiz/active`, `/api/quiz/join`, `/api/quiz/state`, `/api/quiz/answer` — player quiz flow
@@ -146,7 +144,7 @@ devcongress-comm-idea/
 - `/archive` — completed events index
 - `/archive/[eventId]` — published talks for one event
 - `/cfp/[eventId]` — speaker CFP submission
-- `/my-talks` — speaker lookup + slides upload
+- `/speaker-talks/[eventId]/[token]` — private selected-speaker or archive-backfill intake form
 - `/play` — quiz join form
 - `/play/[code]` — live quiz gameplay
 - `/leaderboard` — public leaderboard view
@@ -175,7 +173,6 @@ devcongress-comm-idea/
 - `/api/cfp` (`POST`)
 - `/api/talks/[talkId]` (`PATCH`)
 - `/api/talks/[talkId]/upload` (`POST`, multipart file upload)
-- `/api/my-talks` (`GET`)
 - `/api/leaderboard` (`GET`)
 - `/api/quiz/active` (`GET`)
 - `/api/quiz/join` (`POST`)

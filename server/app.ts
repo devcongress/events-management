@@ -6,7 +6,7 @@ import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
-import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
+import { inferEventSeriesType, isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
 import { ROUTE_FEEDBACK_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
@@ -17,7 +17,7 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
-import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired } from '@/lib/mock-db/speaker-intake-links';
+import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
@@ -104,6 +104,12 @@ const CFP_ABSTRACT_WORD_LIMIT = 120;
 const CFP_BIO_WORD_LIMIT = 80;
 function countWords(value: string): number {
   return value.trim().split(/\s+/).filter(Boolean).length;
+}
+function canOpenCfpForEvent(event: Pick<Event, 'name' | 'series_type' | 'event_date'>, nowMs = Date.now()): boolean {
+  if (resolveEventSeriesType(event) !== 'monthly') return false;
+
+  const eventDateMs = new Date(event.event_date).getTime();
+  return Number.isFinite(eventDateMs) && eventDateMs > nowMs;
 }
 const speakerSubmissionCreateSchema = adminCreateTalkSchema
   .omit({ slides_url: true, publish: true })
@@ -222,11 +228,9 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || path.startsWith('/api/public/archive/')
     || path === '/api/public/home'
     || path.startsWith('/api/health')
-    || path === '/api/my-talks'
     || path === '/api/auth/session'
     || path === '/api/auth/admin/callback'
     ))
-    || (method === 'PATCH' && /^\/api\/talks\/[^/]+$/.test(path))
     || (method === 'POST' && (
       path === '/api/cfp'
       || path === '/api/feedback'
@@ -2896,12 +2900,22 @@ app.patch('/api/events/:eventId', async (c) => {
 
   try {
     const body = await c.req.json();
+    const eventId = c.req.param('eventId');
+    const event = await getEventById(eventId, c);
+
+    if (!event) {
+      return c.json({ error: 'Event not found' }, 404);
+    }
+
+    if (body.status === 'cfp_open' && !canOpenCfpForEvent(event)) {
+      return c.json({ error: 'CFP can only be opened for upcoming monthly events.' }, 409);
+    }
+
     const updates = {
       ...body,
       ...(Array.isArray(body.photos) ? { photos: normalizeEventPhotos(body.photos) } : {}),
     };
 
-    const eventId = c.req.param('eventId');
     const updatedEvent = await updateEvent(eventId, updates, c);
     await auditAdminAction(c, {
       action: 'event.update',
@@ -2990,6 +3004,15 @@ function speakerIntakeLinkStatus(link: Pick<SpeakerIntakeLink, 'used_at' | 'expi
   return speakerIntakeLinkExpired(link) ? 'expired' : 'active';
 }
 
+function speakerIntakeLinkDurationDays(link: Pick<SpeakerIntakeLink, 'created_at' | 'expires_at'>): number | null {
+  const createdAt = new Date(link.created_at).getTime();
+  const expiresAt = new Date(link.expires_at).getTime();
+  if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) return null;
+
+  const durationDays = Math.round((expiresAt - createdAt) / (24 * 60 * 60 * 1000));
+  return durationDays > 0 ? durationDays : null;
+}
+
 function serializeSpeakerIntakeLink(link: Pick<
   SpeakerIntakeLink,
   | 'id'
@@ -3000,12 +3023,13 @@ function serializeSpeakerIntakeLink(link: Pick<
   | 'speaker_name'
   | 'speaker_email'
   | 'talk_title'
+  | 'token'
   | 'expires_at'
   | 'used_at'
   | 'used_talk_id'
   | 'created_at'
   | 'updated_at'
->) {
+>, options: { includeToken?: boolean } = {}) {
   return {
     id: link.id,
     event_id: link.event_id,
@@ -3015,6 +3039,7 @@ function serializeSpeakerIntakeLink(link: Pick<
     speaker_name: link.speaker_name ?? null,
     speaker_email: link.speaker_email ?? null,
     talk_title: link.talk_title ?? null,
+    token: options.includeToken ? link.token ?? null : null,
     expires_at: link.expires_at,
     used_at: link.used_at,
     used_talk_id: link.used_talk_id,
@@ -3254,7 +3279,7 @@ app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
   const links = await getSpeakerIntakeLinksByEvent(eventId);
   return c.json({
     event_month: eventMonthKey(event.event_date),
-    links: links.map(serializeSpeakerIntakeLink),
+    links: links.map((link) => serializeSpeakerIntakeLink(link, { includeToken: true })),
   });
 });
 
@@ -3276,6 +3301,17 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the link expiry' }, 400);
   }
 
+  const existingLinks = await getSpeakerIntakeLinksByEvent(eventId);
+  const duplicateActiveDuration = existingLinks.some((link) => (
+    (link.purpose ?? 'archive_backfill') === 'archive_backfill'
+    && speakerIntakeLinkStatus(link) === 'active'
+    && speakerIntakeLinkDurationDays(link) === parsed.data.expires_in_days
+  ));
+
+  if (duplicateActiveDuration) {
+    return c.json({ error: `A ${parsed.data.expires_in_days} day backfill link is already active for this event.` }, 409);
+  }
+
   const { link, token } = await createSpeakerIntakeLink({
     event_id: eventId,
     event_month: eventMonthKey(event.event_date),
@@ -3294,9 +3330,40 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
   });
 
   return c.json({
-    link: serializeSpeakerIntakeLink(link),
+    link: serializeSpeakerIntakeLink(link, { includeToken: true }),
     token,
   }, 201);
+});
+
+app.delete('/api/events/:eventId/speaker-intake-links/:linkId', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const linkId = c.req.param('linkId');
+  const event = await getEventById(eventId, c);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  try {
+    const link = await deleteSpeakerIntakeLink(eventId, linkId);
+    await auditAdminAction(c, {
+      action: 'speaker_intake_link.delete',
+      targetType: 'speaker_intake_link',
+      targetId: link.id,
+      metadata: {
+        event_id: eventId,
+        event_month: link.event_month,
+        status: speakerIntakeLinkStatus(link),
+      },
+    });
+
+    return c.json({ deleted: true });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Failed to remove speaker form link' }, 404);
+  }
 });
 
 app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
@@ -3741,30 +3808,6 @@ app.post('/api/talks/:talkId/reminder', async (c) => {
   return c.json(updatedTalk);
 });
 
-app.get('/api/my-talks', async (c) => {
-  const email = c.req.query('email');
-
-  if (!email) {
-    return c.json({ error: 'Email parameter required' }, 400);
-  }
-
-  const allTalks = await getAllTalks();
-  const userTalks = allTalks.filter((talk) => talk.speaker_email.toLowerCase() === email.toLowerCase());
-  const talksWithEvents = await Promise.all(
-    userTalks.map(async (talk) => ({
-      ...talk,
-      event: await getEventById(talk.event_id, c),
-    })),
-  );
-
-  talksWithEvents.sort((a, b) => {
-    if (!a.event || !b.event) return 0;
-    return new Date(b.event.event_date).getTime() - new Date(a.event.event_date).getTime();
-  });
-
-  return c.json(talksWithEvents);
-});
-
 app.post('/api/cfp', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = speakerSubmissionCreateSchema.safeParse(body);
@@ -3780,6 +3823,10 @@ app.post('/api/cfp', async (c) => {
 
   if (event.status !== 'cfp_open') {
     return c.json({ error: 'CFP is not open for this event' }, 400);
+  }
+
+  if (!canOpenCfpForEvent(event)) {
+    return c.json({ error: 'CFP is only available for upcoming monthly events' }, 400);
   }
 
   try {

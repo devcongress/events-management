@@ -46,10 +46,6 @@ const publicLinks: NavLink[] = [
   { href: '/leaderboard', label: 'Leaderboard' },
 ];
 
-const speakerLinks: NavLink[] = [
-  { href: '/my-talks', label: 'My Talks' },
-];
-
 const playLinks: NavLink[] = [
   { href: '/play', label: 'Play', accent: true },
 ];
@@ -65,7 +61,7 @@ const ownerAdminLinks: NavLink[] = [
 ];
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
-const isStandalonePublicRoute = computed(() => route.name === 'cfp');
+const isStandalonePublicRoute = computed(() => route.name === 'cfp' || route.name === 'speaker-talk-intake');
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
@@ -103,7 +99,6 @@ const navGroups = computed(() => {
 
   return [
     primaryLinks.value,
-    speakerLinks,
     visiblePlayLinks.value,
   ].filter((group) => group.length > 0);
 });
@@ -271,7 +266,6 @@ const breadcrumbItems = computed(() => {
     items.push({ label: 'Archive', href: '/archive' });
     items.push({ label: 'Event' });
   } else if (path === '/leaderboard') items.push({ label: 'Leaderboard' });
-  else if (path === '/my-talks') items.push({ label: 'My Talks' });
   else if (path.startsWith('/cfp/')) items.push({ label: 'Call for proposals' });
   else if (path === '/feedback' || path.startsWith('/feedback/')) items.push({ label: 'Feedback' });
   else if (path === '/play') items.push({ label: 'Play' });

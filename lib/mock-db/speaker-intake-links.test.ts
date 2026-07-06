@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe('speaker intake links', () => {
-  it('creates a hashed one-time token that can be consumed once', async () => {
+  it('creates a recoverable one-time token that can be consumed once', async () => {
     const {
       consumeSpeakerIntakeLink,
       createSpeakerIntakeLink,
@@ -37,7 +37,7 @@ describe('speaker intake links', () => {
       expires_at: '2099-01-01T00:00:00.000Z',
     });
 
-    await expect(fs.readFile(path.join(tempRoot, 'data', 'speaker-intake-links.json'), 'utf-8')).resolves.not.toContain(token);
+    await expect(fs.readFile(path.join(tempRoot, 'data', 'speaker-intake-links.json'), 'utf-8')).resolves.toContain(token);
     await expect(getSpeakerIntakeLinkByToken('event-june', token)).resolves.toMatchObject({ id: link.id, used_at: null });
     expect(speakerIntakeLinkExpired(link)).toBe(false);
 
@@ -63,5 +63,23 @@ describe('speaker intake links', () => {
 
     expect(speakerIntakeLinkExpired(link)).toBe(true);
     await expect(consumeSpeakerIntakeLink('event-june', token, 'talk-1')).rejects.toThrow('expired');
+  });
+
+  it('deletes a generated link for the matching event', async () => {
+    const {
+      createSpeakerIntakeLink,
+      deleteSpeakerIntakeLink,
+      getSpeakerIntakeLinksByEvent,
+    } = await importLinksStore();
+
+    const { link } = await createSpeakerIntakeLink({
+      event_id: 'event-june',
+      event_month: '2026-06',
+      expires_at: '2099-01-01T00:00:00.000Z',
+    });
+
+    await expect(deleteSpeakerIntakeLink('event-june', link.id)).resolves.toMatchObject({ id: link.id });
+    await expect(getSpeakerIntakeLinksByEvent('event-june')).resolves.toEqual([]);
+    await expect(deleteSpeakerIntakeLink('event-june', link.id)).rejects.toThrow('not found');
   });
 });

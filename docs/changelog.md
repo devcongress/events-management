@@ -5,6 +5,17 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-06 — Speaker intake standalone fix
+
+- Made one-time speaker talk intake links render as standalone forms without the public app navigation, breadcrumbs, feedback launcher, or organizer/community chrome.
+- Removed the manual talk-entry form and on/off speaker-form toggle from Legacy Backfill so the page focuses on generated speaker archive links.
+- Added a persistent Backfill Link Shelf: newly generated links remain copyable/openable from Legacy Backfill, show active/used/expired status, and can be removed by organizers.
+- Disabled expiry-duration options that already have active backfill links, and blocked duplicate active links for the same duration on both the UI and API.
+- Blocked CFP opening and direct public CFP submissions for past or non-monthly events, keeping CFP available only for upcoming monthly meetups.
+- Paginated the Organizer Access allowlist at five rows per page with a stable page height so long access lists no longer stretch or jump the admin security page.
+- Moved selected-speaker slides links into one Proposals shelf: links are still private per speaker, but organizers can generate missing links and copy/open them from one place once speakers are selected.
+- Removed the public My Talks/Speaker Desk route and unauthenticated talk lookup/update surface so slide collection now runs through organizer-issued private speaker links.
+
 ## 2026-07-05 — Quarterly recap media fix
 
 - Added archive event media to the public recap payload so uploaded meetup photos appear on `/archive/:eventId`, not only on `/events/:slug`.
@@ -12,6 +23,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Added raw `shared_links` support for quarterly meetup recap links, gave organizers a quarterly-only Shared links editor on the event overview page, and seeded the July quarterly recap with the six links shared during the room.
 - Routed completed quarterly meetups to Feedback instead of Attendance and hid attendance checklist/access points from quarterly event workspaces for now.
 - Replaced the monthly CFP/program checklist with a two-item quarterly meetup checklist: create the event shell, then update it with the G-Meet link from Edem.
+- Removed Back to Home navigation from closed/submitted speaker one-off links so the flow ends without sending speakers into the app.
+- Pinned local Google organizer sign-in to `http://localhost:5173`, blocking OAuth launches from other local origins so testing ports do not bounce organizers into the deployed console.
 
 ## 2026-07-03 — Talk Management workflow split
 

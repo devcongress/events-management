@@ -15,7 +15,7 @@
 | `src/lib/notify.ts` | Typed notification helper that targets the app toaster |
 | `src/views/DashboardView.vue` | DEV::CON[] landing page backed by current mock data |
 | `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public archive and talk detail surfaces |
-| `src/views/CfpView.vue` / `MyTalksView.vue` | Speaker CFP and slide management flows |
+| `src/views/CfpView.vue` / `SpeakerTalkIntakeView.vue` | Speaker CFP and private selected-speaker/archive intake flows |
 | `src/views/FeedbackView.vue` | Public event feedback form for active or auto-open campaigns |
 | `src/views/RouteFeedbackView.vue` | Standalone app feedback form used by the mobile feedback launcher |
 | `src/components/FeedbackBot.vue` | Public feedback bot that asks testers for name-selected feedback and submits to Supabase |
@@ -48,9 +48,9 @@
   - Active Vue page: `src/views/admin/AdminSpeakersView.vue`
   - APIs: `/api/events/[eventId]/speakers` (`GET`/`POST`), `/api/events/[eventId]/speakers/[speakerId]` (`DELETE`)
 - **Talk review + slides**
-  - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/SpeakerTalkIntakeView.vue`, `src/views/MyTalksView.vue`
+  - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/SpeakerTalkIntakeView.vue`
   - Talk Management subroutes: `/talks/cfp`, `/talks/proposals`, `/talks/program`, and temporary `/talks/backfill`
-  - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`, `/api/my-talks`
+  - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`/`DELETE`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`
 - **Quiz authoring + live ops**
   - Active Vue pages: `src/views/admin/AdminQuizView.vue`, `src/views/PlayView.vue`, `src/views/PlayCodeView.vue`
   - Builder: `app/(admin)/admin/events/[eventId]/quiz/page.tsx`
@@ -134,7 +134,7 @@
 
 - `src/main.ts` mounts Vue, Pinia, Vue Router, and the shared TanStack Query plugin.
 - `src/router.ts` lazy-loads routed page components with dynamic imports, keeping the shell and route guard eager while splitting public pages, organizer workspaces, quiz views, and fallback pages into route chunks.
-- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache, resolves event breadcrumb labels from cached event data or the single-event API instead of fetching the full event list on every route change, replaces full organizer workspaces with the mobile ops view on phone-width routes except login/auth and feedback QR display, and redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated.
+- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache, resolves event breadcrumb labels from cached event data or the single-event API instead of fetching the full event list on every route change, renders CFP and one-time speaker intake links as standalone public forms without app chrome, replaces full organizer workspaces with the mobile ops view on phone-width routes except login/auth and feedback QR display, and redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated.
 - `src/App.vue` renders `src/components/AdminEventTabs.vue` once for event-scoped organizer routes, keeping sub-section tabs stable while routed event pages change underneath.
 - `src/components/ui/AppToaster.vue` wraps `vue-sonner` with the DevCongress editorial/ops toast theme; app code should call `notify` from `src/lib/notify.ts` instead of importing `toast` directly.
 - `src/components/ui/ViewSkeleton.vue` provides reusable skeleton variants for full-page loading states; prefer it over bare loading text so routed views preserve their header, panel, table, and form structure while data fetches.
@@ -225,6 +225,7 @@ All constants are in `lib/constants.ts`.
 POST /api/cfp
   body: { event_id, speaker_name, speaker_email, github_username?, title, topic?, abstract?, bio? }
   → creates a speaker proposal for organizer selection
+  → accepts submissions only for upcoming monthly events with CFP open
   → does not create a confirmed talk or require a prior speaker allowlist row
 
 GET /api/events/[eventId]/speaker-submissions
@@ -250,7 +251,7 @@ POST /api/events/[eventId]/talks
 ```
 POST /api/events/[eventId]/speaker-intake-links
   body: { expires_in_days }
-  → admin-only; creates a month-scoped one-time token and stores only its hash
+  → admin-only; creates a month-scoped one-time token for the Legacy Backfill shelf
 
 GET  /api/events/[eventId]/speaker-intake/[token]
   → returns public event context only when the link is active
@@ -264,6 +265,9 @@ POST /api/events/[eventId]/speaker-intake/[token]
   → marks the speaker link as used after a successful submission
   → expired or used links return closed-link errors
   → never publishes directly from the public form
+
+DELETE /api/events/[eventId]/speaker-intake-links/[linkId]
+  → admin-only; removes a generated speaker link from the Legacy Backfill shelf
 ```
 
 ### Talk Status Lifecycle (Admin)
@@ -309,7 +313,8 @@ POST   /api/quiz/sessions/[sessionId]/questions/from-paper
 
 ### Slides Upload Endpoints
 ```
-PATCH /api/talks/[talkId]         body: { slides_url } (URL mode)
-  → speaker self-service path accepts public slide links without an organizer session
-  → accepted talks move to 'slides_received'; published talks stay published
+POST /api/events/[eventId]/speaker-intake/[token]
+  body for selected_speaker_confirmation links: { slides_url }
+  → tokenized selected-speaker links accept public slide links without an organizer session
+  → selected-speaker links create slides_received talks from the original CFP proposal
 ```

@@ -6,6 +6,7 @@ type DropdownValue = string | number;
 type DropdownOption = {
   value: DropdownValue;
   label: string;
+  disabled?: boolean;
 };
 
 let dropdownInstanceCount = 0;
@@ -48,6 +49,9 @@ const optionClasses = computed(() => props.density === 'compact'
 const iconClasses = computed(() => props.density === 'compact' ? 'size-5' : 'size-6');
 
 function choose(value: DropdownValue) {
+  const option = props.options.find((item) => item.value === value);
+  if (option?.disabled) return;
+
   emit('update:modelValue', value);
   closeDropdown();
 }
@@ -184,10 +188,16 @@ watch(open, async (isOpen) => {
             v-for="option in options"
             :key="`${option.value}`"
             type="button"
-            class="motion-colors flex w-full items-center gap-2.5 rounded text-left"
-            :class="[optionClasses, modelValue === option.value ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink']"
+            class="motion-colors flex w-full items-center gap-2.5 rounded text-left disabled:cursor-not-allowed disabled:opacity-45"
+            :class="[
+              optionClasses,
+              modelValue === option.value ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink',
+              option.disabled ? 'hover:bg-transparent hover:text-dc-gray' : '',
+            ]"
+            :disabled="option.disabled"
             role="option"
             :aria-selected="modelValue === option.value"
+            :aria-disabled="option.disabled ? 'true' : undefined"
             @click="choose(option.value)"
           >
             <span class="grid size-4 shrink-0 place-items-center">
@@ -196,6 +206,7 @@ watch(open, async (isOpen) => {
               </svg>
             </span>
             <span class="truncate font-semibold">{{ option.label }}</span>
+            <span v-if="option.disabled" class="ml-auto shrink-0 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Active</span>
           </button>
         </div>
       </div>
