@@ -43,7 +43,7 @@ const organizerPageCount = computed(() => Math.max(1, Math.ceil(organizers.value
 const organizerPageStart = computed(() => (organizerPage.value - 1) * organizersPerPage);
 const organizerPageEnd = computed(() => Math.min(organizers.value.length, organizerPageStart.value + organizersPerPage));
 const paginatedOrganizers = computed(() => organizers.value.slice(organizerPageStart.value, organizerPageEnd.value));
-const allowlistBodyMinHeight = computed(() => `${organizersPerPage * 5.5}rem`);
+const emptyOrganizerSlots = computed(() => Math.max(0, organizersPerPage - paginatedOrganizers.value.length));
 const addOrganizerValidation = computed(() => addOrganizerSchema.safeParse(form));
 const canAddOrganizer = computed(() => addOrganizerValidation.value.success && !addOrganizerMutation.isPending.value);
 const roleOptions = computed<Array<{ value: AdminRole; label: string }>>(() => {
@@ -187,16 +187,16 @@ function roleLabel(role: AdminRole): string {
 
 <template>
   <div class="editorial-page">
-    <div class="editorial-wrap py-6 lg:py-6">
-      <div class="grid gap-5 border-b border-dc-ink pb-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
+    <div class="editorial-wrap py-4 lg:py-4">
+      <div class="grid gap-4 border-b border-dc-ink pb-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
         <div>
           <p class="editorial-eyebrow">admin security</p>
           <h1 class="editorial-title max-w-4xl">Organizer Access</h1>
-          <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray sm:text-lg">
+          <p class="mt-2 max-w-2xl text-base leading-6 text-dc-gray sm:text-lg">
             Keep the organizer list tight, current, and easy to trust.
           </p>
 
-          <div class="mt-4 flex flex-wrap gap-2">
+          <div class="mt-3 flex flex-wrap gap-2">
             <span class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-dc-gray">
               {{ activeOrganizers.length }} active
             </span>
@@ -215,7 +215,7 @@ function roleLabel(role: AdminRole): string {
 
         <aside class="rounded-lg border border-dc-border bg-dc-paper px-5 py-3 shadow-[0_1px_0_rgba(17,17,17,0.05)]">
           <p class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">who can do what</p>
-          <div class="mt-3 space-y-3 text-sm leading-6 text-dc-gray">
+          <div class="mt-2 space-y-2 text-sm leading-6 text-dc-gray">
             <p>
               <span class="font-semibold text-dc-ink">Owners</span> can add owners or organizers, and can disable other owners.
             </p>
@@ -241,7 +241,7 @@ function roleLabel(role: AdminRole): string {
           </p>
         </div>
 
-        <form v-else class="mb-4 rounded-md border border-dc-border bg-dc-paper p-4" @submit.prevent="submitOrganizer">
+        <form v-else class="mb-3 rounded-md border border-dc-border bg-dc-paper p-3 sm:p-4" @submit.prevent="submitOrganizer">
           <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-1">add access</p>
@@ -268,7 +268,7 @@ function roleLabel(role: AdminRole): string {
         </form>
 
         <section class="overflow-hidden rounded-md border border-dc-border bg-dc-paper">
-          <div class="flex flex-col gap-2 border-b border-dc-border bg-dc-paper-warm px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-col gap-2 border-b border-dc-border bg-dc-paper-warm px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-1">allowlist</p>
               <h2 class="text-xl font-black tracking-tight text-dc-ink">Current access</h2>
@@ -282,11 +282,11 @@ function roleLabel(role: AdminRole): string {
             No organizer emails have been added yet.
           </div>
 
-          <div v-else class="divide-y divide-dc-border" :style="{ minHeight: allowlistBodyMinHeight }">
+          <div v-else class="divide-y divide-dc-border">
             <article
               v-for="organizer in paginatedOrganizers"
               :key="organizer.id"
-              class="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] md:items-center"
+              class="grid min-h-[4.65rem] gap-3 px-4 py-2 md:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] md:items-center"
               :class="{ 'opacity-55': organizer.status === 'disabled' }"
             >
               <div class="min-w-0">
@@ -312,6 +312,12 @@ function roleLabel(role: AdminRole): string {
                 Disable
               </button>
             </article>
+            <div
+              v-for="slot in emptyOrganizerSlots"
+              :key="`empty-organizer-slot-${slot}`"
+              class="min-h-[4.65rem] bg-dc-paper/70"
+              aria-hidden="true"
+            />
           </div>
 
           <div v-if="organizers.length > organizersPerPage" class="pagination-footer">

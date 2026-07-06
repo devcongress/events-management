@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-06 — Organizer allowlist pagination fit
+
+- Reworked Organizer Access pagination so the allowlist keeps five row slots without the oversized blank min-height that caused the page scrollbar and empty space on shorter pages.
+- Tightened Organizer Access vertical spacing so the five-row allowlist and pagination controls fit the intended desktop viewport more cleanly.
+
 ## 2026-07-06 — Speaker intake standalone fix
 
 - Made one-time speaker talk intake links render as standalone forms without the public app navigation, breadcrumbs, feedback launcher, or organizer/community chrome.
