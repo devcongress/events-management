@@ -15,12 +15,22 @@ const loading = ref(false);
 const error = ref<string | null>(null);
 const redirectTo = computed(() => String(route.query.redirect ?? route.query.next ?? adminPath('events')));
 const ADMIN_LOGIN_TOAST_ID = 'admin-login-toast';
+const LOCAL_GOOGLE_OAUTH_ORIGIN = 'http://localhost:5173';
 
 function notifyAdminLogin(kind: 'success' | 'info' | 'error', message: string, duration: number) {
   notify[kind](message, {
     id: ADMIN_LOGIN_TOAST_ID,
     duration,
   });
+}
+
+function isLocalBrowserOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
 }
 
 async function login() {
@@ -32,6 +42,13 @@ async function login() {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) {
         notifyAdminLogin('error', 'Google organizer sign-in is not configured yet.', 7000);
+        return;
+      }
+
+      if (isLocalBrowserOrigin(window.location.origin) && window.location.origin !== LOCAL_GOOGLE_OAUTH_ORIGIN) {
+        const message = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
+        error.value = message;
+        notifyAdminLogin('error', message, 7000);
         return;
       }
 

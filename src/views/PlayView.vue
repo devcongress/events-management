@@ -35,9 +35,6 @@ const mastheadStats = [
             <RouterLink to="/events" class="editorial-action">
               View Events
             </RouterLink>
-            <RouterLink to="/my-talks" class="editorial-secondary-action">
-              Speaker Desk
-            </RouterLink>
           </div>
         </div>
 

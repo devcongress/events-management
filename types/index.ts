@@ -104,6 +104,7 @@ export interface SpeakerIntakeLink {
   speaker_name?: string | null;
   speaker_email?: string | null;
   talk_title?: string | null;
+  token?: string | null;
   token_hash: string;
   expires_at: string;
   used_at: string | null;

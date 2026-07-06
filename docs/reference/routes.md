@@ -16,7 +16,6 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 | `/feedback` | General app feedback form, used by the mobile feedback launcher |
 | `/feedback/:eventId` | Public post-event feedback form |
 | `/leaderboard` | Community leaderboard preview |
-| `/my-talks` | Speaker talk lookup and slide links |
 | `/play` | Live quiz waiting/empty state |
 | `/play/:code` | Quiz join flow for a host-opened session |
 | `/:pathMatch(.*)*` | Branded 404 recovery page |

@@ -117,10 +117,8 @@ function applyPrefill(prefill: IntakePrefill) {
     <div v-else-if="unavailableMessage" class="flex min-h-screen items-center justify-center p-4">
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
         <h2 class="mb-3 font-mono text-2xl font-bold text-dc-ink">LINK CLOSED</h2>
-        <p class="mb-6 font-mono text-dc-gray">{{ unavailableMessage }}</p>
-        <RouterLink to="/" class="inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">
-          BACK TO HOME
-        </RouterLink>
+        <p class="font-mono text-dc-gray">{{ unavailableMessage }}</p>
+        <p class="mt-4 font-mono text-sm text-dc-gray">You can close this tab.</p>
       </div>
     </div>
 
@@ -135,9 +133,7 @@ function applyPrefill(prefill: IntakePrefill) {
         <p class="mb-6 font-mono text-dc-gray">
           {{ isSelectedSpeakerLink() ? 'Your slides link has been sent to the organizers. This link is now closed.' : 'Your talk details have been sent to the organizers. This link is now closed.' }}
         </p>
-        <RouterLink to="/" class="block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">
-          BACK TO HOME
-        </RouterLink>
+        <p class="font-mono text-sm text-dc-gray">You can close this tab.</p>
       </div>
     </div>
 

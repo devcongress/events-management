@@ -3329,14 +3329,6 @@
     max-width: 100%;
   }
 
-  .my-talks-page {
-    min-height: 100%;
-  }
-
-  .my-talks-mobile-coming-soon {
-    display: none;
-  }
-
   .route-feedback-header {
     border-bottom: 2px solid #111111;
     padding-bottom: 1rem;
@@ -6394,62 +6386,6 @@
       display: none;
     }
 
-    .my-talks-wrap {
-      display: flex;
-      min-height: 100%;
-      flex-direction: column;
-      justify-content: flex-start;
-      padding-top: 1rem !important;
-      padding-bottom: 1rem !important;
-    }
-
-    .my-talks-page .community-masthead {
-      display: none;
-    }
-
-    .my-talks-card {
-      padding: 0.8rem !important;
-    }
-
-    .my-talks-mobile-coming-soon {
-      display: block;
-      top: 0.78rem;
-      left: -3.35rem;
-      width: 10.5rem;
-      transform: rotate(-45deg);
-    }
-
-    .my-talks-card-header {
-      margin-bottom: 1rem !important;
-    }
-
-    .my-talks-card-header h2 {
-      font-size: 1.2rem;
-      line-height: 1.15;
-    }
-
-    .my-talks-card-header p {
-      font-size: 0.76rem;
-      line-height: 1.4;
-    }
-
-    .my-talks-kicker {
-      margin-bottom: 0.75rem !important;
-      font-size: 0.6rem;
-      letter-spacing: 0.08em !important;
-    }
-
-    .my-talks-form {
-      gap: 1rem !important;
-    }
-
-    .my-talks-submit {
-      min-height: 3rem;
-      padding-top: 0.75rem !important;
-      padding-bottom: 0.75rem !important;
-      font-size: 0.95rem !important;
-    }
-
     .leaderboard-empty-state {
       padding: 1.5rem 1rem !important;
     }
@@ -6509,7 +6445,6 @@
     }
 
     @media (min-height: 700px) {
-      .my-talks-wrap,
       .leaderboard-wrap {
         justify-content: center;
       }

@@ -16,7 +16,6 @@ const CfpView = () => import('./views/CfpView.vue');
 const SpeakerTalkIntakeView = () => import('./views/SpeakerTalkIntakeView.vue');
 const RouteFeedbackView = () => import('./views/RouteFeedbackView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
-const MyTalksView = () => import('./views/MyTalksView.vue');
 const PlayView = () => import('./views/PlayView.vue');
 const PlayCodeView = () => import('./views/PlayCodeView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
@@ -63,7 +62,6 @@ export const router = createRouter({
     { path: '/speaker-talks/:eventId/:token', name: 'speaker-talk-intake', component: SpeakerTalkIntakeView },
     { path: '/feedback', name: 'route-feedback', component: RouteFeedbackView },
     { path: '/feedback/:eventId', name: 'feedback', component: FeedbackView },
-    { path: '/my-talks', name: 'my-talks', component: MyTalksView },
     { path: '/play', name: 'play', component: PlayView },
     { path: '/play/:code', name: 'play-code', component: PlayCodeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },

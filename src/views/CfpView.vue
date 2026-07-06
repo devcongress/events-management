@@ -61,9 +61,29 @@ const requiredFieldsComplete = computed(() => Boolean(
   && form.abstract.trim()
   && form.bio.trim(),
 ));
-const canSubmitProposal = computed(() => requiredFieldsComplete.value && !abstractOverLimit.value && !bioOverLimit.value && !submitting.value);
-const cfpClosedTitle = computed(() => (event.value?.status === 'cfp_closed' ? 'Speaker submissions are closed' : 'Speaker submissions are not open yet'));
+const eventIsMonthly = computed(() => (
+  event.value?.series_type ?? (event.value?.name?.toLowerCase().includes('quarterly') ? 'quarterly' : 'monthly')
+) === 'monthly');
+const eventIsUpcoming = computed(() => {
+  if (!event.value?.event_date) return false;
+  const eventDateMs = new Date(event.value.event_date).getTime();
+  return Number.isFinite(eventDateMs) && eventDateMs > Date.now();
+});
+const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status === 'cfp_open' && eventIsMonthly.value && eventIsUpcoming.value));
+const canSubmitProposal = computed(() => cfpIsAvailable.value && requiredFieldsComplete.value && !abstractOverLimit.value && !bioOverLimit.value && !submitting.value);
+const cfpClosedTitle = computed(() => {
+  if (!eventIsMonthly.value || !eventIsUpcoming.value) return 'Speaker submissions are unavailable';
+  return event.value?.status === 'cfp_closed' ? 'Speaker submissions are closed' : 'Speaker submissions are not open yet';
+});
 const cfpClosedMessage = computed(() => {
+  if (!eventIsMonthly.value) {
+    return 'This CFP form is only available for monthly meetups.';
+  }
+
+  if (!eventIsUpcoming.value) {
+    return 'This event date has passed, so the CFP form is no longer available.';
+  }
+
   if (event.value?.status === 'cfp_closed') {
     return 'Organizers have paused new talk proposals for this event. Thanks for checking in; keep an eye on future DevCongress calls for speakers.';
   }
@@ -135,7 +155,7 @@ onMounted(async () => {
       <p class="font-mono text-dc-ink">EVENT NOT FOUND</p>
     </div>
 
-    <div v-else-if="event.status !== 'cfp_open'" class="flex min-h-screen items-center justify-center p-4">
+    <div v-else-if="!cfpIsAvailable" class="flex min-h-screen items-center justify-center p-4">
       <div class="w-full max-w-2xl overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[4px_4px_0_#111111]">
         <div class="border-b-2 border-dc-ink bg-dc-paper-warm px-6 py-4 sm:px-8">
           <p class="editorial-eyebrow">Call for Presentations</p>

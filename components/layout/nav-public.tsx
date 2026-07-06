@@ -32,7 +32,6 @@ export function NavPublic() {
   const baseNavLinks = [
     { href: '/', label: 'Home' },
     { href: '/archive', label: 'Archive' },
-    { href: '/my-talks', label: 'My Talks' },
     { href: '/leaderboard', label: 'Leaderboard' },
   ];
 

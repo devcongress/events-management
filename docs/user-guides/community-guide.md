@@ -12,7 +12,7 @@ Open `/archive` to browse past meetups and published talks. Event detail pages i
 
 ## Submit a Talk
 
-When an event has submissions open, use the event CFP route:
+When an upcoming monthly event has submissions open, use the event CFP route:
 
 ```text
 /cfp/:eventId
@@ -28,7 +28,7 @@ After a meetup, organizers can send speakers a post-event archive form:
 /speaker-talks/:eventId/:token
 ```
 
-The form collects speaker details, talk metadata, and an optional public slide link for the event archive. These links expire and can only be submitted once.
+The standalone form collects speaker details, talk metadata, and an optional public slide link for the event archive. These links expire and can only be submitted once.
 
 ## Share Event Feedback
 

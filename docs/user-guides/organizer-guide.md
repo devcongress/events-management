@@ -30,7 +30,7 @@ Before an event is published publicly, organizers can disable incomplete checkli
 
 ## Review Talks
 
-The Talks section is split into a workflow: CFP, Proposals, Program, and Legacy Backfill. Use CFP to open or close the public proposal form and copy the share link. Use Proposals to review public CFP submissions, select or reject speakers, and copy the slides-only link for selected speakers. Use Program to manage confirmed talks, slides, reminders, and publishing. Legacy Backfill is temporary cleanup for confirmed or past talks that did not go through the CFP flow; it still collects full talk details and should not shape the normal future workflow. Speaker links are tied to the event month and close after one successful submission.
+The Talks section is split into a workflow: CFP, Proposals, Program, and Legacy Backfill. Use CFP to open or close the public proposal form and copy the share link for upcoming monthly meetups only. Use Proposals to review public CFP submissions, select or reject speakers, then copy selected-speaker slides links from the shared link shelf once speakers are selected. Use Program to manage confirmed talks, slides, reminders, and publishing. Legacy Backfill is temporary cleanup for confirmed or past talks that did not go through the CFP flow; it generates speaker archive links and keeps newly generated links available to copy/open until organizers remove them. Speaker links are tied to the event month and close after one successful submission.
 
 ## Manage Speakers
 
