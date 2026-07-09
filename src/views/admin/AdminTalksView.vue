@@ -43,6 +43,7 @@ const cfpLinkCopied = ref(false);
 const copiedSpeakerLinkId = ref<string | null>(null);
 const expandedSubmissionId = ref<string | null>(null);
 const expandedProgramTalkIds = ref(new Set<string>());
+const updatingTalkId = ref<string | null>(null);
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerLinkExpiresInDays = ref(7);
@@ -478,18 +479,56 @@ async function deleteSpeakerIntakeLink(linkId: string) {
   }
 }
 
+function primaryTalkAction(talk: Talk): { label: string; status: TalkStatus } | null {
+  if (talk.status === 'published' || talk.status === 'rejected') {
+    return null;
+  }
+
+  if (talk.status === 'slides_received' || Boolean(talk.slides_uploaded_at) || Boolean(slidesLink(talk))) {
+    return { label: 'Publish', status: 'published' };
+  }
+
+  if (talk.status === 'submitted') {
+    return { label: 'Accept', status: 'accepted' };
+  }
+
+  return null;
+}
+
+function talkStatusMessage(status: TalkStatus): string {
+  if (status === 'published') return 'Talk published to the public archive.';
+  if (status === 'accepted') return 'Talk accepted.';
+  if (status === 'rejected') return 'Talk rejected.';
+  if (status === 'slides_received') return 'Slides marked as received.';
+  return 'Talk updated.';
+}
+
 async function setStatus(talkId: string, status: TalkStatus) {
   error.value = null;
-  const response = await fetch(`/api/talks/${talkId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  });
-  if (response.ok) {
-    await fetchTalks();
-  } else {
-    const data = await response.json();
-    error.value = data.error || 'Failed to update talk';
+  updatingTalkId.value = talkId;
+
+  try {
+    const response = await fetch(`/api/talks/${talkId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      await fetchTalks();
+      notify.success(talkStatusMessage(status));
+    } else {
+      const message = data.error || 'Failed to update talk';
+      error.value = message;
+      notify.error(message);
+    }
+  } catch {
+    const message = 'Failed to update talk';
+    error.value = message;
+    notify.error(message);
+  } finally {
+    updatingTalkId.value = null;
   }
 }
 
@@ -1029,12 +1068,29 @@ onUnmounted(() => {
                       <a v-if="slidesLink(talk)" :href="slidesLink(talk) ?? undefined" target="_blank" rel="noopener noreferrer" :class="actionClass()">
                         Slides
                       </a>
-                      <button :class="actionClass()" @click="setStatus(talk.id, 'accepted')">Accept</button>
-                      <button :class="actionClass()" @click="setStatus(talk.id, 'rejected')">Reject</button>
-                      <button :class="actionClass(true)" @click="setStatus(talk.id, 'published')">Publish</button>
+                      <button
+                        v-if="primaryTalkAction(talk)"
+                        type="button"
+                        :class="actionClass(true)"
+                        :disabled="updatingTalkId === talk.id"
+                        @click="setStatus(talk.id, primaryTalkAction(talk)!.status)"
+                      >
+                        {{ updatingTalkId === talk.id ? 'Saving...' : primaryTalkAction(talk)!.label }}
+                      </button>
+                      <button
+                        v-if="talk.status !== 'rejected' && talk.status !== 'published'"
+                        type="button"
+                        :class="actionClass()"
+                        :disabled="updatingTalkId === talk.id"
+                        @click="setStatus(talk.id, 'rejected')"
+                      >
+                        Reject
+                      </button>
                       <button
                         v-if="talk.status === 'accepted' && !talk.slides_uploaded_at"
+                        type="button"
                         :class="actionClass()"
+                        :disabled="updatingTalkId === talk.id"
                         @click="sendReminder(talk.id)"
                       >
                         Remind

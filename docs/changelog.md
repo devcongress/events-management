@@ -11,6 +11,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Preserved already-prefilled custom topics as selectable current values so existing intake links keep showing their stored topic accurately.
 - Summarized long Program abstracts in organizer talk cards by default, with an explicit toggle to review the full submitted abstract without changing stored speaker content.
 - Summarized long published talk descriptions on public event and archive pages so detailed speaker submissions do not overwhelm attendee-facing pages.
+- Collapsed duplicate Accept and Publish controls on Program talk cards into one primary status action with visible saving and success/error feedback.
 
 ## 2026-07-06 — Organizer allowlist pagination fit
 
