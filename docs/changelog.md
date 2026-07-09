@@ -9,6 +9,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 - Replaced the speaker talk intake Topic text field with the shared app dropdown, using the same Frontend, Backend, DevOps, AI/ML, and related topic choices as the public CFP flow.
 - Preserved already-prefilled custom topics as selectable current values so existing intake links keep showing their stored topic accurately.
+- Summarized long Program abstracts in organizer talk cards by default, with an explicit toggle to review the full submitted abstract without changing stored speaker content.
 
 ## 2026-07-06 — Organizer allowlist pagination fit
 

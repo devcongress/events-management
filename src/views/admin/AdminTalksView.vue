@@ -41,10 +41,12 @@ const closeCfpDialogOpen = ref(false);
 const cfpLinkCopied = ref(false);
 const copiedSpeakerLinkId = ref<string | null>(null);
 const expandedSubmissionId = ref<string | null>(null);
+const expandedProgramTalkIds = ref(new Set<string>());
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerLinkExpiresInDays = ref(7);
 const error = ref<string | null>(null);
+const PROGRAM_ABSTRACT_PREVIEW_WORDS = 55;
 const groups: { label: string; statuses: TalkStatus[] }[] = [
   { label: 'Pending review', statuses: ['submitted'] },
   { label: 'Accepted', statuses: ['accepted', 'slides_received'] },
@@ -546,6 +548,55 @@ function selectedSpeakerLinkLabel(submission: SpeakerSubmission): string {
   return durationDays ? `Expires in ${durationDays} days` : 'Link ready';
 }
 
+function compactWhitespace(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function wordCount(value: string): number {
+  return compactWhitespace(value).split(/\s+/).filter(Boolean).length;
+}
+
+function programAbstractIsLong(abstract: string | null | undefined): boolean {
+  return wordCount(abstract ?? '') > PROGRAM_ABSTRACT_PREVIEW_WORDS;
+}
+
+function programAbstractPreview(abstract: string | null | undefined): string {
+  const normalized = compactWhitespace(abstract ?? '');
+  if (!normalized) return '';
+
+  const words = normalized.split(/\s+/);
+  if (words.length <= PROGRAM_ABSTRACT_PREVIEW_WORDS) {
+    return normalized;
+  }
+
+  const firstPass = words.slice(0, PROGRAM_ABSTRACT_PREVIEW_WORDS).join(' ');
+  const sentenceBoundary = Math.max(
+    firstPass.lastIndexOf('. '),
+    firstPass.lastIndexOf('? '),
+    firstPass.lastIndexOf('! '),
+  );
+
+  if (sentenceBoundary > firstPass.length * 0.45) {
+    return `${firstPass.slice(0, sentenceBoundary + 1).trim()}…`;
+  }
+
+  return `${firstPass.replace(/[,:;—-]+$/, '').trim()}…`;
+}
+
+function programTalkExpanded(talkId: string): boolean {
+  return expandedProgramTalkIds.value.has(talkId);
+}
+
+function toggleProgramTalkSummary(talkId: string) {
+  const next = new Set(expandedProgramTalkIds.value);
+  if (next.has(talkId)) {
+    next.delete(talkId);
+  } else {
+    next.add(talkId);
+  }
+  expandedProgramTalkIds.value = next;
+}
+
 function actionClass(isPrimary = false): string {
   return isPrimary
     ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
@@ -979,7 +1030,23 @@ onUnmounted(() => {
                         <span class="rounded-md border border-dc-border bg-dc-paper-warm px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ talk.status.replace('_', ' ') }}</span>
                       </div>
                       <p class="text-sm text-dc-gray">{{ talk.speaker_name }} · {{ talk.speaker_email }}</p>
-                      <p v-if="talk.abstract" class="mt-3 max-w-4xl text-sm leading-6 text-dc-gray">{{ talk.abstract }}</p>
+                      <div v-if="talk.abstract" class="program-abstract-preview">
+                        <p class="program-abstract-preview__label">
+                          {{ programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id) ? 'Review summary' : 'Abstract' }}
+                        </p>
+                        <p class="program-abstract-preview__text">
+                          {{ programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id) ? programAbstractPreview(talk.abstract) : talk.abstract }}
+                        </p>
+                        <button
+                          v-if="programAbstractIsLong(talk.abstract)"
+                          type="button"
+                          class="program-abstract-preview__toggle motion-press"
+                          :aria-expanded="programTalkExpanded(talk.id)"
+                          @click="toggleProgramTalkSummary(talk.id)"
+                        >
+                          {{ programTalkExpanded(talk.id) ? 'Show summary' : 'Show full abstract' }}
+                        </button>
+                      </div>
                       <p class="mt-3 font-mono text-xs uppercase tracking-wide text-dc-gray">
                         {{ talk.topic || 'General' }} <span class="mx-2 text-dc-pink">/</span> {{ slideLabel(talk) }}
                       </p>
