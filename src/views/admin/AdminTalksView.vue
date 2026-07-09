@@ -6,6 +6,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
+import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { Event, EventStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
@@ -548,39 +549,12 @@ function selectedSpeakerLinkLabel(submission: SpeakerSubmission): string {
   return durationDays ? `Expires in ${durationDays} days` : 'Link ready';
 }
 
-function compactWhitespace(value: string): string {
-  return value.trim().replace(/\s+/g, ' ');
-}
-
-function wordCount(value: string): number {
-  return compactWhitespace(value).split(/\s+/).filter(Boolean).length;
-}
-
 function programAbstractIsLong(abstract: string | null | undefined): boolean {
   return wordCount(abstract ?? '') > PROGRAM_ABSTRACT_PREVIEW_WORDS;
 }
 
 function programAbstractPreview(abstract: string | null | undefined): string {
-  const normalized = compactWhitespace(abstract ?? '');
-  if (!normalized) return '';
-
-  const words = normalized.split(/\s+/);
-  if (words.length <= PROGRAM_ABSTRACT_PREVIEW_WORDS) {
-    return normalized;
-  }
-
-  const firstPass = words.slice(0, PROGRAM_ABSTRACT_PREVIEW_WORDS).join(' ');
-  const sentenceBoundary = Math.max(
-    firstPass.lastIndexOf('. '),
-    firstPass.lastIndexOf('? '),
-    firstPass.lastIndexOf('! '),
-  );
-
-  if (sentenceBoundary > firstPass.length * 0.45) {
-    return `${firstPass.slice(0, sentenceBoundary + 1).trim()}…`;
-  }
-
-  return `${firstPass.replace(/[,:;—-]+$/, '').trim()}…`;
+  return summarizeText(abstract, PROGRAM_ABSTRACT_PREVIEW_WORDS);
 }
 
 function programTalkExpanded(talkId: string): boolean {

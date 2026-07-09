@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import { isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem } from '@/lib/system-design';
 import { fetchPreviewPublicMeetup, fetchPublicMeetup, queryKeys } from '@/src/lib/api';
+import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 
 const route = useRoute();
@@ -13,6 +14,7 @@ const activeMeetupPhoto = ref(0);
 const isMeetupPhotoShifting = ref(false);
 let meetupPhotoTimer: number | undefined;
 let meetupPhotoShiftTimer: number | undefined;
+const PUBLIC_TALK_SUMMARY_WORDS = 38;
 
 const isLumaPreview = computed(() => route.query.preview === 'luma' && typeof route.query.eventUrl === 'string');
 const previewEventUrl = computed(() => (typeof route.query.eventUrl === 'string' ? route.query.eventUrl : ''));
@@ -141,6 +143,14 @@ function toInternalAppPath(value: string) {
 function speakerSocialLabel(platform: PublicMeetupSpeaker['socials'][number]['platform']) {
   if (platform === 'github') return 'GitHub';
   return 'Website';
+}
+
+function publicTalkSummary(value: string | null | undefined): string {
+  return summarizeText(value, PUBLIC_TALK_SUMMARY_WORDS);
+}
+
+function publicTalkSummaryLabel(value: string | null | undefined): string {
+  return wordCount(value) > PUBLIC_TALK_SUMMARY_WORDS ? 'Summary' : 'About the talk';
 }
 
 function sharedLinkHost(value: string): string {
@@ -356,7 +366,10 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
                 <div v-if="speaker.talk_title" class="mt-4 border-t border-dc-border pt-4">
                   <p class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">Talk</p>
                   <p class="mt-2 text-base font-bold text-dc-ink">{{ speaker.talk_title }}</p>
-                  <p v-if="speaker.talk_description" class="mt-2 text-sm leading-6 text-dc-gray">{{ speaker.talk_description }}</p>
+                  <div v-if="speaker.talk_description" class="public-talk-summary public-talk-summary--compact">
+                    <p class="public-talk-summary__label">{{ publicTalkSummaryLabel(speaker.talk_description) }}</p>
+                    <p class="public-talk-summary__text">{{ publicTalkSummary(speaker.talk_description) }}</p>
+                  </div>
                 </div>
 
                 <div v-if="speaker.socials.length > 0" class="mt-4 flex flex-wrap gap-2">
