@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-09 — Speaker intake topic dropdown fix
+
+- Replaced the speaker talk intake Topic text field with the shared app dropdown, using the same Frontend, Backend, DevOps, AI/ML, and related topic choices as the public CFP flow.
+- Preserved already-prefilled custom topics as selectable current values so existing intake links keep showing their stored topic accurately.
+
 ## 2026-07-06 — Organizer allowlist pagination fit
 
 - Reworked Organizer Access pagination so the allowlist keeps five row slots without the oversized blank min-height that caused the page scrollbar and empty space on shorter pages.
