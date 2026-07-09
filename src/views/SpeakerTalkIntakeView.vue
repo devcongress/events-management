@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import type { Event, SpeakerIntakeLinkPurpose } from '@/types';
 
@@ -24,6 +25,18 @@ const submitting = ref(false);
 const submitted = ref(false);
 const unavailableMessage = ref<string | null>(null);
 const error = ref<string | null>(null);
+const popularTopics = [
+  'Frontend Engineering',
+  'Backend Engineering',
+  'Cloud Infrastructure',
+  'DevOps',
+  'AI/ML',
+  'Data Engineering',
+  'Security',
+  'Open Source',
+  'Product Engineering',
+  'Career Growth',
+];
 const form = reactive({
   speaker_name: '',
   speaker_email: '',
@@ -33,6 +46,22 @@ const form = reactive({
   abstract: '',
   bio: '',
   slides_url: '',
+});
+const topicOptions = computed(() => {
+  const baseOptions = [
+    { value: '', label: 'General' },
+    ...popularTopics.map((topic) => ({ value: topic, label: topic })),
+  ];
+  const currentTopic = form.topic.trim();
+
+  if (currentTopic && !popularTopics.includes(currentTopic)) {
+    return [
+      ...baseOptions,
+      { value: currentTopic, label: currentTopic },
+    ];
+  }
+
+  return baseOptions;
 });
 
 function isSelectedSpeakerLink() {
@@ -182,10 +211,14 @@ function applyPrefill(prefill: IntakePrefill) {
               <span class="editorial-label">Talk title *</span>
               <input v-model="form.title" required placeholder="Talk title" class="editorial-input font-mono" />
             </label>
-            <label class="block">
+            <div class="block">
               <span class="editorial-label">Topic</span>
-              <input v-model="form.topic" placeholder="General" class="editorial-input font-mono" />
-            </label>
+              <AppDropdown
+                v-model="form.topic"
+                :options="topicOptions"
+                menu-class="cfp-topic-menu"
+              />
+            </div>
           </div>
 
           <label class="block">

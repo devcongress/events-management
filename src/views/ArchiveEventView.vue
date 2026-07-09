@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
 import { fetchPublicArchiveEvent } from '@/src/lib/api';
 import ArchiveEventPageSkeleton from '@/src/components/ui/page-skeletons/ArchiveEventPageSkeleton.vue';
+import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { PublicArchiveEvent, PublicArchiveTalk, PublicMeetupScheduleItem } from '@/types';
 
 const route = useRoute();
@@ -25,6 +26,7 @@ const primaryGalleryLink = computed(() => folderPhotos.value[0]?.url ?? null);
 const sharedLinks = computed(() => (
   isQuarterlyArchive.value ? scheduleItems.value.flatMap((item) => item.shared_links ?? []) : []
 ));
+const PUBLIC_TALK_SUMMARY_WORDS = 38;
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -36,6 +38,14 @@ function formatDate(value: string): string {
 
 function slidesUrl(talk: PublicArchiveTalk): string | null {
   return talk.slides_url;
+}
+
+function publicTalkSummary(value: string | null | undefined): string {
+  return summarizeText(value, PUBLIC_TALK_SUMMARY_WORDS);
+}
+
+function publicTalkSummaryLabel(value: string | null | undefined): string {
+  return wordCount(value) > PUBLIC_TALK_SUMMARY_WORDS ? 'Summary' : 'Abstract';
 }
 
 function sharedLinkHost(value: string): string {
@@ -291,9 +301,10 @@ onMounted(async () => {
                   <p class="mt-2 text-sm text-dc-gray">
                     {{ talk.speaker_name }}<span v-if="talk.bio">, {{ talk.bio }}</span>
                   </p>
-                  <p v-if="talk.abstract" class="mt-5 max-w-3xl text-base leading-7 text-dc-gray">
-                    {{ talk.abstract }}
-                  </p>
+                  <div v-if="talk.abstract" class="public-talk-summary">
+                    <p class="public-talk-summary__label">{{ publicTalkSummaryLabel(talk.abstract) }}</p>
+                    <p class="public-talk-summary__text">{{ publicTalkSummary(talk.abstract) }}</p>
+                  </div>
                 </div>
 
                 <a
