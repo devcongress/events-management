@@ -629,6 +629,15 @@ function addSystemDesignScenario() {
   }));
 }
 
+function moveOutlineRow(index: number, direction: -1 | 1) {
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= outlineDrafts.value.length) return;
+
+  const [item] = outlineDrafts.value.splice(index, 1);
+  if (!item) return;
+  outlineDrafts.value.splice(targetIndex, 0, item);
+}
+
 function removeOutlineRow(index: number) {
   outlineDrafts.value.splice(index, 1);
   if (outlineDrafts.value.length === 0) {
@@ -1291,14 +1300,36 @@ onMounted(fetchOverview);
 	                        @input="updateOutlineResourceUrlFromEvent(index, $event)"
 	                      />
 	                    </label>
-	                    <button
-	                      type="button"
-	                      class="event-outline-remove"
-	                      :disabled="outlineSaving"
-	                      @click="removeOutlineRow(index)"
-	                    >
-	                      Remove
-	                    </button>
+	                    <div class="event-outline-row-actions" role="group" :aria-label="`Row ${index + 1} actions`">
+	                      <button
+	                        type="button"
+	                        class="event-outline-move"
+	                        :disabled="outlineSaving || index === 0"
+	                        :aria-label="`Move ${item.title || `row ${index + 1}`} up`"
+	                        title="Move up"
+	                        @click="moveOutlineRow(index, -1)"
+	                      >
+	                        ↑
+	                      </button>
+	                      <button
+	                        type="button"
+	                        class="event-outline-move"
+	                        :disabled="outlineSaving || index === outlineDrafts.length - 1"
+	                        :aria-label="`Move ${item.title || `row ${index + 1}`} down`"
+	                        title="Move down"
+	                        @click="moveOutlineRow(index, 1)"
+	                      >
+	                        ↓
+	                      </button>
+	                      <button
+	                        type="button"
+	                        class="event-outline-remove"
+	                        :disabled="outlineSaving"
+	                        @click="removeOutlineRow(index)"
+	                      >
+	                        Remove
+	                      </button>
+	                    </div>
 	                  </div>
 
 	                  <p v-if="outlineError" class="event-overview-copy-error">{{ outlineError }}</p>

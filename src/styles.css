@@ -1036,11 +1036,13 @@
 	    .event-overview-publish-action:hover,
 	    .event-overview-copy-action:hover,
 	    .event-overview-copy-cancel:hover,
-	    .event-outline-remove:hover {
+	    .event-outline-remove:hover,
+	    .event-outline-move:hover {
 	      background: #fff9d9;
 	    }
 
-	    .event-outline-remove:hover {
+	    .event-outline-remove:hover,
+	    .event-outline-move:hover {
 	      border-color: #111111;
 	      color: #111111;
 	    }
@@ -1053,7 +1055,8 @@
 	  .event-overview-publish-action:active,
 	  .event-overview-copy-action:active,
 	  .event-overview-copy-cancel:active,
-	  .event-outline-remove:active {
+	  .event-outline-remove:active,
+	  .event-outline-move:active {
 	    transform: scale(0.97);
 	  }
 
@@ -1312,6 +1315,14 @@
 	    grid-column: span 2;
 	  }
 
+	  .event-outline-row-actions {
+	    display: flex;
+	    flex-wrap: wrap;
+	    gap: 0.4rem;
+	    align-items: center;
+	  }
+
+	  .event-outline-move,
 	  .event-outline-remove {
 	    border: 1px solid #d8d4ca;
 	    border-radius: 0.5rem;
@@ -1331,7 +1342,19 @@
 	      opacity 150ms var(--motion-fast);
 	  }
 
-	  .event-outline-remove:disabled {
+	  .event-outline-move {
+	    display: inline-grid;
+	    width: 2.55rem;
+	    min-height: 2.55rem;
+	    place-items: center;
+	    padding: 0.45rem;
+	    font-family: var(--font-sans), sans-serif;
+	    font-size: 1.1rem;
+	    font-weight: 900;
+	  }
+
+	  .event-outline-remove:disabled,
+	  .event-outline-move:disabled {
 	    cursor: not-allowed;
 	    opacity: 0.45;
 	    transform: none;
@@ -2298,6 +2321,10 @@
 	    .event-outline-description-field,
 	    .event-outline-resource-url-field {
 	      grid-column: auto;
+	    }
+
+	    .event-outline-row-actions {
+	      justify-content: flex-start;
 	    }
 
 	    .event-checklist-phase-heading {

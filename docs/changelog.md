@@ -7,6 +7,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-25 — Organizer sign-in pass and session cleanup
 
+- Added accessible move-up and move-down controls to every editable program-outline row. Reordering is immediate in the draft and persists through the existing Save outline action, so organizers can adapt the run of show when speakers or sessions change on the day.
 - Corrected the deployed Worker origin contract for the `em.devcongress.org` custom domain. `PUBLIC_APP_URL` and `PUBLIC_FRONTEND_ORIGIN` now allow the actual browser origin, so authenticated state-changing requests such as sign-out are no longer rejected with `Invalid request origin`.
 - Pinned the Worker to the DevCongress Cloudflare account in `wrangler.toml`, preventing local deploys from stopping when more than one Cloudflare account is authenticated.
 - Updated the Cloudflare, Google OAuth, and environment-variable documentation to use the organizer console's custom production hostname rather than the historical Pages hostname.
