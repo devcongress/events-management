@@ -15,21 +15,13 @@ const qrCodeUrl = ref<string | null>(null);
 const available = ref(false);
 
 const eventId = computed(() => String(route.params.eventId ?? ''));
-const eventHasStarted = computed(() => (
-  event.value ? new Date(event.value.event_date).getTime() <= Date.now() : false
-));
 const canShowQr = computed(() => (
   available.value
-  && eventHasStarted.value
   && Boolean(publicUrl.value)
   && Boolean(qrCodeUrl.value)
 ));
 const unavailableCopy = computed(() => {
-  if (available.value && !eventHasStarted.value) {
-    return 'This event has not happened yet. The feedback QR becomes available after the event date.';
-  }
-
-  return 'Open or publish the feedback flow for this event first. Once the feedback window is live, this page becomes your TV-safe QR screen.';
+  return 'Publish or open the feedback form for this event first. Once it is live, this page becomes your TV-safe QR screen.';
 });
 
 const eventDateCopy = computed(() => {
@@ -66,7 +58,7 @@ async function loadDisplay() {
     available.value = statusPayload.available;
     publicUrl.value = statusPayload.public_url;
 
-    if (statusPayload.available && eventHasStarted.value && statusPayload.public_url) {
+    if (statusPayload.available && statusPayload.public_url) {
       await buildQrCode(statusPayload.public_url);
     } else {
       qrCodeUrl.value = null;

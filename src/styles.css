@@ -4581,6 +4581,17 @@
     box-shadow: 2px 2px 0 #111111;
   }
 
+  .feedback-link-button--preview {
+    background: #ffffff;
+    color: #111111;
+  }
+
+  .feedback-link-button--qr {
+    background: #e8117f;
+    color: #ffffff;
+    box-shadow: 2px 2px 0 #111111;
+  }
+
   .feedback-link-button--remove {
     border-color: #d8d4ca;
     background: #ffffff;

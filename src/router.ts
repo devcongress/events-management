@@ -14,6 +14,7 @@ const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
 const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceOverviewView.vue');
 const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
 const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
+const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDisplayView.vue');
 const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
 const AdminOrganizersView = () => import('./views/admin/AdminOrganizersView.vue');
 const AdminAuditLogView = () => import('./views/admin/AdminAuditLogView.vue');
@@ -48,6 +49,7 @@ export const router = createRouter({
     { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
+    { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
     { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
     { path: adminPath('audit-log'), name: 'admin-audit-log', component: AdminAuditLogView },
     { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },

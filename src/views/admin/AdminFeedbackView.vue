@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
@@ -12,6 +12,7 @@ interface FeedbackCampaignResponse {
   campaign: FeedbackCampaign;
   submissions: EventFeedbackSubmission[];
   talks: Talk[];
+  public_url: string;
   feedback_window: {
     opens_at: string | null;
     closes_at: string | null;
@@ -26,6 +27,12 @@ interface FeedbackActivityDraft {
   enabled: boolean;
 }
 
+interface PreviewDraftPayload {
+  title: string;
+  intro: string | null;
+  questions: FeedbackQuestion[];
+}
+
 const route = useRoute();
 const router = useRouter();
 const loading = ref(true);
@@ -33,6 +40,8 @@ const saving = ref(false);
 const removing = ref(false);
 const error = ref('');
 const isOpen = ref(false);
+const publicUrl = ref('');
+const copyState = ref<'idle' | 'copying' | 'copied'>('idle');
 const feedbackWindow = ref<FeedbackCampaignResponse['feedback_window']>({ opens_at: null, closes_at: null });
 const submissions = ref<EventFeedbackSubmission[]>([]);
 const event = ref<CommunityEvent | null>(null);
@@ -41,6 +50,7 @@ const activities = ref<FeedbackActivityDraft[]>([]);
 const activitiesHydrated = ref(false);
 const lastGeneratedActivitySignature = ref<string | null>(null);
 const responseDrawerSubmissionId = ref<string | null>(null);
+let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 const form = reactive<FeedbackCampaign>({
   id: '',
   event_id: '',
@@ -104,6 +114,11 @@ const windowCopy = computed(() => {
 });
 const publishedCampaign = computed(() => form.status === 'active' || form.status === 'closed');
 const responsesMode = computed(() => publishedCampaign.value || route.query.view === 'responses');
+const copyLinkLabel = computed(() => {
+  if (copyState.value === 'copying') return 'Copying…';
+  if (copyState.value === 'copied') return 'Copied';
+  return 'Copy attendee link';
+});
 // Question lookups happen per answer per submission per render; an id map
 // keeps them O(1) instead of rescanning form.questions every time.
 const questionById = computed(() => new Map(form.questions.map((question) => [question.id, question])));
@@ -161,6 +176,7 @@ function hydrateCampaign(data: FeedbackCampaignResponse) {
     })),
   });
   submissions.value = data.submissions;
+  publicUrl.value = data.public_url;
   feedbackWindow.value = data.feedback_window;
   isOpen.value = data.is_open;
 
@@ -442,6 +458,67 @@ function closeResponseDrawer() {
   responseDrawerSubmissionId.value = null;
 }
 
+function previewDraftStorageKey() {
+  return `devcon:event-feedback-preview:${String(route.params.eventId ?? '')}`;
+}
+
+function openPreviewPublicForm() {
+  syncQuestionsToLatestSelection();
+
+  try {
+    const draft: PreviewDraftPayload = {
+      title: form.title,
+      intro: form.intro,
+      questions: form.questions.map((question) => ({
+        ...question,
+        options: [...question.options],
+      })),
+    };
+    window.localStorage.setItem(previewDraftStorageKey(), JSON.stringify(draft));
+  } catch {
+    // The saved campaign remains available as the fallback preview.
+  }
+
+  window.open(`/feedback/${route.params.eventId}?preview=1`, '_blank', 'noopener,noreferrer');
+}
+
+async function copyPublicUrl() {
+  if (!publicUrl.value || !isOpen.value || copyState.value !== 'idle') return;
+
+  copyState.value = 'copying';
+  error.value = '';
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(publicUrl.value);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = publicUrl.value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+
+    copyState.value = 'copied';
+    copyResetTimer = setTimeout(() => {
+      copyState.value = 'idle';
+      copyResetTimer = null;
+    }, 1600);
+  } catch {
+    copyState.value = 'idle';
+    error.value = 'Unable to copy the attendee link. Open the QR display and scan it instead.';
+  }
+}
+
+function openFeedbackDisplay() {
+  if (!isOpen.value) return;
+  window.open(adminPath(`feedback-display/${route.params.eventId}`), '_blank', 'noopener,noreferrer');
+}
+
 async function publishCampaign() {
   syncQuestionsToLatestSelection();
   await saveCampaign({
@@ -483,6 +560,10 @@ async function removeFeedbackForm() {
 }
 
 onMounted(fetchCampaign);
+
+onBeforeUnmount(() => {
+  if (copyResetTimer) clearTimeout(copyResetTimer);
+});
 
 </script>
 
@@ -527,6 +608,38 @@ onMounted(fetchCampaign);
                 <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.comments }}</p>
               </section>
             </div>
+
+            <section class="editorial-panel p-5">
+              <p class="editorial-eyebrow">attendee access</p>
+              <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">Share the live form</h2>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Preview exactly what attendees see, copy the live form link, or open a clean QR screen for a projector or shared display.</p>
+              <div class="feedback-link-actions mt-5">
+                <button
+                  type="button"
+                  class="feedback-link-button feedback-link-button--preview motion-press"
+                  :disabled="saving"
+                  @click="openPreviewPublicForm"
+                >
+                  Preview form
+                </button>
+                <button
+                  type="button"
+                  class="feedback-link-button feedback-link-button--copy motion-press"
+                  :disabled="saving || !isOpen || copyState !== 'idle'"
+                  @click="copyPublicUrl"
+                >
+                  {{ copyLinkLabel }}
+                </button>
+                <button
+                  type="button"
+                  class="feedback-link-button feedback-link-button--qr motion-press"
+                  :disabled="saving || !isOpen"
+                  @click="openFeedbackDisplay"
+                >
+                  Show QR code
+                </button>
+              </div>
+            </section>
 
             <section class="editorial-panel p-5">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -748,11 +861,35 @@ onMounted(fetchCampaign);
           <aside class="space-y-6">
             <section class="editorial-panel p-5">
               <p class="editorial-eyebrow">organizer controls</p>
-              <p class="text-sm leading-6 text-dc-gray">This console keeps campaign setup and response review private. Public feedback experiences move to the DevCongress website.</p>
+              <p class="text-sm leading-6 text-dc-gray">Preview the attendee form, copy its live link, or put its QR code on a shared screen. These controls stay inside the organizer console.</p>
               <div class="feedback-link-actions mt-4">
                 <span class="feedback-link-status" :class="isOpen ? 'border-dc-success bg-dc-success-soft text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
                   {{ isOpen ? 'Open' : 'Not Open' }}
                 </span>
+                <button
+                  type="button"
+                  class="feedback-link-button feedback-link-button--preview motion-press"
+                  :disabled="saving"
+                  @click="openPreviewPublicForm"
+                >
+                  Preview form
+                </button>
+                <button
+                  type="button"
+                  class="feedback-link-button feedback-link-button--copy motion-press"
+                  :disabled="saving || !isOpen || copyState !== 'idle'"
+                  @click="copyPublicUrl"
+                >
+                  {{ copyLinkLabel }}
+                </button>
+                <button
+                  type="button"
+                  class="feedback-link-button feedback-link-button--qr motion-press"
+                  :disabled="saving || !isOpen"
+                  @click="openFeedbackDisplay"
+                >
+                  Show QR code
+                </button>
                 <button
                   type="button"
                   class="feedback-remove-action feedback-link-button feedback-link-button--remove motion-press"

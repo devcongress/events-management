@@ -34,6 +34,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
+| `/organizer-console/feedback-display/:eventId` | Organizer-only TV-safe QR display for an open event feedback form |
 | `/organizer-console/attendance` | Monthly attendance ledger |
 | `/organizer-console/feedback` | Feedback hub and app feedback inbox |
 
