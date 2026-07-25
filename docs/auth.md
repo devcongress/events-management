@@ -23,7 +23,7 @@ On Cloudflare, `/api/*` requests can be proxied from Pages to the API Worker. Th
 
 ## Sign out
 
-Sign out revokes the app-owned `devcon_admin` session and removes its HTTP-only cookie. The browser then clears its cached organizer session, the tab-scoped Supabase session, and any pending OAuth redirect before replacing the current route with `/organizer-console/login`. If the server cannot confirm sign-out, the console stays open and shows an error rather than navigating away with an uncertain session state.
+Sign out revokes the app-owned `devcon_admin` session and removes its HTTP-only cookie. The browser then clears its cached organizer session and any pending OAuth redirect before replacing the current route with `/organizer-console/login`. It also attempts to clear the tab-scoped Supabase session, but that cleanup is best-effort and cannot block a confirmed app sign-out. If the server cannot confirm sign-out, the console stays open and shows an error rather than navigating away with an uncertain session state.
 
 ## Roles
 

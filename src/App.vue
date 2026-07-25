@@ -431,8 +431,14 @@ async function logout() {
     // immediately re-establishing browser auth after sign-out.
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
-      if (error) console.warn('Unable to clear the local Supabase browser session.', error);
+      try {
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        if (error) console.warn('Unable to clear the local Supabase browser session.', error);
+      } catch (error) {
+        // The app-owned session is already revoked above. A best-effort
+        // Supabase cleanup must not strand the organizer in the console.
+        console.warn('Unable to clear the local Supabase browser session.', error);
+      }
     }
 
     await router.replace(adminPath('login'));
