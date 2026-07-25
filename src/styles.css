@@ -1259,6 +1259,18 @@
 	    color: #555555;
 	  }
 
+	  .event-outline-dropdown-field {
+	    display: grid;
+	    gap: 0.35rem;
+	    min-width: 0;
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.62rem;
+	    font-weight: 800;
+	    letter-spacing: 0.12em;
+	    text-transform: uppercase;
+	    color: #555555;
+	  }
+
 	  .event-outline-input {
 	    width: 100%;
 	    border: 1px solid #d8d4ca;

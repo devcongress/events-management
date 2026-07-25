@@ -1250,18 +1250,10 @@ onMounted(fetchOverview);
 	                      <span>Title</span>
 	                      <input v-model="item.title" class="event-outline-input" placeholder="Session title" />
 	                    </label>
-	                    <label>
+	                    <div class="event-outline-dropdown-field">
 	                      <span>Type</span>
-	                      <select v-model="item.type" class="event-outline-input">
-	                        <option
-	                          v-for="option in outlineTypeOptions"
-	                          :key="option.value"
-	                          :value="option.value"
-	                        >
-	                          {{ option.label }}
-	                        </option>
-	                      </select>
-	                    </label>
+	                      <AppDropdown v-model="item.type" :options="outlineTypeOptions" density="compact" />
+	                    </div>
 	                    <label>
 	                      <span>Lead</span>
 	                      <input
