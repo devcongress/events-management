@@ -1,4 +1,5 @@
 name = "events-management"
+account_id = "a7d0d01173e21d68d5e7509e25416a51"
 main = "server/worker.ts"
 compatibility_date = "2026-06-15"
 compatibility_flags = ["nodejs_compat"]

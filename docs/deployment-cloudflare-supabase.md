@@ -133,6 +133,8 @@ pnpm install
 pnpm deploy:worker
 ```
 
+`wrangler.toml` pins the DevCongress Cloudflare account so a local deployment cannot select another logged-in account when Wrangler sees multiple accounts.
+
 Worker secrets and variables:
 
 ```bash

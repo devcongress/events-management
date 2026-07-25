@@ -8,6 +8,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ## 2026-07-25 — Organizer sign-in pass and session cleanup
 
 - Corrected the deployed Worker origin contract for the `em.devcongress.org` custom domain. `PUBLIC_APP_URL` and `PUBLIC_FRONTEND_ORIGIN` now allow the actual browser origin, so authenticated state-changing requests such as sign-out are no longer rejected with `Invalid request origin`.
+- Pinned the Worker to the DevCongress Cloudflare account in `wrangler.toml`, preventing local deploys from stopping when more than one Cloudflare account is authenticated.
 - Updated the Cloudflare, Google OAuth, and environment-variable documentation to use the organizer console's custom production hostname rather than the historical Pages hostname.
 - Reworked the organizer sign-in into the selected “Pass” design: a responsive DevCongress credential surface with component-level ink, warm-paper, ticket-yellow, and pink tokens, one clear Google action, and the existing local-password fallback for development.
 - Hardened sign-out across both authentication layers: a successful server logout now immediately clears the client session cache, tab-scoped Supabase browser session, and pending OAuth redirect before replacing the route with the organizer sign-in screen.
