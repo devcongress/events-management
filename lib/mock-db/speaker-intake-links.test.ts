@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe('speaker intake links', () => {
-  it('creates a recoverable one-time token that can be consumed once', async () => {
+  it('creates a recoverable, speaker-bound one-time token that can be consumed once', async () => {
     const {
       consumeSpeakerIntakeLink,
       createSpeakerIntakeLink,
@@ -35,10 +35,17 @@ describe('speaker intake links', () => {
       event_id: 'event-june',
       event_month: '2026-06',
       expires_at: '2099-01-01T00:00:00.000Z',
+      speaker_name: 'Ama Mensah',
+      speaker_email: 'ama@example.com',
     });
 
     await expect(fs.readFile(path.join(tempRoot, 'data', 'speaker-intake-links.json'), 'utf-8')).resolves.toContain(token);
-    await expect(getSpeakerIntakeLinkByToken('event-june', token)).resolves.toMatchObject({ id: link.id, used_at: null });
+    await expect(getSpeakerIntakeLinkByToken('event-june', token)).resolves.toMatchObject({
+      id: link.id,
+      speaker_name: 'Ama Mensah',
+      speaker_email: 'ama@example.com',
+      used_at: null,
+    });
     expect(speakerIntakeLinkExpired(link)).toBe(false);
 
     await expect(consumeSpeakerIntakeLink('event-june', token, 'talk-1')).resolves.toMatchObject({

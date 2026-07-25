@@ -251,16 +251,18 @@ POST /api/events/[eventId]/talks
 ### Speaker Archive Intake
 ```
 POST /api/events/[eventId]/speaker-intake-links
-  body: { expires_in_days }
-  → admin-only; creates a month-scoped one-time token for the Legacy Backfill shelf
+  body: { speaker_name, speaker_email, expires_in_days }
+  → admin-only; creates a month-scoped, one-time token bound to one invited Legacy Backfill speaker
+  → only one active archive-backfill token may exist per speaker email for an event; different speakers may use the same expiry duration
 
 GET  /api/events/[eventId]/speaker-intake/[token]
   → returns public event context only when the link is active
 
 POST /api/events/[eventId]/speaker-intake/[token]
-  body for archive_backfill links: { speaker_name, speaker_email, title, topic?, abstract?, bio?, github_username?, slides_url? }
+  body for archive_backfill links: { title, topic?, abstract?, bio?, github_username?, slides_url? }
   body for selected_speaker_confirmation links: { slides_url }
-  → creates/keeps the speaker allowlist row for that email
+  → archive-backfill identity comes from the organizer-issued token, not browser-provided form fields
+  → creates/keeps the speaker allowlist row for that invited email
   → archive-backfill links create accepted or slides_received talks from submitted details
   → selected-speaker links create slides_received talks from the original CFP proposal plus the submitted slides URL
   → marks the speaker link as used after a successful submission

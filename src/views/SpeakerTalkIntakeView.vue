@@ -87,7 +87,14 @@ async function submitTalkDetails() {
   error.value = null;
   const payload = isSelectedSpeakerLink()
     ? { slides_url: form.slides_url }
-    : form;
+    : {
+      github_username: form.github_username,
+      title: form.title,
+      topic: form.topic,
+      abstract: form.abstract,
+      bio: form.bio,
+      slides_url: form.slides_url,
+    };
 
   try {
     const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`, {
@@ -195,16 +202,11 @@ function applyPrefill(prefill: IntakePrefill) {
         </div>
 
         <template v-else>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <label class="block">
-              <span class="editorial-label">Your name *</span>
-              <input v-model="form.speaker_name" required placeholder="Speaker Name" class="editorial-input font-mono" />
-            </label>
-            <label class="block">
-              <span class="editorial-label">Email address *</span>
-              <input v-model="form.speaker_email" required type="email" placeholder="speaker@example.com" class="editorial-input font-mono" />
-            </label>
-          </div>
+          <section class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
+            <p class="editorial-eyebrow">Invited speaker</p>
+            <p class="mt-2 text-xl font-black tracking-tight text-dc-ink">{{ form.speaker_name }}</p>
+            <p class="mt-1 font-mono text-xs font-bold text-dc-gray">{{ form.speaker_email }}</p>
+          </section>
 
           <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
             <label class="block">

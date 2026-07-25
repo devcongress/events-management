@@ -29,7 +29,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/talks/cfp` | CFP status and organizer proposal review controls |
 | `/organizer-console/events/:eventId/talks/proposals` | Speaker proposal review, organizer selection decisions, and selected-speaker slides links |
 | `/organizer-console/events/:eventId/talks/program` | Confirmed talk management, slide follow-up, and archive publishing |
-| `/organizer-console/events/:eventId/talks/backfill` | Temporary legacy backfill tools for talks not collected through CFP |
+| `/organizer-console/events/:eventId/talks/backfill` | Legacy talk backfill: issue one private, named link per confirmed speaker and track it until used, expired, or removed |
 | `/organizer-console/events/:eventId/speakers` | Speaker access allowlist |
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |

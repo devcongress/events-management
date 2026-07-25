@@ -47,6 +47,8 @@ const updatingTalkId = ref<string | null>(null);
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerLinkExpiresInDays = ref(7);
+const backfillSpeakerName = ref('');
+const backfillSpeakerEmail = ref('');
 const error = ref<string | null>(null);
 const PROGRAM_ABSTRACT_PREVIEW_WORDS = 55;
 const groups: { label: string; statuses: TalkStatus[] }[] = [
@@ -145,18 +147,14 @@ const cfpStatusHelp = computed(() => {
   return 'Open CFP when this event is ready to receive speaker proposals.';
 });
 const speakerLinkExpiryDurations = [3, 7, 14, 31];
-const activeBackfillDurations = computed(() => new Set(
-  archiveBackfillLinks.value
-    .filter((link) => link.status === 'active')
-    .map((link) => linkDurationDays(link))
-    .filter((days): days is number => days !== null),
-));
 const speakerLinkExpiryOptions = computed(() => speakerLinkExpiryDurations.map((days) => ({
   value: days,
   label: `${days} days`,
-  disabled: activeBackfillDurations.value.has(days),
 })));
-const selectedSpeakerLinkDurationActive = computed(() => activeBackfillDurations.value.has(speakerLinkExpiresInDays.value));
+const canGenerateBackfillLink = computed(() => (
+  backfillSpeakerName.value.trim().length > 0
+  && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(backfillSpeakerEmail.value.trim())
+));
 
 function talkSectionPath(section: TalkSection): string {
   return adminPath(`events/${String(route.params.eventId)}/talks/${section}`);
@@ -223,11 +221,16 @@ function linkDurationDays(link: Pick<AdminSpeakerIntakeLink, 'created_at' | 'exp
 }
 
 function linkShelfStatusLabel(link: AdminSpeakerIntakeLink): string {
+  if (linkNeedsReissue(link)) return 'Reissue this older unverified link';
   if (link.status === 'used') return 'Used';
   if (link.status === 'expired') return 'Expired';
 
   const durationDays = linkDurationDays(link);
   return durationDays ? `Expires in ${durationDays} days` : 'Active';
+}
+
+function linkNeedsReissue(link: AdminSpeakerIntakeLink): boolean {
+  return link.purpose === 'archive_backfill' && (!link.speaker_name || !link.speaker_email);
 }
 
 function submissionDetailsOpen(submissionId: string) {
@@ -253,7 +256,7 @@ async function refreshSpeakerSubmissions() {
 }
 
 async function generateSpeakerIntakeLink() {
-  if (selectedSpeakerLinkDurationActive.value) return;
+  if (!canGenerateBackfillLink.value) return;
 
   creatingSpeakerLink.value = true;
   error.value = null;
@@ -262,14 +265,20 @@ async function generateSpeakerIntakeLink() {
     const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ expires_in_days: speakerLinkExpiresInDays.value }),
+      body: JSON.stringify({
+        speaker_name: backfillSpeakerName.value.trim(),
+        speaker_email: backfillSpeakerEmail.value.trim(),
+        expires_in_days: speakerLinkExpiresInDays.value,
+      }),
     });
     const data = await response.json();
 
     if (response.ok) {
       resetSpeakerIntakeLinkCopied();
       await fetchSpeakerIntakeLinks();
-      notify.success('One-time speaker link generated.');
+      backfillSpeakerName.value = '';
+      backfillSpeakerEmail.value = '';
+      notify.success('Private speaker link generated.');
     } else {
       error.value = data.error || 'Could not generate speaker form link.';
     }
@@ -748,12 +757,23 @@ onUnmounted(() => {
               <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Speaker Form Links</h2>
               <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Generate one-time links for confirmed or past speakers who need to send archive details. Links stay visible here while they are active, and remain removable after use or expiry.</p>
             </div>
-            <div class="border-t border-dc-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+            <form class="border-t border-dc-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" @submit.prevent="generateSpeakerIntakeLink">
               <p class="ops-label">archive backfill</p>
               <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Send a one-time link</h3>
-              <p class="mt-2 text-sm leading-6 text-dc-gray">Generate a month-specific archive/backfill link for one speaker. Selected CFP speakers get their own confirmation links from the inbox.</p>
+              <p class="mt-2 text-sm leading-6 text-dc-gray">Issue a private, one-time archive link to a known speaker. Their name and email are locked to the link, so each completed form can be traced to the invited speaker.</p>
 
-              <div class="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <label class="block">
+                  <span class="editorial-label">Speaker name</span>
+                  <input v-model="backfillSpeakerName" required autocomplete="name" class="editorial-input mt-2" placeholder="Ama Mensah">
+                </label>
+                <label class="block">
+                  <span class="editorial-label">Speaker email</span>
+                  <input v-model="backfillSpeakerEmail" required type="email" autocomplete="email" class="editorial-input mt-2 font-mono" placeholder="ama@example.com">
+                </label>
+              </div>
+
+              <div class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <AppDropdown
                   :model-value="speakerLinkExpiresInDays"
                   label="Valid for"
@@ -762,15 +782,14 @@ onUnmounted(() => {
                   menu-class="min-w-40"
                   @update:model-value="speakerLinkExpiresInDays = Number($event)"
                 />
-                <button type="button" :disabled="creatingSpeakerLink || selectedSpeakerLinkDurationActive" class="editorial-secondary-action self-end px-4 py-3 text-xs" @click="generateSpeakerIntakeLink">
-                  {{ creatingSpeakerLink ? 'Generating...' : selectedSpeakerLinkDurationActive ? 'Already active' : 'Generate link' }}
+                <button type="submit" :disabled="creatingSpeakerLink || !canGenerateBackfillLink" class="editorial-secondary-action self-end px-4 py-3 text-xs">
+                  {{ creatingSpeakerLink ? 'Generating...' : 'Generate link' }}
                 </button>
               </div>
-              <p v-if="selectedSpeakerLinkDurationActive" class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                Remove the active {{ speakerLinkExpiresInDays }} day link before generating another one.
+              <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                One active link per speaker. You can issue the same expiry length to different speakers.
               </p>
-
-            </div>
+            </form>
           </div>
 
           <section class="border-t border-dc-border pt-5">
@@ -792,8 +811,10 @@ onUnmounted(() => {
                   <div class="min-w-0">
                     <div class="mb-2 flex flex-wrap items-center gap-2">
                       <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Archive backfill / {{ link.event_month }}</p>
-                      <span class="rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ link.status }}</span>
+                      <span class="rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ linkNeedsReissue(link) ? 'reissue' : link.status }}</span>
                     </div>
+                    <p class="truncate text-sm font-black text-dc-ink">{{ link.speaker_name || 'Speaker identity unavailable' }}</p>
+                    <p v-if="link.speaker_email" class="mt-1 truncate font-mono text-[11px] font-bold text-dc-gray">{{ link.speaker_email }}</p>
                     <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
                       {{ linkShelfStatusLabel(link) }}
                     </p>

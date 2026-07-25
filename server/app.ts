@@ -130,8 +130,11 @@ const selectedSpeakerSlidesSchema = z.object({
   slides_url: z.string().trim().min(1, 'Slides URL is required'),
 });
 const speakerIntakeLinkRequestSchema = z.object({
+  speaker_name: z.string().trim().min(1, 'Speaker name is required').max(120),
+  speaker_email: z.string().trim().toLowerCase().email('Speaker email must be valid'),
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 });
+const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({ speaker_name: true, speaker_email: true });
 const STOP_WORDS = new Set([
   'about',
   'above',
@@ -3063,6 +3066,10 @@ function speakerIntakeLinkError(link: SpeakerIntakeLink | undefined): { error: s
     return { error: 'Speaker form link has expired', status: 410 };
   }
 
+  if (link.purpose === 'archive_backfill' && (!link.speaker_name || !link.speaker_email)) {
+    return { error: 'This older backfill link cannot verify the invited speaker. Ask an organizer to issue a new link.', status: 410 };
+  }
+
   return null;
 }
 
@@ -3303,20 +3310,22 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
   }
 
   const existingLinks = await getSpeakerIntakeLinksByEvent(eventId);
-  const duplicateActiveDuration = existingLinks.some((link) => (
+  const duplicateActiveSpeaker = existingLinks.some((link) => (
     (link.purpose ?? 'archive_backfill') === 'archive_backfill'
     && speakerIntakeLinkStatus(link) === 'active'
-    && speakerIntakeLinkDurationDays(link) === parsed.data.expires_in_days
+    && link.speaker_email?.toLowerCase() === parsed.data.speaker_email
   ));
 
-  if (duplicateActiveDuration) {
-    return c.json({ error: `A ${parsed.data.expires_in_days} day backfill link is already active for this event.` }, 409);
+  if (duplicateActiveSpeaker) {
+    return c.json({ error: `An active backfill link already exists for ${parsed.data.speaker_email}.` }, 409);
   }
 
   const { link, token } = await createSpeakerIntakeLink({
     event_id: eventId,
     event_month: eventMonthKey(event.event_date),
     expires_at: addDays(new Date(), parsed.data.expires_in_days).toISOString(),
+    speaker_name: parsed.data.speaker_name,
+    speaker_email: parsed.data.speaker_email,
   });
 
   await auditAdminAction(c, {
@@ -3326,6 +3335,7 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
     metadata: {
       event_id: eventId,
       event_month: link.event_month,
+      speaker_email: link.speaker_email,
       expires_at: link.expires_at,
     },
   });
@@ -3448,12 +3458,20 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
       const result = await createSelectedSpeakerTalkForEvent(eventId, submission, parsed.data.slides_url);
       talk = result.talk;
     } else {
-      const parsed = speakerTalkIntakeSchema.safeParse(body);
+      const parsed = speakerBackfillDetailsSchema.safeParse(body);
       if (!parsed.success) {
         return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the talk details' }, 400);
       }
 
-      const result = await createBackfilledTalkForEvent(eventId, parsed.data);
+      if (!link?.speaker_name || !link.speaker_email) {
+        return c.json({ error: 'This backfill link cannot verify the invited speaker. Ask an organizer to issue a new link.' }, 410);
+      }
+
+      const result = await createBackfilledTalkForEvent(eventId, {
+        ...parsed.data,
+        speaker_name: link.speaker_name,
+        speaker_email: link.speaker_email,
+      });
       talk = result.talk;
     }
 

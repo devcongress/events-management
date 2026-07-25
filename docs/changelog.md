@@ -20,6 +20,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-25 — Admin-only organizer surface
 
+- Made legacy archive backfill links speaker-bound: organizers now issue each one to a named email, can create multiple links with the same expiry for different speakers, and the public form locks identity to the invitation instead of trusting submitted name/email fields. Older anonymous backfill links now close and must be reissued.
 - Restored the organizer login to the established DevCongress editorial system: shared cream/paper/ink/pink tokens, the existing panel/input/action primitives, and a compact viewport-fitting form rather than a separate marketing-style split screen. Navigation now stays hidden until the organizer session is authenticated.
 - Refined the Google-only organizer sign-in into a clearer private-console entry point and removed redundant allowlist copy from the screen.
 - Made the desktop organizer sign-in a two-column console entry, with the operational context separate from the single Google sign-in action; it remains compact and stacked on smaller screens.
