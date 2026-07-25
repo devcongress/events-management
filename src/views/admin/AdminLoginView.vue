@@ -123,17 +123,21 @@ onMounted(async () => {
 
 <template>
   <div class="editorial-page flex min-h-full items-center justify-center p-4 sm:p-6">
-    <form class="editorial-panel w-full max-w-md p-6 sm:p-8" aria-labelledby="organizer-login-title" @submit.prevent="login">
-      <div class="border-b-2 border-dc-ink pb-5">
-        <img :src="logoSrc" alt="DevCongress" class="h-7 w-auto max-w-[12rem] object-contain" />
-        <p class="editorial-eyebrow mt-6">organizer access</p>
-        <h1 id="organizer-login-title" class="text-3xl font-black tracking-tight text-dc-ink sm:text-4xl">Sign in</h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray">
-          {{ authMode === 'supabase' ? 'Use the Google account approved for organizer access.' : 'Use the local admin password to manage DevCongress events.' }}
+    <form class="editorial-panel w-full max-w-lg overflow-hidden" aria-labelledby="organizer-login-title" @submit.prevent="login">
+      <div class="border-b-2 border-dc-ink bg-dc-paper px-6 pb-6 pt-7 sm:px-8 sm:pb-7 sm:pt-8">
+        <div class="flex items-center justify-between gap-4">
+          <img :src="logoSrc" alt="DevCongress" class="h-7 w-auto max-w-[12rem] object-contain" />
+          <span class="inline-flex min-h-9 items-center rounded-md border-2 border-dc-ink bg-dc-yellow px-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-dc-ink">Private</span>
+        </div>
+        <p class="editorial-eyebrow mt-9">organizer console</p>
+        <h1 id="organizer-login-title" class="max-w-[11ch] text-4xl font-black leading-[0.95] tracking-tight text-dc-ink sm:text-5xl">Make the next event happen.</h1>
+        <p class="mt-4 max-w-md text-base leading-7 text-dc-gray">
+          {{ authMode === 'supabase' ? 'Sign in to manage events, speakers, attendance, and feedback.' : 'Use the local admin password to manage DevCongress events.' }}
         </p>
       </div>
 
-      <label v-if="authMode === 'local'" class="mt-6 block">
+      <div class="bg-dc-cream px-6 py-6 sm:px-8 sm:py-7">
+      <label v-if="authMode === 'local'" class="block">
         <span class="editorial-label">Password</span>
         <input
           v-model="password"
@@ -151,13 +155,10 @@ onMounted(async () => {
         {{ error }}
       </div>
 
-      <button type="submit" :disabled="loading" class="editorial-action mt-6 w-full justify-center disabled:opacity-60">
+      <button type="submit" :disabled="loading" class="editorial-action mt-6 min-h-14 w-full justify-center disabled:opacity-60">
         {{ loading ? 'Signing in...' : authMode === 'supabase' ? 'Continue with Google' : 'Sign in' }}
       </button>
-
-      <p v-if="authMode === 'supabase'" class="mt-5 text-center font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">
-        Google sign-in is checked against the organizer allowlist.
-      </p>
+      </div>
     </form>
   </div>
 </template>
