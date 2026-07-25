@@ -5226,12 +5226,13 @@
 	    display: grid;
 	    align-content: start;
 	    gap: 1rem;
+	    min-width: 0;
 	  }
 
 	  .volunteer-intake-intro h1 {
 	    max-width: 10ch;
 	    color: #111111;
-	    font-size: clamp(3.2rem, 8vw, 7.4rem);
+	    font-size: clamp(3.2rem, 5vw, 5.5rem);
 	    font-weight: 950;
 	    letter-spacing: -0.05em;
 	    line-height: 0.9;
@@ -5247,6 +5248,7 @@
 
 	  .volunteer-intake-form,
 	  .volunteer-intake-receipt {
+	    min-width: 0;
 	    border: 2px solid #111111;
 	    border-radius: 0.75rem;
 	    background: #fffdf7;

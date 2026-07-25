@@ -7,6 +7,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-25 — Organizer sign-in pass and session cleanup
 
+- Constrained the December volunteer-form headline to its desktop grid column so the DevCongress word wraps cleanly rather than sitting underneath the form at mid-sized desktop widths.
 - Added a standalone December Mega Meetup volunteer form for name, email, X handle, and Slack name, plus a private Volunteer Hub and TV-safe QR display for organizers. Applications use the existing Supabase shared-document compatibility store, enforce per-campaign email de-duplication, and add optional Turnstile plus per-client rate limits; no new Supabase migration is required.
 - Made the protected organizer feedback QR display a dedicated standalone surface, removing inherited organizer navigation, breadcrumbs, and phone-ops replacement while keeping the route protected. Added restrained pink and yellow structural accents to improve at-a-distance readability without changing the attendee feedback form.
 - Documented the planned Supabase-plus-Resend speaker-link email feature: DevCongress sending-subdomain setup, code-owned templates, safe server-side delivery contract, audit/delivery records, and later test/release checks. No email sending behavior was added.
