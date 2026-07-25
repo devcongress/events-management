@@ -40,6 +40,7 @@ const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
+  { href: adminPath('volunteers'), label: 'Volunteer Hub' },
   { href: adminPath('organizers'), label: 'Organizers' },
 ];
 const ownerAdminLinks: NavLink[] = [
@@ -47,7 +48,12 @@ const ownerAdminLinks: NavLink[] = [
 ];
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
-const isStandaloneFeedbackRoute = computed(() => route.name === 'event-feedback');
+const isStandaloneRoute = computed(() => (
+  route.name === 'event-feedback'
+  || route.name === 'admin-feedback-display'
+  || route.name === 'volunteer-intake'
+  || route.name === 'admin-volunteer-display'
+));
 const isLoginRoute = computed(() => route.path === adminPath('login') || route.path === adminPath('auth/callback'));
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
@@ -55,7 +61,7 @@ const adminSessionQuery = useQuery({
   enabled: isAdminRoute,
 });
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
-const showAppHeader = computed(() => !isStandaloneFeedbackRoute.value && isOrganizerAuthenticated.value);
+const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
 const showPrimaryNavigation = computed(() => showAppHeader.value && isOrganizerAuthenticated.value);
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
@@ -79,6 +85,7 @@ const showOrganizerPhoneView = computed(() => (
   isOrganizerAuthenticated.value
   && isAdminRoute.value
   && phoneViewport.value
+  && !isStandaloneRoute.value
   && !isOrganizerPhoneBypassRoute.value
 ));
 const navGroups = computed(() => {
@@ -249,6 +256,7 @@ const breadcrumbItems = computed(() => {
 });
 const showBreadcrumbs = computed(() => (
   isOrganizerAuthenticated.value
+  && !isStandaloneRoute.value
   && !showOrganizerPhoneView.value
   && isAdminRoute.value
   && breadcrumbItems.value.length > 1
@@ -551,7 +559,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--login': isLoginRoute }">
+  <div
+    class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink"
+    :class="{
+      'app-shell--login': isLoginRoute,
+      'app-shell--standalone': isStandaloneRoute,
+    }"
+  >
     <header v-if="showAppHeader" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
         <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">

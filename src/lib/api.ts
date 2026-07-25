@@ -1,4 +1,4 @@
-import type { Event, LeaderboardEntry, PublicArchiveEventResponse, PublicArchiveResponse, PublicHomeResponse, PublicMeetup, QuizSession, Talk } from '@/types';
+import type { Event, LeaderboardEntry, PublicArchiveEventResponse, PublicArchiveResponse, PublicHomeResponse, PublicMeetup, QuizSession, Talk, VolunteerApplication } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
 
@@ -192,6 +192,10 @@ export interface FeedbackEventStatusResponse {
   error?: string;
 }
 
+export interface VolunteerApplicationsResponse {
+  applications: VolunteerApplication[];
+}
+
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
@@ -202,6 +206,7 @@ export const queryKeys = {
   publicMeetup: (slug: string) => ['public-meetup', slug] as const,
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
+  volunteerApplications: ['volunteer-applications'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
@@ -221,6 +226,10 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
   }
 
   return payload as T;
+}
+
+export function fetchVolunteerApplications() {
+  return fetchJson<VolunteerApplicationsResponse>('/api/admin/volunteer-applications');
 }
 
 export function summarizeRouteFeedback(submissions: RouteFeedbackSubmission[]): RouteFeedbackSummary {

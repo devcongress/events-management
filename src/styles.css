@@ -5203,7 +5203,155 @@
 	  .feedback-display-page {
 	    min-height: 100dvh;
 	    background:
-	      linear-gradient(180deg, rgba(255, 247, 191, 0.52) 0%, rgba(248, 244, 232, 0.96) 18%, #f6f1e6 100%);
+	      radial-gradient(circle at 88% 6%, rgba(232, 17, 127, 0.12), transparent 22rem),
+	      linear-gradient(180deg, rgba(255, 247, 191, 0.6) 0%, rgba(248, 244, 232, 0.96) 18%, #f6f1e6 100%);
+	  }
+
+	  .volunteer-intake-page {
+	    min-height: 100%;
+	    background:
+	      radial-gradient(circle at 84% 8%, rgba(232, 17, 127, 0.13), transparent 20rem),
+	      linear-gradient(180deg, #fff7bf 0%, #f5f2e8 40rem);
+	    padding: clamp(1.25rem, 4vw, 4rem) 1.25rem;
+	  }
+
+	  .volunteer-intake-shell {
+	    display: grid;
+	    gap: clamp(2rem, 5vw, 4.5rem);
+	    width: min(100%, 68rem);
+	    margin: 0 auto;
+	  }
+
+	  .volunteer-intake-intro {
+	    display: grid;
+	    align-content: start;
+	    gap: 1rem;
+	  }
+
+	  .volunteer-intake-intro h1 {
+	    max-width: 10ch;
+	    color: #111111;
+	    font-size: clamp(3.2rem, 8vw, 7.4rem);
+	    font-weight: 950;
+	    letter-spacing: -0.05em;
+	    line-height: 0.9;
+	  }
+
+	  .volunteer-intake-intro > p:last-child {
+	    max-width: 34rem;
+	    color: #4b4b4b;
+	    font-size: clamp(1.05rem, 2vw, 1.3rem);
+	    font-weight: 600;
+	    line-height: 1.55;
+	  }
+
+	  .volunteer-intake-form,
+	  .volunteer-intake-receipt {
+	    border: 2px solid #111111;
+	    border-radius: 0.75rem;
+	    background: #fffdf7;
+	    box-shadow: 5px 5px 0 #111111;
+	    padding: clamp(1.25rem, 4vw, 2.5rem);
+	  }
+
+	  .volunteer-intake-form {
+	    display: grid;
+	    gap: 1.5rem;
+	  }
+
+	  .volunteer-intake-fields {
+	    display: grid;
+	    gap: 1.15rem;
+	  }
+
+	  .volunteer-intake-fields label {
+	    display: grid;
+	    gap: 0.5rem;
+	  }
+
+	  .volunteer-intake-fields label > span {
+	    color: #111111;
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.72rem;
+	    font-weight: 900;
+	    letter-spacing: 0.1em;
+	    text-transform: uppercase;
+	  }
+
+	  .volunteer-intake-fields input {
+	    min-height: 3.6rem;
+	    width: 100%;
+	    border: 2px solid #111111;
+	    border-radius: 0.5rem;
+	    background: #ffffff;
+	    color: #111111;
+	    padding: 0.85rem 1rem;
+	    font-size: 1rem;
+	    font-weight: 650;
+	    outline: none;
+	    transition: border-color 150ms var(--motion-fast), box-shadow 150ms var(--motion-fast);
+	  }
+
+	  .volunteer-intake-fields input:focus {
+	    border-color: #e8117f;
+	    box-shadow: 0 0 0 4px rgba(232, 17, 127, 0.14);
+	  }
+
+	  .volunteer-intake-fields input::placeholder {
+	    color: #8c8c8c;
+	  }
+
+	  .volunteer-intake-error {
+	    border-left: 0.35rem solid #e8117f;
+	    background: #fff0f8;
+	    color: #8f064e;
+	    padding: 0.9rem 1rem;
+	    font-weight: 700;
+	    line-height: 1.45;
+	  }
+
+	  .volunteer-intake-submit {
+	    min-height: 3.7rem;
+	    border: 2px solid #111111;
+	    border-radius: 0.5rem;
+	    background: #e8117f;
+	    color: #ffffff;
+	    padding: 0.85rem 1rem;
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.9rem;
+	    font-weight: 900;
+	    letter-spacing: 0.08em;
+	    text-transform: uppercase;
+	    box-shadow: 3px 3px 0 #111111;
+	    transition: transform 100ms var(--motion-fast), box-shadow 100ms var(--motion-fast), opacity 150ms var(--motion-fast);
+	  }
+
+	  .volunteer-intake-submit:disabled {
+	    cursor: not-allowed;
+	    opacity: 0.45;
+	    box-shadow: none;
+	  }
+
+	  .volunteer-intake-receipt {
+	    display: grid;
+	    gap: 1rem;
+	    align-content: center;
+	    min-height: 20rem;
+	    border-top: 0.5rem solid #e8117f;
+	  }
+
+	  .volunteer-intake-receipt h2 {
+	    color: #111111;
+	    font-size: clamp(2.2rem, 5vw, 4.2rem);
+	    font-weight: 950;
+	    letter-spacing: -0.04em;
+	    line-height: 0.95;
+	  }
+
+	  .volunteer-intake-receipt p:last-child {
+	    color: #4b4b4b;
+	    font-size: 1.1rem;
+	    font-weight: 600;
 	  }
 
   .feedback-display-shell {
@@ -5247,14 +5395,15 @@
 	    gap: 0;
 	  }
 
-  .feedback-display-qr-wrap {
+	  .feedback-display-qr-wrap {
     display: grid;
     place-items: center;
     align-content: start;
     gap: 1rem;
     padding: 2rem;
-    border-bottom: 2px solid #111111;
-    background: #fff7bf;
+	    border-top: 0.45rem solid #e8117f;
+	    border-bottom: 2px solid #111111;
+	    background: #fff7bf;
   }
 
   .feedback-display-qr {
@@ -5290,7 +5439,7 @@
 	  }
 
 	  .feedback-display-kicker {
-	    color: #111111;
+	    color: #e8117f;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.8rem;
 	    font-weight: 800;
@@ -5407,6 +5556,15 @@
 	  }
 
 	  @media (min-width: 768px) {
+	    .volunteer-intake-shell {
+	      grid-template-columns: minmax(0, 0.9fr) minmax(28rem, 0.8fr);
+	      align-items: center;
+	      min-height: calc(100dvh - 8rem);
+	    }
+
+	    .volunteer-intake-fields {
+	      grid-template-columns: repeat(2, minmax(0, 1fr));
+	    }
 	    .feedback-hub-hero {
 	      flex-direction: row;
 	      align-items: flex-end;

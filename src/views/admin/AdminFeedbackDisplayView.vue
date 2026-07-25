@@ -105,10 +105,10 @@ onMounted(() => {
               <p class="feedback-display-qr-caption">Camera open. Point at the code.</p>
             </div>
             <div class="feedback-display-copy">
-              <p class="feedback-display-kicker">event feedback</p>
+              <p class="feedback-display-kicker">Event feedback</p>
               <div class="feedback-display-story">
                 <h2>Scan. Rate. Leave one note.</h2>
-                <p>Help us keep what worked and fix what did not. It takes about two minutes.</p>
+                <p>Help us keep what worked and fix what did not.</p>
               </div>
               <dl class="feedback-display-meta">
                 <div>

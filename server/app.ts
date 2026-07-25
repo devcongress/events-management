@@ -6,7 +6,7 @@ import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { inferEventSeriesType, isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
-import { ROUTE_FEEDBACK_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
+import { ROUTE_FEEDBACK_TURNSTILE_ACTION, VOLUNTEER_INTAKE_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
@@ -18,6 +18,7 @@ import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSes
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
+import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession, type AdminSession } from '@/lib/supabase/admin-auth';
@@ -29,6 +30,7 @@ import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } fro
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
+import { evaluateVolunteerRateLimit, recordVolunteerSubmission, volunteerRetryMessage } from '@/lib/volunteer-rate-limit';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
@@ -135,6 +137,14 @@ const speakerIntakeLinkRequestSchema = z.object({
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 });
 const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({ speaker_name: true, speaker_email: true });
+const volunteerApplicationSchema = z.object({
+  name: z.string().trim().min(1, 'Please enter your name.').max(120),
+  email: z.string().trim().toLowerCase().email('Please enter a valid email address.').max(254),
+  x_handle: z.string().trim().min(1, 'Please enter your X handle.').max(100),
+  slack_name: z.string().trim().min(1, 'Please enter your Slack name.').max(120),
+  turnstile_action: z.string().trim().optional(),
+  turnstile_token: z.string().trim().optional(),
+});
 const STOP_WORDS = new Set([
   'about',
   'above',
@@ -238,8 +248,9 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || (method === 'POST' && (
       path === '/api/cfp'
       || path === '/api/feedback'
-      || path === '/api/auth/admin/login'
-      || path === '/api/auth/admin/exchange'
+    || path === '/api/auth/admin/login'
+    || path === '/api/auth/admin/exchange'
+      || path === '/api/volunteer-applications'
     ))
     || isPublicFeedbackEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method);
@@ -2062,6 +2073,70 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   }, c);
 
   return c.json({ id: submission.id }, 201);
+});
+
+app.post('/api/volunteer-applications', async (c) => {
+  const parsed = volunteerApplicationSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your details and try again.' }, 400);
+  }
+
+  const forwardedFor = c.req.header('cf-connecting-ip')
+    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? 'unknown';
+  const userAgent = c.req.header('user-agent') ?? 'unknown';
+  const turnstileSecretKey = envValue('TURNSTILE_SECRET_KEY', c);
+  const turnstileHostname = envValue('TURNSTILE_EXPECTED_HOSTNAME', c);
+
+  if (turnstileSecretKey) {
+    const turnstileCheck = await validateTurnstileToken({
+      token: parsed.data.turnstile_token ?? '',
+      secretKey: turnstileSecretKey,
+      remoteIp: forwardedFor === 'unknown' ? undefined : forwardedFor,
+      expectedAction: VOLUNTEER_INTAKE_TURNSTILE_ACTION,
+      expectedHostname: turnstileHostname,
+    });
+
+    if (!turnstileCheck.ok) {
+      return c.json({ error: turnstileCheck.error }, turnstileCheck.status);
+    }
+
+    if (parsed.data.turnstile_action && parsed.data.turnstile_action !== VOLUNTEER_INTAKE_TURNSTILE_ACTION) {
+      return c.json({ error: 'Human verification did not match this form. Please try again.' }, 400);
+    }
+  } else if (parsed.data.turnstile_token || parsed.data.turnstile_action) {
+    return c.json({ error: 'Human verification is temporarily unavailable. Please try again later.' }, 503);
+  }
+
+  const clientKey = `${forwardedFor}::${userAgent}`;
+  const rateLimit = evaluateVolunteerRateLimit(clientKey);
+  if (!rateLimit.allowed) {
+    const retryAfterSeconds = Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000));
+    c.header('Retry-After', String(retryAfterSeconds));
+    return c.json({
+      error: volunteerRetryMessage(rateLimit),
+      retry_after_seconds: retryAfterSeconds,
+    }, 429);
+  }
+
+  const result = await createVolunteerApplication({
+    name: parsed.data.name,
+    email: parsed.data.email,
+    x_handle: parsed.data.x_handle,
+    slack_name: parsed.data.slack_name,
+  });
+
+  if (!result.created) {
+    return c.json({ error: 'A volunteer application with this email has already been received.' }, 409);
+  }
+
+  recordVolunteerSubmission(clientKey);
+  return c.json({ id: result.application.id }, 201);
+});
+
+app.get('/api/admin/volunteer-applications', async (c) => {
+  const applications = await getVolunteerApplications();
+  return c.json({ applications });
 });
 
 app.post('/api/auth/admin/login', async (c) => {

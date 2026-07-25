@@ -1,6 +1,7 @@
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
 export const ROUTE_FEEDBACK_TURNSTILE_ACTION = 'route_feedback';
+export const VOLUNTEER_INTAKE_TURNSTILE_ACTION = 'volunteer_intake';
 
 type TurnstileSuccess = {
   ok: true;

@@ -61,6 +61,12 @@
   - APIs: `/api/events/[eventId]/feedback-campaign`, `DELETE /api/events/[eventId]/feedback-campaign`, `/api/feedback/events/[eventId]`, `/api/feedback/events/[eventId]/submissions`
   - Supabase persistence: `lib/supabase/feedback-campaigns.ts`
   - Mock DB fallback: `lib/mock-db/feedback.ts`
+- **December Mega Meetup volunteer intake**
+  - Active Vue pages: `src/views/VolunteerIntakeView.vue`, `src/views/admin/AdminVolunteerView.vue`, `src/views/admin/AdminVolunteerDisplayView.vue`
+  - Public form: `/volunteer/december-mega-meetup`, intentionally standalone without organizer navigation or app chrome
+  - APIs: `POST /api/volunteer-applications`, `GET /api/admin/volunteer-applications`
+  - Storage: `lib/mock-db/volunteer-applications.ts` uses the existing `app_json_documents` Supabase compatibility store under the `volunteer-applications` key when server-side Supabase is enabled, with local JSON fallback for development
+  - Abuse controls: optional Turnstile using the `volunteer_intake` action, a ten-minute client cooldown, a two-per-day client limit, and one application per campaign/email
 - **Monthly system design**
   - Active Vue pages: `src/views/admin/AdminSystemDesignView.vue`, `src/views/EventView.vue`, `src/views/ArchiveEventView.vue`
   - Storage: `event.schedule` rows with type `system_design`, optional public recap notes, and prompt-link resources
@@ -134,7 +140,7 @@
 
 - `src/main.ts` mounts Vue, Pinia, Vue Router, and the shared TanStack Query plugin.
 - `src/router.ts` lazy-loads routed page components with dynamic imports, keeping the shell and route guard eager while splitting public pages, organizer workspaces, quiz views, and fallback pages into route chunks.
-- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache, resolves event breadcrumb labels from cached event data or the single-event API instead of fetching the full event list on every route change, renders CFP and one-time speaker intake links as standalone public forms without app chrome, replaces full organizer workspaces with the mobile ops view on phone-width routes except login/auth and feedback QR display, and redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated.
+- `src/App.vue` provides the active shell/nav, contextual breadcrumbs for public and organizer routes, mounts `AppToaster`, polls `/api/quiz/active` so the public `Play` link appears only while a quiz session is waiting or active, reads the organizer Feedback Hub badge from the shared route-feedback inbox query cache, resolves event breadcrumb labels from cached event data or the single-event API instead of fetching the full event list on every route change, renders CFP and one-time speaker intake links as standalone public forms without app chrome, and gives the protected feedback QR display the same standalone treatment so it cannot inherit organizer navigation, breadcrumbs, or the phone ops view. It redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated.
 - `src/App.vue` renders `src/components/AdminEventTabs.vue` once for event-scoped organizer routes, keeping sub-section tabs stable while routed event pages change underneath.
 - `src/components/ui/AppToaster.vue` wraps `vue-sonner` with the DevCongress editorial/ops toast theme; app code should call `notify` from `src/lib/notify.ts` instead of importing `toast` directly.
 - `src/components/ui/ViewSkeleton.vue` provides reusable skeleton variants for full-page loading states; prefer it over bare loading text so routed views preserve their header, panel, table, and form structure while data fetches.

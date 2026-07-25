@@ -366,6 +366,16 @@ export interface EventFeedbackSubmission {
   created_at: string;
 }
 
+export interface VolunteerApplication {
+  id: string;
+  campaign_id: 'december-mega-meetup';
+  name: string;
+  email: string;
+  x_handle: string;
+  slack_name: string;
+  created_at: string;
+}
+
 export interface LumaAttendanceRecord {
   guest_id: string;
   event_id: string;

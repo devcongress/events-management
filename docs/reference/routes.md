@@ -4,11 +4,12 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 
 ## Browser Surface
 
-This deployment is an organizer-only console, with one deliberate attendee-facing exception: event feedback. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
+This deployment is an organizer-only console, with deliberate public exceptions for event feedback and the December Mega Meetup volunteer intake. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
 
 | Route | Purpose |
 |---|---|
 | `/feedback/:eventId` | Standalone event feedback form. It deliberately renders without the app header, navigation, or organizer controls. |
+| `/volunteer/december-mega-meetup` | Standalone December Mega Meetup volunteer form for name, email, X handle, and Slack name. |
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
 
@@ -37,6 +38,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/feedback-display/:eventId` | Organizer-only TV-safe QR display for an open event feedback form |
 | `/organizer-console/attendance` | Monthly attendance ledger |
 | `/organizer-console/feedback` | Feedback hub and app feedback inbox |
+| `/organizer-console/volunteers` | December Mega Meetup volunteer-link sharing and private application review |
+| `/organizer-console/volunteer-display` | Organizer-only TV-safe QR display for the volunteer intake form |
 
 ## API Routes
 
@@ -48,6 +51,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/speakers*` | Speaker access workflows |
 | `/api/attendance*` | Luma CSV import, removal, summaries, monthly ledger |
 | `/api/feedback*` | App feedback, event campaigns, public feedback submission |
+| `POST /api/volunteer-applications` | Public December Mega Meetup volunteer application submission, protected by optional Turnstile, per-client limits, and email de-duplication |
+| `GET /api/admin/volunteer-applications` | Organizer-only December Mega Meetup volunteer application read API |
 | `/api/integrations/luma*` | Organizer-only Luma event shell preview, public-page preview, and confirmed import |
 | `/api/quiz*` | Quiz sessions, questions, explicit state advancement, join/play/host state |
 | `/api/public/meetups*` | Read-only website integration API |

@@ -16,6 +16,7 @@ const SHARED_DOCUMENT_FILES = new Set([
   'speakers',
   'talks',
   'users',
+  'volunteer-applications',
 ]);
 
 // Serializes writes inside this process; file-level atomic rename handles partial-write safety.

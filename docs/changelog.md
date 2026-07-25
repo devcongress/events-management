@@ -7,6 +7,9 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-25 — Organizer sign-in pass and session cleanup
 
+- Added a standalone December Mega Meetup volunteer form for name, email, X handle, and Slack name, plus a private Volunteer Hub and TV-safe QR display for organizers. Applications use the existing Supabase shared-document compatibility store, enforce per-campaign email de-duplication, and add optional Turnstile plus per-client rate limits; no new Supabase migration is required.
+- Made the protected organizer feedback QR display a dedicated standalone surface, removing inherited organizer navigation, breadcrumbs, and phone-ops replacement while keeping the route protected. Added restrained pink and yellow structural accents to improve at-a-distance readability without changing the attendee feedback form.
+- Documented the planned Supabase-plus-Resend speaker-link email feature: DevCongress sending-subdomain setup, code-owned templates, safe server-side delivery contract, audit/delivery records, and later test/release checks. No email sending behavior was added.
 - Restored organizer-only event-feedback distribution tools: draft preview, live attendee-link copying, and a protected QR display route. The QR display now becomes available as soon as a campaign is open, including manually published campaigns.
 - Added accessible move-up and move-down controls to every editable program-outline row. Reordering is immediate in the draft and persists through the existing Save outline action, so organizers can adapt the run of show when speakers or sessions change on the day.
 - Corrected the deployed Worker origin contract for the `em.devcongress.org` custom domain. `PUBLIC_APP_URL` and `PUBLIC_FRONTEND_ORIGIN` now allow the actual browser origin, so authenticated state-changing requests such as sign-out are no longer rejected with `Invalid request origin`.

@@ -5,9 +5,13 @@ import { queryClient } from './lib/query';
 
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
 const FEEDBACK_TITLE = 'DevCongress | Feedback';
+const FEEDBACK_DISPLAY_TITLE = 'DevCongress | Feedback Display';
+const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
+const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
 const ownerOnlyPaths = new Set([adminPath('audit-log')]);
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
+const VolunteerIntakeView = () => import('./views/VolunteerIntakeView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
@@ -15,6 +19,8 @@ const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceO
 const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
 const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
 const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDisplayView.vue');
+const AdminVolunteerView = () => import('./views/admin/AdminVolunteerView.vue');
+const AdminVolunteerDisplayView = () => import('./views/admin/AdminVolunteerDisplayView.vue');
 const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
 const AdminOrganizersView = () => import('./views/admin/AdminOrganizersView.vue');
 const AdminAuditLogView = () => import('./views/admin/AdminAuditLogView.vue');
@@ -43,6 +49,7 @@ export const router = createRouter({
   routes: [
     { path: '/', redirect: adminPath('events') },
     { path: '/feedback/:eventId', name: 'event-feedback', component: FeedbackView },
+    { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
     { path: adminPath(), redirect: adminPath('events') },
@@ -50,6 +57,8 @@ export const router = createRouter({
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
     { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
+    { path: adminPath('volunteers'), name: 'admin-volunteers', component: AdminVolunteerView },
+    { path: adminPath('volunteer-display'), name: 'admin-volunteer-display', component: AdminVolunteerDisplayView },
     { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
     { path: adminPath('audit-log'), name: 'admin-audit-log', component: AdminAuditLogView },
     { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },
@@ -125,5 +134,15 @@ router.beforeEach(async (to, from) => {
 });
 
 router.afterEach((to) => {
-  document.title = to.name === 'event-feedback' ? FEEDBACK_TITLE : ORGANIZER_TITLE;
+  if (to.name === 'event-feedback') {
+    document.title = FEEDBACK_TITLE;
+  } else if (to.name === 'admin-feedback-display') {
+    document.title = FEEDBACK_DISPLAY_TITLE;
+  } else if (to.name === 'volunteer-intake') {
+    document.title = VOLUNTEER_TITLE;
+  } else if (to.name === 'admin-volunteer-display') {
+    document.title = VOLUNTEER_DISPLAY_TITLE;
+  } else {
+    document.title = ORGANIZER_TITLE;
+  }
 });

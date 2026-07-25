@@ -4,6 +4,26 @@
 
 ---
 
+## ADR-016: Campaign-Scoped Volunteer Intake In Existing Shared Documents
+
+**Date:** 2026-07-25
+**Why:** The December Mega Meetup needs a fast public volunteer form and a private organizer review surface without creating a new production schema dependency during event preparation. The app already has a Supabase-backed `app_json_documents` compatibility store for cross-instance JSON domains, so the campaign records live there under the `volunteer-applications` key when server-side Supabase is configured. This keeps deployed submissions durable while preserving the local JSON fallback used by the rest of the compatibility layer.
+**Tradeoffs:** This is deliberately limited to one campaign and does not provide relational reporting, database-level uniqueness, or a long-term volunteer CRM. The server protects it with one application per campaign/email, optional Turnstile, and per-client rate limiting; a future multi-event volunteer workflow should move to dedicated relational Supabase tables with database constraints.
+**Alternatives considered:** Add a new Supabase table immediately (more migration and rollout coordination than the December drive needs), keep applications only in the Worker filesystem (not durable across instances), or use a third-party form (loses the existing organizer console and QR-display experience).
+**Revisit when:** More than one volunteer campaign is active, volunteer assignments/communications are added, or reporting needs to join volunteers to events and organizer actions.
+
+---
+
+## ADR-015: Supabase Records With Resend Speaker-Link Delivery
+
+**Date:** 2026-07-25
+**Why:** Speaker archive/backfill and selected-speaker links need a branded, low-friction delivery channel without adopting a paid Cloudflare Email Sending plan. Supabase remains the durable system of record for link and delivery metadata, while Resend handles transactional delivery on its free tier. The existing authenticated Hono Worker will call Resend server-side so delivery authorization stays alongside the speaker-link lifecycle.
+**Tradeoffs:** This introduces one external delivery provider and a server-only API key. The free tier has daily and monthly limits, and Resend domain verification still requires DNS changes. Email is not proof that a recipient read or completed the form; audit records describe the application's delivery request and the provider response.
+**Alternatives considered:** Cloudflare Email Sending (not chosen because it requires Workers Paid for outbound production delivery), Supabase's default mailer (not suitable for production speaker mail because of authorization and rate limits), or manual copy/paste only (remains available, but does not provide delivery auditability).
+**Revisit when:** Sending volume approaches the Resend free-tier limit, bulk reminders are required, or the link store moves from JSON compatibility data to hash-only Supabase records.
+
+---
+
 ## ADR-014: Read-Only Luma Event Import
 
 **Date:** 2026-06-17
