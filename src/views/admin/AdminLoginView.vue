@@ -63,9 +63,7 @@ async function login() {
         options: {
           redirectTo: callbackUrl.toString(),
           scopes: 'email profile',
-          queryParams: {
-            prompt: 'select_account',
-          },
+          queryParams: { prompt: 'select_account' },
         },
       });
 
@@ -122,37 +120,38 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="editorial-page flex min-h-full items-center justify-center p-4 sm:p-6">
-    <form class="editorial-panel grid w-full max-w-5xl overflow-hidden lg:min-h-[30rem] lg:grid-cols-[1.15fr_0.85fr]" aria-labelledby="organizer-login-title" @submit.prevent="login">
-      <section class="flex flex-col border-b-2 border-dc-ink bg-dc-ink px-6 py-7 text-dc-paper sm:px-9 sm:py-9 lg:border-b-0 lg:border-r-2 lg:px-12 lg:py-11">
-        <div class="flex items-center justify-between gap-4">
-          <img :src="logoSrc" alt="DevCongress" class="h-7 w-auto max-w-[12rem] object-contain" />
-          <span class="inline-flex min-h-9 items-center rounded-md border-2 border-dc-paper bg-dc-yellow px-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-dc-ink">Private</span>
+  <div class="login-pass-page">
+    <form class="login-pass-card" aria-labelledby="organizer-login-title" @submit.prevent="login">
+      <section class="login-pass-story">
+        <div class="login-pass-brand-row">
+          <img :src="logoSrc" alt="DevCongress" class="login-pass-logo" />
+          <span class="login-pass-private">Private</span>
         </div>
-        <div class="mt-10 lg:mt-auto">
-          <p class="font-mono text-xs font-bold uppercase tracking-[0.24em] text-dc-pink">Organizer console</p>
-          <h1 id="organizer-login-title" class="mt-4 max-w-[10ch] text-4xl font-black leading-[0.94] tracking-tight text-dc-paper sm:text-5xl">Keep the event moving.</h1>
-          <p class="mt-5 max-w-md text-base leading-7 text-dc-paper/75">
-            Plan the programme, coordinate speakers, manage attendance, and close the feedback loop.
-          </p>
+
+        <div class="login-pass-number" aria-hidden="true">01</div>
+
+        <div class="login-pass-copy">
+          <p class="login-pass-kicker">Organizer console</p>
+          <h1 id="organizer-login-title">Your event,<br>under control.</h1>
+          <p>Open the tools for planning, people, and the follow-up that matters.</p>
         </div>
-        <div class="mt-8 flex flex-wrap gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-dc-paper/75 lg:mt-10">
-          <span class="border border-dc-paper/35 px-2 py-1">Events</span>
-          <span class="border border-dc-paper/35 px-2 py-1">People</span>
-          <span class="border border-dc-paper/35 px-2 py-1">Follow-up</span>
+
+        <div class="login-pass-credential" aria-label="DevCongress organizer credential">
+          <span>DevCongress</span>
+          <span>Organizer credential</span>
         </div>
       </section>
 
-      <section class="flex flex-col bg-dc-paper px-6 py-7 sm:px-9 sm:py-9 lg:px-10 lg:py-11">
+      <section class="login-pass-action">
         <div>
-          <p class="editorial-eyebrow">Organizer access</p>
-          <h2 class="mt-4 text-3xl font-black leading-[0.98] tracking-tight text-dc-ink sm:text-4xl">Ready when you are.</h2>
-          <p class="mt-4 text-sm leading-6 text-dc-gray">
-            {{ authMode === 'supabase' ? 'Use your Google account to continue.' : 'Use the local admin password to continue.' }}
+          <p class="login-pass-kicker">Access checkpoint</p>
+          <h2>{{ authMode === 'supabase' ? 'Come on in.' : 'Welcome back.' }}</h2>
+          <p class="login-pass-description">
+            {{ authMode === 'supabase' ? 'Use your Google account to continue.' : 'Use the local administrator password to continue.' }}
           </p>
         </div>
 
-        <div class="mt-8 lg:mt-auto">
+        <div class="login-pass-control">
           <label v-if="authMode === 'local'" class="block">
             <span class="editorial-label">Password</span>
             <input
@@ -167,15 +166,272 @@ onMounted(async () => {
             >
           </label>
 
-          <div v-if="error" class="mt-5 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700" role="alert">
-            {{ error }}
-          </div>
+          <div v-if="error" class="login-pass-error" role="alert">{{ error }}</div>
 
-          <button type="submit" :disabled="loading" class="editorial-action mt-6 min-h-14 w-full justify-center disabled:opacity-60">
-            {{ loading ? 'Signing in...' : authMode === 'supabase' ? 'Continue with Google' : 'Sign in' }}
+          <button type="submit" :disabled="loading" class="login-pass-submit motion-press">
+            <span>{{ loading ? 'Signing in…' : authMode === 'supabase' ? 'Continue with Google' : 'Sign in' }}</span>
+            <span aria-hidden="true">→</span>
           </button>
         </div>
       </section>
     </form>
   </div>
 </template>
+
+<style scoped>
+/* Login component tokens: derived from the established DevCongress ink, cream, yellow, and pink system. */
+.login-pass-page {
+  --login-canvas: #f1efe7;
+  --login-paper: #fffdf8;
+  --login-ticket: #e5d94b;
+  --login-ticket-shade: #c8bb36;
+  --login-ink: #1f1e1a;
+  --login-muted: #656158;
+  --login-accent: #d91a73;
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background: var(--login-canvas);
+  color: var(--login-ink);
+}
+
+.login-pass-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.03fr) minmax(24rem, 0.97fr);
+  width: min(100%, 70rem);
+  min-height: min(38rem, calc(100svh - 5rem));
+  overflow: hidden;
+  border: 2px solid var(--login-ink);
+  border-radius: 0.75rem;
+  background: var(--login-paper);
+  box-shadow: 5px 5px 0 var(--login-ink);
+}
+
+.login-pass-story,
+.login-pass-action {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: clamp(1.75rem, 4vw, 4.25rem);
+}
+
+.login-pass-story {
+  overflow: hidden;
+  background: var(--login-ticket);
+}
+
+.login-pass-story::before {
+  position: absolute;
+  right: -4rem;
+  bottom: -5rem;
+  width: 15rem;
+  height: 15rem;
+  border: 2px solid var(--login-ink);
+  border-radius: 50%;
+  content: '';
+}
+
+.login-pass-brand-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.login-pass-logo {
+  width: auto;
+  height: 2rem;
+  max-width: 13rem;
+  object-fit: contain;
+}
+
+.login-pass-private {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  border: 2px solid var(--login-ink);
+  border-radius: 0.35rem;
+  background: var(--login-ink);
+  padding: 0 0.7rem;
+  color: var(--login-ticket);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.login-pass-number {
+  position: absolute;
+  top: 8.3rem;
+  right: 2rem;
+  color: var(--login-ticket-shade);
+  font-family: var(--font-mono);
+  font-size: clamp(7rem, 16vw, 12.5rem);
+  font-weight: 900;
+  letter-spacing: -0.15em;
+  line-height: 0.82;
+}
+
+.login-pass-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 27rem;
+  margin-top: auto;
+}
+
+.login-pass-kicker {
+  margin: 0;
+  color: var(--login-accent);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.23em;
+  text-transform: uppercase;
+}
+
+.login-pass-copy h1,
+.login-pass-action h2,
+.login-pass-copy p,
+.login-pass-action p {
+  margin: 0;
+}
+
+.login-pass-copy h1 {
+  max-width: 8.5ch;
+  margin-top: 1rem;
+  font-size: clamp(3.25rem, 5vw, 5.2rem);
+  font-weight: 900;
+  letter-spacing: -0.07em;
+  line-height: 0.89;
+  text-wrap: balance;
+}
+
+.login-pass-copy > p:last-child {
+  max-width: 29rem;
+  margin-top: 1.4rem;
+  color: rgba(31, 30, 26, 0.76);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.login-pass-credential {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.2rem;
+  border-top: 2px solid var(--login-ink);
+  padding-top: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.login-pass-action {
+  justify-content: space-between;
+  background: var(--login-paper);
+}
+
+.login-pass-action h2 {
+  max-width: 8ch;
+  margin-top: 1rem;
+  font-size: clamp(2.8rem, 4vw, 4.2rem);
+  font-weight: 900;
+  letter-spacing: -0.065em;
+  line-height: 0.9;
+  text-wrap: balance;
+}
+
+.login-pass-description {
+  max-width: 23rem;
+  margin-top: 1.35rem !important;
+  color: var(--login-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.login-pass-control {
+  width: min(100%, 25rem);
+  margin-top: 3rem;
+}
+
+.login-pass-error {
+  margin-top: 1.25rem;
+  border-left: 4px solid #c0263d;
+  background: #fff1f2;
+  padding: 0.8rem 1rem;
+  color: #a61b34;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.login-pass-submit {
+  display: flex;
+  width: 100%;
+  min-height: 3.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  border: 2px solid var(--login-ink);
+  border-radius: 0.375rem;
+  background: var(--login-ink);
+  box-shadow: inset 0 -4px 0 var(--login-accent), 3px 3px 0 var(--login-ink);
+  padding: 0 1.15rem 0.25rem;
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.login-pass-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: inset 0 -4px 0 var(--login-accent);
+}
+
+.login-pass-submit span:last-child {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .login-pass-submit:not(:disabled):hover {
+    transform: translate3d(1px, 1px, 0);
+    box-shadow: inset 0 -4px 0 var(--login-accent), 2px 2px 0 var(--login-ink);
+  }
+}
+
+@media (max-width: 760px) {
+  .login-pass-page {
+    place-items: stretch;
+    padding: 1rem;
+  }
+
+  .login-pass-card {
+    min-height: calc(100svh - 2rem);
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .login-pass-story { min-height: 25rem; }
+  .login-pass-action { min-height: 23rem; }
+  .login-pass-number { top: 7rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-pass-submit { transition: none; }
+}
+</style>

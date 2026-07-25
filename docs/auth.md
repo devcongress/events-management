@@ -21,6 +21,10 @@ The login screen stores the intended organizer destination in session storage be
 
 On Cloudflare, `/api/*` requests can be proxied from Pages to the API Worker. The Worker must still redirect browser-facing OAuth callbacks back to the Pages origin from `PUBLIC_APP_URL` or `PUBLIC_FRONTEND_ORIGIN`; the Worker origin does not serve the Vue organizer routes.
 
+## Sign out
+
+Sign out revokes the app-owned `devcon_admin` session and removes its HTTP-only cookie. The browser then clears its cached organizer session, the tab-scoped Supabase session, and any pending OAuth redirect before replacing the current route with `/organizer-console/login`. If the server cannot confirm sign-out, the console stays open and shows an error rather than navigating away with an uncertain session state.
+
 ## Roles
 
 | Role | Access |

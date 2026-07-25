@@ -5,6 +5,13 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-25 — Organizer sign-in pass and session cleanup
+
+- Reworked the organizer sign-in into the selected “Pass” design: a responsive DevCongress credential surface with component-level ink, warm-paper, ticket-yellow, and pink tokens, one clear Google action, and the existing local-password fallback for development.
+- Hardened sign-out across both authentication layers: a successful server logout now immediately clears the client session cache, tab-scoped Supabase browser session, and pending OAuth redirect before replacing the route with the organizer sign-in screen.
+- Kept a failed sign-out on the current screen with explicit error feedback, avoiding a misleading redirect while the session state is uncertain.
+- Verified a complete local password sign-in/sign-out cycle: the server session became unauthenticated, the app returned to `/organizer-console/login`, and all organizer navigation/sign-out controls disappeared. Also verified `pnpm build` and whitespace checks.
+
 ## 2026-07-25 — Admin-only organizer surface
 
 - Restored the organizer login to the established DevCongress editorial system: shared cream/paper/ink/pink tokens, the existing panel/input/action primitives, and a compact viewport-fitting form rather than a separate marketing-style split screen. Navigation now stays hidden until the organizer session is authenticated.

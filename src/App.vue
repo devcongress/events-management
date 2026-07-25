@@ -4,9 +4,11 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import { useRoute, useRouter } from 'vue-router';
 import AdminEventTabs from './components/AdminEventTabs.vue';
 import AppToaster from './components/ui/AppToaster.vue';
-import { adminPath, isAdminPath } from './admin-routes';
-import { fetchAdminSession, fetchEventById, fetchRouteFeedbackInbox, queryKeys, type RouteFeedbackSummary } from './lib/api';
+import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
+import { fetchAdminSession, fetchEventById, fetchRouteFeedbackInbox, queryKeys, type AdminSessionResponse, type RouteFeedbackSummary } from './lib/api';
+import { notify } from './lib/notify';
 import { queryClient } from './lib/query';
+import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 interface NavLink {
   href: string;
@@ -406,8 +408,37 @@ function handleDocumentPointerDown(event: PointerEvent) {
 
 async function logout() {
   closeMobileMenu();
-  await fetch('/api/auth/logout', { method: 'POST' });
-  await router.push(adminPath('login'));
+  try {
+    const response = await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      notify.error('Sign-out could not be completed. Please try again.');
+      return;
+    }
+
+    const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+    queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
+      authenticated: false,
+      auth_mode: cachedSession?.auth_mode ?? 'supabase',
+    });
+    window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+
+    // The app session is the authorization boundary, but clearing this
+    // tab-scoped Supabase session prevents a stale OAuth session from
+    // immediately re-establishing browser auth after sign-out.
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) console.warn('Unable to clear the local Supabase browser session.', error);
+    }
+
+    await router.replace(adminPath('login'));
+  } catch {
+    notify.error('Sign-out could not be completed. Please try again.');
+  }
 }
 
 async function refreshAdminEventNames() {
