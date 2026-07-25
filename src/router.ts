@@ -4,8 +4,10 @@ import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/a
 import { queryClient } from './lib/query';
 
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
+const FEEDBACK_TITLE = 'DevCongress | Feedback';
 const ownerOnlyPaths = new Set([adminPath('audit-log')]);
 const NotFoundView = () => import('./views/NotFoundView.vue');
+const FeedbackView = () => import('./views/FeedbackView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
@@ -39,6 +41,7 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', redirect: adminPath('events') },
+    { path: '/feedback/:eventId', name: 'event-feedback', component: FeedbackView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
     { path: adminPath(), redirect: adminPath('events') },
@@ -119,6 +122,6 @@ router.beforeEach(async (to, from) => {
   };
 });
 
-router.afterEach(() => {
-  document.title = ORGANIZER_TITLE;
+router.afterEach((to) => {
+  document.title = to.name === 'event-feedback' ? FEEDBACK_TITLE : ORGANIZER_TITLE;
 });

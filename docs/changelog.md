@@ -7,7 +7,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-25 — Admin-only organizer surface
 
-- Redirected the root and former public Vue routes into the protected organizer console, so this deployment no longer competes with `devcongress.org` as a community website.
+- Redirected the root and former public Vue routes into the protected organizer console, so this deployment no longer competes with `devcongress.org` as a community website; the standalone event-feedback form remains the intentional attendee-facing exception.
 - Removed public feedback preview, share-link, and attendee QR controls from the organizer UI; feedback setup and response review remain private operations while public experiences move to the Astro website.
 - Removed the feedback-display browser route and its mobile shortcut, keeping the phone surface focused on organizer actions.
 - Redesigned organizer sign-in around the actual authorization model: an approved Google account is required, and a valid Google identity alone is not sufficient. The page now has clearer error feedback, accessible alert semantics, responsive layout, focused typography, and restrained motion with reduced-motion support.

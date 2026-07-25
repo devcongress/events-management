@@ -4,7 +4,11 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 
 ## Browser Surface
 
-This deployment is an organizer-only console. `/` and any former public SPA path redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences belong on `devcongress.org` as they are migrated into the Astro website.
+This deployment is an organizer-only console, with one deliberate attendee-facing exception: event feedback. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
+
+| Route | Purpose |
+|---|---|
+| `/feedback/:eventId` | Standalone event feedback form. It deliberately renders without the app header, navigation, or organizer controls. |
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
 

@@ -45,6 +45,7 @@ const ownerAdminLinks: NavLink[] = [
 ];
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
+const isStandaloneFeedbackRoute = computed(() => route.name === 'event-feedback');
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
@@ -499,7 +500,7 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink">
-    <header class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
+    <header v-if="!isStandaloneFeedbackRoute" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
         <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">
           <img
@@ -562,7 +563,7 @@ onUnmounted(() => {
 
     <Transition name="mobile-menu">
       <div
-        v-if="mobileMenuOpen"
+        v-if="mobileMenuOpen && !isStandaloneFeedbackRoute"
         id="mobile-menu-panel"
         class="app-mobile-menu"
         role="dialog"
