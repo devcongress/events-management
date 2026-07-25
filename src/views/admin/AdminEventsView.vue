@@ -88,7 +88,6 @@ const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((a, b) =>
 const loading = computed(() => eventsQuery.isPending.value);
 const eventsError = computed(() => eventsQuery.error.value?.message ?? null);
 const lumaPreviewLocked = computed(() => Boolean(lumaPreview.value));
-const previewPublicEventHrefValue = computed(() => previewPublicEventHref() ?? undefined);
 const lumaPublishedConflict = computed(() => Boolean(
   lumaPreview.value?.already_imported && lumaPreview.value?.existing_event?.publish_to_website,
 ));
@@ -232,45 +231,6 @@ async function removeAndReimportLumaEvent() {
 function clearLumaPreview() {
   lumaPreview.value = null;
   lumaPreviewUrl.value = '';
-}
-
-function slugifyPreviewName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80) || 'meetup-preview';
-}
-
-function previewPublicEventLocation() {
-  if (!lumaPreview.value) return null;
-
-  const existingSlug = lumaPreview.value.existing_event?.slug?.trim();
-  const slug = existingSlug || slugifyPreviewName(lumaPreview.value.preview.name);
-
-  if (lumaPreview.value.already_imported) {
-    return { path: `/events/${slug}` };
-  }
-
-  const eventUrl = lumaPreviewUrl.value || lumaEventUrl.value.trim();
-  if (!eventUrl) return null;
-
-  return {
-    path: `/events/${slug}`,
-    query: {
-      preview: 'luma',
-      eventUrl,
-      seriesType: lumaSeriesType.value,
-      returnTo: route.fullPath,
-      returnLabel: 'Import event',
-    },
-  };
-}
-
-function previewPublicEventHref() {
-  const location = previewPublicEventLocation();
-  if (!location) return null;
-  return router.resolve(location).href;
 }
 
 async function openExistingLumaEvent() {
@@ -475,15 +435,6 @@ function goToPage(nextPage: number) {
                   <p v-else-if="lumaPreview.already_imported" class="mt-3 text-sm font-semibold text-dc-gray">This Luma event already exists in the event list.</p>
                 </div>
                 <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
-                  <a
-                    v-if="previewPublicEventHrefValue"
-                    :href="previewPublicEventHrefValue"
-                    target="_blank"
-                    rel="noreferrer"
-                    class="editorial-action min-h-12 justify-center"
-                  >
-                    PREVIEW EVENT PAGE
-                  </a>
                   <button
                     v-if="lumaPreview.already_imported"
                     type="button"

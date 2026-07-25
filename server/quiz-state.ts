@@ -1,7 +1,7 @@
 import { getQuestionsBySession } from '@/lib/mock-db/questions';
 import { getQuizParticipantsBySession } from '@/lib/mock-db/quiz-participants';
 import { getQuizSessionById, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
-import { getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
+import { getResponsesByQuestion } from '@/lib/mock-db/responses';
 import type { Question, QuizSession, QuizStateResponse, Response } from '@/types';
 
 export interface QuizAdvanceResult {
@@ -28,8 +28,12 @@ export async function advanceQuizSessionState(sessionId: string): Promise<QuizAd
 
   const elapsed = Date.now() - new Date(session.question_started_at).getTime();
   const timeLimit = currentQuestion.time_limit_seconds * 1000;
-  const responses = await getResponsesByQuestion(currentQuestion.id);
-  const participants = await getQuizParticipantsBySession(sessionId);
+  // Each read fetches a whole document (file or Supabase blob); run them in
+  // parallel because this endpoint is hit on every client poll tick.
+  const [responses, participants] = await Promise.all([
+    getResponsesByQuestion(currentQuestion.id),
+    getQuizParticipantsBySession(sessionId),
+  ]);
   const allAnswered = responses.length >= participants.length && participants.length > 0;
 
   if (elapsed < timeLimit && !allAnswered) {
@@ -48,12 +52,19 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
   const session = await getQuizSessionById(sessionId);
   if (!session) return null;
 
+  // Fetch the session-scoped collections in parallel; each read is a full
+  // document fetch and this runs on every 1.5s poll per connected client.
+  const hasCurrentQuestion = session.current_question_index >= 0;
+  const [questions, participants] = await Promise.all([
+    hasCurrentQuestion ? getQuestionsBySession(sessionId) : Promise.resolve([]),
+    getQuizParticipantsBySession(sessionId),
+  ]);
+
   let currentQuestion: QuizStateResponse['current_question'] = null;
   let questionStartedAt: string | null = null;
   let fullCurrentQuestion: Question | null = null;
 
-  if (session.current_question_index >= 0) {
-    const questions = await getQuestionsBySession(sessionId);
+  if (hasCurrentQuestion) {
     const question = questions.find((candidate) => candidate.order_index === session.current_question_index) ?? null;
 
     if (question) {
@@ -64,7 +75,6 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
     }
   }
 
-  const participants = await getQuizParticipantsBySession(sessionId);
   let answersCount = 0;
   let responses: Response[] = [];
 
@@ -97,7 +107,9 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
 
   let playerResult: QuizStateResponse['player_result'] = undefined;
   if (userId && fullCurrentQuestion) {
-    const response = await getResponseByQuestionAndUser(fullCurrentQuestion.id, userId);
+    // Derive from the already-fetched responses instead of re-reading the
+    // whole collection a second time.
+    const response = responses.find((candidate) => candidate.user_id === userId);
     if (response) {
       const participant = participants.find((candidate) => candidate.user_id === userId);
 

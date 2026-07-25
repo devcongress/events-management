@@ -2,28 +2,16 @@
 
 This is a contributor-facing route map. The active app is the Vue route surface in `src/router.ts` plus Hono routes in `server/app.ts`.
 
-## Public Routes
+## Browser Surface
 
-| Route | Purpose |
-|---|---|
-| `/` | Community landing page |
-| `/events` | Published meetup listing |
-| `/events/:slug` | Meetup detail page with cover, schedule, speakers, photos, and event-level CTA |
-| `/archive` | Past event archive |
-| `/archive/:eventId` | Event recap with photos, feedback, and published talks when the event has talks |
-| `/cfp/:eventId` | Shareable public speaker proposal link; shows the form while CFP is open and a closed-state message when organizers pause submissions |
-| `/speaker-talks/:eventId/:token` | Public selected-speaker confirmation or archive-backfill form opened from an expiring one-time organizer link |
-| `/feedback` | General app feedback form, used by the mobile feedback launcher |
-| `/feedback/:eventId` | Public post-event feedback form |
-| `/leaderboard` | Community leaderboard preview |
-| `/play` | Live quiz waiting/empty state |
-| `/play/:code` | Quiz join flow for a host-opened session |
-| `/:pathMatch(.*)*` | Branded 404 recovery page |
+This deployment is an organizer-only console. `/` and any former public SPA path redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences belong on `devcongress.org` as they are migrated into the Astro website.
+
+The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
 
 ## Organizer Routes
 
 The organizer base path defaults to `/organizer-console` and can be changed with `VITE_ADMIN_BASE_PATH`.
-The public header's Organizer button can be hidden with `VITE_SHOW_ORGANIZER_LINK=false`, but this does not disable the routes below.
+There is no public-site header or organizer-link toggle in this deployment.
 
 | Route | Purpose |
 |---|---|
@@ -34,14 +22,14 @@ The public header's Organizer button can be hidden with `VITE_SHOW_ORGANIZER_LIN
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
 | `/organizer-console/events/:eventId/talks` | Redirects to the Talk Management CFP step |
-| `/organizer-console/events/:eventId/talks/cfp` | CFP status, public proposal link sharing, and open/close controls |
+| `/organizer-console/events/:eventId/talks/cfp` | CFP status and organizer proposal review controls |
 | `/organizer-console/events/:eventId/talks/proposals` | Speaker proposal review, organizer selection decisions, and selected-speaker slides links |
 | `/organizer-console/events/:eventId/talks/program` | Confirmed talk management, slide follow-up, and archive publishing |
 | `/organizer-console/events/:eventId/talks/backfill` | Temporary legacy backfill tools for talks not collected through CFP |
 | `/organizer-console/events/:eventId/speakers` | Speaker access allowlist |
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |
-| `/organizer-console/events/:eventId/feedback` | Event feedback campaign builder |
+| `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
 | `/organizer-console/attendance` | Monthly attendance ledger |
 | `/organizer-console/feedback` | Feedback hub and app feedback inbox |
 

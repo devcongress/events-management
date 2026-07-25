@@ -68,9 +68,10 @@ export async function deleteQuestion(id: string): Promise<void> {
 
 export async function reorderQuestions(sessionId: string, questionIds: string[]): Promise<void> {
   const questions = await readData<Question>(FILE);
+  const questionById = new Map(questions.map((question) => [question.id, question]));
 
   questionIds.forEach((id, index) => {
-    const question = questions.find(q => q.id === id);
+    const question = questionById.get(id);
     if (question) {
       question.order_index = index;
     }

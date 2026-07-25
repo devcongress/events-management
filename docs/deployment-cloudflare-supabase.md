@@ -1,5 +1,7 @@
 # Cloudflare Pages/Workers + Durable Objects + Supabase Setup
 
+> **Combined website update (2026-07-10):** This document records the standalone Events Management deployment design. For the new website-parent integration, [website-integration/architecture.md](./website-integration/architecture.md) supersedes the Pages/Worker topology, and [website-integration/supabase-foundation.md](./website-integration/supabase-foundation.md) is the audited database migration plan. Supabase remains the durable backend; the combined Astro product uses Worker Static Assets plus selective Worker compute.
+
 This is the proposed heavy-duty deployment path for DevCon-Comm once we move the app from local JSON files to Supabase as the source of truth.
 
 The target shape is:

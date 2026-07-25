@@ -38,7 +38,13 @@ const sharedLinksDraftText = ref('');
 const outlineEditing = ref(false);
 const outlineSaving = ref(false);
 const outlineError = ref<string | null>(null);
-const outlineDrafts = ref<PublicMeetupScheduleItem[]>([]);
+// draftId is UI-local: normalizeOutlineDrafts maps fields explicitly, so it
+// never leaks into the saved payload. It gives each editable row a stable key.
+interface OutlineDraftItem extends PublicMeetupScheduleItem {
+  draftId: string;
+}
+let outlineDraftSequence = 0;
+const outlineDrafts = ref<OutlineDraftItem[]>([]);
 const outlineBulkText = ref('');
 const seriesTypeDraft = ref<EventSeriesType>('monthly');
 const seriesTypeSaving = ref(false);
@@ -226,6 +232,15 @@ async function invalidateEventQueries() {
   broadcastPublicMeetupsRefresh();
 }
 
+// Checklist toggles that didn't change the event itself can't affect public
+// pages, so they skip the full invalidation barrage and cross-tab broadcast.
+async function invalidateChecklistQueries() {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.event(currentEventId.value) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.eventChecklist(currentEventId.value) }),
+  ]);
+}
+
 function syncDescriptionDraft() {
   descriptionDraft.value = event.value?.description ?? '';
 }
@@ -234,8 +249,10 @@ function syncSharedLinksDraft() {
   sharedLinksDraftText.value = eventSharedLinks.value.join('\n');
 }
 
-function createOutlineDraft(item?: Partial<PublicMeetupScheduleItem>): PublicMeetupScheduleItem {
+function createOutlineDraft(item?: Partial<PublicMeetupScheduleItem>): OutlineDraftItem {
+  outlineDraftSequence += 1;
   return {
+    draftId: `outline-draft-${outlineDraftSequence}`,
     time: item?.time ?? '',
     title: item?.title ?? '',
     type: item?.type ?? 'talk',
@@ -262,7 +279,7 @@ function inferOutlineType(title: string): PublicMeetupScheduleItem['type'] {
   return 'talk';
 }
 
-function parseOutlineLine(rawLine: string): PublicMeetupScheduleItem | null {
+function parseOutlineLine(rawLine: string): OutlineDraftItem | null {
   const line = rawLine
     .replace(/\u200b/g, '')
     .replace(/\s+/g, ' ')
@@ -300,7 +317,7 @@ function parseBulkOutline() {
   const parsed = outlineBulkText.value
     .split(/\r?\n/)
     .map(parseOutlineLine)
-    .filter((item): item is PublicMeetupScheduleItem => Boolean(item));
+    .filter((item): item is OutlineDraftItem => Boolean(item));
 
   if (parsed.length === 0) {
     outlineError.value = 'Paste at least one outline item with a title.';
@@ -814,8 +831,10 @@ async function toggleChecklistItem(item: EventChecklistItem) {
         syncDescriptionDraft();
         syncOutlineDrafts();
         syncSeriesTypeDraft();
+        await invalidateEventQueries();
+      } else {
+        await invalidateChecklistQueries();
       }
-      await invalidateEventQueries();
     }
   } finally {
     checklistSavingId.value = null;
@@ -849,8 +868,10 @@ async function setChecklistItemDisabled(item: EventChecklistItem, disabled: bool
       syncDescriptionDraft();
       syncOutlineDrafts();
       syncSeriesTypeDraft();
+      await invalidateEventQueries();
+    } else {
+      await invalidateChecklistQueries();
     }
-    await invalidateEventQueries();
     notify.success(disabled ? 'Checklist item disabled' : 'Checklist item enabled');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update checklist item';
@@ -1218,7 +1239,7 @@ onMounted(fetchOverview);
 
 	                  <div
 	                    v-for="(item, index) in outlineDrafts"
-	                    :key="index"
+	                    :key="item.draftId"
 	                    class="event-outline-edit-row"
 	                  >
 	                    <label>

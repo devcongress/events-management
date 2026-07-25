@@ -1,35 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { adminPath, isAdminPath } from '@/src/admin-routes';
+import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
 
 const missingPath = computed(() => route.fullPath);
-const isOrganizerPath = computed(() => isAdminPath(route.path));
-
-const primaryLink = computed(() => (isOrganizerPath.value ? adminPath('events') : '/'));
-const primaryLabel = computed(() => (isOrganizerPath.value ? 'Organizer Console' : 'Back Home'));
-const eyebrow = computed(() => (isOrganizerPath.value ? 'organizer route' : 'community route'));
-const title = computed(() => (isOrganizerPath.value ? 'This organizer page is not available.' : 'We could not find that page.'));
-const description = computed(() => (isOrganizerPath.value
-  ? 'The address does not match an event, attendance, feedback, quiz, speaker, or talk management screen.'
-  : 'The address does not match a community page, talk archive, speaker link, feedback form, or quiz room.'));
-const secondaryLinks = computed(() => {
-  if (isOrganizerPath.value) {
-    return [
-      { href: adminPath('attendance'), label: 'Attendance Hub', detail: 'Check Luma imports and post-event readouts.' },
-      { href: adminPath('feedback'), label: 'Feedback Hub', detail: 'Review event feedback windows and responses.' },
-      { href: adminPath('events/new'), label: 'Create Event', detail: 'Start a new monthly event record.' },
-    ];
-  }
-
-  return [
-    { href: '/archive', label: 'Archive', detail: 'Published talks and slide decks.' },
-    { href: '/events', label: 'Events', detail: 'Upcoming community sessions.' },
-    { href: '/play', label: 'Live Quiz', detail: 'Join a quiz when a host opens one.' },
-  ];
-});
+const primaryLink = computed(() => adminPath('events'));
+const secondaryLinks = computed(() => [
+  { href: adminPath('attendance'), label: 'Attendance Hub', detail: 'Check Luma imports and post-event readouts.' },
+  { href: adminPath('feedback'), label: 'Feedback Hub', detail: 'Review event feedback windows and responses.' },
+  { href: adminPath('events/new'), label: 'Create Event', detail: 'Start a new monthly event record.' },
+]);
 </script>
 
 <template>
@@ -38,15 +20,15 @@ const secondaryLinks = computed(() => {
       <div class="not-found-inner w-full">
         <div class="not-found-grid grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
           <div class="not-found-copy min-w-0">
-            <p class="editorial-eyebrow">{{ eyebrow }}</p>
+            <p class="editorial-eyebrow">organizer route</p>
             <div class="not-found-title-row mt-4 flex flex-col gap-5 border-b-2 border-dc-ink pb-7 sm:flex-row sm:items-end sm:justify-between">
               <h1 class="not-found-title max-w-4xl text-5xl font-black leading-none tracking-tight text-dc-ink sm:text-6xl lg:text-7xl">
-                {{ title }}
+                This organizer page is not available.
               </h1>
               <span class="not-found-code shrink-0 font-mono text-6xl font-black leading-none text-dc-pink sm:text-7xl">404</span>
             </div>
             <p class="not-found-description mt-6 max-w-2xl text-lg leading-8 text-dc-gray">
-              {{ description }}
+              The address does not match an event, attendance, feedback, quiz, speaker, or talk management screen.
             </p>
 
             <div class="not-found-request mt-6 max-w-3xl rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray shadow-[2px_2px_0_#111111]">
@@ -57,12 +39,9 @@ const secondaryLinks = computed(() => {
 
             <div class="not-found-actions mt-8 flex flex-col gap-3 sm:flex-row">
               <RouterLink :to="primaryLink" class="editorial-action">
-                {{ primaryLabel }}
+                Organizer Console
               </RouterLink>
-              <RouterLink v-if="!isOrganizerPath" to="/archive" class="editorial-secondary-action">
-                Browse Archive
-              </RouterLink>
-              <RouterLink v-if="isOrganizerPath" :to="adminPath('events')" class="editorial-secondary-action">
+              <RouterLink :to="adminPath('events')" class="editorial-secondary-action">
                 View Events
               </RouterLink>
             </div>

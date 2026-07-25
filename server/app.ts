@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
-import { SIMULATED_DELAY_MS } from '@/lib/constants';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
@@ -21,7 +20,7 @@ import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteSpeakerIntakeL
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
-import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession } from '@/lib/supabase/admin-auth';
+import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, startLocalAdminSession, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, deleteSupabaseCommunityEventsByImportMatch, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
@@ -186,7 +185,9 @@ async function auditAdminAction(c: Context, input: {
   targetId?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const session = await getAdminSession(c);
+  // requireAdmin already resolved (and cached) the session for this request;
+  // re-fetching it here used to cost an extra Supabase round trip per mutation.
+  const session = (c.get('adminSession') as AdminSession | undefined) ?? await getAdminSession(c);
   if (!session.authenticated) return;
 
   await recordAdminAudit(c, {
@@ -4297,8 +4298,6 @@ app.get('/api/quiz/state', async (c) => {
   if (!stateResponse) {
     return c.json({ error: 'Session not found' }, 404);
   }
-
-  await new Promise((resolve) => setTimeout(resolve, SIMULATED_DELAY_MS));
 
   return c.json(stateResponse);
 });

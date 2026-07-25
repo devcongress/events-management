@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
@@ -12,7 +12,6 @@ interface FeedbackCampaignResponse {
   campaign: FeedbackCampaign;
   submissions: EventFeedbackSubmission[];
   talks: Talk[];
-  public_url: string;
   feedback_window: {
     opens_at: string | null;
     closes_at: string | null;
@@ -27,19 +26,12 @@ interface FeedbackActivityDraft {
   enabled: boolean;
 }
 
-interface PreviewDraftPayload {
-  title: string;
-  intro: string | null;
-  questions: FeedbackQuestion[];
-}
-
 const route = useRoute();
 const router = useRouter();
 const loading = ref(true);
 const saving = ref(false);
 const removing = ref(false);
 const error = ref('');
-const publicUrl = ref('');
 const isOpen = ref(false);
 const feedbackWindow = ref<FeedbackCampaignResponse['feedback_window']>({ opens_at: null, closes_at: null });
 const submissions = ref<EventFeedbackSubmission[]>([]);
@@ -48,9 +40,7 @@ const talks = ref<Talk[]>([]);
 const activities = ref<FeedbackActivityDraft[]>([]);
 const activitiesHydrated = ref(false);
 const lastGeneratedActivitySignature = ref<string | null>(null);
-const copyState = ref<'idle' | 'copying' | 'copied'>('idle');
 const responseDrawerSubmissionId = ref<string | null>(null);
-let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 const form = reactive<FeedbackCampaign>({
   id: '',
   event_id: '',
@@ -82,11 +72,6 @@ const statusLabel = computed(() => {
   return form.auto_open_on_event_completion ? 'Open now' : 'Draft';
 });
 const completionRateCopy = computed(() => `${submissions.value.length} response${submissions.value.length === 1 ? '' : 's'}`);
-const copyLinkLabel = computed(() => {
-  if (copyState.value === 'copying') return 'Copying...';
-  if (copyState.value === 'copied') return 'Copied';
-  return 'Copy Link';
-});
 const selectedActivityCount = computed(() => activities.value.filter((activity) => activity.enabled && activity.label.trim()).length);
 const currentActivitySignature = computed(() => JSON.stringify(
   activities.value.map((activity) => ({
@@ -119,6 +104,9 @@ const windowCopy = computed(() => {
 });
 const publishedCampaign = computed(() => form.status === 'active' || form.status === 'closed');
 const responsesMode = computed(() => publishedCampaign.value || route.query.view === 'responses');
+// Question lookups happen per answer per submission per render; an id map
+// keeps them O(1) instead of rescanning form.questions every time.
+const questionById = computed(() => new Map(form.questions.map((question) => [question.id, question])));
 const responseSummary = computed(() => {
   const ratings: number[] = [];
   const attendAgainValues: boolean[] = [];
@@ -126,7 +114,7 @@ const responseSummary = computed(() => {
 
   for (const submission of submissions.value) {
     for (const answer of submission.answers) {
-      const question = form.questions.find((item) => item.id === answer.question_id);
+      const question = questionById.value.get(answer.question_id);
       if (!question) continue;
 
       if (question.type === 'rating' && typeof answer.value === 'number') {
@@ -173,7 +161,6 @@ function hydrateCampaign(data: FeedbackCampaignResponse) {
     })),
   });
   submissions.value = data.submissions;
-  publicUrl.value = data.public_url;
   feedbackWindow.value = data.feedback_window;
   isOpen.value = data.is_open;
 
@@ -393,49 +380,17 @@ function setQuestionType(question: FeedbackQuestion, type: FeedbackQuestionType)
   }
 }
 
-async function copyPublicUrl() {
-  if (!publicUrl.value || copyState.value !== 'idle') return;
-
-  copyState.value = 'copying';
-  error.value = '';
-
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(publicUrl.value);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = publicUrl.value;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
-    copyState.value = 'copied';
-
-    copyResetTimer = setTimeout(() => {
-      copyState.value = 'idle';
-      copyResetTimer = null;
-    }, 1600);
-  } catch {
-    copyState.value = 'idle';
-    error.value = 'Unable to copy link. Select the URL and copy it manually.';
-  }
-}
-
 function answerPreview(submission: EventFeedbackSubmission) {
   return submission.answers
     .map((answer) => {
-      const question = form.questions.find((item) => item.id === answer.question_id);
+      const question = questionById.value.get(answer.question_id);
       return `${question?.label ?? 'Question'}: ${String(answer.value ?? 'No answer')}`;
     })
     .join(' | ');
 }
 
 function answerQuestionLabel(questionId: string): string {
-  return form.questions.find((item) => item.id === questionId)?.label ?? 'Question';
+  return questionById.value.get(questionId)?.label ?? 'Question';
 }
 
 function answerValueCopy(answer: EventFeedbackSubmission['answers'][number]): string {
@@ -447,7 +402,7 @@ function answerValueCopy(answer: EventFeedbackSubmission['answers'][number]): st
 function submissionAverageRating(submission: EventFeedbackSubmission): number | null {
   const ratings = submission.answers
     .map((answer) => {
-      const question = form.questions.find((item) => item.id === answer.question_id);
+      const question = questionById.value.get(answer.question_id);
       return question?.type === 'rating' && typeof answer.value === 'number' ? answer.value : null;
     })
     .filter((value): value is number => value !== null);
@@ -458,7 +413,7 @@ function submissionAverageRating(submission: EventFeedbackSubmission): number | 
 
 function submissionCommentPreview(submission: EventFeedbackSubmission): string | null {
   const textAnswer = submission.answers.find((answer) => {
-    const question = form.questions.find((item) => item.id === answer.question_id);
+    const question = questionById.value.get(answer.question_id);
     return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
   });
 
@@ -470,7 +425,7 @@ function submissionCommentPreview(submission: EventFeedbackSubmission): string |
 
 function submissionCommentCount(submission: EventFeedbackSubmission): number {
   return submission.answers.filter((answer) => {
-    const question = form.questions.find((item) => item.id === answer.question_id);
+    const question = questionById.value.get(answer.question_id);
     return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
   }).length;
 }
@@ -485,30 +440,6 @@ function openResponseDrawer(submissionId: string) {
 
 function closeResponseDrawer() {
   responseDrawerSubmissionId.value = null;
-}
-
-function previewDraftStorageKey() {
-  return `devcon:event-feedback-preview:${String(route.params.eventId ?? '')}`;
-}
-
-function openPreviewPublicForm() {
-  syncQuestionsToLatestSelection();
-
-  try {
-    const draft: PreviewDraftPayload = {
-      title: form.title,
-      intro: form.intro,
-      questions: form.questions.map((question) => ({
-        ...question,
-        options: [...question.options],
-      })),
-    };
-    window.localStorage.setItem(previewDraftStorageKey(), JSON.stringify(draft));
-  } catch {
-    // If storage is unavailable, fall back to the last saved campaign preview.
-  }
-
-  window.open(`/feedback/${route.params.eventId}?preview=1`, '_blank', 'noopener,noreferrer');
 }
 
 async function publishCampaign() {
@@ -553,11 +484,6 @@ async function removeFeedbackForm() {
 
 onMounted(fetchCampaign);
 
-onBeforeUnmount(() => {
-  if (copyResetTimer) {
-    clearTimeout(copyResetTimer);
-  }
-});
 </script>
 
 <template>
@@ -815,36 +741,15 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="flex flex-col gap-3 sm:flex-row">
-              <button
-                v-if="publicUrl"
-                type="button"
-                class="editorial-secondary-action"
-                @click="openPreviewPublicForm"
-              >
-                Preview
-              </button>
               <button type="submit" class="editorial-action" :disabled="saving">{{ saving ? 'Publishing...' : 'Publish' }}</button>
             </div>
           </form>
 
           <aside class="space-y-6">
             <section class="editorial-panel p-5">
-              <p class="editorial-eyebrow">community link</p>
-              <p class="break-all font-mono text-sm font-bold text-dc-ink">{{ publicUrl }}</p>
+              <p class="editorial-eyebrow">organizer controls</p>
+              <p class="text-sm leading-6 text-dc-gray">This console keeps campaign setup and response review private. Public feedback experiences move to the DevCongress website.</p>
               <div class="feedback-link-actions mt-4">
-                <button
-                  type="button"
-                  class="feedback-link-button feedback-link-button--copy motion-press min-w-[124px] overflow-hidden"
-                  :class="copyState === 'copied' ? 'bg-dc-success-soft text-dc-success' : ''"
-                  :disabled="copyState !== 'idle'"
-                  :data-copy-state="copyState"
-                  :aria-label="copyState === 'copied' ? 'Public feedback link copied' : 'Copy public feedback link'"
-                  @click="copyPublicUrl"
-                >
-                  <Transition name="copy-label" mode="out-in">
-                    <span :key="copyState" class="inline-block">{{ copyLinkLabel }}</span>
-                  </Transition>
-                </button>
                 <span class="feedback-link-status" :class="isOpen ? 'border-dc-success bg-dc-success-soft text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
                   {{ isOpen ? 'Open' : 'Not Open' }}
                 </span>

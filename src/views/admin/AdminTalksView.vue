@@ -79,6 +79,23 @@ const selectedSpeakerPendingSubmissions = computed(() => speakerSubmissions.valu
   submission.status === 'selected' && !submission.selected_talk_id
 )));
 const selectedSpeakerLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'selected_speaker_confirmation'));
+// Latest-active link per submission, built once per links change. The template
+// looks this up several times per row; filter+sort per lookup was O(rows x links log links).
+const selectedSpeakerLinkBySubmissionId = computed(() => {
+  const byRecency = [...selectedSpeakerLinks.value]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const map = new Map<string, AdminSpeakerIntakeLink>();
+
+  for (const link of byRecency) {
+    if (!link.speaker_submission_id) continue;
+    const existing = map.get(link.speaker_submission_id);
+    if (!existing || (existing.status !== 'active' && link.status === 'active')) {
+      map.set(link.speaker_submission_id, link);
+    }
+  }
+
+  return map;
+});
 const missingSelectedSpeakerLinkCount = computed(() => selectedSpeakerPendingSubmissions.value.filter((submission) => {
   const link = selectedSpeakerLinkForSubmission(submission.id);
   return !link || link.status !== 'active' || !link.token;
@@ -308,7 +325,9 @@ async function generateSelectedSpeakerLinks() {
   error.value = null;
 
   try {
-    for (const submission of submissionsNeedingLinks) {
+    // Independent mutations: run them concurrently instead of paying one
+    // round trip per selected speaker.
+    await Promise.all(submissionsNeedingLinks.map(async (submission) => {
       const response = await fetch(`/api/speaker-submissions/${submission.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -322,7 +341,7 @@ async function generateSelectedSpeakerLinks() {
       if (!response.ok) {
         throw new Error(data.error || `Could not generate a slides link for ${submission.speaker_name}.`);
       }
-    }
+    }));
 
     await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
     resetSpeakerIntakeLinkCopied();
@@ -570,11 +589,7 @@ function slidesLink(talk: Talk): string | null {
 }
 
 function selectedSpeakerLinkForSubmission(submissionId: string): AdminSpeakerIntakeLink | null {
-  const links = selectedSpeakerLinks.value
-    .filter((link) => link.speaker_submission_id === submissionId)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-  return links.find((link) => link.status === 'active') ?? links[0] ?? null;
+  return selectedSpeakerLinkBySubmissionId.value.get(submissionId) ?? null;
 }
 
 function selectedSpeakerLinkLabel(submission: SpeakerSubmission): string {

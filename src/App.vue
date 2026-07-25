@@ -4,7 +4,6 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import { useRoute, useRouter } from 'vue-router';
 import AdminEventTabs from './components/AdminEventTabs.vue';
 import AppToaster from './components/ui/AppToaster.vue';
-import FeedbackBot from './components/FeedbackBot.vue';
 import { adminPath, isAdminPath } from './admin-routes';
 import { fetchAdminSession, fetchEventById, fetchRouteFeedbackInbox, queryKeys, type RouteFeedbackSummary } from './lib/api';
 import { queryClient } from './lib/query';
@@ -23,7 +22,6 @@ interface AdminEventSummary {
 const AdminMobileOrganizerView = defineAsyncComponent(() => import('./views/admin/AdminMobileOrganizerView.vue'));
 const route = useRoute();
 const router = useRouter();
-const quizAvailable = ref(false);
 const adminEventNames = ref<Record<string, string>>({});
 const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
@@ -33,22 +31,8 @@ const keyboardInset = ref(0);
 const adminEventTabsShell = ref<HTMLElement | null>(null);
 const adminEventTabsHeight = ref(0);
 const logoSrc = '/brand/dev-con-logo.png';
-const showOrganizerLink = import.meta.env.VITE_SHOW_ORGANIZER_LINK !== 'false';
-const feedbackBotEnabled = import.meta.env.VITE_SHOW_FEEDBACK_BOT !== 'false';
-let quizAvailabilityInterval: number | undefined;
 let keyboardFocusTimer: number | undefined;
 let adminEventTabsResizeObserver: ResizeObserver | undefined;
-
-const publicLinks: NavLink[] = [
-  { href: '/', label: 'Home' },
-  { href: '/events', label: 'Events' },
-  { href: '/archive', label: 'Archive' },
-  { href: '/leaderboard', label: 'Leaderboard' },
-];
-
-const playLinks: NavLink[] = [
-  { href: '/play', label: 'Play', accent: true },
-];
 
 const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
@@ -61,7 +45,6 @@ const ownerAdminLinks: NavLink[] = [
 ];
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
-const isStandalonePublicRoute = computed(() => route.name === 'cfp' || route.name === 'speaker-talk-intake');
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
@@ -80,12 +63,10 @@ const adminEventId = computed(() => {
   if (Array.isArray(value)) return value[0];
   return value || null;
 });
-const primaryLinks = computed(() => (isAdminRoute.value ? adminLinks.value : publicLinks));
-const visiblePlayLinks = computed(() => (quizAvailable.value ? playLinks : []));
+const primaryLinks = computed(() => adminLinks.value);
 const isOrganizerPhoneBypassRoute = computed(() => (
   route.path === adminPath('login')
   || route.path === adminPath('auth/callback')
-  || route.path.startsWith(adminPath('feedback-display/'))
 ));
 const showOrganizerPhoneView = computed(() => isAdminRoute.value && phoneViewport.value && !isOrganizerPhoneBypassRoute.value);
 const navGroups = computed(() => {
@@ -97,18 +78,11 @@ const navGroups = computed(() => {
     return [primaryLinks.value];
   }
 
-  return [
-    primaryLinks.value,
-    visiblePlayLinks.value,
-  ].filter((group) => group.length > 0);
+  return [];
 });
-const modeSwitchLink = computed(() => (isAdminRoute.value ? '/' : adminPath('events')));
-const modeSwitchLabel = computed(() => (isAdminRoute.value ? 'Community' : 'Organizer'));
-const brandHomeLink = computed(() => (isAdminRoute.value ? adminPath('events') : '/'));
-const showModeSwitch = computed(() => isAdminRoute.value || showOrganizerLink);
+const brandHomeLink = computed(() => adminPath('events'));
 const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
-const showHeaderActions = computed(() => showModeSwitch.value || showSignOut.value);
-const showFeedbackBot = computed(() => feedbackBotEnabled && !isAdminRoute.value && !isStandalonePublicRoute.value && !route.path.startsWith('/feedback'));
+const showHeaderActions = computed(() => showSignOut.value);
 const shouldLoadRouteFeedbackSummary = computed(() => (
   isAdminRoute.value
   && !showOrganizerPhoneView.value
@@ -256,22 +230,6 @@ const breadcrumbItems = computed(() => {
     }
 
     return items;
-  }
-
-  items.push({ label: 'Home', href: '/' });
-
-  if (path === '/events') items.push({ label: 'Events' });
-  else if (path === '/archive') items.push({ label: 'Archive' });
-  else if (path.startsWith('/archive/')) {
-    items.push({ label: 'Archive', href: '/archive' });
-    items.push({ label: 'Event' });
-  } else if (path === '/leaderboard') items.push({ label: 'Leaderboard' });
-  else if (path.startsWith('/cfp/')) items.push({ label: 'Call for proposals' });
-  else if (path === '/feedback' || path.startsWith('/feedback/')) items.push({ label: 'Feedback' });
-  else if (path === '/play') items.push({ label: 'Play' });
-  else if (path.startsWith('/play/')) {
-    items.push({ label: 'Play', href: '/play' });
-    items.push({ label: 'Join code' });
   }
 
   return items;
@@ -433,11 +391,7 @@ function handleDocumentPointerDown(event: PointerEvent) {
 async function logout() {
   closeMobileMenu();
   await fetch('/api/auth/logout', { method: 'POST' });
-  await router.push('/');
-}
-
-async function refreshQuizAvailability() {
-  quizAvailable.value = false;
+  await router.push(adminPath('login'));
 }
 
 async function refreshAdminEventNames() {
@@ -497,11 +451,7 @@ onMounted(() => {
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
-  void refreshQuizAvailability();
   void refreshAdminEventNames();
-  quizAvailabilityInterval = window.setInterval(() => {
-    void refreshQuizAvailability();
-  }, 15000);
 });
 
 watch(() => route.path, (toPath, fromPath) => {
@@ -544,15 +494,12 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
-  if (quizAvailabilityInterval !== undefined) {
-    window.clearInterval(quizAvailabilityInterval);
-  }
 });
 </script>
 
 <template>
-  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--community': !isAdminRoute, 'app-shell--standalone': isStandalonePublicRoute }">
-    <header v-if="!isStandalonePublicRoute" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
+  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink">
+    <header class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
         <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">
           <img
@@ -563,14 +510,7 @@ onUnmounted(() => {
         </RouterLink>
 
         <div v-if="showHeaderActions" class="app-header-actions flex items-center justify-end gap-3 lg:order-3">
-          <span v-if="showModeSwitch || showSignOut" class="hidden h-8 w-px rounded-full bg-dc-ink/30 sm:block" />
-          <RouterLink
-            v-if="showModeSwitch"
-            :to="modeSwitchLink"
-            class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
-          >
-            {{ modeSwitchLabel }}
-          </RouterLink>
+          <span class="hidden h-8 w-px rounded-full bg-dc-ink/30 sm:block" />
           <button
             v-if="showSignOut"
             class="motion-press flex min-h-11 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
@@ -622,7 +562,7 @@ onUnmounted(() => {
 
     <Transition name="mobile-menu">
       <div
-        v-if="mobileMenuOpen && !isStandalonePublicRoute"
+        v-if="mobileMenuOpen"
         id="mobile-menu-panel"
         class="app-mobile-menu"
         role="dialog"
@@ -643,14 +583,6 @@ onUnmounted(() => {
         </div>
 
         <div class="app-mobile-menu-actions">
-          <RouterLink
-            v-if="showModeSwitch"
-            :to="modeSwitchLink"
-            class="app-mobile-menu-action"
-            @click="closeMobileMenu"
-          >
-            {{ modeSwitchLabel }}
-          </RouterLink>
           <button
             v-if="showSignOut"
             class="app-mobile-menu-action"
@@ -685,10 +617,7 @@ onUnmounted(() => {
         </nav>
 
         <div class="app-mobile-menu-footer">
-          <p>DevCongress Community</p>
-          <RouterLink to="/feedback" @click="closeMobileMenu">
-            Send feedback
-          </RouterLink>
+          <p>DevCongress Organizer Console</p>
         </div>
       </div>
     </Transition>
@@ -757,7 +686,6 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <FeedbackBot v-if="showFeedbackBot" />
     <button
       v-if="keyboardDismissVisible"
       class="keyboard-dismiss-control motion-press"

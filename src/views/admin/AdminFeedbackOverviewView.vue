@@ -208,18 +208,6 @@ function canViewEventResponses(event: FeedbackMonthEvent): boolean {
   return eventCampaignPublished(event) && event.response_count > 0;
 }
 
-function eventHasStarted(event: FeedbackMonthEvent): boolean {
-  return new Date(event.event.event_date).getTime() <= Date.now();
-}
-
-function canShowFeedbackQr(event: FeedbackMonthEvent): boolean {
-  return event.is_open && eventHasStarted(event);
-}
-
-function feedbackDisplayPath(event: FeedbackMonthEvent) {
-  return adminPath(`feedback-display/${event.event.id}`);
-}
-
 function setYear(year: string) {
   selectedYear.value = year;
   const currentMonthKey = currentFeedbackMonthKey();
@@ -751,22 +739,6 @@ async function archiveResolvedRouteFeedback() {
                           >
                             View responses
                           </button>
-                          <RouterLink
-                            v-if="canShowFeedbackQr(item)"
-                            :to="feedbackDisplayPath(item)"
-                            target="_blank"
-                            rel="noreferrer"
-                            class="rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink hover:bg-dc-yellow/80"
-                          >
-                            Show QR
-                          </RouterLink>
-                          <RouterLink
-                            v-if="!eventCampaignPublished(item)"
-                            :to="`/feedback/${item.event.id}`"
-                            class="rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
-                          >
-                            Preview
-                          </RouterLink>
                         </div>
                       </div>
                     </article>

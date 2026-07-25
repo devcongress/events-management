@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { adminPath } from '@/src/admin-routes';
@@ -38,24 +38,37 @@ const selectedAttendanceFilter = ref<'all' | 'said_yes' | 'came' | 'missed' | 'p
 const currentPage = ref(1);
 
 const attendanceRecords = computed(() => attendanceImport.value?.records ?? []);
-const filteredAttendanceRecords = computed(() => attendanceRecords.value.filter((record) => {
-  const query = searchQuery.value.trim().toLowerCase();
-  const matchesQuery = !query || [
+// Debounce the keystroke path and precompute one lowercase haystack per record
+// so filtering a multi-thousand-row CSV import isn't redone per character typed.
+const debouncedSearchQuery = ref('');
+let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+const searchableAttendanceRecords = computed(() => attendanceRecords.value.map((record) => ({
+  record,
+  haystack: [
     attendeeName(record),
     record.email ?? '',
     record.ticket_name ?? '',
     record.utm_source ?? '',
-  ].some((value) => value.toLowerCase().includes(query));
+  ].join('\n').toLowerCase(),
+})));
+const filteredAttendanceRecords = computed(() => {
+  const query = debouncedSearchQuery.value.trim().toLowerCase();
 
-  const matchesAttendance = selectedAttendanceFilter.value === 'all'
-    || (selectedAttendanceFilter.value === 'said_yes' && record.approval_status === 'approved')
-    || (selectedAttendanceFilter.value === 'came' && Boolean(record.checked_in_at))
-    || (selectedAttendanceFilter.value === 'missed' && record.approval_status === 'approved' && !record.checked_in_at)
-    || (selectedAttendanceFilter.value === 'pending' && record.approval_status === 'pending')
-    || (selectedAttendanceFilter.value === 'declined' && record.approval_status === 'declined');
+  return searchableAttendanceRecords.value
+    .filter(({ record, haystack }) => {
+      const matchesQuery = !query || haystack.includes(query);
 
-  return matchesQuery && matchesAttendance;
-}));
+      const matchesAttendance = selectedAttendanceFilter.value === 'all'
+        || (selectedAttendanceFilter.value === 'said_yes' && record.approval_status === 'approved')
+        || (selectedAttendanceFilter.value === 'came' && Boolean(record.checked_in_at))
+        || (selectedAttendanceFilter.value === 'missed' && record.approval_status === 'approved' && !record.checked_in_at)
+        || (selectedAttendanceFilter.value === 'pending' && record.approval_status === 'pending')
+        || (selectedAttendanceFilter.value === 'declined' && record.approval_status === 'declined');
+
+      return matchesQuery && matchesAttendance;
+    })
+    .map(({ record }) => record);
+});
 const attendanceFilters = computed(() => {
   if (!summary.value) return [];
 
@@ -337,6 +350,13 @@ function goToNextAttendancePage() {
   currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
 }
 
+watch(searchQuery, (value) => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchQuery.value = value;
+  }, 150);
+});
+
 watch([searchQuery, selectedAttendanceFilter], () => {
   currentPage.value = 1;
 });
@@ -346,6 +366,8 @@ watch(totalPages, (pages) => {
 });
 
 onMounted(fetchAttendance);
+
+onUnmounted(() => clearTimeout(searchDebounceTimer));
 </script>
 
 <template>

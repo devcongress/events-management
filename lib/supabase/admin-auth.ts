@@ -8,6 +8,9 @@ import type { Database, Json } from '@/types/supabase';
 export const ADMIN_SESSION_COOKIE = 'devcon_admin';
 const LOCAL_ADMIN_COOKIE_PREFIX = 'local:';
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
+// Bump last_seen_at at most once per interval; it is telemetry, not worth a
+// blocking write on every authenticated request.
+const ADMIN_SESSION_LAST_SEEN_THROTTLE_MS = 60_000;
 
 export type AdminRole = 'owner' | 'organizer';
 
@@ -249,7 +252,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
 
   const { data, error } = await getSupabaseAdminClient(c)
     .from('admin_sessions')
-    .select('id, user_id, membership_id, email, role, expires_at, revoked_at, admin_memberships!inner(display_name, status)')
+    .select('id, user_id, membership_id, email, role, expires_at, revoked_at, last_seen_at, admin_memberships!inner(display_name, status)')
     .eq('token_hash', await sessionTokenHash(token))
     .is('revoked_at', null)
     .maybeSingle();
@@ -263,10 +266,14 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
     return { authenticated: false };
   }
 
-  await getSupabaseAdminClient(c)
-    .from('admin_sessions')
-    .update({ last_seen_at: new Date().toISOString() })
-    .eq('id', data.id);
+  const lastSeenAtMs = data.last_seen_at ? new Date(data.last_seen_at).getTime() : 0;
+  if (Date.now() - lastSeenAtMs > ADMIN_SESSION_LAST_SEEN_THROTTLE_MS) {
+    void getSupabaseAdminClient(c)
+      .from('admin_sessions')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', data.id)
+      .then(() => undefined, () => undefined);
+  }
 
   return {
     authenticated: true,
@@ -344,7 +351,10 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
   const originError = assertAdminOrigin(c);
   if (originError) return originError;
 
-  const session = await getAdminSession(c);
+  // The /api/* middleware resolves the session once per request; handlers that
+  // re-check roles reuse it instead of paying for another Supabase round trip.
+  const cached = c.get('adminSession') as AdminSession | undefined;
+  const session = cached ?? await getAdminSession(c);
   if (!session.authenticated) {
     return c.json({ error: 'Admin session required' }, 401);
   }
@@ -353,6 +363,6 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
     return c.json({ error: 'Owner access required' }, 403);
   }
 
-  c.set('adminSession', session);
+  if (!cached) c.set('adminSession', session);
   return null;
 }

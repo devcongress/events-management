@@ -12,6 +12,7 @@ interface ConsistencyPersonRow {
   registeredCount: number;
   checkedInCount: number;
   lastSeenAt: string | null;
+  lastSeenAtMs: number;
 }
 
 const loading = ref(true);
@@ -100,11 +101,20 @@ const consistentPeople = computed<ConsistencyPersonRow[]>(() => {
     registeredEvents: Set<string>;
     checkedInEvents: Set<string>;
     lastSeenAt: string | null;
+    lastSeenAtMs: number;
   }>();
+  // Parse each event date once instead of once per attendance record.
+  const eventTimeByEventId = new Map<string, number>();
 
   for (const month of importedYearLedger.value) {
     for (const eventItem of month.events) {
       if (!eventItem.import) continue;
+
+      let eventTimeMs = eventTimeByEventId.get(eventItem.event.id);
+      if (eventTimeMs === undefined) {
+        eventTimeMs = new Date(eventItem.event.event_date).getTime();
+        eventTimeByEventId.set(eventItem.event.id, eventTimeMs);
+      }
 
       for (const record of eventItem.import.records) {
         const key = record.email?.trim().toLowerCase() || record.guest_id;
@@ -115,14 +125,16 @@ const consistentPeople = computed<ConsistencyPersonRow[]>(() => {
           registeredEvents: new Set<string>(),
           checkedInEvents: new Set<string>(),
           lastSeenAt: null,
+          lastSeenAtMs: Number.NEGATIVE_INFINITY,
         };
 
         existing.name = existing.name || record.name || record.email || record.guest_id;
         existing.email = existing.email ?? record.email;
         existing.registeredEvents.add(eventItem.event.id);
         if (record.checked_in_at) existing.checkedInEvents.add(eventItem.event.id);
-        if (!existing.lastSeenAt || new Date(eventItem.event.event_date).getTime() > new Date(existing.lastSeenAt).getTime()) {
+        if (eventTimeMs > existing.lastSeenAtMs) {
           existing.lastSeenAt = eventItem.event.event_date;
+          existing.lastSeenAtMs = eventTimeMs;
         }
         people.set(key, existing);
       }
@@ -137,6 +149,7 @@ const consistentPeople = computed<ConsistencyPersonRow[]>(() => {
       registeredCount: person.registeredEvents.size,
       checkedInCount: person.checkedInEvents.size,
       lastSeenAt: person.lastSeenAt,
+      lastSeenAtMs: person.lastSeenAtMs,
     }))
     .filter((person) => person.registeredCount > 1 || person.checkedInCount > 1)
     .sort(rankConsistentPeople)
@@ -151,7 +164,7 @@ function rankConsistentPeople(a: ConsistencyPersonRow, b: ConsistencyPersonRow):
     b.checkedInCount - a.checkedInCount
     || bRate - aRate
     || b.registeredCount - a.registeredCount
-    || new Date(b.lastSeenAt ?? 0).getTime() - new Date(a.lastSeenAt ?? 0).getTime()
+    || b.lastSeenAtMs - a.lastSeenAtMs
     || a.name.localeCompare(b.name)
   );
 }

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import QRCode from 'qrcode';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppNumberStepper from '@/src/components/AppNumberStepper.vue';
 import AdminQuizPageSkeleton from '@/src/components/ui/page-skeletons/AdminQuizPageSkeleton.vue';
@@ -97,11 +96,14 @@ async function fetchSession() {
 }
 
 async function refreshQrCode() {
-  if (!session.value) {
+  // The QR only renders in live mode; skip the CPU-bound encode (and the
+  // lazy-loaded qrcode chunk) for builder-mode refetches after each edit.
+  if (!session.value || !liveMode.value) {
     qrCodeUrl.value = null;
     return;
   }
-  qrCodeUrl.value = await QRCode.toDataURL(playUrl.value, {
+  const { toDataURL } = await import('qrcode');
+  qrCodeUrl.value = await toDataURL(playUrl.value, {
     margin: 1,
     width: 280,
     color: {

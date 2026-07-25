@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
-import { fetchEvents, fetchFeedbackMonths, queryKeys } from '@/src/lib/api';
+import { fetchEvents, queryKeys } from '@/src/lib/api';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import type { Event as CommunityEvent, EventStatus } from '@/types';
 
@@ -19,20 +19,9 @@ const eventsQuery = useQuery({
   queryFn: fetchEvents,
 });
 
-const feedbackMonthsQuery = useQuery({
-  queryKey: queryKeys.feedbackMonths,
-  queryFn: fetchFeedbackMonths,
-});
-
 const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((first, second) => (
   new Date(first.event_date).getTime() - new Date(second.event_date).getTime()
 )));
-const feedbackOpenEventIds = computed(() => new Set(
-  (feedbackMonthsQuery.data.value?.months ?? [])
-    .flatMap((month) => month.events)
-    .filter((item) => item.is_open)
-    .map((item) => item.event.id),
-));
 const todayStart = computed(() => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -64,10 +53,6 @@ const blockedWorkspaces = [
   'Attendance ledgers and CSV review',
   'Audit logs and organizer management',
 ];
-
-function eventHasStarted(event: CommunityEvent): boolean {
-  return new Date(event.event_date).getTime() <= Date.now();
-}
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -110,21 +95,6 @@ function eventSeriesLabel(event: CommunityEvent): string {
 
 function eventActions(event: CommunityEvent): MobileEventAction[] {
   const actions: MobileEventAction[] = [];
-
-  if (feedbackOpenEventIds.value.has(event.id) && eventHasStarted(event)) {
-    actions.push({
-      label: 'Show feedback QR',
-      href: adminPath(`feedback-display/${event.id}`),
-      primary: true,
-    });
-  }
-
-  if (event.publish_to_website && event.slug) {
-    actions.push({
-      label: event.status === 'completed' ? 'View recap' : 'Open public page',
-      href: `/events/${event.slug}`,
-    });
-  }
 
   if (event.registration_url && event.status !== 'completed') {
     actions.push({

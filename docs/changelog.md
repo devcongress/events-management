@@ -5,6 +5,31 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-25 — Admin-only organizer surface
+
+- Redirected the root and former public Vue routes into the protected organizer console, so this deployment no longer competes with `devcongress.org` as a community website.
+- Removed public feedback preview, share-link, and attendee QR controls from the organizer UI; feedback setup and response review remain private operations while public experiences move to the Astro website.
+- Removed the feedback-display browser route and its mobile shortcut, keeping the phone surface focused on organizer actions.
+- Redesigned organizer sign-in around the actual authorization model: an approved Google account is required, and a valid Google identity alone is not sufficient. The page now has clearer error feedback, accessible alert semantics, responsive layout, focused typography, and restrained motion with reduced-motion support.
+
+## 2026-07-25 — Organizer performance and debt pass
+
+- Cut organizer auth overhead per API request: `requireAdmin` now reuses the middleware-resolved session from the Hono context instead of re-querying Supabase in every handler, and `auditAdminAction` consumes that same cached session instead of a third lookup.
+- Throttled the `admin_sessions.last_seen_at` bump to at most once per minute and made it non-blocking; it was an awaited write on every authenticated request.
+- Removed the artificial 300ms `SIMULATED_DELAY_MS` sleep from the Hono `GET /api/quiz/state` route, which every client poll paid every 1.5s.
+- Parallelized the whole-document reads behind quiz state build/advance and dropped a duplicate full `responses` collection read per poll.
+- Made `reorderQuestions` O(n) via an id map instead of a `find` per question id.
+- Organizer client: deduped background session revalidation on navigation (30s staleTime instead of forced refetch per route change); scoped checklist-toggle invalidation to the event+checklist keys unless the milestone changed the event itself; parallelized selected-speaker link generation PATCHes; replaced per-row filter+sort speaker-link lookups and feedback question lookups with precomputed id maps; debounced and hoisted the attendance ledger search; cached event-date timestamps in the attendance consistency aggregator; stable-keyed program outline edit rows; lazy-loaded the `qrcode` chunk and skipped QR regeneration outside live mode.
+
+## 2026-07-10 — Website integration architecture plan
+
+- Audited the current Astro/GitHub Pages website, Events Management Worker/Supabase runtime, organizer auth flow, and live deployment boundaries without changing the website repository.
+- Defined a static-first Cloudflare Worker with Static Assets target that keeps public pages prerendered while moving organizer and community routes behind the `devcongress.org` origin.
+- Documented the staged parity cutover, private Service Binding bridge, Hono route-group extraction, Supabase persistence risks, organizer UI seam, vertical feature order, and rollback requirements in `docs/website-integration/`.
+- Made Supabase Postgres the explicit durable system of record for every dynamic organizer/community domain, with Auth for organizer identity, Storage for media, and Durable Objects limited to transient live coordination.
+- Audited the live Supabase project read-only, recorded aggregate row/storage baselines, identified live-vs-`main` schema drift and migration-version collision, and mapped every JSON compatibility domain to its relational migration wave.
+- Left the proposed platform/repository decisions uncommitted as ADRs until user approval.
+
 ## 2026-07-09 — Speaker intake topic dropdown fix
 
 - Replaced the speaker talk intake Topic text field with the shared app dropdown, using the same Frontend, Backend, DevOps, AI/ML, and related topic choices as the public CFP flow.

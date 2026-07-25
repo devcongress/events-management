@@ -3,21 +3,8 @@ import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admi
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { queryClient } from './lib/query';
 
-const COMMUNITY_TITLE = 'DevCongress | Community';
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
 const ownerOnlyPaths = new Set([adminPath('audit-log')]);
-const DashboardView = () => import('./views/DashboardView.vue');
-const EventsView = () => import('./views/EventsView.vue');
-const EventView = () => import('./views/EventView.vue');
-const ArchiveView = () => import('./views/ArchiveView.vue');
-const ArchiveEventView = () => import('./views/ArchiveEventView.vue');
-const LeaderboardView = () => import('./views/LeaderboardView.vue');
-const CfpView = () => import('./views/CfpView.vue');
-const SpeakerTalkIntakeView = () => import('./views/SpeakerTalkIntakeView.vue');
-const RouteFeedbackView = () => import('./views/RouteFeedbackView.vue');
-const FeedbackView = () => import('./views/FeedbackView.vue');
-const PlayView = () => import('./views/PlayView.vue');
-const PlayCodeView = () => import('./views/PlayCodeView.vue');
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
@@ -25,7 +12,6 @@ const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
 const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceOverviewView.vue');
 const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
 const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
-const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDisplayView.vue');
 const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
 const AdminOrganizersView = () => import('./views/admin/AdminOrganizersView.vue');
 const AdminAuditLogView = () => import('./views/admin/AdminAuditLogView.vue');
@@ -52,25 +38,13 @@ function storedAdminOAuthRedirect(): string {
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'dashboard', component: DashboardView },
-    { path: '/events', name: 'events', component: EventsView },
-    { path: '/events/:slug', name: 'event', component: EventView },
-    { path: '/archive', name: 'archive', component: ArchiveView },
-    { path: '/archive/:eventId', name: 'archive-event', component: ArchiveEventView },
-    { path: '/leaderboard', name: 'leaderboard', component: LeaderboardView },
-    { path: '/cfp/:eventId', name: 'cfp', component: CfpView },
-    { path: '/speaker-talks/:eventId/:token', name: 'speaker-talk-intake', component: SpeakerTalkIntakeView },
-    { path: '/feedback', name: 'route-feedback', component: RouteFeedbackView },
-    { path: '/feedback/:eventId', name: 'feedback', component: FeedbackView },
-    { path: '/play', name: 'play', component: PlayView },
-    { path: '/play/:code', name: 'play-code', component: PlayCodeView },
+    { path: '/', redirect: adminPath('events') },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
     { path: adminPath(), redirect: adminPath('events') },
     { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
-    { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
     { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
     { path: adminPath('audit-log'), name: 'admin-audit-log', component: AdminAuditLogView },
     { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },
@@ -83,7 +57,8 @@ export const router = createRouter({
     { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView },
     { path: adminPath('events/:eventId/system-design'), name: 'admin-system-design', component: AdminSystemDesignView },
     { path: adminPath('events/:eventId/feedback'), name: 'admin-feedback', component: AdminFeedbackView },
-    { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
+    { path: adminPath(':pathMatch(.*)*'), name: 'admin-not-found', component: NotFoundView },
+    { path: '/:pathMatch(.*)*', redirect: adminPath('events') },
   ],
 });
 
@@ -108,10 +83,11 @@ router.beforeEach(async (to, from) => {
 
   const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
   if (cachedSession?.authenticated) {
+    // Background revalidation on navigation, deduped by the default 30s
+    // staleTime so tab-hopping within an event doesn't fire a request per click.
     void queryClient.fetchQuery({
       queryKey: queryKeys.adminSession,
       queryFn: fetchAdminSession,
-      staleTime: 0,
     }).catch(() => undefined);
 
     if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== 'owner') {
@@ -143,6 +119,6 @@ router.beforeEach(async (to, from) => {
   };
 });
 
-router.afterEach((to) => {
-  document.title = isAdminPath(to.path) ? ORGANIZER_TITLE : COMMUNITY_TITLE;
+router.afterEach(() => {
+  document.title = ORGANIZER_TITLE;
 });
