@@ -46,11 +46,15 @@ const ownerAdminLinks: NavLink[] = [
 
 const isAdminRoute = computed(() => isAdminPath(route.path));
 const isStandaloneFeedbackRoute = computed(() => route.name === 'event-feedback');
+const isLoginRoute = computed(() => route.path === adminPath('login') || route.path === adminPath('auth/callback'));
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
   enabled: isAdminRoute,
 });
+const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
+const showAppHeader = computed(() => !isStandaloneFeedbackRoute.value && !isLoginRoute.value);
+const showPrimaryNavigation = computed(() => showAppHeader.value && isOrganizerAuthenticated.value);
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
   if (session?.authenticated && session.user?.role === 'owner') {
@@ -69,7 +73,12 @@ const isOrganizerPhoneBypassRoute = computed(() => (
   route.path === adminPath('login')
   || route.path === adminPath('auth/callback')
 ));
-const showOrganizerPhoneView = computed(() => isAdminRoute.value && phoneViewport.value && !isOrganizerPhoneBypassRoute.value);
+const showOrganizerPhoneView = computed(() => (
+  isOrganizerAuthenticated.value
+  && isAdminRoute.value
+  && phoneViewport.value
+  && !isOrganizerPhoneBypassRoute.value
+));
 const navGroups = computed(() => {
   if (showOrganizerPhoneView.value) {
     return [[{ href: adminPath('events'), label: 'Mobile Ops' }]];
@@ -82,10 +91,10 @@ const navGroups = computed(() => {
   return [];
 });
 const brandHomeLink = computed(() => adminPath('events'));
-const showSignOut = computed(() => isAdminRoute.value && route.path !== adminPath('login'));
+const showSignOut = computed(() => isOrganizerAuthenticated.value && !isLoginRoute.value);
 const showHeaderActions = computed(() => showSignOut.value);
 const shouldLoadRouteFeedbackSummary = computed(() => (
-  isAdminRoute.value
+  isOrganizerAuthenticated.value
   && !showOrganizerPhoneView.value
   && route.path !== adminPath('login')
   && route.path !== adminPath('feedback')
@@ -162,7 +171,8 @@ const currentEventLabel = computed(() => {
   return adminEventNames.value[adminEventId.value] ?? 'Event';
 });
 const showAdminEventTabs = computed(() => Boolean(
-  !showOrganizerPhoneView.value
+  isOrganizerAuthenticated.value
+  && !showOrganizerPhoneView.value
   && adminEventId.value
   && route.path.startsWith(adminPath(`events/${adminEventId.value}`)),
 ));
@@ -235,7 +245,12 @@ const breadcrumbItems = computed(() => {
 
   return items;
 });
-const showBreadcrumbs = computed(() => !showOrganizerPhoneView.value && isAdminRoute.value && breadcrumbItems.value.length > 1);
+const showBreadcrumbs = computed(() => (
+  isOrganizerAuthenticated.value
+  && !showOrganizerPhoneView.value
+  && isAdminRoute.value
+  && breadcrumbItems.value.length > 1
+));
 
 const adminEventSectionOrder = ['', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
 
@@ -499,8 +514,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink">
-    <header v-if="!isStandaloneFeedbackRoute" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
+  <div class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink" :class="{ 'app-shell--login': isLoginRoute }">
+    <header v-if="showAppHeader" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
       <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
         <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">
           <img
@@ -522,6 +537,7 @@ onUnmounted(() => {
         </div>
 
         <button
+          v-if="showPrimaryNavigation"
           class="app-mobile-menu-toggle motion-press hidden min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-dc-ink shadow-[2px_2px_0_#111111]"
           type="button"
           :aria-expanded="mobileMenuOpen"
@@ -537,7 +553,7 @@ onUnmounted(() => {
           <span>Menu</span>
         </button>
 
-        <nav class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1" aria-label="Primary">
+        <nav v-if="showPrimaryNavigation" class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1" aria-label="Primary">
           <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
             <RouterLink
               v-for="link in group"
@@ -563,7 +579,7 @@ onUnmounted(() => {
 
     <Transition name="mobile-menu">
       <div
-        v-if="mobileMenuOpen && !isStandaloneFeedbackRoute"
+        v-if="mobileMenuOpen && showPrimaryNavigation"
         id="mobile-menu-panel"
         class="app-mobile-menu"
         role="dialog"
@@ -661,7 +677,7 @@ onUnmounted(() => {
 
     <main
       class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-      :class="{ 'app-main--with-event-tabs': showAdminEventTabs }"
+      :class="{ 'app-main--with-event-tabs': showAdminEventTabs, 'app-main--login': isLoginRoute }"
       :style="appMainStyle"
     >
       <div v-if="showAdminEventTabs && adminEventId" ref="adminEventTabsShell" class="admin-event-tabs-shell bg-dc-cream text-dc-ink">

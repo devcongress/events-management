@@ -279,6 +279,15 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  .app-shell--login,
+  .app-shell--login .app-main,
+  .app-shell--login .page-route-stack,
+  .app-shell--login .page-route-stack > .page-view {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden !important;
+  }
+
   .app-main:has(.view-skeleton) {
     overflow-y: hidden;
   }
@@ -6045,6 +6054,22 @@
     .app-shell .page-view {
       min-height: calc(100svh - 3.75rem);
     }
+
+    .app-shell--login {
+      height: 100svh;
+      min-height: 100svh;
+      max-height: 100svh;
+      overflow: hidden !important;
+    }
+
+    .app-shell--login .app-main,
+    .app-shell--login .page-route-stack,
+    .app-shell--login .page-route-stack > .page-view {
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden !important;
+    }
   }
 
   @media (max-width: 767px) {
@@ -6089,6 +6114,28 @@
 
     .app-main {
       padding-top: 3.65rem;
+    }
+
+    .app-shell--login {
+      height: 100svh;
+      min-height: 100svh;
+      max-height: 100svh;
+      overflow: hidden !important;
+    }
+
+    .app-shell--login .app-main {
+      flex: 1 1 auto;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden !important;
+      padding-top: 0;
+    }
+
+    .app-shell--login .page-route-stack,
+    .app-shell--login .page-route-stack > .page-view {
+      height: 100%;
+      min-height: 0;
+      overflow: hidden !important;
     }
 
     .admin-event-tabs-shell {
