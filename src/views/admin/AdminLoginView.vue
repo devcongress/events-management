@@ -123,42 +123,59 @@ onMounted(async () => {
 
 <template>
   <div class="editorial-page flex min-h-full items-center justify-center p-4 sm:p-6">
-    <form class="editorial-panel w-full max-w-lg overflow-hidden" aria-labelledby="organizer-login-title" @submit.prevent="login">
-      <div class="border-b-2 border-dc-ink bg-dc-paper px-6 pb-6 pt-7 sm:px-8 sm:pb-7 sm:pt-8">
+    <form class="editorial-panel grid w-full max-w-5xl overflow-hidden lg:min-h-[30rem] lg:grid-cols-[1.15fr_0.85fr]" aria-labelledby="organizer-login-title" @submit.prevent="login">
+      <section class="flex flex-col border-b-2 border-dc-ink bg-dc-ink px-6 py-7 text-dc-paper sm:px-9 sm:py-9 lg:border-b-0 lg:border-r-2 lg:px-12 lg:py-11">
         <div class="flex items-center justify-between gap-4">
           <img :src="logoSrc" alt="DevCongress" class="h-7 w-auto max-w-[12rem] object-contain" />
-          <span class="inline-flex min-h-9 items-center rounded-md border-2 border-dc-ink bg-dc-yellow px-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-dc-ink">Private</span>
+          <span class="inline-flex min-h-9 items-center rounded-md border-2 border-dc-paper bg-dc-yellow px-3 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-dc-ink">Private</span>
         </div>
-        <p class="editorial-eyebrow mt-9">organizer console</p>
-        <h1 id="organizer-login-title" class="max-w-[11ch] text-4xl font-black leading-[0.95] tracking-tight text-dc-ink sm:text-5xl">Make the next event happen.</h1>
-        <p class="mt-4 max-w-md text-base leading-7 text-dc-gray">
-          {{ authMode === 'supabase' ? 'Sign in to manage events, speakers, attendance, and feedback.' : 'Use the local admin password to manage DevCongress events.' }}
-        </p>
-      </div>
+        <div class="mt-10 lg:mt-auto">
+          <p class="font-mono text-xs font-bold uppercase tracking-[0.24em] text-dc-pink">Organizer console</p>
+          <h1 id="organizer-login-title" class="mt-4 max-w-[10ch] text-4xl font-black leading-[0.94] tracking-tight text-dc-paper sm:text-5xl">Keep the event moving.</h1>
+          <p class="mt-5 max-w-md text-base leading-7 text-dc-paper/75">
+            Plan the programme, coordinate speakers, manage attendance, and close the feedback loop.
+          </p>
+        </div>
+        <div class="mt-8 flex flex-wrap gap-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-dc-paper/75 lg:mt-10">
+          <span class="border border-dc-paper/35 px-2 py-1">Events</span>
+          <span class="border border-dc-paper/35 px-2 py-1">People</span>
+          <span class="border border-dc-paper/35 px-2 py-1">Follow-up</span>
+        </div>
+      </section>
 
-      <div class="bg-dc-cream px-6 py-6 sm:px-8 sm:py-7">
-      <label v-if="authMode === 'local'" class="block">
-        <span class="editorial-label">Password</span>
-        <input
-          v-model="password"
-          autofocus
-          required
-          class="editorial-input mt-2"
-          :disabled="loading"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Admin password"
-        >
-      </label>
+      <section class="flex flex-col bg-dc-paper px-6 py-7 sm:px-9 sm:py-9 lg:px-10 lg:py-11">
+        <div>
+          <p class="editorial-eyebrow">Organizer access</p>
+          <h2 class="mt-4 text-3xl font-black leading-[0.98] tracking-tight text-dc-ink sm:text-4xl">Ready when you are.</h2>
+          <p class="mt-4 text-sm leading-6 text-dc-gray">
+            {{ authMode === 'supabase' ? 'Use your Google account to continue.' : 'Use the local admin password to continue.' }}
+          </p>
+        </div>
 
-      <div v-if="error" class="mt-5 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700" role="alert">
-        {{ error }}
-      </div>
+        <div class="mt-8 lg:mt-auto">
+          <label v-if="authMode === 'local'" class="block">
+            <span class="editorial-label">Password</span>
+            <input
+              v-model="password"
+              autofocus
+              required
+              class="editorial-input mt-2"
+              :disabled="loading"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Admin password"
+            >
+          </label>
 
-      <button type="submit" :disabled="loading" class="editorial-action mt-6 min-h-14 w-full justify-center disabled:opacity-60">
-        {{ loading ? 'Signing in...' : authMode === 'supabase' ? 'Continue with Google' : 'Sign in' }}
-      </button>
-      </div>
+          <div v-if="error" class="mt-5 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700" role="alert">
+            {{ error }}
+          </div>
+
+          <button type="submit" :disabled="loading" class="editorial-action mt-6 min-h-14 w-full justify-center disabled:opacity-60">
+            {{ loading ? 'Signing in...' : authMode === 'supabase' ? 'Continue with Google' : 'Sign in' }}
+          </button>
+        </div>
+      </section>
     </form>
   </div>
 </template>
