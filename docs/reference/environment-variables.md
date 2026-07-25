@@ -16,10 +16,10 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `VITE_TURNSTILE_SITE_KEY` | No | Yes | Optional browser-safe Cloudflare Turnstile sitekey override used to render the route-feedback human check on the floating bot and `/feedback` page |
 | `ADMIN_PASSWORD` | No | No | Local-development fallback organizer password when Supabase admin auth is not configured |
 | `ADMIN_SESSION_SECRET` | No locally, yes for local fallback deployments | No | Secret used to sign the local fallback organizer cookie |
-| `PUBLIC_APP_URL` | No | Yes | Absolute public app origin used for server-generated auth and public integration links |
-| `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS, for example the Cloudflare Pages URL |
+| `PUBLIC_APP_URL` | No | Yes | Absolute browser-facing app origin used for server-generated auth and public integration links; production is `https://em.devcongress.org` |
+| `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS and state-changing request checks; production is `https://em.devcongress.org` |
 | `TURNSTILE_SECRET_KEY` | No | No | Server-only Cloudflare Turnstile secret used by `/api/feedback` to validate feedback-form tokens |
-| `TURNSTILE_EXPECTED_HOSTNAME` | No | No | Optional strict hostname check for Turnstile verification, for example `events-management.pages.dev` in production |
+| `TURNSTILE_EXPECTED_HOSTNAME` | No | No | Optional strict hostname check for Turnstile verification, for example `em.devcongress.org` in production |
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 
 ## Rules

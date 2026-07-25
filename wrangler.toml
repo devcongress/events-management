@@ -6,8 +6,8 @@ keep_vars = true
 
 [vars]
 APP_DATA_SOURCE = "supabase"
-PUBLIC_APP_URL = "https://events-management.pages.dev"
-PUBLIC_FRONTEND_ORIGIN = "https://events-management.pages.dev"
+PUBLIC_APP_URL = "https://em.devcongress.org"
+PUBLIC_FRONTEND_ORIGIN = "https://em.devcongress.org"
 
 [observability]
 enabled = true
