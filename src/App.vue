@@ -53,7 +53,7 @@ const adminSessionQuery = useQuery({
   enabled: isAdminRoute,
 });
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
-const showAppHeader = computed(() => !isStandaloneFeedbackRoute.value && !isLoginRoute.value);
+const showAppHeader = computed(() => !isStandaloneFeedbackRoute.value && isOrganizerAuthenticated.value);
 const showPrimaryNavigation = computed(() => showAppHeader.value && isOrganizerAuthenticated.value);
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;

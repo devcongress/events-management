@@ -16,6 +16,7 @@ const error = ref<string | null>(null);
 const redirectTo = computed(() => String(route.query.redirect ?? route.query.next ?? adminPath('events')));
 const ADMIN_LOGIN_TOAST_ID = 'admin-login-toast';
 const LOCAL_GOOGLE_OAUTH_ORIGIN = 'http://localhost:5173';
+const logoSrc = '/brand/dev-con-logo.png';
 
 function notifyAdminLogin(kind: 'success' | 'info' | 'error', message: string, duration: number) {
   notify[kind](message, {
@@ -121,10 +122,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="editorial-page flex h-full min-h-0 items-center justify-center p-4 sm:p-6">
+  <div class="editorial-page flex min-h-full items-center justify-center p-4 sm:p-6">
     <form class="editorial-panel w-full max-w-md p-6 sm:p-8" aria-labelledby="organizer-login-title" @submit.prevent="login">
       <div class="border-b-2 border-dc-ink pb-5">
-        <img src="/brand/dev-con-logo.png" alt="DevCongress" class="h-7 w-auto max-w-[12rem] object-contain" />
+        <img :src="logoSrc" alt="DevCongress" class="h-7 w-auto max-w-[12rem] object-contain" />
         <p class="editorial-eyebrow mt-6">organizer access</p>
         <h1 id="organizer-login-title" class="text-3xl font-black tracking-tight text-dc-ink sm:text-4xl">Sign in</h1>
         <p class="mt-3 text-sm leading-6 text-dc-gray">

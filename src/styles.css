@@ -279,12 +279,7 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .app-shell--login,
-  .app-shell--login .app-main,
-  .app-shell--login .page-route-stack,
-  .app-shell--login .page-route-stack > .page-view {
-    height: 100%;
-    min-height: 0;
+  .app-shell--login .app-main {
     overflow: hidden !important;
   }
 
@@ -6062,11 +6057,8 @@
       overflow: hidden !important;
     }
 
-    .app-shell--login .app-main,
-    .app-shell--login .page-route-stack,
-    .app-shell--login .page-route-stack > .page-view {
+    .app-shell--login .app-main {
       flex: 1 1 auto;
-      height: 100%;
       min-height: 0;
       overflow: hidden !important;
     }
@@ -6129,13 +6121,6 @@
       min-height: 0;
       overflow: hidden !important;
       padding-top: 0;
-    }
-
-    .app-shell--login .page-route-stack,
-    .app-shell--login .page-route-stack > .page-view {
-      height: 100%;
-      min-height: 0;
-      overflow: hidden !important;
     }
 
     .admin-event-tabs-shell {

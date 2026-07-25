@@ -8,6 +8,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ## 2026-07-25 — Admin-only organizer surface
 
 - Restored the organizer login to the established DevCongress editorial system: shared cream/paper/ink/pink tokens, the existing panel/input/action primitives, and a compact viewport-fitting form rather than a separate marketing-style split screen. Navigation now stays hidden until the organizer session is authenticated.
+- Fixed the local login page module load by binding the public brand asset at runtime, preventing Vite from requesting it as a JavaScript import through the Hono fallback.
 - Replaced the native program-outline type picker with the shared app dropdown, so the editor uses the same controlled menu, selected state, focus treatment, and compact field sizing as the rest of the organizer console.
 - Redirected the root and former public Vue routes into the protected organizer console, so this deployment no longer competes with `devcongress.org` as a community website; the standalone event-feedback form remains the intentional attendee-facing exception.
 - Removed public feedback preview, share-link, and attendee QR controls from the organizer UI; feedback setup and response review remain private operations while public experiences move to the Astro website.
