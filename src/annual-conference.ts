@@ -1,0 +1,14 @@
+import { adminPath } from './admin-routes';
+
+export const ACTIVE_ANNUAL_CONFERENCE_EDITION = {
+  year: '2026',
+  label: 'December 2026',
+  name: 'DevCongress Annual Conference',
+} as const;
+
+export const DECEMBER_2026_VOLUNTEER_PUBLIC_PATH = '/volunteer/december-mega-meetup';
+
+export function annualConferencePath(path = ''): string {
+  const editionPath = `annual-conference/${ACTIVE_ANNUAL_CONFERENCE_EDITION.year}`;
+  return adminPath(path ? `${editionPath}/${path.replace(/^\/+/, '')}` : editionPath);
+}

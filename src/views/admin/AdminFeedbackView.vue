@@ -4,6 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
+import {
+  EVENT_FEEDBACK_NOT_ATTENDED,
+  isEventFeedbackNotAttended,
+  isEventFeedbackRating,
+} from '@/lib/event-feedback';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventFeedbackSubmission, FeedbackCampaign, FeedbackQuestion, FeedbackQuestionType, PublicMeetupScheduleItem, Talk } from '@/types';
 
@@ -126,14 +131,19 @@ const responseSummary = computed(() => {
   const ratings: number[] = [];
   const attendAgainValues: boolean[] = [];
   let comments = 0;
+  let notAttended = 0;
 
   for (const submission of submissions.value) {
     for (const answer of submission.answers) {
       const question = questionById.value.get(answer.question_id);
       if (!question) continue;
 
-      if (question.type === 'rating' && typeof answer.value === 'number') {
+      if (question.type === 'rating' && isEventFeedbackRating(answer.value)) {
         ratings.push(answer.value);
+      }
+
+      if (question.type === 'rating' && isEventFeedbackNotAttended(answer.value)) {
+        notAttended += 1;
       }
 
       if (question.type === 'yes_no' && typeof answer.value === 'boolean') {
@@ -157,6 +167,7 @@ const responseSummary = computed(() => {
     averageRating,
     attendAgainPercent,
     comments,
+    notAttended,
   };
 });
 const selectedSubmission = computed(() => (
@@ -336,13 +347,13 @@ function generateQuestionsFromActivities() {
 
   error.value = '';
   form.title = event.value ? `How was ${event.value.name}?` : 'How was the meetup?';
-  form.intro = 'On a scale of 1 - 5, rate the sessions you joined where 1 is extremely unsatisfied and 5 is extremely satisfied.';
+  form.intro = 'For sessions you attended, rate 1 (extremely unsatisfied) to 5 (extremely satisfied). Choose Did not attend for anything you missed.';
   form.questions = [
     ...selectedActivities.map((label, index) => ({
       id: crypto.randomUUID(),
       type: 'rating' as const,
       label,
-      required: false,
+      required: true,
       options: [],
       order_index: index,
     })),
@@ -400,7 +411,7 @@ function answerPreview(submission: EventFeedbackSubmission) {
   return submission.answers
     .map((answer) => {
       const question = questionById.value.get(answer.question_id);
-      return `${question?.label ?? 'Question'}: ${String(answer.value ?? 'No answer')}`;
+      return `${question?.label ?? 'Question'}: ${answerValueCopy(answer)}`;
     })
     .join(' | ');
 }
@@ -411,6 +422,7 @@ function answerQuestionLabel(questionId: string): string {
 
 function answerValueCopy(answer: EventFeedbackSubmission['answers'][number]): string {
   if (answer.value === null || answer.value === '') return 'No answer';
+  if (answer.value === EVENT_FEEDBACK_NOT_ATTENDED) return 'Did not attend';
   if (typeof answer.value === 'boolean') return answer.value ? 'Yes' : 'No';
   return String(answer.value);
 }
@@ -419,7 +431,7 @@ function submissionAverageRating(submission: EventFeedbackSubmission): number | 
   const ratings = submission.answers
     .map((answer) => {
       const question = questionById.value.get(answer.question_id);
-      return question?.type === 'rating' && typeof answer.value === 'number' ? answer.value : null;
+      return question?.type === 'rating' && isEventFeedbackRating(answer.value) ? answer.value : null;
     })
     .filter((value): value is number => value !== null);
 
@@ -443,6 +455,13 @@ function submissionCommentCount(submission: EventFeedbackSubmission): number {
   return submission.answers.filter((answer) => {
     const question = questionById.value.get(answer.question_id);
     return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
+  }).length;
+}
+
+function submissionNotAttendedCount(submission: EventFeedbackSubmission): number {
+  return submission.answers.filter((answer) => {
+    const question = questionById.value.get(answer.question_id);
+    return question?.type === 'rating' && isEventFeedbackNotAttended(answer.value);
   }).length;
 }
 
@@ -590,7 +609,7 @@ onBeforeUnmount(() => {
         <div v-if="error" class="mb-6 rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error }}</div>
         <template v-if="responsesMode">
           <section class="space-y-6">
-            <div class="grid gap-4 md:grid-cols-4">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">responses</p>
                 <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ submissions.length }}</p>
@@ -606,6 +625,10 @@ onBeforeUnmount(() => {
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">comments</p>
                 <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.comments }}</p>
+              </section>
+              <section class="editorial-panel border-dc-yellow bg-dc-yellow/20 p-5">
+                <p class="editorial-eyebrow">sessions missed</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.notAttended }}</p>
               </section>
             </div>
 
@@ -661,12 +684,13 @@ onBeforeUnmount(() => {
                   class="feedback-response-row"
                 >
                   <div class="feedback-response-row__identity">
-                    <p class="feedback-response-row__name">{{ submission.respondent_name || 'Anonymous attendee' }}</p>
-                    <p class="feedback-response-row__email">{{ submission.respondent_email || 'No email provided' }}</p>
+                    <p class="feedback-response-row__name">Anonymous response</p>
+                    <p class="feedback-response-row__email">Identity not collected</p>
                   </div>
                   <div class="feedback-response-row__summary">
                     <div class="feedback-response-row__meta">
                       <span>{{ submissionAverageRating(submission) === null ? 'No rating' : `${submissionAverageRating(submission)}/5 avg` }}</span>
+                      <span>{{ submissionNotAttendedCount(submission) }} missed</span>
                       <span>{{ submissionAnsweredCount(submission) }} answer{{ submissionAnsweredCount(submission) === 1 ? '' : 's' }}</span>
                       <span>{{ submissionCommentCount(submission) }} comment{{ submissionCommentCount(submission) === 1 ? '' : 's' }}</span>
                     </div>
@@ -709,9 +733,9 @@ onBeforeUnmount(() => {
                     <div>
                       <p class="editorial-eyebrow">submission detail</p>
                       <h2 id="feedback-response-drawer-title" class="mt-2 text-3xl font-black tracking-tight text-dc-ink">
-                        {{ selectedSubmission.respondent_name || 'Anonymous attendee' }}
+                        Anonymous response
                       </h2>
-                      <p class="mt-2 text-sm font-semibold text-dc-gray">{{ selectedSubmission.respondent_email || 'No email provided' }}</p>
+                      <p class="mt-2 text-sm font-semibold text-dc-gray">Identity not collected</p>
                     </div>
                     <button
                       type="button"
@@ -726,6 +750,7 @@ onBeforeUnmount(() => {
                   <div class="feedback-response-drawer__stats">
                     <span>{{ new Date(selectedSubmission.created_at).toLocaleString() }}</span>
                     <span>{{ submissionAverageRating(selectedSubmission) === null ? 'No rating' : `${submissionAverageRating(selectedSubmission)}/5 average` }}</span>
+                    <span>{{ submissionNotAttendedCount(selectedSubmission) }} missed</span>
                     <span>{{ submissionAnsweredCount(selectedSubmission) }} answer{{ submissionAnsweredCount(selectedSubmission) === 1 ? '' : 's' }}</span>
                   </div>
 

@@ -237,7 +237,7 @@ Browser (admin) → PATCH /api/quiz/sessions/[id]
 | `@supabase/supabase-js` | Supabase client for feedback storage and future production data migration |
 | `hono` | Active API framework |
 | `bun` | Production runtime and static/API server |
-| `pinia` | Active client state library |
+| `@tanstack/vue-query` | Active browser query cache and mutation coordination |
 | `vue-router` | Active client routing |
 | `qrcode` | Local QR-code generation for quiz lobby join links |
 | `tailwindcss` 3 | Utility CSS |

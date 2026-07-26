@@ -47,9 +47,6 @@ importers:
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
-      pinia:
-        specifier: ^2.3.1
-        version: 2.3.1(typescript@5.9.3)(vue@3.5.35(typescript@5.9.3))
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -1471,15 +1468,6 @@ packages:
   pify@2.3.0:
     resolution: {integrity: sha512-udgsAY+fTnvv7kI7aaxbqwWNb0AHiB0qBO89PZKPkoTmGOgdbrHDKD+0B2X4uTfJ/FT1R09r9gTsjUjNJotuog==}
     engines: {node: '>=0.10.0'}
-
-  pinia@2.3.1:
-    resolution: {integrity: sha512-khUlZSwt9xXCaTbbxFYBKDc/bWAGWJjOgvxETwkTN7KRm66EeT1ZdZj6i2ceh9sP2Pzqsbc704r2yngBrxBVug==}
-    peerDependencies:
-      typescript: '>=4.4.4'
-      vue: ^2.7.0 || ^3.5.11
-    peerDependenciesMeta:
-      typescript:
-        optional: true
 
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
@@ -2969,16 +2957,6 @@ snapshots:
   picomatch@4.0.4: {}
 
   pify@2.3.0: {}
-
-  pinia@2.3.1(typescript@5.9.3)(vue@3.5.35(typescript@5.9.3)):
-    dependencies:
-      '@vue/devtools-api': 6.6.4
-      vue: 3.5.35(typescript@5.9.3)
-      vue-demi: 0.14.10(vue@3.5.35(typescript@5.9.3))
-    optionalDependencies:
-      typescript: 5.9.3
-    transitivePeerDependencies:
-      - '@vue/composition-api'
 
   pirates@4.0.7: {}
 

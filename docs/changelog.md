@@ -5,6 +5,59 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-26 — Organizer responsive and performance hardening
+
+- Added one canonical authenticated Mobile Ops route and shared viewport policy, so phones resolve to the limited organizer surface before desktop route components load while tablets and desktops retain the full console.
+- Limited the phone surface to at most three priority events and three grouped unavailable-work categories, with no bypass into setup, editing, attendance/feedback operations, access, audit, reporting, or bulk-table tools.
+- Kept full organizer capability from 768px upward and made the primary organizer navigation adapt into a zero-overflow grid across tablet widths.
+- Added five focused viewport-policy tests covering phone redirects, safe standalone routes, unauthenticated routes, and tablet/desktop return behavior.
+- Deferred event tabs and optional browser Supabase sign-out cleanup, removed unused Pinia and Fontshare payloads, hoisted repeated Mobile Ops formatting work, and replaced dynamic viewport-height dependencies with stable small-viewport units.
+- Reduced the built main JavaScript chunk from 127.46 kB to 71.42 kB gzip (about 44%) while moving optional Supabase browser code behind a dynamic import.
+- Verified phone and tablet routing/overflow in an emulated browser; `pnpm typecheck`, all 61 tests, `pnpm build`, and `git diff --check` pass. A live Chrome DevTools Core Web Vitals trace remains outstanding because that browser integration is not configured in this workspace.
+
+## 2026-07-26 — Anonymous event feedback and honest session ratings
+
+- Removed name and email collection from attendee event-feedback forms and stopped event-feedback submissions from storing page paths or browser user agents.
+- Kept the existing per-event random browser token as a soft duplicate guard; the server hashes it before storage and does not use attendee identity to enforce one response.
+- Added a distinct `Did not attend this session` answer beside every 1–5 session rating, with generated session questions requiring either a rating or the non-attendance choice.
+- Whitelisted feedback values server-side by question type, including 1–5-only rating validation and event-talk validation, so arbitrary browser payloads cannot contaminate organizer reports.
+- Excluded non-attendance from all rating averages while adding separate missed-session counts to event response reviews and monthly feedback summaries.
+- Removed attendee identity from the organizer response API and UI, including historical event-feedback rows shown through the console.
+- Added focused answer-contract tests and confirmed that the existing JSON answer storage supports the sentinel without a Supabase migration.
+
+## 2026-07-26 — App-wide physical button feedback
+
+- Added one delegated pointer-feedback system for every enabled native button, so pressable controls move down 2px and compress subtly before releasing with a fast ease-out.
+- Kept the feedback pointer-only, interruptible, transform-only, disabled-button safe, multi-touch safe, and compatible with existing button hover/color transitions.
+- Disabled the physical movement under `prefers-reduced-motion` while preserving normal button activation and keyboard behavior.
+
+## 2026-07-26 — Organizer sign-in concept redesign
+
+- Replaced the existing split credential page with the selected editorial Programme Cover design on the real organizer login route.
+- Removed the design-preview switcher, query-parameter selection logic, Night Pass, Welcome Table, and their unused responsive styling so the chosen direction is the sole production sign-in experience.
+- Expanded the decorative year from the ambiguous `26` shorthand to `2026` and kept it explicitly labeled as the organizer-edition programme year.
+- Preserved Google OAuth, intended-destination storage, callback errors, and the local-password fallback while adding an explicit session-checking state that prevents Google/local controls from flashing incorrectly.
+- Kept authentication errors persistently visible beside the controls, added provider and security iconography, strengthened focus and loading semantics, and removed automatic password focus on phones.
+- Applied the shared Inter/IBM Plex Mono type system, DevCongress brand tokens, 8px spacing rhythm, restrained 6/8/12px radii, purposeful transform-only interaction feedback, and reduced-motion fallbacks.
+- Refined the Programme Cover Google action from a heavy solid-black block to a paper-white editorial control with ink text, a crisp border, and a restrained yellow edge.
+- Verified the Google and local-password layouts at desktop and phone widths, including mobile scroll containment and horizontal overflow; `pnpm build` and all 56 tests pass.
+
+## 2026-07-26 — Product operating model and domain decisions
+
+- Added the first Annual Conference workspace at `/organizer-console/annual-conference/2026`, with a December 2026 overview and a working Volunteers section nested inside it.
+- Replaced the global Volunteer Hub navigation item with Annual Conference so volunteer operations are no longer presented as a year-round top-level organizer domain.
+- Preserved `/volunteer/december-mega-meetup`, its QR destination, the `december-mega-meetup` campaign identity, existing application storage, and both volunteer APIs; no Supabase migration is required for this workspace slice.
+- Redirected the former organizer volunteer and QR-display routes to their new conference locations so bookmarks and internal links remain compatible.
+- Added a single product operating model for the year-round DevCongress operations platform, covering system boundaries, official and external event classification, the annual December conference, people and event-scoped access, public API compatibility, moderation, persistence, and delivery sequencing.
+- Recorded the accepted architecture decision to separate event ownership, DevCongress series, format, submission source, moderation, and publication instead of overloading the existing meetup category.
+- Documented that `events-management` remains the operational source of truth, `devcongress.org` remains the public surface, and the existing meetup API will be extended additively before public external-event submissions are introduced.
+- Marked annual conference operations and community submissions as confirmed direction rather than already implemented features, and captured the remaining role, ticketing, sponsor, moderation, and retention questions explicitly.
+- Added a living December 2026 conference plan covering event decisions, speakers, volunteers, task assignments, registration, sponsors, venue/production, creative, media, feedback, and finance, with accountable-owner and target-date placeholders for the organizer team to complete.
+- Recorded expenses as an explicit annual-conference workstream, including budgets, approvals, purchases, receipts, reimbursements, sponsor income, audit history, and actual-versus-budget reporting while leaving the financial capability model open for design.
+- Defined the annual conference as an edition-scoped workspace inside the existing organizer console, with overview, work plan, programme, volunteers, registration, sponsors, logistics, marketing/media, finance, feedback/reporting, and access modules that can ship incrementally while monthly, quarterly, and special event operations continue.
+- Protected the existing December 2026 volunteer form as a compatibility contract: the current link and QR remain valid, any new 2026 link feeds the same campaign/list, existing applications survive relational migration, and future annual editions receive separate campaign identities.
+- Refreshed the repository planning files so ongoing work tracks the current year-round operations direction instead of the completed prototype community-hub phase.
+
 ## 2026-07-25 — Organizer sign-in pass and session cleanup
 
 - Constrained the December volunteer-form headline to its desktop grid column so the DevCongress word wraps cleanly rather than sitting underneath the form at mid-sized desktop widths.

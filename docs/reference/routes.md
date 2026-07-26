@@ -4,12 +4,12 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 
 ## Browser Surface
 
-This deployment is an organizer-only console, with deliberate public exceptions for event feedback and the December Mega Meetup volunteer intake. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
+This deployment is an organizer-only console, with deliberate public exceptions for event feedback and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
 
 | Route | Purpose |
 |---|---|
-| `/feedback/:eventId` | Standalone event feedback form. It deliberately renders without the app header, navigation, or organizer controls. |
-| `/volunteer/december-mega-meetup` | Standalone December Mega Meetup volunteer form for name, email, X handle, and Slack name. |
+| `/feedback/:eventId` | Standalone anonymous event feedback form. It deliberately renders without the app header, navigation, organizer controls, or attendee identity fields. |
+| `/volunteer/december-mega-meetup` | Standalone December 2026 annual-conference volunteer form for name, email, X handle, and Slack name. This compatibility path remains the canonical public link for the active campaign. |
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
 
@@ -22,7 +22,12 @@ There is no public-site header or organizer-link toggle in this deployment.
 |---|---|
 | `/organizer-console/login` | Organizer sign-in, using Supabase Google OAuth when configured or local password fallback otherwise |
 | `/organizer-console/auth/callback` | Legacy organizer auth landing page that redirects back to Google sign-in if a stale magic-link route is hit |
+| `/organizer-console/mobile` | Canonical authenticated phone-only Mobile Ops surface. Authenticated phone visits to full organizer routes resolve here; tablets/desktops visiting this route resolve to `/organizer-console/events`. |
 | `/organizer-console/events` | Organizer event list |
+| `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
+| `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview |
+| `/organizer-console/annual-conference/2026/volunteers` | December 2026 volunteer-link sharing and private application review |
+| `/organizer-console/annual-conference/2026/volunteers/display` | Organizer-only TV-safe QR display for the December 2026 volunteer intake form |
 | `/organizer-console/organizers` | Owner-only organizer email allowlist |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
@@ -38,8 +43,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/feedback-display/:eventId` | Organizer-only TV-safe QR display for an open event feedback form |
 | `/organizer-console/attendance` | Monthly attendance ledger |
 | `/organizer-console/feedback` | Feedback hub and app feedback inbox |
-| `/organizer-console/volunteers` | December Mega Meetup volunteer-link sharing and private application review |
-| `/organizer-console/volunteer-display` | Organizer-only TV-safe QR display for the volunteer intake form |
+| `/organizer-console/volunteers` | Compatibility redirect to `/organizer-console/annual-conference/2026/volunteers` |
+| `/organizer-console/volunteer-display` | Compatibility redirect to `/organizer-console/annual-conference/2026/volunteers/display` |
 
 ## API Routes
 
@@ -50,9 +55,9 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/cfp` and `/api/speaker-submissions*` | Public speaker proposals and organizer selection decisions |
 | `/api/speakers*` | Speaker access workflows |
 | `/api/attendance*` | Luma CSV import, removal, summaries, monthly ledger |
-| `/api/feedback*` | App feedback, event campaigns, public feedback submission |
-| `POST /api/volunteer-applications` | Public December Mega Meetup volunteer application submission, protected by optional Turnstile, per-client limits, and email de-duplication |
-| `GET /api/admin/volunteer-applications` | Organizer-only December Mega Meetup volunteer application read API |
+| `/api/feedback*` | App feedback, event campaigns, and anonymous public event-feedback submission. Session ratings accept 1–5 or `not_attended`; the latter is excluded from averages. |
+| `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by optional Turnstile, per-client limits, and email de-duplication |
+| `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
 | `/api/integrations/luma*` | Organizer-only Luma event shell preview, public-page preview, and confirmed import |
 | `/api/quiz*` | Quiz sessions, questions, explicit state advancement, join/play/host state |
 | `/api/public/meetups*` | Read-only website integration API |

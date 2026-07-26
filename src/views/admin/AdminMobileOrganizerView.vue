@@ -14,6 +14,37 @@ interface MobileEventAction {
   primary?: boolean;
 }
 
+interface MobileEventCard {
+  id: string;
+  name: string;
+  dateLabel: string;
+  locationLabel: string | null;
+  statusClass: string;
+  statusLabel: string;
+  seriesLabel: string;
+  actions: MobileEventAction[];
+}
+
+const EVENT_DATE_FORMATTER = new Intl.DateTimeFormat('en', {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
+  draft: 'Draft',
+  cfp_open: 'Submissions open',
+  cfp_closed: 'Review',
+  upcoming: 'Upcoming',
+  live: 'Live now',
+  completed: 'Completed',
+};
+const EVENT_SERIES_LABELS = {
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  special: 'Special',
+} as const;
+
 const eventsQuery = useQuery({
   queryKey: queryKeys.events,
   queryFn: fetchEvents,
@@ -44,36 +75,20 @@ const priorityEvents = computed(() => {
     if (seen.has(event.id)) return false;
     seen.add(event.id);
     return true;
-  }).slice(0, 4);
+  }).slice(0, 3);
 });
 const blockedWorkspaces = [
-  'Event import and editing',
-  'Program schedules and media',
-  'Feedback configuration',
-  'Attendance ledgers and CSV review',
-  'Audit logs and organizer management',
+  'Event and programme editing',
+  'Attendance and feedback setup',
+  'People, access, and audit tools',
 ];
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
+  return EVENT_DATE_FORMATTER.format(new Date(value));
 }
 
 function eventStatusLabel(status: EventStatus): string {
-  const labels: Record<EventStatus, string> = {
-    draft: 'Draft',
-    cfp_open: 'Submissions open',
-    cfp_closed: 'Review',
-    upcoming: 'Upcoming',
-    live: 'Live now',
-    completed: 'Completed',
-  };
-
-  return labels[status];
+  return EVENT_STATUS_LABELS[status];
 }
 
 function eventStatusClass(status: EventStatus): string {
@@ -84,13 +99,7 @@ function eventStatusClass(status: EventStatus): string {
 }
 
 function eventSeriesLabel(event: CommunityEvent): string {
-  const labels = {
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
-    special: 'Special',
-  };
-
-  return labels[resolveEventSeriesType(event)];
+  return EVENT_SERIES_LABELS[resolveEventSeriesType(event)];
 }
 
 function eventActions(event: CommunityEvent): MobileEventAction[] {
@@ -114,6 +123,17 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
 
   return actions.slice(0, 3);
 }
+
+const priorityEventCards = computed<MobileEventCard[]>(() => priorityEvents.value.map((event) => ({
+  id: event.id,
+  name: event.name,
+  dateLabel: formatDate(event.event_date),
+  locationLabel: event.location?.label ?? event.location?.name ?? null,
+  statusClass: eventStatusClass(event.status),
+  statusLabel: eventStatusLabel(event.status),
+  seriesLabel: eventSeriesLabel(event),
+  actions: eventActions(event),
+})));
 </script>
 
 <template>
@@ -144,29 +164,29 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
             <span>{{ events.length }}</span>
           </div>
 
-          <div v-if="priorityEvents.length === 0" class="p-4 text-sm leading-6 text-dc-gray">
+          <div v-if="priorityEventCards.length === 0" class="p-4 text-sm leading-6 text-dc-gray">
             No organizer events are available yet. Create or import events from a tablet or laptop.
           </div>
 
           <article
-            v-for="event in priorityEvents"
+            v-for="event in priorityEventCards"
             :key="event.id"
             class="mobile-ops-event"
           >
             <div class="mobile-ops-event-top">
-              <span class="mobile-ops-status" :class="eventStatusClass(event.status)">
-                {{ eventStatusLabel(event.status) }}
+              <span class="mobile-ops-status" :class="event.statusClass">
+                {{ event.statusLabel }}
               </span>
-              <span class="mobile-ops-kind">{{ eventSeriesLabel(event) }}</span>
+              <span class="mobile-ops-kind">{{ event.seriesLabel }}</span>
             </div>
             <h3>{{ event.name }}</h3>
-            <p class="mobile-ops-meta">{{ formatDate(event.event_date) }}</p>
-            <p v-if="event.location?.label || event.location?.name" class="mobile-ops-location">
-              {{ event.location.label ?? event.location.name }}
+            <p class="mobile-ops-meta">{{ event.dateLabel }}</p>
+            <p v-if="event.locationLabel" class="mobile-ops-location">
+              {{ event.locationLabel }}
             </p>
 
-            <div v-if="eventActions(event).length > 0" class="mobile-ops-actions">
-              <template v-for="action in eventActions(event)" :key="`${event.id}-${action.label}`">
+            <div v-if="event.actions.length > 0" class="mobile-ops-actions">
+              <template v-for="action in event.actions" :key="`${event.id}-${action.label}`">
                 <a
                   v-if="action.external"
                   :href="action.href"

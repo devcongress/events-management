@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
+import { DECEMBER_2026_VOLUNTEER_PUBLIC_PATH } from '@/src/annual-conference';
 
 const qrCodeUrl = ref<string | null>(null);
 const error = ref('');
-const publicUrl = computed(() => `${window.location.origin}/volunteer/december-mega-meetup`);
+const publicUrl = computed(() => `${window.location.origin}${DECEMBER_2026_VOLUNTEER_PUBLIC_PATH}`);
 
 onMounted(async () => {
   try {

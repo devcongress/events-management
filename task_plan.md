@@ -1,29 +1,52 @@
-# Task Plan: DevCon-Comm Feature Completion Pass
+# Task Plan: DevCongress Year-Round Operations
 
 ## Goal
-Turn the migrated Vue/Bun prototype into a community-driven DevCongress hub: discovery, contribution, participation, reputation, and organizer operations, while keeping the current mock-DB stack stable, tested, and documented.
 
-## Tickets
-- [x] T1: Community product planning and parity audit
-- [x] T2: Community landing hub: next event, open CFP, active quiz, recent talks, top members
-- [x] T3: Public discovery: archive search/filter by event, speaker, topic
-- [x] T4: Contribution loop: CFP discovery, speaker dashboard, slide upload/reminders
-- [x] T5: Participation loop: quiz QR join, active play affordances, final results
-- [x] T6: Reputation loop: leaderboard modes, claimed profile, player history
-- [x] T7: Organizer operations: editable events, talks/speakers/slides dashboard, quiz builder polish
-- [x] T8: Trust layer: prototype auth/session and server-side admin guards
-- [x] T9: Validation hardening, tests, docs, and final commit
+Evolve Events Management into the durable operational backbone for DevCongress meetups, the annual December conference, event-scoped people and work, public website data, and moderated external event listings.
+
+## Phases
+
+- [x] Record the product boundary and domain decisions.
+- [x] Capture the December conference workstreams in a living plan.
+- [x] Define how the annual conference workspace coexists with regular event operations.
+- [x] Protect the existing December 2026 volunteer link and application-table continuity as a migration requirement.
+- [x] Establish the first Annual Conference workspace and nest the working volunteer surface under December 2026 without moving data.
+- [x] Make event feedback anonymous and add an explicit non-attendance answer that stays out of rating averages.
+- [ ] Assign an organizer owner, target date, and status to each 2026 conference workstream.
+- [ ] Extend the event and people model without breaking the current public API.
+- [ ] Integrate and validate the extended API in `devcongress.org`.
+- [ ] Build relational annual-conference foundations for volunteers, workstreams, tasks, and expenses.
+- [ ] Add the public external-event submission and organizer moderation workflow.
+- [ ] Add annual-conference ticketing, sponsors, logistics, and communications incrementally.
+
+## Immediate Organizer Work
+
+1. Confirm the December 2026 date, theme, venue, capacity, and keynote shortlist.
+2. Assign one accountable organizer to every row in the annual conference plan.
+3. Add realistic target dates and dependencies.
+4. Agree which workstreams need application support first:
+   - workstreams and task assignments;
+   - volunteer lifecycle;
+   - annual speaker programme;
+   - budget and expenses.
 
 ## Decisions Made
-- Keep Vue/Vite + Bun/Hono + pnpm as the active migration target.
-- Keep JSON flat-file mock DB for this pass; do not introduce Supabase yet.
-- Prioritize community loops before organizer-only polish.
-- Implement prototype auth with same-origin Hono cookies and server-side guards for admin mutations after community-facing flows are coherent.
-- Preserve editorial direction: Satoshi for primary UI, IBM Plex Mono only for system labels/codes/status.
+
+- `events-management` is the operational source of truth; `devcongress.org` is the public surface.
+- The December event is an annual conference series with a yearly edition.
+- The annual conference is a first-class workspace inside the existing organizer console; it is not a separate application or a bloated regular-event page.
+- The existing December volunteer URL remains valid for the 2026 campaign; any replacement URL writes to the same campaign and organizer table.
+- Event ownership, series, format, source, moderation, and publication are independent dimensions.
+- People may hold multiple event-scoped roles without receiving global organizer access.
+- The existing public meetup API will be extended additively.
+- Public website integration happens before public external-event submissions.
+- Durable multi-user operations move to relational Supabase storage.
+- Expenses are part of annual conference operations, but their approval and access rules still need design.
 
 ## Errors Encountered
-- Archive search initially referenced `Talk.description`; corrected to the canonical `Talk.abstract`.
-- Playwright was not installed in the workspace; added it and installed Chromium for visual smoke checks.
+
+- The previous root planning files described the superseded prototype/community-hub phase. They have been refreshed to match the current year-round operations direction.
 
 ## Status
-**Complete** - Community-facing discovery/contribution/participation/reputation loops are implemented, organizer mutations are session-guarded, and verification passed.
+
+**Feedback quality slice delivered** — event feedback no longer collects attendee identity or browser/page context, session questions offer a required rating-or-non-attendance choice, and missed sessions are reported separately from 1–5 averages. The anonymous browser-level duplicate guard, annual-conference workspace, and volunteer-link continuity remain intact. No Supabase migration is required for this slice.

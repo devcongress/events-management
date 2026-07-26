@@ -81,10 +81,8 @@
   .app-shell {
     height: 100vh;
     height: 100svh;
-    height: 100dvh;
     max-height: 100vh;
     max-height: 100svh;
-    max-height: 100dvh;
     padding-top: env(safe-area-inset-top);
   }
 
@@ -2956,7 +2954,7 @@
   }
 
   .cfp-topic-menu .app-dropdown-scroll {
-    max-height: min(16rem, calc(100vh - 12rem));
+    max-height: min(16rem, calc(100svh - 12rem));
   }
 
   .cfp-public-page .editorial-input:focus {
@@ -2990,7 +2988,7 @@
 
   .cfp-success-shell {
     display: grid;
-    min-height: 100dvh;
+    min-height: 100svh;
     place-items: center;
     padding: 1rem;
   }
@@ -3397,6 +3395,21 @@
 
   .motion-press:active {
     transform: scale(0.97);
+  }
+
+  /*
+   * Native button movement is owned by button-press-feedback.ts.
+   * Clear legacy hover/active transforms during a press so every button
+   * receives the same pointer-only depth without compounded scaling.
+   */
+  button:not(:disabled):active,
+  button:disabled:active {
+    transform: none !important;
+  }
+
+  button:disabled:active {
+    translate: none !important;
+    scale: none !important;
   }
 
   .motion-icon {
@@ -3935,6 +3948,27 @@
 
   .app-primary-nav::-webkit-scrollbar {
     display: none;
+  }
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .app-primary-nav {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+      gap: 0.4rem !important;
+      margin-right: 0;
+      overflow-x: visible !important;
+      padding-right: 0;
+    }
+
+    .app-primary-nav .app-nav-link {
+      min-width: 0;
+      justify-content: center;
+      padding-inline: 0.55rem !important;
+      font-size: 0.65rem;
+      letter-spacing: 0.035em;
+      line-height: 1.15;
+      text-align: center;
+    }
   }
 
   .app-nav-link[aria-current='page'] {
@@ -5086,10 +5120,16 @@
 
 	  .feedback-event-response {
 	    display: grid;
-	    grid-template-columns: repeat(3, minmax(0, 1fr));
+	    grid-template-columns: repeat(2, minmax(0, 1fr));
 	    gap: 1rem;
 	    margin: 0;
 	    width: 100%;
+	  }
+
+	  @media (min-width: 40rem) {
+	    .feedback-event-response {
+	      grid-template-columns: repeat(4, minmax(0, 1fr));
+	    }
 	  }
 
 		  .feedback-event-response--disabled {
@@ -5201,7 +5241,7 @@
 	  }
 
 	  .feedback-display-page {
-	    min-height: 100dvh;
+	    min-height: 100svh;
 	    background:
 	      radial-gradient(circle at 88% 6%, rgba(232, 17, 127, 0.12), transparent 22rem),
 	      linear-gradient(180deg, rgba(255, 247, 191, 0.6) 0%, rgba(248, 244, 232, 0.96) 18%, #f6f1e6 100%);
@@ -5561,7 +5601,7 @@
 	    .volunteer-intake-shell {
 	      grid-template-columns: minmax(0, 0.9fr) minmax(28rem, 0.8fr);
 	      align-items: center;
-	      min-height: calc(100dvh - 8rem);
+	      min-height: calc(100svh - 8rem);
 	    }
 
 	    .volunteer-intake-fields {
@@ -7079,6 +7119,7 @@
     }
 
     .motion-press:active,
+    button:not(:disabled):active,
     .event-checklist-item:not(:disabled):active,
     .admin-event-tab:active,
     .app-breadcrumb-link:active,
@@ -7090,6 +7131,8 @@
     .editorial-action:active,
     .editorial-secondary-action:active {
       transform: none;
+      translate: none;
+      scale: none;
     }
 
     .lifecycle-stage-popover,
