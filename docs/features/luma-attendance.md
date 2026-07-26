@@ -27,6 +27,7 @@ Luma Event Import lets organizers create the event on Luma first, then pull the 
 - Existing imports are detected by source/id when available, with a registration URL fallback for databases that have not applied the metadata migration yet.
 - Luma stays the source of truth for registration. DevCon-Comm owns the website publishing row, organizer checklist, talks, feedback, media, and attendance readouts.
 - Only public `https://luma.com/...` or `https://lu.ma/...` event URLs are fetched server-side.
+- When Luma rate-limits the server-side fetch, organizers see a specific temporary-limit message and the API preserves the upstream condition as HTTP 429.
 
 Manual sync can be added later as a separate action. Start with import-only so Luma updates cannot accidentally overwrite organizer work in DevCon-Comm.
 

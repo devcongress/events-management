@@ -8,10 +8,15 @@ import {
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerViewportRedirect,
 } from './organizer-viewport';
+import {
+  SPEAKER_TALK_INTAKE_ROUTE_NAME,
+  speakerTalkIntakeRoute,
+} from './speaker-intake-route';
 
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
 const FEEDBACK_TITLE = 'DevCongress | Feedback';
 const FEEDBACK_DISPLAY_TITLE = 'DevCongress | Feedback Display';
+const SPEAKER_TALK_INTAKE_TITLE = 'DevCongress | Speaker Talk';
 const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
 const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
 const ANNUAL_CONFERENCE_TITLE = 'DevCongress | Annual Conference';
@@ -58,6 +63,7 @@ export const router = createRouter({
   routes: [
     { path: '/', redirect: adminPath('events') },
     { path: '/feedback/:eventId', name: 'event-feedback', component: FeedbackView },
+    speakerTalkIntakeRoute,
     { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
@@ -168,6 +174,8 @@ router.afterEach((to) => {
     document.title = FEEDBACK_TITLE;
   } else if (to.name === 'admin-feedback-display') {
     document.title = FEEDBACK_DISPLAY_TITLE;
+  } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME) {
+    document.title = SPEAKER_TALK_INTAKE_TITLE;
   } else if (to.name === 'volunteer-intake') {
     document.title = VOLUNTEER_TITLE;
   } else if (to.name === 'admin-annual-conference-volunteer-display') {
