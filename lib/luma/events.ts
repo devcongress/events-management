@@ -24,6 +24,30 @@ export type LumaImportDraft = {
   };
 };
 
+export class LumaPageFetchError extends Error {
+  constructor(readonly status: number) {
+    super(`Luma page returned status ${status}.`);
+    this.name = 'LumaPageFetchError';
+  }
+}
+
+export function lumaImportFailure(
+  error: unknown,
+  fallbackMessage: string,
+): { status: 429 | 502; message: string } {
+  if (error instanceof LumaPageFetchError && error.status === 429) {
+    return {
+      status: 429,
+      message: 'Luma is temporarily limiting imports from DevCongress. Please try again later.',
+    };
+  }
+
+  return {
+    status: 502,
+    message: fallbackMessage,
+  };
+}
+
 function isRecord(value: unknown): value is RecordValue {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -211,7 +235,7 @@ export async function getPublicLumaEventByUrl(eventUrl: string): Promise<LumaImp
     }
 
     if (!response.ok) {
-      throw new Error(`Luma page returned status ${response.status}.`);
+      throw new LumaPageFetchError(response.status);
     }
 
     const contentType = response.headers.get('content-type') ?? '';

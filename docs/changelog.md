@@ -5,6 +5,30 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-26 — Clear Luma rate-limit messaging
+
+- Preserved Luma's upstream rate-limit failure as an HTTP 429 and now tell organizers that Luma is temporarily limiting DevCongress imports instead of collapsing the failure into a generic 502.
+- Applied the message consistently to event preview, public-page preview, and confirmed import.
+
+## 2026-07-26 — Generated speaker links open the private intake form
+
+- Registered the generated `/speaker-talks/:eventId/:token` URL with the active Vue router so private backfill and selected-speaker links no longer fall through to the Events page.
+- Kept speaker intake as a standalone public exception without organizer navigation and added focused route coverage for event and token matching.
+
+## 2026-07-26 — Bounded monthly feedback windows and response scrolling
+
+- Restored a real server-enforced feedback window for monthly meetups: forms without an explicit deadline now close 24 hours after `end_date`, or after `event_date` when no end time exists.
+- Kept late feedback recoverable without leaving forms open indefinitely by adding `Reopen for 24 hours`, plus an explicit `Close now` action for organizers.
+- Updated published feedback screens to show accurate Scheduled, Open, Auto-closed, or Closed status and expose attendee links/QR controls only while submissions are accepted.
+- Moved the response inbox into a bounded, keyboard-focusable, overscroll-contained inner scroller so long response lists no longer extend the entire organizer page.
+- Added an aggregate response dashboard with rating-distribution bars, a return-intent donut, and per-session score bars that keep missed-session counts separate from averages.
+- Reworked the inbox into a scalable response explorer with text search, signal filters, four sort modes, 25-row pagination, and CSV export of the current result set.
+- Kept the reporting surface dependency-free and extracted its aggregate calculations into a pure tested module.
+- Added six focused feedback-window tests covering monthly automatic windows, manual publishing, explicit reopening, manual closure, and unchanged quarterly behavior.
+- Added five focused reporting tests covering distributions, per-session averages, missed-session exclusion, yes/no summaries, comments, and empty states.
+- Verified the contained response list and both close/reopen UI states in a local 1280×900 browser run, then exercised the dashboard, pagination, search, filters, CSV export, and zero-overflow tablet layout with 200 mocked responses.
+- `pnpm typecheck`, all 72 tests, `pnpm build`, and `git diff --check` pass.
+
 ## 2026-07-26 — Organizer responsive and performance hardening
 
 - Added one canonical authenticated Mobile Ops route and shared viewport policy, so phones resolve to the limited organizer surface before desktop route components load while tablets and desktops retain the full console.

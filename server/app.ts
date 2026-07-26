@@ -9,6 +9,7 @@ import {
   isEventFeedbackRating,
   normalizeEventFeedbackAnswer,
 } from '@/lib/event-feedback';
+import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { inferEventSeriesType, isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
@@ -31,7 +32,7 @@ import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedi
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, deleteSupabaseCommunityEventsByImportMatch, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
-import { getPublicLumaEventByUrl, type LumaImportDraft } from '@/lib/luma/events';
+import { getPublicLumaEventByUrl, lumaImportFailure, type LumaImportDraft } from '@/lib/luma/events';
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
@@ -694,6 +695,7 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
     getTalksByEvent(eventId),
     getFeedbackCampaignByEventStore(eventId, c),
   ]);
+  const feedbackWindow = campaign ? feedbackCampaignWindow(event, campaign) : null;
   const available = campaign ? isFeedbackCampaignOpen(event, campaign) : false;
 
   return {
@@ -704,7 +706,7 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
     feedback: {
       available,
-      closes_at: campaign?.closes_at ?? null,
+      closes_at: feedbackWindow?.closes_at ?? null,
       public_url: available ? `${publicAppOrigin(c)}/feedback/${eventId}` : null,
     },
   };
@@ -795,24 +797,6 @@ function publicAppOrigin(c: Context): string {
   }
 
   return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? requestOrigin;
-}
-
-function feedbackCampaignWindow(_event: Event, campaign: FeedbackCampaign): { opens_at: string | null; closes_at: string | null } {
-  return {
-    opens_at: campaign.opens_at ?? null,
-    closes_at: campaign.closes_at ?? null,
-  };
-}
-
-function isFeedbackCampaignOpen(event: Event, campaign: FeedbackCampaign): boolean {
-  const nowMs = Date.now();
-  const window = feedbackCampaignWindow(event, campaign);
-  const afterOpen = !window.opens_at || new Date(window.opens_at).getTime() <= nowMs;
-  const beforeClose = !window.closes_at || new Date(window.closes_at).getTime() >= nowMs;
-  const statusOpen = campaign.status === 'active'
-    || (campaign.status === 'draft' && campaign.auto_open_on_event_completion);
-
-  return statusOpen && afterOpen && beforeClose;
 }
 
 function feedbackActivityLabelKey(label: string): string {
@@ -2519,8 +2503,9 @@ app.post('/api/integrations/luma/preview', async (c) => {
       existing_event: existingEvent ?? null,
       already_imported: Boolean(existingEvent),
     });
-  } catch {
-    return c.json({ error: 'Unable to preview Luma event right now.' }, 502);
+  } catch (error) {
+    const failure = lumaImportFailure(error, 'Unable to preview Luma event right now.');
+    return c.json({ error: failure.message }, failure.status);
   }
 });
 
@@ -2552,8 +2537,9 @@ app.post('/api/integrations/luma/public-preview', async (c) => {
       data: toPreviewPublicMeetup(lumaEvent, publicAppOrigin(c), existingEvent, seriesType),
       already_imported: Boolean(existingEvent),
     });
-  } catch {
-    return c.json({ error: 'Unable to build the event preview right now.' }, 502);
+  } catch (error) {
+    const failure = lumaImportFailure(error, 'Unable to build the event preview right now.');
+    return c.json({ error: failure.message }, failure.status);
   }
 });
 
@@ -2623,8 +2609,9 @@ app.post('/api/integrations/luma/import', async (c) => {
     });
 
     return c.json({ event, already_imported: false }, 201);
-  } catch {
-    return c.json({ error: 'Unable to import Luma event right now.' }, 502);
+  } catch (error) {
+    const failure = lumaImportFailure(error, 'Unable to import Luma event right now.');
+    return c.json({ error: failure.message }, failure.status);
   }
 });
 

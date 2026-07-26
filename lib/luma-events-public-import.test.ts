@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parsePublicLumaEventHtml } from './luma/events';
+import { LumaPageFetchError, lumaImportFailure, parsePublicLumaEventHtml } from './luma/events';
 
 describe('parsePublicLumaEventHtml', () => {
   it('extracts a public Luma event draft from JSON-LD metadata', () => {
@@ -55,5 +55,25 @@ describe('parsePublicLumaEventHtml', () => {
 
   it('rejects non-Luma URLs', () => {
     expect(parsePublicLumaEventHtml('https://example.com/jf8pjncl', '')).toBeNull();
+  });
+
+  it('turns Luma rate limiting into a clear organizer-facing failure', () => {
+    expect(lumaImportFailure(
+      new LumaPageFetchError(429),
+      'Unable to preview Luma event right now.',
+    )).toEqual({
+      status: 429,
+      message: 'Luma is temporarily limiting imports from DevCongress. Please try again later.',
+    });
+  });
+
+  it('preserves the route fallback for other Luma failures', () => {
+    expect(lumaImportFailure(
+      new LumaPageFetchError(503),
+      'Unable to preview Luma event right now.',
+    )).toEqual({
+      status: 502,
+      message: 'Unable to preview Luma event right now.',
+    });
   });
 });

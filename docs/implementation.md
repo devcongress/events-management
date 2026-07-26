@@ -8,6 +8,7 @@
 | `src/App.vue` | Active app shell and top navigation |
 | `src/admin-routes.ts` | Configurable organizer route base path helpers |
 | `src/organizer-viewport.ts` | Shared phone/tablet organizer route policy and breakpoint helpers |
+| `src/speaker-intake-route.ts` | Testable public route record for generated private speaker links |
 | `src/router.ts` | Active Vue route table; page components are lazy-loaded per route so the initial app bundle does not include every public and organizer view |
 | `src/components/ui/AppToaster.vue` | Globally mounted app-themed Sonner toaster |
 | `src/components/ui/ViewSkeleton.vue` | Shared page-shaped skeleton loader variants for loading states |
@@ -18,6 +19,7 @@
 | `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public archive and talk detail surfaces |
 | `src/views/CfpView.vue` / `SpeakerTalkIntakeView.vue` | Speaker CFP and private selected-speaker/archive intake flows |
 | `src/views/FeedbackView.vue` | Public event feedback form for active or auto-open campaigns |
+| `lib/event-feedback-report.ts` | Pure event-feedback aggregate model used by the organizer dashboard |
 | `src/views/RouteFeedbackView.vue` | Standalone app feedback form used by the mobile feedback launcher |
 | `src/components/FeedbackBot.vue` | Public feedback bot that asks testers for name-selected feedback and submits to Supabase |
 | `src/components/NaviiAvatar.vue` | Local deterministic Navii avatar renderer for leaderboard profiles |
@@ -51,6 +53,7 @@
 - **Talk review + slides**
   - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/SpeakerTalkIntakeView.vue`
   - Talk Management subroutes: `/talks/cfp`, `/talks/proposals`, `/talks/program`, and temporary `/talks/backfill`
+  - Generated private links open the standalone `/speaker-talks/:eventId/:token` route before the organizer-console catch-all.
   - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`/`DELETE`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`
 - **Quiz authoring + live ops**
   - Active Vue pages: `src/views/admin/AdminQuizView.vue`, `src/views/PlayView.vue`, `src/views/PlayCodeView.vue`
@@ -61,6 +64,7 @@
   - Active Vue pages: `src/views/admin/AdminFeedbackView.vue`, `src/views/FeedbackView.vue`
   - APIs: `/api/events/[eventId]/feedback-campaign`, `DELETE /api/events/[eventId]/feedback-campaign`, `/api/feedback/events/[eventId]`, `/api/feedback/events/[eventId]/submissions`
   - Answer contract: session ratings accept `1`–`5` or `not_attended`; the sentinel is counted separately and excluded from rating averages
+  - Reporting model: `lib/event-feedback-report.ts` derives rating distribution, return intent, comments, missed sessions, and per-question averages from the full event response set without adding a chart dependency
   - Privacy contract: event feedback does not collect identity or persist browser/page context; a hashed random browser/event token provides soft duplicate protection
   - Supabase persistence: `lib/supabase/feedback-campaigns.ts`
   - Mock DB fallback: `lib/mock-db/feedback.ts`
@@ -152,7 +156,7 @@
 - `src/components/ui/AppToaster.vue` wraps `vue-sonner` with the DevCongress editorial/ops toast theme; app code should call `notify` from `src/lib/notify.ts` instead of importing `toast` directly.
 - `src/components/ui/ViewSkeleton.vue` provides reusable skeleton variants for full-page loading states; prefer it over bare loading text so routed views preserve their header, panel, table, and form structure while data fetches.
 - `src/components/FeedbackBot.vue` mounts globally on public routes only; it captures typed or anonymous route feedback and inserts `feedback_submissions` with `trigger_source = route_feedback`, page path, user agent, and viewport context. On small screens, the launcher routes to `src/views/RouteFeedbackView.vue` instead of opening an overlay.
-- `src/views/FeedbackView.vue` renders an event-scoped campaign from a minimal attendee-safe `/api/feedback/events/:eventId` payload; campaigns are open when manually set to `active`, or when draft with auto-open enabled and the event status is `completed`. The default auto-open response window starts at the event date and closes 3 days later unless an explicit campaign close time is set. The form does not request name or email. Session questions accept a 1–5 rating or a separate `Did not attend` state, and public submissions send a per-event random browser token so the server can reject duplicate submissions without collecting attendee identity.
+- `src/views/FeedbackView.vue` renders an event-scoped campaign from a minimal attendee-safe `/api/feedback/events/:eventId` payload; campaigns are open when manually set to `active`, or when draft with auto-open enabled and the event status is `completed`. Monthly meetups use `lib/event-feedback-window.ts` to open at event end and close 24 hours later by default; organizers can close sooner or reopen for a fresh 24-hour grace period without changing the database schema. The form does not request name or email. Session questions accept a 1–5 rating or a separate `Did not attend` state, and public submissions send a per-event random browser token so the server can reject duplicate submissions without collecting attendee identity.
 - `src/views/ArchiveEventView.vue` reads `/api/public/archive/:eventId`, shows uploaded recap photos and quarterly-only raw links shared during the meetup, hides the empty talk archive for talkless quarterly meetups, and shows the community “Give Feedback” CTA only while that public archive payload says the form is open.
 - `src/views/DashboardView.vue` renders the community hub from `/api/public/home`, using only public counts, recent published talk cards, and an optional public CFP event pointer instead of the broad organizer overview aggregate.
 - `src/views/EventsView.vue` now mirrors the DevCongress website meetup listing shape, reads `/api/public/meetups` through the shared TanStack Query cache, and sends past-meetup `View recap` CTAs straight into `src/views/ArchiveEventView.vue` while upcoming/live cards stay in the public meetup flow.
@@ -171,8 +175,8 @@
 - `src/views/admin/AdminAttendanceView.vue` uploads/replaces a Luma CSV and renders post-event import metrics, source/ticket breakdowns, checked-in guests, and approved no-shows.
 - `src/views/admin/AdminEventView.vue` renders the shared chronological event checklist from `/api/events/:eventId/checklist`; checking status milestones can advance the event state, while the status dropdown remains available for manual correction. Unpublished events can disable incomplete checklist milestones that do not apply to that event.
 - `src/views/admin/AdminEventView.vue` also manages optional program outlines in `event.schedule`, letting organizers add structured time/title/type/lead/description/resource rows when a meetup has a run of show. Each editing row has accessible move-up and move-down controls, so a live organizer can adjust the running order before saving. A separate quarterly-only Shared links panel lets organizers paste raw recap URLs without titles; those links are saved into a dedicated schedule bucket and preserved when the outline is edited. The editor includes a monthly system-design scenario helper for Google Slides prompt decks, empty outlines are allowed, and event feedback can reuse saved schedule rows as activity prompts.
-- `src/views/admin/AdminFeedbackView.vue` keeps event feedback setup private while restoring deliberate organizer-only attendee-form tools: preview the current draft, copy the live form URL, or open a protected TV-safe QR display. A manually published campaign can show its QR immediately; it does not wait for the event date.
-- Event-feedback response views label every submission as anonymous, show missed-session counts separately, and calculate averages from valid numeric ratings only. Historical identity fields are not returned to this organizer surface.
+- `src/views/admin/AdminFeedbackView.vue` keeps event feedback setup private while restoring deliberate organizer-only attendee-form tools: preview the current draft, copy the live form URL, open a protected TV-safe QR display, close an open form immediately, or reopen a closed form for 24 hours. A manually published campaign can show its QR immediately, subject to its close boundary.
+- Event-feedback response views label every submission as anonymous, show missed-session counts separately, and calculate averages from valid numeric ratings only. Historical identity fields are not returned to this organizer surface. The event report renders dependency-free aggregate charts from all loaded submissions, while the searchable/filterable explorer paginates to 25 rows, exports the current result set as CSV, and keeps each page inside a bounded keyboard-focusable scroll region.
 - `src/views/admin/AdminSystemDesignView.vue` now calls `/api/events/:eventId/system-design/draft` when organizers click `Generate Draft` with a Google Slides prompt URL, fills the scenario title if it was blank, writes the returned summary into the full-width public recap field, and switches back to a saved/read-only state after persistence with explicit edit/remove actions for each saved scenario. When the event already has a matching system-design slot in the program outline, this editor now updates that existing row in place instead of appending a duplicate `system_design` row at the bottom.
 - `src/views/admin/AdminEventView.vue` also manages event media: organizers can upload selected cover/photo images to Supabase Storage or add website-compatible `{ url, type }` links where `type` is `image` for direct media or `folder` for shared galleries.
 - `src/views/admin/AdminQuizView.vue` generates local QR-code join links for the live lobby.

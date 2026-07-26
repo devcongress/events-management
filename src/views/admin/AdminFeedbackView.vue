@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
@@ -9,6 +9,9 @@ import {
   isEventFeedbackNotAttended,
   isEventFeedbackRating,
 } from '@/lib/event-feedback';
+import { buildEventFeedbackReport } from '@/lib/event-feedback-report';
+import { MONTHLY_FEEDBACK_WINDOW_MS } from '@/lib/event-feedback-window';
+import { resolveEventSeriesType } from '@/lib/event-series';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventFeedbackSubmission, FeedbackCampaign, FeedbackQuestion, FeedbackQuestionType, PublicMeetupScheduleItem, Talk } from '@/types';
 
@@ -38,6 +41,24 @@ interface PreviewDraftPayload {
   questions: FeedbackQuestion[];
 }
 
+interface SaveCampaignOptions {
+  overrideStatus?: FeedbackCampaign['status'];
+  overrideOpensAt?: string | null;
+  overrideClosesAt?: string | null;
+  successMessage?: string;
+}
+
+type ResponseFilter = 'all' | 'comments' | 'low_rating' | 'missed';
+type ResponseSort = 'newest' | 'oldest' | 'rating_high' | 'rating_low';
+
+const RESPONSE_PAGE_SIZE = 25;
+const FEEDBACK_WINDOW_FORMATTER = new Intl.DateTimeFormat('en', {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
 const route = useRoute();
 const router = useRouter();
 const loading = ref(true);
@@ -55,6 +76,11 @@ const activities = ref<FeedbackActivityDraft[]>([]);
 const activitiesHydrated = ref(false);
 const lastGeneratedActivitySignature = ref<string | null>(null);
 const responseDrawerSubmissionId = ref<string | null>(null);
+const responseSearch = ref('');
+const responseFilter = ref<ResponseFilter>('all');
+const responseSort = ref<ResponseSort>('newest');
+const responsePage = ref(1);
+const responseListElement = ref<HTMLElement | null>(null);
 let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 const form = reactive<FeedbackCampaign>({
   id: '',
@@ -81,10 +107,39 @@ const statusOptions = [
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
 ];
+const responseFilterOptions: { value: ResponseFilter; label: string }[] = [
+  { value: 'all', label: 'All responses' },
+  { value: 'comments', label: 'With comments' },
+  { value: 'low_rating', label: 'Rating 3 or lower' },
+  { value: 'missed', label: 'Missed sessions' },
+];
+const responseSortOptions: { value: ResponseSort; label: string }[] = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'rating_high', label: 'Highest rating' },
+  { value: 'rating_low', label: 'Lowest rating' },
+];
+const isMonthlyEvent = computed(() => (
+  event.value ? resolveEventSeriesType(event.value) === 'monthly' : false
+));
+const feedbackWindowHasExpired = computed(() => (
+  Boolean(
+    feedbackWindow.value.closes_at
+    && new Date(feedbackWindow.value.closes_at).getTime() < Date.now(),
+  )
+));
+const feedbackWindowHasNotOpened = computed(() => (
+  Boolean(
+    feedbackWindow.value.opens_at
+    && new Date(feedbackWindow.value.opens_at).getTime() > Date.now(),
+  )
+));
 const statusLabel = computed(() => {
-  if (form.status === 'active') return 'Open manually';
+  if (isOpen.value) return form.status === 'active' ? 'Open' : 'Open automatically';
   if (form.status === 'closed') return 'Closed';
-  return form.auto_open_on_event_completion ? 'Open now' : 'Draft';
+  if (feedbackWindowHasNotOpened.value) return 'Scheduled';
+  if (form.status === 'active' || feedbackWindowHasExpired.value) return 'Auto-closed';
+  return form.auto_open_on_event_completion ? 'Scheduled' : 'Draft';
 });
 const completionRateCopy = computed(() => `${submissions.value.length} response${submissions.value.length === 1 ? '' : 's'}`);
 const selectedActivityCount = computed(() => activities.value.filter((activity) => activity.enabled && activity.label.trim()).length);
@@ -101,24 +156,49 @@ const canGenerateQuestions = computed(() => (
 ));
 const windowCopy = computed(() => {
   if (form.status === 'closed') {
-    return 'Closed until you reopen it.';
+    return 'Closed manually · reopen when needed';
   }
 
-  if (!feedbackWindow.value.opens_at && !feedbackWindow.value.closes_at) {
-    return form.auto_open_on_event_completion ? 'Always open until you close it.' : 'Not open yet.';
-  }
-
-  const parts: string[] = [];
-  if (feedbackWindow.value.opens_at) {
-    parts.push(`Opens ${new Date(feedbackWindow.value.opens_at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}`);
-  }
   if (feedbackWindow.value.closes_at) {
-    parts.push(`Closes ${new Date(feedbackWindow.value.closes_at).toLocaleDateString('en', { month: 'short', day: 'numeric' })}`);
+    const closeLabel = FEEDBACK_WINDOW_FORMATTER.format(new Date(feedbackWindow.value.closes_at));
+    return isOpen.value ? `Closes ${closeLabel}` : `Closed ${closeLabel}`;
   }
-  return parts.join(' · ');
+
+  if (feedbackWindow.value.opens_at) {
+    return `Opens ${FEEDBACK_WINDOW_FORMATTER.format(new Date(feedbackWindow.value.opens_at))}`;
+  }
+
+  return isOpen.value ? 'Open until manually closed' : 'Not open yet';
 });
 const publishedCampaign = computed(() => form.status === 'active' || form.status === 'closed');
 const responsesMode = computed(() => publishedCampaign.value || route.query.view === 'responses');
+const attendeeAccessTitle = computed(() => (
+  isOpen.value
+    ? 'Share the live form'
+    : publishedCampaign.value
+      ? 'Feedback window closed'
+      : 'Feedback form is not open'
+));
+const attendeeAccessCopy = computed(() => {
+  if (isOpen.value && feedbackWindow.value.closes_at) {
+    return `Attendees can submit until ${FEEDBACK_WINDOW_FORMATTER.format(new Date(feedbackWindow.value.closes_at))}. You can close it sooner if needed.`;
+  }
+
+  if (isOpen.value) {
+    return 'Preview exactly what attendees see, copy the live form link, or open a clean QR screen for a shared display.';
+  }
+
+  if (isMonthlyEvent.value) {
+    return 'Monthly feedback closes 24 hours after the meetup. Reopen it for one more day when an attendee needs a little extra time.';
+  }
+
+  return 'Reopen the form for 24 hours when attendees need another chance to respond.';
+});
+const defaultAccessCopy = computed(() => (
+  isMonthlyEvent.value
+    ? 'Auto-open at meetup end and close 24 hours later'
+    : 'Auto-open when the event is completed'
+));
 const copyLinkLabel = computed(() => {
   if (copyState.value === 'copying') return 'Copying…';
   if (copyState.value === 'copied') return 'Copied';
@@ -127,52 +207,70 @@ const copyLinkLabel = computed(() => {
 // Question lookups happen per answer per submission per render; an id map
 // keeps them O(1) instead of rescanning form.questions every time.
 const questionById = computed(() => new Map(form.questions.map((question) => [question.id, question])));
-const responseSummary = computed(() => {
-  const ratings: number[] = [];
-  const attendAgainValues: boolean[] = [];
-  let comments = 0;
-  let notAttended = 0;
+const feedbackReport = computed(() => buildEventFeedbackReport(form.questions, submissions.value));
+const primaryBinaryInsight = computed(() => feedbackReport.value.binaryQuestions[0] ?? null);
+const filteredSubmissions = computed(() => {
+  const normalizedSearch = responseSearch.value.trim().toLowerCase();
+  const matches = submissions.value.filter((submission) => {
+    const averageRating = submissionAverageRating(submission);
+    const matchesFilter = (
+      responseFilter.value === 'all'
+      || (responseFilter.value === 'comments' && submissionCommentCount(submission) > 0)
+      || (responseFilter.value === 'low_rating' && averageRating !== null && averageRating <= 3)
+      || (responseFilter.value === 'missed' && submissionNotAttendedCount(submission) > 0)
+    );
 
-  for (const submission of submissions.value) {
-    for (const answer of submission.answers) {
+    if (!matchesFilter) return false;
+    if (!normalizedSearch) return true;
+
+    return submission.answers.some((answer) => {
       const question = questionById.value.get(answer.question_id);
-      if (!question) continue;
+      return `${question?.label ?? ''} ${answerValueCopy(answer)}`.toLowerCase().includes(normalizedSearch);
+    });
+  });
 
-      if (question.type === 'rating' && isEventFeedbackRating(answer.value)) {
-        ratings.push(answer.value);
-      }
-
-      if (question.type === 'rating' && isEventFeedbackNotAttended(answer.value)) {
-        notAttended += 1;
-      }
-
-      if (question.type === 'yes_no' && typeof answer.value === 'boolean') {
-        attendAgainValues.push(answer.value);
-      }
-
-      if (question.type === 'text' && typeof answer.value === 'string' && answer.value.trim()) {
-        comments += 1;
-      }
+  return [...matches].sort((left, right) => {
+    if (responseSort.value === 'newest' || responseSort.value === 'oldest') {
+      const direction = responseSort.value === 'newest' ? -1 : 1;
+      return (new Date(left.created_at).getTime() - new Date(right.created_at).getTime()) * direction;
     }
-  }
 
-  const averageRating = ratings.length > 0
-    ? Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 10) / 10
-    : null;
-  const attendAgainPercent = attendAgainValues.length > 0
-    ? Math.round((attendAgainValues.filter(Boolean).length / attendAgainValues.length) * 100)
-    : null;
-
-  return {
-    averageRating,
-    attendAgainPercent,
-    comments,
-    notAttended,
-  };
+    const leftRating = submissionAverageRating(left);
+    const rightRating = submissionAverageRating(right);
+    if (leftRating === null && rightRating === null) return 0;
+    if (leftRating === null) return 1;
+    if (rightRating === null) return -1;
+    return responseSort.value === 'rating_high'
+      ? rightRating - leftRating
+      : leftRating - rightRating;
+  });
 });
+const responsePageCount = computed(() => Math.max(1, Math.ceil(filteredSubmissions.value.length / RESPONSE_PAGE_SIZE)));
+const paginatedSubmissions = computed(() => {
+  const start = (responsePage.value - 1) * RESPONSE_PAGE_SIZE;
+  return filteredSubmissions.value.slice(start, start + RESPONSE_PAGE_SIZE);
+});
+const responseRangeCopy = computed(() => {
+  if (filteredSubmissions.value.length === 0) return 'No matching responses';
+  const start = (responsePage.value - 1) * RESPONSE_PAGE_SIZE + 1;
+  const end = Math.min(start + RESPONSE_PAGE_SIZE - 1, filteredSubmissions.value.length);
+  return `Showing ${start}–${end} of ${filteredSubmissions.value.length}`;
+});
+const ratingDistributionMaxCount = computed(() => Math.max(
+  0,
+  ...feedbackReport.value.ratingDistribution.map((item) => item.count),
+));
 const selectedSubmission = computed(() => (
   submissions.value.find((submission) => submission.id === responseDrawerSubmissionId.value) ?? null
 ));
+
+watch([responseSearch, responseFilter, responseSort], () => {
+  responsePage.value = 1;
+});
+
+watch(responsePageCount, (pageCount) => {
+  if (responsePage.value > pageCount) responsePage.value = pageCount;
+});
 
 function hydrateCampaign(data: FeedbackCampaignResponse) {
   const shouldGenerateFromActivities = isDefaultCampaignDraft(data.campaign);
@@ -220,34 +318,38 @@ async function fetchCampaign() {
   loading.value = false;
 }
 
-async function saveCampaign(options: { overrideStatus?: FeedbackCampaign['status']; successMessage?: string } = {}) {
+async function saveCampaign(options: SaveCampaignOptions = {}) {
   saving.value = true;
   error.value = '';
 
-  const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title: form.title,
-      intro: form.intro,
-      status: options.overrideStatus ?? form.status,
-      auto_open_on_event_completion: form.auto_open_on_event_completion,
-      opens_at: form.opens_at,
-      closes_at: form.closes_at,
-      questions: form.questions,
-    }),
-  });
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: form.title,
+        intro: form.intro,
+        status: options.overrideStatus ?? form.status,
+        auto_open_on_event_completion: form.auto_open_on_event_completion,
+        opens_at: options.overrideOpensAt !== undefined ? options.overrideOpensAt : form.opens_at,
+        closes_at: options.overrideClosesAt !== undefined ? options.overrideClosesAt : form.closes_at,
+        questions: form.questions,
+      }),
+    });
 
-  if (response.ok) {
-    const data = await response.json();
-    hydrateCampaign({ ...data, submissions: submissions.value });
-    notify.success(options.successMessage ?? 'Feedback campaign saved.', { id: 'feedback-campaign-saved' });
-  } else {
-    const payload = await response.json().catch(() => ({}));
-    error.value = payload.error ?? 'Unable to save feedback campaign';
+    if (response.ok) {
+      const data = await response.json();
+      hydrateCampaign({ ...data, submissions: submissions.value });
+      notify.success(options.successMessage ?? 'Feedback campaign saved.', { id: 'feedback-campaign-saved' });
+    } else {
+      const payload = await response.json().catch(() => ({}));
+      error.value = payload.error ?? 'Unable to save feedback campaign';
+    }
+  } catch {
+    error.value = 'Unable to save the feedback campaign. Check your connection and try again.';
+  } finally {
+    saving.value = false;
   }
-
-  saving.value = false;
 }
 
 function addQuestion(type: FeedbackQuestionType = 'text') {
@@ -469,6 +571,73 @@ function submissionAnsweredCount(submission: EventFeedbackSubmission): number {
   return submission.answers.filter((answer) => answer.value !== null && answer.value !== '').length;
 }
 
+function ratingBarHeight(count: number): string {
+  if (count === 0 || ratingDistributionMaxCount.value === 0) return '0%';
+  return `${Math.max(8, Math.round((count / ratingDistributionMaxCount.value) * 100))}%`;
+}
+
+function ratingBarColor(rating: number): string {
+  if (rating >= 4) return '#e8117f';
+  if (rating === 3) return '#f4df34';
+  return '#111111';
+}
+
+function questionRatingWidth(average: number | null): string {
+  return average === null ? '0%' : `${Math.round((average / 5) * 100)}%`;
+}
+
+function setResponsePage(page: number) {
+  responsePage.value = Math.min(Math.max(page, 1), responsePageCount.value);
+  responseListElement.value?.scrollTo({ top: 0 });
+}
+
+function csvCell(value: string | number): string {
+  const normalized = String(value);
+  return /[",\n\r]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
+}
+
+function exportResponsesCsv() {
+  if (filteredSubmissions.value.length === 0) return;
+
+  const orderedQuestions = [...form.questions].sort((left, right) => left.order_index - right.order_index);
+  const header = [
+    'Response',
+    'Submitted at',
+    'Average rating',
+    'Sessions missed',
+    ...orderedQuestions.map((question) => question.label),
+  ];
+  const rows = filteredSubmissions.value.map((submission, index) => {
+    const answerByQuestion = new Map(submission.answers.map((answer) => [answer.question_id, answer]));
+    return [
+      index + 1,
+      new Date(submission.created_at).toISOString(),
+      submissionAverageRating(submission) ?? '',
+      submissionNotAttendedCount(submission),
+      ...orderedQuestions.map((question) => {
+        const answer = answerByQuestion.get(question.id);
+        return answer ? answerValueCopy(answer) : 'No answer';
+      }),
+    ];
+  });
+  const csv = [header, ...rows]
+    .map((row) => row.map((cell) => csvCell(cell)).join(','))
+    .join('\r\n');
+  const blobUrl = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  const eventLabel = (event.value?.name ?? 'event-feedback')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  link.href = blobUrl;
+  link.download = `${eventLabel || 'event-feedback'}-responses.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(blobUrl);
+  notify.success(`Exported ${filteredSubmissions.value.length} response${filteredSubmissions.value.length === 1 ? '' : 's'}.`);
+}
+
 function openResponseDrawer(submissionId: string) {
   responseDrawerSubmissionId.value = submissionId;
 }
@@ -546,6 +715,26 @@ async function publishCampaign() {
   });
 }
 
+async function reopenCampaignForOneDay() {
+  const opensAt = new Date();
+  const closesAt = new Date(opensAt.getTime() + MONTHLY_FEEDBACK_WINDOW_MS);
+
+  await saveCampaign({
+    overrideStatus: 'active',
+    overrideOpensAt: opensAt.toISOString(),
+    overrideClosesAt: closesAt.toISOString(),
+    successMessage: 'Feedback form reopened for 24 hours.',
+  });
+}
+
+async function closeCampaignNow() {
+  await saveCampaign({
+    overrideStatus: 'closed',
+    overrideClosesAt: new Date().toISOString(),
+    successMessage: 'Feedback form closed.',
+  });
+}
+
 async function removeFeedbackForm() {
   if (!event.value || removing.value) return;
 
@@ -596,7 +785,7 @@ onBeforeUnmount(() => {
           <div>
             <p class="editorial-eyebrow">event feedback</p>
             <h1 class="editorial-title">{{ responsesMode ? 'Responses' : 'Feedback form' }}</h1>
-            <p class="editorial-subtitle">{{ responsesMode ? 'Read what attendees actually sent, with the live form summary and each submission in one place.' : 'Shape the form people see, then either publish it manually or leave it open by default.' }}</p>
+            <p class="editorial-subtitle">{{ responsesMode ? 'See the patterns first, then search, filter, export, or open any individual response.' : 'Shape the form people see, then either publish it manually or leave it open by default.' }}</p>
           </div>
           <div class="editorial-panel p-4">
             <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Status</p>
@@ -616,27 +805,132 @@ onBeforeUnmount(() => {
               </section>
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">avg rating</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.averageRating ?? '-' }}</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.averageRating ?? '-' }}</p>
               </section>
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">attend again</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.attendAgainPercent === null ? '-' : `${responseSummary.attendAgainPercent}%` }}</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ primaryBinaryInsight?.yesPercent === null || primaryBinaryInsight?.yesPercent === undefined ? '-' : `${primaryBinaryInsight.yesPercent}%` }}</p>
               </section>
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">comments</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.comments }}</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.comments }}</p>
               </section>
               <section class="editorial-panel border-dc-yellow bg-dc-yellow/20 p-5">
                 <p class="editorial-eyebrow">sessions missed</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ responseSummary.notAttended }}</p>
+                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.notAttended }}</p>
               </section>
             </div>
 
+            <section class="feedback-insights-grid" aria-labelledby="feedback-insights-title">
+              <div class="feedback-insight-card feedback-insight-card--ratings">
+                <div>
+                  <p class="editorial-eyebrow">rating distribution</p>
+                  <h2 id="feedback-insights-title" class="feedback-insight-title">How the room scored it</h2>
+                  <p class="feedback-insight-copy">{{ feedbackReport.ratingCount }} session rating{{ feedbackReport.ratingCount === 1 ? '' : 's' }} across every response</p>
+                </div>
+
+                <div
+                  v-if="feedbackReport.ratingCount > 0"
+                  class="feedback-rating-chart"
+                  role="img"
+                  :aria-label="`Rating distribution from ${feedbackReport.ratingCount} ratings`"
+                >
+                  <div
+                    v-for="item in feedbackReport.ratingDistribution"
+                    :key="item.rating"
+                    class="feedback-rating-column"
+                  >
+                    <span class="feedback-rating-count">{{ item.count }}</span>
+                    <div class="feedback-rating-track" aria-hidden="true">
+                      <span
+                        class="feedback-rating-bar"
+                        :style="{
+                          height: ratingBarHeight(item.count),
+                          backgroundColor: ratingBarColor(item.rating),
+                        }"
+                      />
+                    </div>
+                    <span class="feedback-rating-label">{{ item.rating }} star</span>
+                    <span class="feedback-rating-percent">{{ item.percent }}%</span>
+                  </div>
+                </div>
+                <p v-else class="feedback-insight-empty">Ratings will appear here as responses arrive.</p>
+              </div>
+
+              <div class="feedback-insight-card feedback-insight-card--return">
+                <div>
+                  <p class="editorial-eyebrow">return intent</p>
+                  <h2 class="feedback-insight-title">Would they come back?</h2>
+                  <p class="feedback-insight-copy">{{ primaryBinaryInsight?.label ?? 'No yes/no question configured' }}</p>
+                </div>
+
+                <div v-if="primaryBinaryInsight && primaryBinaryInsight.total > 0" class="feedback-return-chart">
+                  <div
+                    class="feedback-return-donut"
+                    role="img"
+                    :aria-label="`${primaryBinaryInsight.yesPercent}% yes and ${100 - (primaryBinaryInsight.yesPercent ?? 0)}% no`"
+                    :style="{ background: `conic-gradient(#e8117f 0 ${primaryBinaryInsight.yesPercent ?? 0}%, #111111 ${primaryBinaryInsight.yesPercent ?? 0}% 100%)` }"
+                  >
+                    <div class="feedback-return-donut__center">
+                      <strong>{{ primaryBinaryInsight.yesPercent }}%</strong>
+                      <span>Yes</span>
+                    </div>
+                  </div>
+                  <dl class="feedback-return-legend">
+                    <div>
+                      <dt><span class="feedback-return-dot feedback-return-dot--yes" /> Yes</dt>
+                      <dd>{{ primaryBinaryInsight.yesCount }}</dd>
+                    </div>
+                    <div>
+                      <dt><span class="feedback-return-dot feedback-return-dot--no" /> No</dt>
+                      <dd>{{ primaryBinaryInsight.noCount }}</dd>
+                    </div>
+                  </dl>
+                </div>
+                <p v-else class="feedback-insight-empty">Yes/no answers will appear here as responses arrive.</p>
+              </div>
+
+              <div class="feedback-insight-card feedback-insight-card--sessions">
+                <div>
+                  <p class="editorial-eyebrow">session signals</p>
+                  <h2 class="feedback-insight-title">What landed—and what did not</h2>
+                  <p class="feedback-insight-copy">Average scores exclude attendees who marked a session as missed.</p>
+                </div>
+
+                <div v-if="feedbackReport.questionRatings.length > 0" class="feedback-session-chart">
+                  <article
+                    v-for="insight in feedbackReport.questionRatings"
+                    :key="insight.questionId"
+                    class="feedback-session-row"
+                  >
+                    <div class="feedback-session-row__heading">
+                      <h3>{{ insight.label }}</h3>
+                      <strong>{{ insight.average === null ? 'No score' : `${insight.average}/5` }}</strong>
+                    </div>
+                    <div class="feedback-session-track" aria-hidden="true">
+                      <span :style="{ width: questionRatingWidth(insight.average) }" />
+                    </div>
+                    <p>
+                      {{ insight.ratingCount }} rated
+                      <span aria-hidden="true">·</span>
+                      {{ insight.positivePercent === null ? 'No positive-rate data' : `${insight.positivePercent}% scored 4–5` }}
+                      <span aria-hidden="true">·</span>
+                      {{ insight.missedCount }} missed
+                    </p>
+                  </article>
+                </div>
+                <p v-else class="feedback-insight-empty">Session-level rating questions will appear here.</p>
+              </div>
+            </section>
+
             <section class="editorial-panel p-5">
               <p class="editorial-eyebrow">attendee access</p>
-              <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">Share the live form</h2>
-              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">Preview exactly what attendees see, copy the live form link, or open a clean QR screen for a projector or shared display.</p>
+              <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">{{ attendeeAccessTitle }}</h2>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">{{ attendeeAccessCopy }}</p>
               <div class="feedback-link-actions mt-5">
+                <span class="feedback-link-status" :class="isOpen ? 'border-dc-success bg-dc-success-soft text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
+                  {{ isOpen ? 'Open' : 'Closed' }}
+                </span>
                 <button
                   type="button"
                   class="feedback-link-button feedback-link-button--preview motion-press"
@@ -646,6 +940,7 @@ onBeforeUnmount(() => {
                   Preview form
                 </button>
                 <button
+                  v-if="isOpen"
                   type="button"
                   class="feedback-link-button feedback-link-button--copy motion-press"
                   :disabled="saving || !isOpen || copyState !== 'idle'"
@@ -654,12 +949,31 @@ onBeforeUnmount(() => {
                   {{ copyLinkLabel }}
                 </button>
                 <button
+                  v-if="isOpen"
                   type="button"
                   class="feedback-link-button feedback-link-button--qr motion-press"
                   :disabled="saving || !isOpen"
                   @click="openFeedbackDisplay"
                 >
                   Show QR code
+                </button>
+                <button
+                  v-if="isOpen"
+                  type="button"
+                  class="feedback-link-button feedback-link-button--close motion-press"
+                  :disabled="saving"
+                  @click="closeCampaignNow"
+                >
+                  {{ saving ? 'Closing...' : 'Close now' }}
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="feedback-link-button feedback-link-button--copy motion-press"
+                  :disabled="saving"
+                  @click="reopenCampaignForOneDay"
+                >
+                  {{ saving ? 'Reopening...' : 'Reopen for 24 hours' }}
                 </button>
               </div>
             </section>
@@ -668,7 +982,7 @@ onBeforeUnmount(() => {
               <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p class="editorial-eyebrow">response inbox</p>
-                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">What people submitted</h2>
+                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">Explore every response</h2>
                 </div>
                 <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ submissions.length }} submission{{ submissions.length === 1 ? '' : 's' }}</p>
               </div>
@@ -677,9 +991,65 @@ onBeforeUnmount(() => {
                 This form is published, but no attendee responses have landed yet.
               </div>
 
-              <div v-else class="mt-5 overflow-hidden rounded-md border border-dc-border bg-dc-paper">
+              <template v-else>
+                <div class="feedback-response-toolbar">
+                  <label class="feedback-response-search">
+                    <span class="editorial-label">Search responses</span>
+                    <input
+                      v-model="responseSearch"
+                      class="editorial-input"
+                      type="search"
+                      placeholder="Search comments and answers"
+                    />
+                  </label>
+                  <label>
+                    <span class="editorial-label">Filter</span>
+                    <select v-model="responseFilter" class="editorial-input">
+                      <option v-for="option in responseFilterOptions" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    <span class="editorial-label">Sort</span>
+                    <select v-model="responseSort" class="editorial-input">
+                      <option v-for="option in responseSortOptions" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    class="feedback-export-button motion-press"
+                    :disabled="filteredSubmissions.length === 0"
+                    @click="exportResponsesCsv"
+                  >
+                    Export CSV
+                  </button>
+                </div>
+                <div class="feedback-response-results">
+                  <p aria-live="polite">{{ responseRangeCopy }}</p>
+                  <p v-if="filteredSubmissions.length !== submissions.length">{{ submissions.length }} total responses</p>
+                </div>
+              </template>
+
+              <div
+                v-if="submissions.length > 0 && filteredSubmissions.length === 0"
+                class="mt-4 rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray"
+              >
+                No responses match this search and filter. Try a broader search or choose All responses.
+              </div>
+
+              <div
+                v-if="paginatedSubmissions.length > 0"
+                ref="responseListElement"
+                class="feedback-response-list mt-5 rounded-md border border-dc-border bg-dc-paper"
+                role="region"
+                :aria-label="`Feedback responses, page ${responsePage} of ${responsePageCount}`"
+                tabindex="0"
+              >
                 <article
-                  v-for="submission in submissions"
+                  v-for="submission in paginatedSubmissions"
                   :key="submission.id"
                   class="feedback-response-row"
                 >
@@ -712,6 +1082,30 @@ onBeforeUnmount(() => {
                   </div>
                 </article>
               </div>
+
+              <nav
+                v-if="filteredSubmissions.length > RESPONSE_PAGE_SIZE"
+                class="feedback-response-pagination"
+                aria-label="Response pages"
+              >
+                <button
+                  type="button"
+                  class="feedback-response-page-button motion-press"
+                  :disabled="responsePage === 1"
+                  @click="setResponsePage(responsePage - 1)"
+                >
+                  Previous
+                </button>
+                <p>Page {{ responsePage }} of {{ responsePageCount }}</p>
+                <button
+                  type="button"
+                  class="feedback-response-page-button motion-press"
+                  :disabled="responsePage === responsePageCount"
+                  @click="setResponsePage(responsePage + 1)"
+                >
+                  Next
+                </button>
+              </nav>
             </section>
           </section>
 
@@ -821,7 +1215,7 @@ onBeforeUnmount(() => {
                   <span class="editorial-label">Default access</span>
                   <label class="mt-2 flex min-h-[50px] items-center gap-3 rounded-md border-2 border-dc-border bg-dc-paper-warm px-4 py-3">
                     <input v-model="form.auto_open_on_event_completion" type="checkbox" class="size-5 shrink-0 accent-dc-pink" />
-                    <span class="min-w-0 text-sm font-bold leading-5 text-dc-ink">Keep this feedback form open immediately while it stays in draft</span>
+                    <span class="min-w-0 text-sm font-bold leading-5 text-dc-ink">{{ defaultAccessCopy }}</span>
                   </label>
                 </div>
               </div>

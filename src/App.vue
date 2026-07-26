@@ -14,6 +14,7 @@ import {
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerViewportRedirect,
 } from './organizer-viewport';
+import { SPEAKER_TALK_INTAKE_ROUTE_NAME } from './speaker-intake-route';
 
 interface NavLink {
   href: string;
@@ -59,6 +60,7 @@ const isAdminRoute = computed(() => isAdminPath(route.path));
 const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
   || route.name === 'admin-feedback-display'
+  || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME
   || route.name === 'volunteer-intake'
   || route.name === 'admin-annual-conference-volunteer-display'
 ));
