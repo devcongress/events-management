@@ -104,7 +104,7 @@ onMounted(async () => {
 
 <template>
   <div class="editorial-page">
-    <div class="flex min-h-[calc(100vh-6rem)] items-center justify-center px-4 py-12">
+    <div class="flex min-h-[calc(100svh-6rem)] items-center justify-center px-4 py-12">
       <div class="editorial-panel w-full max-w-md p-8 text-center sm:p-10">
         <p class="editorial-eyebrow">organizer access</p>
         <h1 class="mt-3 text-4xl font-black tracking-tight text-dc-ink">

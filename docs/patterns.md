@@ -23,7 +23,7 @@
 - `app/api/` — legacy Next API routes kept as migration reference
 - `components/` — legacy React components split by domain (`admin/`, `archive/`, `slides/`) + `ui/`
 - `lib/mock-db/` — one file per entity, all exported functions are async
-- `hooks/` — legacy React hooks only; future Vue state should use Pinia stores/composables under `src/`
+- `hooks/` — legacy React hooks only; future Vue state should use composables under `src/`, adding a state library only when an active shared store requires it
 
 ---
 

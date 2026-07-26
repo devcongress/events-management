@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { adminPath } from '@/src/admin-routes';
+import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import {
+  ACTIVE_ANNUAL_CONFERENCE_EDITION,
+  DECEMBER_2026_VOLUNTEER_PUBLIC_PATH,
+  annualConferencePath,
+} from '@/src/annual-conference';
 import { fetchVolunteerApplications, queryKeys } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 
@@ -10,7 +15,7 @@ const volunteerQuery = useQuery({
   queryFn: fetchVolunteerApplications,
 });
 const applications = computed(() => volunteerQuery.data.value?.applications ?? []);
-const publicUrl = `${window.location.origin}/volunteer/december-mega-meetup`;
+const publicUrl = `${window.location.origin}${DECEMBER_2026_VOLUNTEER_PUBLIC_PATH}`;
 const copied = ref(false);
 
 function formatDate(value: string) {
@@ -34,16 +39,18 @@ async function copyPublicUrl() {
 }
 
 function openVolunteerDisplay() {
-  window.open(adminPath('volunteer-display'), '_blank', 'noopener,noreferrer');
+  window.open(annualConferencePath('volunteers/display'), '_blank', 'noopener,noreferrer');
 }
 </script>
 
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
+      <AnnualConferenceNav />
+
       <header class="feedback-hub-hero">
         <div>
-          <p class="editorial-eyebrow">December Mega Meetup</p>
+          <p class="editorial-eyebrow">Annual Conference · {{ ACTIVE_ANNUAL_CONFERENCE_EDITION.label }}</p>
           <h1 class="editorial-title">Volunteers</h1>
           <p class="editorial-subtitle max-w-3xl">Share the form or put the QR display on screen, then review the people who signed up to help.</p>
         </div>

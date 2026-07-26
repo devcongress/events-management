@@ -721,6 +721,14 @@ async function archiveResolvedRouteFeedback() {
                               </Transition>
                             </dd>
                           </div>
+                          <div class="feedback-event-stat">
+                            <dt>Sessions missed</dt>
+                            <dd>
+                              <Transition name="feedback-count" mode="out-in">
+                                <span :key="item.insights.not_attended_count">{{ item.insights.not_attended_count }}</span>
+                              </Transition>
+                            </dd>
+                          </div>
                         </dl>
 
                         <div class="feedback-event-actions">

@@ -3,6 +3,12 @@ import { cors } from 'hono/cors';
 import { z } from 'zod';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
+import {
+  isEventFeedbackAnswerPresent,
+  isEventFeedbackNotAttended,
+  isEventFeedbackRating,
+  normalizeEventFeedbackAnswer,
+} from '@/lib/event-feedback';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { inferEventSeriesType, isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
@@ -875,7 +881,7 @@ function feedbackQuestionsFromActivityLabels(labels: string[]): FeedbackQuestion
       id: generateId(),
       type: 'rating' as const,
       label,
-      required: false,
+      required: true,
       options: [],
       order_index: index,
     })),
@@ -906,7 +912,7 @@ async function hydrateDefaultFeedbackCampaignFromEvent(event: Event, campaign: F
 
   return updateFeedbackCampaignStore(event.id, {
     title: `How was ${event.name}?`,
-    intro: 'On a scale of 1 - 5, rate the sessions you joined where 1 is extremely unsatisfied and 5 is extremely satisfied.',
+    intro: 'For sessions you attended, rate 1 (extremely unsatisfied) to 5 (extremely satisfied). Choose Did not attend for anything you missed.',
     questions: feedbackQuestionsFromActivityLabels(labels),
   }, c);
 }
@@ -985,25 +991,35 @@ function normalizeFeedbackQuestions(input: unknown): FeedbackQuestion[] {
     .map((question, index) => ({ ...question, order_index: index }));
 }
 
-function normalizeFeedbackAnswers(input: unknown): FeedbackAnswer[] {
+function normalizeFeedbackSubmissionAnswers(
+  campaign: FeedbackCampaign,
+  input: unknown,
+): { answers: FeedbackAnswer[]; valid: boolean } {
   if (!Array.isArray(input)) {
-    return [];
+    return { answers: [], valid: false };
   }
 
-  return input
-    .map((item) => {
-      const raw = item as Partial<FeedbackAnswer>;
-      const rawValue = raw.value;
-      const value = typeof rawValue === 'string' || typeof rawValue === 'number' || typeof rawValue === 'boolean' || rawValue === null
-        ? rawValue
-        : String(rawValue ?? '');
+  const rawAnswers = new Map<string, unknown>();
+  for (const item of input) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const raw = item as Partial<FeedbackAnswer>;
+    const questionId = String(raw.question_id ?? '');
+    if (questionId) rawAnswers.set(questionId, raw.value);
+  }
 
-      return {
-        question_id: String(raw.question_id ?? ''),
-        value,
-      };
-    })
-    .filter((answer) => answer.question_id);
+  const answers: FeedbackAnswer[] = [];
+  for (const question of campaign.questions) {
+    const normalized = normalizeEventFeedbackAnswer(question, rawAnswers.get(question.id));
+    if (!normalized.valid) {
+      return { answers: [], valid: false };
+    }
+    answers.push({
+      question_id: question.id,
+      value: normalized.value,
+    });
+  }
+
+  return { answers, valid: true };
 }
 
 function extractGoogleSlidesPresentationId(input: string): string | null {
@@ -1198,14 +1214,19 @@ function buildFeedbackInsights(
   const attendAgainValues: boolean[] = [];
   const talkCounts = new Map<string, number>();
   let commentCount = 0;
+  let notAttendedCount = 0;
 
   for (const submission of submissions) {
     for (const answer of submission.answers) {
       const question = questionsById.get(answer.question_id);
       if (!question) continue;
 
-      if (question.type === 'rating' && typeof answer.value === 'number') {
+      if (question.type === 'rating' && isEventFeedbackRating(answer.value)) {
         ratings.push(answer.value);
+      }
+
+      if (question.type === 'rating' && isEventFeedbackNotAttended(answer.value)) {
+        notAttendedCount += 1;
       }
 
       if (question.type === 'yes_no' && typeof answer.value === 'boolean') {
@@ -1228,6 +1249,7 @@ function buildFeedbackInsights(
   return {
     average_rating: average(ratings),
     rating_count: ratings.length,
+    not_attended_count: notAttendedCount,
     attend_again_percent: formatInsightPercent(attendAgainValues.length === 0 ? null : attendAgainYesCount / attendAgainValues.length),
     attend_again_count: attendAgainValues.length,
     top_talk_label: topTalk ? talksById.get(topTalk[0]) ?? topTalk[0] : null,
@@ -1729,6 +1751,7 @@ app.get('/api/feedback/monthly', async (c) => {
     events: unknown[];
     total_responses: number;
     rating_values: number[];
+    not_attended_count: number;
     attend_again_values: number[];
     comment_count: number;
     top_talk_counts: Map<string, { label: string; count: number }>;
@@ -1742,6 +1765,7 @@ app.get('/api/feedback/monthly', async (c) => {
       events: [],
       total_responses: 0,
       rating_values: [],
+      not_attended_count: 0,
       attend_again_values: [],
       comment_count: 0,
       top_talk_counts: new Map<string, { label: string; count: number }>(),
@@ -1755,7 +1779,7 @@ app.get('/api/feedback/monthly', async (c) => {
 
     for (const answer of eventSubmissions.flatMap((submission) => submission.answers)) {
       const question = campaign.questions.find((item) => item.id === answer.question_id);
-      if (question?.type === 'rating' && typeof answer.value === 'number') {
+      if (question?.type === 'rating' && isEventFeedbackRating(answer.value)) {
         monthBucket.rating_values.push(answer.value);
       }
       if (question?.type === 'yes_no' && typeof answer.value === 'boolean') {
@@ -1770,6 +1794,7 @@ app.get('/api/feedback/monthly', async (c) => {
     }
 
     monthBucket.total_responses += eventSubmissions.length;
+    monthBucket.not_attended_count += insights.not_attended_count;
     monthBucket.comment_count += insights.comment_count;
     monthBucket.events.push({
       event: {
@@ -1805,6 +1830,7 @@ app.get('/api/feedback/monthly', async (c) => {
         total_responses: month.total_responses,
         event_count: month.events.length,
         comment_count: month.comment_count,
+        not_attended_count: month.not_attended_count,
         average_rating: average(month.rating_values),
         attend_again_percent: formatInsightPercent(month.attend_again_values.length === 0 ? null : month.attend_again_values.reduce((sum, value) => sum + value, 0) / month.attend_again_values.length),
         top_talk_label: topTalk?.label ?? null,
@@ -1838,7 +1864,13 @@ app.get('/api/events/:eventId/feedback-campaign', async (c) => {
   return c.json({
     event,
     campaign,
-    submissions,
+    submissions: submissions.map((submission) => ({
+      ...submission,
+      respondent_name: null,
+      respondent_email: null,
+      page_path: null,
+      user_agent: null,
+    })),
     talks: visibleTalks,
     public_url: `${publicAppOrigin(c)}/feedback/${eventId}`,
     feedback_window: feedbackCampaignWindow(event, campaign),
@@ -2009,23 +2041,21 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
     return c.json({ error: 'Feedback is not open for this event' }, 403);
   }
 
-  const body = await c.req.json();
-  const respondentName = typeof body.respondent_name === 'string' ? body.respondent_name.trim() : '';
-  const respondentEmail = typeof body.respondent_email === 'string' ? body.respondent_email.trim() : '';
-
-  if (!respondentName) {
-    return c.json({ error: 'Please enter your name.' }, 400);
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return c.json({ error: 'Please check your feedback and try again.' }, 400);
   }
 
-  if (!z.string().email().safeParse(respondentEmail).success) {
-    return c.json({ error: 'Please enter a valid email address.' }, 400);
+  const normalized = normalizeFeedbackSubmissionAnswers(campaign, body.answers);
+  if (!normalized.valid) {
+    return c.json({ error: 'One or more feedback answers are invalid.' }, 400);
   }
 
-  const answers = normalizeFeedbackAnswers(body.answers);
+  const answers = normalized.answers;
   const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer.value]));
   const missingRequired = campaign.questions.some((question) => {
     const value = answersByQuestion.get(question.id);
-    return question.required && (value === undefined || value === null || String(value).trim() === '');
+    return question.required && !isEventFeedbackAnswerPresent(value);
   });
   const textAnswerTooLong = campaign.questions.some((question) => {
     const value = answersByQuestion.get(question.id);
@@ -2038,6 +2068,23 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
 
   if (textAnswerTooLong) {
     return c.json({ error: `Keep each comment under ${EVENT_FEEDBACK_COMMENT_MAX_CHARS} characters.` }, 400);
+  }
+
+  const validTalkIds = new Set(
+    (await getTalksByEvent(eventId))
+      .filter((talk) => talk.status !== 'rejected')
+      .map((talk) => talk.id),
+  );
+  const invalidTalkSelection = campaign.questions.some((question) => {
+    const value = answersByQuestion.get(question.id);
+    return question.type === 'talk_select'
+      && typeof value === 'string'
+      && value.length > 0
+      && !validTalkIds.has(value);
+  });
+
+  if (invalidTalkSelection) {
+    return c.json({ error: 'Please choose a talk from the available list.' }, 400);
   }
 
   const responseToken = normalizeEventFeedbackResponseToken(body.response_token);
@@ -2064,11 +2111,11 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   const submission = await createEventFeedbackSubmissionStore({
     campaign_id: campaign.id,
     event_id: eventId,
-    respondent_name: respondentName,
-    respondent_email: respondentEmail,
+    respondent_name: null,
+    respondent_email: null,
     answers,
-    page_path: typeof body.page_path === 'string' ? body.page_path : null,
-    user_agent: c.req.header('user-agent') ?? null,
+    page_path: null,
+    user_agent: null,
     response_token_hash: responseTokenHash,
   }, c);
 

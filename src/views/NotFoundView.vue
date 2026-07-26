@@ -16,7 +16,7 @@ const secondaryLinks = computed(() => [
 
 <template>
   <div class="not-found-page editorial-page">
-    <section class="not-found-wrap editorial-wrap flex min-h-[calc(100vh-6rem)] items-center py-10 lg:py-14">
+    <section class="not-found-wrap editorial-wrap flex min-h-[calc(100svh-6rem)] items-center py-10 lg:py-14">
       <div class="not-found-inner w-full">
         <div class="not-found-grid grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
           <div class="not-found-copy min-w-0">

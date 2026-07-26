@@ -4,9 +4,46 @@
 
 ---
 
+## ADR-019: Anonymous Event Feedback With Explicit Non-Attendance
+
+**Date:** 2026-07-26
+**Status:** Accepted
+**Context:** Asking attendees for names and email addresses can turn feedback into a courtesy exercise instead of an honest signal. The current session-rating questions also force someone who arrived late or missed a session to choose a score, which incorrectly lowers or raises speaker ratings.
+**Decision:** Event-feedback submissions are anonymous at the application data layer: the public form does not request identity, the API ignores any submitted identity, and new event-feedback records store no respondent email, page path, or user agent. Keep the existing random per-browser/event token only as a soft duplicate guard and store only its hash. Every session rating accepts exactly `1` through `5` or the separate `not_attended` sentinel. Generated session questions require one of those choices. Non-attendance is counted separately and is never included in rating averages. Organizer event-feedback views do not expose historical identity fields even when an older record contains them.
+**Trade-offs:** Clearing browser storage or using another browser can bypass the soft duplicate guard, so it protects signal quality rather than proving one human submitted once. Infrastructure providers may still produce operational request logs outside the application database. Historical identity data is hidden from the organizer product but is not destructively erased by this change. The existing JSON answer column can store the sentinel, so no schema migration is required.
+**Alternatives considered:** Keep optional identity fields (still discourages candour), require email solely for de-duplication (creates unnecessary personal data), encode non-attendance as zero (corrupts averages), or make every session rating optional with no reason (cannot distinguish a missed session from an abandoned question).
+**Revisit when:** Feedback moves to a different public origin, formal research consent or retention requirements are introduced, or stronger abuse controls are needed without collecting identity.
+
+---
+
+## ADR-018: Preserve Volunteer Campaign Links and Data Through the Annual-Workspace Migration
+
+**Date:** 2026-07-26
+**Status:** Accepted
+**Context:** The December 2026 volunteer form is already public at `/volunteer/december-mega-meetup`, submits through `/api/volunteer-applications`, and stores applications under the `december-mega-meetup` campaign ID. Moving volunteer operations into an annual-conference workspace and later into relational Supabase tables must not invalidate distributed links or hide existing applicants.
+**Decision:** Keep the current public path as a compatibility route for the December 2026 campaign. If a new 2026 URL is introduced, both URLs resolve to the same edition/campaign and update one volunteer dataset. Preserve existing application IDs, contact data, and timestamps during relational migration. Move the organizer view under Annual Conference → December 2026 → Volunteers while keeping the current organizer route as a redirect or alias. Future annual editions receive distinct campaign IDs and links rather than repointing the 2026 route.
+**Trade-offs:** The retained public path does not contain a year and therefore looks less canonical than a future edition-aware path. Keeping it is still safer than breaking already-shared URLs and QR codes. Supporting aliases adds a small routing obligation but prevents split volunteer tables and lost applications.
+**Alternatives considered:** Replace the existing link immediately (breaks distributed links and QR codes), repoint the link to whichever annual campaign is active (old materials could submit to the wrong year), or create a new table without migrating existing records (loses the current intake history).
+**Revisit when:** The public volunteer form moves to `devcongress.org`; the existing Events Management route should then redirect to the edition’s canonical public URL without changing the underlying campaign identity.
+
+---
+
+## ADR-017: Year-Round Operations With Independent Event Dimensions
+
+**Date:** 2026-07-26
+**Status:** Accepted
+**Context:** DevCongress operations now span monthly and quarterly meetups, one-off official events, an annual December conference, multiple event-scoped participant roles, and a future moderated listing for events owned by outsiders. The earlier meetup-oriented categories and global role union cannot express those boundaries without conflating ownership, event format, programme series, review state, and access.
+**Decision:** Treat Events Management as the year-round operational source of truth. Model event ownership, DevCongress series, format, submission source, moderation, and publication as independent dimensions. Model people separately from platform membership, event engagement, and work assignment. Treat the December conference as an annual series with yearly editions and give each active edition a first-class workspace inside the existing organizer console while regular event operations continue. Extend the existing public meetup API additively and validate the `devcongress.org` integration before adding external event submission and moderation. New durable multi-user domains use relational Supabase persistence. The complete operating rules are recorded in [DevCongress Product Operating Model](product-operating-model.md).
+**Trade-offs:** The domain has more explicit entities and states than the current meetup prototype, and compatibility routes may retain meetup-specific naming while the broader model is introduced. In return, official and external events stay distinguishable, access can be scoped safely, annual operations can grow without isolated spreadsheets, and the public website can evolve without a breaking API replacement.
+**Alternatives considered:** Keep expanding `monthly | quarterly | special` (would make `special` an ambiguous catch-all), create a separate December app (would fragment people, events, and reporting), give speakers and volunteers global roles (too much access and loses event context), or replace the public API immediately (unnecessary breakage for `devcongress.org`).
+**Revisit when:** DevCongress co-owns external events, a breaking public API version is justified, a new event ownership model appears, or ticketing/sponsor finance creates a separate compliance boundary.
+
+---
+
 ## ADR-016: Campaign-Scoped Volunteer Intake In Existing Shared Documents
 
 **Date:** 2026-07-25
+**Status:** Active transitional implementation; the relational-workflow revisit trigger was reached on 2026-07-26.
 **Why:** The December Mega Meetup needs a fast public volunteer form and a private organizer review surface without creating a new production schema dependency during event preparation. The app already has a Supabase-backed `app_json_documents` compatibility store for cross-instance JSON domains, so the campaign records live there under the `volunteer-applications` key when server-side Supabase is configured. This keeps deployed submissions durable while preserving the local JSON fallback used by the rest of the compatibility layer.
 **Tradeoffs:** This is deliberately limited to one campaign and does not provide relational reporting, database-level uniqueness, or a long-term volunteer CRM. The server protects it with one application per campaign/email, optional Turnstile, and per-client rate limiting; a future multi-event volunteer workflow should move to dedicated relational Supabase tables with database constraints.
 **Alternatives considered:** Add a new Supabase table immediately (more migration and rollout coordination than the December drive needs), keep applications only in the Worker filesystem (not durable across instances), or use a third-party form (loses the existing organizer console and QR-display experience).

@@ -42,6 +42,7 @@ export interface FeedbackMonthEvent {
   insights: {
     average_rating: number | null;
     rating_count: number;
+    not_attended_count: number;
     attend_again_percent: number | null;
     attend_again_count: number;
     top_talk_label: string | null;
@@ -57,6 +58,7 @@ export interface FeedbackMonth {
   total_responses: number;
   event_count: number;
   comment_count: number;
+  not_attended_count: number;
   average_rating: number | null;
   attend_again_percent: number | null;
   top_talk_label: string | null;

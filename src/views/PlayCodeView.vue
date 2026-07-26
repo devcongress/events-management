@@ -172,7 +172,7 @@ onUnmounted(() => {
       </form>
     </div>
 
-    <div v-else-if="joinError" class="editorial-wrap flex min-h-[calc(100vh-6rem)] items-center py-10 lg:py-14">
+    <div v-else-if="joinError" class="editorial-wrap flex min-h-[calc(100svh-6rem)] items-center py-10 lg:py-14">
       <div class="grid w-full gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
         <div>
           <p class="editorial-eyebrow">quiz room</p>

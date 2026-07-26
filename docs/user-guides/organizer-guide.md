@@ -20,6 +20,14 @@ Event outlines are optional. When a meetup has a known run of show, add time/tit
 
 Use the `System design` outline type for the monthly architecture scenario. The System Design tab reads from those outline rows and lets organizers keep the public prompt link and recap notes updated after the event.
 
+## Plan the Annual Conference
+
+Use **Annual Conference** in the primary navigation for the active December edition. The December 2026 overview establishes the conference workspace separately from regular monthly, quarterly, and special events.
+
+Volunteer operations now live at **Annual Conference → December 2026 → Volunteers**. From there organizers can copy the existing public sign-up link, open the volunteer form, show its QR display, and review applications. Existing public QR codes and the `/volunteer/december-mega-meetup` link remain valid.
+
+The remaining conference workstreams appear as planned structure only. They will become working modules incrementally as organizers confirm owners, dates, workflows, and access rules.
+
 ## Follow the Event Checklist
 
 Each event overview includes a chronological checklist. The checklist is the primary shared source of truth for event preparation and can advance event status when milestones are completed.
@@ -50,7 +58,9 @@ The global Attendance Hub gives a month-by-month ledger for venue planning.
 
 ## Collect Feedback
 
-The Feedback section lets organizers prepare event-scoped feedback forms, choose required questions, preview the public form, and review responses.
+The Feedback section lets organizers prepare event-scoped feedback forms, choose required questions, preview the public form, and review anonymous responses. The attendee form does not ask for a name or email.
+
+Generated session questions require the attendee to choose either a rating from 1–5 or **Did not attend this session**. Missed sessions are counted separately in organizer reports and never reduce the session or speaker rating.
 
 The Feedback Hub also includes route-level app feedback from testers.
 

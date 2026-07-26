@@ -1,5 +1,4 @@
 import { VueQueryPlugin } from '@tanstack/vue-query';
-import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 import './api-base';
 import '@fontsource/inter/latin-400.css';
@@ -13,8 +12,10 @@ import '@fontsource/ibm-plex-mono/latin-500.css';
 import '@fontsource/ibm-plex-mono/latin-600.css';
 import '@fontsource/ibm-plex-mono/latin-700.css';
 import App from './App.vue';
+import { installButtonPressFeedback } from './button-press-feedback';
 import { queryClient } from './lib/query';
 import { router } from './router';
 import './styles.css';
 
-createApp(App).use(createPinia()).use(VueQueryPlugin, { queryClient }).use(router).mount('#app');
+createApp(App).use(VueQueryPlugin, { queryClient }).use(router).mount('#app');
+installButtonPressFeedback();

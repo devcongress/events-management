@@ -2,13 +2,18 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import AdminEventTabs from './components/AdminEventTabs.vue';
 import AppToaster from './components/ui/AppToaster.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
+import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from './annual-conference';
 import { fetchAdminSession, fetchEventById, fetchRouteFeedbackInbox, queryKeys, type AdminSessionResponse, type RouteFeedbackSummary } from './lib/api';
 import { notify } from './lib/notify';
 import { queryClient } from './lib/query';
-import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
+import {
+  ORGANIZER_PHONE_MEDIA_QUERY,
+  ORGANIZER_PHONE_ROUTE_NAME,
+  ORGANIZER_PHONE_ROUTE_PATH,
+  organizerViewportRedirect,
+} from './organizer-viewport';
 
 interface NavLink {
   href: string;
@@ -21,13 +26,16 @@ interface AdminEventSummary {
   name: string;
 }
 
-const AdminMobileOrganizerView = defineAsyncComponent(() => import('./views/admin/AdminMobileOrganizerView.vue'));
+const AdminEventTabs = defineAsyncComponent(() => import('./components/AdminEventTabs.vue'));
 const route = useRoute();
 const router = useRouter();
+const organizerPhoneMedia = typeof window === 'undefined'
+  ? null
+  : window.matchMedia(ORGANIZER_PHONE_MEDIA_QUERY);
 const adminEventNames = ref<Record<string, string>>({});
 const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
-const phoneViewport = ref(typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches);
+const phoneViewport = ref(organizerPhoneMedia?.matches ?? false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
 const adminEventTabsShell = ref<HTMLElement | null>(null);
@@ -40,7 +48,7 @@ const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
-  { href: adminPath('volunteers'), label: 'Volunteer Hub' },
+  { href: annualConferencePath(), label: 'Annual Conference' },
   { href: adminPath('organizers'), label: 'Organizers' },
 ];
 const ownerAdminLinks: NavLink[] = [
@@ -52,7 +60,7 @@ const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
   || route.name === 'admin-feedback-display'
   || route.name === 'volunteer-intake'
-  || route.name === 'admin-volunteer-display'
+  || route.name === 'admin-annual-conference-volunteer-display'
 ));
 const isLoginRoute = computed(() => route.path === adminPath('login') || route.path === adminPath('auth/callback'));
 const adminSessionQuery = useQuery({
@@ -77,20 +85,15 @@ const adminEventId = computed(() => {
   return value || null;
 });
 const primaryLinks = computed(() => adminLinks.value);
-const isOrganizerPhoneBypassRoute = computed(() => (
-  route.path === adminPath('login')
-  || route.path === adminPath('auth/callback')
-));
 const showOrganizerPhoneView = computed(() => (
   isOrganizerAuthenticated.value
   && isAdminRoute.value
   && phoneViewport.value
-  && !isStandaloneRoute.value
-  && !isOrganizerPhoneBypassRoute.value
+  && route.name === ORGANIZER_PHONE_ROUTE_NAME
 ));
 const navGroups = computed(() => {
   if (showOrganizerPhoneView.value) {
-    return [[{ href: adminPath('events'), label: 'Mobile Ops' }]];
+    return [[{ href: ORGANIZER_PHONE_ROUTE_PATH, label: 'Mobile Ops' }]];
   }
 
   if (isAdminRoute.value) {
@@ -99,7 +102,9 @@ const navGroups = computed(() => {
 
   return [];
 });
-const brandHomeLink = computed(() => adminPath('events'));
+const brandHomeLink = computed(() => (
+  showOrganizerPhoneView.value ? ORGANIZER_PHONE_ROUTE_PATH : adminPath('events')
+));
 const showSignOut = computed(() => isOrganizerAuthenticated.value && !isLoginRoute.value);
 const showHeaderActions = computed(() => showSignOut.value);
 const shouldLoadRouteFeedbackSummary = computed(() => (
@@ -160,7 +165,7 @@ const adminReturnLink = computed(() => {
 });
 const activeNavHref = computed(() => {
   if (showOrganizerPhoneView.value) {
-    return adminPath('events');
+    return ORGANIZER_PHONE_ROUTE_PATH;
   }
 
   if (isAdminRoute.value && adminReturnLink.value && adminEventId.value) {
@@ -209,6 +214,20 @@ const breadcrumbItems = computed(() => {
 
     if (path === adminPath('feedback')) {
       items.push({ label: 'Feedback' });
+      return items;
+    }
+
+    if (path.startsWith(adminPath('annual-conference'))) {
+      items.push({ label: 'Annual Conference', href: adminPath('annual-conference') });
+      items.push({
+        label: ACTIVE_ANNUAL_CONFERENCE_EDITION.label,
+        href: path === annualConferencePath() ? undefined : annualConferencePath(),
+      });
+
+      if (path.startsWith(annualConferencePath('volunteers'))) {
+        items.push({ label: 'Volunteers' });
+      }
+
       return items;
     }
 
@@ -348,11 +367,25 @@ function resetMainScroll() {
 }
 
 function isMobileViewport() {
-  return window.matchMedia('(max-width: 767px)').matches;
+  return organizerPhoneMedia?.matches ?? false;
 }
 
 function syncPhoneViewport() {
-  phoneViewport.value = window.matchMedia('(max-width: 767px)').matches;
+  phoneViewport.value = organizerPhoneMedia?.matches ?? false;
+  syncOrganizerViewportRoute();
+}
+
+function syncOrganizerViewportRoute() {
+  const redirect = organizerViewportRedirect({
+    authenticated: isOrganizerAuthenticated.value,
+    isAdminRoute: isAdminRoute.value,
+    isPhone: phoneViewport.value,
+    routeName: route.name,
+  });
+
+  if (redirect && redirect !== route.path) {
+    void router.replace(redirect);
+  }
 }
 
 function isEditableElement(element: Element | null): element is HTMLElement {
@@ -437,16 +470,17 @@ async function logout() {
     // The app session is the authorization boundary, but clearing this
     // tab-scoped Supabase session prevents a stale OAuth session from
     // immediately re-establishing browser auth after sign-out.
-    const supabase = getSupabaseBrowserClient();
-    if (supabase) {
-      try {
+    try {
+      const { getSupabaseBrowserClient } = await import('@/lib/supabase/browser');
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
         const { error } = await supabase.auth.signOut({ scope: 'local' });
         if (error) console.warn('Unable to clear the local Supabase browser session.', error);
-      } catch (error) {
-        // The app-owned session is already revoked above. A best-effort
-        // Supabase cleanup must not strand the organizer in the console.
-        console.warn('Unable to clear the local Supabase browser session.', error);
       }
+    } catch (error) {
+      // The app-owned session is already revoked above. A best-effort
+      // Supabase cleanup must not strand the organizer in the console.
+      console.warn('Unable to clear the local Supabase browser session.', error);
     }
 
     await router.replace(adminPath('login'));
@@ -506,10 +540,10 @@ onMounted(() => {
   document.addEventListener('focusin', syncKeyboardDismissVisibility);
   document.addEventListener('focusout', syncKeyboardDismissVisibility);
   window.addEventListener('resize', syncKeyboardDismissVisibility);
-  window.addEventListener('resize', syncPhoneViewport);
   window.addEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.addEventListener('resize', updateKeyboardInset);
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
+  organizerPhoneMedia?.addEventListener('change', syncPhoneViewport);
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
   void refreshAdminEventNames();
@@ -540,7 +574,10 @@ watch(
         path: adminPath('login'),
         query: { redirect: routeFullPath },
       });
+      return;
     }
+
+    if (authenticated === true) syncOrganizerViewportRoute();
   },
 );
 
@@ -551,10 +588,10 @@ onUnmounted(() => {
   document.removeEventListener('focusin', syncKeyboardDismissVisibility);
   document.removeEventListener('focusout', syncKeyboardDismissVisibility);
   window.removeEventListener('resize', syncKeyboardDismissVisibility);
-  window.removeEventListener('resize', syncPhoneViewport);
   window.removeEventListener('resize', updateAdminEventTabsHeight);
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
+  organizerPhoneMedia?.removeEventListener('change', syncPhoneViewport);
 });
 </script>
 
@@ -745,8 +782,7 @@ onUnmounted(() => {
       </div>
 
       <div class="page-route-stack">
-        <AdminMobileOrganizerView v-if="showOrganizerPhoneView" class="page-view" />
-        <RouterView v-else v-slot="{ Component, route }">
+        <RouterView v-slot="{ Component, route }">
           <Transition :name="routeTransitionName" @after-enter="resetMainScroll">
             <component :is="Component" :key="routeViewKey(route)" class="page-view" />
           </Transition>

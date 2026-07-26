@@ -3,6 +3,10 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import PublicFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/PublicFeedbackPageSkeleton.vue';
+import {
+  EVENT_FEEDBACK_NOT_ATTENDED,
+  isEventFeedbackAnswerPresent,
+} from '@/lib/event-feedback';
 import type { FeedbackCampaign, FeedbackQuestion } from '@/types';
 
 interface FeedbackPublicResponse {
@@ -43,19 +47,18 @@ const previewMode = ref(false);
 const event = ref<FeedbackPublicResponse['event'] | null>(null);
 const campaign = ref<FeedbackPublicResponse['campaign'] | null>(null);
 const talks = ref<FeedbackPublicResponse['talks']>([]);
-const respondent = reactive({
-  name: '',
-  email: '',
-});
 const answers = reactive<Record<string, string | number | boolean | null>>({});
 const orderedQuestions = computed(() => [...(campaign.value?.questions ?? [])].sort((a, b) => a.order_index - b.order_index));
+const hasRatingQuestions = computed(() => orderedQuestions.value.some((question) => question.type === 'rating'));
 const talkOptions = computed(() => [
   { value: '', label: 'Choose a talk' },
   ...talks.value.map((talk) => ({ value: talk.id, label: `${talk.title} · ${talk.speaker_name}` })),
 ]);
 const canSubmit = computed(() => (
   previewMode.value
-  || (respondent.name.trim().length > 0 && respondent.email.trim().length > 0)
+  || orderedQuestions.value.every((question) => (
+    !question.required || isEventFeedbackAnswerPresent(answers[question.id])
+  ))
 ));
 
 function eventIdParam(): string {
@@ -197,9 +200,6 @@ async function submitFeedback() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      respondent_name: respondent.name,
-      respondent_email: respondent.email,
-      page_path: route.fullPath,
       response_token: getOrCreateResponseToken(),
       answers: orderedQuestions.value.map((question) => ({
         question_id: question.id,
@@ -268,20 +268,15 @@ onMounted(fetchFeedbackForm);
           <p class="mt-2 text-sm leading-6 text-dc-gray">This is the attendee-facing form preview from organizer configure. Submission is disabled here.</p>
         </section>
 
-        <form class="space-y-5" @submit.prevent="submitFeedback">
-          <div class="editorial-panel p-5">
-            <div class="grid gap-4 md:grid-cols-2">
-              <label class="block">
-                <span class="editorial-label">Name <span class="text-dc-pink">*</span></span>
-                <input v-model="respondent.name" required class="editorial-input" type="text" placeholder="Your name" />
-              </label>
-              <label class="block">
-                <span class="editorial-label">Email <span class="text-dc-pink">*</span></span>
-                <input v-model="respondent.email" required class="editorial-input" type="email" placeholder="you@example.com" />
-              </label>
-            </div>
-          </div>
+        <section class="editorial-panel mb-5 border-dc-yellow bg-dc-yellow/20 p-5">
+          <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">Anonymous feedback</p>
+          <p class="mt-2 text-sm leading-6 text-dc-gray">
+            We do not ask for your name or email.
+            <span v-if="hasRatingQuestions">For each session, choose a rating or Did not attend.</span>
+          </p>
+        </section>
 
+        <form class="space-y-5" @submit.prevent="submitFeedback">
           <TransitionGroup name="feedback-question-list" tag="div" class="space-y-5">
           <fieldset
             v-for="(question, index) in orderedQuestions"
@@ -295,16 +290,28 @@ onMounted(fetchFeedbackForm);
               </span>
             </div>
 
-              <div v-if="question.type === 'rating'" class="mt-3 grid grid-cols-5 gap-2">
+              <div v-if="question.type === 'rating'" class="mt-3">
+                <div class="grid grid-cols-5 gap-2">
+                  <button
+                    v-for="rating in [1, 2, 3, 4, 5]"
+                    :key="rating"
+                    type="button"
+                    class="motion-press rounded-md border-2 border-dc-ink px-3 py-4 font-mono text-lg font-black shadow-[2px_2px_0_#111111]"
+                    :class="answers[question.id] === rating ? 'bg-dc-pink text-white' : 'bg-dc-paper hover:bg-dc-yellow'"
+                    :aria-pressed="answers[question.id] === rating"
+                    @click="answers[question.id] = rating"
+                  >
+                    {{ rating }}
+                  </button>
+                </div>
                 <button
-                  v-for="rating in [1, 2, 3, 4, 5]"
-                  :key="rating"
                   type="button"
-                  class="motion-press rounded-md border-2 border-dc-ink px-3 py-4 font-mono text-lg font-black shadow-[2px_2px_0_#111111]"
-                  :class="answers[question.id] === rating ? 'bg-dc-pink text-white' : 'bg-dc-paper hover:bg-dc-yellow'"
-                  @click="answers[question.id] = rating"
+                  class="motion-press mt-3 w-full rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-xs font-black uppercase tracking-wide shadow-[2px_2px_0_#111111]"
+                  :class="answers[question.id] === EVENT_FEEDBACK_NOT_ATTENDED ? 'bg-dc-yellow text-dc-ink' : 'bg-dc-paper hover:bg-dc-yellow/40'"
+                  :aria-pressed="answers[question.id] === EVENT_FEEDBACK_NOT_ATTENDED"
+                  @click="answers[question.id] = EVENT_FEEDBACK_NOT_ATTENDED"
                 >
-                  {{ rating }}
+                  Did not attend this session
                 </button>
               </div>
 
