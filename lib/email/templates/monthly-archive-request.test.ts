@@ -22,7 +22,10 @@ describe('monthly archive request email', () => {
     expect(result.html).toContain('class="email-brand email-brand-pad"');
     expect(result.html).toContain('class="email-talk-card email-yellow-surface"');
     expect(result.html).toContain('class="email-cta email-on-yellow"');
+    expect(result.html).toContain('class="email-yellow-text-lock"');
     expect(result.html).toContain('-webkit-text-fill-color:#111111');
+    expect(result.html).toContain('-webkit-text-fill-color:transparent');
+    expect(result.html).toContain('background-image:linear-gradient(#111111,#111111)');
     expect(result.html).toContain('.email-wrap { padding: 20px 16px !important; }');
     expect(result.html).toContain('@media only screen and (max-width: 640px) and (prefers-color-scheme: dark)');
     expect(result.html).toContain('.email-wrap { padding: 14px 10px !important; }');

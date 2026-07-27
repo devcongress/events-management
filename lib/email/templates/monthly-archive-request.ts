@@ -113,6 +113,22 @@ export function monthlyArchiveRequestEmail(input: {
         color: #111111 !important;
         -webkit-text-fill-color: #111111 !important;
       }
+      /* Gmail iOS may invert ordinary text on a preserved yellow surface.
+         Paint the letters with a fixed black gradient instead of a mutable fill. */
+      u + .email-body .email-yellow-text-lock {
+        color: #111111 !important;
+        background-image: linear-gradient(#111111, #111111) !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+      }
+      .email-yellow-text-lock {
+        color: #111111 !important;
+        background-image: linear-gradient(#111111, #111111) !important;
+        -webkit-background-clip: text !important;
+        background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+      }
       @media only screen and (max-width: 640px) {
         .email-wrap { padding: 20px 16px !important; }
         .email-pad { padding: 28px 22px !important; }
@@ -268,9 +284,9 @@ export function monthlyArchiveRequestEmail(input: {
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5E642" class="email-talk-card email-yellow-surface" style="width:100%;margin:0 0 24px;background:#F5E642;background-image:linear-gradient(#F5E642,#F5E642);border:2px solid #111111;border-radius:6px;">
                   <tr>
                     <td class="email-talk-copy" style="padding:18px 20px;">
-                      <p class="email-on-yellow" style="margin:0 0 7px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Your presentation</p>
-                      <p class="email-talk-title email-on-yellow" style="margin:0;color:#111111;-webkit-text-fill-color:#111111;font-size:21px;font-weight:800;line-height:1.35;">${safeCardTitle}</p>
-                      <p class="email-talk-event email-on-yellow" style="margin:7px 0 0;color:#333333;-webkit-text-fill-color:#333333;font-size:13px;font-weight:600;line-height:1.4;">${safeEventName}</p>
+                      <p class="email-on-yellow" style="margin:0 0 7px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Your presentation</span></p>
+                      <p class="email-talk-title email-on-yellow" style="margin:0;color:#111111;-webkit-text-fill-color:#111111;font-size:21px;font-weight:800;line-height:1.35;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">${safeCardTitle}</span></p>
+                      <p class="email-talk-event email-on-yellow" style="margin:7px 0 0;color:#333333;-webkit-text-fill-color:#333333;font-size:13px;font-weight:600;line-height:1.4;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">${safeEventName}</span></p>
                     </td>
                     <td width="118" align="right" valign="middle" class="email-illustration-cell" style="width:118px;padding:14px 16px 14px 0;">
                       <img
@@ -288,7 +304,7 @@ export function monthlyArchiveRequestEmail(input: {
                 <table role="presentation" cellspacing="0" cellpadding="0">
                   <tr>
                     <td bgcolor="#F5E642" class="email-cta-cell email-yellow-surface" style="background:#F5E642;background-image:linear-gradient(#F5E642,#F5E642);border:2px solid #111111;border-radius:6px;box-shadow:3px 3px 0 #111111;">
-                      <a href="${safePrivateUrl}" class="email-cta email-on-yellow" style="display:inline-block;padding:15px 22px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:14px;font-weight:700;letter-spacing:.03em;text-decoration:none;text-transform:uppercase;">Add my presentation details&nbsp;&nbsp;&rarr;</a>
+                      <a href="${safePrivateUrl}" class="email-cta email-on-yellow" style="display:inline-block;padding:15px 22px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:14px;font-weight:700;letter-spacing:.03em;text-decoration:none;text-transform:uppercase;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Add my presentation details&nbsp;&nbsp;&rarr;</span></a>
                     </td>
                   </tr>
                 </table>
