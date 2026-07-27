@@ -44,8 +44,7 @@ const systemDesignDisabled = computed(() => (
 ));
 const fullTabs = computed<AdminEventTab[]>(() => [
   { href: '', label: 'Overview' },
-  { href: 'talks', label: 'Talks' },
-  { href: 'speakers', label: 'Speakers', disabled: true, disabledReason: 'Speakers are unavailable for this event.' },
+  { href: 'talks', label: 'Archive' },
   { href: 'quiz', label: 'Quiz', disabled: true, disabledReason: 'Quiz is unavailable for this event.' },
   {
     href: 'system-design',
@@ -146,7 +145,7 @@ watch(tabs, () => {
 
 <template>
   <nav class="mb-5 overflow-x-auto">
-    <div ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 border-b-2 border-dc-border pb-3 font-mono text-xs font-bold uppercase tracking-wide">
+    <div ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 border-b-2 border-dc-border pb-3 font-mono text-xs font-semibold uppercase tracking-wide">
       <span class="admin-event-tabs-indicator" :style="indicatorStyle" aria-hidden="true" />
       <component
         v-for="(tab, index) in tabs"

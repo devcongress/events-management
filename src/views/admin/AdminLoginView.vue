@@ -300,7 +300,7 @@ onMounted(async () => {
   padding: 0 0.65rem;
   font-family: var(--font-mono);
   font-size: 0.6rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -327,7 +327,7 @@ onMounted(async () => {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 0.65rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -365,7 +365,7 @@ onMounted(async () => {
 .login-field > span {
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -402,7 +402,7 @@ onMounted(async () => {
   padding: 0.75rem 0.8rem;
   color: #a61b34;
   font-size: 0.8rem;
-  font-weight: 650;
+  font-weight: var(--font-weight-emphasis);
   line-height: 1.45;
 }
 
@@ -431,7 +431,7 @@ onMounted(async () => {
   color: #ffffff;
   font-family: var(--font-sans);
   font-size: 0.9rem;
-  font-weight: 750;
+  font-weight: var(--font-weight-label);
   line-height: 1.2;
   transition:
     background-color 180ms var(--motion-fast),
@@ -490,7 +490,7 @@ onMounted(async () => {
   color: var(--login-muted);
   font-family: var(--font-mono);
   font-size: 0.58rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -527,14 +527,14 @@ onMounted(async () => {
 .programme-index span,
 .programme-index small {
   font-size: 0.56rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.12em;
 }
 
 .programme-index strong {
   font-family: var(--font-sans);
   font-size: clamp(3.75rem, 6.5vw, 6rem);
-  font-weight: 850;
+  font-weight: var(--font-weight-display);
   letter-spacing: -0.065em;
   line-height: 0.78;
 }
@@ -550,7 +550,7 @@ onMounted(async () => {
 .login-statement h1 {
   max-width: 8ch;
   font-size: clamp(4.6rem, 9.5vw, 8.5rem);
-  font-weight: 850;
+  font-weight: var(--font-weight-display);
   letter-spacing: -0.065em;
   line-height: 0.84;
   text-wrap: balance;
@@ -583,7 +583,7 @@ onMounted(async () => {
 .login-access h2 {
   max-width: 11ch;
   font-size: clamp(2rem, 3vw, 2.65rem);
-  font-weight: 800;
+  font-weight: var(--font-weight-heading);
   letter-spacing: -0.04em;
   line-height: 1;
 }

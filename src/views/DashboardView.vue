@@ -120,7 +120,7 @@ onUnmounted(() => {
               Community tech talks
             </div>
 
-            <h1 class="home-hero-title font-mono text-5xl font-black leading-none tracking-tight text-dc-ink sm:text-7xl lg:text-8xl">
+            <h1 class="home-hero-title font-mono text-5xl font-bold leading-none tracking-tight text-dc-ink sm:text-7xl lg:text-8xl">
               <span>DEV</span><span class="text-dc-yellow">::</span><span>CON</span><span class="text-dc-gray">[]</span>
             </h1>
 
@@ -186,24 +186,24 @@ onUnmounted(() => {
           <div class="home-summary-grid mb-8 grid max-w-4xl gap-4 sm:grid-cols-2">
             <article class="editorial-panel px-5 py-4">
               <p class="editorial-eyebrow">events</p>
-              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ completedEventsCount }}</p>
+              <p class="mt-2 font-mono text-3xl font-semibold leading-none text-dc-ink">{{ completedEventsCount }}</p>
               <p class="mt-1 text-sm text-dc-gray">completed community nights</p>
             </article>
             <article class="editorial-panel px-5 py-4">
-              <p class="editorial-eyebrow">talks</p>
-              <p class="mt-2 font-mono text-3xl font-bold leading-none text-dc-ink">{{ publishedTalksCount }}</p>
-              <p class="mt-1 text-sm text-dc-gray">published sessions in the archive</p>
+              <p class="editorial-eyebrow">archive</p>
+              <p class="mt-2 font-mono text-3xl font-semibold leading-none text-dc-ink">{{ publishedTalksCount }}</p>
+              <p class="mt-1 text-sm text-dc-gray">published talks and demos</p>
             </article>
           </div>
 
           <div class="mb-5 border-b border-dc-ink pb-4">
-            <p class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">from the archive</p>
-            <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">Recent Community Talks</h2>
+            <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-pink">from the archive</p>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">Recent Archive Items</h2>
           </div>
 
           <div v-if="recentTalks.length === 0" class="editorial-panel p-8">
-            <h3 class="text-xl font-black text-dc-ink">No published talks yet</h3>
-            <p class="mt-2 text-dc-gray">When talks are published, this becomes the front-page reading list.</p>
+            <h3 class="text-xl font-bold text-dc-ink">No published archive items yet</h3>
+            <p class="mt-2 text-dc-gray">Published talks and product demos will become the front-page reading list.</p>
           </div>
 
           <div v-else class="divide-y divide-dc-border">
@@ -213,13 +213,15 @@ onUnmounted(() => {
               :to="`/archive/${talk.event_id}`"
               class="motion-colors group block py-4"
             >
-              <h3 class="text-xl font-black tracking-tight text-dc-ink/90 group-hover:text-dc-pink">
+              <h3 class="text-xl font-bold tracking-tight text-dc-ink/90 group-hover:text-dc-pink">
                 {{ talk.title }}
               </h3>
               <p class="mt-1 text-sm leading-6 text-dc-gray">
                 {{ talk.speaker_name }}
                 <span class="mx-1 text-dc-border">/</span>
-                <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">{{ talk.topic || 'General' }}</span>
+                <span class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">{{ talk.kind === 'product_demo' ? 'Product demo' : 'Talk' }}</span>
+                <span class="mx-1 text-dc-border">/</span>
+                <span class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">{{ talk.topic || 'General' }}</span>
                 <span class="mx-1 text-dc-border">/</span>
                 <span>{{ eventNameForTalk(talk) }}</span>
               </p>
@@ -230,13 +232,13 @@ onUnmounted(() => {
         <div class="space-y-4">
           <aside class="editorial-panel self-start p-6">
             <p class="editorial-eyebrow">attendance board</p>
-            <h2 class="mb-5 text-2xl font-black tracking-tight text-dc-ink">Top Regulars</h2>
+            <h2 class="mb-5 text-2xl font-bold tracking-tight text-dc-ink">Top Regulars</h2>
             <div v-if="topRegulars.length === 0" class="mb-4 text-sm text-dc-gray">
               Repeat attendance will appear after a few monthly CSV uploads.
             </div>
             <ol v-else class="space-y-4">
               <li v-for="(regular, index) in topRegulars" :key="regular.key" class="flex items-center gap-4 border-b-2 border-dc-border pb-4 last:border-b-0 last:pb-0">
-                <span class="w-9 shrink-0 font-mono text-xl font-black leading-none text-dc-pink" :aria-label="`Rank ${index + 1}`">{{ rankLabel(index + 1) }}</span>
+                <span class="w-9 shrink-0 font-mono text-xl font-semibold leading-none text-dc-pink" :aria-label="`Rank ${index + 1}`">{{ rankLabel(index + 1) }}</span>
                 <NaviiAvatar :seed="regular.key" :title="`${regular.name} avatar`" :size="44" />
                 <div class="min-w-0">
                   <p class="truncate font-bold text-dc-ink">{{ regular.name }}</p>
@@ -250,11 +252,11 @@ onUnmounted(() => {
             <div class="mb-5 flex items-start justify-between gap-3 pl-16 sm:pl-20">
               <div>
                 <p class="editorial-eyebrow">kahoot board</p>
-                <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Kahoot Leaderboard</h2>
+                <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Kahoot Leaderboard</h2>
               </div>
             </div>
             <div class="rounded-md border border-dashed border-dc-border bg-dc-paper px-4 py-5">
-              <p class="text-sm font-semibold leading-6 text-dc-gray">
+              <p class="text-sm font-medium leading-6 text-dc-gray">
                 Kahoot rankings will land here once the phase-one board is ready to publish.
               </p>
             </div>

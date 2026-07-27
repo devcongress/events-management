@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
-import type { Event, SpeakerIntakeLinkPurpose } from '@/types';
+import type { ArchiveItemKind, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
 type IntakeEvent = Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'status'>;
 type IntakePrefill = {
@@ -19,6 +19,7 @@ const route = useRoute();
 const event = ref<IntakeEvent | null>(null);
 const expiresAt = ref<string | null>(null);
 const linkPurpose = ref<SpeakerIntakeLinkPurpose>('archive_backfill');
+const archiveItemKind = ref<ArchiveItemKind>('talk');
 const loading = ref(true);
 const submitting = ref(false);
 const submitted = ref(false);
@@ -66,6 +67,42 @@ function isSelectedSpeakerLink() {
   return linkPurpose.value === 'selected_speaker_confirmation';
 }
 
+function isProductDemo() {
+  return archiveItemKind.value === 'product_demo';
+}
+
+function archiveItemLabel() {
+  return isProductDemo() ? 'Product demo' : 'Talk';
+}
+
+function presenterLabel() {
+  return isProductDemo() ? 'Presenter' : 'Speaker';
+}
+
+function resourceLabel() {
+  return isProductDemo() ? 'Demo or product URL' : 'Slides URL';
+}
+
+function archiveHeading() {
+  if (isSelectedSpeakerLink()) {
+    return isProductDemo() ? 'Send Your Demo Link' : 'Send Your Slides';
+  }
+
+  return isProductDemo() ? 'Share Product Demo Details' : 'Share Talk Details';
+}
+
+function archiveIntro() {
+  if (isSelectedSpeakerLink()) {
+    return isProductDemo()
+      ? 'The organizers already have your selected demo details. Add the public product or demo link to complete the archive record.'
+      : 'The organizers already have your selected talk details. Add your slides link to complete the archive record.';
+  }
+
+  return isProductDemo()
+    ? 'Complete the product demo record the organizers requested. Your name and email are already secured to this private link.'
+    : 'Complete the talk record the organizers requested. Your name and email are already secured to this private link.';
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
@@ -104,10 +141,10 @@ async function submitTalkDetails() {
       submitted.value = true;
     } else {
       const data = await response.json();
-      error.value = data.error || 'Failed to submit talk details';
+      error.value = data.error || `The ${archiveItemLabel().toLowerCase()} details could not be submitted.`;
     }
   } catch {
-    error.value = 'Failed to submit talk details';
+    error.value = `The ${archiveItemLabel().toLowerCase()} details could not be submitted. Check your connection and try again.`;
   } finally {
     submitting.value = false;
   }
@@ -121,9 +158,10 @@ onMounted(async () => {
       event.value = data.event;
       expiresAt.value = data.link?.expires_at ?? null;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
+      archiveItemKind.value = data.link?.kind === 'product_demo' ? 'product_demo' : 'talk';
       applyPrefill(data.prefill ?? {});
     } else {
-      unavailableMessage.value = data.error || 'This speaker form link is no longer available.';
+      unavailableMessage.value = data.error || 'This archive form link is no longer available.';
     }
   } finally {
     loading.value = false;
@@ -148,9 +186,9 @@ function applyPrefill(prefill: IntakePrefill) {
 
     <div v-else-if="unavailableMessage" class="flex min-h-screen items-center justify-center p-4">
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
-        <h2 class="mb-3 font-mono text-2xl font-bold text-dc-ink">LINK CLOSED</h2>
-        <p class="font-mono text-dc-gray">{{ unavailableMessage }}</p>
-        <p class="mt-4 font-mono text-sm text-dc-gray">You can close this tab.</p>
+        <h2 class="mb-3 text-2xl font-bold text-dc-ink">Link closed</h2>
+        <p class="text-dc-gray">{{ unavailableMessage }}</p>
+        <p class="mt-4 text-sm text-dc-gray">You can close this tab.</p>
       </div>
     </div>
 
@@ -160,22 +198,31 @@ function applyPrefill(prefill: IntakePrefill) {
 
     <div v-else-if="submitted" class="flex min-h-screen items-center justify-center p-4">
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
-        <div class="mb-6 font-mono text-6xl font-black text-dc-pink">OK</div>
-        <h2 class="mb-4 font-mono text-3xl font-bold text-dc-ink">RECEIVED</h2>
-        <p class="mb-6 font-mono text-dc-gray">
-          {{ isSelectedSpeakerLink() ? 'Your slides link has been sent to the organizers. This link is now closed.' : 'Your talk details have been sent to the organizers. This link is now closed.' }}
+        <div class="mb-6 font-mono text-6xl font-bold text-dc-pink">OK</div>
+        <h2 class="mb-4 text-3xl font-bold text-dc-ink">Received</h2>
+        <p class="mb-6 text-dc-gray">
+          {{
+            isSelectedSpeakerLink()
+              ? isProductDemo()
+                ? 'Your demo link has been sent to the organizers. This link is now closed.'
+                : 'Your slides link has been sent to the organizers. This link is now closed.'
+              : isProductDemo()
+                ? 'Your product demo details have been sent to the organizers. This link is now closed.'
+                : 'Your talk details have been sent to the organizers. This link is now closed.'
+          }}
         </p>
-        <p class="font-mono text-sm text-dc-gray">You can close this tab.</p>
+        <p class="text-sm text-dc-gray">You can close this tab.</p>
       </div>
     </div>
 
     <div v-else class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
       <div class="editorial-header">
-        <p class="editorial-eyebrow">{{ linkPurpose === 'selected_speaker_confirmation' ? 'selected speaker' : 'speaker archive' }}</p>
-        <h1 class="editorial-title">{{ linkPurpose === 'selected_speaker_confirmation' ? 'Send Your Slides' : 'Share Talk Details' }}</h1>
+        <p class="editorial-eyebrow">{{ isSelectedSpeakerLink() ? `selected ${archiveItemLabel()}` : `${archiveItemLabel()} archive` }}</p>
+        <h1 class="editorial-title">{{ archiveHeading() }}</h1>
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
         </p>
+        <p class="mt-3 max-w-2xl text-sm font-medium leading-6 text-dc-gray">{{ archiveIntro() }}</p>
       </div>
 
       <div
@@ -185,7 +232,7 @@ function applyPrefill(prefill: IntakePrefill) {
         <p v-if="event.description" class="line-clamp-2 min-w-0 flex-1 text-sm leading-5 text-dc-gray sm:line-clamp-1">
           {{ event.description }}
         </p>
-        <p v-if="expiresAt" class="shrink-0 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">
+        <p v-if="expiresAt" class="shrink-0 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">
           Link expires {{ formatDateTime(expiresAt) }}
         </p>
       </div>
@@ -194,9 +241,9 @@ function applyPrefill(prefill: IntakePrefill) {
         <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
 
         <div v-if="isSelectedSpeakerLink()" class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
-          <p class="editorial-eyebrow">Selected talk</p>
-          <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">{{ form.title }}</h2>
-          <p class="mt-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+          <p class="editorial-eyebrow">Selected {{ archiveItemLabel() }}</p>
+          <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
+          <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
             {{ form.speaker_name }} <span class="mx-2 text-dc-pink">/</span> {{ form.topic || 'General' }}
           </p>
           <p v-if="form.abstract" class="mt-4 text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
@@ -204,44 +251,52 @@ function applyPrefill(prefill: IntakePrefill) {
 
         <template v-else>
           <section class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
-            <p class="editorial-eyebrow">Invited speaker</p>
-            <p class="mt-2 text-xl font-black tracking-tight text-dc-ink">{{ form.speaker_name }}</p>
-            <p class="mt-1 font-mono text-xs font-bold text-dc-gray">{{ form.speaker_email }}</p>
+            <p class="editorial-eyebrow">Invited {{ presenterLabel() }}</p>
+            <p class="mt-2 text-xl font-bold tracking-tight text-dc-ink">{{ form.speaker_name }}</p>
+            <p class="mt-1 font-mono text-xs font-semibold text-dc-gray">{{ form.speaker_email }}</p>
           </section>
 
           <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
             <label class="block">
-              <span class="editorial-label">Talk title *</span>
-              <input v-model="form.title" required placeholder="Talk title" class="editorial-input font-mono" />
+              <span class="editorial-label">{{ archiveItemLabel() }} title *</span>
+              <input v-model="form.title" required :placeholder="`${archiveItemLabel()} title`" class="editorial-input" />
             </label>
-            <div class="block">
-              <span class="editorial-label">Topic</span>
-              <AppDropdown
-                v-model="form.topic"
-                :options="topicOptions"
-                menu-class="cfp-topic-menu"
-              />
-            </div>
+            <AppDropdown
+              v-model="form.topic"
+              label="Topic"
+              :options="topicOptions"
+              menu-class="cfp-topic-menu"
+            />
           </div>
 
           <label class="block">
-            <span class="editorial-label">Abstract</span>
-            <textarea v-model="form.abstract" rows="5" class="editorial-input min-h-36 resize-y font-mono" />
+            <span class="editorial-label">{{ isProductDemo() ? 'Demo summary' : 'Abstract' }}</span>
+            <textarea v-model="form.abstract" rows="5" class="editorial-input min-h-36 resize-y" />
           </label>
 
           <label class="block">
-            <span class="editorial-label">Speaker bio</span>
-            <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y font-mono" />
+            <span class="editorial-label">{{ presenterLabel() }} bio</span>
+            <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y" />
           </label>
         </template>
 
         <label class="block">
-          <span class="editorial-label">Slides URL<span v-if="isSelectedSpeakerLink()"> *</span></span>
+          <span class="editorial-label">{{ resourceLabel() }}<span v-if="isSelectedSpeakerLink()"> *</span></span>
           <input v-model="form.slides_url" :required="isSelectedSpeakerLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
         </label>
 
-        <button type="submit" :disabled="submitting" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50">
-          {{ submitting ? 'SUBMITTING...' : isSelectedSpeakerLink() ? 'SEND SLIDES' : 'SEND DETAILS' }}
+        <button type="submit" :disabled="submitting" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50">
+          {{
+            submitting
+              ? 'SUBMITTING...'
+              : isSelectedSpeakerLink()
+                ? isProductDemo()
+                  ? 'SEND DEMO LINK'
+                  : 'SEND SLIDES'
+                : isProductDemo()
+                  ? 'SEND PRODUCT DEMO DETAILS'
+                  : 'SEND TALK DETAILS'
+          }}
         </button>
       </form>
     </div>

@@ -40,13 +40,17 @@ Quarterly meetup checklists are intentionally short: create the event shell, the
 
 Before an event is published publicly, organizers can disable incomplete checklist milestones that do not apply to that event. Disabled milestones stay visible, cannot be checked off, and do not count toward checklist progress. The monthly `Prepare system design session` milestone remains configurable after publication: choose `Not this month` when that meetup has no scenario, or `Include this month` to restore it.
 
-## Review Talks
+## Build the Event Archive
 
-The Talks section is split into a workflow: CFP, Proposals, Program, and Legacy Backfill. Use CFP to open or close the public proposal form and copy the share link for upcoming monthly meetups only. Use Proposals to review public CFP submissions, select or reject speakers, then copy selected-speaker slides links from the shared link shelf once speakers are selected. Use Program to manage confirmed talks, slides, reminders, and publishing. Legacy Backfill is temporary cleanup for confirmed or past talks that did not go through the CFP flow; it generates speaker archive links and keeps newly generated links available to copy/open until organizers remove them. Speaker links are tied to the event month and close after one successful submission.
+**Event Archive** is the organizer's collection of lasting event items. Each item is either a **Talk** or **Product demo**. Older records that do not show a kind are treated as Talks.
+
+For July, use **Archive Requests** when a known participant did not enter through proposals: choose Talk or Product demo, enter the invited person's name and email, choose the expiry, then generate the private one-time link. The link is locked to that person, event, and item kind. It closes after one successful submission, and the completed item lands in Event Archive for organizer review. It is not public until an organizer explicitly publishes it.
+
+For later meetups, use CFP to open or close the public proposal form and Proposals to select or reject submissions. A selected proposal receives its own private completion link. When the participant submits it, the result enters the same Event Archive model as the July manual path; it is not a second archive or a different record type.
 
 ## Manage Speakers
 
-The Speakers section keeps the invite/access list aligned with the program. Adding a manual talk also keeps that speaker email available for speaker access.
+The Speakers section is an event-scoped identity and access allowlist. It is separate from Event Archive: adding someone to the allowlist does not create or publish an archive item, and an archive item remains content even if access rules later change. Archive creation may keep a matching speaker email on the allowlist for compatibility, but organizers should use Event Archive—not Speakers—to review and publish talks or product demos.
 
 ## Review Attendance
 
@@ -58,7 +62,7 @@ The Attendance section accepts a Luma guest CSV export for the event. After impo
 - Check-in rate
 - Registered people who did not check in
 
-The global Attendance Hub gives a month-by-month ledger for venue planning. Each imported event shows how many people came out of the total registrations, followed by the percentage calculated from that same total. The adjacent Attendance patterns panel offers three selected-year views from uploaded CSVs: recent approved RSVPs versus check-ins, the distribution of repeat RSVP follow-through, and the share of approved RSVPs who came or missed. For people with repeat approved RSVPs, the trail at the bottom reads oldest to newest: pink checks mean they came, while yellow crosses mean they registered but did not check in.
+The global Attendance Hub gives a month-by-month ledger for venue planning. Each imported event shows how many people came out of the total registrations, followed by the percentage calculated from that same total. The adjacent Attendance patterns panel offers two selected-year views from uploaded CSVs: recent approved RSVPs versus check-ins, and the share of approved RSVPs who came or missed. The people table defaults to regular attendees with at least two check-ins, showing their registration count, check-ins, attendance rate, and last check-in. Switch to **Never came** to find everyone with at least two approved RSVPs and no recorded check-in, together with their missed count and latest RSVP.
 
 ## Collect Feedback
 

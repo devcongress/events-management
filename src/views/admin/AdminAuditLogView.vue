@@ -235,7 +235,7 @@ onUnmounted(() => {
               />
               <button
                 type="button"
-                class="motion-press min-h-[50px] rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25"
+                class="motion-press min-h-[50px] rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25"
                 :class="groupByActorEmail ? 'bg-dc-yellow' : 'bg-dc-paper hover:bg-dc-paper-warm'"
                 :aria-pressed="groupByActorEmail"
                 @click="toggleGroupByActorEmail"
@@ -263,9 +263,9 @@ onUnmounted(() => {
           >
             <div>
               <p class="editorial-eyebrow mb-1">activity</p>
-              <h2 class="text-xl font-black tracking-tight text-dc-ink">{{ orderedLogs.length }} recent item{{ orderedLogs.length === 1 ? '' : 's' }}</h2>
+              <h2 class="text-xl font-bold tracking-tight text-dc-ink">{{ orderedLogs.length }} recent item{{ orderedLogs.length === 1 ? '' : 's' }}</h2>
             </div>
-            <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+            <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
               Owner only
             </p>
           </div>
@@ -288,7 +288,7 @@ onUnmounted(() => {
                   <col class="w-[24%]">
                   <col class="w-[8%]">
                 </colgroup>
-                <thead class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                <thead class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                   <tr>
                     <th class="px-4 py-2.5">Time</th>
                     <th class="px-4 py-2.5">Actor</th>
@@ -313,28 +313,28 @@ onUnmounted(() => {
                 <tbody class="divide-y divide-dc-border">
                   <template v-for="group in visibleLogGroups" :key="group.key">
                     <tr v-if="groupByActorEmail" class="bg-dc-cream/70">
-                      <td colspan="6" class="px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                      <td colspan="6" class="px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                         <span class="text-dc-ink">{{ group.actorLabel }}</span>
                         <span class="ml-2">{{ group.count }} item{{ group.count === 1 ? '' : 's' }}</span>
                       </td>
                     </tr>
                     <tr v-for="log in group.logs" :key="log.id">
-                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-bold uppercase leading-snug tracking-wide text-dc-gray">{{ formatDateTime(log.created_at) }}</td>
+                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-semibold uppercase leading-snug tracking-wide text-dc-gray">{{ formatDateTime(log.created_at) }}</td>
                       <td class="px-4 py-2.5 align-top">
                         <p class="w-full truncate text-sm font-semibold text-dc-ink">{{ log.actor_email ?? 'System' }}</p>
-                        <p class="mt-1 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ log.actor_role ?? '-' }}</p>
+                        <p class="mt-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ log.actor_role ?? '-' }}</p>
                       </td>
-                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink">
+                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink">
                         <span class="block truncate">{{ actionLabel(log.action) }}</span>
                       </td>
                       <td class="px-4 py-2.5 align-top">
-                        <p class="w-full truncate font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ log.target_type ?? '-' }}</p>
+                        <p class="w-full truncate font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ log.target_type ?? '-' }}</p>
                         <p class="mt-1 w-full truncate text-xs text-dc-gray">{{ log.target_id ?? '-' }}</p>
                       </td>
                       <td class="px-4 py-2.5 align-top text-sm text-dc-gray">
                         <span class="block w-full truncate">{{ metadataSummary(log) }}</span>
                       </td>
-                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                      <td class="px-4 py-2.5 align-top font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                         <span class="block truncate">{{ log.ip_address ?? '-' }}</span>
                       </td>
                     </tr>

@@ -378,7 +378,7 @@ function goToPage(nextPage: number) {
         <section class="editorial-panel mb-6 overflow-hidden">
           <div class="border-b-2 border-dc-ink bg-dc-paper-warm px-5 py-4">
             <p class="editorial-eyebrow">active path</p>
-            <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Import from Luma Event</h2>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Import from Luma Event</h2>
             <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Paste the public Luma event URL and we will pull in the event shell from the details Luma exposes.</p>
           </div>
           <form class="space-y-4 p-5" @submit.prevent="handleLumaPreview">
@@ -413,10 +413,10 @@ function goToPage(nextPage: number) {
               <p class="editorial-eyebrow mb-2">import summary</p>
               <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div class="min-w-0">
-                  <h3 class="text-2xl font-black leading-tight text-dc-ink">{{ lumaPreview.preview.name }}</h3>
-                  <p class="mt-2 font-mono text-sm font-bold uppercase text-dc-gray">{{ formatDate(lumaPreview.preview.event_date) }}</p>
+                  <h3 class="text-2xl font-bold leading-tight text-dc-ink">{{ lumaPreview.preview.name }}</h3>
+                  <p class="mt-2 font-mono text-sm font-semibold uppercase text-dc-gray">{{ formatDate(lumaPreview.preview.event_date) }}</p>
                   <div class="mt-3 flex flex-wrap gap-2">
-                    <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">
+                    <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
                       {{ EVENT_SERIES_LABELS[lumaSeriesType] }}
                     </span>
                   </div>
@@ -427,18 +427,18 @@ function goToPage(nextPage: number) {
                     :href="lumaPreview.preview.registration_url"
                     target="_blank"
                     rel="noreferrer"
-                    class="mt-3 inline-flex font-mono text-xs font-bold uppercase text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4"
+                    class="mt-3 inline-flex font-mono text-xs font-semibold uppercase text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4"
                   >
                     View Luma page
                   </a>
-                  <p v-if="lumaPublishedConflict" class="mt-3 text-sm font-semibold text-dc-gray">This Luma event is already published in community. Remove it and re-import if you want a fresh draft.</p>
-                  <p v-else-if="lumaPreview.already_imported" class="mt-3 text-sm font-semibold text-dc-gray">This Luma event already exists in the event list.</p>
+                  <p v-if="lumaPublishedConflict" class="mt-3 text-sm font-medium text-dc-gray">This Luma event is already published in community. Remove it and re-import if you want a fresh draft.</p>
+                  <p v-else-if="lumaPreview.already_imported" class="mt-3 text-sm font-medium text-dc-gray">This Luma event already exists in the event list.</p>
                 </div>
                 <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
                   <button
                     v-if="lumaPreview.already_imported"
                     type="button"
-                    class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink"
+                    class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink"
                     @click="openExistingLumaEvent"
                   >
                     OPEN ORGANIZER EVENT
@@ -463,7 +463,7 @@ function goToPage(nextPage: number) {
                   </button>
                   <button
                     type="button"
-                    class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink"
+                    class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink"
                     :disabled="lumaImporting"
                     @click="clearLumaPreview"
                   >
@@ -479,7 +479,7 @@ function goToPage(nextPage: number) {
           <div class="coming-soon-ribbon">Coming soon</div>
           <div class="pl-16 sm:pl-20">
             <p class="editorial-eyebrow">manual path</p>
-            <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Event Form</h2>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Event Form</h2>
             <p class="mt-1 text-sm leading-6 text-dc-gray">This manual setup flow is visible for shape and review, but disabled while Luma import is the supported event creation path.</p>
           </div>
           <div class="mt-5 grid gap-3 opacity-50 md:grid-cols-4">
@@ -523,7 +523,7 @@ function goToPage(nextPage: number) {
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div class="shrink-0">
                 <p class="editorial-eyebrow">lifecycle</p>
-                <h2 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Event status</h2>
+                <h2 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Event status</h2>
               </div>
               <ol class="flex min-w-0 flex-wrap gap-2">
                 <li
@@ -546,13 +546,13 @@ function goToPage(nextPage: number) {
                     role="tooltip"
                   >
                     <div class="flex items-start justify-between gap-4">
-                      <p class="font-mono text-[11px] font-black uppercase tracking-wide text-dc-pink">Stage {{ index + 1 }}</p>
-                      <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-dc-gray">
+                      <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Stage {{ index + 1 }}</p>
+                      <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-2 py-0.5 font-mono text-[10px] font-semibold uppercase text-dc-gray">
                         {{ stage.actionLabel }}
                       </span>
                     </div>
-                    <h3 class="mt-2 text-sm font-black uppercase tracking-wide text-dc-ink">{{ stage.label }}</h3>
-                    <p class="mt-2 text-sm font-semibold leading-5 text-dc-gray">{{ stage.description }}</p>
+                    <h3 class="mt-2 text-sm font-bold uppercase tracking-wide text-dc-ink">{{ stage.label }}</h3>
+                    <p class="mt-2 text-sm font-medium leading-5 text-dc-gray">{{ stage.description }}</p>
                     <p class="mt-3 border-t border-dc-border pt-3 text-xs font-semibold leading-5 text-dc-ink">
                       {{ stage.organizerMove }}
                     </p>
@@ -567,7 +567,7 @@ function goToPage(nextPage: number) {
             <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p class="editorial-eyebrow">filter</p>
-                <p class="mt-1 text-sm font-semibold text-dc-gray">
+                <p class="mt-1 text-sm font-medium text-dc-gray">
                   {{ filteredEvents.length }} event{{ filteredEvents.length === 1 ? '' : 's' }} in {{ selectedMonthLabel.toLowerCase() }}
                 </p>
               </div>
@@ -598,7 +598,7 @@ function goToPage(nextPage: number) {
                 <div class="ops-label text-right">Actions</div>
               </div>
               <div>
-                <div v-if="filteredEvents.length === 0" class="px-5 py-8 text-sm font-semibold text-dc-gray">
+                <div v-if="filteredEvents.length === 0" class="px-5 py-8 text-sm font-medium text-dc-gray">
                   No events match this filter.
                 </div>
                 <template v-else>
@@ -618,14 +618,14 @@ function goToPage(nextPage: number) {
                         <div class="flex min-w-0 flex-wrap items-center gap-2">
                           <div class="event-list-title">{{ formatEventMonth(event.event_date) }}</div>
                           <span
-                            class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide"
+                            class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide"
                             :class="eventKindClass(event)"
                           >
                             {{ eventKindLabel(event) }}
                           </span>
                           <span
                             v-if="isDraftEvent(event)"
-                            class="rounded-sm border border-dc-yellow bg-dc-yellow/10 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink"
+                            class="rounded-sm border border-dc-yellow bg-dc-yellow/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink"
                           >
                             Draft
                           </span>

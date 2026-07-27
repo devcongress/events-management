@@ -139,6 +139,16 @@ assert(detail.payload.data.id === firstMeetup.id, 'meetup detail must match list
 const talks = await getJson<unknown[]>(`/api/public/meetups/${firstMeetup.slug}/talks`);
 assertPublicHeaders(talks.response, 'GET /api/public/meetups/:slug/talks');
 assert(Array.isArray(talks.payload.data), 'meetup talks data must be an array');
+talks.payload.data.forEach((item, index) => {
+  assert(item && typeof item === 'object', `meetup talks data[${index}] must be an object`);
+  const archiveItem = item as Record<string, unknown>;
+  assert(
+    archiveItem.kind === 'talk' || archiveItem.kind === 'product_demo',
+    `meetup talks data[${index}].kind must be talk or product_demo`,
+  );
+  assertString(archiveItem.event_name, `meetup talks data[${index}].event_name`);
+  assert(!('speaker_email' in archiveItem), `meetup talks data[${index}] must not expose speaker_email`);
+});
 assert(talks.payload.meta?.meetup_id === firstMeetup.id, 'talks meta.meetup_id must match meetup id');
 assert(talks.payload.meta?.meetup_slug === firstMeetup.slug, 'talks meta.meetup_slug must match meetup slug');
 

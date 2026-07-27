@@ -144,7 +144,7 @@ function periodButtonDetail(month: FeedbackMonth): string {
 
         <section v-if="months.length === 0" class="editorial-panel p-8">
           <p class="editorial-eyebrow">fresh start</p>
-          <h2 class="text-3xl font-black tracking-tight text-dc-ink">No event feedback yet.</h2>
+          <h2 class="text-3xl font-bold tracking-tight text-dc-ink">No event feedback yet.</h2>
           <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">Create events first. Completed, monthly, quarterly, and one-off events can all expose feedback forms.</p>
         </section>
 
@@ -202,7 +202,7 @@ function periodButtonDetail(month: FeedbackMonth): string {
                     <div v-if="selectedMonth.events.length === 0" class="p-6">
                       <div class="feedback-empty-state">
                         <p class="editorial-eyebrow mb-2">empty month</p>
-                        <h3 class="text-2xl font-black tracking-tight text-dc-ink">No feedback cycle yet.</h3>
+                        <h3 class="text-2xl font-bold tracking-tight text-dc-ink">No feedback cycle yet.</h3>
                         <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">When an event is scheduled for {{ selectedMonth.label }}, its feedback window and response signal will appear here.</p>
                       </div>
                     </div>
@@ -211,8 +211,8 @@ function periodButtonDetail(month: FeedbackMonth): string {
                     <article v-for="item in selectedMonth.events" :key="item.event.id" class="feedback-event-row">
                       <div class="feedback-event-main">
                         <div class="feedback-event-title-row">
-                          <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ item.event.name }}</h3>
-                          <span v-if="!item.is_open" class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide" :class="statusClass(item)">
+                          <h3 class="text-xl font-bold tracking-tight text-dc-ink">{{ item.event.name }}</h3>
+                          <span v-if="!item.is_open" class="rounded-md border px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide" :class="statusClass(item)">
                             {{ eventStatusLabel(item) }}
                           </span>
                         </div>

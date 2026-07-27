@@ -20,6 +20,13 @@ const config: Config = {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'Courier New', 'monospace'],
       },
+      fontWeight: {
+        normal: 'var(--font-weight-body)',
+        medium: 'var(--font-weight-emphasis)',
+        semibold: 'var(--font-weight-label)',
+        bold: 'var(--font-weight-heading)',
+        extrabold: 'var(--font-weight-display)',
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -151,7 +151,7 @@ watch(years, (availableYears) => {
       <CommunityMasthead
         eyebrow="community memory"
         title="Archive"
-        description="Find the talks, speakers, topics, and slide decks that keep the community useful after event night."
+        description="Find the talks, product demos, presenters, and resources that keep the community useful after event night."
       />
 
       <ArchivePageSkeleton v-if="loading" />
@@ -168,7 +168,7 @@ watch(years, (availableYears) => {
             <button
               v-for="year in years"
               :key="year"
-              class="motion-press shrink-0 rounded-md px-5 py-3 font-mono text-sm font-bold"
+              class="motion-press shrink-0 rounded-md px-5 py-3 font-mono text-sm font-semibold"
               :class="activeYear === year ? 'border-2 border-dc-ink bg-dc-yellow text-dc-ink' : 'border-2 border-dc-ink bg-dc-paper text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink'"
               @click="selectedYear = year"
             >
@@ -177,7 +177,7 @@ watch(years, (availableYears) => {
           </div>
 
           <nav class="hidden rounded-lg border-2 border-dc-ink bg-dc-paper p-3 shadow-[3px_3px_0_#111111] lg:block">
-            <div class="mb-3 px-2 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-dc-pink">
+            <div class="mb-3 px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-dc-pink">
               Years
             </div>
             <ul class="space-y-1">
@@ -188,7 +188,7 @@ watch(years, (availableYears) => {
                   @click="selectedYear = year"
                 >
                   <div class="flex items-baseline justify-between gap-3">
-                    <span class="font-mono text-lg font-bold tracking-tight">{{ year }}</span>
+                    <span class="font-mono text-lg font-semibold tracking-tight">{{ year }}</span>
                     <span class="font-mono text-[11px]" :class="activeYear === year ? 'text-dc-ink/70' : 'text-dc-gray'">
                       {{ yearEventCount(year) }}
                     </span>
@@ -203,13 +203,13 @@ watch(years, (availableYears) => {
           <header class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-dc-pink">Selected year</p>
-              <h2 class="mt-1 text-4xl font-black leading-none tracking-tight text-dc-ink sm:text-5xl">
+              <h2 class="mt-1 text-4xl font-bold leading-none tracking-tight text-dc-ink sm:text-5xl">
                 {{ activeYear }}
               </h2>
             </div>
             <div class="flex gap-2 font-mono text-xs uppercase tracking-wide text-dc-gray">
               <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ selectedYearEvents.length }} events</span>
-              <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ selectedYearTalkCount }} talks</span>
+              <span class="rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2">{{ selectedYearTalkCount }} archive items</span>
             </div>
           </header>
 
@@ -220,7 +220,7 @@ watch(years, (availableYears) => {
                 v-model="query"
                 class="editorial-input mt-2"
                 type="search"
-                placeholder="Search event, talk, speaker, topic, system design"
+                placeholder="Search event, talk, demo, presenter, or topic"
               >
             </label>
 
@@ -250,7 +250,7 @@ watch(years, (availableYears) => {
           </section>
 
           <div v-if="!hasArchiveMatches" class="editorial-panel p-8">
-            <h3 class="text-2xl font-black tracking-tight text-dc-ink">No archive matches</h3>
+            <h3 class="text-2xl font-bold tracking-tight text-dc-ink">No archive matches</h3>
             <p class="mt-2 text-dc-gray">Try a broader topic, speaker, or search term.</p>
           </div>
 
@@ -264,16 +264,16 @@ watch(years, (availableYears) => {
               <article class="grid gap-5 lg:grid-cols-[116px_1fr]">
                 <div class="flex items-center gap-3 lg:block">
                   <time class="flex size-[76px] shrink-0 flex-col items-center justify-center rounded-md border-2 border-dc-ink bg-dc-yellow text-center">
-                    <span class="font-mono text-[11px] font-bold uppercase tracking-wider text-dc-pink">{{ eventDateParts(event.event_date).month }}</span>
-                    <span class="font-mono text-3xl font-bold leading-none text-dc-ink">{{ eventDateParts(event.event_date).day }}</span>
+                    <span class="font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-pink">{{ eventDateParts(event.event_date).month }}</span>
+                    <span class="font-mono text-3xl font-semibold leading-none text-dc-ink">{{ eventDateParts(event.event_date).day }}</span>
                   </time>
                   <div class="font-mono text-xs uppercase tracking-wide text-dc-gray lg:mt-3">
-                    {{ publishedTalksFor(event.id).length }} talks
+                    {{ publishedTalksFor(event.id).length }} archive items
                   </div>
                 </div>
 
                 <div class="min-w-0">
-                  <h3 class="motion-colors text-2xl font-black tracking-tight text-dc-ink group-hover:text-dc-pink sm:text-3xl">
+                  <h3 class="motion-colors text-2xl font-bold tracking-tight text-dc-ink group-hover:text-dc-pink sm:text-3xl">
                     {{ event.name }}
                   </h3>
                   <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray sm:text-base">
@@ -284,12 +284,12 @@ watch(years, (availableYears) => {
                     <span
                       v-for="tag in tagsFor(event.id)"
                       :key="tag"
-                      class="rounded-full border border-dc-ink bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-dc-ink"
+                      class="rounded-full border border-dc-ink bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-dc-ink"
                     >
                       {{ tag }}
                     </span>
                     <span v-if="publishedTalksFor(event.id).length === 0" class="font-mono text-xs uppercase tracking-wider text-dc-gray">
-                      No published talks
+                      No published archive items
                     </span>
                   </div>
 
@@ -303,8 +303,8 @@ watch(years, (availableYears) => {
                         <p class="truncate text-sm font-semibold text-dc-ink">{{ talk.title }}</p>
                         <p class="mt-1 truncate text-xs text-dc-gray">{{ talk.speaker_name }}</p>
                       </div>
-                      <span class="mt-2 inline-block font-mono text-[10px] font-bold uppercase tracking-wider text-dc-pink sm:mt-0">
-                        {{ talk.topic }}
+                      <span class="mt-2 inline-block font-mono text-[10px] font-semibold uppercase tracking-wider text-dc-pink sm:mt-0">
+                        {{ talk.kind === 'product_demo' ? 'Product demo' : 'Talk' }}<template v-if="talk.topic"> · {{ talk.topic }}</template>
                       </span>
                     </div>
                   </div>

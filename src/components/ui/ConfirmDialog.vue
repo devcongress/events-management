@@ -36,14 +36,14 @@ const emit = defineEmits<{
         aria-modal="true"
         :aria-labelledby="`${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-title`"
       >
-        <h2 :id="`${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-title`" class="text-2xl font-black leading-tight text-dc-ink">
+        <h2 :id="`${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-title`" class="text-2xl font-bold leading-tight text-dc-ink">
           {{ title }}
         </h2>
         <p class="mt-3 text-sm leading-6 text-dc-gray">{{ message }}</p>
         <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
-            class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-60"
+            class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="busy"
             @click="emit('cancel')"
           >
@@ -51,7 +51,7 @@ const emit = defineEmits<{
           </button>
           <button
             type="button"
-            class="rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-xs font-bold uppercase tracking-wide text-white shadow-[3px_3px_0_#111111] disabled:cursor-not-allowed disabled:opacity-60"
+            class="rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-white shadow-[3px_3px_0_#111111] disabled:cursor-not-allowed disabled:opacity-60"
             :class="danger ? 'bg-red-600' : 'bg-dc-pink'"
             :disabled="busy"
             @click="emit('confirm')"

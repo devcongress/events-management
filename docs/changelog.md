@@ -5,6 +5,41 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-27 — Resend-powered Archive Request emails
+
+- Replaced one-at-a-time link generation with a program-sourced speaker multi-select that sends up to 100 personalized Archive Request emails in one organizer action.
+- Resolved recipient addresses from exact stored proposal, talk, or event-speaker matches; missing and conflicting addresses remain visibly disabled instead of being guessed.
+- Embedded each private, topic-bound form URL behind a branded email call-to-action, retained a plain-text fallback, and kept all dynamic HTML escaped.
+- Added an authenticated Worker endpoint that derives recipient identity server-side, creates or reuses one-time links, calls Resend Batch with idempotency, and records pending, accepted, or retryable failed states without logging private tokens.
+- Disabled accepted program rows to prevent repeat sends from the UI, enforced the same duplicate suppression on the server, and added count-aware success toasts.
+- Added contract coverage for multi-recipient sends, provider retries, duplicate suppression, delivery persistence, strict speaker matching, and template/client behavior.
+
+## 2026-07-27 — Unified Event Archive workflow
+
+- Reframed the organizer's lasting event content as one **Event Archive**, with `talk` and `product_demo` item kinds stored through the existing Talk compatibility model; records without a kind continue to resolve as talks.
+- Aligned July manual **Archive Requests** and the later selected-proposal completion flow so both produce the same archive record instead of maintaining separate speaker/backfill outcomes.
+- Locked each one-time intake link to its event, recipient identity, and item kind, while keeping publication as an explicit organizer decision after form completion.
+- Mounted the organizer-generated `/cfp/:eventId` link in the active Vue router, added the same Talk/Product demo choice to proposals, and kept the proposal form focused by removing the GitHub username field.
+- Kept the Speakers allowlist separate as an event-access mechanism, preserved existing `/talks` public names with additive `kind` and `archive_items` fields, and recorded the separate hosted `community_events` projection as a known archive-enrichment limitation.
+- Replaced per-instance-reset field counters with Vue-generated IDs across app dropdowns, multi-selects, and date pickers so forms with several custom controls retain correct accessible labels.
+- Hardened the public CFP and private intake states with connected topic labels, non-blocking native validation, clear network errors, neutral proposal confirmation, and no exit links into the organizer console.
+- Invalidated selected-presenter links after deselection or event/type drift, restricted archive resource links to HTTP(S), and serialized same-token submissions with atomic duplicate checks so retries cannot create a second archive record in one runtime.
+- Simplified Archive Requests into one full-width form, sourced its topic/speaker selector from eligible presenter-led rows in the event's saved program outline, excluded welcome-address and system-design rows, and removed the duplicate presenter-name field while preserving the locked identity required by private links.
+
+## 2026-07-27 — Uniform application typography hierarchy
+
+- Preserved the existing Inter and IBM Plex Mono pairing, DevCongress palette, spacing, borders, and motion while replacing the app's scattered 650–950 weights with one body-to-display scale from 400 through 800.
+- Reserved Inter 800 for page and hero display, Inter 700 for section titles and major metrics, Inter 500 for form values and supporting emphasis, and IBM Plex Mono 600 for labels, navigation, statuses, and controls.
+- Removed the unused Inter 900 asset and disabled synthetic font weights so IBM Plex Mono can no longer be artificially emboldened beyond its loaded 700 face.
+- Normalized shared fields, dropdowns, calendars, public feedback, speaker intake, monthly meetup organizer routes, Annual Conference views, and retained public views without changing their color or layout treatment.
+- Added a regression test that rejects `font-black`, unsupported one-off weights, and synthetic monospace display combinations; all 96 tests, typecheck, production build, and source consistency checks pass.
+
+## 2026-07-27 — Phased Resend speaker email plan
+
+- Expanded the planned speaker-link delivery design into two deliberate email paths: transactional monthly archive requests with unique private links, and annual-conference Call for Speakers outreach through Resend Broadcasts with unsubscribe handling.
+- Defined the July manual single-recipient pilot, later selected-speaker multi-send, safe custom-note boundary, delivery ledger, idempotency, webhook states, Resend/Cloudflare setup, testing, and ownership checklist.
+- Recorded the prerequisites that email delivery must not hide: the canonical monthly CFP route must be settled, product-demo submissions need a source model, and the annual-conference CFP form must be live before outreach begins.
+
 ## 2026-07-27 — Organizer feature handoff hardening
 
 - Made the committed local environment example organizer-capable by selecting the required Supabase data source, while retaining `local-json` as an explicit public-only development mode.
@@ -15,15 +50,18 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-27 — Compact attendance pattern charts
 
-- Replaced the Attendance Hub's four stacked planning cards with one compact three-view panel so the monthly ledger remains the primary surface without adding more page height.
-- Added a grouped bar chart for approved RSVPs versus check-ins across the latest six uploaded events, a five-bin histogram for repeat RSVP follow-through, and a selected-year pie chart for approved attendees versus no-shows.
+- Replaced the Attendance Hub's four stacked planning cards with one compact two-view panel so the monthly ledger remains the primary surface without adding more page height.
+- Added a grouped bar chart for approved RSVPs versus check-ins across the latest six uploaded events and a selected-year pie chart for approved attendees versus no-shows.
 - Kept chart populations honest by excluding missing CSVs and pending or declined registrations, while retaining CSV coverage, median turnout, P80 turnout, and the room-capacity guide in the same panel.
-- Verified all three accessible chart summaries, zero horizontal overflow, and no browser errors at 1440px and 768px.
+- Removed the repeat-RSVP histogram because its grouped percentages were not clear enough to support an organizer decision; the chronological came/missed table remains the repeat-attendance view.
+- Verified both accessible chart summaries, zero horizontal overflow, and no browser errors at 1440px and 768px.
 
-## 2026-07-27 — RSVP follow-through trails
+## 2026-07-27 — Regular attendance and repeat no-show tracking
 
-- Replaced the repeat-attendee table's separate registration, check-in, and percentage columns with one chronological RSVP trail: pink checks show attended meetups, yellow crosses show approved RSVPs without a check-in, and exact came/missed counts plus the follow-through rate stay on the same row.
-- Ranked the table by repeat RSVP history so recurring attendees and recurring no-shows can both surface, excluded pending and declined registrations from the missed signal, and corrected the final column to show the person's latest actual check-in rather than their latest registration.
+- Restored the regular-attendee table's straightforward Registered, Came, Rate, and Last seen columns for people with at least two check-ins, ranked by actual check-ins and attendance rate.
+- Added a separate **Never came** view for people with at least two approved RSVPs and zero recorded check-ins, showing their RSVP count, missed count, no-show rate, and latest RSVP.
+- Kept pending and declined registrations outside the no-show signal so only approved commitments are tracked.
+- Capped the people table to a viewport-aware height with its own scrollbar and sticky column headings, keeping long no-show lists from stretching the full page.
 
 ## 2026-07-26 — Simpler speaker archive form
 

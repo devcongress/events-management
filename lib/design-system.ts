@@ -38,16 +38,24 @@ export const designSystem = {
 
   // Typography
   fonts: {
+    sans: 'var(--font-sans)',
     mono: 'var(--font-mono)',
-    display: 'var(--font-display)',
+    display: 'var(--font-sans)',
+  },
+  fontWeights: {
+    body: 400,
+    emphasis: 500,
+    label: 600,
+    heading: 700,
+    display: 800,
   },
 
   // Common Styles
   styles: {
     // Button variants
     buttons: {
-      primary: 'bg-dc-yellow text-dc-dark font-bold font-mono hover:shadow-glow transition-all uppercase tracking-wide',
-      secondary: 'border-2 border-dc-yellow text-dc-yellow font-bold font-mono hover:shadow-glow-sm transition-all uppercase tracking-wide',
+      primary: 'bg-dc-yellow text-dc-dark font-semibold font-mono hover:shadow-glow transition-all uppercase tracking-wide',
+      secondary: 'border-2 border-dc-yellow text-dc-yellow font-semibold font-mono hover:shadow-glow-sm transition-all uppercase tracking-wide',
       ghost: 'text-dc-yellow hover:text-dc-yellow-glow font-mono transition-colors',
     },
 
@@ -65,7 +73,7 @@ export const designSystem = {
 
     // Badge styles
     badges: {
-      yellow: 'px-3 py-1 bg-dc-yellow text-dc-dark font-mono text-xs font-bold uppercase tracking-wide',
+      yellow: 'px-3 py-1 bg-dc-yellow text-dc-dark font-mono text-xs font-semibold uppercase tracking-wide',
       outline: 'px-3 py-1 bg-dc-dark-2 border border-dc-yellow/30 font-mono text-xs text-dc-yellow',
     },
 
@@ -107,7 +115,7 @@ export function getStatusBadge(status: string) {
   const variant = variants[status as keyof typeof variants] || variants.pending;
 
   return {
-    className: `px-3 py-1 ${variant.bg} ${variant.text} font-mono text-xs font-bold border border-current`,
+    className: `px-3 py-1 ${variant.bg} ${variant.text} font-mono text-xs font-semibold border border-current`,
     label: variant.label,
   };
 }

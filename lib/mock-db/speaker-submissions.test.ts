@@ -38,6 +38,7 @@ describe('speaker submissions', () => {
     });
 
     expect(submission.status).toBe('submitted');
+    expect(submission.kind).toBe('talk');
     await expect(getSpeakerSubmissionsByEvent('event-july')).resolves.toHaveLength(1);
     await expect(createSpeakerSubmission({
       event_id: 'event-july',
@@ -49,6 +50,30 @@ describe('speaker submissions', () => {
       abstract: 'A practical testing talk.',
       bio: 'Community engineer.',
     })).rejects.toThrow('already been submitted');
+  });
+
+  it('persists product demo proposals without changing the proposal lifecycle', async () => {
+    const { createSpeakerSubmission, getSpeakerSubmissionById } = await importSubmissionsStore();
+
+    const submission = await createSpeakerSubmission({
+      event_id: 'event-july',
+      kind: 'product_demo',
+      speaker_name: 'Product Builder',
+      speaker_email: 'builder@example.com',
+      github_username: null,
+      title: 'Show the community tool',
+      topic: 'Product Engineering',
+      abstract: 'A short live product demonstration.',
+      bio: 'Community builder.',
+    });
+
+    expect(submission).toMatchObject({
+      kind: 'product_demo',
+      status: 'submitted',
+    });
+    await expect(getSpeakerSubmissionById(submission.id)).resolves.toMatchObject({
+      kind: 'product_demo',
+    });
   });
 
   it('records organizer decisions without creating a talk', async () => {

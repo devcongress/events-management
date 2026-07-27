@@ -1,152 +1,411 @@
-# Speaker Link Email Delivery
+# Event Archive Email Delivery with Resend
 
 ## Status
 
-Planned. This document defines the future delivery feature only; the application does not currently send email.
+Implemented for organizer-triggered monthly Archive Requests. Organizers can select up to 100 eligible program rows, and the Worker sends one personalized, private-link email per row through Resend's Batch API.
 
-## Overview
+Resend acceptance, safe retry, duplicate-send prevention, and organizer toasts are active. Provider delivery webhooks, scheduled reminders, and annual-conference Broadcasts remain future work.
 
-Organizers will be able to send a DevCongress-branded email for a named speaker's private archive-backfill or selected-speaker slides link. The email is a convenience delivery channel for an already-issued link: it must not create a shared link, alter the speaker identity, or make the link public.
+## Decision
 
-Supabase remains the system of record for organizer identity, audit history, and eventual delivery records. Resend performs transactional delivery. The existing authenticated Hono API Worker will call Resend directly, so no Supabase Edge Function is required for this first version.
+The two email types need separate delivery paths because they have different recipients, links, and unsubscribe requirements.
 
-## User Flows
+| Email type | When it is sent | Link type | Resend feature | First release |
+|---|---|---|---|---|
+| Monthly Event Archive request for a talk or product demo | After DevCongress selects or otherwise confirms a participant | One unique, private, expiring form link per program item | Resend Batch API | Implemented organizer multi-select |
+| Annual-conference Call for Speakers | Outreach before a person has submitted | One public conference CFP link shared by the campaign | Resend Contacts + Broadcasts with unsubscribe handling | Resend dashboard first; app integration later |
 
-### Send a backfill invitation
+The monthly request is a direct operational follow-up to a selected person. The conference Call for Speakers is broader outreach and should not be forced through the transactional archive-request endpoint. Resend makes the same distinction in its [transactional versus marketing guidance](https://resend.com/docs/knowledge-base/what-sending-feature-to-use).
 
-1. An organizer creates a speaker-bound backfill link in Legacy Backfill.
-2. The link shelf shows the invited speaker's name, email, status, expiry, and a `Preview email` action.
-3. The organizer previews the rendered message using the exact live speaker, event, URL, and expiry data.
-4. The organizer chooses `Send email`.
-5. The server sends only to the email stored on that link, records the delivery attempt, and returns a success or safe failure message.
-6. A later `Resend email` uses the same active link; it does not create a second link or change the recipient.
+```mermaid
+flowchart LR
+  organizer["Organizer chooses an email action"] --> kind{"Which type?"}
+  kind -->|"Monthly archive request"| privateLink["Create or reuse one private link per selected person"]
+  privateLink --> transactional["Resend Send Email or Batch API"]
+  kind -->|"Conference Call for Speakers"| publicForm["Use the public conference CFP link"]
+  publicForm --> broadcast["Resend Broadcast with unsubscribe handling"]
+```
 
-### Send a selected-speaker slides reminder
+## What the Application Already Has
 
-1. An organizer selects a CFP proposal and the app creates that speaker's private slides link.
-2. The organizer previews or sends the selected-speaker template from the proposal/speaker-link shelf.
-3. The recipient receives a message containing the private link and its expiry.
+### Monthly proposals and the Event Archive
 
-### Link lifecycle
+- The organizer-facing destination is **Event Archive**. Its items have a `kind` of `talk` or `product_demo`; the existing `Talk` model, routes, and public field names remain as a compatibility layer.
+- Existing records without `kind` are read as `talk`.
+- A public monthly speaker proposal becomes a `SpeakerSubmission`.
+- Marking a proposal `selected` creates a speaker-bound `selected_speaker_confirmation` link.
+- The selected-speaker form reuses the proposal's name, title, topic, abstract, and bio, then asks the speaker for the remaining slides URL.
+- Completing that link creates the same archive-item/Talk compatibility record used by the manual path. It does not publish the item.
+- The Proposals view already knows which participants are selected and which ones still need to complete their form.
+- The separate Speakers allowlist supports event-scoped identity/access; it is not the archive and is not a source of public archive content.
 
-- Only active, named speaker links can be emailed.
-- Used, expired, removed, or legacy anonymous links cannot be sent or resent.
-- A recipient email is never editable in the send action; changing the recipient requires issuing a new speaker-bound link.
-- The email contains both HTML and plain-text content.
+Relevant code:
 
-## Sender and Domain
+- [`AdminTalksView.vue`](../../src/views/admin/AdminTalksView.vue)
+- [`speaker-submissions.ts`](../../lib/mock-db/speaker-submissions.ts)
+- [`speaker-intake-links.ts`](../../lib/mock-db/speaker-intake-links.ts)
+- [`SpeakerTalkIntakeView.vue`](../../src/views/SpeakerTalkIntakeView.vue)
 
-Use a dedicated transactional sending subdomain so speaker mail does not alter the Zoho mail setup on the root domain:
+### Program-based archive request
+
+**Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Each row resolves one exact stored email from a selected proposal, existing talk, or the event speaker list; missing and ambiguous rows stay disabled. The selected row supplies the locked presenter name, talk title, and archive-item kind.
+
+One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The form collects the remaining topic, abstract, bio, and optional public resource URL. It reuses the existing archive path instead of introducing a second archive form.
+
+### Private-link behavior
+
+- Every recipient gets their own cryptographically random link.
+- Links are scoped to one event, one recipient identity, and one archive-item kind.
+- Links expire and close after one successful submission.
+- The token is hashed for lookup, although the current compatibility store also retains the recoverable token so organizers can copy or open active links.
+- The form cannot change the locked identity, event, or kind.
+- Used, expired, deleted, anonymous legacy, cross-event, and type-mismatched links must not be emailed or accepted.
+
+## Implemented Archive Prerequisites
+
+### Product-demo proposals
+
+The monthly CFP and July Archive Requests both accept `talk` or `product_demo`. The selected-presenter link inherits that kind and completes the same Event Archive record. The email layer should therefore accept the existing normalized source shape instead of introducing a separate product-demo proposal table:
 
 ```text
+sourceType: speaker_submission | manual
+sourceId: string | null
+archiveItemKind: talk | product_demo
+recipientName: string
+recipientEmail: string
+eventId: string
+```
+
+July uses `manual` with either archive-item kind. Later monthly editions use `speaker_submission` for selected talks and product demos.
+
+### Monthly public CFP destination
+
+The Vue router mounts the same-origin `/cfp/:eventId` form, and the organizer Archive constructs that URL for monthly events.
+
+Before moving the form to `devcongress.org`, choose and verify the canonical website URL. That future move is a hosting decision, not a blocker for the monthly Archive or email pilot.
+
+## Current Gap That Must Stay Visible
+
+### Annual-conference CFP
+
+The Annual Conference workspace currently has Overview, Work Plan, and Volunteers. Call for Speakers and the annual speaker form exist as work-plan tasks, not as a live public form or proposal store.
+
+The conference CFP form and canonical public URL must be live before a Broadcast is sent. The monthly `/api/cfp` contract cannot be reused unchanged because it explicitly accepts only upcoming monthly events.
+
+## Implemented: Program Multi-Send
+
+### Organizer experience
+
+In **Archive Requests**:
+
+1. The organizer selects one or more eligible topic/speaker rows from the current program.
+2. The app resolves each recipient from stored event records. It never accepts a browser-supplied email for this send.
+3. Missing or conflicting email matches are disabled and labelled for correction.
+4. Successfully sent rows are disabled and labelled `Sent`.
+5. The organizer chooses the link lifetime; seven days remains the default.
+6. `Send email` creates or reuses one matching link per selection and submits one personalized Resend batch.
+7. A successful Resend response produces an `Email sent` or count-aware success toast. A rejected request remains retryable with the same link.
+
+### Server behavior
+
+The Hono API:
+
+1. Require an authenticated organizer.
+2. Validates the event, unique program indexes, derived identity, stored email, archive-item kind, title, and expiry.
+3. Reuses an eligible failed/pending link for the same event/email/kind/title or creates a new `archive_backfill` link.
+4. Build the absolute private URL on the server from `PUBLIC_APP_URL`; never accept a link URL from the browser.
+5. Render code-owned HTML and plain-text versions.
+6. Stores `pending` delivery state on the link before calling Resend.
+7. Sends up to 100 personalized entries with one deterministic idempotency key.
+8. Stores each Resend email ID and marks the links `accepted` only when the full provider response is valid.
+9. Records a safe failed state on provider rejection without logging recipient addresses, tokens, or URLs.
+10. Audits the accepted batch count and suppresses later sends for the same program identity.
+
+Submitting the private form creates an accepted or materials-received Event Archive item in the existing `Talk` compatibility model. It never publishes directly; an organizer must explicitly publish the item before it appears on public endpoints.
+
+### Recommended July email
+
+```text
+Subject: Add your presentation details for DevCongress July 2026
+
+Hi {{ speakerName }},
+
+Thanks for being part of {{ eventName }}.
+
+We are completing the community archive for {{ talkTitle }}.
+
+[Add my presentation details]
+
+This link is for you only and expires {{ expiresAt }}.
+Questions? Reply to this email.
+```
+
+The raw private URL is hidden behind the HTML call-to-action instead of passing the token through an external URL shortener. The plain-text fallback includes the URL so the message remains usable in text-only clients.
+
+## Phase 2: Selected-Speaker Multi-Send
+
+After the July single-send flow is stable:
+
+1. Add checkboxes to the selected-participant list.
+2. Let the organizer choose one, many, or `Select all eligible` selected participants.
+3. Show a confirmation summary with eligible, already completed, expired-link, and missing-email counts.
+4. Create or reuse one link per eligible speaker.
+5. Render one personalized email per speaker.
+6. Send the set through Resend's Batch API.
+7. Show a per-person result instead of one ambiguous “batch sent” message.
+
+Important rules:
+
+- The action remains manual. No automatic send on selection and no reminders or scheduler in this phase.
+- Never put several speakers in one `to`, `cc`, or `bcc` list.
+- Never send the same private token to more than one person.
+- Derive and lock each selected proposal's event, recipient identity, and archive-item kind on the server.
+- Completion creates the same compatibility archive record as the July manual flow and still requires explicit organizer publication.
+- A later product-demo selected list uses the same action after its submission source exists.
+- Resend supports up to 100 individually personalized emails in one Batch API request. Each recipient still counts toward the plan quota, and every entry should be validated before the request. See [Batch Sending](https://resend.com/docs/dashboard/emails/batch-sending).
+
+## Phase 3: Annual-Conference Call for Speakers
+
+The conference email should use a public CFP link and Resend Broadcasts.
+
+Recommended first release:
+
+1. Build and publish the annual-conference CFP form on `devcongress.org`.
+2. Confirm the form creates conference-scoped submissions and does not enter the monthly-only endpoint.
+3. Prepare the recipient list from people DevCongress is allowed to contact.
+4. Import or add them as Resend Contacts and place them in a conference-speaker segment.
+5. Create the Call for Speakers in the Resend dashboard.
+6. Include the public form URL and an unsubscribe link.
+7. Send a test to organizers, review it, then manually send the Broadcast.
+
+Resend Broadcasts handle contact unsubscribe state when the message includes the Resend unsubscribe placeholder. See [Managing Broadcasts](https://resend.com/docs/dashboard/broadcasts/introduction) and [unsubscribe guidance](https://resend.com/docs/knowledge-base/should-i-add-an-unsubscribe-link).
+
+An in-app conference campaign screen can come later if organizers need the app to own drafts, segments, and send history. It should call the Broadcast API, not the monthly private-link endpoint.
+
+The first dashboard-managed Broadcast does not require broader application credentials. If Broadcast and Contact management later moves into the app, create a separate least-privilege provider key for that integration rather than widening or reusing the transactional sending key.
+
+## Resend Administrator Setup
+
+### 1. Create the DevCongress Resend account or team
+
+Use an organization-owned account so access is not tied to one developer.
+
+### 2. Verify a dedicated sending subdomain
+
+Recommended sender:
+
+```text
+Domain: updates.devcongress.org
 From: DevCongress Speakers <speakers@updates.devcongress.org>
 Reply-To: hello@devcongress.org
 ```
 
-`updates.devcongress.org` is only a recommended name. If the DevCongress team chooses a different subdomain, update the sender configuration and templates together.
+Resend recommends a subdomain to isolate sending reputation. In Resend, add `updates.devcongress.org`, then use its Cloudflare Domain Connect flow or add the supplied SPF/MX and DKIM records manually. Manual DKIM records must be DNS-only. Do not replace the root-domain Zoho mail records. Follow the official [Resend Cloudflare DNS guide](https://resend.com/docs/knowledge-base/cloudflare).
 
-## Administrator Setup: Resend
+Before a DevCongress domain is verified, Resend's test `resend.dev` sender can only deliver to the address attached to the Resend account. Do not plan the real July send until the DevCongress sending subdomain is verified.
 
-Complete these steps before the email implementation is deployed.
+### 3. Create a restricted production API key
 
-1. Create or use the DevCongress Resend account.
-2. In Resend, add and verify `updates.devcongress.org` as a sending domain.
-3. In the Cloudflare DNS zone for `devcongress.org`, add the DNS records Resend supplies for that subdomain exactly as shown. These normally establish SPF and DKIM authentication.
-4. Do **not** replace the existing root-domain Zoho MX or SPF records. The separate sending subdomain avoids that conflict.
-5. Create a Resend API key for the production application. Keep it server-only and do not paste it in source code, chat, or browser configuration.
-6. Add that value as the `RESEND_API_KEY` secret on the Cloudflare Worker that serves the organizer API. It must not use a `VITE_` prefix.
-7. Send a test message to an organizer-controlled inbox and confirm the sender name, Reply-To address, link target, and spam-folder placement.
-
-Optional later setup: configure the same Resend account as Supabase Auth's custom SMTP provider for branded authentication mail. Keep its authentication sender separate, for example `auth@auth.devcongress.org`, so login mail and speaker operations have independent sender reputations.
-
-## Email Templates
-
-Templates will be code-owned and versioned in this repository for the first release. Each template must render both HTML and plain text from the same structured input.
-
-Required input:
+Create a key named `DevCongress Events Production` with:
 
 ```text
-speakerName
-speakerEmail
-eventName
-eventDate
-intakeUrl
-expiresAt
+Permission: Sending access
+Domain restriction: updates.devcongress.org
 ```
 
-Required content:
+Resend displays a key only once. Store it immediately as a Worker secret and never expose it to Vue or any `VITE_` variable. Resend documents the available restrictions in [API Key Management](https://resend.com/docs/dashboard/api-keys/introduction).
 
-- DevCongress branding and sender identity.
-- A concise explanation of the requested action.
-- One clear call to action linking to the speaker's private intake form.
-- Event name and formatted event date.
-- Explicit expiry date/time.
-- A plain-text fallback URL.
-- Reply-To guidance for questions.
+### 4. Configure the existing Hono Worker
 
-Templates must not include organizer-only information, raw API responses, link tokens outside the generated URL, or public tracking pixels. The preview must use the real link data but must not send mail.
+Active secret:
 
-## Later Application Implementation
+```text
+RESEND_API_KEY
+```
 
-### Server
+Non-secret bindings:
 
-- Add a server-only `RESEND_API_KEY` configuration check.
-- Add a small Resend client wrapper under `lib/email/`; browser code must never call Resend directly.
-- Add typed template renderers under `lib/email/templates/`.
-- Add an organizer-authorized endpoint conceptually shaped as:
+```text
+SPEAKER_EMAIL_FROM=DevCongress Speakers <speakers@updates.devcongress.org>
+SPEAKER_EMAIL_REPLY_TO=hello@devcongress.org
+PUBLIC_APP_URL=https://em.devcongress.org
+```
 
-  ```text
-  POST /api/events/:eventId/speaker-intake-links/:linkId/send-email
-  ```
+Production secret command:
 
-- Resolve the link on the server and reject it unless it is active, speaker-bound, and belongs to the requested event.
-- Derive the recipient exclusively from `link.speaker_email`; do not accept recipient email, subject, HTML, or link URL from the browser.
-- Pass the provider request a stable idempotency key based on the link id and delivery purpose, so retrying a failed request cannot create accidental duplicates.
-- Record an organizer audit entry containing the link id, recipient email, template id/version, provider message id, and outcome. Never store or log the raw intake token.
-- Add a short resend cooldown per link and a maximum send count, with a visible reason when the action is unavailable.
+```bash
+pnpm exec wrangler secret put RESEND_API_KEY
+```
 
-### Organizer UI
+The approved sender bindings are committed in `wrangler.toml`. Local values belong in `.env.local`. `RESEND_WEBHOOK_SECRET` is not required until delivery webhooks are implemented.
 
-- Show `Preview email`, `Send email`, and, after a successful send, `Resend email` on each named speaker link.
-- Keep `Copy` and `Open` for organizers who prefer manual delivery.
-- Show recipient, delivery status, sent time, send count, and any safe provider error beside the link.
-- Do not expose delivery controls on the public speaker intake form.
+No separate email Worker is required for July. The existing authenticated Hono Worker can call Resend directly. A queue/second worker becomes useful only when automatic retries, scheduled reminders, or materially higher volume are introduced. Resend has an official [Cloudflare Workers guide](https://resend.com/docs/send-with-cloudflare-workers).
 
-### Persistence
+### 5. Add a delivery webhook
 
-Before broad use, add a durable `speaker_link_deliveries` record in Supabase rather than relying only on the JSON compatibility store. It should contain the link id, recipient email, template version, provider message id, attempt/result timestamps, and failure category. It must not contain the raw private URL/token.
+Register:
 
-## Key Files for the Later Change
+```text
+POST https://em.devcongress.org/api/webhooks/resend
+```
 
-| File or area | Future responsibility |
-|---|---|
-| `server/app.ts` | Organizer-authorized preview/send endpoints and audit calls |
-| `lib/email/resend.ts` | Server-only Resend request wrapper |
-| `lib/email/templates/` | Versioned speaker-link HTML and text templates |
-| `src/views/admin/AdminTalksView.vue` | Preview/send/resend actions and delivery status in link shelves |
-| `lib/supabase/` | Durable delivery-record persistence |
-| `wrangler.toml` / Cloudflare Worker secrets | Runtime access to `RESEND_API_KEY` without browser exposure |
+Subscribe initially to:
 
-## Testing
+```text
+email.delivered
+email.delivery_delayed
+email.bounced
+email.failed
+email.suppressed
+email.complained
+```
 
-Automated checks for the later implementation:
+The route is public but must verify the Resend signature against the raw request body using `RESEND_WEBHOOK_SECRET`. Webhooks are at-least-once and can arrive out of order, so deduplicate on `svix-id` and apply events using their timestamps. See [webhook signature verification](https://resend.com/docs/webhooks/verify-webhooks-requests) and [delivery guarantees](https://resend.com/docs/webhooks/introduction).
 
-- Template snapshot/markup tests for both HTML and plain text.
-- Server tests proving only an authenticated organizer can send.
-- Tests proving recipient, event, and link URL come from the stored link—not the request body.
-- Tests rejecting used, expired, anonymous legacy, removed, and cross-event links.
-- Tests for resend cooldown and idempotency behavior.
-- Tests that audit/delivery records never contain the raw token.
+## Application Architecture
 
-Manual release checks:
+### Email module
 
-- Preview the two template types with a real but non-production link.
-- Send to an organizer-controlled inbox and inspect desktop/mobile rendering.
-- Confirm SPF/DKIM validation in Resend and check spam-folder placement.
-- Verify expiry/used states disable sending immediately.
+Add:
 
-## Known Gaps
+```text
+lib/email/resend.ts
+lib/email/templates/monthly-archive-request.ts
+lib/email/templates/conference-cfp-invite.ts
+```
 
-- Email sending and delivery records are not implemented yet.
-- The current speaker-link store retains recoverable raw link tokens for organizer copy/open recovery. A future Supabase migration should move to hash-only storage and a controlled reissue path before high-volume delivery is enabled.
-- Resend free-tier limits must be monitored before adding bulk reminders or campaign-style mail.
+Use a small Worker-native REST client with code-owned HTML and text renderers. The client calls [`POST /emails/batch`](https://resend.com/docs/api-reference/emails/send-batch-emails), validates the ordered provider response, and avoids adding an SDK or React solely for email delivery.
+
+### API surface
+
+Active endpoint:
+
+```text
+POST /api/events/:eventId/speaker-intake-emails
+body: { program_item_indexes: number[], expires_in_days: number }
+```
+
+The browser supplies only stored schedule indexes and expiry. The server derives names, recipient emails, titles, event, and kind.
+
+### Delivery records
+
+The first pilot stores delivery metadata with each compatibility link:
+
+```text
+email_status
+email_provider_id
+email_idempotency_key
+email_sent_at
+email_last_attempt_at
+email_last_error
+```
+
+The link store still uses the whole-array `app_json_documents` compatibility bridge and retains recoverable tokens for the organizer Copy/Open fallback. Move this to relational, hash-only records with controlled reissue before materially broader volume.
+
+### Status language
+
+`Accepted by Resend` means Resend accepted the API request. It does not prove inbox delivery.
+
+`Delivered` means the recipient's mail server accepted it, based on a verified webhook.
+
+`Form completed` comes from the one-time intake link's `used_at` state and is the strongest business signal. Open/click tracking should remain disabled initially; clicking a link is not completion.
+
+## Safety and Reliability Rules
+
+- Require organizer authentication on preview, send, retry, and batch endpoints.
+- Keep the API key server-only and use a sending-only, domain-restricted key.
+- Validate email, name, archive-item kind, expiry, note length, event ownership, source type, and selected state.
+- Reject any request or submission whose event, recipient identity, or kind differs from the one-time link.
+- Escape the custom note and never accept organizer-provided HTML.
+- Build URLs server-side and never log raw private tokens.
+- Use a stable Resend idempotency key for each send attempt. Resend remembers keys for 24 hours, so the application still needs its own durable uniqueness rule. See [Idempotency Keys](https://resend.com/docs/dashboard/emails/idempotency-keys).
+- Add a short per-link cooldown and an explicit maximum resend count.
+- Block sends for used, expired, deleted, anonymous, cross-event, bounced, complained, or suppressed recipients until the underlying issue is resolved.
+- Keep Copy/Open available as a manual fallback.
+- Treat provider status and form completion as different facts.
+
+## Quotas and Testing
+
+As of 27 July 2026, Resend documents:
+
+- 100 transactional emails per day and 3,000 per month on the free plan.
+- Up to 100 personalized emails per Batch API request.
+- A default API rate limit of 5 requests per second per team; the app uses one Batch API request for up to 100 messages.
+- A required bounce rate below 4%.
+
+Check [Resend account quotas](https://resend.com/docs/knowledge-base/account-quotas-and-limits) before every wider rollout because provider limits can change.
+
+Use Resend's designated test recipients instead of invented addresses:
+
+```text
+delivered@resend.dev
+bounced@resend.dev
+complained@resend.dev
+suppressed@resend.dev
+```
+
+These produce controlled provider events without damaging sender reputation. See [Resend test addresses](https://resend.com/docs/knowledge-base/what-email-addresses-to-use-for-testing).
+
+## Verification
+
+Implemented automated coverage:
+
+- HTML and plain-text template tests.
+- Stored-recipient matching and ambiguity tests.
+- Multi-recipient API and provider-response mapping tests.
+- Duplicate-send suppression and same-link retry tests.
+- Atomic delivery-state persistence tests.
+
+Future coverage accompanies future webhook and reminder work.
+
+Manual:
+
+- Preview the exact July message without sending.
+- Send to an organizer-controlled inbox and inspect mobile and desktop rendering.
+- Test delivered, bounced, complained, and suppressed provider events.
+- Confirm Reply-To reaches the monitored DevCongress mailbox.
+- Confirm the private link opens the correct event and closes after one successful form submission.
+- Double-click Send and verify only one message is created.
+- Simulate a provider failure and verify the existing link remains retryable.
+
+## Implementation Order
+
+Completed:
+
+1. Verified `updates.devcongress.org`, approved the From and Reply-To identities, and stored the restricted API key as `RESEND_API_KEY`.
+2. Added the Worker-native Batch client, code-owned template, server-derived recipients, delivery metadata, authenticated send endpoint, multi-select UI, duplicate suppression, retry behavior, and tests.
+
+Next:
+
+1. Validate a production send with organizer-controlled recipients.
+2. Add verified Resend webhooks when inbox-level Delivered/Bounced/Suppressed states are needed.
+3. Move link/delivery metadata to relational, hash-only persistence before materially broader volume.
+4. Connect selected-proposal bulk sends if organizers want the same action outside Archive Requests.
+5. Build the annual-conference CFP form and use Resend Contacts/Segments/Broadcasts for outreach.
+
+## Responsibilities
+
+### DevCongress team
+
+- Own the Resend account and Cloudflare DNS approval.
+- Confirm sender and monitored Reply-To addresses.
+- Approve the July template and optional-note policy.
+- Supply only recipients DevCongress is permitted to contact for conference outreach.
+- Confirm the monthly and conference public CFP URLs.
+
+### Engineering
+
+- Maintain the email module, template, API, UI, audit entries, and tests; add the relational ledger and webhook only with the later delivery-tracking phase.
+- Keep the API key and webhook secret outside browser code and git.
+- Preserve one recipient, one private link, and one traceable delivery record.
+- Deploy the existing API Worker and the organizer UI, then perform the release checks above.
+
+## Explicitly Out of Scope for July
+
+- Automatic email on speaker selection.
+- Scheduled reminders.
+- Background retry queues.
+- A general newsletter system.
+- Conference Broadcast management inside the organizer app.
+- Product-demo submission modeling.
+- Replacing the existing private speaker form.

@@ -23,7 +23,7 @@ const mastheadStats = [
       <div class="grid w-full gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
         <div>
           <div class="mt-4 border-b-2 border-dc-ink pb-7">
-            <h1 class="max-w-4xl text-5xl font-black leading-none tracking-tight text-dc-ink sm:text-6xl lg:text-7xl">
+            <h1 class="max-w-4xl text-5xl font-extrabold leading-none tracking-tight text-dc-ink sm:text-6xl lg:text-7xl">
               Live quiz is paused for phase one.
             </h1>
           </div>
@@ -40,19 +40,19 @@ const mastheadStats = [
 
         <aside class="overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]">
           <div class="border-b-2 border-dc-ink bg-dc-yellow px-5 py-4">
-            <p class="font-mono text-xs font-black uppercase tracking-[0.22em] text-dc-ink">What this means</p>
+            <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-ink">What this means</p>
           </div>
           <div class="divide-y divide-dc-border">
             <div class="px-5 py-5">
-              <p class="font-mono text-sm font-black uppercase tracking-wide text-dc-ink">Cost-first launch</p>
+              <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink">Cost-first launch</p>
               <p class="mt-2 text-sm leading-6 text-dc-gray">Realtime rooms can wait until the community needs them.</p>
             </div>
             <div class="px-5 py-5">
-              <p class="font-mono text-sm font-black uppercase tracking-wide text-dc-ink">Feature path preserved</p>
+              <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink">Feature path preserved</p>
               <p class="mt-2 text-sm leading-6 text-dc-gray">The code remains in the repo so we can revive it deliberately.</p>
             </div>
             <div class="px-5 py-5">
-              <p class="font-mono text-sm font-black uppercase tracking-wide text-dc-ink">No file storage pressure</p>
+              <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink">No file storage pressure</p>
               <p class="mt-2 text-sm leading-6 text-dc-gray">Slides stay as links, and future quiz PDFs stay small.</p>
             </div>
           </div>

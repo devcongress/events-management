@@ -37,6 +37,7 @@ const error = ref('');
 const ledger = ref<AttendanceLedgerMonth[]>([]);
 const insights = ref<AttendanceMonthlyInsights | null>(null);
 const selectedStatus = ref<'all' | 'uploaded' | 'missing'>('all');
+const repeatPeopleView = ref<'regulars' | 'never-came'>('regulars');
 const selectedYear = ref(String(new Date().getFullYear()));
 const page = ref(1);
 const pageSize = 6;
@@ -187,55 +188,45 @@ const repeatRsvpPeople = computed<ConsistencyPersonRow[]>(() => {
       };
     })
     .filter((person) => person.rsvpCount > 1)
-    .sort(rankConsistentPeople);
+    .sort((a, b) => a.name.localeCompare(b.name));
 });
-const consistentPeople = computed(() => repeatRsvpPeople.value.slice(0, 8));
-const followThroughHistogram = computed(() => {
-  const buckets = [
-    { label: '0–19', min: 0, max: 20, count: 0 },
-    { label: '20–39', min: 20, max: 40, count: 0 },
-    { label: '40–59', min: 40, max: 60, count: 0 },
-    { label: '60–79', min: 60, max: 80, count: 0 },
-    { label: '80–100', min: 80, max: 101, count: 0 },
-  ];
-
-  for (const person of repeatRsvpPeople.value) {
-    const rate = (person.checkedInCount / person.rsvpCount) * 100;
-    const bucket = buckets.find((item) => rate >= item.min && rate < item.max);
-    if (bucket) bucket.count += 1;
-  }
-
-  return buckets;
-});
-const followThroughHistogramMax = computed(() => Math.max(
-  0,
-  ...followThroughHistogram.value.map((bucket) => bucket.count),
+const consistentPeople = computed(() => [...repeatRsvpPeople.value]
+  .filter((person) => person.checkedInCount >= 2)
+  .sort(rankConsistentPeople)
+  .slice(0, 8));
+const repeatNoShowPeople = computed(() => repeatRsvpPeople.value
+  .filter((person) => person.checkedInCount === 0 && person.missedCount >= 2)
+  .sort((a, b) => (
+    b.missedCount - a.missedCount
+    || b.lastRsvpAtMs - a.lastRsvpAtMs
+    || a.name.localeCompare(b.name)
+  )));
+const activeRepeatPeople = computed(() => (
+  repeatPeopleView.value === 'regulars'
+    ? consistentPeople.value
+    : repeatNoShowPeople.value
 ));
 
 function rankConsistentPeople(a: ConsistencyPersonRow, b: ConsistencyPersonRow): number {
+  const aRate = a.rsvpCount === 0 ? 0 : a.checkedInCount / a.rsvpCount;
+  const bRate = b.rsvpCount === 0 ? 0 : b.checkedInCount / b.rsvpCount;
+
   return (
-    b.rsvpCount - a.rsvpCount
+    b.checkedInCount - a.checkedInCount
+    || bRate - aRate
+    || b.rsvpCount - a.rsvpCount
     || b.lastRsvpAtMs - a.lastRsvpAtMs
-    || b.checkedInCount - a.checkedInCount
     || a.name.localeCompare(b.name)
   );
 }
 
-function visibleAttendanceTrail(person: ConsistencyPersonRow): AttendanceTrailMark[] {
-  return person.trail.slice(-11);
+function lastRsvpDate(person: ConsistencyPersonRow): string | null {
+  return person.trail.at(-1)?.eventDate ?? null;
 }
 
-function hiddenAttendanceTrailCount(person: ConsistencyPersonRow): number {
-  return Math.max(person.trail.length - 11, 0);
-}
-
-function attendanceTrailMarkTitle(mark: AttendanceTrailMark): string {
-  const outcome = mark.outcome === 'came' ? 'Came' : 'Registered but did not come';
-  return `${mark.eventName} · ${formatDate(mark.eventDate)} · ${outcome}`;
-}
-
-function attendanceTrailSummary(person: ConsistencyPersonRow): string {
-  return person.trail.map(attendanceTrailMarkTitle).join('; ');
+function formatLastRsvpDate(person: ConsistencyPersonRow): string {
+  const date = lastRsvpDate(person);
+  return date ? formatDate(date) : '-';
 }
 
 function chartBarHeight(value: number, maximum: number): string {
@@ -246,12 +237,6 @@ function chartBarHeight(value: number, maximum: number): string {
 function turnoutChartAriaLabel(): string {
   return turnoutChartEvents.value
     .map((event) => `${event.name}: ${event.rsvps} approved RSVPs and ${event.came} came`)
-    .join('; ');
-}
-
-function followThroughHistogramAriaLabel(): string {
-  return followThroughHistogram.value
-    .map((bucket) => `${bucket.count} people at ${bucket.label}%`)
     .join('; ');
 }
 
@@ -281,7 +266,7 @@ function formatDate(value: string): string {
 }
 
 function formatMonthLabel(value: string): string {
-  return value.replace(/^([A-Za-z]{3})[a-z]*/, '$1');
+  return value.match(/^[A-Za-z]{3}/)?.[0] ?? value;
 }
 
 function formatShortMonth(value: string): string {
@@ -341,7 +326,7 @@ onMounted(fetchAttendanceLedger);
         <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p class="editorial-eyebrow">attendance command</p>
-            <h1 class="text-[2.25rem] font-black leading-none tracking-tight text-dc-ink/90 sm:text-5xl">Monthly attendance</h1>
+            <h1 class="text-[2.25rem] font-extrabold leading-none tracking-tight text-dc-ink/90 sm:text-5xl">Monthly attendance</h1>
             <p class="mt-3 max-w-[34rem] text-base leading-7 text-dc-gray sm:text-lg">Track one Luma CSV per meetup month, spot missing uploads, and turn old exports into venue-planning signals.</p>
           </div>
           <RouterLink
@@ -357,7 +342,7 @@ onMounted(fetchAttendanceLedger);
 
         <section v-if="ledger.length === 0" class="editorial-panel p-8">
           <p class="editorial-eyebrow">fresh start</p>
-          <h2 class="text-3xl font-black tracking-tight text-dc-ink/90">No event months yet.</h2>
+          <h2 class="text-3xl font-bold tracking-tight text-dc-ink/90">No event months yet.</h2>
           <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">Create monthly events first. Each event month can hold one current Luma attendance CSV.</p>
         </section>
 
@@ -367,8 +352,8 @@ onMounted(fetchAttendanceLedger);
               <div class="ops-panel-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p class="editorial-eyebrow mb-1">monthly ledger</p>
-                  <h2 class="text-2xl font-black tracking-tight text-dc-ink/90">{{ selectedYearLabel }} attendance</h2>
-                  <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                  <h2 class="text-2xl font-bold tracking-tight text-dc-ink/90">{{ selectedYearLabel }} attendance</h2>
+                  <p class="mt-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                     {{ selectedYearUploaded }} uploaded / {{ selectedYearMissing }} missing / room guide {{ yearP80CheckedIn || '-' }}
                   </p>
                 </div>
@@ -378,7 +363,7 @@ onMounted(fetchAttendanceLedger);
                       v-for="year in availableYears"
                       :key="year"
                       type="button"
-                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-bold uppercase tracking-wide"
+                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-semibold uppercase tracking-wide"
                       :class="selectedYear === year ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
                       @click="selectedYear = year"
                     >
@@ -391,7 +376,7 @@ onMounted(fetchAttendanceLedger);
                       v-for="option in statusOptions"
                       :key="option"
                       type="button"
-                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-bold uppercase tracking-wide"
+                      class="motion-press min-h-8 rounded-md border px-2.5 font-mono text-[11px] font-semibold uppercase tracking-wide"
                       :class="selectedStatus === option ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
                       @click="selectedStatus = option"
                     >
@@ -402,7 +387,7 @@ onMounted(fetchAttendanceLedger);
               </div>
               <div class="flex-1 divide-y divide-dc-border">
                 <div v-if="paginatedLedger.length === 0" class="px-5 py-10 text-center">
-                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">No months match this filter</p>
+                  <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">No months match this filter</p>
                   <p class="mt-2 text-sm text-dc-gray">Try All months or switch between uploaded and missing CSVs.</p>
                 </div>
 
@@ -415,7 +400,7 @@ onMounted(fetchAttendanceLedger);
                   <div class="grid gap-3 lg:grid-cols-[minmax(8rem,0.38fr)_minmax(0,1fr)_auto] lg:items-center">
                     <div class="min-w-0">
                       <div class="flex flex-wrap items-center gap-2">
-                        <p class="text-xl font-black tracking-tight text-dc-ink/90 sm:text-2xl">{{ formatMonthLabel(item.month_label) }}</p>
+                        <p class="text-xl font-bold tracking-tight text-dc-ink/90 sm:text-2xl">{{ formatMonthLabel(item.month_label) }}</p>
                       </div>
                     </div>
 
@@ -427,10 +412,10 @@ onMounted(fetchAttendanceLedger);
                           class="grid min-h-12 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                         >
                           <div class="min-w-0">
-                            <p class="truncate text-sm font-black text-dc-ink/90">{{ eventItem.event.name }}</p>
-                            <p class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ formatDate(eventItem.event.event_date) }}</p>
+                            <p class="truncate text-sm font-semibold text-dc-ink/90">{{ eventItem.event.name }}</p>
+                            <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ formatDate(eventItem.event.event_date) }}</p>
                           </div>
-                          <p class="justify-self-start font-mono text-[11px] font-bold uppercase tracking-wide sm:justify-self-end" :class="eventItem.import ? 'text-dc-success' : eventItem.event.status === 'completed' ? 'text-dc-pink' : 'text-dc-gray'">
+                          <p class="justify-self-start font-mono text-[11px] font-semibold uppercase tracking-wide sm:justify-self-end" :class="eventItem.import ? 'text-dc-success' : eventItem.event.status === 'completed' ? 'text-dc-pink' : 'text-dc-gray'">
                             {{ eventItem.import ? formatEventTurnout(eventItem.summary) : eventItem.upload_available ? 'Waiting for CSV' : 'Not open yet' }}
                           </p>
                         </div>
@@ -484,24 +469,24 @@ onMounted(fetchAttendanceLedger);
               <div class="ops-panel-header flex items-end justify-between gap-3">
                 <div>
                   <p class="editorial-eyebrow mb-1">year in view</p>
-                  <h2 class="text-xl font-black tracking-tight text-dc-ink/90">Attendance patterns</h2>
+                  <h2 class="text-xl font-bold tracking-tight text-dc-ink/90">Attendance patterns</h2>
                 </div>
-                <p class="shrink-0 font-mono text-[9px] font-bold uppercase tracking-wide text-dc-gray">
+                <p class="shrink-0 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">
                   {{ selectedYearUploaded }}/{{ yearLedger.length }} CSVs
                 </p>
               </div>
 
-              <div class="grid flex-1 divide-y divide-dc-border md:grid-cols-3 md:divide-x md:divide-y-0 lg:grid-cols-1 lg:grid-rows-3 lg:divide-x-0 lg:divide-y">
+              <div class="grid flex-1 divide-y divide-dc-border md:grid-cols-2 md:divide-x md:divide-y-0 lg:grid-cols-1 lg:grid-rows-2 lg:divide-x-0 lg:divide-y">
                 <article class="flex min-h-[10.5rem] min-w-0 flex-col p-4">
                   <div class="flex items-start justify-between gap-3">
                     <div>
-                      <h3 class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink">Recent event turnout</h3>
+                      <h3 class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink">Recent event turnout</h3>
                       <p class="mt-1 text-[11px] leading-4 text-dc-gray">Approved RSVPs vs people who came.</p>
                     </div>
-                    <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">Bar</span>
+                    <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">Bar</span>
                   </div>
 
-                  <div class="mt-2 flex items-center gap-3 font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">
+                  <div class="mt-2 flex items-center gap-3 font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">
                     <span class="inline-flex items-center gap-1">
                       <span class="size-2 border border-dc-ink bg-dc-yellow" aria-hidden="true" />
                       RSVP
@@ -531,7 +516,7 @@ onMounted(fetchAttendanceLedger);
                           :title="`${eventItem.name}: ${eventItem.came} came`"
                         />
                       </div>
-                      <p class="mt-1 text-center font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">{{ eventItem.label }}</p>
+                      <p class="mt-1 text-center font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">{{ eventItem.label }}</p>
                     </div>
                   </div>
                   <p v-else class="mt-4 text-xs leading-5 text-dc-gray">Upload a CSV to plot event turnout.</p>
@@ -540,41 +525,10 @@ onMounted(fetchAttendanceLedger);
                 <article class="flex min-h-[10.5rem] min-w-0 flex-col p-4">
                   <div class="flex items-start justify-between gap-3">
                     <div>
-                      <h3 class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink">Repeat RSVP follow-through</h3>
-                      <p class="mt-1 text-[11px] leading-4 text-dc-gray">People grouped by the share they attended.</p>
-                    </div>
-                    <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">Histogram</span>
-                  </div>
-
-                  <div
-                    v-if="repeatRsvpPeople.length > 0"
-                    class="mt-3 flex h-24 items-end gap-1.5"
-                    role="img"
-                    :aria-label="followThroughHistogramAriaLabel()"
-                  >
-                    <div v-for="bucket in followThroughHistogram" :key="bucket.label" class="flex h-full min-w-0 flex-1 flex-col">
-                      <div class="flex min-h-0 flex-1 items-end justify-center border-b border-dc-border">
-                        <span
-                          class="w-full max-w-7 rounded-t-sm border"
-                          :class="bucket.count > 0 && bucket.count === followThroughHistogramMax ? 'border-dc-pink bg-dc-pink' : 'border-dc-ink bg-dc-ink'"
-                          :style="{ height: chartBarHeight(bucket.count, followThroughHistogramMax) }"
-                          :title="`${bucket.count} people attended ${bucket.label}% of their approved RSVPs`"
-                        />
-                      </div>
-                      <p class="mt-1 truncate text-center font-mono text-[7px] font-bold tracking-tight text-dc-gray">{{ bucket.label }}</p>
-                      <p class="text-center font-mono text-[8px] font-bold text-dc-pink">{{ bucket.count }}</p>
-                    </div>
-                  </div>
-                  <p v-else class="mt-4 text-xs leading-5 text-dc-gray">Two uploaded events reveal repeat behavior.</p>
-                </article>
-
-                <article class="flex min-h-[10.5rem] min-w-0 flex-col p-4">
-                  <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 class="font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink">Approved RSVP outcomes</h3>
+                      <h3 class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink">Approved RSVP outcomes</h3>
                       <p class="mt-1 text-[11px] leading-4 text-dc-gray">Uploaded events in {{ selectedYearLabel }}.</p>
                     </div>
-                    <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">Pie</span>
+                    <span class="rounded-sm border border-dc-border bg-dc-paper-warm px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">Pie</span>
                   </div>
 
                   <div v-if="yearApprovedRsvps > 0" class="mt-4 flex flex-1 items-center gap-4">
@@ -585,9 +539,9 @@ onMounted(fetchAttendanceLedger);
                       :style="rsvpOutcomePieStyle"
                     />
                     <div class="min-w-0">
-                      <p class="text-[1.7rem] font-black leading-none tracking-tight text-dc-ink/90">{{ yearCamePercent }}%</p>
-                      <p class="mt-1 font-mono text-[9px] font-bold uppercase tracking-wide text-dc-gray">came</p>
-                      <div class="mt-3 space-y-1.5 font-mono text-[9px] font-bold uppercase tracking-wide text-dc-gray">
+                      <p class="text-[1.7rem] font-semibold leading-none tracking-tight text-dc-ink/90">{{ yearCamePercent }}%</p>
+                      <p class="mt-1 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">came</p>
+                      <div class="mt-3 space-y-1.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">
                         <p class="flex items-center gap-1.5">
                           <span class="size-2 rounded-full bg-dc-pink" aria-hidden="true" />
                           {{ yearRsvpOutcome.came }} came
@@ -605,16 +559,16 @@ onMounted(fetchAttendanceLedger);
 
               <dl class="grid grid-cols-3 border-t border-dc-border bg-dc-paper-warm/50">
                 <div class="px-3 py-2.5">
-                  <dt class="font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">Median</dt>
-                  <dd class="mt-0.5 text-base font-black text-dc-ink/90">{{ yearMedianCheckedIn || '-' }}</dd>
+                  <dt class="font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">Median</dt>
+                  <dd class="mt-0.5 text-base font-semibold text-dc-ink/90">{{ yearMedianCheckedIn || '-' }}</dd>
                 </div>
                 <div class="border-l border-dc-border px-3 py-2.5">
-                  <dt class="font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">P80</dt>
-                  <dd class="mt-0.5 text-base font-black text-dc-ink/90">{{ yearP80CheckedIn || '-' }}</dd>
+                  <dt class="font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">P80</dt>
+                  <dd class="mt-0.5 text-base font-semibold text-dc-ink/90">{{ yearP80CheckedIn || '-' }}</dd>
                 </div>
                 <div class="border-l border-dc-border px-3 py-2.5">
-                  <dt class="font-mono text-[8px] font-bold uppercase tracking-wide text-dc-gray">Room guide</dt>
-                  <dd class="mt-0.5 text-base font-black text-dc-ink/90">{{ roomCapacityGuide || '-' }}</dd>
+                  <dt class="font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">Room guide</dt>
+                  <dd class="mt-0.5 text-base font-semibold text-dc-ink/90">{{ roomCapacityGuide || '-' }}</dd>
                 </div>
               </dl>
             </aside>
@@ -623,92 +577,101 @@ onMounted(fetchAttendanceLedger);
           <section class="ops-panel mt-6 overflow-hidden">
             <div class="ops-panel-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p class="editorial-eyebrow mb-1">repeat RSVPs</p>
-                <h2 class="text-2xl font-black tracking-tight text-dc-ink/90">Who comes, who misses</h2>
+                <p class="editorial-eyebrow mb-1">{{ repeatPeopleView === 'regulars' ? 'regulars' : 'follow-up' }}</p>
+                <h2 class="text-2xl font-bold tracking-tight text-dc-ink/90">
+                  {{ repeatPeopleView === 'regulars' ? 'Consistent people' : 'Repeated no-shows' }}
+                </h2>
+                <p class="mt-1 text-sm text-dc-gray">
+                  {{ repeatPeopleView === 'regulars'
+                    ? 'People who repeatedly register and show up.'
+                    : 'People with at least two approved RSVPs and no recorded check-in.' }}
+                </p>
               </div>
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="inline-grid size-4 place-items-center rounded-full border border-dc-pink bg-dc-pink text-white" aria-hidden="true">
-                    <svg class="size-2.5" viewBox="0 0 12 12" fill="none">
-                      <path d="m2.4 6.2 2.1 2L9.7 3.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                  </span>
-                  Came
-                </span>
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="inline-grid size-4 place-items-center rounded-full border border-dc-ink bg-dc-yellow text-dc-ink" aria-hidden="true">
-                    <svg class="size-2.5" viewBox="0 0 12 12" fill="none">
-                      <path d="m3.1 3.1 5.8 5.8m0-5.8L3.1 8.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                    </svg>
-                  </span>
-                  Missed after RSVP
-                </span>
-                <span>{{ selectedYearLabel }} · oldest → newest</span>
+              <div class="inline-flex self-start rounded-md border border-dc-border bg-white p-1" role="tablist" aria-label="Repeat attendance view">
+                <button
+                  type="button"
+                  class="motion-press rounded px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                  :class="repeatPeopleView === 'regulars'
+                    ? 'border border-dc-ink bg-dc-yellow text-dc-ink'
+                    : 'border border-transparent text-dc-gray'"
+                  :aria-selected="repeatPeopleView === 'regulars'"
+                  role="tab"
+                  @click="repeatPeopleView = 'regulars'"
+                >
+                  Regulars {{ consistentPeople.length }}
+                </button>
+                <button
+                  type="button"
+                  class="motion-press rounded px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                  :class="repeatPeopleView === 'never-came'
+                    ? 'border border-dc-ink bg-dc-yellow text-dc-ink'
+                    : 'border border-transparent text-dc-gray'"
+                  :aria-selected="repeatPeopleView === 'never-came'"
+                  role="tab"
+                  @click="repeatPeopleView = 'never-came'"
+                >
+                  Never came {{ repeatNoShowPeople.length }}
+                </button>
               </div>
             </div>
 
-            <div v-if="consistentPeople.length === 0" class="px-5 py-8 text-sm text-dc-gray">
-              Upload at least two monthly CSVs to compare repeat RSVPs with actual check-ins.
+            <div v-if="activeRepeatPeople.length === 0" class="px-5 py-8 text-sm text-dc-gray">
+              {{ repeatPeopleView === 'regulars'
+                ? 'Upload at least two monthly CSVs to see repeat registrations and check-ins.'
+                : `No repeated no-shows found in ${selectedYearLabel}.` }}
             </div>
-            <div v-else class="overflow-x-auto">
-              <table class="w-full min-w-[720px] table-fixed text-left">
+            <div
+              v-else
+              class="max-h-[min(32rem,60vh)] overflow-auto overscroll-contain [scrollbar-gutter:stable]"
+              tabindex="0"
+              :aria-label="repeatPeopleView === 'regulars' ? 'Regular attendees table' : 'Repeated no-shows table'"
+            >
+              <table class="w-full min-w-[680px] table-fixed text-left">
                 <colgroup>
                   <col class="w-[44%]">
-                  <col class="w-[40%]">
+                  <col class="w-[14%]">
+                  <col class="w-[14%]">
+                  <col class="w-[12%]">
                   <col class="w-[16%]">
                 </colgroup>
-                <thead class="border-y border-dc-border bg-dc-paper-warm font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                <thead class="sticky top-0 z-10 border-y border-dc-border bg-dc-paper-warm font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                   <tr>
                     <th class="px-5 py-3">Person</th>
-                    <th class="px-5 py-3">RSVP trail</th>
-                    <th class="px-5 py-3">Last came</th>
+                    <th class="px-5 py-3">{{ repeatPeopleView === 'regulars' ? 'Registered' : 'RSVPs' }}</th>
+                    <th class="px-5 py-3">{{ repeatPeopleView === 'regulars' ? 'Came' : 'Missed' }}</th>
+                    <th class="px-5 py-3">{{ repeatPeopleView === 'regulars' ? 'Rate' : 'No-show rate' }}</th>
+                    <th class="px-5 py-3">{{ repeatPeopleView === 'regulars' ? 'Last seen' : 'Last RSVP' }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-dc-border">
-                  <tr v-for="person in consistentPeople" :key="person.key">
+                  <tr v-for="person in activeRepeatPeople" :key="person.key">
                     <td class="px-5 py-3">
                       <div class="flex items-center gap-3">
                         <NaviiAvatar :seed="person.key" :title="`${person.name} avatar`" :size="38" />
                         <div class="min-w-0">
-                          <p class="truncate text-sm font-black text-dc-ink/90">{{ person.name }}</p>
+                          <p class="truncate text-sm font-semibold text-dc-ink/90">{{ person.name }}</p>
                           <p v-if="person.email" class="mt-0.5 truncate text-xs text-dc-gray">{{ person.email }}</p>
                         </div>
                       </div>
                     </td>
-                    <td class="px-5 py-3">
-                      <div class="flex min-h-5 items-center gap-1.5" aria-hidden="true">
-                        <span
-                          v-if="hiddenAttendanceTrailCount(person) > 0"
-                          class="mr-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray"
-                        >
-                          +{{ hiddenAttendanceTrailCount(person) }}
-                        </span>
-                        <span
-                          v-for="mark in visibleAttendanceTrail(person)"
-                          :key="mark.eventId"
-                          class="inline-grid size-[1.125rem] shrink-0 place-items-center rounded-full border"
-                          :class="mark.outcome === 'came' ? 'border-dc-pink bg-dc-pink text-white' : 'border-dc-ink bg-dc-yellow text-dc-ink'"
-                          :title="attendanceTrailMarkTitle(mark)"
-                        >
-                          <svg v-if="mark.outcome === 'came'" class="size-3" viewBox="0 0 12 12" fill="none">
-                            <path d="m2.4 6.2 2.1 2L9.7 3.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                          </svg>
-                          <svg v-else class="size-3" viewBox="0 0 12 12" fill="none">
-                            <path d="m3.1 3.1 5.8 5.8m0-5.8L3.1 8.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-                          </svg>
-                        </span>
-                      </div>
-                      <p class="mt-1.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">
-                        <span class="text-dc-pink">{{ person.checkedInCount }} came</span>
-                        <span aria-hidden="true"> · </span>
-                        <span>{{ person.missedCount }} missed</span>
-                        <span aria-hidden="true"> · </span>
-                        <span>{{ formatPercent(person.checkedInCount / person.rsvpCount) }}</span>
-                      </p>
-                      <span class="sr-only">{{ attendanceTrailSummary(person) }}</span>
+                    <td class="px-5 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
+                      {{ person.rsvpCount }}
                     </td>
-                    <td class="px-5 py-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
-                      {{ person.lastCameAt ? formatDate(person.lastCameAt) : 'Not yet' }}
+                    <td
+                      class="px-5 py-3 font-mono text-xs font-semibold uppercase tracking-wide"
+                      :class="repeatPeopleView === 'regulars' ? 'text-dc-success' : 'text-dc-pink'"
+                    >
+                      {{ repeatPeopleView === 'regulars' ? person.checkedInCount : person.missedCount }}
+                    </td>
+                    <td class="px-5 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
+                      {{ repeatPeopleView === 'regulars'
+                        ? formatPercent(person.checkedInCount / person.rsvpCount)
+                        : formatPercent(person.missedCount / person.rsvpCount) }}
+                    </td>
+                    <td class="px-5 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
+                      {{ repeatPeopleView === 'regulars'
+                        ? (person.lastCameAt ? formatDate(person.lastCameAt) : '-')
+                        : formatLastRsvpDate(person) }}
                     </td>
                   </tr>
                 </tbody>

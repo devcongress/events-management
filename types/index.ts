@@ -2,8 +2,10 @@
 export type EventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
 export type EventChecklistPhase = 'setup' | 'cfp' | 'program' | 'event_day' | 'post_event';
 export type TalkStatus = 'submitted' | 'accepted' | 'rejected' | 'slides_received' | 'published';
+export type ArchiveItemKind = 'talk' | 'product_demo';
 export type SpeakerSubmissionStatus = 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
 export type SpeakerIntakeLinkPurpose = 'archive_backfill' | 'selected_speaker_confirmation';
+export type SpeakerIntakeEmailStatus = 'pending' | 'accepted' | 'failed';
 export type QuizStatus = 'draft' | 'waiting' | 'active' | 'finished';
 export type QuestionPhase = 'answering' | 'revealing' | 'scoreboard';
 export type Role = 'admin' | 'speaker' | 'player';
@@ -77,6 +79,12 @@ export interface EventSpeaker {
 export interface Talk {
   id: string;
   event_id: string;
+  /**
+   * Optional on the compatibility type so pre-discriminator JSON fixtures and
+   * callers remain readable. Store and API reads normalize a missing value to
+   * `talk`, and all new writes persist an explicit kind.
+   */
+  kind?: ArchiveItemKind;
   speaker_name: string;
   speaker_email: string;
   github_username: string | null;
@@ -99,6 +107,7 @@ export interface SpeakerIntakeLink {
   id: string;
   event_id: string;
   event_month: string;
+  kind?: ArchiveItemKind;
   purpose?: SpeakerIntakeLinkPurpose;
   speaker_submission_id?: string | null;
   speaker_name?: string | null;
@@ -106,6 +115,12 @@ export interface SpeakerIntakeLink {
   talk_title?: string | null;
   token?: string | null;
   token_hash: string;
+  email_status?: SpeakerIntakeEmailStatus | null;
+  email_provider_id?: string | null;
+  email_idempotency_key?: string | null;
+  email_sent_at?: string | null;
+  email_last_attempt_at?: string | null;
+  email_last_error?: string | null;
   expires_at: string;
   used_at: string | null;
   used_talk_id: string | null;
@@ -116,6 +131,7 @@ export interface SpeakerIntakeLink {
 export interface SpeakerSubmission {
   id: string;
   event_id: string;
+  kind?: ArchiveItemKind;
   speaker_name: string;
   speaker_email: string;
   github_username: string | null;
@@ -153,7 +169,7 @@ export interface PublicMeetupSpeaker {
 export interface PublicMeetupScheduleItem {
   time: string;
   title: string;
-  type: 'networking' | 'talk' | 'panel' | 'workshop' | 'system_design' | 'open_discussion' | 'break';
+  type: 'networking' | 'talk' | 'product_demo' | 'panel' | 'workshop' | 'system_design' | 'open_discussion' | 'break';
   lead: string | null;
   description?: string | null;
   system_design_title?: string | null;
@@ -217,6 +233,7 @@ export interface PublicArchiveTalk {
   id: string;
   event_id: string;
   event_name: string;
+  kind: ArchiveItemKind;
   title: string;
   speaker_name: string;
   topic: string;
@@ -226,14 +243,19 @@ export interface PublicArchiveTalk {
   updated_at: string;
 }
 
+// New archive-facing name. Public payloads retain `talks` during migration.
+export type PublicArchiveItem = PublicArchiveTalk;
+
 export interface PublicArchiveResponse {
   events: PublicArchiveEvent[];
   talks: PublicArchiveTalk[];
+  archive_items: PublicArchiveItem[];
 }
 
 export interface PublicArchiveEventResponse {
   event: PublicArchiveEvent;
   talks: PublicArchiveTalk[];
+  archive_items: PublicArchiveItem[];
   feedback: {
     available: boolean;
     closes_at: string | null;

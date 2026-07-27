@@ -52,20 +52,20 @@ function increase() {
     >
       <button
         type="button"
-        class="motion-press grid place-items-center border-r-2 border-dc-border font-mono text-xl font-bold text-dc-pink hover:bg-dc-paper-warm disabled:cursor-not-allowed disabled:text-dc-gray"
+        class="motion-press grid place-items-center border-r-2 border-dc-border font-mono text-xl font-semibold text-dc-pink hover:bg-dc-paper-warm disabled:cursor-not-allowed disabled:text-dc-gray"
         :disabled="disabled || !canDecrease"
         :aria-label="`Decrease ${label ?? 'value'}`"
         @click="decrease"
       >
         -
       </button>
-      <div class="flex min-w-0 items-center justify-center gap-2 px-3 font-mono font-bold tabular-nums">
+      <div class="flex min-w-0 items-center justify-center gap-2 px-3 font-mono font-semibold tabular-nums">
         <span class="text-lg text-dc-ink">{{ modelValue }}</span>
         <span v-if="suffix" class="truncate text-[10px] uppercase tracking-[0.16em] text-dc-gray">{{ suffix }}</span>
       </div>
       <button
         type="button"
-        class="motion-press grid place-items-center border-l-2 border-dc-border font-mono text-xl font-bold text-dc-pink hover:bg-dc-paper-warm disabled:cursor-not-allowed disabled:text-dc-gray"
+        class="motion-press grid place-items-center border-l-2 border-dc-border font-mono text-xl font-semibold text-dc-pink hover:bg-dc-paper-warm disabled:cursor-not-allowed disabled:text-dc-gray"
         :disabled="disabled || !canIncrease"
         :aria-label="`Increase ${label ?? 'value'}`"
         @click="increase"

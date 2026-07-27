@@ -79,6 +79,20 @@ The active app aligns with the `devcongress.org` light theme:
 
 Use the established cream, yellow, pink, and ink treatment consistently across organizer routes. Keep `tailwind.config.ts`, `src/styles.css`, and `lib/design-system.ts` synchronized when applying the theme.
 
+#### Typography hierarchy
+
+Keep the established type pairing and assign weight by information role:
+
+| Role | Family | Weight |
+|---|---|---:|
+| Body and prose | Inter | 400 |
+| Form values, supporting emphasis | Inter | 500 |
+| Eyebrows, labels, navigation, statuses, buttons | IBM Plex Mono | 600 |
+| Section titles, card titles, major metrics | Inter | 700 |
+| Page titles and hero statements | Inter | 800 |
+
+Use IBM Plex Mono only for compact operational language, technical values, and live codes; names, titles, descriptions, abstracts, and other human-written content stay in Inter. Never request IBM Plex Mono above 700, use `font-black`, or introduce one-off 650/750/850/950 weights. Shared weight tokens live in `src/styles.css` and are mirrored by Tailwind and `lib/design-system.ts`.
+
 ### Toast Notifications
 Use `notify` from `src/lib/notify.ts` for app notifications so all messages target the globally mounted `AppToaster` and inherit the editorial/ops Sonner theme. Do not import `toast` from `vue-sonner` directly inside views unless a feature needs a deliberate separate toaster.
 

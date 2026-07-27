@@ -6,6 +6,11 @@
   :root {
     --font-sans: 'Inter';
     --font-mono: 'IBM Plex Mono';
+    --font-weight-body: 400;
+    --font-weight-emphasis: 500;
+    --font-weight-label: 600;
+    --font-weight-heading: 700;
+    --font-weight-display: 800;
     --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --motion-smooth: cubic-bezier(0.16, 1, 0.3, 1);
     --motion-fast: cubic-bezier(0.4, 0, 0.2, 1);
@@ -54,6 +59,8 @@
 
   body {
     font-family: var(--font-sans), system-ui, sans-serif;
+    font-synthesis: none;
+    font-weight: var(--font-weight-body);
     margin: 0;
   }
 
@@ -137,7 +144,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 1rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     line-height: 1;
   }
 
@@ -171,7 +178,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 0.78rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
@@ -193,7 +200,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 1rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
@@ -226,7 +233,7 @@
     color: #ffffff;
     font-family: var(--font-mono), monospace;
     font-size: 0.65rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     line-height: 1;
   }
 
@@ -251,7 +258,7 @@
     color: #555555;
     font-family: var(--font-mono), monospace;
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
@@ -300,7 +307,7 @@
   }
 
   .editorial-title {
-    @apply text-4xl font-black tracking-tight text-dc-ink sm:text-5xl;
+    @apply text-4xl font-extrabold tracking-tight text-dc-ink sm:text-5xl;
   }
 
   .editorial-subtitle {
@@ -366,7 +373,7 @@
     margin-top: 0.65rem;
     color: #ffffff;
     font-size: 2.75rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     line-height: 0.95;
     letter-spacing: 0;
   }
@@ -384,7 +391,7 @@
     color: #111111;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.78rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     box-shadow: 0 1px 0 rgba(17, 17, 17, 0.08);
@@ -420,7 +427,7 @@
     margin-top: 0.45rem;
     color: #111111;
     font-size: 1.35rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     line-height: 1.1;
     letter-spacing: 0;
   }
@@ -430,7 +437,7 @@
     max-width: 58rem;
     color: #5f5f5f;
     font-size: 0.95rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.55;
   }
 
@@ -472,7 +479,7 @@
     padding: 0.75rem 1rem;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.78rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1;
     text-transform: uppercase;
@@ -559,7 +566,7 @@
   .cfp-idle-card p {
     color: #5f5f5f;
     font-size: 0.9rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.5;
   }
 
@@ -639,7 +646,7 @@
   }
 
   .ops-label {
-    @apply font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink;
+    @apply font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink;
   }
 
   .lifecycle-stage-card {
@@ -663,7 +670,7 @@
     color: #666666;
     font-family: var(--font-mono), monospace;
     font-size: 0.69rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     line-height: 1;
     text-transform: uppercase;
     transition:
@@ -732,7 +739,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.98rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-heading);
     letter-spacing: -0.01em;
     line-height: 1.35;
     color: #111111;
@@ -750,7 +757,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-label);
     line-height: 1.35;
     color: #666666;
   }
@@ -762,7 +769,7 @@
     text-align: left;
     font-family: var(--font-mono), monospace;
     font-size: 0.86rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     line-height: 1.35;
     color: #555555;
   }
@@ -808,7 +815,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: var(--font-weight-label);
     line-height: 1.35;
     color: #111111;
   }
@@ -829,7 +836,7 @@
     padding-inline: 0.1rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.88rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     text-transform: uppercase;
     color: #111111;
     text-decoration-line: underline;
@@ -848,7 +855,7 @@
     padding-inline: 0.65rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.75rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     text-transform: uppercase;
     color: #666666;
     transition:
@@ -871,7 +878,7 @@
   }
 
   .pagination-summary {
-    @apply font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray;
+    @apply font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray;
   }
 
   .pagination-controls {
@@ -879,7 +886,7 @@
   }
 
   .pagination-button {
-    @apply motion-press inline-flex min-h-9 items-center gap-1 rounded px-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray transition-colors disabled:cursor-not-allowed disabled:opacity-35;
+    @apply motion-press inline-flex min-h-9 items-center gap-1 rounded px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray transition-colors disabled:cursor-not-allowed disabled:opacity-35;
   }
 
   .pagination-button:not(:disabled) {
@@ -887,7 +894,7 @@
   }
 
   .pagination-count {
-    @apply inline-flex min-h-9 items-center border-x border-dc-border px-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink;
+    @apply inline-flex min-h-9 items-center border-x border-dc-border px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink;
   }
 
   .event-tabs-wrap {
@@ -939,7 +946,7 @@
     padding: 0.8rem 1rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     line-height: 1;
     text-transform: uppercase;
   }
@@ -972,7 +979,7 @@
     padding: 0.65rem 0.9rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     line-height: 1;
     text-transform: uppercase;
     color: #111111;
@@ -1008,7 +1015,7 @@
 
   .event-overview-copy-error {
     font-size: 0.84rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-emphasis);
     color: #b42318;
   }
 
@@ -1022,7 +1029,7 @@
     padding-top: 0.45rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.64rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.06em;
     line-height: 1.25;
     text-transform: uppercase;
@@ -1097,7 +1104,7 @@
 
 	  .event-outline-title {
 	    font-size: clamp(1.35rem, 1.8vw, 1.8rem);
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    line-height: 1;
 	    color: #111111;
 	  }
@@ -1105,7 +1112,7 @@
 	  .event-outline-empty {
 	    padding: clamp(1rem, 2vw, 1.4rem);
 	    font-size: 0.95rem;
-	    font-weight: 700;
+	    font-weight: var(--font-weight-emphasis);
 	    color: #555555;
 	  }
 
@@ -1129,7 +1136,7 @@
 	  .event-outline-bulk label {
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.68rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.14em;
 	    text-transform: uppercase;
 	    color: #e8117f;
@@ -1145,7 +1152,7 @@
 	    color: #111111;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.85rem;
-	    font-weight: 700;
+	    font-weight: var(--font-weight-label);
 	    line-height: 1.6;
 	    transition:
 	      border-color 150ms var(--motion-fast),
@@ -1171,14 +1178,14 @@
 
 	  .event-outline-scenario-title {
 	    font-size: 0.92rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    color: #111111;
 	  }
 
 	  .event-outline-scenario-copy {
 	    margin-top: 0.2rem;
 	    font-size: 0.84rem;
-	    font-weight: 700;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.5;
 	    color: #555555;
 	  }
@@ -1198,7 +1205,7 @@
 	  .event-outline-type {
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.72rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.1em;
 	    text-transform: uppercase;
 	    color: #555555;
@@ -1218,7 +1225,7 @@
 	  .event-outline-copy strong {
 	    overflow: hidden;
 	    font-size: 0.98rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    line-height: 1.25;
 	    text-overflow: ellipsis;
 	    white-space: nowrap;
@@ -1226,7 +1233,7 @@
 
 	  .event-outline-copy span {
 	    font-size: 0.84rem;
-	    font-weight: 700;
+	    font-weight: var(--font-weight-emphasis);
 	    color: #555555;
 	  }
 
@@ -1234,7 +1241,7 @@
 	    width: fit-content;
 	    border-bottom: 2px solid #f5e642;
 	    font-size: 0.84rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    color: #e8117f;
 	    text-decoration: none;
 	    transition:
@@ -1265,7 +1272,7 @@
 	    min-width: 0;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.62rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.12em;
 	    text-transform: uppercase;
 	    color: #555555;
@@ -1277,7 +1284,7 @@
 	    min-width: 0;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.62rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.12em;
 	    text-transform: uppercase;
 	    color: #555555;
@@ -1291,7 +1298,7 @@
 	    padding: 0.72rem 0.8rem;
 	    font-family: var(--font-sans), sans-serif;
 	    font-size: 0.92rem;
-	    font-weight: 700;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	    text-transform: none;
 	    color: #111111;
@@ -1335,7 +1342,7 @@
 	    padding: 0.75rem 0.85rem;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.68rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    line-height: 1;
 	    text-transform: uppercase;
 	    color: #555555;
@@ -1355,7 +1362,7 @@
 	    padding: 0.45rem;
 	    font-family: var(--font-sans), sans-serif;
 	    font-size: 1.1rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	  }
 
 	  .event-outline-remove:disabled,
@@ -1375,7 +1382,7 @@
 
   .event-checklist-title {
     font-size: clamp(1.45rem, 2vw, 2rem);
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     letter-spacing: -0.03em;
     line-height: 1;
     color: #111111;
@@ -1394,7 +1401,7 @@
 
   .event-checklist-meter-value {
     font-size: 1.45rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     font-variant-numeric: tabular-nums;
     line-height: 1;
     color: #111111;
@@ -1403,7 +1410,7 @@
   .event-checklist-meter-label {
     font-family: var(--font-mono), monospace;
     font-size: 0.62rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #555555;
@@ -1441,7 +1448,7 @@
   .event-checklist-next-label {
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: #e8117f;
@@ -1449,7 +1456,7 @@
 
   .event-checklist-next-copy {
     font-size: 0.95rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-emphasis);
     color: #111111;
   }
 
@@ -1471,7 +1478,7 @@
     top: 0.75rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.16em;
     line-height: 1.35;
     text-transform: uppercase;
@@ -1544,7 +1551,7 @@
     border-radius: 0.35rem;
     background: #ffffff;
     font-size: 1rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     line-height: 1;
     color: #ffffff;
     transition:
@@ -1563,7 +1570,7 @@
   .event-checklist-item-label {
     display: block;
     font-size: 0.98rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     line-height: 1.25;
     color: #111111;
   }
@@ -1580,7 +1587,7 @@
   .event-checklist-item-meta {
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
@@ -1591,7 +1598,7 @@
     padding-left: 0.75rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.62rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     line-height: 1.2;
     text-transform: uppercase;
@@ -1627,7 +1634,7 @@
     padding: 0.75rem 0.85rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.62rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.1em;
     line-height: 1;
     text-transform: uppercase;
@@ -1685,7 +1692,7 @@
 
   .event-media-title {
     font-size: clamp(1.35rem, 1.8vw, 1.85rem);
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     line-height: 1;
     color: #111111;
   }
@@ -1697,7 +1704,7 @@
     padding: 0.4rem 0.7rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #555555;
@@ -1733,7 +1740,7 @@
   }
 
   .event-media-upload-title {
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     color: #111111;
   }
 
@@ -1749,7 +1756,7 @@
     margin-top: 0.5rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #e8117f;
@@ -1773,7 +1780,7 @@
     padding: 0 0.9rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #111111;
@@ -1806,7 +1813,7 @@
     background: var(--surface-paper);
     padding: 0.75rem clamp(1rem, 2vw, 1.4rem);
     font-size: 0.9rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-heading);
     color: #b0004f;
   }
 
@@ -1814,7 +1821,7 @@
     padding: clamp(1rem, 2vw, 1.4rem);
     font-family: var(--font-mono), monospace;
     font-size: 0.75rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: #777777;
@@ -1852,7 +1859,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
   }
 
@@ -1867,7 +1874,7 @@
   }
 
   .event-media-row-title {
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     color: #111111;
   }
 
@@ -1878,7 +1885,7 @@
     color: #555555;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1897,7 +1904,7 @@
     padding: 0 0.75rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #555555;
@@ -1955,7 +1962,7 @@
     align-items: center;
     gap: 0.45rem;
     font-size: 1rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
     letter-spacing: -0.02em;
     line-height: 1.2;
     color: #111111;
@@ -1982,7 +1989,7 @@
   .attendance-ledger-result-meta {
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.35;
     text-transform: uppercase;
@@ -1995,7 +2002,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.88rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-label);
     line-height: 1.35;
     color: #555555;
   }
@@ -2003,7 +2010,7 @@
   .attendance-ledger-date {
     margin-top: 0.18rem;
     font-size: 0.78rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-label);
     line-height: 1.35;
     color: #666666;
   }
@@ -2026,7 +2033,7 @@
     padding: 0.33rem 0.55rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.64rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     line-height: 1;
     text-transform: uppercase;
@@ -2038,7 +2045,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 0.98rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
     line-height: 1.25;
     color: #555555;
   }
@@ -2084,7 +2091,7 @@
 
   .attendance-ledger-result-number {
     font-size: 1.85rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.04em;
     line-height: 1;
@@ -2093,7 +2100,7 @@
 
   .attendance-ledger-result-label {
     font-size: 0.88rem;
-    font-weight: 750;
+    font-weight: var(--font-weight-label);
     line-height: 1.3;
     color: #555555;
   }
@@ -2139,7 +2146,7 @@
     display: block;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.1em;
     line-height: 1.4;
     text-transform: uppercase;
@@ -2150,7 +2157,7 @@
     display: block;
     margin-top: 0.25rem;
     font-size: 0.88rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.45;
   }
 
@@ -2238,7 +2245,7 @@
     font-family: var(--font-sans), system-ui, sans-serif;
     font-size: 1.35rem;
     font-variant-numeric: tabular-nums;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
     line-height: 1;
     text-align: right;
     color: #111111;
@@ -2247,7 +2254,7 @@
   .event-pulse-note {
     font-family: var(--font-mono), monospace;
     font-size: 0.62rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.25;
     text-transform: uppercase;
@@ -2258,7 +2265,7 @@
     justify-self: end;
     font-family: var(--font-mono), monospace;
     font-size: 0.8rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     color: #d9c700;
     transition: transform 150ms var(--motion-fast);
   }
@@ -2666,7 +2673,7 @@
   }
 
   .editorial-action {
-    @apply inline-flex items-center justify-center rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25;
+    @apply inline-flex items-center justify-center rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25;
     transition:
       transform 100ms var(--motion-fast),
       opacity 150ms var(--motion-fast);
@@ -2681,7 +2688,7 @@
   }
 
   .editorial-secondary-action {
-    @apply inline-flex items-center justify-center rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25;
+    @apply inline-flex items-center justify-center rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25;
     transition:
       transform 100ms var(--motion-fast),
       opacity 150ms var(--motion-fast);
@@ -2696,7 +2703,7 @@
   }
 
   .editorial-input {
-    @apply w-full rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-3 text-dc-ink outline-none placeholder:text-dc-gray-light focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)];
+    @apply w-full rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-3 font-medium text-dc-ink outline-none placeholder:text-dc-gray-light focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)];
     transition:
       border-color 150ms var(--motion-fast),
       box-shadow 150ms var(--motion-fast),
@@ -2730,7 +2737,7 @@
     margin: 0;
     color: #111111;
     font-size: 2rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-display);
     letter-spacing: 0;
     line-height: 1;
   }
@@ -2739,7 +2746,7 @@
     margin-top: 0.75rem;
     color: #555555;
     font-size: 0.95rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.55;
   }
 
@@ -2770,7 +2777,7 @@
     margin: 0;
     color: #111111;
     font-size: 1.2rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     letter-spacing: 0;
     line-height: 1.1;
   }
@@ -2787,7 +2794,7 @@
     color: #555555;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
   }
 
   .mobile-ops-event {
@@ -2812,7 +2819,7 @@
     margin: 0;
     color: #111111;
     font-size: 1.1rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     letter-spacing: 0;
     line-height: 1.25;
   }
@@ -2822,7 +2829,7 @@
     margin: 0;
     color: #555555;
     font-size: 0.88rem;
-    font-weight: 650;
+    font-weight: var(--font-weight-label);
     line-height: 1.45;
   }
 
@@ -2836,7 +2843,7 @@
     padding: 0 0.55rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.65rem;
-    font-weight: 850;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0;
     line-height: 1;
     text-transform: uppercase;
@@ -2884,7 +2891,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 0.75rem;
-    font-weight: 850;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0;
     line-height: 1.15;
     text-align: center;
@@ -2918,7 +2925,7 @@
     padding: 0.9rem 1rem;
     color: #555555;
     font-size: 0.9rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-heading);
     line-height: 1.35;
   }
 
@@ -2937,7 +2944,7 @@
     color: #111111;
     font-family: var(--font-sans), sans-serif;
     font-size: 1rem;
-    font-weight: 500;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.65;
     letter-spacing: 0;
     outline: none;
@@ -2957,7 +2964,7 @@
   }
 
   .editorial-label {
-    @apply mb-2 block font-mono text-xs font-bold uppercase tracking-wide text-dc-ink;
+    @apply mb-2 block font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink;
   }
 
   .cfp-topic-menu .app-dropdown-scroll {
@@ -3034,7 +3041,7 @@
     margin-bottom: 1.35rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: #111111;
@@ -3050,7 +3057,7 @@
   .cfp-success-topline p {
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: #eb147e;
@@ -3077,7 +3084,7 @@
   .cfp-success-body h2 {
     color: #111111;
     font-size: clamp(2.75rem, 8vw, 4.5rem);
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     letter-spacing: 0;
     line-height: 0.92;
   }
@@ -3086,7 +3093,7 @@
     margin-top: 0.9rem;
     color: #555555;
     font-size: clamp(0.98rem, 2vw, 1.1rem);
-    font-weight: 750;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.5;
   }
 
@@ -3102,7 +3109,7 @@
   .cfp-success-footnote {
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
@@ -3117,7 +3124,7 @@
     margin-top: 0.25rem;
     color: #111111;
     font-size: clamp(1.02rem, 2vw, 1.2rem);
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     line-height: 1.15;
   }
 
@@ -3244,7 +3251,7 @@
     padding-top: 0.85rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: #111111;
@@ -3396,7 +3403,7 @@
     color: #e8117f;
     font-family: var(--font-mono), monospace;
     font-size: 0.65rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.14em;
     text-transform: uppercase;
   }
@@ -3406,7 +3413,7 @@
     margin: 0;
     color: #111111;
     font-size: clamp(2.75rem, 7vw, 6.5rem);
-    font-weight: 900;
+    font-weight: var(--font-weight-display);
     letter-spacing: -0.045em;
     line-height: 0.92;
   }
@@ -3588,7 +3595,7 @@
     color: #555555;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     transition:
@@ -3749,7 +3756,7 @@
     color: #eb147e;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.7rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.2;
     text-transform: uppercase;
@@ -3759,7 +3766,7 @@
     max-width: 108ch;
     color: #555555;
     font-size: 0.98rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.62;
   }
 
@@ -3777,7 +3784,7 @@
     color: #e8117f;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.2;
     text-transform: uppercase;
@@ -3787,7 +3794,7 @@
     margin: 0;
     color: #555555;
     font-size: 0.92rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-label);
     line-height: 1.55;
   }
 
@@ -3797,7 +3804,7 @@
     color: #111111;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.7rem;
-    font-weight: 850;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0;
     line-height: 1.2;
     text-decoration: underline;
@@ -3827,7 +3834,7 @@
     color: #e8117f;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.66rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.2;
     text-transform: uppercase;
@@ -3837,7 +3844,7 @@
     margin: 0;
     color: #555555;
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.58;
   }
 
@@ -3870,7 +3877,7 @@
     color: #eb147e;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.64rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.2;
     text-transform: uppercase;
@@ -3881,7 +3888,7 @@
     color: #555555;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.74rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     line-height: 1.45;
   }
 
@@ -4142,7 +4149,7 @@
 
   .app-toast-title {
     font-size: 0.9rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
     line-height: 1.25;
     letter-spacing: 0;
     color: #111111;
@@ -4161,7 +4168,7 @@
     border-radius: 6px !important;
     font-family: var(--font-mono), monospace !important;
     font-size: 0.68rem !important;
-    font-weight: 800 !important;
+    font-weight: var(--font-weight-label) !important;
     letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
     transition:
@@ -4331,7 +4338,7 @@
     max-width: 46rem;
     color: #171717;
     font-size: 1.18rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
     letter-spacing: 0;
     line-height: 1.35;
     text-wrap: balance;
@@ -4374,7 +4381,7 @@
     margin-top: 0.5rem;
     color: #111111;
     font-size: 1.45rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     letter-spacing: 0;
     line-height: 1.1;
     text-wrap: balance;
@@ -4384,7 +4391,7 @@
     margin-top: 0.55rem;
     color: #666666;
     font-size: 0.86rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.55;
   }
 
@@ -4398,7 +4405,7 @@
     padding: 1rem;
     color: #666666;
     font-size: 0.86rem;
-    font-weight: 600;
+    font-weight: var(--font-weight-emphasis);
     text-align: center;
   }
 
@@ -4423,7 +4430,7 @@
     color: #666666;
     font-family: var(--font-mono), monospace;
     font-size: 0.63rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.04em;
     line-height: 1.25;
     text-transform: uppercase;
@@ -4481,7 +4488,7 @@
   .feedback-return-donut__center strong {
     color: #111111;
     font-size: 2.1rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
     letter-spacing: -0.02em;
     line-height: 1;
   }
@@ -4491,7 +4498,7 @@
     color: #666666;
     font-family: var(--font-mono), monospace;
     font-size: 0.66rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -4516,7 +4523,7 @@
     color: #666666;
     font-family: var(--font-mono), monospace;
     font-size: 0.64rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -4524,7 +4531,7 @@
   .feedback-return-legend dd {
     color: #111111;
     font-size: 1.15rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-heading);
   }
 
   .feedback-return-dot {
@@ -4573,7 +4580,7 @@
     min-width: 0;
     color: #111111;
     font-size: 0.9rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
     line-height: 1.35;
   }
 
@@ -4582,7 +4589,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -4608,7 +4615,7 @@
     color: #666666;
     font-family: var(--font-mono), monospace;
     font-size: 0.62rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.04em;
     line-height: 1.4;
     text-transform: uppercase;
@@ -4626,7 +4633,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -4681,7 +4688,7 @@
     padding: 0.58rem 0.9rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1;
     text-transform: uppercase;
@@ -4758,7 +4765,7 @@
     color: #555555;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     transition:
       background-color 220ms var(--motion-smooth),
@@ -4786,7 +4793,7 @@
     color: #555555;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     transition:
@@ -4853,7 +4860,7 @@
 	  .feedback-category-card h2 {
 	    color: #111111;
 	    font-size: 1.35rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	    line-height: 1.05;
 	  }
@@ -4862,7 +4869,7 @@
 	    max-width: 42rem;
 	    color: #555555;
 	    font-size: 0.94rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.65;
 	  }
 
@@ -4873,7 +4880,7 @@
 	    color: #555555;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.72rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 	  }
@@ -4901,7 +4908,7 @@
 	    color: #111111;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.7rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 		    transition:
@@ -4951,7 +4958,7 @@
 	  .feedback-section-header h2 {
 	    color: #111111;
 	    font-size: 1.55rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	    line-height: 1.05;
 	  }
@@ -4960,7 +4967,7 @@
 	    max-width: 46rem;
 	    color: #555555;
 	    font-size: 0.92rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.6;
 	  }
 
@@ -5001,7 +5008,7 @@
 	    color: #555555;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.68rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 	  }
@@ -5020,6 +5027,7 @@
 	  .feedback-mini-metrics strong {
 	    color: #111111;
 	    font-size: 1rem;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	  }
 
@@ -5035,7 +5043,7 @@
 	    color: #111111;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.7rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 		    transition:
@@ -5091,7 +5099,7 @@
 	  .feedback-empty-state h3 {
 	    color: #111111;
 	    font-size: 1.35rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	    line-height: 1.15;
 	  }
@@ -5101,7 +5109,7 @@
 	    max-width: 38rem;
 	    color: #555555;
 	    font-size: 0.92rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.65;
 	  }
 
@@ -5129,7 +5137,7 @@
 	  .feedback-list-heading h3 {
 	    color: #111111;
 	    font-size: 1.1rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	    line-height: 1.2;
 	  }
@@ -5137,7 +5145,7 @@
 	  .feedback-list-heading p {
 	    color: #555555;
 	    font-size: 0.88rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.55;
 	  }
 
@@ -5207,7 +5215,7 @@
 	    color: #666666;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.78rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 	  }
@@ -5253,7 +5261,7 @@
 	    color: #666666;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.64rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 	  }
@@ -5261,7 +5269,7 @@
 		  .feedback-event-stat dd {
 		    color: #111111;
 		    font-size: 1.2rem;
-		    font-weight: 900;
+		    font-weight: var(--font-weight-heading);
 		    letter-spacing: 0;
 		    line-height: 1.1;
 		  }
@@ -5372,7 +5380,7 @@
 	    max-width: 10ch;
 	    color: #111111;
 	    font-size: clamp(3.2rem, 5vw, 5.5rem);
-	    font-weight: 950;
+	    font-weight: var(--font-weight-display);
 	    letter-spacing: -0.05em;
 	    line-height: 0.9;
 	  }
@@ -5381,7 +5389,7 @@
 	    max-width: 34rem;
 	    color: #4b4b4b;
 	    font-size: clamp(1.05rem, 2vw, 1.3rem);
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.55;
 	  }
 
@@ -5414,7 +5422,7 @@
 	    color: #111111;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.72rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.1em;
 	    text-transform: uppercase;
 	  }
@@ -5428,7 +5436,7 @@
 	    color: #111111;
 	    padding: 0.85rem 1rem;
 	    font-size: 1rem;
-	    font-weight: 650;
+	    font-weight: var(--font-weight-emphasis);
 	    outline: none;
 	    transition: border-color 150ms var(--motion-fast), box-shadow 150ms var(--motion-fast);
 	  }
@@ -5447,7 +5455,7 @@
 	    background: var(--surface-paper);
 	    color: #8f064e;
 	    padding: 0.9rem 1rem;
-	    font-weight: 700;
+	    font-weight: var(--font-weight-label);
 	    line-height: 1.45;
 	  }
 
@@ -5460,7 +5468,7 @@
 	    padding: 0.85rem 1rem;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.9rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.08em;
 	    text-transform: uppercase;
 	    box-shadow: 3px 3px 0 #111111;
@@ -5484,7 +5492,7 @@
 	  .volunteer-intake-receipt h2 {
 	    color: #111111;
 	    font-size: clamp(2.2rem, 5vw, 4.2rem);
-	    font-weight: 950;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: -0.04em;
 	    line-height: 0.95;
 	  }
@@ -5492,7 +5500,7 @@
 	  .volunteer-intake-receipt p:last-child {
 	    color: #4b4b4b;
 	    font-size: 1.1rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	  }
 
   .feedback-display-shell {
@@ -5510,7 +5518,7 @@
 	  .feedback-display-header h1 {
 	    color: #111111;
 	    font-size: clamp(2.8rem, 6vw, 5.6rem);
-	    font-weight: 950;
+	    font-weight: var(--font-weight-display);
 	    letter-spacing: 0;
 	    line-height: 0.95;
 	  }
@@ -5519,7 +5527,7 @@
 	    max-width: 52rem;
 	    color: #555555;
 	    font-size: clamp(1rem, 1.8vw, 1.35rem);
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.5;
 	  }
 
@@ -5563,7 +5571,7 @@
     color: #3c3c3c;
     font-family: var(--font-mono), monospace;
     font-size: 0.82rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     line-height: 1.4;
     text-align: center;
@@ -5583,7 +5591,7 @@
 	    color: #e8117f;
 	    font-family: var(--font-mono), monospace;
 	    font-size: 0.8rem;
-	    font-weight: 800;
+	    font-weight: var(--font-weight-label);
 	    letter-spacing: 0.16em;
 	    text-transform: uppercase;
 	  }
@@ -5596,7 +5604,7 @@
   .feedback-display-story h2 {
     color: #111111;
     font-size: clamp(3rem, 5vw, 5rem);
-    font-weight: 950;
+    font-weight: var(--font-weight-heading);
     letter-spacing: 0;
     line-height: 0.96;
     max-width: 14ch;
@@ -5605,7 +5613,7 @@
   .feedback-display-story p {
     max-width: 34rem;
     color: #4b4b4b;
-    font-weight: 600;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.65;
   }
 
@@ -5633,7 +5641,7 @@
     color: #666666;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
@@ -5642,7 +5650,7 @@
     min-width: 0;
     color: #111111;
     font-size: 1rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.35;
   }
 
@@ -5651,14 +5659,14 @@
 	    max-width: 42rem;
 	    color: #555555;
 	    font-size: 1.05rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.6;
 	  }
 
 	  .feedback-display-state h1 {
 	    color: #111111;
 	    font-size: clamp(2rem, 5vw, 4rem);
-	    font-weight: 950;
+	    font-weight: var(--font-weight-display);
 	    letter-spacing: 0;
 	    line-height: 1;
 	  }
@@ -5683,7 +5691,7 @@
 	  .feedback-side-panel h2 {
 	    color: #111111;
 	    font-size: 1.35rem;
-	    font-weight: 900;
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: 0;
 	    line-height: 1.1;
 	  }
@@ -5692,7 +5700,7 @@
 	    margin-top: 0.65rem;
 	    color: #555555;
 	    font-size: 0.9rem;
-	    font-weight: 600;
+	    font-weight: var(--font-weight-emphasis);
 	    line-height: 1.6;
 	  }
 
@@ -5879,7 +5887,7 @@
     text-align: center;
     font-family: "IBM Plex Mono", monospace;
     font-size: 0.62rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #111111;
@@ -5933,7 +5941,7 @@
     border-right: 1px solid #e0ddd4;
     background: #fefce8;
     font-family: var(--font-mono), monospace;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     color: #e8117f;
   }
 
@@ -6031,7 +6039,7 @@
     gap: 0.35rem;
     color: #111111;
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-emphasis);
     line-height: 1.5;
   }
 
@@ -6066,7 +6074,7 @@
     padding: 0.55rem 0.7rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.14em;
     line-height: 1.35;
     text-transform: uppercase;
@@ -6151,7 +6159,7 @@
     background: #f5e642;
     font-family: var(--font-mono), monospace;
     font-size: 0.75rem;
-    font-weight: 800;
+    font-weight: var(--font-weight-label);
     color: #111111;
   }
 
@@ -6186,7 +6194,7 @@
     margin-top: 0.35rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.68rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     color: #595959;
   }
@@ -6209,7 +6217,7 @@
     color: #111111;
     font-family: var(--font-mono), monospace;
     font-size: 0.64rem;
-    font-weight: 900;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     box-shadow: 2px 2px 0 #111111;
@@ -6222,7 +6230,7 @@
     gap: 0.55rem;
     font-family: var(--font-mono), monospace;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: var(--font-weight-label);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: #111111;
@@ -6236,7 +6244,7 @@
 
   .feedback-bot-route {
     color: #007a72;
-    font-weight: 800;
+    font-weight: var(--font-weight-heading);
   }
 
   .feedback-panel-enter-active,

@@ -18,7 +18,10 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `TURNSTILE_SECRET_KEY` | No | No | Server-only Cloudflare Turnstile secret used by `/api/feedback` to validate feedback-form tokens |
 | `TURNSTILE_EXPECTED_HOSTNAME` | No | No | Optional strict hostname check for Turnstile verification, for example `em.devcongress.org` in production |
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
-| `RESEND_API_KEY` | Planned feature only | No | Server-only Resend API key for future speaker-link transactional email. Do not add until the delivery feature is implemented. |
+| `RESEND_API_KEY` | Required for Archive Request email sends | No | Server-only, sending-restricted Resend API key used by the authenticated speaker email batch endpoint. |
+| `RESEND_WEBHOOK_SECRET` | Planned feature only | No | Server-only signing secret used to verify Resend delivery webhooks against the raw request body. |
+| `SPEAKER_EMAIL_FROM` | Required for Archive Request email sends | No | Approved branded sender: `DevCongress Speakers <speakers@updates.devcongress.org>`. |
+| `SPEAKER_EMAIL_REPLY_TO` | Required for Archive Request email sends | No | Monitored DevCongress mailbox that receives replies; production is `hello@devcongress.org`. |
 
 ## Rules
 
@@ -36,4 +39,5 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.
-- `RESEND_API_KEY` is reserved for the planned speaker-link email feature. When that feature is implemented, configure it as a Cloudflare Worker secret only; never expose it through a `VITE_` variable or commit it to the repository.
+- Store `RESEND_API_KEY` as a Cloudflare Worker secret; never expose it through a `VITE_` variable or commit it. `RESEND_WEBHOOK_SECRET` remains reserved for the future verified delivery-webhook route.
+- Keep `SPEAKER_EMAIL_FROM` on the verified Resend sending subdomain and point `SPEAKER_EMAIL_REPLY_TO` at a mailbox the DevCongress team actively monitors.

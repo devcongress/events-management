@@ -64,7 +64,7 @@ onMounted(fetchAll);
         <section class="ops-panel relative mb-8 overflow-hidden p-5">
           <div class="coming-soon-ribbon">Coming soon</div>
           <div class="pl-16 sm:pl-20">
-            <h2 class="mb-2 text-2xl font-black tracking-tight text-dc-ink">Add Speaker</h2>
+            <h2 class="mb-2 text-2xl font-bold tracking-tight text-dc-ink">Add Speaker</h2>
             <p class="mb-4 text-sm leading-6 text-dc-gray">Speaker access is paused while this workflow stays organizer-led.</p>
           </div>
           <div v-if="error" class="mb-4 rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ error }}</div>
@@ -76,15 +76,15 @@ onMounted(fetchAll);
         </section>
 
         <section class="ops-panel p-5 opacity-75">
-          <h2 class="mb-4 text-2xl font-black tracking-tight text-dc-ink">Approved Speakers <span class="text-base text-dc-gray">({{ speakers.length }})</span></h2>
+          <h2 class="mb-4 text-2xl font-bold tracking-tight text-dc-ink">Approved Speakers <span class="text-base text-dc-gray">({{ speakers.length }})</span></h2>
           <p v-if="speakers.length === 0" class="py-8 text-center font-mono text-dc-gray">NO SPEAKERS ADDED YET</p>
           <div v-else class="space-y-3">
             <div v-for="speaker in speakers" :key="speaker.id" class="motion-colors flex items-center justify-between rounded-md border border-dc-border bg-dc-paper px-4 py-3 hover:bg-dc-paper-warm">
               <div>
-                <p class="font-mono font-bold text-dc-ink">{{ speaker.name }}</p>
+                <p class="font-mono font-semibold text-dc-ink">{{ speaker.name }}</p>
                 <p class="font-mono text-sm text-dc-gray">{{ speaker.email }}</p>
               </div>
-              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-4 py-2 font-mono text-sm font-bold uppercase text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45" :disabled="speakerAccessPaused" @click="removeExistingSpeaker(speaker.id)">REMOVE</button>
+              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-4 py-2 font-mono text-sm font-semibold uppercase text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45" :disabled="speakerAccessPaused" @click="removeExistingSpeaker(speaker.id)">REMOVE</button>
             </div>
           </div>
         </section>

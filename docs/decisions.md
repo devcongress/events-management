@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-023: Unified Event Archive With Talk Compatibility Records
+
+**Date:** 2026-07-27
+**Status:** Accepted
+**Context:** Organizers need one understandable destination for both talks and product demos. The earlier Program and Legacy Backfill labels split one outcome across workflow-specific screens, while the separate Speakers allowlist made it unclear whether a person row or a talk row was the lasting public record. July also needs a manual backfill path before the selected-proposal and email workflows are complete.
+**Decision:** Call the organizer concept **Event Archive** and classify each item as `talk` or `product_demo`. Preserve the existing `Talk` storage, IDs, status lifecycle, `/talks` routes, and public field names as a compatibility model; old records without a kind resolve to `talk`. July manual **Archive Requests** and later selected-proposal completion both create the same compatibility record. Every one-time link is locked to its event, recipient identity, and item kind. Public-form completion creates an accepted or materials-received item but never publishes it; publication remains an explicit organizer action. Treat the Speakers allowlist as event-scoped identity/access only, not archive content. Extend the public API additively with `kind`, retaining existing response names and treating a missing kind as `talk`.
+**Trade-offs:** Internal and public code temporarily retains talk-specific names for items that may be product demos, and the hosted Supabase `community_events` projection still cannot be assumed to include archive items held only in the compatibility store. This avoids a breaking migration now, gives organizers one workflow, and leaves room for a relational archive source later.
+**Alternatives considered:** Keep Program and Legacy Backfill separate (preserves the conceptual duplication), make Speakers the archive source (conflates access with content), create a second product-demo store (duplicates status, intake, email, and publishing logic), or replace `/talks` immediately (breaks current data and public consumers).
+**Revisit when:** The compatibility archive moves to relational Supabase persistence, `community_events` can join durable archive items, or a versioned public API can replace historical talk-specific names.
+
+---
+
 ## ADR-022: Supabase-Only Organizer Authentication
 
 **Date:** 2026-07-26
@@ -78,8 +90,10 @@
 ## ADR-015: Supabase Records With Resend Speaker-Link Delivery
 
 **Date:** 2026-07-25
+**Status:** Accepted; program-based multi-send implemented 2026-07-27.
 **Why:** Speaker archive/backfill and selected-speaker links need a branded, low-friction delivery channel without adopting a paid Cloudflare Email Sending plan. Supabase remains the durable system of record for link and delivery metadata, while Resend handles transactional delivery on its free tier. The existing authenticated Hono Worker will call Resend server-side so delivery authorization stays alongside the speaker-link lifecycle.
-**Tradeoffs:** This introduces one external delivery provider and a server-only API key. The free tier has daily and monthly limits, and Resend domain verification still requires DNS changes. Email is not proof that a recipient read or completed the form; audit records describe the application's delivery request and the provider response.
+**Decision:** Resolve recipients on the server from exact stored event records, send personalized messages through Resend Batch, and store pending/accepted/failed metadata with the existing compatibility links. Use a deterministic idempotency key and suppress accepted program identities in both the API and organizer multi-select. Keep private URLs behind a branded HTML call-to-action rather than introducing a third-party shortener. Treat Resend acceptance as a successful send request, not proof of inbox delivery.
+**Tradeoffs:** This introduces one external delivery provider and a server-only API key. The free tier has daily and monthly limits. The current whole-document compatibility store provides weaker cross-isolate concurrency guarantees than a relational table, and provider delivery/bounce truth is unavailable until verified webhooks are added. Email is not proof that a recipient read or completed the form; the strongest business signal remains one-time form completion.
 **Alternatives considered:** Cloudflare Email Sending (not chosen because it requires Workers Paid for outbound production delivery), Supabase's default mailer (not suitable for production speaker mail because of authorization and rate limits), or manual copy/paste only (remains available, but does not provide delivery auditability).
 **Revisit when:** Sending volume approaches the Resend free-tier limit, bulk reminders are required, or the link store moves from JSON compatibility data to hash-only Supabase records.
 

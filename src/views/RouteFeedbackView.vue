@@ -203,7 +203,7 @@ watch([name, feedbackType], () => {
     <div class="route-feedback-wrap mx-auto max-w-2xl px-4 py-6 sm:px-6 lg:px-8 lg:py-12">
       <header class="route-feedback-header">
         <p class="editorial-eyebrow">field notes</p>
-        <h1 class="text-3xl font-black tracking-tight text-dc-ink sm:text-5xl">
+        <h1 class="text-3xl font-extrabold tracking-tight text-dc-ink sm:text-5xl">
           {{ hasFeedbackReceipt ? 'Feedback received.' : 'Tell us what felt off.' }}
         </h1>
         <p v-if="!hasFeedbackReceipt" class="mt-3 text-sm leading-6 text-dc-gray sm:text-base">

@@ -37,7 +37,22 @@ function formatDate(value: string): string {
 }
 
 function slidesUrl(talk: PublicArchiveTalk): string | null {
-  return talk.slides_url;
+  if (!talk.slides_url) return null;
+
+  try {
+    const url = new URL(talk.slides_url);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? talk.slides_url : null;
+  } catch {
+    return null;
+  }
+}
+
+function archiveItemKindLabel(talk: PublicArchiveTalk): string {
+  return talk.kind === 'product_demo' ? 'Product demo' : 'Talk';
+}
+
+function resourceActionLabel(talk: PublicArchiveTalk): string {
+  return talk.kind === 'product_demo' ? 'Open demo resource' : 'Open slides';
 }
 
 function publicTalkSummary(value: string | null | undefined): string {
@@ -103,7 +118,7 @@ onMounted(async () => {
 <template>
   <div class="archive-event-page editorial-page">
     <div class="archive-event-wrap mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
-      <RouterLink to="/archive" class="archive-event-back motion-colors mb-10 inline-flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-pink hover:text-dc-ink">
+      <RouterLink to="/archive" class="archive-event-back motion-colors mb-10 inline-flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-wide text-dc-pink hover:text-dc-ink">
         <span>&larr;</span> BACK TO ARCHIVE
       </RouterLink>
 
@@ -120,7 +135,7 @@ onMounted(async () => {
       <template v-else>
         <header class="archive-event-hero mb-14 rounded-lg border-2 border-dc-ink bg-dc-paper p-6 shadow-[3px_3px_0_#111111] sm:p-8">
           <p class="editorial-eyebrow">archive issue</p>
-          <h1 class="archive-event-title max-w-4xl text-4xl font-black tracking-tight text-dc-ink sm:text-5xl">
+          <h1 class="archive-event-title max-w-4xl text-4xl font-extrabold tracking-tight text-dc-ink sm:text-5xl">
             {{ event.name }}
           </h1>
           <p class="archive-event-date mt-4 font-mono text-sm uppercase tracking-wide text-dc-gray">
@@ -143,7 +158,7 @@ onMounted(async () => {
           <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
             <div>
               <p class="editorial-eyebrow mb-2">system design</p>
-              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
+              <h2 class="archive-event-section-title text-2xl font-bold tracking-tight text-dc-ink">
                 Monthly Architecture Scenario
               </h2>
             </div>
@@ -157,11 +172,11 @@ onMounted(async () => {
             >
               <div>
                 <div>
-                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ session.time }}</p>
-                  <h3 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">
+                  <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ session.time }}</p>
+                  <h3 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">
                     {{ systemDesignDisplayTitle(session) }}
                   </h3>
-                  <p v-if="session.lead" class="mt-2 text-sm font-semibold text-dc-gray">
+                  <p v-if="session.lead" class="mt-2 text-sm font-medium text-dc-gray">
                     Led by {{ session.lead }}
                   </p>
                 </div>
@@ -198,11 +213,11 @@ onMounted(async () => {
           <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
             <div>
               <p class="editorial-eyebrow mb-2">photos</p>
-              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
+              <h2 class="archive-event-section-title text-2xl font-bold tracking-tight text-dc-ink">
                 Moments from the meetup
               </h2>
             </div>
-            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ event.photos.length }} total</span>
+            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-semibold text-dc-ink">{{ event.photos.length }} total</span>
           </div>
 
           <div v-if="imagePhotos.length > 0" class="grid gap-4 sm:grid-cols-2">
@@ -243,11 +258,11 @@ onMounted(async () => {
           <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
             <div>
               <p class="editorial-eyebrow mb-2">links</p>
-              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
+              <h2 class="archive-event-section-title text-2xl font-bold tracking-tight text-dc-ink">
                 Links shared during the meetup
               </h2>
             </div>
-            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ sharedLinks.length }} total</span>
+            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-semibold text-dc-ink">{{ sharedLinks.length }} total</span>
           </div>
 
           <p class="mb-5 max-w-2xl text-sm leading-6 text-dc-gray">
@@ -263,7 +278,7 @@ onMounted(async () => {
               rel="noopener noreferrer"
               class="motion-press flex min-w-0 flex-col gap-1 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111]"
             >
-              <span class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">{{ sharedLinkHost(link) }}</span>
+              <span class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink">{{ sharedLinkHost(link) }}</span>
               <span class="truncate text-sm font-semibold text-dc-ink">{{ sharedLinkPath(link) }}</span>
             </a>
           </div>
@@ -272,16 +287,16 @@ onMounted(async () => {
         <section v-if="showPublishedTalksSection">
           <div class="archive-event-section-header mb-5 flex items-end justify-between gap-4">
             <div>
-              <p class="editorial-eyebrow mb-2">presentations</p>
-              <h2 class="archive-event-section-title text-2xl font-black tracking-tight text-dc-ink">
-                Published Talks
+              <p class="editorial-eyebrow mb-2">archive items</p>
+              <h2 class="archive-event-section-title text-2xl font-bold tracking-tight text-dc-ink">
+                Published Archive
               </h2>
             </div>
-            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-bold text-dc-ink">{{ publishedTalks.length }} total</span>
+            <span class="archive-event-count rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-2 font-mono text-sm font-semibold text-dc-ink">{{ publishedTalks.length }} total</span>
           </div>
 
           <div v-if="publishedTalks.length === 0" class="archive-event-empty editorial-panel p-12 text-center">
-            <p class="font-mono text-dc-gray">No presentations published yet</p>
+            <p class="font-mono text-dc-gray">No archive items published yet</p>
           </div>
 
           <div v-else class="divide-y-2 divide-dc-border border-y-2 border-dc-ink">
@@ -293,9 +308,9 @@ onMounted(async () => {
               <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
                 <div>
                   <p class="mb-2 font-mono text-xs uppercase tracking-wide text-dc-gray">
-                    {{ talk.topic || 'General' }}
+                    {{ archiveItemKindLabel(talk) }}<template v-if="talk.topic"> · {{ talk.topic }}</template>
                   </p>
-                  <h3 class="text-2xl font-black tracking-tight text-dc-ink">
+                  <h3 class="text-2xl font-bold tracking-tight text-dc-ink">
                     {{ talk.title }}
                   </h3>
                   <p class="mt-2 text-sm text-dc-gray">
@@ -312,9 +327,9 @@ onMounted(async () => {
                   :href="slidesUrl(talk) ?? undefined"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="motion-press inline-flex rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow-glow"
+                  class="motion-press inline-flex rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow-glow"
                 >
-                  Slides &rarr;
+                  {{ resourceActionLabel(talk) }} &rarr;
                 </a>
               </div>
             </article>

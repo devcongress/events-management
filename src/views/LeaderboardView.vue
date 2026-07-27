@@ -220,7 +220,7 @@ onUnmounted(() => {
         >
           <div class="flex flex-wrap gap-3">
             <button
-              class="motion-press rounded-md border-2 px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide"
+              class="motion-press rounded-md border-2 px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide"
               :class="leaderboardMode === 'all-time' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-ink bg-dc-paper text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink'"
               disabled
               @click="setMode('all-time')"
@@ -228,7 +228,7 @@ onUnmounted(() => {
               All Time
             </button>
             <button
-              class="motion-press rounded-md border-2 px-5 py-3 font-mono text-sm font-bold uppercase tracking-wide"
+              class="motion-press rounded-md border-2 px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide"
               :class="leaderboardMode === 'monthly' ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]' : 'border-dc-ink bg-dc-paper text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink'"
               disabled
               @click="setMode('monthly')"
@@ -256,7 +256,7 @@ onUnmounted(() => {
               :class="entry.rank <= 3 ? 'bg-dc-paper-warm hover:bg-dc-yellow/30' : 'hover:bg-dc-paper-warm'"
             >
               <div class="col-span-2 flex items-center gap-2">
-                <span class="font-mono text-2xl font-bold" :class="entry.rank <= 3 ? 'text-3xl text-dc-pink' : 'text-dc-gray'">
+                <span class="font-mono text-2xl font-semibold" :class="entry.rank <= 3 ? 'text-3xl text-dc-pink' : 'text-dc-gray'">
                   {{ rankLabel(entry.rank) }}
                 </span>
               </div>
@@ -266,7 +266,7 @@ onUnmounted(() => {
                 <div class="min-w-0">
                   <div class="truncate text-lg font-bold" :class="entry.rank <= 3 ? 'text-dc-ink' : 'text-dc-ink'">
                     {{ entry.nickname }}
-                    <span v-if="entry.is_claimed" class="ml-2 align-middle font-mono text-xs font-bold uppercase tracking-wide text-green-700">claimed</span>
+                    <span v-if="entry.is_claimed" class="ml-2 align-middle font-mono text-xs font-semibold uppercase tracking-wide text-green-700">claimed</span>
                   </div>
                   <div v-if="entry.events_participated" class="mt-1 text-sm text-dc-gray">
                     {{ entry.events_participated }} {{ entry.events_participated === 1 ? 'event' : 'events' }}
@@ -275,7 +275,7 @@ onUnmounted(() => {
               </div>
 
               <div class="col-span-4 flex items-center justify-end gap-2">
-                <span class="text-3xl font-black" :class="entry.rank <= 3 ? 'text-dc-pink' : 'text-dc-ink'">
+                <span class="text-3xl font-extrabold" :class="entry.rank <= 3 ? 'text-dc-pink' : 'text-dc-ink'">
                   {{ entry.total_score }}
                 </span>
                 <span class="text-xs uppercase text-dc-gray">pts</span>
@@ -284,7 +284,7 @@ onUnmounted(() => {
           </div>
 
           <div v-if="visibleLeaderboard.length === 0" class="leaderboard-empty-state py-16 text-center">
-            <p class="text-lg font-semibold text-dc-gray">No scores yet.</p>
+            <p class="text-lg font-medium text-dc-gray">No scores yet.</p>
             <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">The leaderboard will open when live quiz scoring is ready for community events.</p>
           </div>
 
@@ -319,7 +319,7 @@ onUnmounted(() => {
       </section>
 
         <div v-if="showAccountTools" class="editorial-panel mt-10 p-6 opacity-60">
-          <h2 class="mb-2 text-2xl font-black text-dc-ink">Account Tools (Prototype)</h2>
+          <h2 class="mb-2 text-2xl font-bold text-dc-ink">Account Tools (Prototype)</h2>
           <p class="mb-6 text-dc-gray">Coming soon with the leaderboard. Profile claiming stays paused for the low-cost launch phase.</p>
 
           <div v-if="accountMessage" class="mb-4 border border-green-700/50 bg-green-100 px-4 py-3 text-sm text-green-800">

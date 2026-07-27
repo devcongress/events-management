@@ -6,9 +6,11 @@ This app exposes a read-only meetup API for the future `devcongress.org` Astro i
 
 When `APP_DATA_SOURCE=supabase` is set and the `community_events` table exists, the public meetup API reads from Supabase first. Local/dev runs default to JSON event data. The table is modeled from the current `devcongress.org` Astro meetup collection in `/Users/TT/Documents/personal/forks/website/content/meetups/*.yaml`.
 
-The first Supabase event migration seeds the existing website meetups into `community_events` so the API can be tested before the Astro repo is changed. If Supabase is unavailable or the table has not been migrated yet, the API falls back to the local JSON event/talk data so development still works.
+The first Supabase event migration seeds the existing website meetups into `community_events` so the API can be tested before the Astro repo is changed. If Supabase is unavailable or the table has not been migrated yet, the API falls back to the local JSON event/archive data so development still works.
 
 Only rows with `publish_to_website = true` are returned from the Supabase-backed public endpoint.
+
+`community_events` is currently a separate hosted projection from the compatibility `Talk` store used by the organizer Event Archive. Until a relational archive source or explicit join is added, a Supabase-backed meetup response may not include an archive item that exists only in that compatibility store. This limitation must remain visible during `devcongress.org` integration testing.
 
 ## Endpoints
 
@@ -16,10 +18,10 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 |---|---|
 | `GET /api/public/meetups` | Lists public meetup summaries and page data |
 | `GET /api/public/meetups/:slug` | Returns one meetup by slug or event id |
-| `GET /api/public/meetups/:slug/talks` | Returns the published talks for a meetup |
-| `GET /api/public/archive` | Returns completed published meetup archive cards plus public talk metadata |
-| `GET /api/public/archive/:eventId` | Returns one completed published meetup archive entry with public talks and feedback availability |
-| `GET /api/public/home` | Returns the public homepage counts and recent published talks |
+| `GET /api/public/meetups/:slug/talks` | Returns explicitly published Event Archive items through the compatibility talks route |
+| `GET /api/public/archive` | Returns completed published meetup archive cards plus public archive metadata |
+| `GET /api/public/archive/:eventId` | Returns one completed published meetup archive entry with published items and feedback availability |
+| `GET /api/public/home` | Returns the public homepage counts and recent published archive items |
 
 Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
 
@@ -28,7 +30,13 @@ All public `/api/public/*` endpoints:
 - are unauthenticated read-only endpoints
 - send permissive CORS headers for static-site consumption
 - send short public cache headers
-- return JSON objects with a top-level `data` field
+- return JSON objects
+
+Meetup list, meetup detail, and compatibility-talk responses use a top-level `data` field. Event Archive and homepage endpoints return their payloads directly:
+
+- `/api/public/archive`: `{ events, talks, archive_items }`
+- `/api/public/archive/:eventId`: `{ event, talks, archive_items, feedback }`
+- `/api/public/home`: `{ completed_events_count, published_talks_count, recent_talks, regulars, cfp_event }`
 
 ## List Response
 
@@ -81,6 +89,30 @@ The meetup DTO follows the current `devcongress.org` Astro meetup schema where p
 - Supabase rows are exposed only when `publish_to_website` is true.
 
 The consuming website should resolve relative image paths against this app's deployed origin.
+
+## Event Archive Compatibility
+
+The organizer product calls the lasting collection for one event **Event Archive**. Each item has:
+
+```json
+{
+  "kind": "talk"
+}
+```
+
+`kind` is either `talk` or `product_demo`. It is an additive field on the existing public talk-shaped DTO. For backwards compatibility:
+
+- The archive list and archive-detail responses expose `archive_items` as the preferred archive-facing field.
+- Those same responses retain `talks`; `archive_items` and `talks` currently contain the same explicitly published items.
+- `/api/public/meetups/:slug/talks`, `talks_count`, and `published_talks_count` also keep their historical names. No new archive endpoint is introduced.
+- The compatibility `/talks` response uses the narrow public archive DTO; private fields such as presenter email, intake tokens, internal status, and reminder history are never returned.
+- Existing fields and response envelopes are not renamed or removed.
+- A missing `kind` means `talk`, including for records created before archive-item kinds existed.
+- Older clients may ignore `kind`; newer clients can use it to label product demos correctly.
+- Only records explicitly moved to `published` are returned publicly. Completing an Archive Request never publishes automatically.
+- Speaker allowlist rows are private event-access records and are not projected as archive items.
+
+New archive consumers should read `archive_items`; existing consumers may continue reading `talks`. The compatibility route and field names can be removed only through a versioned public contract.
 
 ## Supabase Setup Check
 

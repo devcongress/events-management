@@ -16,13 +16,15 @@ import {
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
 const FEEDBACK_TITLE = 'DevCongress | Feedback';
 const FEEDBACK_DISPLAY_TITLE = 'DevCongress | Feedback Display';
-const SPEAKER_TALK_INTAKE_TITLE = 'DevCongress | Speaker Talk';
+const SPEAKER_TALK_INTAKE_TITLE = 'DevCongress | Archive Details';
+const CFP_TITLE = 'DevCongress | Call for Presentations';
 const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
 const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
 const ANNUAL_CONFERENCE_TITLE = 'DevCongress | Annual Conference';
 const ownerOnlyPaths = new Set([adminPath('audit-log')]);
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
+const CfpView = () => import('./views/CfpView.vue');
 const VolunteerIntakeView = () => import('./views/VolunteerIntakeView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
@@ -64,6 +66,7 @@ export const router = createRouter({
   routes: [
     { path: '/', redirect: adminPath('events') },
     { path: '/feedback/:eventId', name: 'event-feedback', component: FeedbackView },
+    { path: '/cfp/:eventId', name: 'event-cfp', component: CfpView },
     speakerTalkIntakeRoute,
     { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
@@ -174,6 +177,8 @@ router.beforeEach(async (to, from) => {
 router.afterEach((to) => {
   if (to.name === 'event-feedback') {
     document.title = FEEDBACK_TITLE;
+  } else if (to.name === 'event-cfp') {
+    document.title = CFP_TITLE;
   } else if (to.name === 'admin-feedback-display') {
     document.title = FEEDBACK_DISPLAY_TITLE;
   } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME) {

@@ -203,7 +203,7 @@ function submitForm() {
   <form class="grid gap-5" @submit.prevent="submitForm">
     <div class="grid gap-5 lg:grid-cols-2">
       <label class="block lg:col-span-2">
-        <span class="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-dc-gray">Task</span>
+        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Task</span>
         <input
           v-model="form.title"
           class="editorial-input mt-2"
@@ -242,13 +242,13 @@ function submitForm() {
           The organizer list could not be loaded.
           <button
             type="button"
-            class="motion-press font-black underline decoration-2 underline-offset-2"
+            class="motion-press font-semibold underline decoration-2 underline-offset-2"
             @click="organizersQuery.refetch()"
           >
             Try again
           </button>
         </span>
-        <span v-else class="mt-2 block text-xs font-semibold leading-5 text-dc-gray">
+        <span v-else class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
           Select one active organizer. Exactly one person is accountable.
         </span>
       </div>
@@ -264,7 +264,7 @@ function submitForm() {
           menu-align="right"
           menu-class="min-w-80"
         />
-        <span class="mt-2 block text-xs font-semibold leading-5 text-dc-gray">
+        <span class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
           Select any number of organizers. The accountable owner is kept separate.
         </span>
       </div>
@@ -282,7 +282,7 @@ function submitForm() {
       />
 
       <label class="block lg:col-span-2">
-        <span class="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-dc-gray">Details</span>
+        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Details</span>
         <textarea
           v-model="form.details"
           class="editorial-input mt-2 min-h-24 resize-none"
@@ -292,7 +292,7 @@ function submitForm() {
       </label>
 
       <label class="block">
-        <span class="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-dc-gray">Dependency</span>
+        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Dependency</span>
         <textarea
           v-model="form.dependency_note"
           class="editorial-input mt-2 min-h-20 resize-none"
@@ -302,7 +302,7 @@ function submitForm() {
       </label>
 
       <label class="block">
-        <span class="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-dc-gray">Internal note</span>
+        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Internal note</span>
         <textarea
           v-model="form.internal_note"
           class="editorial-input mt-2 min-h-20 resize-none"
@@ -315,7 +315,7 @@ function submitForm() {
     <div class="flex flex-wrap justify-end gap-3 border-t-2 border-dc-border pt-4">
       <button
         type="button"
-        class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-black uppercase tracking-[0.12em] text-dc-ink"
+        class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-dc-ink"
         :disabled="submitting"
         @click="emit('cancel')"
       >
@@ -323,7 +323,7 @@ function submitForm() {
       </button>
       <button
         type="submit"
-        class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-black uppercase tracking-[0.12em] text-white shadow-[2px_2px_0_#111111] disabled:cursor-wait disabled:opacity-60"
+        class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[2px_2px_0_#111111] disabled:cursor-wait disabled:opacity-60"
         :disabled="submitting"
       >
         {{ submitting ? 'Saving…' : mode === 'create' ? 'Add task' : 'Save changes' }}
