@@ -12,12 +12,6 @@ import {
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { sendResendEmailBatch, ResendBatchError } from '@/lib/email/resend';
-import {
-  isSpeakerArchiveEmailAssetKey,
-  prepareArchiveEmailImages,
-  type ArchiveEmailImageUrls,
-  type SpeakerArchiveEmailAssetBucket,
-} from '@/lib/email/archive-email-images';
 import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
 import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
 import {
@@ -962,18 +956,6 @@ function publicAppOrigin(c: Context): string {
   }
 
   return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? requestOrigin;
-}
-
-function speakerArchiveEmailAssetBucket(c: Context): SpeakerArchiveEmailAssetBucket | null {
-  const candidate = (c.env as Record<string, unknown> | undefined)?.SPEAKER_EMAIL_ASSETS;
-  if (!candidate || typeof candidate !== 'object') return null;
-
-  const bucket = candidate as Partial<SpeakerArchiveEmailAssetBucket>;
-  return typeof bucket.get === 'function'
-    && typeof bucket.head === 'function'
-    && typeof bucket.put === 'function'
-    ? bucket as SpeakerArchiveEmailAssetBucket
-    : null;
 }
 
 function feedbackActivityLabelKey(label: string): string {
@@ -3550,30 +3532,6 @@ async function acquireSpeakerIntakeSubmissionLock(key: string): Promise<() => vo
   };
 }
 
-async function prepareArchiveEmailImageBatch(
-  items: { eventName: string; item: { index: number; title: string } }[],
-  bucket: SpeakerArchiveEmailAssetBucket,
-  origin: string,
-): Promise<Map<number, ArchiveEmailImageUrls>> {
-  const imageUrlsByProgramItem = new Map<number, ArchiveEmailImageUrls>();
-  const concurrency = 4;
-
-  for (let index = 0; index < items.length; index += concurrency) {
-    const batch = items.slice(index, index + concurrency);
-    await Promise.all(batch.map(async ({ eventName, item }) => {
-      const imageUrls = await prepareArchiveEmailImages({
-        bucket,
-        publicOrigin: origin,
-        eventName,
-        talkTitle: item.title,
-      });
-      imageUrlsByProgramItem.set(item.index, imageUrls);
-    }));
-  }
-
-  return imageUrlsByProgramItem;
-}
-
 function validateSlidesUrl(slidesUrl: string | null): void {
   if (!slidesUrl) return;
 
@@ -3876,10 +3834,6 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
   if (!resendApiKey || !emailFrom || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return c.json({ error: 'Speaker email sending is not configured.' }, 503);
   }
-  const emailAssetBucket = speakerArchiveEmailAssetBucket(c);
-  if (!emailAssetBucket) {
-    return c.json({ error: 'Speaker email assets are not configured.' }, 503);
-  }
 
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
@@ -3989,26 +3943,6 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
       .update(`${eventId}:${linkIds.join(':')}`)
       .digest('hex');
     const idempotencyKey = `speaker-archive-${idempotencyDigest}`;
-    let imageUrlsByProgramItem: Map<number, ArchiveEmailImageUrls>;
-    try {
-      imageUrlsByProgramItem = await prepareArchiveEmailImageBatch(
-        pendingSends.map(({ item }) => ({ eventName: event.name, item })),
-        emailAssetBucket,
-        publicAppOrigin(c),
-      );
-    } catch (error) {
-      console.warn(JSON.stringify({
-        event: 'speaker_archive_email_asset_failed',
-        event_id: eventId,
-        recipient_count: pendingSends.length,
-        error: error instanceof Error ? error.message : 'unknown',
-      }));
-      return c.json({
-        error: 'The email graphics could not be prepared. No email was sent; please retry.',
-        sent_count: 0,
-        already_sent_count: alreadyAccepted.length,
-      }, 503);
-    }
     await updateSpeakerIntakeLinkEmailDeliveries(eventId, pendingSends.map(({ link }) => ({
       id: link.id,
       status: 'pending',
@@ -4016,10 +3950,6 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
     })));
 
     const emails = pendingSends.map(({ link, token, item }) => {
-      const imageUrls = imageUrlsByProgramItem.get(item.index);
-      if (!imageUrls) {
-        throw new Error(`Missing email images for program item ${item.index}`);
-      }
       const privateUrl = new URL(
         `/speaker-talks/${encodeURIComponent(eventId)}/${encodeURIComponent(token)}`,
         publicAppOrigin(c),
@@ -4030,7 +3960,6 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
         talkTitle: item.title,
         privateUrl,
         expiresAt: link.expires_at,
-        ...imageUrls,
       });
 
       return {
@@ -5222,25 +5151,6 @@ app.post('/api/users/merge', async (c) => {
     target_total_points: target.total_points,
     target_events_participated: target.events_participated,
   });
-});
-
-app.get('/email-assets/:group/:file', async (c) => {
-  const key = `${c.req.param('group')}/${c.req.param('file')}`;
-  if (!isSpeakerArchiveEmailAssetKey(key)) return c.notFound();
-
-  const bucket = speakerArchiveEmailAssetBucket(c);
-  if (!bucket) return c.notFound();
-
-  const object = await bucket.get(key);
-  if (!object?.body) return c.notFound();
-
-  const headers = new Headers({
-    'Content-Type': object.httpMetadata?.contentType ?? 'image/png',
-    'Cache-Control': 'public, max-age=31536000, immutable',
-    'X-Content-Type-Options': 'nosniff',
-  });
-  object.writeHttpMetadata?.(headers);
-  return new Response(object.body, { headers });
 });
 
 app.get('*', (c) => {

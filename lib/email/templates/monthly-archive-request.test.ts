@@ -9,19 +9,18 @@ describe('monthly archive request email', () => {
       talkTitle: '"Workers" at scale',
       privateUrl: 'https://em.devcongress.org/speaker-talks/event/token',
       expiresAt: '2026-08-03T12:00:00.000Z',
-      presentationCardUrl: 'https://em.devcongress.org/email-assets/speaker-archive-email/presentation-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png',
-      ctaImageUrl: 'https://em.devcongress.org/email-assets/speaker-archive-email/cta-v1.png',
     });
 
     expect(result.subject).toBe('Your DevCongress archive link');
     expect(result.html).toContain('href="https://em.devcongress.org/speaker-talks/event/token"');
     expect(result.html).toContain('src="https://em.devcongress.org/brand/dev-con-logo.png"');
-    expect(result.html).toContain('src="https://em.devcongress.org/email-assets/speaker-archive-email/presentation-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png"');
-    expect(result.html).toContain('src="https://em.devcongress.org/email-assets/speaker-archive-email/cta-v1.png"');
-    expect(result.html).toContain('alt="Add presentation details"');
+    expect(result.html).toContain('src="https://em.devcongress.org/brand/speaker-archive-illustration.png"');
+    expect(result.html).toContain('Add presentation details');
     expect(result.html).toContain('@media (prefers-color-scheme: dark)');
     expect(result.html).toContain('class="email-brand email-brand-pad"');
-    expect(result.html).not.toContain('<span class="email-yellow-text-lock"');
+    expect(result.html).toContain('class="email-session-card"');
+    expect(result.html).toContain('bgcolor="#111111" class="email-cta-cell"');
+    expect(result.html).not.toContain('email-yellow-text-lock');
     expect(result.html).toContain('.email-wrap { padding: 20px 16px !important; }');
     expect(result.html).toContain('@media only screen and (max-width: 640px) and (prefers-color-scheme: dark)');
     expect(result.html).toContain('.email-wrap { padding: 14px 10px !important; }');
@@ -46,8 +45,6 @@ describe('monthly archive request email', () => {
       talkTitle,
       privateUrl: 'https://em.devcongress.org/speaker-talks/event/token',
       expiresAt: '2026-08-03T12:00:00.000Z',
-      presentationCardUrl: 'https://em.devcongress.org/email-assets/speaker-archive-email/presentation-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png',
-      ctaImageUrl: 'https://em.devcongress.org/email-assets/speaker-archive-email/cta-v1.png',
     });
 
     expect(result.html).toContain(`${'A'.repeat(55)}…`);

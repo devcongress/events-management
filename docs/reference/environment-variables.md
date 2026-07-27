@@ -22,7 +22,6 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `RESEND_WEBHOOK_SECRET` | Planned feature only | No | Server-only signing secret used to verify Resend delivery webhooks against the raw request body. |
 | `SPEAKER_EMAIL_FROM` | Required for Archive Request email sends | No | Approved monthly sender: `DevCongress Monthly Speakers <speakers@updates.devcongress.org>`. Reserve `DevCongress Conference Speakers` for the future annual-conference outreach flow. |
 | `SPEAKER_EMAIL_REPLY_TO` | Required for Archive Request email sends | No | Monitored DevCongress mailbox that receives replies; production is `hello@devcongress.org`. |
-| `SPEAKER_EMAIL_ASSETS` | Required for Archive Request email sends | No | Cloudflare R2 binding, declared in `wrangler.toml`, that stores immutable presentation-card and CTA PNGs. This is a binding, not an environment variable or secret. |
 
 ## Rules
 
@@ -42,4 +41,3 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.
 - Store `RESEND_API_KEY` as a Cloudflare Worker secret; never expose it through a `VITE_` variable or commit it. `RESEND_WEBHOOK_SECRET` remains reserved for the future verified delivery-webhook route.
 - Keep `SPEAKER_EMAIL_FROM` on the verified Resend sending subdomain and point `SPEAKER_EMAIL_REPLY_TO` at a mailbox the DevCongress team actively monitors.
-- `SPEAKER_EMAIL_ASSETS` is intentionally public-read only through the narrow `/email-assets/speaker-archive-email/*` Worker route. Asset keys are content hashes of public event/title text; never include a speaker email or private link token in an asset key.

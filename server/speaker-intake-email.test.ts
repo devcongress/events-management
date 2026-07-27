@@ -3,14 +3,6 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../lib/email/archive-email-images', () => ({
-  isSpeakerArchiveEmailAssetKey: vi.fn(() => true),
-  prepareArchiveEmailImages: vi.fn(async () => ({
-    presentationCardUrl: 'http://localhost/email-assets/speaker-archive-email/presentation-test.png',
-    ctaImageUrl: 'http://localhost/email-assets/speaker-archive-email/cta-v1.png',
-  })),
-}));
-
 vi.mock('../lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('../lib/supabase/admin-auth')>('../lib/supabase/admin-auth');
   const session = {
@@ -36,11 +28,6 @@ vi.mock('../lib/supabase/admin-auth', async () => {
 
 const originalCwd = process.cwd();
 let tempRoot: string;
-const emailAssetBucket = {
-  head: vi.fn(async () => null),
-  get: vi.fn(async () => null),
-  put: vi.fn(async () => undefined),
-};
 
 const event = {
   id: 'event-july',
@@ -77,7 +64,7 @@ async function importEmailModules() {
   return { app, links };
 }
 
-function requestSpeakerEmails(app: { request: (input: string, init?: RequestInit, env?: Record<string, unknown>) => Response | Promise<Response> }, body: unknown) {
+function requestSpeakerEmails(app: { request: (input: string, init?: RequestInit) => Response | Promise<Response> }, body: unknown) {
   return Promise.resolve(app.request(
     `http://localhost/api/events/${event.id}/speaker-intake-emails`,
     {
@@ -85,7 +72,6 @@ function requestSpeakerEmails(app: { request: (input: string, init?: RequestInit
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     },
-    { SPEAKER_EMAIL_ASSETS: emailAssetBucket },
   ));
 }
 
