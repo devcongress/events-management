@@ -2,6 +2,10 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
+  SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
+} from '../lib/speaker-intake-limits';
 
 const originalCwd = process.cwd();
 let tempRoot: string;
@@ -47,7 +51,7 @@ afterEach(async () => {
 });
 
 describe('archive item discriminator at the public intake boundary', () => {
-  it('uses the backfill invitation kind instead of a public form override', async () => {
+  it('uses the backfill invitation kind and title instead of public form overrides', async () => {
     const { app, links, talks } = await importArchiveModules();
     const { token } = await links.createSpeakerIntakeLink({
       event_id: event.id,
@@ -56,6 +60,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       kind: 'product_demo',
       speaker_name: 'Product Builder',
       speaker_email: 'builder@example.com',
+      talk_title: 'Demo the community tool',
     });
 
     const response = await app.request(
@@ -65,7 +70,7 @@ describe('archive item discriminator at the public intake boundary', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           kind: 'talk',
-          title: 'Demo the community tool',
+          title: 'A browser-tampered title',
           topic: 'Product Engineering',
           abstract: 'A live product demonstration.',
           bio: 'Community builder.',
@@ -223,6 +228,52 @@ describe('archive item discriminator at the public intake boundary', () => {
     expect(response.status).toBe(410);
   });
 
+  it('enforces concise abstract and bio limits at the public intake boundary', async () => {
+    const { app, links, talks } = await importArchiveModules();
+    const { token } = await links.createSpeakerIntakeLink({
+      event_id: event.id,
+      event_month: '2026-07',
+      expires_at: '2099-01-01T00:00:00.000Z',
+      kind: 'talk',
+      speaker_name: 'Concise Presenter',
+      speaker_email: 'concise@example.com',
+      talk_title: 'Keep archive details concise',
+    });
+    const submit = (abstract: string, bio: string) => app.request(
+      `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Keep archive details concise',
+          topic: 'Technical Communication',
+          abstract,
+          bio,
+          slides_url: 'https://example.com/slides',
+        }),
+      },
+    );
+
+    const longAbstractResponse = await submit(
+      'A'.repeat(SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS + 1),
+      'Community builder.',
+    );
+    expect(longAbstractResponse.status).toBe(400);
+    await expect(longAbstractResponse.json()).resolves.toMatchObject({
+      error: `Presentation summary must be ${SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS} characters or fewer`,
+    });
+
+    const longBioResponse = await submit(
+      'A concise presentation summary.',
+      'B'.repeat(SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS + 1),
+    );
+    expect(longBioResponse.status).toBe(400);
+    await expect(longBioResponse.json()).resolves.toMatchObject({
+      error: `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
+    });
+    await expect(talks.getTalksByEvent(event.id)).resolves.toEqual([]);
+  });
+
   it('accepts only http or https archive resource URLs', async () => {
     const { app, links, talks } = await importArchiveModules();
     const { token } = await links.createSpeakerIntakeLink({
@@ -232,6 +283,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       kind: 'product_demo',
       speaker_name: 'Safe Link Presenter',
       speaker_email: 'safe-link@example.com',
+      talk_title: 'Unsafe resource demonstration',
     });
 
     const response = await app.request(
@@ -265,6 +317,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       kind: 'talk',
       speaker_name: 'One Time Presenter',
       speaker_email: 'one-time@example.com',
+      talk_title: 'Submit exactly once',
     });
     const request = () => app.request(
       `http://localhost/api/events/${event.id}/speaker-intake/${token}`,

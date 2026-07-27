@@ -60,6 +60,10 @@ import {
   sameArchiveProgramIdentity,
   sameArchiveProgramItemIdentity,
 } from '@/lib/speaker-archive-email';
+import {
+  SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
+  SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
+} from '@/lib/speaker-intake-limits';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import { evaluateVolunteerRateLimit, recordVolunteerSubmission, volunteerRetryMessage } from '@/lib/volunteer-rate-limit';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
@@ -173,6 +177,7 @@ const speakerIntakeLinkRequestSchema = z.object({
   kind: archiveItemKindSchema.optional().default('talk'),
   speaker_name: z.string().trim().min(1, 'Presenter name is required').max(120),
   speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid'),
+  title: z.string().trim().min(1, 'Archive item title is required'),
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 });
 const speakerIntakeEmailRecipientSchema = z.object({
@@ -187,12 +192,28 @@ const speakerIntakeEmailBatchSchema = z.object({
     ),
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 }).strict();
-// The invitation decides whether this is a talk or product demo. The public
-// one-time form may provide content, but cannot reclassify its archive item.
+// The invitation decides whether this is a talk or product demo and locks its
+// title. The public one-time form may provide the remaining archive content.
 const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({
   kind: true,
   speaker_name: true,
   speaker_email: true,
+  title: true,
+}).extend({
+  abstract: z.string().trim()
+    .max(
+      SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
+      `Presentation summary must be ${SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS} characters or fewer`,
+    )
+    .optional()
+    .default(''),
+  bio: z.string().trim()
+    .max(
+      SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
+      `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
+    )
+    .optional()
+    .default(''),
 });
 const volunteerApplicationSchema = z.object({
   name: z.string().trim().min(1, 'Please enter your name.').max(120),
@@ -3463,8 +3484,11 @@ function speakerIntakeLinkError(link: SpeakerIntakeLink | undefined): { error: s
     return { error: 'Archive request link has expired', status: 410 };
   }
 
-  if (link.purpose === 'archive_backfill' && (!link.speaker_name || !link.speaker_email)) {
-    return { error: 'This older archive request link cannot verify the invited presenter. Ask an organizer to issue a new link.', status: 410 };
+  if (
+    (link.purpose ?? 'archive_backfill') === 'archive_backfill'
+    && (!link.speaker_name || !link.speaker_email || !link.talk_title?.trim())
+  ) {
+    return { error: 'This older archive request link cannot verify the invited presentation. Ask an organizer to issue a new link.', status: 410 };
   }
 
   return null;
@@ -3778,6 +3802,7 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
     kind: parsed.data.kind,
     speaker_name: parsed.data.speaker_name,
     speaker_email: parsed.data.speaker_email,
+    talk_title: parsed.data.title,
   });
 
   await auditAdminAction(c, {
@@ -4125,8 +4150,8 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the archive item details' }, 400);
         }
 
-        if (!activeLink.speaker_name || !activeLink.speaker_email) {
-          return c.json({ error: 'This archive request link cannot verify the invited presenter. Ask an organizer to issue a new link.' }, 410);
+        if (!activeLink.speaker_name || !activeLink.speaker_email || !activeLink.talk_title?.trim()) {
+          return c.json({ error: 'This archive request link cannot verify the invited presentation. Ask an organizer to issue a new link.' }, 410);
         }
 
         const result = await createBackfilledTalkForEvent(eventId, {
@@ -4134,6 +4159,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           kind: normalizeArchiveItemKind(activeLink.kind),
           speaker_name: activeLink.speaker_name,
           speaker_email: activeLink.speaker_email,
+          title: activeLink.talk_title,
         });
         talk = result.talk;
       }

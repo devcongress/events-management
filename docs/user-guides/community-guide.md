@@ -20,7 +20,7 @@ When an upcoming monthly event has submissions open, use the event CFP route:
 
 A CFP submission usually includes speaker details, title, topic, abstract, and bio.
 
-## Share Talk Details
+## Share Your Talk
 
 After a meetup, organizers can send speakers a post-event archive form:
 
@@ -28,7 +28,7 @@ After a meetup, organizers can send speakers a post-event archive form:
 /speaker-talks/:eventId/:token
 ```
 
-The standalone form collects speaker details, talk metadata, and an optional public slide link for the event archive. These links expire and can only be submitted once.
+The standalone form opens with the DevCongress wordmark and a two-line introduction explaining the requested details and their public-archive destination. The organizer-selected talk title appears as locked context, while the speaker can complete the topic, summary, bio, and optional public slide link. The recipient email remains secured to the private link instead of being repeated on the page. These links expire and can only be submitted once.
 
 ## Share Event Feedback
 
