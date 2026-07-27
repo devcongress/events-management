@@ -50,7 +50,7 @@ Relevant code:
 
 **Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Because the July program outline does not store speaker emails, the organizer enters one address for each selected row. The address is used for this one-off request and its identity-locked private link; it is not written back into the program outline or speaker allowlist. The selected program row remains the server-authoritative source of presenter name, talk title, and archive-item kind.
 
-One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The form collects the remaining topic, abstract, bio, and optional public resource URL. It reuses the existing archive path instead of introducing a second archive form.
+One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The email uses the public app's DevCongress wordmark, a gender-neutral presentation-kit illustration, the canonical `#F5E642` yellow, the project's Inter/IBM Plex Mono hierarchy through stable self-hosted WOFF2 assets, explicit light/dark client styles, and a solid-gradient fallback that helps forced dark modes preserve the brand CTA. The public font path supplies permissive cross-origin loading and long-lived immutable caching for supporting email clients; clients that block email web fonts fall back to compatible system sans and monospace faces. The yellow session card truncates unusually long titles deterministically while the plain-text fallback retains the complete title. The form collects the remaining topic, abstract, bio, and optional public resource URL. It reuses the existing archive path instead of introducing a second archive form.
 
 ### Private-link behavior
 
@@ -125,7 +125,7 @@ Submitting the private form creates an accepted or materials-received Event Arch
 ### Recommended July email
 
 ```text
-Subject: Add your presentation details for DevCongress July 2026
+Subject: Your DevCongress archive link
 
 Hi {{ speakerName }},
 
@@ -195,7 +195,8 @@ Recommended sender:
 
 ```text
 Domain: updates.devcongress.org
-From: DevCongress Speakers <speakers@updates.devcongress.org>
+Monthly From: DevCongress Monthly Speakers <speakers@updates.devcongress.org>
+Future conference From: DevCongress Conference Speakers <speakers@updates.devcongress.org>
 Reply-To: hello@devcongress.org
 ```
 
@@ -225,7 +226,7 @@ RESEND_API_KEY
 Non-secret bindings:
 
 ```text
-SPEAKER_EMAIL_FROM=DevCongress Speakers <speakers@updates.devcongress.org>
+SPEAKER_EMAIL_FROM=DevCongress Monthly Speakers <speakers@updates.devcongress.org>
 SPEAKER_EMAIL_REPLY_TO=hello@devcongress.org
 PUBLIC_APP_URL=https://em.devcongress.org
 ```

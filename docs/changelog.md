@@ -13,6 +13,9 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Added an authenticated Worker endpoint that validates organizer-supplied addresses, derives the program identity server-side, creates or reuses one-time links, calls Resend Batch with idempotency, and records pending, accepted, or retryable failed states without logging addresses or private tokens.
 - Disabled accepted program rows to prevent repeat sends from the UI, enforced the same duplicate suppression on the server, and added count-aware success plus non-blocking send-failure toasts.
 - Added contract coverage for multi-recipient sends, organizer-address validation, provider retries, duplicate suppression, delivery persistence, program identity matching, and template/client behavior.
+- Removed the private intake page's nested viewport-height constraint, widened its desktop canvas, and moved the abstract, bio, resource URL, and submit action into responsive grids so the default desktop form fits without avoidable inner-page overflow.
+- Redesigned the archive email as a responsive DevCongress editorial invitation with the hosted wordmark, a gender-neutral presentation-kit illustration, canonical `#F5E642` yellow, the project's self-hosted Inter/IBM Plex Mono type hierarchy, a shorter archive-link subject, explicit dark-mode styling, and yellow-preservation fallbacks for clients that force dark palettes; unusually long card titles are truncated without shortening the plain-text fallback.
+- Renamed the transactional sender to `DevCongress Monthly Speakers`, leaving `DevCongress Conference Speakers` as the distinct display identity for future annual-conference outreach.
 
 ## 2026-07-27 — Unified Event Archive workflow
 

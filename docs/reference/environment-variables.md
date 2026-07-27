@@ -20,7 +20,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 | `RESEND_API_KEY` | Required for Archive Request email sends | No | Server-only, sending-restricted Resend API key used by the authenticated speaker email batch endpoint. |
 | `RESEND_WEBHOOK_SECRET` | Planned feature only | No | Server-only signing secret used to verify Resend delivery webhooks against the raw request body. |
-| `SPEAKER_EMAIL_FROM` | Required for Archive Request email sends | No | Approved branded sender: `DevCongress Speakers <speakers@updates.devcongress.org>`. |
+| `SPEAKER_EMAIL_FROM` | Required for Archive Request email sends | No | Approved monthly sender: `DevCongress Monthly Speakers <speakers@updates.devcongress.org>`. Reserve `DevCongress Conference Speakers` for the future annual-conference outreach flow. |
 | `SPEAKER_EMAIL_REPLY_TO` | Required for Archive Request email sends | No | Monitored DevCongress mailbox that receives replies; production is `hello@devcongress.org`. |
 
 ## Rules
