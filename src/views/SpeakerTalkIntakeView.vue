@@ -179,12 +179,12 @@ function applyPrefill(prefill: IntakePrefill) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-dc-cream text-dc-ink">
-    <div v-if="loading" class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
+  <div class="min-h-full bg-dc-cream text-dc-ink">
+    <div v-if="loading" class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
       <CfpPageSkeleton />
     </div>
 
-    <div v-else-if="unavailableMessage" class="flex min-h-screen items-center justify-center p-4">
+    <div v-else-if="unavailableMessage" class="flex min-h-full items-center justify-center p-4">
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
         <h2 class="mb-3 text-2xl font-bold text-dc-ink">Link closed</h2>
         <p class="text-dc-gray">{{ unavailableMessage }}</p>
@@ -192,11 +192,11 @@ function applyPrefill(prefill: IntakePrefill) {
       </div>
     </div>
 
-    <div v-else-if="!event" class="flex min-h-screen items-center justify-center p-4 text-center">
+    <div v-else-if="!event" class="flex min-h-full items-center justify-center p-4 text-center">
       <p class="font-mono text-dc-ink">EVENT NOT FOUND</p>
     </div>
 
-    <div v-else-if="submitted" class="flex min-h-screen items-center justify-center p-4">
+    <div v-else-if="submitted" class="flex min-h-full items-center justify-center p-4">
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
         <div class="mb-6 font-mono text-6xl font-bold text-dc-pink">OK</div>
         <h2 class="mb-4 text-3xl font-bold text-dc-ink">Received</h2>
@@ -215,8 +215,8 @@ function applyPrefill(prefill: IntakePrefill) {
       </div>
     </div>
 
-    <div v-else class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
-      <div class="editorial-header">
+    <div v-else class="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+      <div class="editorial-header !mb-5 !pb-5">
         <p class="editorial-eyebrow">{{ isSelectedSpeakerLink() ? `selected ${archiveItemLabel()}` : `${archiveItemLabel()} archive` }}</p>
         <h1 class="editorial-title">{{ archiveHeading() }}</h1>
         <p class="editorial-subtitle">
@@ -227,7 +227,7 @@ function applyPrefill(prefill: IntakePrefill) {
 
       <div
         v-if="event.description || expiresAt"
-        class="mb-6 flex flex-col gap-2 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111] sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        class="mb-4 flex flex-col gap-2 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111] sm:flex-row sm:items-center sm:justify-between sm:gap-6"
       >
         <p v-if="event.description" class="line-clamp-2 min-w-0 flex-1 text-sm leading-5 text-dc-gray sm:line-clamp-1">
           {{ event.description }}
@@ -237,10 +237,10 @@ function applyPrefill(prefill: IntakePrefill) {
         </p>
       </div>
 
-      <form class="editorial-panel space-y-6 p-6 sm:p-8" @submit.prevent="submitTalkDetails">
+      <form class="editorial-panel space-y-5 p-5 sm:p-6" @submit.prevent="submitTalkDetails">
         <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
 
-        <div v-if="isSelectedSpeakerLink()" class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
+        <div v-if="isSelectedSpeakerLink()" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
           <p class="editorial-eyebrow">Selected {{ archiveItemLabel() }}</p>
           <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
           <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
@@ -250,7 +250,7 @@ function applyPrefill(prefill: IntakePrefill) {
         </div>
 
         <template v-else>
-          <section class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
+          <section class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
             <p class="editorial-eyebrow">Invited {{ presenterLabel() }}</p>
             <p class="mt-2 text-xl font-bold tracking-tight text-dc-ink">{{ form.speaker_name }}</p>
             <p class="mt-1 font-mono text-xs font-semibold text-dc-gray">{{ form.speaker_email }}</p>
@@ -269,35 +269,39 @@ function applyPrefill(prefill: IntakePrefill) {
             />
           </div>
 
-          <label class="block">
-            <span class="editorial-label">{{ isProductDemo() ? 'Demo summary' : 'Abstract' }}</span>
-            <textarea v-model="form.abstract" rows="5" class="editorial-input min-h-36 resize-y" />
-          </label>
+          <div class="grid min-w-0 gap-4 lg:grid-cols-2">
+            <label class="block min-w-0">
+              <span class="editorial-label">{{ isProductDemo() ? 'Demo summary' : 'Abstract' }}</span>
+              <textarea v-model="form.abstract" rows="4" class="editorial-input min-h-28 resize-y" />
+            </label>
 
-          <label class="block">
-            <span class="editorial-label">{{ presenterLabel() }} bio</span>
-            <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y" />
-          </label>
+            <label class="block min-w-0">
+              <span class="editorial-label">{{ presenterLabel() }} bio</span>
+              <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y" />
+            </label>
+          </div>
         </template>
 
-        <label class="block">
-          <span class="editorial-label">{{ resourceLabel() }}<span v-if="isSelectedSpeakerLink()"> *</span></span>
-          <input v-model="form.slides_url" :required="isSelectedSpeakerLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
-        </label>
+        <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <label class="block min-w-0">
+            <span class="editorial-label">{{ resourceLabel() }}<span v-if="isSelectedSpeakerLink()"> *</span></span>
+            <input v-model="form.slides_url" :required="isSelectedSpeakerLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
+          </label>
 
-        <button type="submit" :disabled="submitting" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50">
-          {{
-            submitting
-              ? 'SUBMITTING...'
-              : isSelectedSpeakerLink()
-                ? isProductDemo()
-                  ? 'SEND DEMO LINK'
-                  : 'SEND SLIDES'
-                : isProductDemo()
-                  ? 'SEND PRODUCT DEMO DETAILS'
-                  : 'SEND TALK DETAILS'
-          }}
-        </button>
+          <button type="submit" :disabled="submitting" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-72">
+            {{
+              submitting
+                ? 'SUBMITTING...'
+                : isSelectedSpeakerLink()
+                  ? isProductDemo()
+                    ? 'SEND DEMO LINK'
+                    : 'SEND SLIDES'
+                  : isProductDemo()
+                    ? 'SEND PRODUCT DEMO DETAILS'
+                    : 'SEND TALK DETAILS'
+            }}
+          </button>
+        </div>
       </form>
     </div>
   </div>
