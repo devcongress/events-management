@@ -7,12 +7,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ## 2026-07-27 — Resend-powered Archive Request emails
 
-- Replaced one-at-a-time link generation with a program-sourced speaker multi-select that sends up to 100 personalized Archive Request emails in one organizer action.
-- Resolved recipient addresses from exact stored proposal, talk, or event-speaker matches; missing and conflicting addresses remain visibly disabled instead of being guessed.
+- Replaced one-at-a-time link generation and the obstructive speaker dropdown with an inline program roster that keeps selection, topic context, and per-speaker email entry in the same row, with bulk select/clear controls and up to 100 personalized sends per organizer action.
+- Added a required email field for each selected program speaker because the one-off July outline does not store recipient addresses; those addresses stay scoped to the private requests and are not written back into the program or speaker allowlist.
 - Embedded each private, topic-bound form URL behind a branded email call-to-action, retained a plain-text fallback, and kept all dynamic HTML escaped.
-- Added an authenticated Worker endpoint that derives recipient identity server-side, creates or reuses one-time links, calls Resend Batch with idempotency, and records pending, accepted, or retryable failed states without logging private tokens.
-- Disabled accepted program rows to prevent repeat sends from the UI, enforced the same duplicate suppression on the server, and added count-aware success toasts.
-- Added contract coverage for multi-recipient sends, provider retries, duplicate suppression, delivery persistence, strict speaker matching, and template/client behavior.
+- Added an authenticated Worker endpoint that validates organizer-supplied addresses, derives the program identity server-side, creates or reuses one-time links, calls Resend Batch with idempotency, and records pending, accepted, or retryable failed states without logging addresses or private tokens.
+- Disabled accepted program rows to prevent repeat sends from the UI, enforced the same duplicate suppression on the server, and added count-aware success plus non-blocking send-failure toasts.
+- Added contract coverage for multi-recipient sends, organizer-address validation, provider retries, duplicate suppression, delivery persistence, program identity matching, and template/client behavior.
 
 ## 2026-07-27 — Unified Event Archive workflow
 

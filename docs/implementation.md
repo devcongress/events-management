@@ -291,9 +291,10 @@ POST /api/events/[eventId]/speaker-intake-links
   → only one matching active manual token may exist for the same event, email, and kind; different recipients may use the same expiry duration
 
 POST /api/events/[eventId]/speaker-intake-emails
-  body: { program_item_indexes: number[], expires_in_days }
+  body: { recipients: [{ program_item_index, speaker_email }], expires_in_days }
   → admin-only; accepts up to 100 unique eligible rows from the stored event schedule
-  → derives the recipient from an exact selected-proposal, talk, or event-speaker match; missing/ambiguous matches fail closed
+  → validates each one-off organizer-supplied email while deriving name, title, kind, and event from the stored program row
+  → does not write the supplied address back into the program outline or speaker allowlist
   → creates or reuses one title-bound private link per row and submits personalized entries through Resend Batch
   → records pending/accepted/failed state and provider IDs on the link, uses a stable idempotency key, and skips identities already accepted
 

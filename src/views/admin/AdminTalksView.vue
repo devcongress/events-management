@@ -3,13 +3,12 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import AppMultiSelectDropdown from '@/src/components/AppMultiSelectDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
-import { archiveRequestProgramItems, resolveSpeakerEmail, sameArchiveProgramIdentity } from '@/lib/speaker-archive-email';
-import type { ArchiveItemKind, Event, EventSpeaker, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
+import { archiveRequestProgramItems, sameArchiveProgramItemIdentity } from '@/lib/speaker-archive-email';
+import type { ArchiveItemKind, Event, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
@@ -38,7 +37,6 @@ type AdminSpeakerIntakeLink = {
 };
 const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
-const eventSpeakers = ref<EventSpeaker[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
 const speakerIntakeLinks = ref<AdminSpeakerIntakeLink[]>([]);
 const loading = ref(true);
@@ -57,6 +55,7 @@ let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerLinkExpiresInDays = ref(7);
 const backfillProgramItemValues = ref<string[]>([]);
+const backfillProgramItemEmails = ref<Record<string, string>>({});
 const error = ref<string | null>(null);
 const PROGRAM_ABSTRACT_PREVIEW_WORDS = 55;
 const groups: { label: string; statuses: TalkStatus[] }[] = [
@@ -160,51 +159,66 @@ const speakerLinkExpiryOptions = computed(() => speakerLinkExpiryDurations.map((
   label: `${days} days`,
 })));
 const backfillProgramItems = computed(() => archiveRequestProgramItems(event.value?.schedule).map((item) => {
-  const emailResolution = resolveSpeakerEmail({
-    speakerName: item.speakerName,
-    talkTitle: item.title,
-    submissions: speakerSubmissions.value,
-    speakers: eventSpeakers.value,
-    talks: talks.value,
-  });
-  const sent = emailResolution.status === 'resolved' && archiveBackfillLinks.value.some((link) => (
+  const sent = archiveBackfillLinks.value.some((link) => (
     link.email_status === 'accepted'
-    && sameArchiveProgramIdentity(link, {
+    && sameArchiveProgramItemIdentity(link, {
       kind: item.kind,
-      speakerEmail: emailResolution.email,
+      speakerName: item.speakerName,
       title: item.title,
     })
   ));
 
-  return { ...item, emailResolution, sent };
+  return { ...item, sent };
 }));
-const backfillProgramItemOptions = computed(() => backfillProgramItems.value.map((item) => ({
-  value: item.value,
-  label: item.label,
-  disabled: item.sent || item.emailResolution.status !== 'resolved',
-  note: item.sent
-    ? 'Sent'
-    : item.emailResolution.status === 'ambiguous'
-      ? 'Check email'
-      : item.emailResolution.status === 'missing'
-        ? 'Email missing'
-        : undefined,
-})));
+const selectableBackfillProgramItems = computed(() => backfillProgramItems.value.filter((item) => !item.sent));
 const selectedBackfillProgramItems = computed(() => backfillProgramItems.value.filter((item) => (
   backfillProgramItemValues.value.includes(item.value)
 )));
-const unavailableBackfillProgramItemCount = computed(() => backfillProgramItems.value.filter((item) => (
-  item.emailResolution.status !== 'resolved'
+const validSpeakerEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const selectedBackfillEmailIssueCount = computed(() => selectedBackfillProgramItems.value.filter((item) => (
+  !validSpeakerEmailPattern.test(backfillProgramItemEmails.value[item.value]?.trim() ?? '')
 )).length);
+const allSelectableBackfillProgramItemsSelected = computed(() => (
+  selectableBackfillProgramItems.value.length > 0
+  && selectableBackfillProgramItems.value.every((item) => backfillProgramItemValues.value.includes(item.value))
+));
 const canSendBackfillEmails = computed(() => (
   selectedBackfillProgramItems.value.length > 0
-  && selectedBackfillProgramItems.value.every((item) => !item.sent && item.emailResolution.status === 'resolved')
+  && selectedBackfillEmailIssueCount.value === 0
+  && selectedBackfillProgramItems.value.every((item) => !item.sent)
 ));
 const sendBackfillButtonLabel = computed(() => {
   if (creatingSpeakerLink.value) return 'Sending...';
   const count = selectedBackfillProgramItems.value.length;
-  return count > 1 ? `Send ${count} emails` : 'Send email';
+  return count > 0 ? `Send ${count} ${count === 1 ? 'email' : 'emails'}` : 'Send email';
 });
+
+function backfillProgramItemIsSelected(value: string): boolean {
+  return backfillProgramItemValues.value.includes(value);
+}
+
+function backfillProgramItemEmailIsInvalid(value: string): boolean {
+  const email = backfillProgramItemEmails.value[value]?.trim() ?? '';
+  return email.length > 0 && !validSpeakerEmailPattern.test(email);
+}
+
+function selectAllBackfillProgramItems() {
+  backfillProgramItemValues.value = selectableBackfillProgramItems.value
+    .slice(0, 100)
+    .map((item) => item.value);
+}
+
+function clearBackfillProgramItemSelection() {
+  backfillProgramItemValues.value = [];
+}
+
+function speakerEmailPlaceholder(speakerName: string): string {
+  const localPart = speakerName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.|\.$/g, '');
+  return `${localPart || 'speaker'}@example.com`;
+}
 
 function talkSectionPath(section: TalkSection): string {
   return adminPath(`events/${String(route.params.eventId)}/talks/${section}`);
@@ -220,11 +234,6 @@ function talkSectionCount(section: TalkSection): number | null {
 async function fetchTalks() {
   const response = await fetch(`/api/events/${route.params.eventId}/talks`);
   if (response.ok) talks.value = await response.json();
-}
-
-async function fetchEventSpeakers() {
-  const response = await fetch(`/api/events/${route.params.eventId}/speakers`, { cache: 'no-store' });
-  if (response.ok) eventSpeakers.value = await response.json();
 }
 
 async function fetchEvent() {
@@ -255,7 +264,6 @@ async function fetchPageData() {
   await Promise.all([
     fetchEvent(),
     fetchTalks(),
-    fetchEventSpeakers(),
     fetchSpeakerSubmissions(),
     fetchSpeakerIntakeLinks(),
   ]);
@@ -330,7 +338,10 @@ async function sendSpeakerIntakeEmails() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        program_item_indexes: selectedBackfillProgramItems.value.map((item) => item.index),
+        recipients: selectedBackfillProgramItems.value.map((item) => ({
+          program_item_index: item.index,
+          speaker_email: backfillProgramItemEmails.value[item.value].trim(),
+        })),
         expires_in_days: speakerLinkExpiresInDays.value,
       }),
     });
@@ -340,6 +351,7 @@ async function sendSpeakerIntakeEmails() {
       resetSpeakerIntakeLinkCopied();
       await fetchSpeakerIntakeLinks();
       backfillProgramItemValues.value = [];
+      backfillProgramItemEmails.value = {};
 
       if (data.sent_count === 1) {
         notify.success('Email sent.');
@@ -349,10 +361,10 @@ async function sendSpeakerIntakeEmails() {
         notify.info('The selected email was already sent.');
       }
     } else {
-      error.value = data.error || 'Could not send the archive request email.';
+      notify.error(data.error || 'Could not send the archive request email.');
     }
   } catch {
-    error.value = 'Could not send the archive request email. Check your connection and try again.';
+    notify.error('Could not send the archive request email. Check your connection and try again.');
   } finally {
     creatingSpeakerLink.value = false;
   }
@@ -864,36 +876,141 @@ onUnmounted(() => {
         <section v-if="activeTalkSection === 'backfill'" class="ops-panel mb-8 p-5">
           <div class="mb-6">
             <form @submit.prevent="sendSpeakerIntakeEmails">
-              <p class="ops-label">new request</p>
-              <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Email private archive links</h3>
-              <p class="mt-2 text-sm leading-6 text-dc-gray">Choose one or more speakers from this month’s program. Each person receives their own private form link.</p>
-
-              <div class="mt-4 grid gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(7rem,0.25fr)_auto] md:items-end">
-                <AppMultiSelectDropdown
-                  v-model="backfillProgramItemValues"
-                  label="Topics / speakers"
-                  :options="backfillProgramItemOptions"
-                  placeholder="Select speakers from program outline"
-                  :disabled="backfillProgramItemOptions.length === 0"
-                  menu-class="min-w-96"
-                />
-                <AppDropdown
-                  :model-value="speakerLinkExpiresInDays"
-                  label="Valid for"
-                  :options="speakerLinkExpiryOptions"
-                  menu-class="min-w-40"
-                  @update:model-value="speakerLinkExpiresInDays = Number($event)"
-                />
-                <button type="submit" :disabled="creatingSpeakerLink || !canSendBackfillEmails" class="editorial-secondary-action h-[50px] self-end px-4 py-3 text-xs">
-                  {{ sendBackfillButtonLabel }}
-                </button>
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p class="ops-label">new request</p>
+                  <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Choose recipients and add their emails</h3>
+                  <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
+                    Select people directly from this month’s program, then enter the address for each private archive link.
+                  </p>
+                </div>
+                <div v-if="backfillProgramItems.length > 0" class="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    class="motion-press min-h-9 rounded-md px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-35"
+                    :disabled="allSelectableBackfillProgramItemsSelected"
+                    @click="selectAllBackfillProgramItems"
+                  >
+                    Select all unsent
+                  </button>
+                  <button
+                    type="button"
+                    class="motion-press min-h-9 rounded-md px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-35"
+                    :disabled="backfillProgramItemValues.length === 0"
+                    @click="clearBackfillProgramItemSelection"
+                  >
+                    Clear selection
+                  </button>
+                </div>
               </div>
-              <p v-if="backfillProgramItemOptions.length === 0" class="mt-2 text-sm font-medium text-dc-gray">
+
+              <div v-if="backfillProgramItems.length > 0" class="mt-5 overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
+                <div class="hidden grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)] gap-4 border-b border-dc-border bg-dc-paper-warm px-4 py-2.5 md:grid">
+                  <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Speaker and topic</span>
+                  <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Recipient email</span>
+                </div>
+
+                <div
+                  v-for="(item, itemIndex) in backfillProgramItems"
+                  :key="`recipient-${item.value}`"
+                  class="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)] md:items-center md:gap-4"
+                  :class="[
+                    itemIndex > 0 ? 'border-t border-dc-border' : '',
+                    item.sent
+                      ? 'bg-dc-paper-warm'
+                      : backfillProgramItemIsSelected(item.value)
+                        ? 'bg-dc-yellow/15'
+                        : 'bg-dc-paper',
+                  ]"
+                >
+                  <label
+                    :for="`archive-recipient-${item.index}`"
+                    class="flex min-w-0 items-start gap-3"
+                    :class="item.sent ? 'cursor-not-allowed' : 'cursor-pointer'"
+                  >
+                    <input
+                      :id="`archive-recipient-${item.index}`"
+                      v-model="backfillProgramItemValues"
+                      type="checkbox"
+                      :value="item.value"
+                      :disabled="item.sent"
+                      class="mt-0.5 size-5 shrink-0 accent-dc-pink disabled:cursor-not-allowed"
+                    >
+                    <span class="min-w-0">
+                      <span class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm font-bold text-dc-ink">{{ item.speakerName }}</span>
+                        <span v-if="item.sent" class="rounded-md border border-dc-success bg-dc-success-soft px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-success">
+                          Sent
+                        </span>
+                      </span>
+                      <span class="mt-1 block text-sm leading-5 text-dc-gray">{{ item.title }}</span>
+                    </span>
+                  </label>
+
+                  <div v-if="item.sent" class="flex min-h-11 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
+                    Email already sent
+                  </div>
+                  <div v-else>
+                    <label :for="`archive-recipient-email-${item.index}`" class="sr-only">
+                      Email address for {{ item.speakerName }}
+                    </label>
+                    <input
+                      :id="`archive-recipient-email-${item.index}`"
+                      v-model="backfillProgramItemEmails[item.value]"
+                      :required="backfillProgramItemIsSelected(item.value)"
+                      :disabled="!backfillProgramItemIsSelected(item.value)"
+                      type="email"
+                      inputmode="email"
+                      autocomplete="email"
+                      class="editorial-input !min-h-11 !py-2 font-mono text-sm disabled:cursor-not-allowed disabled:border-dc-border disabled:bg-dc-paper-warm disabled:opacity-60"
+                      :class="backfillProgramItemEmailIsInvalid(item.value) ? '!border-dc-pink' : ''"
+                      :aria-invalid="backfillProgramItemEmailIsInvalid(item.value)"
+                      :placeholder="backfillProgramItemIsSelected(item.value) ? speakerEmailPlaceholder(item.speakerName) : 'Select speaker first'"
+                    >
+                    <p v-if="backfillProgramItemEmailIsInvalid(item.value)" class="mt-1.5 text-xs font-semibold text-dc-pink">
+                      Enter a valid email address.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p v-else class="mt-4 rounded-md border border-dc-border bg-dc-paper-warm p-4 text-sm font-medium text-dc-gray">
                 Add a topic and speaker to this month’s program outline before sending a request.
               </p>
-              <p v-else-if="unavailableBackfillProgramItemCount > 0" class="mt-2 text-sm font-medium text-dc-gray">
-                {{ unavailableBackfillProgramItemCount }} program {{ unavailableBackfillProgramItemCount === 1 ? 'item needs' : 'items need' }} a single matching speaker email before it can be selected.
-              </p>
+
+              <div v-if="backfillProgramItems.length > 0" class="mt-4 flex flex-col gap-4 border-t border-dc-border pt-4 md:flex-row md:items-end md:justify-between">
+                <div class="max-w-2xl">
+                  <p v-if="selectedBackfillProgramItems.length === 0" class="text-sm font-semibold text-dc-gray">
+                    Select at least one speaker to begin.
+                  </p>
+                  <p v-else-if="selectedBackfillEmailIssueCount > 0" class="text-sm font-semibold text-dc-pink">
+                    {{ selectedBackfillEmailIssueCount }} {{ selectedBackfillEmailIssueCount === 1 ? 'email is' : 'emails are' }} still needed.
+                  </p>
+                  <p v-else class="text-sm font-semibold text-dc-success">
+                    {{ selectedBackfillProgramItems.length }} {{ selectedBackfillProgramItems.length === 1 ? 'recipient is' : 'recipients are' }} ready.
+                  </p>
+                  <p class="mt-1 text-xs font-medium leading-5 text-dc-gray">
+                    These addresses are used only for this request. Future CFP submissions will provide speaker emails directly.
+                  </p>
+                </div>
+
+                <div class="grid shrink-0 gap-3 sm:grid-cols-[10rem_auto] sm:items-end">
+                  <AppDropdown
+                    :model-value="speakerLinkExpiresInDays"
+                    label="Valid for"
+                    :options="speakerLinkExpiryOptions"
+                    menu-class="min-w-40"
+                    @update:model-value="speakerLinkExpiresInDays = Number($event)"
+                  />
+                  <button
+                    type="submit"
+                    :disabled="creatingSpeakerLink || !canSendBackfillEmails"
+                    class="editorial-secondary-action h-[50px] self-end px-4 py-3 text-xs"
+                  >
+                    {{ sendBackfillButtonLabel }}
+                  </button>
+                </div>
+              </div>
             </form>
           </div>
 

@@ -55,7 +55,11 @@ import { getPublicLumaEventByUrl, lumaImportFailure, type LumaImportDraft } from
 import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
-import { archiveRequestProgramItems, resolveSpeakerEmail, sameArchiveProgramIdentity } from '@/lib/speaker-archive-email';
+import {
+  archiveRequestProgramItems,
+  sameArchiveProgramIdentity,
+  sameArchiveProgramItemIdentity,
+} from '@/lib/speaker-archive-email';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import { evaluateVolunteerRateLimit, recordVolunteerSubmission, volunteerRetryMessage } from '@/lib/volunteer-rate-limit';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
@@ -171,9 +175,16 @@ const speakerIntakeLinkRequestSchema = z.object({
   speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid'),
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 });
+const speakerIntakeEmailRecipientSchema = z.object({
+  program_item_index: z.number().int().min(0),
+  speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid').max(254),
+}).strict();
 const speakerIntakeEmailBatchSchema = z.object({
-  program_item_indexes: z.array(z.number().int().min(0)).min(1).max(100)
-    .refine((indexes) => new Set(indexes).size === indexes.length, 'Select each program item once'),
+  recipients: z.array(speakerIntakeEmailRecipientSchema).min(1).max(100)
+    .refine(
+      (recipients) => new Set(recipients.map(({ program_item_index }) => program_item_index)).size === recipients.length,
+      'Select each program item once',
+    ),
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
 }).strict();
 // The invitation decides whether this is a talk or product demo. The public
@@ -3813,47 +3824,29 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
 
   const releaseEmailSendLock = await acquireSpeakerIntakeSubmissionLock(`archive-email:${eventId}`);
   try {
-    const [submissions, speakers, talks, existingLinks] = await Promise.all([
-      getSpeakerSubmissionsByEvent(eventId),
-      getSpeakersByEvent(eventId),
-      getTalksByEvent(eventId),
-      getSpeakerIntakeLinksByEvent(eventId),
-    ]);
+    const existingLinks = await getSpeakerIntakeLinksByEvent(eventId);
     const programItemsByIndex = new Map(
       archiveRequestProgramItems(event.schedule).map((item) => [item.index, item]),
     );
-    const recipients = parsed.data.program_item_indexes.map((index) => {
-      const item = programItemsByIndex.get(index);
+    const recipients = parsed.data.recipients.map((recipient) => {
+      const item = programItemsByIndex.get(recipient.program_item_index);
       if (!item) {
-        return { index, item: null, resolution: null };
+        return {
+          index: recipient.program_item_index,
+          item: null,
+          speakerEmail: recipient.speaker_email,
+        };
       }
 
       return {
-        index,
+        index: recipient.program_item_index,
         item,
-        resolution: resolveSpeakerEmail({
-          speakerName: item.speakerName,
-          talkTitle: item.title,
-          submissions,
-          speakers,
-          talks,
-        }),
+        speakerEmail: recipient.speaker_email,
       };
     });
     const invalidProgramItem = recipients.find((recipient) => !recipient.item);
     if (invalidProgramItem) {
       return c.json({ error: 'One of the selected program items is no longer available.' }, 400);
-    }
-
-    const unresolvedRecipient = recipients.find((recipient) => recipient.resolution?.status !== 'resolved');
-    if (unresolvedRecipient) {
-      const item = unresolvedRecipient.item!;
-      const reason = unresolvedRecipient.resolution?.status === 'ambiguous'
-        ? 'has more than one matching email address'
-        : 'does not have a stored email address';
-      return c.json({
-        error: `${item.speakerName} ${reason}. Update the speaker record before sending.`,
-      }, 400);
     }
 
     const workingLinks = [...existingLinks];
@@ -3862,25 +3855,31 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
 
     for (const recipient of recipients) {
       const item = recipient.item!;
-      const speakerEmail = recipient.resolution!.email!;
-      const matchingLinks = workingLinks.filter((link) => (
+      const speakerEmail = recipient.speakerEmail;
+      const matchingItemLinks = workingLinks.filter((link) => (
         (link.purpose ?? 'archive_backfill') === 'archive_backfill'
-        && sameArchiveProgramIdentity(link, {
+        && sameArchiveProgramItemIdentity(link, {
           kind: item.kind,
-          speakerEmail,
+          speakerName: item.speakerName,
           title: item.title,
         })
       ));
-      const acceptedLink = matchingLinks.find((link) => link.email_status === 'accepted');
+      const acceptedLink = matchingItemLinks.find((link) => link.email_status === 'accepted');
       if (acceptedLink) {
         alreadyAccepted.push(acceptedLink);
         continue;
       }
 
-      const reusableLink = matchingLinks.find((link) => (
+      const reusableLink = matchingItemLinks.find((link) => (
         speakerIntakeLinkStatus(link) === 'active'
         && Boolean(link.token)
         && (link.email_status === 'pending' || link.email_status === 'failed')
+        && sameArchiveProgramIdentity(link, {
+          kind: item.kind,
+          speakerName: item.speakerName,
+          speakerEmail,
+          title: item.title,
+        })
       ));
 
       if (reusableLink?.token) {
