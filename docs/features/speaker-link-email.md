@@ -50,7 +50,7 @@ Relevant code:
 
 **Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Because the July program outline does not store speaker emails, the organizer enters one address for each selected row. The address is used for this one-off request and its identity-locked private link; it is not written back into the program outline or speaker allowlist. The selected program row remains the server-authoritative source of presenter name, talk title, and archive-item kind.
 
-One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The email uses the public app's DevCongress wordmark, a gender-neutral presentation-kit illustration, the canonical `#F5E642` yellow, and the project's Inter/IBM Plex Mono hierarchy through stable self-hosted WOFF2 assets. Explicit light/dark client styles keep the dark version on a cohesive `#111111` / `#1C1C1C` / `#161616` surface system, while solid-gradient surfaces, Gmail-targeted selectors, and a gradient-clipped black text lock keep yellow session-card and call-to-action copy black under forced dark palettes. Dark-mode mobile clients receive tighter outer padding, typography, illustration, and action proportions without changing the already-approved light-mode or desktop composition. The public font path supplies permissive cross-origin loading and long-lived immutable caching for supporting email clients; clients that block email web fonts fall back to compatible system sans and monospace faces. The yellow session card truncates unusually long titles deterministically while the plain-text fallback retains the complete title. The private form presents that organizer-selected title as locked invitation context and omits it from the browser submission; the API always restores the title from the one-time link. The form collects the remaining topic, optional public resource URL, and concise fixed-height content fields: the abstract or demo summary is capped at 500 characters and the presenter bio at 300, with live counters and matching server validation. It reuses the existing archive path instead of introducing a second archive form.
+One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The email uses the public app's DevCongress wordmark and a near-black responsive body. Its colour-sensitive yellow presentation card and action are server-rendered PNGs, not live yellow HTML: this prevents Gmail mobile dark mode from repainting their black text white. Each card is keyed only by a content hash of the public event and title, rendered at most once, kept in the Worker R2 binding with immutable cache headers, and served at a public non-secret URL. The private token stays exclusively in the CTA `href` and plain-text fallback. The card truncates unusually long titles deterministically while the plain-text fallback retains the complete title. The private form presents that organizer-selected title as locked invitation context and omits it from the browser submission; the API always restores the title from the one-time link. The form collects the remaining topic, optional public resource URL, and concise fixed-height content fields: the abstract or demo summary is capped at 500 characters and the presenter bio at 300, with live counters and matching server validation. It reuses the existing archive path instead of introducing a second archive form.
 
 ### Private-link behavior
 
@@ -113,12 +113,13 @@ The Hono API:
 2. Validates the event, unique program indexes, organizer-supplied addresses, server-derived identity, archive-item kind, title, and expiry.
 3. Reuses an eligible failed/pending link for the same event/email/kind/title or creates a new `archive_backfill` link.
 4. Build the absolute private URL on the server from `PUBLIC_APP_URL`; never accept a link URL from the browser.
-5. Render code-owned HTML and plain-text versions.
-6. Stores `pending` delivery state on the link before calling Resend.
-7. Sends up to 100 personalized entries with one deterministic idempotency key.
-8. Stores each Resend email ID and marks the links `accepted` only when the full provider response is valid.
-9. Records a safe failed state on provider rejection without logging recipient addresses, tokens, or URLs.
-10. Audits the accepted batch count and suppresses later sends for the same program identity.
+5. Render and cache the immutable presentation-card and CTA PNG assets before contacting Resend; rendering runs in bounded groups of four and cached assets skip rendering entirely.
+6. Render code-owned HTML and plain-text versions, embedding only those public asset URLs and retaining the private URL in the CTA link.
+7. Stores `pending` delivery state on the link before calling Resend.
+8. Sends up to 100 personalized entries with one deterministic idempotency key.
+9. Stores each Resend email ID and marks the links `accepted` only when the full provider response is valid.
+10. Records a safe failed state on provider rejection without logging recipient addresses, tokens, or URLs.
+11. Audits the accepted batch count and suppresses later sends for the same program identity.
 
 Submitting the private form creates an accepted or materials-received Event Archive item in the existing `Talk` compatibility model. It never publishes directly; an organizer must explicitly publish the item before it appears on public endpoints.
 
@@ -228,6 +229,7 @@ Non-secret bindings:
 ```text
 SPEAKER_EMAIL_FROM=DevCongress Monthly Speakers <speakers@updates.devcongress.org>
 SPEAKER_EMAIL_REPLY_TO=hello@devcongress.org
+SPEAKER_EMAIL_ASSETS=R2 binding provisioned from wrangler.toml
 PUBLIC_APP_URL=https://em.devcongress.org
 ```
 

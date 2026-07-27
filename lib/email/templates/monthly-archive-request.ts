@@ -22,17 +22,18 @@ export function monthlyArchiveRequestEmail(input: {
   talkTitle: string;
   privateUrl: string;
   expiresAt: string;
+  presentationCardUrl: string;
+  ctaImageUrl: string;
 }): { subject: string; html: string; text: string } {
   const safeEventName = escapeHtml(input.eventName);
   const safeSpeakerName = escapeHtml(input.speakerName);
   const safeTalkTitle = escapeHtml(input.talkTitle);
   const safeCardTitle = escapeHtml(truncateCardTitle(input.talkTitle));
   const safePrivateUrl = escapeHtml(input.privateUrl);
+  const safePresentationCardUrl = escapeHtml(input.presentationCardUrl);
+  const safeCtaImageUrl = escapeHtml(input.ctaImageUrl);
   const safeLogoUrl = escapeHtml(
     new URL('/brand/dev-con-logo.png', input.privateUrl).toString(),
-  );
-  const safeIllustrationUrl = escapeHtml(
-    new URL('/brand/speaker-archive-illustration.png', input.privateUrl).toString(),
   );
   const safeInter400Url = escapeHtml(
     new URL('/fonts/inter-400.woff2', input.privateUrl).toString(),
@@ -281,33 +282,26 @@ export function monthlyArchiveRequestEmail(input: {
                 <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;letter-spacing:-.02em;">Hi ${safeSpeakerName},</h1>
                 <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:17px;line-height:1.6;">Let&rsquo;s give your session a permanent home in the DevCongress community archive.</p>
 
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5E642" class="email-talk-card email-yellow-surface" style="width:100%;margin:0 0 24px;background:#F5E642;background-image:linear-gradient(#F5E642,#F5E642);border:2px solid #111111;border-radius:6px;">
-                  <tr>
-                    <td class="email-talk-copy" style="padding:18px 20px;">
-                      <p class="email-on-yellow" style="margin:0 0 7px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Your presentation</span></p>
-                      <p class="email-talk-title email-on-yellow" style="margin:0;color:#111111;-webkit-text-fill-color:#111111;font-size:21px;font-weight:800;line-height:1.35;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">${safeCardTitle}</span></p>
-                      <p class="email-talk-event email-on-yellow" style="margin:7px 0 0;color:#333333;-webkit-text-fill-color:#333333;font-size:13px;font-weight:600;line-height:1.4;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">${safeEventName}</span></p>
-                    </td>
-                    <td width="118" align="right" valign="middle" class="email-illustration-cell" style="width:118px;padding:14px 16px 14px 0;">
-                      <img
-                        src="${safeIllustrationUrl}"
-                        width="104"
-                        alt=""
-                        class="email-illustration"
-                        style="display:block;width:104px;max-width:100%;height:auto;border:0;"
-                      >
-                    </td>
-                  </tr>
-                </table>
+                <a href="${safePrivateUrl}" style="display:block;margin:0 0 24px;text-decoration:none;">
+                  <img
+                    src="${safePresentationCardUrl}"
+                    width="600"
+                    alt="Your presentation: ${safeCardTitle}"
+                    class="email-presentation-image"
+                    style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:8px;"
+                  >
+                </a>
 
                 <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:16px;line-height:1.65;">Add your presentation details and public resource using the private link below. It is secured to you and will close after a successful submission.</p>
-                <table role="presentation" cellspacing="0" cellpadding="0">
-                  <tr>
-                    <td bgcolor="#F5E642" class="email-cta-cell email-yellow-surface" style="background:#F5E642;background-image:linear-gradient(#F5E642,#F5E642);border:2px solid #111111;border-radius:6px;box-shadow:3px 3px 0 #111111;">
-                      <a href="${safePrivateUrl}" class="email-cta email-on-yellow" style="display:inline-block;padding:15px 22px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:14px;font-weight:700;letter-spacing:.03em;text-decoration:none;text-transform:uppercase;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Add my presentation details&nbsp;&nbsp;&rarr;</span></a>
-                    </td>
-                  </tr>
-                </table>
+                <a href="${safePrivateUrl}" style="display:inline-block;text-decoration:none;">
+                  <img
+                    src="${safeCtaImageUrl}"
+                    width="420"
+                    alt="Add presentation details"
+                    class="email-cta-image"
+                    style="display:block;width:420px;max-width:100%;height:auto;border:0;"
+                  >
+                </a>
               </td>
             </tr>
             <tr>

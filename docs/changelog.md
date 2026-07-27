@@ -5,6 +5,13 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-27 — Gmail-stable Archive Request email cards
+
+- Replaced the email's live yellow presentation card and CTA label with Worker-rendered PNG assets so Gmail mobile dark mode cannot recolour their black text.
+- Added a bounded four-at-a-time renderer and immutable R2 asset cache keyed only by event/title content; repeat sends reuse the same images while each recipient's private token remains solely in the CTA URL and plain-text fallback.
+- Added a narrow public PNG route with immutable caching and no access to arbitrary R2 keys, plus a declarative Worker R2 binding that Wrangler will provision on deployment.
+- Verified TypeScript, the full Vitest suite, and a Wrangler production dry-run with the R2 binding present.
+
 ## 2026-07-27 — Resend-powered Archive Request emails
 
 - Replaced one-at-a-time link generation and the obstructive speaker dropdown with an inline program roster that keeps selection, topic context, and per-speaker email entry in the same row, with bulk select/clear controls and up to 100 personalized sends per organizer action.
