@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 
-let datePickerInstanceCount = 0;
 let activeDatePickerId: string | null = null;
 
 const props = withDefaults(defineProps<{
@@ -25,7 +24,7 @@ const triggerButton = ref<HTMLButtonElement | null>(null);
 const calendarPanel = ref<HTMLElement | null>(null);
 const placement = ref<'bottom' | 'top'>('bottom');
 const menuMaxHeight = ref<number | null>(null);
-const datePickerId = `app-date-picker-${++datePickerInstanceCount}`;
+const datePickerId = `app-date-picker-${useId()}`;
 
 function parseDate(value: string): Date | null {
   if (!value) return null;
@@ -314,7 +313,7 @@ watch(open, async (isOpen) => {
     <button
       ref="triggerButton"
       type="button"
-      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-semibold text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
+      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
       :class="[
         label ? 'mt-2' : '',
         open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]' : 'border-dc-border',
@@ -356,7 +355,7 @@ watch(open, async (isOpen) => {
                 <path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
-            <p class="font-mono text-xs font-bold uppercase tracking-[0.18em] text-dc-ink">{{ monthLabel }}</p>
+            <p class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-dc-ink">{{ monthLabel }}</p>
             <button type="button" class="motion-press grid size-8 place-items-center rounded-md border border-dc-ink bg-dc-paper text-dc-ink hover:bg-dc-yellow" aria-label="Next month" @click="nextMonth">
               <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
                 <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -367,7 +366,7 @@ watch(open, async (isOpen) => {
 
         <div class="p-3">
           <div class="mb-2 grid grid-cols-7 gap-1">
-            <span v-for="weekday in weekdayLabels" :key="weekday" class="grid h-8 place-items-center font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">
+            <span v-for="weekday in weekdayLabels" :key="weekday" class="grid h-8 place-items-center font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
               {{ weekday }}
             </span>
           </div>
@@ -377,7 +376,7 @@ watch(open, async (isOpen) => {
               v-for="day in calendarDays"
               :key="toDateValue(day.date)"
               type="button"
-              class="motion-press grid h-10 place-items-center rounded-md border text-sm font-semibold outline-none focus-visible:border-dc-pink focus-visible:shadow-[0_0_0_2px_rgba(232,17,127,0.35)]"
+              class="motion-press grid h-10 place-items-center rounded-md border text-sm font-medium outline-none focus-visible:border-dc-pink focus-visible:shadow-[0_0_0_2px_rgba(232,17,127,0.35)]"
               :data-date="toDateValue(day.date)"
               :tabindex="isSameDay(day.date, activeDate) ? 0 : -1"
               :aria-label="dateAriaLabel(day.date)"
@@ -399,10 +398,10 @@ watch(open, async (isOpen) => {
           </div>
 
           <div class="sticky bottom-0 z-10 mt-3 flex items-center justify-between border-t border-dc-border bg-dc-paper pt-3">
-            <button type="button" class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:text-dc-ink" @click="clearDate">
+            <button type="button" class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink" @click="clearDate">
               Clear
             </button>
-            <button type="button" class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink hover:text-dc-ink" @click="chooseDate(new Date())">
+            <button type="button" class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink hover:text-dc-ink" @click="chooseDate(new Date())">
               Today
             </button>
           </div>

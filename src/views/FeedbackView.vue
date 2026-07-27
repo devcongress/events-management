@@ -239,7 +239,7 @@ onMounted(fetchFeedbackForm);
       <section v-else-if="submitted" class="editorial-panel overflow-hidden">
         <div class="border-b-2 border-dc-ink bg-dc-yellow p-6">
           <p class="editorial-eyebrow mb-2 text-dc-ink">feedback received</p>
-          <h1 class="text-4xl font-black tracking-tight text-dc-ink">{{ duplicateSubmitted ? 'Already received.' : 'Thank you.' }}</h1>
+          <h1 class="text-4xl font-extrabold tracking-tight text-dc-ink">{{ duplicateSubmitted ? 'Already received.' : 'Thank you.' }}</h1>
         </div>
         <div class="p-6">
           <p class="max-w-2xl text-lg leading-8 text-dc-gray">
@@ -251,7 +251,7 @@ onMounted(fetchFeedbackForm);
 
       <section v-else-if="error" class="editorial-panel p-6">
         <p class="editorial-eyebrow">feedback</p>
-        <h1 class="text-3xl font-black tracking-tight text-dc-ink">Form unavailable</h1>
+        <h1 class="text-3xl font-extrabold tracking-tight text-dc-ink">Form unavailable</h1>
         <p class="mt-4 text-base leading-7 text-dc-gray">{{ error }}</p>
       </section>
 
@@ -259,17 +259,17 @@ onMounted(fetchFeedbackForm);
         <header class="editorial-header">
           <p class="editorial-eyebrow">community feedback</p>
           <h1 class="editorial-title">{{ campaign.title }}</h1>
-          <p class="mt-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">{{ event.name }} · {{ formatDate(event.event_date) }}</p>
+          <p class="mt-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink">{{ event.name }} · {{ formatDate(event.event_date) }}</p>
           <p v-if="campaign.intro" class="editorial-subtitle">{{ campaign.intro }}</p>
         </header>
 
         <section v-if="previewMode" class="editorial-panel mb-5 border-dc-pink p-5">
-          <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">Preview mode</p>
+          <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink">Preview mode</p>
           <p class="mt-2 text-sm leading-6 text-dc-gray">This is the attendee-facing form preview from organizer configure. Submission is disabled here.</p>
         </section>
 
         <section class="editorial-panel mb-5 border-dc-yellow bg-dc-yellow/20 p-5">
-          <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">Anonymous feedback</p>
+          <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink">Anonymous feedback</p>
           <p class="mt-2 text-sm leading-6 text-dc-gray">
             We do not ask for your name or email.
             <span v-if="hasRatingQuestions">For each session, choose a rating or Did not attend.</span>
@@ -296,7 +296,7 @@ onMounted(fetchFeedbackForm);
                     v-for="rating in [1, 2, 3, 4, 5]"
                     :key="rating"
                     type="button"
-                    class="motion-press rounded-md border-2 border-dc-ink px-3 py-4 font-mono text-lg font-black shadow-[2px_2px_0_#111111]"
+                    class="motion-press rounded-md border-2 border-dc-ink px-3 py-4 font-mono text-lg font-semibold shadow-[2px_2px_0_#111111]"
                     :class="answers[question.id] === rating ? 'bg-dc-pink text-white' : 'bg-dc-paper hover:bg-dc-yellow'"
                     :aria-pressed="answers[question.id] === rating"
                     @click="answers[question.id] = rating"
@@ -306,7 +306,7 @@ onMounted(fetchFeedbackForm);
                 </div>
                 <button
                   type="button"
-                  class="motion-press mt-3 w-full rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-xs font-black uppercase tracking-wide shadow-[2px_2px_0_#111111]"
+                  class="motion-press mt-3 w-full rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide shadow-[2px_2px_0_#111111]"
                   :class="answers[question.id] === EVENT_FEEDBACK_NOT_ATTENDED ? 'bg-dc-yellow text-dc-ink' : 'bg-dc-paper hover:bg-dc-yellow/40'"
                   :aria-pressed="answers[question.id] === EVENT_FEEDBACK_NOT_ATTENDED"
                   @click="answers[question.id] = EVENT_FEEDBACK_NOT_ATTENDED"
@@ -326,7 +326,7 @@ onMounted(fetchFeedbackForm);
               <div v-else-if="question.type === 'yes_no'" class="mt-3 grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  class="motion-press rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-black uppercase tracking-wide shadow-[2px_2px_0_#111111]"
+                  class="motion-press rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-semibold uppercase tracking-wide shadow-[2px_2px_0_#111111]"
                   :class="answers[question.id] === true ? 'bg-dc-pink text-white' : 'bg-dc-paper hover:bg-dc-yellow'"
                   @click="answers[question.id] = true"
                 >
@@ -334,7 +334,7 @@ onMounted(fetchFeedbackForm);
                 </button>
                 <button
                   type="button"
-                  class="motion-press rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-black uppercase tracking-wide shadow-[2px_2px_0_#111111]"
+                  class="motion-press rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-semibold uppercase tracking-wide shadow-[2px_2px_0_#111111]"
                   :class="answers[question.id] === false ? 'bg-dc-pink text-white' : 'bg-dc-paper hover:bg-dc-yellow'"
                   @click="answers[question.id] = false"
                 >
@@ -356,7 +356,7 @@ onMounted(fetchFeedbackForm);
                   :maxlength="question.type === 'text' ? EVENT_FEEDBACK_COMMENT_MAX_CHARS : undefined"
                   placeholder="Write a few honest lines"
                 />
-                <p v-if="question.type === 'text'" class="mt-2 text-right font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                <p v-if="question.type === 'text'" class="mt-2 text-right font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                   {{ String(answers[question.id] ?? '').length }}/{{ EVENT_FEEDBACK_COMMENT_MAX_CHARS }}
                 </p>
               </div>

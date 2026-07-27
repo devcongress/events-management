@@ -146,11 +146,11 @@ const priorityEventCards = computed<MobileEventCard[]>(() => priorityEvents.valu
       </header>
 
       <div v-if="eventsQuery.isPending.value" class="mobile-ops-panel p-4">
-        <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Loading organizer events...</p>
+        <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Loading organizer events...</p>
       </div>
 
       <div v-else-if="eventsQuery.error.value" class="mobile-ops-panel mobile-ops-panel--warning p-4">
-        <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Unable to load events</p>
+        <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Unable to load events</p>
         <p class="mt-2 text-sm leading-6 text-dc-gray">Try again on a stronger connection, or use the tablet/laptop console.</p>
       </div>
 

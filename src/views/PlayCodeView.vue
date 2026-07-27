@@ -148,7 +148,7 @@ onUnmounted(() => {
       <section class="coming-soon-banner">
         <div class="coming-soon-ribbon">Coming soon</div>
         <div>
-          <h1 class="text-4xl font-black tracking-tight text-dc-ink sm:text-6xl">Live quiz is paused.</h1>
+          <h1 class="text-4xl font-extrabold tracking-tight text-dc-ink sm:text-6xl">Live quiz is paused.</h1>
           <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">
             This join-code route is kept for the future quiz rollout, but the first launch is focused on events, speaker slide links, attendance CSVs, and feedback.
           </p>
@@ -163,7 +163,7 @@ onUnmounted(() => {
     <div v-if="showNicknamePrompt" class="flex min-h-screen items-center justify-center px-4">
       <form class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 shadow-[3px_3px_0_#111111] sm:p-12" @submit.prevent="submitNickname">
         <div class="mb-8 text-center">
-          <h1 class="mb-2 text-3xl font-black text-dc-ink sm:text-4xl">Welcome to the <span class="text-dc-pink">Quiz</span></h1>
+          <h1 class="mb-2 text-3xl font-extrabold text-dc-ink sm:text-4xl">Welcome to the <span class="text-dc-pink">Quiz</span></h1>
           <p class="text-dc-gray">Enter your nickname to join</p>
         </div>
         <label class="mb-2 block text-sm font-bold uppercase tracking-wide text-dc-ink">Your Nickname</label>
@@ -177,7 +177,7 @@ onUnmounted(() => {
         <div>
           <p class="editorial-eyebrow">quiz room</p>
           <div class="mt-4 border-b-2 border-dc-ink pb-7">
-            <h1 class="max-w-4xl text-5xl font-black leading-none tracking-tight text-dc-ink sm:text-6xl lg:text-7xl">
+            <h1 class="max-w-4xl text-5xl font-extrabold leading-none tracking-tight text-dc-ink sm:text-6xl lg:text-7xl">
               This quiz is not open.
             </h1>
           </div>
@@ -192,15 +192,15 @@ onUnmounted(() => {
 
         <aside class="overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]">
           <div class="border-b-2 border-dc-ink bg-dc-yellow px-5 py-4">
-            <p class="font-mono text-xs font-black uppercase tracking-[0.22em] text-dc-ink">Quick check</p>
+            <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-ink">Quick check</p>
           </div>
           <div class="divide-y divide-dc-border">
             <div class="px-5 py-5">
-              <p class="font-mono text-sm font-black uppercase tracking-wide text-dc-ink">Ask the host</p>
+              <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink">Ask the host</p>
               <p class="mt-2 text-sm leading-6 text-dc-gray">The lobby must be open before players can join.</p>
             </div>
             <div class="px-5 py-5">
-              <p class="font-mono text-sm font-black uppercase tracking-wide text-dc-ink">Check the code</p>
+              <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink">Check the code</p>
               <p class="mt-2 text-sm leading-6 text-dc-gray">Quiz codes are short and change per session.</p>
             </div>
           </div>
@@ -234,9 +234,9 @@ onUnmounted(() => {
     <div v-else-if="state.session.status === 'finished'" class="flex min-h-screen items-center justify-center p-4 py-12">
       <div class="w-full max-w-lg">
         <div class="mb-8 text-center">
-          <div class="mb-8 inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">Quiz Complete</div>
+          <div class="mb-8 inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">Quiz Complete</div>
           <div class="mb-6 rounded-lg border-2 border-dc-ink bg-dc-paper p-10 shadow-[3px_3px_0_#111111]">
-            <div class="mb-3 font-mono text-sm font-bold uppercase tracking-wider text-dc-gray">Final Score</div>
+            <div class="mb-3 font-mono text-sm font-semibold uppercase tracking-wider text-dc-gray">Final Score</div>
             <div class="font-mono text-6xl font-bold tabular-nums text-dc-ink">
               {{ state.leaderboard.find((entry) => entry.user_id === userId)?.total_score ?? 0 }}
             </div>
@@ -248,18 +248,18 @@ onUnmounted(() => {
     <div v-else-if="state.session.question_phase === 'scoreboard'" class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-lg">
         <div class="mb-8 text-center">
-          <div class="mb-6 inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">Scoreboard</div>
-          <h2 class="mb-2 font-mono text-3xl font-bold text-dc-ink">RANKINGS</h2>
+          <div class="mb-6 inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">Scoreboard</div>
+          <h2 class="mb-2 font-mono text-3xl font-semibold text-dc-ink">RANKINGS</h2>
           <p class="font-mono text-sm text-dc-gray">After Question {{ state.session.current_question_index + 1 }}</p>
         </div>
         <div class="mb-6 rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]">
           <div class="divide-y-2 divide-dc-border">
             <div v-for="(player, index) in state.leaderboard.slice(0, 5)" :key="player.user_id" class="flex items-center justify-between px-6 py-5" :class="player.user_id === userId ? 'bg-dc-yellow text-dc-ink' : 'bg-dc-paper text-dc-ink'">
               <div class="flex items-center gap-4">
-                <span class="min-w-12 font-mono text-3xl font-bold tabular-nums">#{{ index + 1 }}</span>
-                <span class="font-mono text-lg font-bold">{{ player.nickname }}</span>
+                <span class="min-w-12 font-mono text-3xl font-semibold tabular-nums">#{{ index + 1 }}</span>
+                <span class="font-mono text-lg font-semibold">{{ player.nickname }}</span>
               </div>
-              <span class="font-mono text-2xl font-bold tabular-nums">{{ player.total_score }}</span>
+              <span class="font-mono text-2xl font-semibold tabular-nums">{{ player.total_score }}</span>
             </div>
           </div>
         </div>
@@ -271,7 +271,7 @@ onUnmounted(() => {
         <div class="mb-6 text-9xl">{{ state.player_result.is_correct ? '✓' : '✗' }}</div>
         <h1 class="mb-8 font-mono text-6xl font-bold text-white">{{ state.player_result.is_correct ? 'CORRECT!' : 'INCORRECT' }}</h1>
         <div v-if="state.player_result.is_correct" class="inline-block bg-white px-12 py-6 text-green-600">
-          <div class="mb-2 font-mono text-sm font-bold uppercase tracking-wide">Points Earned</div>
+          <div class="mb-2 font-mono text-sm font-semibold uppercase tracking-wide">Points Earned</div>
           <div class="font-mono text-7xl font-bold tabular-nums">+{{ state.player_result.points_awarded }}</div>
         </div>
       </div>
@@ -292,7 +292,7 @@ onUnmounted(() => {
         </div>
 
         <div v-if="state.player_result" class="mb-8 text-center">
-          <div class="inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-8 py-5 font-mono text-2xl font-bold text-dc-ink shadow-[2px_2px_0_#111111]">ANSWER LOCKED IN</div>
+          <div class="inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-8 py-5 font-mono text-2xl font-semibold text-dc-ink shadow-[2px_2px_0_#111111]">ANSWER LOCKED IN</div>
           <div class="mt-4 font-mono text-sm text-dc-gray">{{ state.answers_count }} / {{ state.participants_count }} players answered</div>
         </div>
 

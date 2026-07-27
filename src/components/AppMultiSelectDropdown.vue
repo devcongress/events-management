@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 
 type DropdownValue = string | number;
 
@@ -9,8 +9,6 @@ type DropdownOption = {
   disabled?: boolean;
   note?: string;
 };
-
-let multiSelectInstanceCount = 0;
 
 const props = defineProps<{
   modelValue: DropdownValue[];
@@ -30,7 +28,7 @@ const emit = defineEmits<{
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 const placement = ref<'bottom' | 'top'>('bottom');
-const dropdownId = `app-multi-select-${++multiSelectInstanceCount}`;
+const dropdownId = `app-multi-select-${useId()}`;
 
 const selectedCount = computed(() => props.modelValue.length);
 const triggerText = computed(() => {
@@ -139,7 +137,7 @@ watch(open, async (isOpen) => {
     <span v-if="label" :id="`${dropdownId}-label`" class="editorial-label">{{ label }}</span>
     <button
       type="button"
-      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-semibold text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         label ? 'mt-2' : '',
         open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]' : 'border-dc-border',
@@ -154,7 +152,7 @@ watch(open, async (isOpen) => {
       <span :id="`${dropdownId}-value`" class="min-w-0 flex-1 truncate">{{ triggerText }}</span>
       <span
         v-if="selectedCount > 0"
-        class="grid min-w-6 shrink-0 place-items-center rounded-full border border-dc-ink bg-dc-yellow px-1.5 py-0.5 font-mono text-[10px] font-black leading-none text-dc-ink"
+        class="grid min-w-6 shrink-0 place-items-center rounded-full border border-dc-ink bg-dc-yellow px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none text-dc-ink"
         aria-hidden="true"
       >
         {{ selectedCount }}
@@ -209,10 +207,10 @@ watch(open, async (isOpen) => {
                 <path d="M4 10.5l4 4L16 5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </span>
-            <span class="min-w-0 flex-1 truncate font-semibold">{{ option.label }}</span>
+            <span class="min-w-0 flex-1 truncate font-medium">{{ option.label }}</span>
             <span
               v-if="option.note"
-              class="shrink-0 font-mono text-[9px] font-black uppercase tracking-[0.08em] text-dc-gray"
+              class="shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray"
             >
               {{ option.note }}
             </span>
@@ -222,7 +220,7 @@ watch(open, async (isOpen) => {
         <div class="flex items-center justify-between gap-3 border-t border-dc-border bg-dc-paper-warm p-2">
           <button
             type="button"
-            class="motion-press min-h-9 px-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-dc-gray disabled:opacity-40"
+            class="motion-press min-h-9 px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray disabled:opacity-40"
             :disabled="selectedCount === 0"
             @click="clearSelection"
           >
@@ -230,7 +228,7 @@ watch(open, async (isOpen) => {
           </button>
           <button
             type="button"
-            class="motion-press min-h-9 rounded-md border border-dc-ink bg-dc-yellow px-3 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-dc-ink"
+            class="motion-press min-h-9 rounded-md border border-dc-ink bg-dc-yellow px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-ink"
             @click="closeDropdown"
           >
             Done

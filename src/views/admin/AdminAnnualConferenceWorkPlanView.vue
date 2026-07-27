@@ -310,21 +310,21 @@ function statusClass(status: AnnualConferenceTask['status']): string {
     <div class="editorial-wrap">
       <AnnualConferenceNav title="Work plan">
         <template #description>
-          <p class="mt-1 max-w-4xl text-xs font-semibold leading-5 text-dc-gray">
+          <p class="mt-1 max-w-4xl text-xs font-medium leading-5 text-dc-gray">
             See delivery health at a glance, then open only the task that needs attention.
             <span
               v-if="permissions && !permissions.can_create_tasks"
               id="annual-task-create-permission"
               class="block sm:ml-1 sm:inline"
             >
-              New tasks: Angela (<span class="font-mono font-black text-dc-ink">{{ permissions.task_creator_email }}</span>). All organizers can edit.
+              New tasks: Angela (<span class="font-mono font-semibold text-dc-ink">{{ permissions.task_creator_email }}</span>). All organizers can edit.
             </span>
           </p>
         </template>
         <template #actions>
           <button
             type="button"
-            class="motion-press inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border-2 px-4 py-2.5 font-mono text-[11px] font-black uppercase tracking-[0.14em]"
+            class="motion-press inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border-2 px-4 py-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
             :class="permissions?.can_create_tasks
               ? 'border-dc-ink bg-dc-pink text-white shadow-[3px_3px_0_#111111]'
               : 'cursor-not-allowed border-dc-ink bg-dc-paper text-dc-gray shadow-[2px_2px_0_#111111]'"
@@ -350,17 +350,17 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       </AnnualConferenceNav>
 
       <section v-if="workPlanQuery.isLoading.value" class="editorial-panel p-8">
-        <p class="font-mono text-sm font-black uppercase tracking-[0.14em] text-dc-gray">Loading work plan…</p>
+        <p class="font-mono text-sm font-semibold uppercase tracking-[0.14em] text-dc-gray">Loading work plan…</p>
       </section>
 
       <section v-else-if="workPlanQuery.isError.value" class="editorial-panel border-dc-pink p-8">
-        <p class="text-lg font-black text-dc-ink">The work plan could not be loaded.</p>
-        <p class="mt-2 text-sm font-semibold text-dc-gray">
+        <p class="text-lg font-semibold text-dc-ink">The work plan could not be loaded.</p>
+        <p class="mt-2 text-sm font-medium text-dc-gray">
           {{ workPlanQuery.error.value instanceof Error ? workPlanQuery.error.value.message : 'Please try again.' }}
         </p>
         <button
           type="button"
-          class="motion-press mt-5 min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-[11px] font-black uppercase tracking-[0.12em]"
+          class="motion-press mt-5 min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em]"
           @click="workPlanQuery.refetch()"
         >
           Try again
@@ -371,7 +371,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
         <section aria-label="Work plan status" class="mb-4 rounded-lg border-2 border-dc-ink bg-dc-paper px-3 py-2.5">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex min-w-0 items-center gap-2">
-              <span class="hidden shrink-0 font-mono text-[9px] font-black uppercase tracking-[0.12em] text-dc-gray sm:block">
+              <span class="hidden shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray sm:block">
                 Status
               </span>
               <div
@@ -381,7 +381,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               >
                 <button
                   type="button"
-                  class="min-h-9 shrink-0 rounded border-2 px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-[0.08em]"
+                  class="min-h-9 shrink-0 rounded border-2 px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
                   :class="statusFilter === 'all' ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-transparent text-dc-gray hover:bg-dc-paper hover:text-dc-ink'"
                   :aria-pressed="statusFilter === 'all'"
                   @click="setStatusFilter('all')"
@@ -392,7 +392,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
                   v-for="status in ANNUAL_CONFERENCE_TASK_STATUSES"
                   :key="status"
                   type="button"
-                  class="min-h-9 shrink-0 rounded border-2 px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-[0.08em]"
+                  class="min-h-9 shrink-0 rounded border-2 px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
                   :class="statusFilter === status ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-transparent text-dc-gray hover:bg-dc-paper hover:text-dc-ink'"
                   :aria-pressed="statusFilter === status"
                   @click="setStatusFilter(status)"
@@ -406,11 +406,11 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             <div class="ml-auto flex shrink-0 items-center gap-3">
               <div class="min-w-[8.5rem]">
                 <div class="flex items-baseline justify-between gap-3">
-                  <p class="text-xs font-semibold text-dc-gray">
-                    <span class="text-base font-black text-dc-ink">{{ summary.done }}</span>
+                  <p class="text-xs font-medium text-dc-gray">
+                    <span class="text-base font-semibold text-dc-ink">{{ summary.done }}</span>
                     of {{ summary.total }} done
                   </p>
-                  <span class="font-mono text-[9px] font-black uppercase tracking-[0.08em] text-dc-gray">
+                  <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
                     {{ summary.completion_percent }}%
                   </span>
                 </div>
@@ -436,8 +436,8 @@ function statusClass(status: AnnualConferenceTask['status']): string {
                 :aria-label="`Filter to ${summary.unassigned} tasks needing an accountable owner`"
                 @click="toggleUnassignedFilter"
               >
-                <span class="block text-sm font-black leading-none">{{ summary.unassigned }}</span>
-                <span class="mt-1 block font-mono text-[8px] font-black uppercase tracking-[0.08em]">Need owners</span>
+                <span class="block text-sm font-semibold leading-none">{{ summary.unassigned }}</span>
+                <span class="mt-1 block font-mono text-[8px] font-semibold uppercase tracking-[0.08em]">Need owners</span>
               </button>
             </div>
           </div>
@@ -446,13 +446,13 @@ function statusClass(status: AnnualConferenceTask['status']): string {
         <section class="mb-4 overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
           <div class="flex items-center justify-between gap-4 border-b-2 border-dc-ink bg-dc-paper-warm px-3 py-2">
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <h2 class="text-sm font-black text-dc-ink">Workstreams at a glance</h2>
-              <p class="text-[11px] font-semibold text-dc-gray">Select one to filter the ledger.</p>
+              <h2 class="text-sm font-bold text-dc-ink">Workstreams at a glance</h2>
+              <p class="text-[11px] font-medium text-dc-gray">Select one to filter the ledger.</p>
             </div>
             <button
               v-if="workstreamFilter !== 'all'"
               type="button"
-              class="min-h-9 rounded-md px-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-dc-pink underline decoration-2 underline-offset-4"
+              class="min-h-9 rounded-md px-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink underline decoration-2 underline-offset-4"
               @click="setWorkstreamFilter('all')"
             >
               Show all
@@ -469,17 +469,17 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               @click="setWorkstreamFilter(workstreamFilter === item.workstream ? 'all' : item.workstream)"
             >
               <span class="flex items-start justify-between gap-3">
-                <span class="text-xs font-black leading-4 text-dc-ink">
+                <span class="text-xs font-semibold leading-4 text-dc-ink">
                   {{ ANNUAL_CONFERENCE_WORKSTREAM_LABELS[item.workstream] }}
                 </span>
-                <span class="shrink-0 font-mono text-[10px] font-black uppercase tracking-[0.08em] text-dc-gray">
+                <span class="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
                   {{ item.done }}/{{ item.total }}
                 </span>
               </span>
               <span class="mt-1.5 block h-1 overflow-hidden rounded-full bg-dc-border">
                 <span class="block h-full bg-dc-ink" :style="{ width: `${item.completionPercent}%` }" />
               </span>
-              <span class="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[8px] font-black uppercase tracking-[0.06em] text-dc-gray">
+              <span class="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.06em] text-dc-gray">
                 <span>{{ item.completionPercent }}% done</span>
                 <span v-if="item.blocked" class="text-dc-pink">{{ item.blocked }} blocked</span>
                 <span v-if="item.unassigned" class="text-dc-pink">{{ item.unassigned }} unassigned</span>
@@ -503,7 +503,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
           />
           <button
             type="button"
-            class="min-h-10 rounded-md border-2 border-transparent px-3 font-mono text-[10px] font-black uppercase tracking-[0.1em]"
+            class="min-h-10 rounded-md border-2 border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
             :class="filtersActive ? 'text-dc-pink hover:border-dc-pink' : 'cursor-default text-dc-gray/50'"
             :disabled="!filtersActive"
             @click="clearFilters"
@@ -515,21 +515,21 @@ function statusClass(status: AnnualConferenceTask['status']): string {
         <section class="annual-task-ledger overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
           <div class="flex items-center justify-between gap-4 border-b-2 border-dc-ink bg-dc-paper-warm px-4 py-3">
             <div>
-              <h2 class="text-lg font-black text-dc-ink">Task ledger</h2>
-              <p class="mt-0.5 text-xs font-semibold text-dc-gray">
+              <h2 class="text-lg font-bold text-dc-ink">Task ledger</h2>
+              <p class="mt-0.5 text-xs font-medium text-dc-gray">
                 {{ visibleTasks.length }} of {{ tasks.length }} tasks shown. View a task for notes, collaborators, and editing.
               </p>
             </div>
-            <span class="hidden shrink-0 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-dc-gray sm:block">
+            <span class="hidden shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray sm:block">
               One accountable owner
             </span>
           </div>
 
           <div class="hidden border-b border-dc-border bg-dc-paper-warm px-4 py-2 md:grid md:grid-cols-[minmax(0,1.6fr)_8.5rem_10rem_7rem_2.5rem] md:gap-3">
-            <span class="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-dc-gray">Task</span>
-            <span class="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-dc-gray">Status</span>
-            <span class="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-dc-gray">Accountable</span>
-            <span class="font-mono text-[9px] font-black uppercase tracking-[0.12em] text-dc-gray">Target</span>
+            <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Task</span>
+            <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Status</span>
+            <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Accountable</span>
+            <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Target</span>
             <span class="sr-only">View details</span>
           </div>
 
@@ -540,11 +540,11 @@ function statusClass(status: AnnualConferenceTask['status']): string {
           >
             <div v-if="visibleTasks.length === 0" class="grid min-h-[18rem] place-items-center p-8 text-center">
               <div>
-                <h3 class="text-xl font-black text-dc-ink">No matching tasks</h3>
-                <p class="mt-2 text-sm font-semibold text-dc-gray">Clear or change the filters to see the work plan.</p>
+                <h3 class="text-xl font-bold text-dc-ink">No matching tasks</h3>
+                <p class="mt-2 text-sm font-medium text-dc-gray">Clear or change the filters to see the work plan.</p>
                 <button
                   type="button"
-                  class="mt-4 min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-[10px] font-black uppercase tracking-[0.1em]"
+                  class="mt-4 min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
                   @click="clearFilters"
                 >
                   Clear filters
@@ -567,42 +567,42 @@ function statusClass(status: AnnualConferenceTask['status']): string {
                   aria-controls="annual-conference-task-drawer"
                   @click="toggleTask(task.id)"
                 >
-                  <span class="block truncate text-sm font-black text-dc-ink">{{ task.title }}</span>
+                  <span class="block truncate text-sm font-semibold text-dc-ink">{{ task.title }}</span>
                   <span class="mt-0.5 flex min-w-0 items-center gap-2">
-                    <span class="truncate font-mono text-[9px] font-black uppercase tracking-[0.08em] text-dc-gray">
+                    <span class="truncate font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
                       {{ ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream] }}
                     </span>
-                    <span v-if="task.priority" class="shrink-0 font-mono text-[9px] font-black uppercase tracking-[0.08em] text-dc-pink">
+                    <span v-if="task.priority" class="shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-pink">
                       {{ task.priority }}
                     </span>
                   </span>
                   <span class="mt-1 flex items-center gap-2 md:hidden">
                     <span
-                      class="rounded border px-1.5 py-0.5 font-mono text-[8px] font-black uppercase tracking-[0.08em]"
+                      class="rounded border px-1.5 py-0.5 font-mono text-[8px] font-semibold uppercase tracking-[0.08em]"
                       :class="statusClass(task.status)"
                     >
                       {{ ANNUAL_CONFERENCE_STATUS_LABELS[task.status] }}
                     </span>
-                    <span class="truncate text-[11px] font-semibold" :class="task.accountable_owner ? 'text-dc-gray' : 'text-dc-pink'">
+                    <span class="truncate text-[11px] font-medium" :class="task.accountable_owner ? 'text-dc-gray' : 'text-dc-pink'">
                       {{ organizerDisplay(task.accountable_owner) }}
                     </span>
                   </span>
                 </button>
 
                 <span
-                  class="hidden w-fit rounded-md border-2 px-2 py-1 font-mono text-[9px] font-black uppercase tracking-[0.08em] md:inline-flex"
+                  class="hidden w-fit rounded-md border-2 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] md:inline-flex"
                   :class="statusClass(task.status)"
                 >
                   {{ ANNUAL_CONFERENCE_STATUS_LABELS[task.status] }}
                 </span>
                 <span
-                  class="hidden truncate text-xs font-black md:block"
+                  class="hidden truncate text-xs font-semibold md:block"
                   :class="task.accountable_owner ? 'text-dc-ink' : 'text-dc-pink'"
                   :title="task.accountable_owner ?? 'Unassigned'"
                 >
                   {{ organizerDisplay(task.accountable_owner) }}
                 </span>
-                <span class="hidden text-xs font-semibold text-dc-gray md:block">
+                <span class="hidden text-xs font-medium text-dc-gray md:block">
                   {{ task.target_date ? formatDate(task.target_date) : 'No date' }}
                 </span>
                 <button

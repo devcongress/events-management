@@ -54,10 +54,10 @@ onUnmounted(() => {
       <AnnualConferenceNav :show-page-heading="false" />
 
       <section v-if="workPlanQuery.isError.value" class="editorial-panel mb-6 border-dc-pink p-6">
-        <p class="text-lg font-black text-dc-ink">Conference planning data is temporarily unavailable.</p>
+        <p class="text-lg font-semibold text-dc-ink">Conference planning data is temporarily unavailable.</p>
         <button
           type="button"
-          class="motion-press mt-4 min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-[11px] font-black uppercase tracking-[0.12em]"
+          class="motion-press mt-4 min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em]"
           @click="workPlanQuery.refetch()"
         >
           Try again
@@ -245,7 +245,7 @@ onUnmounted(() => {
   color: #646464;
   font-family: var(--font-mono), monospace;
   font-size: 0.625rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.15em;
   line-height: 1.3;
   text-transform: uppercase;
@@ -257,7 +257,7 @@ onUnmounted(() => {
   margin-top: 0.85rem;
   color: #111111;
   font-size: clamp(2.2rem, 4.2vw, 3.65rem);
-  font-weight: 900;
+  font-weight: var(--font-weight-display);
   letter-spacing: -0.055em;
   line-height: 0.97;
 }
@@ -269,7 +269,7 @@ onUnmounted(() => {
   color: #555555;
   font-family: var(--font-mono), monospace;
   font-size: 0.58rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
@@ -300,7 +300,7 @@ onUnmounted(() => {
   color: #555555;
   font-family: var(--font-mono), monospace;
   font-size: 0.62rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.11em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -348,7 +348,7 @@ onUnmounted(() => {
   margin: 0.35rem 0 0;
   color: #111111;
   font-size: 1.05rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-heading);
   line-height: 1.2;
 }
 
@@ -363,7 +363,7 @@ onUnmounted(() => {
   background: #ffffff;
   color: #111111;
   font-size: 1.1rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-label);
   line-height: 1;
 }
 
@@ -379,7 +379,7 @@ onUnmounted(() => {
   color: #646464;
   font-family: var(--font-mono), monospace;
   font-size: 0.58rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -388,7 +388,7 @@ onUnmounted(() => {
   margin: 0.3rem 0 0;
   color: #111111;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-emphasis);
   line-height: 1.5;
 }
 
@@ -416,7 +416,7 @@ onUnmounted(() => {
   margin: 0.45rem 0 0;
   color: #111111;
   font-size: clamp(1.4rem, 2.25vw, 2rem);
-  font-weight: 900;
+  font-weight: var(--font-weight-heading);
   letter-spacing: -0.035em;
   line-height: 1.1;
 }
@@ -430,7 +430,7 @@ onUnmounted(() => {
   color: #111111;
   font-family: var(--font-mono), monospace;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -461,7 +461,7 @@ onUnmounted(() => {
   color: #666666;
   font-family: var(--font-mono), monospace;
   font-size: 0.58rem;
-  font-weight: 800;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -484,7 +484,7 @@ onUnmounted(() => {
   box-shadow: 2px 2px 0 #111111;
   font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -509,7 +509,7 @@ onUnmounted(() => {
   margin: 0.25rem 0 0;
   color: #444444;
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-emphasis);
 }
 
 .conference-brief__live-dot {
@@ -531,7 +531,7 @@ onUnmounted(() => {
   color: #111111;
   font-family: var(--font-mono), monospace;
   font-size: 0.62rem;
-  font-weight: 900;
+  font-weight: var(--font-weight-label);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }

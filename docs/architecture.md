@@ -72,16 +72,33 @@ devcongress-comm-idea/
 
 ---
 
+## Event Archive Domain
+
+**Event Archive** is the organizer-facing concept for the lasting material attached to one event. An archive item has a `kind` of `talk` or `product_demo`. The current storage and API compatibility model remains named `Talk`; records created before `kind` existed are read as `talk`, so existing data and routes do not require a rewrite.
+
+Both intake paths converge on that same model:
+
+- **Archive Requests** is the manual path used for July and for a known participant who did not enter through proposals.
+- The later selected-proposal path starts from an organizer decision and creates the same archive item after the selected participant completes their private form.
+
+In both paths, a one-time link is locked to one event, recipient identity, and archive-item kind. The browser cannot turn a talk request into a product demo, move it to another event, or replace the invited identity. Completing the form creates an accepted or materials-received compatibility `Talk`; publication remains a separate organizer action. Only explicitly published items enter the public archive.
+
+The event-scoped **Speakers** allowlist is an access/identity mechanism, not the archive. Creating an archive item may ensure a matching allowlist row exists for compatibility, but removing or adding an allowlist entry does not itself create, publish, or remove archive content.
+
+Public API evolution is additive: archive list and detail payloads expose `archive_items` as the preferred archive-facing alias while retaining `talks`; both fields currently contain the same explicitly published items. Historical `/talks` routes and count names also remain, archive items add `kind`, and consumers treat a missing kind as `talk`. No new archive endpoint is introduced. The Supabase `community_events` public projection is still separate from the compatibility `Talk` store; hosted meetup responses cannot be assumed to contain every archive item until that projection gains a durable join or relational archive source.
+
+---
+
 ## Route Surface (Current)
 
 ### Active Vue Routes (`src/router.ts`)
 
 - `/` — community hub backed by `/api/overview`
 - `/archive` — searchable completed event archive
-- `/archive/[eventId]` — published talks for one event
+- `/archive/[eventId]` — explicitly published event archive items
 - `/leaderboard` — public leaderboard and prototype account claim/merge tools
-- `/cfp/[eventId]` — speaker CFP submission
-- `/speaker-talks/[eventId]/[token]` — private selected-speaker or archive-backfill intake form
+- `/cfp/[eventId]` — public talk or product-demo proposal form
+- `/speaker-talks/[eventId]/[token]` — private selected-proposal or manual Archive Request form (compatibility URL)
 - `/feedback/[eventId]` — public event feedback form for open feedback campaigns
 - `/play` — quiz join form
 - `/play/[code]` — live quiz player flow
@@ -95,8 +112,8 @@ devcongress-comm-idea/
 - `[adminBase]/events/new` — create event form
 - `[adminBase]/attendance` — monthly attendance ledger and cross-month insights
 - `[adminBase]/events/[eventId]` — event detail, shared checklist, and status progression
-- `[adminBase]/events/[eventId]/talks` — talk review/status management
-- `[adminBase]/events/[eventId]/speakers` — speaker allowlist management
+- `[adminBase]/events/[eventId]/talks` — Event Archive, proposal review, and Archive Requests (compatibility URL)
+- `[adminBase]/events/[eventId]/speakers` — legacy speaker allowlist compatibility route, hidden from event navigation
 - `[adminBase]/events/[eventId]/attendance` — organizer-only Luma attendance analysis
 - `[adminBase]/events/[eventId]/quiz` — quiz builder
 - `[adminBase]/events/[eventId]/quiz/live` — live quiz host controls
@@ -117,9 +134,10 @@ devcongress-comm-idea/
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail, status update, and admin-only removal
 - `/api/events/[eventId]/checklist` — admin-only chronological organizer checklist with status-changing milestones
-- `/api/events/[eventId]/talks` — talks for event; organizer manual/backfill talk creation
-- `/api/events/[eventId]/speaker-intake-links` — admin-generated, month-scoped, expiring one-time speaker form links
-- `/api/events/[eventId]/speaker-intake/[token]` — public selected-speaker confirmation or archive-backfill detail submission through a valid token
+- `/api/events/[eventId]/talks` — compatibility archive-item reads and organizer creation for `talk` and `product_demo` kinds
+- `/api/events/[eventId]/speaker-intake-links` — admin-generated, month-scoped, expiring one-time archive-request links
+- `/api/events/[eventId]/speaker-intake-emails` — authenticated, program-derived personalized Resend Batch delivery with accepted-send suppression
+- `/api/events/[eventId]/speaker-intake/[token]` — public manual or selected-participant archive submission through an event-, identity-, and kind-locked token
 - `/api/events/[eventId]/speaker-submissions` — admin-only CFP proposal inbox for organizer selection decisions
 - `/api/events/[eventId]/attendance` — admin-only attendance summary for the latest Luma import
 - `/api/events/[eventId]/attendance/import` — admin-only CSV import endpoint for Luma guest exports
@@ -148,7 +166,7 @@ devcongress-comm-idea/
 - `/archive` — completed events index
 - `/archive/[eventId]` — published talks for one event
 - `/cfp/[eventId]` — speaker CFP submission
-- `/speaker-talks/[eventId]/[token]` — private selected-speaker or archive-backfill intake form
+- `/speaker-talks/[eventId]/[token]` — private selected-proposal or manual Archive Request form (compatibility URL)
 - `/play` — quiz join form
 - `/play/[code]` — live quiz gameplay
 - `/leaderboard` — public leaderboard view

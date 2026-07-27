@@ -4,12 +4,13 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 
 ## Browser Surface
 
-This deployment is an organizer-only console, with deliberate public exceptions for event feedback, private speaker intake, and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
+This deployment is an organizer-only console, with deliberate public exceptions for event feedback, the monthly Call for Presentations, private archive intake, and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
 
 | Route | Purpose |
 |---|---|
 | `/feedback/:eventId` | Standalone anonymous event feedback form. It deliberately renders without the app header, navigation, organizer controls, or attendee identity fields. |
-| `/speaker-talks/:eventId/:token` | Standalone private speaker form opened by generated legacy-backfill and selected-speaker links. The token supplies the invited speaker identity and event context. |
+| `/cfp/:eventId` | Standalone monthly Call for Presentations for talk or product-demo proposals. The organizer Archive workspace generates this URL while CFP is open. |
+| `/speaker-talks/:eventId/:token` | Standalone private Archive completion form opened by selected-proposal and manual Archive Request links. The token locks the presenter identity, event, and archive-item kind. |
 | `/volunteer/december-mega-meetup` | Standalone December 2026 annual-conference volunteer form for name, email, X handle, and Slack name. This compatibility path remains the canonical public link for the active campaign. |
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
@@ -33,12 +34,12 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/organizers` | Owner-only organizer email allowlist |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
-| `/organizer-console/events/:eventId/talks` | Redirects to the Talk Management CFP step |
+| `/organizer-console/events/:eventId/talks` | Compatibility URL that redirects to the Event Archive CFP step |
 | `/organizer-console/events/:eventId/talks/cfp` | CFP status and organizer proposal review controls |
-| `/organizer-console/events/:eventId/talks/proposals` | Speaker proposal review, organizer selection decisions, and selected-speaker slides links |
-| `/organizer-console/events/:eventId/talks/program` | Confirmed talk management, slide follow-up, and archive publishing |
-| `/organizer-console/events/:eventId/talks/backfill` | Legacy talk backfill: issue one private, named link per confirmed speaker and track it until used, expired, or removed |
-| `/organizer-console/events/:eventId/speakers` | Speaker access allowlist |
+| `/organizer-console/events/:eventId/talks/proposals` | Talk and product-demo proposal review, organizer selection decisions, and selected-presenter Archive completion links |
+| `/organizer-console/events/:eventId/talks/program` | Event Archive review and publishing for talks and product demos |
+| `/organizer-console/events/:eventId/talks/backfill` | Archive Requests: multi-select eligible program speakers, email each person a private title/name/kind-locked form, and track it until used, expired, or removed |
+| `/organizer-console/events/:eventId/speakers` | Compatibility route for the legacy speaker access allowlist; it is not the Event Archive and is no longer shown in event navigation |
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
@@ -53,8 +54,9 @@ There is no public-site header or organizer-link toggle in this deployment.
 | Group | Purpose |
 |---|---|
 | `/api/events*` | Event list, event details, organizer mutations, event removal, media metadata |
-| `/api/talks*` | Confirmed talk management, speaker archive intake, talk review, speaker slide links |
-| `/api/cfp` and `/api/speaker-submissions*` | Public speaker proposals and organizer selection decisions |
+| `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
+| `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send for stored program-item recipients; successful identities are suppressed from repeat UI/API sends |
+| `/api/cfp` and `/api/speaker-submissions*` | Public talk/product-demo proposals and organizer selection decisions |
 | `/api/speakers*` | Speaker access workflows |
 | `/api/attendance*` | Luma CSV import, removal, summaries, monthly ledger |
 | `/api/feedback*` | App feedback, event campaigns, and anonymous public event-feedback submission. Session ratings accept 1–5 or `not_attended`; the latter is excluded from averages. |

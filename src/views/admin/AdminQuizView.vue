@@ -357,9 +357,9 @@ onUnmounted(() => {
         <section class="coming-soon-banner">
           <div class="coming-soon-ribbon">Coming soon</div>
           <div>
-            <h1 class="text-4xl font-black tracking-tight text-dc-ink sm:text-6xl">Live quiz room is paused.</h1>
+            <h1 class="text-4xl font-extrabold tracking-tight text-dc-ink sm:text-6xl">Live quiz room is paused.</h1>
             <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">
-              The lobby and host controls are being held back until the realtime plan is worth funding. For now, keep using Events, Talks, Speakers, Attendance, and Feedback.
+              The lobby and host controls are being held back until the realtime plan is worth funding. For now, keep using Events, Archive, Attendance, and Feedback.
             </p>
             <div class="mt-6 flex flex-wrap gap-3">
               <RouterLink :to="eventQuizRoute()" class="editorial-secondary-action">Back to Quiz Notes</RouterLink>
@@ -370,32 +370,32 @@ onUnmounted(() => {
         <div class="hidden">
         <div v-if="session.status === 'waiting' || session.status === 'draft'" class="quiz-stage-shell flex min-h-[70vh] items-center justify-center p-6 sm:p-8">
           <div class="relative z-10 w-full max-w-5xl text-center">
-            <p class="mb-4 font-mono text-xs font-bold uppercase tracking-[0.28em] text-dc-yellow">Host lobby</p>
-            <h1 class="mb-8 text-5xl font-black uppercase tracking-tight text-white sm:text-7xl">Join the quiz</h1>
+            <p class="mb-4 font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Host lobby</p>
+            <h1 class="mb-8 text-5xl font-extrabold uppercase tracking-tight text-white sm:text-7xl">Join the quiz</h1>
             <div class="mb-8 inline-block rounded-xl border-2 border-dc-yellow bg-dc-yellow px-8 py-7 shadow-[6px_6px_0_rgba(232,17,127,0.85)] sm:px-12">
-              <p class="mb-2 font-mono text-sm font-bold uppercase tracking-[0.22em] text-dc-ink/70">Join code</p>
-              <p class="font-mono text-6xl font-black tracking-[0.16em] text-dc-ink sm:text-8xl">{{ session.join_code }}</p>
+              <p class="mb-2 font-mono text-sm font-semibold uppercase tracking-[0.22em] text-dc-ink/70">Join code</p>
+              <p class="font-mono text-6xl font-bold tracking-[0.16em] text-dc-ink sm:text-8xl">{{ session.join_code }}</p>
             </div>
             <div v-if="qrCodeUrl" class="mx-auto mb-10 grid max-w-3xl gap-6 rounded-xl border border-white/15 bg-white/[0.06] p-5 md:grid-cols-[220px_1fr] md:items-center md:text-left">
               <img :src="qrCodeUrl" alt="Quiz join QR code" class="mx-auto size-[220px] rounded-lg border-2 border-dc-yellow bg-dc-yellow p-3" />
               <div>
-                <p class="font-mono text-sm font-bold uppercase tracking-[0.2em] text-dc-yellow">Scan to join</p>
+                <p class="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-dc-yellow">Scan to join</p>
                 <p class="mt-3 break-all text-lg leading-7 text-white/72">{{ playUrl }}</p>
               </div>
             </div>
             <div class="mb-10 text-3xl text-white sm:text-4xl">
-              <span class="font-black text-dc-yellow">{{ liveState?.participants_count ?? session.participantCount }}</span>
+              <span class="font-semibold text-dc-yellow">{{ liveState?.participants_count ?? session.participantCount }}</span>
               <span class="uppercase text-white/60"> players joined</span>
             </div>
-            <button class="motion-press rounded-lg border-2 border-dc-yellow bg-dc-pink px-12 py-5 font-mono text-2xl font-bold uppercase tracking-wide text-white shadow-[4px_4px_0_#f5e642] disabled:cursor-not-allowed disabled:opacity-40 sm:px-16 sm:text-3xl" :disabled="(liveState?.participants_count ?? session.participantCount) === 0" @click="startQuiz">START QUIZ</button>
+            <button class="motion-press rounded-lg border-2 border-dc-yellow bg-dc-pink px-12 py-5 font-mono text-2xl font-semibold uppercase tracking-wide text-white shadow-[4px_4px_0_#f5e642] disabled:cursor-not-allowed disabled:opacity-40 sm:px-16 sm:text-3xl" :disabled="(liveState?.participants_count ?? session.participantCount) === 0" @click="startQuiz">START QUIZ</button>
           </div>
         </div>
 
         <div v-else-if="session.status === 'finished'" class="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section class="quiz-stage-shell min-h-[420px] p-8 sm:p-10">
             <div class="relative z-10 max-w-3xl">
-              <p class="mb-4 font-mono text-xs font-bold uppercase tracking-[0.28em] text-dc-yellow">Session complete</p>
-              <h1 class="text-5xl font-black tracking-tight text-white sm:text-6xl">Quiz wrapped.</h1>
+              <p class="mb-4 font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Session complete</p>
+              <h1 class="text-5xl font-extrabold tracking-tight text-white sm:text-6xl">Quiz wrapped.</h1>
               <p class="mt-4 max-w-xl text-lg leading-8 text-[#E5E5E5]">The room is finished. Review the leaderboard, then create or edit questions from the builder before opening another lobby.</p>
               <div class="mt-8 flex flex-wrap gap-3">
                 <RouterLink :to="eventQuizRoute()" class="editorial-secondary-action">Back to Builder</RouterLink>
@@ -404,7 +404,7 @@ onUnmounted(() => {
           </section>
 
           <aside class="ops-panel p-5">
-            <h2 class="mb-4 font-mono text-xl font-bold text-dc-pink">FINAL BOARD</h2>
+            <h2 class="mb-4 font-mono text-xl font-semibold text-dc-pink">FINAL BOARD</h2>
             <div class="space-y-3">
               <div v-for="entry in liveState?.leaderboard ?? []" :key="entry.user_id" class="flex justify-between border-b border-dc-border pb-3 font-mono text-sm">
                 <span class="text-dc-ink">#{{ entry.rank }} {{ entry.nickname }}</span>
@@ -417,13 +417,13 @@ onUnmounted(() => {
         <div v-else class="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section class="quiz-live-card">
             <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div class="inline-flex rounded-md border border-white/20 bg-white/10 px-4 py-2 font-mono text-xs font-bold uppercase tracking-[0.18em] text-dc-yellow">{{ session.status }}</div>
-              <div class="font-mono text-xs font-bold uppercase tracking-[0.18em] text-white/55">Code {{ session.join_code }}</div>
+              <div class="inline-flex rounded-md border border-white/20 bg-white/10 px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-dc-yellow">{{ session.status }}</div>
+              <div class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Code {{ session.join_code }}</div>
             </div>
             <h1 class="mb-4 font-mono text-4xl font-bold text-white">
               Question {{ session.current_question_index + 1 }}
             </h1>
-            <p class="mb-6 max-w-4xl text-2xl font-black leading-tight text-white">{{ session.questions[session.current_question_index]?.question_text ?? 'No active question' }}</p>
+            <p class="mb-6 max-w-4xl text-2xl font-bold leading-tight text-white">{{ session.questions[session.current_question_index]?.question_text ?? 'No active question' }}</p>
             <div class="grid gap-3 sm:grid-cols-2">
               <div v-for="(option, index) in session.questions[session.current_question_index]?.options ?? []" :key="option" class="rounded-lg border border-white/12 bg-white/[0.06] p-4 font-mono text-white">
                 <span class="mr-2 text-dc-yellow">{{ ['A', 'B', 'C', 'D'][index] }}.</span>{{ option }}
@@ -432,12 +432,12 @@ onUnmounted(() => {
             <div class="mt-8 flex flex-wrap gap-3">
               <button class="editorial-secondary-action" @click="showScoreboard">SHOW SCOREBOARD</button>
               <button class="editorial-secondary-action" @click="nextQuestion">NEXT QUESTION</button>
-              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-6 py-3 font-mono font-bold uppercase text-red-700" @click="patchSession({ status: 'finished', question_phase: null, finished_at: new Date().toISOString() })">END QUIZ</button>
+              <button class="motion-press rounded-md border-2 border-red-500 bg-red-50 px-6 py-3 font-mono font-semibold uppercase text-red-700" @click="patchSession({ status: 'finished', question_phase: null, finished_at: new Date().toISOString() })">END QUIZ</button>
             </div>
           </section>
 
           <aside class="ops-panel p-5">
-            <h2 class="mb-4 font-mono text-xl font-bold text-dc-pink">LEADERBOARD</h2>
+            <h2 class="mb-4 font-mono text-xl font-semibold text-dc-pink">LEADERBOARD</h2>
             <div class="space-y-3">
               <div v-for="entry in liveState?.leaderboard ?? []" :key="entry.user_id" class="flex justify-between border-b border-dc-border pb-3 font-mono text-sm">
                 <span class="text-dc-ink">#{{ entry.rank }} {{ entry.nickname }}</span>
@@ -453,7 +453,7 @@ onUnmounted(() => {
         <section class="coming-soon-banner mb-8">
           <div class="coming-soon-ribbon">Coming soon</div>
           <div>
-            <h2 class="text-2xl font-black tracking-tight text-dc-ink">Quiz is paused for the low-cost launch.</h2>
+            <h2 class="text-2xl font-bold tracking-tight text-dc-ink">Quiz is paused for the low-cost launch.</h2>
             <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
               We are preserving the builder path, but live quiz rooms, leaderboard scoring, and PDF generation should wait until DevCon is ready to fund or harden realtime infrastructure.
             </p>
@@ -468,8 +468,8 @@ onUnmounted(() => {
           </div>
           <div class="flex flex-wrap gap-3">
             <div class="rounded-lg border-2 border-dc-border bg-dc-paper-warm px-4 py-3 opacity-70">
-              <p class="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-dc-ink/65">Join code</p>
-              <p class="font-mono text-2xl font-black tracking-[0.12em] text-dc-ink">{{ session.join_code }}</p>
+              <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-dc-ink/65">Join code</p>
+              <p class="font-mono text-2xl font-semibold tracking-[0.12em] text-dc-ink">{{ session.join_code }}</p>
             </div>
             <button v-if="session.questions.length > 0 && session.status === 'draft'" class="editorial-secondary-action disabled:cursor-not-allowed disabled:opacity-50" disabled @click="openLobby">OPEN LOBBY</button>
             <RouterLink v-if="session.status === 'waiting'" :to="eventQuizRoute('quiz/live')" class="editorial-secondary-action opacity-50">LOBBY PAUSED</RouterLink>
@@ -480,16 +480,16 @@ onUnmounted(() => {
           <div class="mb-5 flex flex-col gap-2 border-b border-dc-border bg-dc-paper-warm px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="editorial-eyebrow">prototype generator</p>
-              <h2 class="text-2xl font-black tracking-tight text-dc-ink">Create Questions From Paper</h2>
+              <h2 class="text-2xl font-bold tracking-tight text-dc-ink">Create Questions From Paper</h2>
               <p class="mt-2 max-w-3xl text-sm text-dc-gray">Paused for now. When this returns, uploads stay small and draft-only so we avoid storage and processing pressure.</p>
             </div>
-            <span class="inline-flex rounded-full border border-dc-border bg-dc-paper px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">PDF only / 5MB max</span>
+            <span class="inline-flex rounded-full border border-dc-border bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-pink">PDF only / 5MB max</span>
           </div>
 
           <div class="grid gap-4 px-5 pb-5 lg:grid-cols-[minmax(0,1fr)_180px_auto] lg:items-end">
             <label class="block">
               <span class="mb-2 block font-mono text-xs uppercase tracking-wide text-dc-gray">Paper PDF</span>
-              <input ref="paperFileInput" type="file" accept="application/pdf,.pdf" class="quiz-file-input block w-full rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-3 text-sm text-dc-ink file:mr-4 file:rounded-sm file:border-0 file:bg-dc-yellow file:px-4 file:py-2 file:font-mono file:font-bold file:uppercase file:text-dc-ink" @change="handlePaperFileChange" />
+              <input ref="paperFileInput" type="file" accept="application/pdf,.pdf" class="quiz-file-input block w-full rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-3 text-sm text-dc-ink file:mr-4 file:rounded-sm file:border-0 file:bg-dc-yellow file:px-4 file:py-2 file:font-mono file:font-semibold file:uppercase file:text-dc-ink" @change="handlePaperFileChange" />
             </label>
             <AppNumberStepper
               v-model="paperQuestionCount"
@@ -517,9 +517,9 @@ onUnmounted(() => {
           <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="editorial-eyebrow">manual question</p>
-              <h2 class="text-2xl font-black tracking-tight text-dc-ink">Add New Question</h2>
+              <h2 class="text-2xl font-bold tracking-tight text-dc-ink">Add New Question</h2>
             </div>
-            <span class="rounded-full border border-dc-border bg-dc-paper-warm px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">A-D answers</span>
+            <span class="rounded-full border border-dc-border bg-dc-paper-warm px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">A-D answers</span>
           </div>
           <input v-model="form.question_text" required placeholder="Question text" class="editorial-input" />
           <div class="grid gap-3 sm:grid-cols-2">
@@ -556,10 +556,10 @@ onUnmounted(() => {
             <form v-if="editingQuestionId === question.id" class="space-y-4" @submit.prevent="saveEditedQuestion">
               <div class="flex items-start justify-between gap-4">
                 <div>
-                  <span class="font-mono text-sm font-bold text-dc-pink">Q{{ index + 1 }}</span>
-                  <h3 class="font-mono text-lg font-bold text-dc-ink">Edit Question</h3>
+                  <span class="font-mono text-sm font-semibold text-dc-pink">Q{{ index + 1 }}</span>
+                  <h3 class="font-mono text-lg font-semibold text-dc-ink">Edit Question</h3>
                 </div>
-                <button type="button" class="font-mono text-sm font-bold text-dc-gray hover:text-dc-ink" @click="cancelEditQuestion">CANCEL</button>
+                <button type="button" class="font-mono text-sm font-semibold text-dc-gray hover:text-dc-ink" @click="cancelEditQuestion">CANCEL</button>
               </div>
               <input v-model="editForm.question_text" required placeholder="Question text" class="editorial-input" />
               <div class="grid gap-3 sm:grid-cols-2">
@@ -594,7 +594,7 @@ onUnmounted(() => {
                 <h3 class="mt-3 max-w-5xl text-base font-semibold leading-7 text-dc-ink sm:text-lg">
                   {{ question.question_text }}
                 </h3>
-                <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ question.time_limit_seconds }} sec / {{ question.points }} pts</p>
+                <p class="mt-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ question.time_limit_seconds }} sec / {{ question.points }} pts</p>
               </div>
               <div class="flex shrink-0 gap-3 pt-1">
                 <button class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink underline decoration-dc-yellow decoration-2 underline-offset-4 hover:text-dc-pink" @click="beginEditQuestion(question)">Edit</button>

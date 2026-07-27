@@ -29,7 +29,7 @@ function statClass(tone: 'yellow' | 'info' | 'warm' = 'warm') {
     <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between" :class="{ 'pl-16 sm:pl-20': ribbon }">
       <div>
         <p class="editorial-eyebrow">{{ eyebrow }}</p>
-        <h1 class="community-masthead-title mt-2 text-4xl font-black tracking-tight text-dc-ink sm:text-5xl">{{ title }}</h1>
+        <h1 class="community-masthead-title mt-2 text-4xl font-extrabold tracking-tight text-dc-ink sm:text-5xl">{{ title }}</h1>
         <p class="community-masthead-description mt-3 max-w-3xl text-base leading-7 text-dc-gray">
           {{ description }}
         </p>
@@ -41,7 +41,7 @@ function statClass(tone: 'yellow' | 'info' | 'warm' = 'warm') {
           class="community-masthead-stat rounded-md border-2 p-3"
           :class="statClass(stat.tone)"
         >
-          <div class="font-mono text-xl font-bold text-dc-ink">{{ stat.value }}</div>
+          <div class="font-mono text-xl font-semibold text-dc-ink">{{ stat.value }}</div>
           <div class="mt-1 font-mono text-[10px] uppercase tracking-wider" :class="stat.tone === 'info' ? 'text-dc-info' : 'text-dc-gray'">{{ stat.label }}</div>
         </div>
       </div>

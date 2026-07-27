@@ -17,10 +17,12 @@
 | `src/lib/api.ts` | Shared browser fetch helpers, query keys, and common API response types |
 | `src/lib/notify.ts` | Typed notification helper that targets the app toaster |
 | `src/views/DashboardView.vue` | DEV::CON[] landing page backed by current mock data |
-| `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public archive and talk detail surfaces |
-| `src/views/CfpView.vue` / `SpeakerTalkIntakeView.vue` | Speaker CFP and private selected-speaker/archive intake flows |
+| `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public event archive and published item surfaces |
+| `src/views/CfpView.vue` / `SpeakerTalkIntakeView.vue` | CFP and private selected-proposal/manual Archive Request flows |
 | `src/views/FeedbackView.vue` | Public event feedback form for active or auto-open campaigns |
 | `lib/event-feedback-report.ts` | Pure event-feedback aggregate model used by the organizer dashboard |
+| `lib/speaker-archive-email.ts` | Eligible program-item selection and strict stored speaker-email resolution |
+| `lib/email/resend.ts` / `lib/email/templates/monthly-archive-request.ts` | Worker-native Resend Batch client and code-owned Archive Request email |
 | `src/components/NaviiAvatar.vue` | Local deterministic Navii avatar renderer for leaderboard profiles |
 | `src/views/PlayView.vue` / `PlayCodeView.vue` | Quiz join and live player gameplay |
 | `src/views/NotFoundView.vue` | Branded fallback for unknown Vue routes |
@@ -48,12 +50,14 @@
   - Mock DB: `lib/mock-db/event-checklists.ts` stores per-event organizer run sheets and status-changing milestones.
 - **Speaker management**
   - Active Vue page: `src/views/admin/AdminSpeakersView.vue`
+  - This is the event-scoped speaker identity/access allowlist. It is not the Event Archive and does not determine what is publicly published.
   - APIs: `/api/events/[eventId]/speakers` (`GET`/`POST`), `/api/events/[eventId]/speakers/[speakerId]` (`DELETE`)
-- **Talk review + slides**
+- **Event Archive + requests**
   - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/SpeakerTalkIntakeView.vue`
-  - Talk Management subroutes: `/talks/cfp`, `/talks/proposals`, `/talks/program`, and temporary `/talks/backfill`
+  - Compatibility subroutes remain `/talks/cfp`, `/talks/proposals`, `/talks/program`, and `/talks/backfill`; the organizer UI presents the lasting records as **Event Archive** and the manual intake path as **Archive Requests**.
+  - Archive items use the existing `Talk` persistence/API shape with `kind: 'talk' | 'product_demo'`. Older rows without `kind` normalize to `talk`.
   - Generated private links open the standalone `/speaker-talks/:eventId/:token` route before the organizer-console catch-all.
-  - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`/`DELETE`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`
+  - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`/`DELETE`), `/api/events/[eventId]/speaker-intake-emails` (`POST`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`
 - **Quiz authoring + live ops**
   - Active Vue pages: `src/views/admin/AdminQuizView.vue`, `src/views/PlayView.vue`, `src/views/PlayCodeView.vue`
   - Builder: `app/(admin)/admin/events/[eventId]/quiz/page.tsx`
@@ -87,7 +91,7 @@
   - Draft generation: `POST /api/events/[eventId]/system-design/draft` reads public Google Slides prompt decks and returns extracted `title`, raw `content`, and a generated `summary`
 - **Attendance analysis**
   - Active Vue pages: `src/views/admin/AdminAttendanceOverviewView.vue`, `src/views/admin/AdminAttendanceView.vue`
-  - The hub pairs the monthly ledger with one compact attendance-pattern panel: approved RSVP/check-in bars for the latest uploaded events, a repeat-RSVP follow-through histogram, an approved came/missed pie, and a small venue-planning footer.
+  - The hub pairs the monthly ledger with one compact attendance-pattern panel: approved RSVP/check-in bars for the latest uploaded events, an approved came/missed pie, and a small venue-planning footer.
   - APIs: `/api/attendance/monthly`, `/api/events/[eventId]/attendance`, `/api/events/[eventId]/attendance/import`, `DELETE /api/events/[eventId]/attendance`
   - Mock DB: `lib/mock-db/attendance.ts`
   - CSV parser and summary metrics: `lib/luma-attendance.ts`
@@ -124,6 +128,7 @@
 - `/api/health/supabase/community-events` verifies that the Supabase event-source table is reachable.
 - `/api/health/supabase/storage` verifies that the `meetup-media` bucket is reachable.
 - `/api/events` reads, writes, and removes Supabase `community_events` when `APP_DATA_SOURCE=supabase` is set with credentials, falling back to JSON events when Supabase is unavailable or the table has not been migrated. Local/dev runs default to JSON even if Supabase credentials exist in `.env.local`.
+- The hosted `community_events` projection remains separate from compatibility `Talk` archive records. Until those records move to a relational archive source or are joined into that projection, a Supabase-backed public meetup response may not include archive items that exist only in the compatibility store.
 - `/api/integrations/luma/preview` is the organizer-only read-only Luma step. It returns the event shell and duplicate-import state without creating a `community_events` row.
 - `/api/integrations/luma/public-preview` turns the current Luma draft into the same public meetup DTO used by `/events/:slug`, so organizers can inspect the website-style event shell before importing even when schedule, speakers, and gallery details are still empty.
 - `/api/integrations/luma/import` imports from a public Luma event URL only after organizer confirmation, requires Supabase-backed `community_events`, lets the organizer choose whether the event is monthly, quarterly, or special, stores source metadata to prevent duplicate imports when the Luma metadata migration is present, and keeps the new event unpublished in organizer draft mode until the organizer explicitly publishes it. Before those migrations are applied, import falls back to registration-URL dedupe and saves the event without unsupported columns.
@@ -146,7 +151,7 @@
   - `/api/integrations/luma/import`
   - `/api/talks`
   - `/api/leaderboard`
-- **Public website contract:** `/api/public/meetups*` reads Supabase `community_events` first only when the server Supabase runtime is enabled, then falls back to current `Event` + published `Talk` JSON data. It returns a DevCongress.org-friendly meetup DTO with `slug`, `series_type`, `start`, `end`, `cover`, `location`, `speakers`, `schedule`, `photos`, counts, and app route URLs. System-design recap text and prompt-deck links travel inside the meetup `schedule` rows. Quarterly meetup recaps can also carry raw `shared_links` URLs in schedule rows, and public pages render those links only for quarterly meetups. `/api/public/archive*` returns narrow public archive payloads with event recap metadata, series type, cover, photos, feedback availability, shared links, and published talks so quarterly recaps can be media-first without showing an empty talk archive. `/api/public/home` provides the public landing aggregate without the broad `/api/overview` payload. These endpoints are read-only, CORS-enabled, and cacheable for short-lived website consumption; internal `/api/*` routes require organizer auth except auth and minimal attendee-feedback endpoints.
+- **Public website contract:** `/api/public/meetups*` reads Supabase `community_events` first only when the server Supabase runtime is enabled, then falls back to current `Event` + explicitly published compatibility `Talk` data. It returns a DevCongress.org-friendly meetup DTO with `slug`, `series_type`, `start`, `end`, `cover`, `location`, `speakers`, `schedule`, `photos`, counts, and app route URLs. Existing `/talks`, `talks`, and talk-count names remain for compatibility; each returned archive item may add `kind`, with a missing value interpreted as `talk`, so `product_demo` can be rendered without breaking older consumers. System-design recap text and prompt-deck links travel inside the meetup `schedule` rows. Quarterly meetup recaps can also carry raw `shared_links` URLs in schedule rows, and public pages render those links only for quarterly meetups. `/api/public/archive*` returns narrow public archive payloads with event recap metadata, series type, cover, photos, feedback availability, shared links, and published archive items so quarterly recaps can be media-first without showing an empty archive. `/api/public/home` provides the public landing aggregate without the broad `/api/overview` payload. These endpoints are read-only, CORS-enabled, and cacheable for short-lived website consumption; internal `/api/*` routes require organizer auth except auth and minimal attendee-feedback endpoints.
 - **Public website verification:** `pnpm verify:public-api` validates the public meetup response shape against the current `devcongress.org` Astro meetup schema expectations, plus CORS headers, cache headers, detail lookup, and talks lookup against `PUBLIC_API_BASE_URL` before the Astro website is wired to consume it.
 - **Public events page:** `/events` consumes `/api/public/meetups` inside this app so organizers can inspect the same public event stream the website will later consume.
 - **Auth note:** All organizer routes use Supabase Google OAuth plus app-owned HTTP-only sessions stored in `admin_sessions`; owner-only organizer email management lives at `/organizer-console/organizers`, and owner-only audit review lives at `/organizer-console/audit-log`. Local development uses the same Google flow and membership allowlist as hosted environments. Missing Supabase auth configuration fails closed and never creates a shared-password owner session.
@@ -171,7 +176,7 @@
 - Shared event reads now normalize stale lifecycle states from the saved dates before the client sees them, so a published meetup that has already ended resolves to `completed` across the archive, dashboard, attendance, and feedback flows even if the stored row was left on `live` or another pre-event status.
 - `src/views/NotFoundView.vue` is mounted by the final Vue Router catch-all route for unknown client paths.
 - `src/views/admin/AdminMobileOrganizerView.vue` is the deliberately limited phone-only organizer surface. It shows at most three live/upcoming/recent event cards with safe registration or source links, and groups unavailable work into three clear categories. Full setup, editing, attendance/feedback operations, access, reporting, audit, and bulk table work stays tablet/laptop-only; the canonical mobile route prevents hidden desktop route chunks from loading behind it.
-- `src/views/admin/AdminAttendanceOverviewView.vue` renders the monthly attendance ledger and a compact three-chart pattern panel from `/api/attendance/monthly`. The charts compare approved RSVPs with check-ins across recent uploaded events, distribute every repeat approved RSVP person by follow-through rate, and summarize selected-year approved RSVP outcomes; missing CSVs remain outside those populations. Its repeat-RSVP table turns the same approved history into a chronological came/missed trail, excludes pending and declined rows from no-show signals, and keeps the exact counts, follow-through rate, and last check-in visible.
+- `src/views/admin/AdminAttendanceOverviewView.vue` renders the monthly attendance ledger and a compact two-chart pattern panel from `/api/attendance/monthly`. The charts compare approved RSVPs with check-ins across recent uploaded events and summarize selected-year approved RSVP outcomes; missing CSVs remain outside those populations. Its people panel defaults to regular attendees with at least two actual check-ins and restores the registered, came, rate, and last-seen summary. A separate **Never came** view lists every person with at least two approved RSVPs and zero check-ins, excluding pending and declined registrations. The people table uses a capped, keyboard-focusable scroll area with a sticky column header so long follow-up lists do not lengthen the entire page.
 - `src/views/admin/AdminFeedbackOverviewView.vue` opens the Feedback Hub directly into event feedback reports grouped by selectable year and period. Reports default to the current month when that period exists, and event rows keep a lighter identity block on the left with a full-width stat strip plus end-aligned action on desktop.
 - `src/views/admin/AdminEventsView.vue` reads the organizer event list through the shared TanStack query layer, shows focusable detail popovers for the compact lifecycle legend, can upload a picked cover image during event creation, imports existing Luma events into Supabase from the create-event page, and invalidates the event-list plus overview queries after creating a new event.
 - `src/views/admin/AdminAuditLogView.vue` reads audit rows through the shared TanStack query layer and now swaps directly into a dedicated audit-log skeleton while the route data is loading.
@@ -222,7 +227,8 @@
 - JS-side mirror of the Tailwind theme in `tailwind.config.ts` — keep both in sync when rebranding
 - The active organizer UI uses the established `devcongress.org` light palette: cream canvas, white and warm paper, saturated yellow and pink identity/state cues, and strong ink borders and shadows.
 - `src/styles.css` owns the shared `.editorial-*` and `.ops-*` primitives, including the boxed navigation and raised panel treatment used across organizer routes.
-- `@fontsource/inter` supplies display/body type. IBM Plex Mono remains limited to labels, statuses, and compact controls.
+- `@fontsource/inter` supplies display/body type at 400–800. IBM Plex Mono remains limited to labels, statuses, compact controls, technical values, and live codes at 400–700.
+- Shared font-weight roles are body 400, supporting emphasis and form values 500, mono labels and actions 600, headings and major metrics 700, and page/hero display 800. `font-synthesis: none` prevents browsers from fabricating heavier faces.
 
 ---
 
@@ -250,63 +256,74 @@ All constants are in `lib/constants.ts`.
 ### CFP Submission
 ```
 POST /api/cfp
-  body: { event_id, speaker_name, speaker_email, github_username?, title, topic?, abstract?, bio? }
-  → creates a speaker proposal for organizer selection
+  body: { event_id, kind: 'talk' | 'product_demo', speaker_name, speaker_email, title, topic, abstract, bio }
+  → creates a presentation proposal for organizer selection
   → accepts submissions only for upcoming monthly events with CFP open
-  → does not create a confirmed talk or require a prior speaker allowlist row
+  → does not create an archive item or require a prior speaker allowlist row
 
 GET /api/events/[eventId]/speaker-submissions
-  → organizer-only speaker proposal inbox for the event
+  → organizer-only presentation proposal inbox for the event
 
 PATCH /api/speaker-submissions/[submissionId]
   body: { status: 'selected' | 'not_selected', internal_note?, expires_in_days? }
   → records the organizer decision
-  → selecting generates a one-time selected-speaker confirmation link
+  → selecting generates a one-time completion link that preserves the proposal kind
 ```
 
-### Manual Talk Entry (Admin)
+### Manual Archive Entry (Admin)
 ```
 POST /api/events/[eventId]/talks
-  body: { speaker_name, speaker_email, title, topic?, abstract?, bio?, github_username?, slides_url?, publish? }
-  → creates/keeps the speaker allowlist row for that email
-  → creates an accepted talk when slides_url is empty
-  → creates a slides_received talk when slides_url is present
-  → creates a published archive talk when publish is true
+  body: { kind: 'talk' | 'product_demo', speaker_name, speaker_email, title, topic?, abstract?, bio?, github_username?, slides_url?, publish? }
+  → writes the existing Talk compatibility record with the requested archive-item kind
+  → treats older records without kind as talk
+  → creates/keeps the separate speaker allowlist row for that email as a compatibility side effect
+  → creates an accepted item when slides_url is empty
+  → creates a slides_received item when slides_url is present
+  → publishes only when the organizer explicitly requests publish
 ```
 
-### Speaker Archive Intake
+### Event Archive Intake
 ```
 POST /api/events/[eventId]/speaker-intake-links
-  body: { speaker_name, speaker_email, expires_in_days }
-  → admin-only; creates a month-scoped, one-time token bound to one invited Legacy Backfill speaker
-  → only one active archive-backfill token may exist per speaker email for an event; different speakers may use the same expiry duration
+  body: { kind: 'talk' | 'product_demo', speaker_name, speaker_email, expires_in_days }
+  → admin-only; creates a month-scoped, one-time Archive Request token
+  → locks the event, invited identity, and archive-item kind into that token
+  → only one matching active manual token may exist for the same event, email, and kind; different recipients may use the same expiry duration
+
+POST /api/events/[eventId]/speaker-intake-emails
+  body: { program_item_indexes: number[], expires_in_days }
+  → admin-only; accepts up to 100 unique eligible rows from the stored event schedule
+  → derives the recipient from an exact selected-proposal, talk, or event-speaker match; missing/ambiguous matches fail closed
+  → creates or reuses one title-bound private link per row and submits personalized entries through Resend Batch
+  → records pending/accepted/failed state and provider IDs on the link, uses a stable idempotency key, and skips identities already accepted
 
 GET  /api/events/[eventId]/speaker-intake/[token]
-  → returns public event context only when the link is active
+  → returns public event context and the locked kind only when the link is active
 
 POST /api/events/[eventId]/speaker-intake/[token]
   body for archive_backfill links: { title, topic?, abstract?, bio?, slides_url? }
   body for selected_speaker_confirmation links: { slides_url }
-  → archive-backfill identity comes from the organizer-issued token, not browser-provided form fields
-  → creates/keeps the speaker allowlist row for that invited email
-  → archive-backfill links create accepted or slides_received talks from submitted details
-  → selected-speaker links create slides_received talks from the original CFP proposal plus the submitted slides URL
-  → marks the speaker link as used after a successful submission
+  → manual-request identity, event, and kind come from the organizer-issued token, not browser-provided form fields
+  → creates/keeps the separate speaker allowlist row for that invited email
+  → July manual Archive Requests create accepted or slides_received compatibility Talk records from submitted details
+  → the later selected-proposal flow creates the same compatibility record from the proposal, its stored kind, and the submitted slides URL
+  → marks the one-time link as used after a successful submission
   → expired or used links return closed-link errors
-  → never publishes directly from the public form
+  → never publishes an archive item directly from the public form
 
 DELETE /api/events/[eventId]/speaker-intake-links/[linkId]
-  → admin-only; removes a generated speaker link from the Legacy Backfill shelf
+  → admin-only; removes a generated link from Archive Requests
 ```
 
-### Talk Status Lifecycle (Admin)
+### Archive Publication Lifecycle (Admin)
 ```
 PATCH /api/talks/[talkId]
   body: { status: 'accepted' | 'rejected' | 'slides_received' | 'published' }
   → requires admin cookie session when changing status
+  → only published records appear in the public archive
 
 POST /api/talks/[talkId]/reminder
-  → logs an organizer slide reminder for accepted talks without uploaded slides
+  → logs an organizer slide reminder for accepted archive items without uploaded slides
 ```
 
 ### Quiz Session Lifecycle (Admin)

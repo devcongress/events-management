@@ -410,7 +410,7 @@ onMounted(async () => {
           <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p class="editorial-eyebrow">saved artifact</p>
-              <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">Monthly system design is saved</h2>
+              <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">Monthly system design is saved</h2>
               <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
                 {{ systemDesignSessions.length }} scenario{{ systemDesignSessions.length === 1 ? '' : 's' }} saved for this event. Use edit when you want to revise the recap, swap the prompt deck, or add another scenario.
               </p>
@@ -441,15 +441,15 @@ onMounted(async () => {
                   target: '_blank',
                   rel: 'noopener noreferrer',
                 } : {}"
-                class="mt-3 block w-fit text-2xl font-black tracking-tight text-dc-ink"
+                class="mt-3 block w-fit text-2xl font-bold tracking-tight text-dc-ink"
                 :class="item.resources[0] ? 'border-b-2 border-dc-yellow transition-colors hover:border-dc-ink' : ''"
               >
                 {{ systemDesignDisplayTitle(item) }}
               </component>
-              <p v-if="item.lead" class="mt-2 text-sm font-semibold text-dc-gray">
+              <p v-if="item.lead" class="mt-2 text-sm font-medium text-dc-gray">
                 Facilitated by {{ item.lead }}
               </p>
-              <p v-if="item.time" class="mt-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+              <p v-if="item.time" class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
                 {{ item.time }}
               </p>
             </div>
@@ -460,7 +460,7 @@ onMounted(async () => {
               </button>
               <button
                 type="button"
-                class="font-mono text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-700"
+                class="font-mono text-xs font-semibold uppercase tracking-wide text-red-600 hover:text-red-700"
                 :disabled="mutatingDrafts"
                 @click="removeSavedScenario(index)"
               >
@@ -475,7 +475,7 @@ onMounted(async () => {
         </article>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <RouterLink :to="overviewPath" class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray hover:text-dc-ink">
+          <RouterLink :to="overviewPath" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink">
             Edit full program outline
           </RouterLink>
         </div>
@@ -494,12 +494,12 @@ onMounted(async () => {
           <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p class="editorial-eyebrow">scenario {{ index + 1 }}</p>
-              <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">Monthly system design artifact</h2>
+              <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">Monthly system design artifact</h2>
             </div>
             <button
               v-if="drafts.length > 1"
               type="button"
-              class="font-mono text-xs font-bold uppercase tracking-wide text-red-600 hover:text-red-700"
+              class="font-mono text-xs font-semibold uppercase tracking-wide text-red-600 hover:text-red-700"
               :disabled="mutatingDrafts"
               @click="removeDraft(index)"
             >
@@ -567,7 +567,7 @@ onMounted(async () => {
           <button v-if="hasSavedDrafts" type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="cancelEditing">
             Cancel
           </button>
-          <RouterLink :to="overviewPath" class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray hover:text-dc-ink">
+          <RouterLink :to="overviewPath" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink">
             Edit full program outline
           </RouterLink>
         </div>

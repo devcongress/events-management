@@ -294,8 +294,8 @@ onUnmounted(() => {
       <section v-if="open" class="feedback-bot-panel" aria-label="Send feedback">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-dc-yellow">field notes</p>
-            <h2 class="mt-2 text-xl font-black tracking-normal text-[#111111]">
+            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-dc-yellow">field notes</p>
+            <h2 class="mt-2 text-xl font-bold tracking-normal text-[#111111]">
               {{ hasFeedbackReceipt ? 'Feedback received.' : 'Tell me what felt off.' }}
             </h2>
           </div>

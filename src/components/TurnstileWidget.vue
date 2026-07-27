@@ -127,7 +127,7 @@ onBeforeUnmount(() => {
 .turnstile-note {
   font-family: var(--font-mono), monospace;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: var(--font-weight-emphasis);
   letter-spacing: 0.04em;
   line-height: 1.4;
   color: #595959;

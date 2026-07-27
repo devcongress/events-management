@@ -367,7 +367,9 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     schedule,
     photos: normalizePhotos(row.photos),
     videos: normalizeVideos(row.videos),
-    talks_count: schedule.filter((item) => item.type === 'talk').length,
+    // Historical field name retained for website compatibility; it now counts
+    // both kinds of publishable archive presentation.
+    talks_count: schedule.filter((item) => item.type === 'talk' || item.type === 'product_demo').length,
     published_talks_count: speakers.length,
     cfp_url: row.status === 'cfp_open' ? absoluteAppUrl(origin, `/cfp/${row.id}`) : null,
     archive_url: absoluteAppUrl(origin, `/archive/${row.id}`),
@@ -452,6 +454,7 @@ function scheduleType(value: Json | undefined): PublicMeetupScheduleItem['type']
   if (
     value === 'networking'
     || value === 'talk'
+    || value === 'product_demo'
     || value === 'panel'
     || value === 'workshop'
     || value === 'system_design'

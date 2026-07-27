@@ -58,6 +58,7 @@ const ownerAdminLinks: NavLink[] = [
 const isAdminRoute = computed(() => isAdminPath(route.path));
 const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
+  || route.name === 'event-cfp'
   || route.name === 'admin-feedback-display'
   || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME
   || route.name === 'volunteer-intake'
@@ -475,7 +476,7 @@ onUnmounted(() => {
 
         <button
           v-if="showPrimaryNavigation"
-          class="app-mobile-menu-toggle motion-press hidden min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-dc-ink shadow-[2px_2px_0_#111111]"
+          class="app-mobile-menu-toggle motion-press hidden min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-dc-ink shadow-[2px_2px_0_#111111]"
           type="button"
           :aria-expanded="mobileMenuOpen"
           aria-controls="mobile-menu-panel"
@@ -572,7 +573,7 @@ onUnmounted(() => {
           <RouterLink
             v-if="adminReturnLink"
             :to="adminReturnLink.href"
-            class="mb-3 inline-flex items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
+            class="mb-3 inline-flex items-center rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] hover:bg-dc-yellow"
           >
             Back to {{ adminReturnLink.label }}
           </RouterLink>

@@ -62,6 +62,7 @@ const photoTypeOptions = [
 const SHARED_LINKS_SCHEDULE_TITLE = 'Links shared during the meetup';
 const outlineTypeOptions: { value: PublicMeetupScheduleItem['type']; label: string }[] = [
   { value: 'talk', label: 'Talk' },
+  { value: 'product_demo', label: 'Product demo' },
   { value: 'system_design', label: 'System design' },
   { value: 'workshop', label: 'Workshop' },
   { value: 'panel', label: 'Panel' },
@@ -129,7 +130,7 @@ function checklistViewItem(item: EventChecklistItem): ChecklistViewItem {
     return {
       ...item,
       status_on_complete: null,
-      description: 'Track that the speaker call has opened. Open CFP from the Talks section.',
+      description: 'Track that the presentation call has opened. Open CFP from the Archive section.',
     };
   }
 
@@ -137,23 +138,23 @@ function checklistViewItem(item: EventChecklistItem): ChecklistViewItem {
     return {
       ...item,
       status_on_complete: null,
-      description: 'Track that the speaker call has closed. Close CFP from the Talks section.',
+      description: 'Track that the presentation call has closed. Close CFP from the Archive section.',
     };
   }
 
   if (item.label === 'Confirm speakers and talks' && !availableChecklistFeatures.speakerAccess) {
     return {
       ...item,
-      label: 'Confirm talks',
-      description: 'Accept talks and make the program clear.',
+      label: 'Confirm presentations',
+      description: 'Select talks and product demos, then make the event archive clear.',
     };
   }
 
   if (item.label === 'Collect slides and prep quiz' && !availableChecklistFeatures.quiz) {
     return {
       ...item,
-      label: 'Collect talk materials',
-      description: 'Use talk management and archive form links to gather post-event talk details.',
+      label: 'Collect presentation materials',
+      description: 'Use the Archive and its private request links to gather missing presentation details.',
     };
   }
 
@@ -274,7 +275,7 @@ function inferOutlineType(title: string): PublicMeetupScheduleItem['type'] {
   if (normalized.includes('break')) return 'break';
   if (normalized.includes('network')) return 'networking';
   if (normalized.includes('system design') || normalized.includes('architecture scenario')) return 'system_design';
-  if (normalized.includes('demo')) return 'workshop';
+  if (normalized.includes('demo')) return 'product_demo';
   if (normalized.includes('panel')) return 'panel';
   if (normalized.includes('session') || normalized.includes('address')) return 'open_discussion';
   return 'talk';
@@ -1049,7 +1050,7 @@ onMounted(fetchOverview);
           <div class="min-w-0">
             <p class="editorial-eyebrow">event control</p>
             <div class="event-overview-title-row">
-              <h1 class="event-overview-title font-black tracking-tight text-dc-ink">{{ event.name }}</h1>
+              <h1 class="event-overview-title font-extrabold tracking-tight text-dc-ink">{{ event.name }}</h1>
               <button
                 v-if="!isPublishedEvent"
                 type="button"
@@ -1071,7 +1072,7 @@ onMounted(fetchOverview);
               <div class="rounded-lg border border-dc-border bg-dc-paper p-4">
                 <div class="event-overview-copy-header">
                   <div class="min-w-0">
-                    <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">About page</p>
+                    <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">About page</p>
                     <p class="mt-1 text-sm leading-6 text-dc-gray">This copy appears in the public meetup About section.</p>
                   </div>
                   <button
@@ -1123,8 +1124,8 @@ onMounted(fetchOverview);
               </div>
 
               <aside class="rounded-lg border border-dc-border bg-dc-paper p-4">
-                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Event profile</p>
-                <h2 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Series type</h2>
+                <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Event profile</p>
+                <h2 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Series type</h2>
                 <p class="mt-2 text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
                 <div class="mt-4 space-y-3">
                   <AppDropdown

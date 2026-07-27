@@ -386,9 +386,9 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Transition name="attendance-import-state" mode="out-in">
                 <div :key="attendanceImport?.id ?? 'empty-import'" class="min-w-0">
-                  <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Luma CSV</p>
-                  <p v-if="attendanceImport" class="mt-1 max-w-[13rem] truncate text-lg font-black tracking-tight text-dc-ink">{{ attendanceImport.source_filename ?? 'Luma CSV' }}</p>
-                  <p v-else class="mt-1 text-lg font-black tracking-tight text-dc-ink">No CSV imported</p>
+                  <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Luma CSV</p>
+                  <p v-if="attendanceImport" class="mt-1 max-w-[13rem] truncate text-lg font-semibold tracking-tight text-dc-ink">{{ attendanceImport.source_filename ?? 'Luma CSV' }}</p>
+                  <p v-else class="mt-1 text-lg font-semibold tracking-tight text-dc-ink">No CSV imported</p>
                 </div>
               </Transition>
               <input ref="fileInput" class="sr-only" type="file" accept=".csv,text/csv" @change="handleFileChange" />
@@ -400,7 +400,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                   <button
                     v-if="attendanceImport"
                     type="button"
-                    class="motion-press min-h-10 rounded-md border border-dc-border bg-dc-paper px-4 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="motion-press min-h-10 rounded-md border border-dc-border bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:border-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="importing || removing"
                     @click="removeImport"
                   >
@@ -409,12 +409,12 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                 </Transition>
               </div>
             </div>
-            <p v-if="!uploadAvailable" class="mt-3 text-xs font-semibold leading-5 text-dc-gray">
+            <p v-if="!uploadAvailable" class="mt-3 text-xs font-medium leading-5 text-dc-gray">
               {{ uploadBlockedCopy }}
             </p>
             <Transition name="attendance-progress">
               <div v-if="importing" class="mt-4">
-                <div class="mb-2 flex items-center justify-between gap-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                <div class="mb-2 flex items-center justify-between gap-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                   <span>{{ importProgressCopy }}</span>
                   <span v-if="importProgress !== null">{{ importProgress }}%</span>
                 </div>
@@ -436,9 +436,9 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
         <Transition name="attendance-content" mode="out-in">
           <section v-if="!attendanceImport || !summary" key="empty" class="editorial-panel p-8">
             <p class="editorial-eyebrow">no import yet</p>
-            <h2 class="text-3xl font-black tracking-tight text-dc-ink">No attendance data for {{ event?.name ?? 'this event' }}</h2>
+            <h2 class="text-3xl font-bold tracking-tight text-dc-ink">No attendance data for {{ event?.name ?? 'this event' }}</h2>
             <p class="mt-3 max-w-2xl text-base leading-7 text-dc-gray">Once a Luma CSV is imported, this page will show registrations, recorded check-ins, and no-shows for the organizer team.</p>
-            <p v-if="!uploadAvailable" class="mt-4 max-w-2xl rounded-md border border-dc-border bg-dc-paper-warm p-4 text-sm font-semibold leading-6 text-dc-gray">
+            <p v-if="!uploadAvailable" class="mt-4 max-w-2xl rounded-md border border-dc-border bg-dc-paper-warm p-4 text-sm font-medium leading-6 text-dc-gray">
               {{ uploadBlockedCopy }}
             </p>
           </section>
@@ -450,9 +450,9 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                 <div class="ops-panel-header flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
                     <p class="editorial-eyebrow">attendance ledger</p>
-                    <h2 class="text-2xl font-black tracking-tight text-dc-ink">Who said yes, who came, who missed</h2>
+                    <h2 class="text-2xl font-bold tracking-tight text-dc-ink">Who said yes, who came, who missed</h2>
                   </div>
-                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+                  <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
                     {{ pageStartIndex }}-{{ pageEndIndex }} of {{ filteredAttendanceRecords.length }} shown
                   </p>
                 </div>
@@ -460,7 +460,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                 <div class="border-y border-dc-border bg-dc-paper-warm px-5 py-4">
                   <div class="grid gap-4 xl:grid-cols-[minmax(260px,0.9fr)_minmax(0,1.6fr)_auto] xl:items-end">
                     <label class="block">
-                      <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Search</span>
+                      <span class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Search</span>
                       <input
                         v-model="searchQuery"
                         type="text"
@@ -470,13 +470,13 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                     </label>
 
                     <div>
-                      <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Show</p>
+                      <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Show</p>
                       <div class="mt-2 flex flex-wrap gap-1.5">
                         <button
                           v-for="filter in attendanceFilters"
                           :key="filter.key"
                           type="button"
-                          class="motion-press inline-flex min-h-10 items-center gap-2 rounded-md border px-3 font-mono text-[11px] font-bold uppercase tracking-wide"
+                          class="motion-press inline-flex min-h-10 items-center gap-2 rounded-md border px-3 font-mono text-[11px] font-semibold uppercase tracking-wide"
                           :class="selectedAttendanceFilter === filter.key ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[1px_1px_0_#111111]' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
                           @click="selectedAttendanceFilter = filter.key"
                         >
@@ -489,7 +489,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                     <div class="flex xl:justify-end">
                       <button
                         type="button"
-                        class="motion-press min-h-10 rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
+                        class="motion-press min-h-10 rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
                         @click="clearAttendanceFilters"
                       >
                         Reset
@@ -499,7 +499,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                 </div>
 
                 <div class="overflow-x-auto border-b border-dc-border bg-dc-paper-warm">
-                  <div class="grid min-w-[760px] grid-cols-[35%_35%_15%_15%] font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                  <div class="grid min-w-[760px] grid-cols-[35%_35%_15%_15%] font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                     <div class="px-4 py-2.5">Person</div>
                     <div class="px-4 py-2.5">Contact</div>
                     <div class="px-4 py-2.5">Attendance</div>
@@ -535,7 +535,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                       <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">
                         <span class="block w-full truncate">{{ record.email ?? '-' }}</span>
                       </td>
-                      <td class="px-4 py-2.5 align-middle font-mono text-[11px] font-bold uppercase tracking-wide" :class="attendanceOutcomeClass(record)">
+                      <td class="px-4 py-2.5 align-middle font-mono text-[11px] font-semibold uppercase tracking-wide" :class="attendanceOutcomeClass(record)">
                         <span class="block w-full truncate">{{ attendanceOutcome(record) }}</span>
                       </td>
                       <td class="px-4 py-2.5 align-middle text-sm text-dc-gray">

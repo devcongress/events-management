@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 
 type DropdownValue = string | number;
 
@@ -9,7 +9,6 @@ type DropdownOption = {
   disabled?: boolean;
 };
 
-let dropdownInstanceCount = 0;
 let activeDropdownId: string | null = null;
 
 const props = defineProps<{
@@ -31,7 +30,7 @@ const emit = defineEmits<{
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 const placement = ref<'bottom' | 'top'>('bottom');
-const dropdownId = `app-dropdown-${++dropdownInstanceCount}`;
+const dropdownId = `app-dropdown-${useId()}`;
 
 const estimatedMenuHeight = computed(() => {
   const optionHeight = 42;
@@ -156,7 +155,7 @@ watch(open, async (isOpen) => {
     <span v-if="label" :id="`${dropdownId}-label`" class="editorial-label">{{ label }}</span>
     <button
       type="button"
-      class="motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-semibold text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+      class="motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         triggerClasses,
         label ? 'mt-2' : '',
@@ -210,7 +209,7 @@ watch(open, async (isOpen) => {
                 <path d="M4 10.5l4 4L16 5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </span>
-            <span class="truncate font-semibold">{{ option.label }}</span>
+            <span class="truncate font-medium">{{ option.label }}</span>
           </button>
         </div>
       </div>

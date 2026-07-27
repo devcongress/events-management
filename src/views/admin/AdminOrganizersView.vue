@@ -196,15 +196,15 @@ function roleLabel(role: AdminRole): string {
           </p>
 
           <div class="mt-3 flex flex-wrap gap-2">
-            <span class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-dc-gray">
+            <span class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-dc-gray">
               {{ activeOrganizers.length }} active
             </span>
-            <span class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-dc-gray">
+            <span class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-dc-gray">
               {{ ownerCount }} owner{{ ownerCount === 1 ? '' : 's' }}
             </span>
             <span
               v-if="currentUserRole"
-              class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em]"
+              class="inline-flex min-h-10 items-center rounded-md border border-dc-border bg-dc-paper px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.16em]"
               :class="currentUserRole === 'owner' ? 'text-dc-ink' : 'text-dc-gray'"
             >
               Your access: {{ roleLabel(currentUserRole) }}
@@ -213,7 +213,7 @@ function roleLabel(role: AdminRole): string {
         </div>
 
         <aside class="rounded-lg border border-dc-border bg-dc-paper px-5 py-3 shadow-[0_1px_0_rgba(17,17,17,0.05)]">
-          <p class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">who can do what</p>
+          <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-pink">who can do what</p>
           <div class="mt-2 space-y-2 text-sm leading-6 text-dc-gray">
             <p>
               <span class="font-semibold text-dc-ink">Owners</span> can add owners or organizers, and can disable other owners.
@@ -236,7 +236,7 @@ function roleLabel(role: AdminRole): string {
           <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-1">add access</p>
-              <h2 class="text-xl font-black tracking-tight text-dc-ink">Invite a trusted organizer</h2>
+              <h2 class="text-xl font-bold tracking-tight text-dc-ink">Invite a trusted organizer</h2>
             </div>
             <p class="max-w-md text-sm leading-6 text-dc-gray">
               Add one email at a time so access stays deliberate.
@@ -262,9 +262,9 @@ function roleLabel(role: AdminRole): string {
           <div class="flex flex-col gap-2 border-b border-dc-border bg-dc-paper-warm px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-1">allowlist</p>
-              <h2 class="text-xl font-black tracking-tight text-dc-ink">Current access</h2>
+              <h2 class="text-xl font-bold tracking-tight text-dc-ink">Current access</h2>
             </div>
-            <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+            <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
               {{ organizers.length }} total
             </p>
           </div>
@@ -281,21 +281,21 @@ function roleLabel(role: AdminRole): string {
               :class="{ 'opacity-55': organizer.status === 'disabled' }"
             >
               <div class="min-w-0">
-                <h3 class="truncate font-mono text-sm font-black text-dc-ink">{{ organizer.email }}</h3>
+                <h3 class="truncate font-mono text-sm font-semibold text-dc-ink">{{ organizer.email }}</h3>
                 <p class="mt-1 truncate text-sm text-dc-gray">
                   {{ organizer.display_name || 'No display name' }}
                   <span class="mx-2 text-dc-border">/</span>
                   Last login: {{ formatDateTime(organizer.last_login_at) }}
                 </p>
               </div>
-              <div class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray md:text-center">
+              <div class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray md:text-center">
                 {{ roleLabel(organizer.role) }}
               </div>
-              <div class="font-mono text-[11px] font-bold uppercase tracking-wide md:text-center" :class="organizer.status === 'active' ? 'text-dc-success' : 'text-dc-gray'">
+              <div class="font-mono text-[11px] font-semibold uppercase tracking-wide md:text-center" :class="organizer.status === 'active' ? 'text-dc-success' : 'text-dc-gray'">
                 {{ organizer.status }}
               </div>
               <button
-                class="motion-press justify-self-start rounded-md border border-dc-border bg-dc-paper px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-40 md:justify-self-end"
+                class="motion-press justify-self-start rounded-md border border-dc-border bg-dc-paper px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-40 md:justify-self-end"
                 :disabled="!canDisableOrganizer(organizer)"
                 type="button"
                 @click="disableOrganizer(organizer)"

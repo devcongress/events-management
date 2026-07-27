@@ -160,17 +160,17 @@ onUnmounted(() => {
         >
           <header class="flex shrink-0 items-start justify-between gap-4 border-b-2 border-dc-ink bg-dc-yellow px-5 py-4 sm:px-6">
             <div class="min-w-0">
-              <p class="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-dc-ink">
+              <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-ink">
                 {{ drawerEyebrow }}
               </p>
-              <h2 id="annual-task-drawer-title" class="mt-1 text-2xl font-black leading-tight tracking-tight text-dc-ink">
+              <h2 id="annual-task-drawer-title" class="mt-1 text-2xl font-bold leading-tight tracking-tight text-dc-ink">
                 {{ drawerTitle }}
               </h2>
             </div>
             <button
               ref="closeButtonRef"
               type="button"
-              class="motion-press grid min-h-10 min-w-10 place-items-center rounded-md border-2 border-dc-ink bg-dc-paper font-mono text-lg font-black text-dc-ink shadow-[2px_2px_0_#111111]"
+              class="motion-press grid min-h-10 min-w-10 place-items-center rounded-md border-2 border-dc-ink bg-dc-paper font-mono text-lg font-semibold text-dc-ink shadow-[2px_2px_0_#111111]"
               :disabled="submitting"
               aria-label="Close task drawer"
               @click="requestClose"
@@ -183,7 +183,7 @@ onUnmounted(() => {
             <div class="annual-task-drawer-content">
               <template v-if="mode === 'create'">
                 <div class="mb-5 border-b-2 border-dc-ink pb-4">
-                  <p class="text-sm font-semibold leading-6 text-dc-gray">
+                  <p class="text-sm font-medium leading-6 text-dc-gray">
                     Add the delivery details and assign exactly one accountable owner. Other organizers can be listed as collaborators.
                   </p>
                 </div>
@@ -197,10 +197,10 @@ onUnmounted(() => {
 
               <template v-else-if="mode === 'edit' && task">
                 <div class="mb-5 flex flex-wrap items-center justify-between gap-3 border-b-2 border-dc-ink pb-4">
-                  <p class="text-sm font-semibold leading-6 text-dc-gray">
+                  <p class="text-sm font-medium leading-6 text-dc-gray">
                     Update the delivery details, ownership, and status.
                   </p>
-                  <span class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">
+                  <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
                     All organizers may edit
                   </span>
                 </div>
@@ -216,58 +216,58 @@ onUnmounted(() => {
               <template v-else-if="task">
                 <div class="flex flex-wrap items-center gap-2">
                   <span
-                    class="rounded-md border-2 px-2 py-1 font-mono text-[9px] font-black uppercase tracking-[0.08em]"
+                    class="rounded-md border-2 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
                     :class="statusClass(task.status)"
                   >
                     {{ ANNUAL_CONFERENCE_STATUS_LABELS[task.status] }}
                   </span>
-                  <span class="font-mono text-[9px] font-black uppercase tracking-[0.08em] text-dc-gray">
+                  <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
                     {{ ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream] }}
                   </span>
-                  <span v-if="task.priority" class="font-mono text-[9px] font-black uppercase tracking-[0.08em] text-dc-pink">
+                  <span v-if="task.priority" class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-pink">
                     {{ task.priority }} priority
                   </span>
                 </div>
 
                 <section class="mt-6 border-t-2 border-dc-ink pt-5">
-                  <p class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">Task detail</p>
-                  <p class="mt-2 text-base font-semibold leading-7" :class="task.details ? 'text-dc-ink' : 'text-dc-gray'">
+                  <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Task detail</p>
+                  <p class="mt-2 text-base font-medium leading-7" :class="task.details ? 'text-dc-ink' : 'text-dc-gray'">
                     {{ task.details ?? 'No task description yet.' }}
                   </p>
                 </section>
 
                 <dl class="mt-6 grid gap-5 border-y border-dc-border py-5 sm:grid-cols-2">
                   <div>
-                    <dt class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">Accountable</dt>
-                    <dd class="mt-1 text-sm font-black" :class="task.accountable_owner ? 'text-dc-ink' : 'text-dc-pink'">
+                    <dt class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Accountable</dt>
+                    <dd class="mt-1 text-sm font-semibold" :class="task.accountable_owner ? 'text-dc-ink' : 'text-dc-pink'">
                       {{ organizerDisplay(task.accountable_owner) }}
                     </dd>
                   </div>
                   <div>
-                    <dt class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">Collaborators</dt>
+                    <dt class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Collaborators</dt>
                     <dd class="mt-1 text-sm font-semibold leading-6 text-dc-ink">
                       {{ task.collaborators.length ? task.collaborators.map(organizerDisplay).join(', ') : 'None yet' }}
                     </dd>
                   </div>
                   <div>
-                    <dt class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">Target</dt>
+                    <dt class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Target</dt>
                     <dd class="mt-1 text-sm font-semibold text-dc-ink">
                       {{ task.target_date ? formatDate(task.target_date) : 'No date' }}
                     </dd>
                   </div>
                   <div>
-                    <dt class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">Priority</dt>
+                    <dt class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Priority</dt>
                     <dd class="mt-1 text-sm font-semibold capitalize text-dc-ink">{{ task.priority ?? 'Not set' }}</dd>
                   </div>
                 </dl>
 
                 <div v-if="task.dependency_note || task.internal_note" class="mt-6 grid gap-5 sm:grid-cols-2">
                   <section v-if="task.dependency_note" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-                    <h3 class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-pink">Dependency</h3>
+                    <h3 class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">Dependency</h3>
                     <p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ task.dependency_note }}</p>
                   </section>
                   <section v-if="task.internal_note" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-                    <h3 class="font-mono text-[9px] font-black uppercase tracking-[0.1em] text-dc-gray">Internal note</h3>
+                    <h3 class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Internal note</h3>
                     <p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ task.internal_note }}</p>
                   </section>
                 </div>
@@ -282,7 +282,7 @@ onUnmounted(() => {
           >
             <button
               type="button"
-              class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-black uppercase tracking-[0.1em] text-white shadow-[2px_2px_0_#111111]"
+              class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white shadow-[2px_2px_0_#111111]"
               @click="emit('edit')"
             >
               Edit task

@@ -165,6 +165,7 @@ function scheduleTypeLabel(type: PublicMeetupScheduleItem['type']) {
   return {
     networking: 'Networking',
     talk: 'Talk',
+    product_demo: 'Product demo',
     panel: 'Panel',
     workshop: 'Workshop',
     system_design: 'System design',
@@ -260,7 +261,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
     <div v-else-if="error || !meetup" class="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4 py-12 text-center sm:px-6 lg:px-8">
       <div>
         <p class="editorial-eyebrow">meetup</p>
-        <h1 class="mt-3 text-4xl font-black tracking-tight text-dc-ink">Meetup not found</h1>
+        <h1 class="mt-3 text-4xl font-extrabold tracking-tight text-dc-ink">Meetup not found</h1>
         <p class="mt-3 text-sm leading-6 text-dc-gray">{{ error ?? 'This meetup could not be loaded.' }}</p>
         <RouterLink to="/events" class="editorial-secondary-action mt-6 inline-flex">Back to Events</RouterLink>
       </div>
@@ -275,12 +276,12 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
         <div class="relative mx-auto flex min-h-[36rem] max-w-7xl items-end px-4 pb-10 pt-32 sm:min-h-[40rem] sm:px-6 sm:pb-12 lg:min-h-[44rem] lg:px-8 lg:pb-16 xl:min-h-[48rem]">
           <div class="max-w-3xl">
             <span
-              class="inline-flex rounded-full border-2 bg-black/10 px-5 py-2 font-mono text-xs font-bold uppercase tracking-wider backdrop-blur-sm"
+              class="inline-flex rounded-full border-2 bg-black/10 px-5 py-2 font-mono text-xs font-semibold uppercase tracking-wider backdrop-blur-sm"
               :class="statusBadgeClass(meetup.status)"
             >
               {{ statusLabel(meetup.status) }}
             </span>
-            <h1 class="mt-6 max-w-3xl font-sans text-4xl font-black leading-none tracking-tight text-white drop-shadow-sm sm:text-5xl lg:text-6xl">
+            <h1 class="mt-6 max-w-3xl font-sans text-4xl font-extrabold leading-none tracking-tight text-white drop-shadow-sm sm:text-5xl lg:text-6xl">
               {{ meetup.name }}
             </h1>
             <div class="mt-5 flex flex-wrap items-center gap-x-8 gap-y-2 text-sm font-semibold text-white/85 drop-shadow-sm sm:text-base">
@@ -304,7 +305,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
       </section>
 
       <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
-        <RouterLink v-if="!isLumaPreview" :to="backLink.to" class="mb-8 inline-flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wide text-dc-gray transition-colors hover:text-dc-pink">
+        <RouterLink v-if="!isLumaPreview" :to="backLink.to" class="mb-8 inline-flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-wide text-dc-gray transition-colors hover:text-dc-pink">
           <span>&larr;</span> {{ backLink.label }}
         </RouterLink>
 
@@ -348,7 +349,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
         <section v-if="meetup.speakers.length > 0" class="mt-12">
           <div class="mb-5">
             <p class="editorial-eyebrow">speakers</p>
-            <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">Who is on this meetup</h2>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">Who is on this meetup</h2>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -359,12 +360,12 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
             >
               <img :src="speaker.image" :alt="speaker.name" class="aspect-[4/3] w-full object-cover bg-dc-border">
               <div class="p-5">
-                <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ speaker.name }}</h3>
-                <p class="mt-1 text-sm font-semibold text-dc-gray">{{ speaker.title }}</p>
+                <h3 class="text-xl font-bold tracking-tight text-dc-ink">{{ speaker.name }}</h3>
+                <p class="mt-1 text-sm font-medium text-dc-gray">{{ speaker.title }}</p>
                 <p class="mt-3 text-sm leading-6 text-dc-gray">{{ speaker.bio }}</p>
 
                 <div v-if="speaker.talk_title" class="mt-4 border-t border-dc-border pt-4">
-                  <p class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-pink">Talk</p>
+                  <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-pink">Talk</p>
                   <p class="mt-2 text-base font-bold text-dc-ink">{{ speaker.talk_title }}</p>
                   <div v-if="speaker.talk_description" class="public-talk-summary public-talk-summary--compact">
                     <p class="public-talk-summary__label">{{ publicTalkSummaryLabel(speaker.talk_description) }}</p>
@@ -379,7 +380,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
                     :href="social.url"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="rounded-md border border-dc-border px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
+                    class="rounded-md border border-dc-border px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink"
                   >
                     {{ speakerSocialLabel(social.platform) }}
                   </a>
@@ -392,7 +393,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
         <section v-if="scheduleItems.length > 0" class="mt-12">
           <div class="mb-5">
             <p class="editorial-eyebrow">{{ meetup.status === 'past' ? 'recap' : 'schedule' }}</p>
-            <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">
               {{ meetup.status === 'past' ? 'How the meetup went' : 'How the meetup will flow' }}
             </h2>
           </div>
@@ -403,11 +404,11 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
               :key="`${item.time}-${item.title}-${index}`"
               class="grid gap-4 rounded-lg border border-dc-border bg-dc-paper px-4 py-4 md:grid-cols-[160px_1fr]"
             >
-              <div class="font-mono text-sm font-bold uppercase tracking-wide text-dc-gray">{{ item.time }}</div>
+              <div class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-gray">{{ item.time }}</div>
               <div>
                 <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
-                  <h3 class="min-w-0 text-lg font-black tracking-tight text-dc-ink">{{ item.title }}</h3>
-                  <span class="w-fit justify-self-start rounded-sm border border-dc-border bg-dc-paper-warm px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                  <h3 class="min-w-0 text-lg font-bold tracking-tight text-dc-ink">{{ item.title }}</h3>
+                  <span class="w-fit justify-self-start rounded-sm border border-dc-border bg-dc-paper-warm px-3 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                     {{ scheduleTypeLabel(item.type) }}
                   </span>
                 </div>
@@ -452,7 +453,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
         <section v-if="imagePhotos.length > 0 || folderPhotos.length > 0" class="mt-12">
           <div class="mb-5">
             <p class="editorial-eyebrow">photos</p>
-            <h2 class="mt-2 text-3xl font-black tracking-tight text-dc-ink">Moments from the meetup</h2>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">Moments from the meetup</h2>
           </div>
 
           <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
@@ -510,7 +511,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
               >
                 {{ galleryActionLabel }}
               </a>
-              <p v-if="folderPhotos.length > 1" class="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-dc-gray">
+              <p v-if="folderPhotos.length > 1" class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-gray">
                 {{ folderPhotos.length }} gallery links available
               </p>
             </aside>

@@ -1,5 +1,5 @@
-import { readData, writeData } from './index';
-import { EventSpeaker } from '@/types';
+import { readData, updateData } from './index';
+import type { EventSpeaker } from '@/types';
 import { generateId, now } from '@/lib/utils';
 
 const FILE = 'speakers';
@@ -26,32 +26,40 @@ export async function getSpeakerByEmail(eventId: string, email: string): Promise
 export async function addSpeaker(
   data: Omit<EventSpeaker, 'id' | 'added_at'>
 ): Promise<EventSpeaker> {
-  const speakers = await readData<EventSpeaker>(FILE);
-
-  // Check if speaker already exists for this event
-  const existing = await getSpeakerByEmail(data.event_id, data.email);
-  if (existing) {
-    throw new Error('Speaker with this email already exists for this event');
-  }
-
   const newSpeaker: EventSpeaker = {
     ...data,
     id: generateId(),
     added_at: now(),
   };
 
-  speakers.push(newSpeaker);
-  await writeData(FILE, speakers);
-  return newSpeaker;
+  return updateData<EventSpeaker, EventSpeaker>(FILE, (speakers) => {
+    const existing = speakers.find((speaker) => (
+      speaker.event_id === data.event_id
+      && speaker.email.toLowerCase() === data.email.toLowerCase()
+    ));
+
+    if (existing) {
+      throw new Error('Speaker with this email already exists for this event');
+    }
+
+    return {
+      data: [...speakers, newSpeaker],
+      result: newSpeaker,
+    };
+  });
 }
 
 export async function removeSpeaker(id: string): Promise<void> {
-  const speakers = await readData<EventSpeaker>(FILE);
-  const filtered = speakers.filter(s => s.id !== id);
+  await updateData<EventSpeaker, void>(FILE, (speakers) => {
+    const filtered = speakers.filter(s => s.id !== id);
 
-  if (filtered.length === speakers.length) {
-    throw new Error(`Speaker ${id} not found`);
-  }
+    if (filtered.length === speakers.length) {
+      throw new Error(`Speaker ${id} not found`);
+    }
 
-  await writeData(FILE, filtered);
+    return {
+      data: filtered,
+      result: undefined,
+    };
+  });
 }

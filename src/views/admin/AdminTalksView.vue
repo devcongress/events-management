@@ -3,11 +3,13 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppMultiSelectDropdown from '@/src/components/AppMultiSelectDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
-import type { Event, EventStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
+import { archiveRequestProgramItems, resolveSpeakerEmail, sameArchiveProgramIdentity } from '@/lib/speaker-archive-email';
+import type { ArchiveItemKind, Event, EventSpeaker, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
@@ -20,7 +22,13 @@ type AdminSpeakerIntakeLink = {
   speaker_name: string | null;
   speaker_email: string | null;
   talk_title: string | null;
+  kind?: ArchiveItemKind;
   token: string | null;
+  email_status: SpeakerIntakeEmailStatus | null;
+  email_provider_id: string | null;
+  email_sent_at: string | null;
+  email_last_attempt_at: string | null;
+  email_last_error: string | null;
   expires_at: string;
   used_at: string | null;
   used_talk_id: string | null;
@@ -30,6 +38,7 @@ type AdminSpeakerIntakeLink = {
 };
 const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
+const eventSpeakers = ref<EventSpeaker[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
 const speakerIntakeLinks = ref<AdminSpeakerIntakeLink[]>([]);
 const loading = ref(true);
@@ -47,15 +56,14 @@ const updatingTalkId = ref<string | null>(null);
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerLinkExpiresInDays = ref(7);
-const backfillSpeakerName = ref('');
-const backfillSpeakerEmail = ref('');
+const backfillProgramItemValues = ref<string[]>([]);
 const error = ref<string | null>(null);
 const PROGRAM_ABSTRACT_PREVIEW_WORDS = 55;
 const groups: { label: string; statuses: TalkStatus[] }[] = [
-  { label: 'Pending review', statuses: ['submitted'] },
-  { label: 'Accepted', statuses: ['accepted', 'slides_received'] },
+  { label: 'Needs details', statuses: ['submitted'] },
+  { label: 'Ready to publish', statuses: ['accepted', 'slides_received'] },
   { label: 'Published', statuses: ['published'] },
-  { label: 'Rejected', statuses: ['rejected'] },
+  { label: 'Excluded', statuses: ['rejected'] },
 ];
 
 const groupedTalks = computed(() => groups.map((group) => ({
@@ -64,7 +72,7 @@ const groupedTalks = computed(() => groups.map((group) => ({
 })));
 const submissionGroups: { label: string; statuses: SpeakerSubmissionStatus[] }[] = [
   { label: 'Awaiting organizer decision', statuses: ['submitted'] },
-  { label: 'Selected speakers', statuses: ['selected'] },
+  { label: 'Selected presenters', statuses: ['selected'] },
   { label: 'Not selected', statuses: ['not_selected'] },
 ];
 const groupedSubmissions = computed(() => submissionGroups.map((group) => ({
@@ -106,8 +114,8 @@ const activeArchiveBackfillLinkCount = computed(() => archiveBackfillLinks.value
 const talkSections: { id: TalkSection; label: string }[] = [
   { id: 'cfp', label: 'CFP' },
   { id: 'proposals', label: 'Proposals' },
-  { id: 'program', label: 'Program' },
-  { id: 'backfill', label: 'Legacy Backfill' },
+  { id: 'program', label: 'Archive' },
+  { id: 'backfill', label: 'Archive Requests' },
 ];
 const activeTalkSection = computed<TalkSection>(() => {
   const raw = Array.isArray(route.params.talksSection) ? route.params.talksSection[0] : route.params.talksSection;
@@ -144,17 +152,59 @@ const cfpStatusHelp = computed(() => {
   if (!eventIsUpcoming.value) return 'CFP can only be opened before the monthly meetup date.';
   if (cfpIsOpen.value) return 'Share the public link. New proposals will land in the inbox below.';
   if (cfpIsClosed.value) return 'Submission is paused. Reopen only if organizers are still accepting proposals.';
-  return 'Open CFP when this event is ready to receive speaker proposals.';
+  return 'Open CFP when this event is ready to receive presentation proposals.';
 });
 const speakerLinkExpiryDurations = [3, 7, 14, 31];
 const speakerLinkExpiryOptions = computed(() => speakerLinkExpiryDurations.map((days) => ({
   value: days,
   label: `${days} days`,
 })));
-const canGenerateBackfillLink = computed(() => (
-  backfillSpeakerName.value.trim().length > 0
-  && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(backfillSpeakerEmail.value.trim())
+const backfillProgramItems = computed(() => archiveRequestProgramItems(event.value?.schedule).map((item) => {
+  const emailResolution = resolveSpeakerEmail({
+    speakerName: item.speakerName,
+    talkTitle: item.title,
+    submissions: speakerSubmissions.value,
+    speakers: eventSpeakers.value,
+    talks: talks.value,
+  });
+  const sent = emailResolution.status === 'resolved' && archiveBackfillLinks.value.some((link) => (
+    link.email_status === 'accepted'
+    && sameArchiveProgramIdentity(link, {
+      kind: item.kind,
+      speakerEmail: emailResolution.email,
+      title: item.title,
+    })
+  ));
+
+  return { ...item, emailResolution, sent };
+}));
+const backfillProgramItemOptions = computed(() => backfillProgramItems.value.map((item) => ({
+  value: item.value,
+  label: item.label,
+  disabled: item.sent || item.emailResolution.status !== 'resolved',
+  note: item.sent
+    ? 'Sent'
+    : item.emailResolution.status === 'ambiguous'
+      ? 'Check email'
+      : item.emailResolution.status === 'missing'
+        ? 'Email missing'
+        : undefined,
+})));
+const selectedBackfillProgramItems = computed(() => backfillProgramItems.value.filter((item) => (
+  backfillProgramItemValues.value.includes(item.value)
+)));
+const unavailableBackfillProgramItemCount = computed(() => backfillProgramItems.value.filter((item) => (
+  item.emailResolution.status !== 'resolved'
+)).length);
+const canSendBackfillEmails = computed(() => (
+  selectedBackfillProgramItems.value.length > 0
+  && selectedBackfillProgramItems.value.every((item) => !item.sent && item.emailResolution.status === 'resolved')
 ));
+const sendBackfillButtonLabel = computed(() => {
+  if (creatingSpeakerLink.value) return 'Sending...';
+  const count = selectedBackfillProgramItems.value.length;
+  return count > 1 ? `Send ${count} emails` : 'Send email';
+});
 
 function talkSectionPath(section: TalkSection): string {
   return adminPath(`events/${String(route.params.eventId)}/talks/${section}`);
@@ -170,6 +220,11 @@ function talkSectionCount(section: TalkSection): number | null {
 async function fetchTalks() {
   const response = await fetch(`/api/events/${route.params.eventId}/talks`);
   if (response.ok) talks.value = await response.json();
+}
+
+async function fetchEventSpeakers() {
+  const response = await fetch(`/api/events/${route.params.eventId}/speakers`, { cache: 'no-store' });
+  if (response.ok) eventSpeakers.value = await response.json();
 }
 
 async function fetchEvent() {
@@ -197,7 +252,13 @@ async function fetchSpeakerIntakeLinks() {
 }
 
 async function fetchPageData() {
-  await Promise.all([fetchEvent(), fetchTalks(), fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
+  await Promise.all([
+    fetchEvent(),
+    fetchTalks(),
+    fetchEventSpeakers(),
+    fetchSpeakerSubmissions(),
+    fetchSpeakerIntakeLinks(),
+  ]);
   loading.value = false;
 }
 
@@ -222,6 +283,9 @@ function linkDurationDays(link: Pick<AdminSpeakerIntakeLink, 'created_at' | 'exp
 
 function linkShelfStatusLabel(link: AdminSpeakerIntakeLink): string {
   if (linkNeedsReissue(link)) return 'Reissue this older unverified link';
+  if (link.email_status === 'accepted' && link.email_sent_at) return `Email sent ${formatDateTime(link.email_sent_at)}`;
+  if (link.email_status === 'failed') return 'Email failed — select the speaker above to retry';
+  if (link.email_status === 'pending') return 'Email send pending';
   if (link.status === 'used') return 'Used';
   if (link.status === 'expired') return 'Expired';
 
@@ -247,43 +311,48 @@ async function refreshSpeakerSubmissions() {
 
   try {
     const refreshed = await fetchSpeakerSubmissions();
-    if (!refreshed) error.value = 'Could not refresh speaker proposals.';
+    if (!refreshed) error.value = 'Could not refresh presentation proposals.';
   } catch {
-    error.value = 'Could not refresh speaker proposals.';
+    error.value = 'Could not refresh presentation proposals.';
   } finally {
     refreshingSubmissions.value = false;
   }
 }
 
-async function generateSpeakerIntakeLink() {
-  if (!canGenerateBackfillLink.value) return;
+async function sendSpeakerIntakeEmails() {
+  if (!canSendBackfillEmails.value) return;
 
   creatingSpeakerLink.value = true;
   error.value = null;
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links`, {
+    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-emails`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        speaker_name: backfillSpeakerName.value.trim(),
-        speaker_email: backfillSpeakerEmail.value.trim(),
+        program_item_indexes: selectedBackfillProgramItems.value.map((item) => item.index),
         expires_in_days: speakerLinkExpiresInDays.value,
       }),
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (response.ok) {
       resetSpeakerIntakeLinkCopied();
       await fetchSpeakerIntakeLinks();
-      backfillSpeakerName.value = '';
-      backfillSpeakerEmail.value = '';
-      notify.success('Private speaker link generated.');
+      backfillProgramItemValues.value = [];
+
+      if (data.sent_count === 1) {
+        notify.success('Email sent.');
+      } else if (data.sent_count > 1) {
+        notify.success(`${data.sent_count} emails sent.`);
+      } else {
+        notify.info('The selected email was already sent.');
+      }
     } else {
-      error.value = data.error || 'Could not generate speaker form link.';
+      error.value = data.error || 'Could not send the archive request email.';
     }
   } catch {
-    error.value = 'Could not generate speaker form link.';
+    error.value = 'Could not send the archive request email. Check your connection and try again.';
   } finally {
     creatingSpeakerLink.value = false;
   }
@@ -308,15 +377,15 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
       await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
       if (status === 'selected' && data.token) {
         resetSpeakerIntakeLinkCopied();
-        notify.success('Slides link generated.');
+        notify.success('Private archive completion link generated.');
       } else {
-        notify.success('Speaker marked as not selected.');
+        notify.success('Presenter marked as not selected.');
       }
     } else {
-      error.value = data.error || 'Failed to update speaker submission';
+      error.value = data.error || 'Failed to update presentation proposal';
     }
   } catch {
-    error.value = 'Failed to update speaker submission';
+    error.value = 'Failed to update presentation proposal';
   } finally {
     decidingSubmissionId.value = null;
   }
@@ -348,15 +417,15 @@ async function generateSelectedSpeakerLinks() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || `Could not generate a slides link for ${submission.speaker_name}.`);
+        throw new Error(data.error || `Could not generate an archive completion link for ${submission.speaker_name}.`);
       }
     }));
 
     await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
     resetSpeakerIntakeLinkCopied();
-    notify.success(submissionsNeedingLinks.length === 1 ? 'Slides link generated.' : 'Selected speaker links generated.');
+    notify.success(submissionsNeedingLinks.length === 1 ? 'Archive completion link generated.' : 'Selected presenter links generated.');
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Could not generate selected speaker links.';
+    error.value = caught instanceof Error ? caught.message : 'Could not generate selected presenter links.';
   } finally {
     creatingSpeakerLink.value = false;
   }
@@ -472,7 +541,7 @@ async function copySpeakerIntakeLink(url: string, linkId: string) {
       speakerIntakeLinkCopiedResetTimer = null;
     }, 2200);
   } catch {
-    error.value = 'Could not copy the speaker form link.';
+    error.value = 'Could not copy the private archive link.';
   }
 }
 
@@ -496,12 +565,12 @@ async function deleteSpeakerIntakeLink(linkId: string) {
 
     if (response.ok) {
       await fetchSpeakerIntakeLinks();
-      notify.success('Speaker form link removed.');
+      notify.success('Archive request removed.');
     } else {
-      error.value = data.error || 'Could not remove speaker form link.';
+      error.value = data.error || 'Could not remove archive request.';
     }
   } catch {
-    error.value = 'Could not remove speaker form link.';
+    error.value = 'Could not remove archive request.';
   } finally {
     deletingSpeakerLinkId.value = null;
   }
@@ -512,7 +581,12 @@ function primaryTalkAction(talk: Talk): { label: string; status: TalkStatus } | 
     return null;
   }
 
-  if (talk.status === 'slides_received' || Boolean(talk.slides_uploaded_at) || Boolean(slidesLink(talk))) {
+  if (
+    talk.status === 'accepted'
+    || talk.status === 'slides_received'
+    || Boolean(talk.slides_uploaded_at)
+    || Boolean(slidesLink(talk))
+  ) {
     return { label: 'Publish', status: 'published' };
   }
 
@@ -523,17 +597,19 @@ function primaryTalkAction(talk: Talk): { label: string; status: TalkStatus } | 
   return null;
 }
 
-function talkStatusMessage(status: TalkStatus): string {
-  if (status === 'published') return 'Talk published to the public archive.';
-  if (status === 'accepted') return 'Talk accepted.';
-  if (status === 'rejected') return 'Talk rejected.';
-  if (status === 'slides_received') return 'Slides marked as received.';
-  return 'Talk updated.';
+function talkStatusMessage(talk: Talk | undefined, status: TalkStatus): string {
+  const itemLabel = talk ? archiveKindLabel(talk) : 'Archive item';
+  if (status === 'published') return `${itemLabel} published to the public archive.`;
+  if (status === 'accepted') return `${itemLabel} is ready for archive review.`;
+  if (status === 'rejected') return `${itemLabel} excluded from the archive.`;
+  if (status === 'slides_received') return `${archiveResourceLabel(talk ?? { kind: 'talk' })} marked as received.`;
+  return `${itemLabel} updated.`;
 }
 
 async function setStatus(talkId: string, status: TalkStatus) {
   error.value = null;
   updatingTalkId.value = talkId;
+  const talk = talks.value.find((item) => item.id === talkId);
 
   try {
     const response = await fetch(`/api/talks/${talkId}`, {
@@ -545,14 +621,14 @@ async function setStatus(talkId: string, status: TalkStatus) {
 
     if (response.ok) {
       await fetchTalks();
-      notify.success(talkStatusMessage(status));
+      notify.success(talkStatusMessage(talk, status));
     } else {
-      const message = data.error || 'Failed to update talk';
+      const message = data.error || `Failed to update ${talk ? archiveKindLabel(talk).toLowerCase() : 'archive item'}`;
       error.value = message;
       notify.error(message);
     }
   } catch {
-    const message = 'Failed to update talk';
+    const message = `Failed to update ${talk ? archiveKindLabel(talk).toLowerCase() : 'archive item'}`;
     error.value = message;
     notify.error(message);
   } finally {
@@ -565,7 +641,7 @@ async function sendReminder(talkId: string) {
 
   const response = await fetch(`/api/talks/${talkId}/reminder`, { method: 'POST' });
   if (response.ok) {
-    notify.success('Reminder logged for speaker follow-up.');
+    notify.success('Reminder logged for presenter follow-up.');
     await fetchTalks();
   } else {
     const data = await response.json();
@@ -574,27 +650,62 @@ async function sendReminder(talkId: string) {
 }
 
 function slideLabel(talk: Talk): string {
+  const isProductDemo = archiveKindFor(talk) === 'product_demo';
+
   if (talk.slides_uploaded_at) {
-    return `Slides received ${new Date(talk.slides_uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    return `${isProductDemo ? 'Demo link' : 'Slides'} received ${new Date(talk.slides_uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   }
 
   if (talk.status === 'accepted') {
+    if (isProductDemo) return 'Demo link optional';
+
     return talk.reminder_sent_count > 0
       ? `${talk.reminder_sent_count} reminder${talk.reminder_sent_count === 1 ? '' : 's'} sent`
       : 'Needs slides';
   }
 
   if (talk.status === 'published') {
-    return 'No slides link';
+    return isProductDemo ? 'No demo link' : 'No slides link';
   }
 
-  return 'Slides not required yet';
+  return isProductDemo ? 'Demo link not required yet' : 'Slides not required yet';
 }
 
 function slidesLink(talk: Talk): string | null {
   if (talk.slides_type === 'file' && talk.storage_path) return talk.storage_path;
-  if (talk.slides_url) return talk.slides_url;
+  if (talk.slides_url) {
+    try {
+      const url = new URL(talk.slides_url);
+      if (url.protocol === 'http:' || url.protocol === 'https:') return talk.slides_url;
+    } catch {
+      return null;
+    }
+  }
   return null;
+}
+
+function archiveKindFor(item: { kind?: ArchiveItemKind | null }): ArchiveItemKind {
+  return item.kind === 'product_demo' ? 'product_demo' : 'talk';
+}
+
+function archiveKindLabel(item: { kind?: ArchiveItemKind | null }): string {
+  return archiveKindFor(item) === 'product_demo' ? 'Product demo' : 'Talk';
+}
+
+function archiveResourceLabel(item: { kind?: ArchiveItemKind | null }): string {
+  return archiveKindFor(item) === 'product_demo' ? 'Demo link' : 'Slides';
+}
+
+function archiveStatusLabel(talk: Talk): string {
+  if (talk.status === 'submitted') return 'Needs details';
+  if (talk.status === 'accepted') return 'Ready to publish';
+  if (talk.status === 'slides_received') return `${archiveResourceLabel(talk)} received`;
+  if (talk.status === 'published') return 'Published';
+  return 'Excluded';
+}
+
+function archiveReminderLabel(talk: Talk): string {
+  return archiveKindFor(talk) === 'product_demo' ? 'Request demo link' : 'Remind for slides';
 }
 
 function selectedSpeakerLinkForSubmission(submissionId: string): AdminSpeakerIntakeLink | null {
@@ -636,14 +747,14 @@ function toggleProgramTalkSummary(talkId: string) {
 
 function actionClass(isPrimary = false): string {
   return isPrimary
-    ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
-    : 'motion-press rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:opacity-40';
+    ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
+    : 'motion-press rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:opacity-40';
 }
 
 function proposalActionClass(isPrimary = false): string {
   return isPrimary
-    ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
-    : 'motion-press rounded-md border border-dc-border bg-dc-paper px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:opacity-40';
+    ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
+    : 'motion-press rounded-md border border-dc-border bg-dc-paper px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:opacity-40';
 }
 
 onMounted(fetchPageData);
@@ -658,14 +769,14 @@ onUnmounted(() => {
   <div class="editorial-page">
     <div class="editorial-wrap">
       <div class="editorial-header">
-        <p class="editorial-eyebrow">program desk</p>
-        <h1 class="editorial-title">Talk Management</h1>
-        <p class="editorial-subtitle">Review CFP interest, record organizer decisions, and turn selected speakers into confirmed talks.</p>
+        <p class="editorial-eyebrow">event archive</p>
+        <h1 class="editorial-title">Archive</h1>
+        <p class="editorial-subtitle">Build one event archive for talks and product demos, whether they arrive through a proposal or a direct archive request.</p>
       </div>
 
       <nav
         class="talk-workflow-tabs mb-8"
-        aria-label="Talk workflow"
+        aria-label="Event archive workflow"
       >
         <span class="talk-workflow-tab-indicator" :style="activeTalkSectionIndicatorStyle" aria-hidden="true" />
         <RouterLink
@@ -687,7 +798,7 @@ onUnmounted(() => {
         <section v-if="activeTalkSection === 'cfp'" class="cfp-control-panel mb-8">
           <div class="cfp-control-visual" aria-hidden="true">
             <div class="cfp-control-visual-content">
-              <p class="ops-label text-dc-pink">call for speakers</p>
+              <p class="ops-label text-dc-pink">call for presentations</p>
               <h2>CFP</h2>
               <div class="cfp-status-pill">
                 <span class="cfp-status-dot" :class="{ 'cfp-status-dot--open': cfpIsOpen, 'cfp-status-dot--closed': cfpIsClosed, 'cfp-status-dot--idle': !cfpIsOpen && !cfpIsClosed }" />
@@ -698,7 +809,7 @@ onUnmounted(() => {
 
           <div class="cfp-control-main">
             <div class="cfp-control-copy">
-              <p class="ops-label">speaker call</p>
+              <p class="ops-label">presentation call</p>
               <h3>{{ cfpIsOpen ? 'Share the form' : cfpIsClosed ? 'CFP is closed' : 'Start accepting proposals' }}</h3>
               <p>{{ cfpStatusHelp }}</p>
             </div>
@@ -751,43 +862,37 @@ onUnmounted(() => {
         </section>
 
         <section v-if="activeTalkSection === 'backfill'" class="ops-panel mb-8 p-5">
-          <div class="mb-6 grid gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(20rem,1fr)]">
-            <div>
-              <p class="ops-label">legacy backfill</p>
-              <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Speaker Form Links</h2>
-              <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Generate one-time links for confirmed or past speakers who need to send archive details. Links stay visible here while they are active, and remain removable after use or expiry.</p>
-            </div>
-            <form class="border-t border-dc-border pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0" @submit.prevent="generateSpeakerIntakeLink">
-              <p class="ops-label">archive backfill</p>
-              <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Send a one-time link</h3>
-              <p class="mt-2 text-sm leading-6 text-dc-gray">Issue a private, one-time archive link to a known speaker. Their name and email are locked to the link, so each completed form can be traced to the invited speaker.</p>
+          <div class="mb-6">
+            <form @submit.prevent="sendSpeakerIntakeEmails">
+              <p class="ops-label">new request</p>
+              <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Email private archive links</h3>
+              <p class="mt-2 text-sm leading-6 text-dc-gray">Choose one or more speakers from this month’s program. Each person receives their own private form link.</p>
 
-              <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <label class="block">
-                  <span class="editorial-label">Speaker name</span>
-                  <input v-model="backfillSpeakerName" required autocomplete="name" class="editorial-input mt-2" placeholder="Ama Mensah">
-                </label>
-                <label class="block">
-                  <span class="editorial-label">Speaker email</span>
-                  <input v-model="backfillSpeakerEmail" required type="email" autocomplete="email" class="editorial-input mt-2 font-mono" placeholder="ama@example.com">
-                </label>
-              </div>
-
-              <div class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div class="mt-4 grid gap-3 md:grid-cols-[minmax(16rem,1fr)_minmax(7rem,0.25fr)_auto] md:items-end">
+                <AppMultiSelectDropdown
+                  v-model="backfillProgramItemValues"
+                  label="Topics / speakers"
+                  :options="backfillProgramItemOptions"
+                  placeholder="Select speakers from program outline"
+                  :disabled="backfillProgramItemOptions.length === 0"
+                  menu-class="min-w-96"
+                />
                 <AppDropdown
                   :model-value="speakerLinkExpiresInDays"
                   label="Valid for"
                   :options="speakerLinkExpiryOptions"
-                  density="compact"
                   menu-class="min-w-40"
                   @update:model-value="speakerLinkExpiresInDays = Number($event)"
                 />
-                <button type="submit" :disabled="creatingSpeakerLink || !canGenerateBackfillLink" class="editorial-secondary-action self-end px-4 py-3 text-xs">
-                  {{ creatingSpeakerLink ? 'Generating...' : 'Generate link' }}
+                <button type="submit" :disabled="creatingSpeakerLink || !canSendBackfillEmails" class="editorial-secondary-action h-[50px] self-end px-4 py-3 text-xs">
+                  {{ sendBackfillButtonLabel }}
                 </button>
               </div>
-              <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-                One active link per speaker. You can issue the same expiry length to different speakers.
+              <p v-if="backfillProgramItemOptions.length === 0" class="mt-2 text-sm font-medium text-dc-gray">
+                Add a topic and speaker to this month’s program outline before sending a request.
+              </p>
+              <p v-else-if="unavailableBackfillProgramItemCount > 0" class="mt-2 text-sm font-medium text-dc-gray">
+                {{ unavailableBackfillProgramItemCount }} program {{ unavailableBackfillProgramItemCount === 1 ? 'item needs' : 'items need' }} a single matching speaker email before it can be selected.
               </p>
             </form>
           </div>
@@ -796,9 +901,9 @@ onUnmounted(() => {
             <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p class="ops-label">generated links</p>
-                <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Backfill Link Shelf</h3>
+                <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Archive Request Shelf</h3>
               </div>
-              <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">{{ activeArchiveBackfillLinkCount }} active</p>
+              <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ activeArchiveBackfillLinkCount }} active</p>
             </div>
 
             <div v-if="archiveBackfillLinks.length > 0" class="space-y-3">
@@ -810,12 +915,12 @@ onUnmounted(() => {
                 <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                   <div class="min-w-0">
                     <div class="mb-2 flex flex-wrap items-center gap-2">
-                      <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">Archive backfill / {{ link.event_month }}</p>
-                      <span class="rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ linkNeedsReissue(link) ? 'reissue' : link.status }}</span>
+                      <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(link) }} / {{ link.event_month }}</p>
+                      <span class="rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ linkNeedsReissue(link) ? 'reissue' : link.status }}</span>
                     </div>
-                    <p class="truncate text-sm font-black text-dc-ink">{{ link.speaker_name || 'Speaker identity unavailable' }}</p>
-                    <p v-if="link.speaker_email" class="mt-1 truncate font-mono text-[11px] font-bold text-dc-gray">{{ link.speaker_email }}</p>
-                    <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
+                    <p class="truncate text-sm font-semibold text-dc-ink">{{ link.speaker_name || 'Presenter identity unavailable' }}</p>
+                    <p v-if="link.speaker_email" class="mt-1 truncate font-mono text-[11px] font-semibold text-dc-gray">{{ link.speaker_email }}</p>
+                    <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
                       {{ linkShelfStatusLabel(link) }}
                     </p>
                   </div>
@@ -825,7 +930,7 @@ onUnmounted(() => {
                       :disabled="!speakerIntakeUrlForToken(link.token)"
                       class="inline-flex items-center gap-1.5"
                       :class="actionClass()"
-                      :aria-label="copiedSpeakerLinkId === link.id ? 'Backfill link copied' : 'Copy backfill link'"
+                      :aria-label="copiedSpeakerLinkId === link.id ? 'Archive request link copied' : 'Copy archive request link'"
                       @click="copySpeakerIntakeLink(speakerIntakeUrlForToken(link.token), link.id)"
                     >
                       <svg v-if="copiedSpeakerLinkId === link.id" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -862,8 +967,8 @@ onUnmounted(() => {
               </article>
             </div>
             <div v-else class="rounded-md border border-dc-border bg-dc-paper-warm p-5 text-center">
-              <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">No backfill links yet</p>
-              <p class="mt-2 text-sm leading-6 text-dc-gray">Generated links will stay here until you remove them.</p>
+              <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">No archive requests yet</p>
+              <p class="mt-2 text-sm leading-6 text-dc-gray">Private request links will stay here until you remove them.</p>
             </div>
           </section>
         </section>
@@ -872,15 +977,15 @@ onUnmounted(() => {
           <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="ops-label">cfp inbox</p>
-              <h2 class="mt-1 text-2xl font-black tracking-tight text-dc-ink">Speaker Proposals</h2>
+              <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Presentation Proposals</h2>
             </div>
             <div class="flex flex-wrap items-center gap-3">
-              <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+              <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
                 {{ pendingSubmissionCount }} pending
               </p>
               <button
                 type="button"
-                class="motion-press inline-flex min-h-10 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-xs font-bold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50"
+                class="motion-press inline-flex min-h-10 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="refreshingSubmissions"
                 @click="refreshSpeakerSubmissions"
               >
@@ -897,9 +1002,9 @@ onUnmounted(() => {
             <section v-if="selectedSpeakerPendingSubmissions.length > 0" class="ops-panel overflow-hidden">
               <div class="flex flex-col gap-3 border-b border-dc-border bg-dc-paper-warm px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p class="ops-label">selected speaker links</p>
-                  <h3 class="mt-1 text-lg font-black tracking-tight text-dc-ink">Slides upload links</h3>
-                  <p class="mt-1 text-sm leading-6 text-dc-gray">Generate one private link per selected speaker, then copy or open them from here.</p>
+                  <p class="ops-label">selected presenter links</p>
+                  <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Archive completion links</h3>
+                  <p class="mt-1 text-sm leading-6 text-dc-gray">Generate one private link per selected presenter so they can finish the record required for this event archive.</p>
                 </div>
                 <button
                   type="button"
@@ -918,8 +1023,11 @@ onUnmounted(() => {
                   class="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(16rem,1fr)_auto] lg:items-center"
                 >
                   <div class="min-w-0">
-                    <h4 class="truncate text-sm font-black tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</h4>
-                    <p class="mt-1 truncate text-sm font-semibold text-dc-gray">{{ submission.speaker_name }}</p>
+                    <div class="flex min-w-0 items-center gap-2">
+                      <h4 class="truncate text-sm font-semibold tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</h4>
+                      <span class="shrink-0 rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(submission) }}</span>
+                    </div>
+                    <p class="mt-1 truncate text-sm font-medium text-dc-gray">{{ submission.speaker_name }}</p>
                   </div>
                   <input
                     v-if="speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
@@ -936,7 +1044,7 @@ onUnmounted(() => {
                       :disabled="!speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
                       class="inline-flex items-center gap-1.5"
                       :class="actionClass()"
-                      :aria-label="copiedSpeakerLinkId === `selected-${submission.id}` ? 'Slides link copied' : 'Copy slides link'"
+                      :aria-label="copiedSpeakerLinkId === `selected-${submission.id}` ? 'Archive completion link copied' : 'Copy archive completion link'"
                       @click="copySpeakerIntakeLink(speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null), `selected-${submission.id}`)"
                     >
                       <svg v-if="copiedSpeakerLinkId === `selected-${submission.id}`" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -963,7 +1071,7 @@ onUnmounted(() => {
             </section>
 
             <section v-for="group in groupedSubmissions.filter((item) => item.submissions.length > 0)" :key="group.label">
-              <h3 class="mb-3 flex items-center gap-3 text-lg font-black tracking-tight text-dc-ink">
+              <h3 class="mb-3 flex items-center gap-3 text-lg font-bold tracking-tight text-dc-ink">
                 {{ group.label }}
                 <span class="font-mono text-xs font-semibold text-dc-gray">({{ group.submissions.length }})</span>
               </h3>
@@ -983,7 +1091,10 @@ onUnmounted(() => {
                     <div
                       class="proposal-row-trigger"
                     >
-                      <span class="truncate text-sm font-black tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</span>
+                      <span class="flex min-w-0 items-center gap-2">
+                        <span class="truncate text-sm font-semibold tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</span>
+                        <span class="shrink-0 rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(submission) }}</span>
+                      </span>
                       <span class="truncate text-sm font-bold text-dc-gray">{{ submission.speaker_name }}</span>
                       <span class="truncate font-mono text-xs uppercase tracking-wide text-dc-gray">{{ submission.topic || 'General' }}</span>
                     </div>
@@ -1006,15 +1117,15 @@ onUnmounted(() => {
                       </button>
                       <span
                         v-if="submission.status === 'selected' && !submission.selected_talk_id"
-                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray"
+                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray"
                       >
                         {{ selectedSpeakerLinkLabel(submission) }}
                       </span>
                       <span
                         v-if="submission.status === 'selected' && submission.selected_talk_id"
-                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray"
+                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray"
                       >
-                        Slides received
+                        Archive details received
                       </span>
                     </div>
                   </div>
@@ -1023,13 +1134,13 @@ onUnmounted(() => {
                       <div class="proposal-accordion-inner border-t border-dc-border">
                         <div class="proposal-detail-grid">
                           <section class="proposal-detail-block proposal-detail-block--abstract">
-                            <p class="proposal-detail-label">Abstract</p>
-                            <p class="proposal-detail-text">{{ submission.abstract || 'No abstract provided.' }}</p>
+                            <p class="proposal-detail-label">{{ archiveKindFor(submission) === 'product_demo' ? 'Demo summary' : 'Abstract' }}</p>
+                            <p class="proposal-detail-text">{{ submission.abstract || (archiveKindFor(submission) === 'product_demo' ? 'No demo summary provided.' : 'No abstract provided.') }}</p>
                           </section>
                           <div class="proposal-detail-lower">
                             <section class="proposal-detail-block">
-                              <p class="proposal-detail-label">Speaker bio</p>
-                              <p class="proposal-detail-text">{{ submission.bio || 'No speaker bio provided.' }}</p>
+                              <p class="proposal-detail-label">Presenter bio</p>
+                              <p class="proposal-detail-text">{{ submission.bio || 'No presenter bio provided.' }}</p>
                             </section>
                             <dl class="proposal-detail-meta" aria-label="Proposal metadata">
                               <div class="proposal-detail-meta-item">
@@ -1056,7 +1167,7 @@ onUnmounted(() => {
           </div>
           <div v-else class="editorial-panel p-12 text-center">
             <p class="editorial-eyebrow">proposal inbox</p>
-            <h2 class="mt-3 text-2xl font-black tracking-tight text-dc-ink">No proposals yet</h2>
+            <h2 class="mt-3 text-2xl font-bold tracking-tight text-dc-ink">No proposals yet</h2>
             <p class="mx-auto mt-3 max-w-2xl text-sm leading-6 text-dc-gray">
               Open and share the CFP link from the CFP step. New submissions will appear here for selection.
             </p>
@@ -1066,7 +1177,7 @@ onUnmounted(() => {
         <section v-if="activeTalkSection === 'program'" class="mb-8">
           <template v-if="talks.length > 0">
             <section v-for="group in groupedTalks.filter((item) => item.talks.length > 0)" :key="group.label" class="mb-8">
-              <h2 class="mb-3 flex items-center gap-3 text-lg font-black tracking-tight text-dc-ink">
+              <h2 class="mb-3 flex items-center gap-3 text-lg font-bold tracking-tight text-dc-ink">
                 {{ group.label }}
                 <span class="font-mono text-xs font-semibold text-dc-gray">({{ group.talks.length }})</span>
               </h2>
@@ -1075,13 +1186,20 @@ onUnmounted(() => {
                   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div class="min-w-0">
                       <div class="mb-2 flex flex-wrap items-center gap-2">
-                        <h3 class="text-xl font-black tracking-tight text-dc-ink">{{ talk.title }}</h3>
-                        <span class="rounded-md border border-dc-border bg-dc-paper-warm px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ talk.status.replace('_', ' ') }}</span>
+                        <h3 class="text-xl font-bold tracking-tight text-dc-ink">{{ talk.title }}</h3>
+                        <span class="rounded-md border border-dc-border bg-dc-paper px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(talk) }}</span>
+                        <span class="rounded-md border border-dc-border bg-dc-paper-warm px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ archiveStatusLabel(talk) }}</span>
                       </div>
                       <p class="text-sm text-dc-gray">{{ talk.speaker_name }} · {{ talk.speaker_email }}</p>
                       <div v-if="talk.abstract" class="program-abstract-preview">
                         <p class="program-abstract-preview__label">
-                          {{ programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id) ? 'Review summary' : 'Abstract' }}
+                          {{
+                            archiveKindFor(talk) === 'product_demo'
+                              ? 'Demo summary'
+                              : programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id)
+                                ? 'Review summary'
+                                : 'Abstract'
+                          }}
                         </p>
                         <p class="program-abstract-preview__text">
                           {{ programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id) ? programAbstractPreview(talk.abstract) : talk.abstract }}
@@ -1093,7 +1211,13 @@ onUnmounted(() => {
                           :aria-expanded="programTalkExpanded(talk.id)"
                           @click="toggleProgramTalkSummary(talk.id)"
                         >
-                          {{ programTalkExpanded(talk.id) ? 'Show summary' : 'Show full abstract' }}
+                          {{
+                            programTalkExpanded(talk.id)
+                              ? 'Show summary'
+                              : archiveKindFor(talk) === 'product_demo'
+                                ? 'Show full demo summary'
+                                : 'Show full abstract'
+                          }}
                         </button>
                       </div>
                       <p class="mt-3 font-mono text-xs uppercase tracking-wide text-dc-gray">
@@ -1102,7 +1226,7 @@ onUnmounted(() => {
                     </div>
                     <div class="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                       <a v-if="slidesLink(talk)" :href="slidesLink(talk) ?? undefined" target="_blank" rel="noopener noreferrer" :class="actionClass()">
-                        Slides
+                        {{ archiveResourceLabel(talk) }}
                       </a>
                       <button
                         v-if="primaryTalkAction(talk)"
@@ -1120,7 +1244,7 @@ onUnmounted(() => {
                         :disabled="updatingTalkId === talk.id"
                         @click="setStatus(talk.id, 'rejected')"
                       >
-                        Reject
+                        Exclude
                       </button>
                       <button
                         v-if="talk.status === 'accepted' && !talk.slides_uploaded_at"
@@ -1129,7 +1253,7 @@ onUnmounted(() => {
                         :disabled="updatingTalkId === talk.id"
                         @click="sendReminder(talk.id)"
                       >
-                        Remind
+                        {{ archiveReminderLabel(talk) }}
                       </button>
                     </div>
                   </div>
@@ -1138,10 +1262,10 @@ onUnmounted(() => {
             </section>
           </template>
           <div v-else class="editorial-panel p-12 text-center">
-            <p class="editorial-eyebrow">program empty</p>
-            <h2 class="mt-3 text-2xl font-black tracking-tight text-dc-ink">No confirmed talks yet</h2>
+            <p class="editorial-eyebrow">archive empty</p>
+            <h2 class="mt-3 text-2xl font-bold tracking-tight text-dc-ink">No archive records yet</h2>
             <p class="mx-auto mt-3 max-w-2xl text-sm leading-6 text-dc-gray">
-              Selected speakers become confirmed talks after they send their slides link. Temporary backfilled talks will also appear here.
+              Selected proposals and completed archive requests will meet here as talk or product-demo records, ready for an organizer to publish.
             </p>
           </div>
         </section>
@@ -1150,7 +1274,7 @@ onUnmounted(() => {
     <ConfirmDialog
       :open="closeCfpDialogOpen"
       title="Close CFP?"
-      message="This pauses the public speaker form for this event. Existing proposals stay in the inbox, and organizers can reopen the CFP later if needed."
+      message="This pauses the public presentation form for this event. Existing proposals stay in the inbox, and organizers can reopen the CFP later if needed."
       confirm-label="Close CFP"
       busy-label="Closing..."
       cancel-label="Keep open"

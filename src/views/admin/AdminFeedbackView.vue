@@ -607,10 +607,10 @@ onBeforeUnmount(() => {
               Download responses
             </button>
             <div class="editorial-panel p-4">
-              <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Status</p>
-              <p class="mt-1 text-2xl font-black tracking-tight text-dc-ink">{{ statusLabel }}</p>
+              <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Status</p>
+              <p class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">{{ statusLabel }}</p>
               <p class="mt-2 font-mono text-xs uppercase tracking-wide text-dc-pink">{{ completionRateCopy }}</p>
-              <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ windowCopy }}</p>
+              <p class="mt-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ windowCopy }}</p>
             </div>
           </div>
         </header>
@@ -621,23 +621,23 @@ onBeforeUnmount(() => {
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <section class="editorial-panel bg-dc-paper p-5">
                 <p class="editorial-eyebrow">responses</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ submissions.length }}</p>
+                <p class="mt-2 text-4xl font-extrabold tracking-tight text-dc-ink">{{ submissions.length }}</p>
               </section>
               <section class="editorial-panel bg-dc-paper-warm p-5">
                 <p class="editorial-eyebrow">avg rating</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.averageRating ?? '-' }}</p>
+                <p class="mt-2 text-4xl font-extrabold tracking-tight text-dc-ink">{{ feedbackReport.averageRating ?? '-' }}</p>
               </section>
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">attend again</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ primaryBinaryInsight?.yesPercent === null || primaryBinaryInsight?.yesPercent === undefined ? '-' : `${primaryBinaryInsight.yesPercent}%` }}</p>
+                <p class="mt-2 text-4xl font-extrabold tracking-tight text-dc-ink">{{ primaryBinaryInsight?.yesPercent === null || primaryBinaryInsight?.yesPercent === undefined ? '-' : `${primaryBinaryInsight.yesPercent}%` }}</p>
               </section>
               <section class="editorial-panel p-5">
                 <p class="editorial-eyebrow">comments</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.comments }}</p>
+                <p class="mt-2 text-4xl font-extrabold tracking-tight text-dc-ink">{{ feedbackReport.comments }}</p>
               </section>
               <section class="editorial-panel border-dc-yellow bg-dc-yellow/20 p-5">
                 <p class="editorial-eyebrow">sessions missed</p>
-                <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.notAttended }}</p>
+                <p class="mt-2 text-4xl font-extrabold tracking-tight text-dc-ink">{{ feedbackReport.notAttended }}</p>
               </section>
             </div>
 
@@ -745,7 +745,7 @@ onBeforeUnmount(() => {
 
             <section class="editorial-panel p-5">
               <p class="editorial-eyebrow">attendee access</p>
-              <h2 class="mt-2 text-2xl font-black tracking-tight text-dc-ink">{{ attendeeAccessTitle }}</h2>
+              <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">{{ attendeeAccessTitle }}</h2>
               <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">{{ attendeeAccessCopy }}</p>
               <div class="feedback-link-actions mt-5">
                 <span class="feedback-link-status" :class="isOpen ? 'border-dc-success bg-dc-success-soft text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
@@ -807,7 +807,7 @@ onBeforeUnmount(() => {
               <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p class="editorial-eyebrow">final activity list</p>
-                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">What actually happened</h2>
+                  <h2 class="text-2xl font-bold tracking-tight text-dc-ink">What actually happened</h2>
                 </div>
                 <button type="button" class="editorial-secondary-action" @click="addActivityDraft">Add Activity</button>
               </div>
@@ -820,10 +820,10 @@ onBeforeUnmount(() => {
                 >
                   <label class="flex items-center gap-3 md:justify-center">
                     <input v-model="activity.enabled" type="checkbox" class="size-5 accent-dc-pink" />
-                    <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray md:hidden">Use</span>
+                    <span class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray md:hidden">Use</span>
                   </label>
                   <input v-model="activity.label" class="editorial-input min-h-11" type="text" placeholder="Activity name" />
-                  <span class="rounded bg-dc-paper-warm px-2 py-2 text-center font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">{{ activity.source }}</span>
+                  <span class="rounded bg-dc-paper-warm px-2 py-2 text-center font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ activity.source }}</span>
                 </div>
 
                 <div v-if="activities.length === 0" class="rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray">
@@ -832,7 +832,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ selectedActivityCount }} selected</p>
+                <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ selectedActivityCount }} selected</p>
                 <button type="button" class="editorial-action" :disabled="!canGenerateQuestions" @click="generateQuestionsFromActivities">Generate Questions</button>
               </div>
             </div>
@@ -862,7 +862,7 @@ onBeforeUnmount(() => {
               <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p class="editorial-eyebrow">questions</p>
-                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">What attendees answer</h2>
+                  <h2 class="text-2xl font-bold tracking-tight text-dc-ink">What attendees answer</h2>
                 </div>
                 <button type="button" class="editorial-secondary-action" @click="addQuestion()">Add Question</button>
               </div>
@@ -875,14 +875,14 @@ onBeforeUnmount(() => {
                 :style="{ zIndex: form.questions.length - index }"
               >
                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">Question {{ index + 1 }}</p>
+                  <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink">Question {{ index + 1 }}</p>
                   <div class="flex w-full items-center justify-between gap-2 rounded-md border border-dc-border bg-dc-paper-warm p-1 sm:w-auto sm:justify-end">
                     <label class="motion-press flex min-h-9 cursor-pointer items-center gap-2 rounded px-3 py-2">
                       <input v-model="question.required" type="checkbox" class="size-4 accent-dc-pink" />
-                      <span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-ink">Required</span>
+                      <span class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink">Required</span>
                     </label>
                     <span class="h-6 w-px bg-dc-border" aria-hidden="true" />
-                    <button type="button" class="feedback-remove-action motion-press min-h-9 rounded px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide" @click="removeQuestion(question.id)">Remove</button>
+                    <button type="button" class="feedback-remove-action motion-press min-h-9 rounded px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-wide" @click="removeQuestion(question.id)">Remove</button>
                   </div>
                 </div>
                 <div class="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
@@ -903,7 +903,7 @@ onBeforeUnmount(() => {
                     <input v-model="question.options[optionIndex]" class="editorial-input" type="text" :placeholder="`Option ${optionIndex + 1}`" />
                     <button type="button" class="editorial-secondary-action px-3" @click="removeOption(question, optionIndex)">x</button>
                   </div>
-                  <button type="button" class="font-mono text-xs font-bold uppercase tracking-wide text-dc-pink" @click="addOption(question)">Add option</button>
+                  <button type="button" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink" @click="addOption(question)">Add option</button>
                 </div>
               </div>
               </TransitionGroup>

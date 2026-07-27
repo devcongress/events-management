@@ -119,7 +119,7 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="sortedMeetups.length === 0" class="editorial-panel p-10">
-        <h2 class="text-2xl font-black tracking-tight text-dc-ink">No meetups yet</h2>
+        <h2 class="text-2xl font-bold tracking-tight text-dc-ink">No meetups yet</h2>
         <p class="mt-2 text-dc-gray">Published community meetups will appear here.</p>
       </div>
 
@@ -132,22 +132,22 @@ onUnmounted(() => {
           <div class="relative aspect-video border-b-2 border-dc-ink bg-dc-ink">
             <img :src="meetup.cover" :alt="`${meetup.name} cover`" class="absolute inset-0 size-full object-cover">
             <div class="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
-              <span class="rounded-md border-2 border-dc-ink px-3 py-1.5 font-mono text-[11px] font-bold uppercase tracking-wider shadow-[2px_2px_0_#111111]" :class="statusClass(meetup.status)">
+              <span class="rounded-md border-2 border-dc-ink px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider shadow-[2px_2px_0_#111111]" :class="statusClass(meetup.status)">
                 {{ statusLabel(meetup.status) }}
               </span>
-              <span v-if="meetup.photos.length > 0" class="rounded-md bg-dc-ink/75 px-3 py-1.5 font-mono text-[11px] font-bold text-white">
+              <span v-if="meetup.photos.length > 0" class="rounded-md bg-dc-ink/75 px-3 py-1.5 font-mono text-[11px] font-semibold text-white">
                 {{ meetup.photos.length }} photos
               </span>
             </div>
           </div>
 
           <div class="flex flex-1 flex-col gap-3 p-5 sm:p-6">
-            <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs font-bold uppercase tracking-wide text-dc-gray">
+            <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
               <time :datetime="meetup.start">{{ formatDate(meetup.start) }}</time>
               <span class="text-dc-pink">{{ meetup.location.label ?? meetup.location.name }}</span>
             </div>
 
-            <h2 class="community-meetup-card-title text-2xl font-black leading-tight tracking-tight text-dc-ink sm:text-3xl">
+            <h2 class="community-meetup-card-title text-2xl font-bold leading-tight tracking-tight text-dc-ink sm:text-3xl">
               {{ meetup.name }}
             </h2>
 

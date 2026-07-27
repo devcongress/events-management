@@ -10,7 +10,7 @@ Feature docs explain user-facing behavior, key files, and follow-up work. Add a 
 | Luma Attendance | Active | [luma-attendance.md](luma-attendance.md) |
 | Feedback | Active | [feedback.md](feedback.md) |
 | Quiz | Preview | [quiz.md](quiz.md) |
-| Speaker Link Email Delivery | Planned | [speaker-link-email.md](speaker-link-email.md) |
+| Speaker Email Delivery with Resend | Active — program multi-send pilot | [speaker-link-email.md](speaker-link-email.md) |
 
 ## Adding a Feature Doc
 
