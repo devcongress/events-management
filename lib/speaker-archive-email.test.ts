@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { archiveRequestProgramItems, resolveSpeakerEmail } from './speaker-archive-email';
-import type { EventSpeaker, PublicMeetupScheduleItem, SpeakerSubmission, Talk } from '@/types';
+import {
+  archiveRequestProgramItems,
+  sameArchiveProgramIdentity,
+  sameArchiveProgramItemIdentity,
+} from './speaker-archive-email';
+import type { PublicMeetupScheduleItem } from '@/types';
 
 const schedule: PublicMeetupScheduleItem[] = [
   {
@@ -38,65 +42,38 @@ describe('speaker archive email matching', () => {
     ]);
   });
 
-  it('prefers the selected proposal with the exact program title', () => {
-    const submissions = [{
-      id: 'submission-1',
-      event_id: 'event-1',
-      speaker_name: 'Ama Mensah',
-      speaker_email: 'proposal@example.com',
-      github_username: null,
+  it('matches a sent request to its program item without depending on an email address', () => {
+    expect(sameArchiveProgramItemIdentity({
+      kind: 'talk',
+      speaker_name: ' Ama  Mensah ',
+      talk_title: 'BUILD RELIABLE WORKERS',
+    }, {
+      kind: 'talk',
+      speakerName: 'ama mensah',
       title: 'Build reliable Workers',
-      topic: 'Cloud',
-      abstract: 'Abstract',
-      bio: 'Bio',
-      status: 'selected',
-      internal_note: null,
-      selected_intake_link_id: null,
-      selected_talk_id: null,
-      decided_at: null,
-      created_at: '2026-07-01T00:00:00.000Z',
-      updated_at: '2026-07-01T00:00:00.000Z',
-    }] satisfies SpeakerSubmission[];
-    const speakers = [{
-      id: 'speaker-1',
-      event_id: 'event-1',
-      name: 'Ama Mensah',
-      email: 'older@example.com',
-      added_at: '2026-07-01T00:00:00.000Z',
-    }] satisfies EventSpeaker[];
-
-    expect(resolveSpeakerEmail({
-      speakerName: ' Ama  Mensah ',
-      talkTitle: 'Build reliable Workers',
-      submissions,
-      speakers,
-      talks: [],
-    })).toEqual({
-      status: 'resolved',
-      email: 'proposal@example.com',
-    });
+    })).toBe(true);
   });
 
-  it('refuses to guess when same-priority records disagree on the email', () => {
-    const talks = [
-      {
-        speaker_name: 'Ama Mensah',
-        speaker_email: 'one@example.com',
-        title: 'Build reliable Workers',
-      },
-      {
-        speaker_name: 'Ama Mensah',
-        speaker_email: 'two@example.com',
-        title: 'Build reliable Workers',
-      },
-    ] as Talk[];
-
-    expect(resolveSpeakerEmail({
+  it('requires the same email address when deciding whether a failed request can be reused', () => {
+    const link = {
+      kind: 'talk' as const,
+      speaker_name: 'Ama Mensah',
+      speaker_email: 'ama@example.com',
+      talk_title: 'Build reliable Workers',
+    };
+    const item = {
+      kind: 'talk' as const,
       speakerName: 'Ama Mensah',
-      talkTitle: 'Build reliable Workers',
-      submissions: [],
-      speakers: [],
-      talks,
-    })).toEqual({ status: 'ambiguous', email: null });
+      title: 'Build reliable Workers',
+    };
+
+    expect(sameArchiveProgramIdentity(link, {
+      ...item,
+      speakerEmail: 'AMA@example.com',
+    })).toBe(true);
+    expect(sameArchiveProgramIdentity(link, {
+      ...item,
+      speakerEmail: 'corrected@example.com',
+    })).toBe(false);
   });
 });

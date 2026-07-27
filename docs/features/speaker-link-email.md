@@ -48,7 +48,7 @@ Relevant code:
 
 ### Program-based archive request
 
-**Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Each row resolves one exact stored email from a selected proposal, existing talk, or the event speaker list; missing and ambiguous rows stay disabled. The selected row supplies the locked presenter name, talk title, and archive-item kind.
+**Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Because the July program outline does not store speaker emails, the organizer enters one address for each selected row. The address is used for this one-off request and its identity-locked private link; it is not written back into the program outline or speaker allowlist. The selected program row remains the server-authoritative source of presenter name, talk title, and archive-item kind.
 
 One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The form collects the remaining topic, abstract, bio, and optional public resource URL. It reuses the existing archive path instead of introducing a second archive form.
 
@@ -98,20 +98,19 @@ The conference CFP form and canonical public URL must be live before a Broadcast
 
 In **Archive Requests**:
 
-1. The organizer selects one or more eligible topic/speaker rows from the current program.
-2. The app resolves each recipient from stored event records. It never accepts a browser-supplied email for this send.
-3. Missing or conflicting email matches are disabled and labelled for correction.
-4. Successfully sent rows are disabled and labelled `Sent`.
-5. The organizer chooses the link lifetime; seven days remains the default.
-6. `Send email` creates or reuses one matching link per selection and submits one personalized Resend batch.
-7. A successful Resend response produces an `Email sent` or count-aware success toast. A rejected request remains retryable with the same link.
+1. The organizer sees every eligible program speaker in one inline roster, with the speaker name, topic, selection control, and email field kept together instead of hidden in a dropdown.
+2. Selecting a row activates its required email field; `Select all unsent` and `Clear selection` support the one-off bulk workflow.
+3. Successfully sent rows are disabled and labelled `Sent`; the server enforces the same program-item suppression even if a different address is submitted later.
+4. The organizer chooses the link lifetime; seven days remains the default.
+5. `Send email` creates or reuses one matching link per selection and submits one personalized Resend batch.
+6. A successful Resend response produces an `Email sent` or count-aware success toast. Configuration, network, and provider rejections use the same non-blocking error-toast surface instead of a persistent page banner. A rejected request remains retryable with the same link and address; correcting the address creates a new link.
 
 ### Server behavior
 
 The Hono API:
 
 1. Require an authenticated organizer.
-2. Validates the event, unique program indexes, derived identity, stored email, archive-item kind, title, and expiry.
+2. Validates the event, unique program indexes, organizer-supplied addresses, server-derived identity, archive-item kind, title, and expiry.
 3. Reuses an eligible failed/pending link for the same event/email/kind/title or creates a new `archive_backfill` link.
 4. Build the absolute private URL on the server from `PUBLIC_APP_URL`; never accept a link URL from the browser.
 5. Render code-owned HTML and plain-text versions.
@@ -282,10 +281,13 @@ Active endpoint:
 
 ```text
 POST /api/events/:eventId/speaker-intake-emails
-body: { program_item_indexes: number[], expires_in_days: number }
+body: {
+  recipients: Array<{ program_item_index: number, speaker_email: string }>,
+  expires_in_days: number
+}
 ```
 
-The browser supplies only stored schedule indexes and expiry. The server derives names, recipient emails, titles, event, and kind.
+The browser supplies a stored schedule index and validated one-off email for each recipient, plus expiry. The server derives names, titles, event, and kind from the stored program, so the browser cannot replace the invited speaker/topic identity.
 
 ### Delivery records
 
@@ -351,7 +353,7 @@ These produce controlled provider events without damaging sender reputation. See
 Implemented automated coverage:
 
 - HTML and plain-text template tests.
-- Stored-recipient matching and ambiguity tests.
+- Organizer-address validation and program-identity matching tests.
 - Multi-recipient API and provider-response mapping tests.
 - Duplicate-send suppression and same-link retry tests.
 - Atomic delivery-state persistence tests.
@@ -373,7 +375,7 @@ Manual:
 Completed:
 
 1. Verified `updates.devcongress.org`, approved the From and Reply-To identities, and stored the restricted API key as `RESEND_API_KEY`.
-2. Added the Worker-native Batch client, code-owned template, server-derived recipients, delivery metadata, authenticated send endpoint, multi-select UI, duplicate suppression, retry behavior, and tests.
+2. Added the Worker-native Batch client, code-owned template, server-derived program identities, one-off recipient inputs, delivery metadata, authenticated send endpoint, multi-select UI, duplicate suppression, retry behavior, and tests.
 
 Next:
 

@@ -136,7 +136,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/events/[eventId]/checklist` — admin-only chronological organizer checklist with status-changing milestones
 - `/api/events/[eventId]/talks` — compatibility archive-item reads and organizer creation for `talk` and `product_demo` kinds
 - `/api/events/[eventId]/speaker-intake-links` — admin-generated, month-scoped, expiring one-time archive-request links
-- `/api/events/[eventId]/speaker-intake-emails` — authenticated, program-derived personalized Resend Batch delivery with accepted-send suppression
+- `/api/events/[eventId]/speaker-intake-emails` — authenticated, program-identity-derived personalized Resend Batch delivery using validated one-off recipient emails and accepted-send suppression
 - `/api/events/[eventId]/speaker-intake/[token]` — public manual or selected-participant archive submission through an event-, identity-, and kind-locked token
 - `/api/events/[eventId]/speaker-submissions` — admin-only CFP proposal inbox for organizer selection decisions
 - `/api/events/[eventId]/attendance` — admin-only attendance summary for the latest Luma import

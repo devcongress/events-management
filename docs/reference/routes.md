@@ -55,7 +55,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 |---|---|
 | `/api/events*` | Event list, event details, organizer mutations, event removal, media metadata |
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
-| `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send for stored program-item recipients; successful identities are suppressed from repeat UI/API sends |
+| `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send using stored program identities and validated one-off recipient emails; successful identities are suppressed from repeat UI/API sends |
 | `/api/cfp` and `/api/speaker-submissions*` | Public talk/product-demo proposals and organizer selection decisions |
 | `/api/speakers*` | Speaker access workflows |
 | `/api/attendance*` | Luma CSV import, removal, summaries, monthly ledger |

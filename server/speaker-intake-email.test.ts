@@ -69,22 +69,6 @@ beforeEach(async () => {
   process.chdir(tempRoot);
   await fs.mkdir('data');
   await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([event]), 'utf-8');
-  await fs.writeFile(path.join(tempRoot, 'data', 'speakers.json'), JSON.stringify([
-    {
-      id: 'speaker-ama',
-      event_id: event.id,
-      email: 'ama@example.com',
-      name: 'Ama Mensah',
-      added_at: '2026-07-01T00:00:00.000Z',
-    },
-    {
-      id: 'speaker-kojo',
-      event_id: event.id,
-      email: 'kojo@example.com',
-      name: 'Kojo Owusu',
-      added_at: '2026-07-01T00:00:00.000Z',
-    },
-  ]), 'utf-8');
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
   vi.stubEnv('NODE_ENV', 'test');
   vi.stubEnv('RESEND_API_KEY', 're_test');
@@ -100,7 +84,7 @@ afterEach(async () => {
 });
 
 describe('speaker intake email API', () => {
-  it('sends multiple private links once and records the accepted state', async () => {
+  it('sends organizer-provided recipient emails once and records the accepted state', async () => {
     const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       data: [{ id: 'resend-ama' }, { id: 'resend-kojo' }],
     }), {
@@ -116,7 +100,10 @@ describe('speaker intake email API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          program_item_indexes: [0, 1],
+          recipients: [
+            { program_item_index: 0, speaker_email: 'ama@example.com' },
+            { program_item_index: 1, speaker_email: 'kojo@example.com' },
+          ],
           expires_in_days: 7,
         }),
       },
@@ -161,7 +148,10 @@ describe('speaker intake email API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          program_item_indexes: [0, 1],
+          recipients: [
+            { program_item_index: 0, speaker_email: 'different@example.com' },
+            { program_item_index: 1, speaker_email: 'kojo@example.com' },
+          ],
           expires_in_days: 7,
         }),
       },
@@ -192,7 +182,9 @@ describe('speaker intake email API', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          program_item_indexes: [0],
+          recipients: [
+            { program_item_index: 0, speaker_email: 'ama@example.com' },
+          ],
           expires_in_days: 7,
         }),
       },
@@ -221,5 +213,32 @@ describe('speaker intake email API', () => {
         ? (resendFetch.mock.calls[0][1]!.headers as Record<string, string>)['Idempotency-Key']
         : '',
     }));
+  });
+
+  it('rejects an invalid organizer-provided email before calling Resend', async () => {
+    const resendFetch = vi.fn();
+    vi.stubGlobal('fetch', resendFetch);
+    const { app, links } = await importEmailModules();
+
+    const response = await app.request(
+      `http://localhost/api/events/${event.id}/speaker-intake-emails`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: [
+            { program_item_index: 0, speaker_email: 'not-an-email' },
+          ],
+          expires_in_days: 7,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Presenter email must be valid',
+    });
+    expect(resendFetch).not.toHaveBeenCalled();
+    await expect(links.getSpeakerIntakeLinksByEvent(event.id)).resolves.toEqual([]);
   });
 });
