@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
-import {
-  EVENT_FEEDBACK_NOT_ATTENDED,
-  isEventFeedbackNotAttended,
-  isEventFeedbackRating,
-} from '@/lib/event-feedback';
+import { buildEventFeedbackCsv } from '@/lib/event-feedback-export';
 import { buildEventFeedbackReport } from '@/lib/event-feedback-report';
 import { MONTHLY_FEEDBACK_WINDOW_MS } from '@/lib/event-feedback-window';
 import { resolveEventSeriesType } from '@/lib/event-series';
@@ -48,10 +44,6 @@ interface SaveCampaignOptions {
   successMessage?: string;
 }
 
-type ResponseFilter = 'all' | 'comments' | 'low_rating' | 'missed';
-type ResponseSort = 'newest' | 'oldest' | 'rating_high' | 'rating_low';
-
-const RESPONSE_PAGE_SIZE = 25;
 const FEEDBACK_WINDOW_FORMATTER = new Intl.DateTimeFormat('en', {
   month: 'short',
   day: 'numeric',
@@ -75,12 +67,6 @@ const talks = ref<Talk[]>([]);
 const activities = ref<FeedbackActivityDraft[]>([]);
 const activitiesHydrated = ref(false);
 const lastGeneratedActivitySignature = ref<string | null>(null);
-const responseDrawerSubmissionId = ref<string | null>(null);
-const responseSearch = ref('');
-const responseFilter = ref<ResponseFilter>('all');
-const responseSort = ref<ResponseSort>('newest');
-const responsePage = ref(1);
-const responseListElement = ref<HTMLElement | null>(null);
 let copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 const form = reactive<FeedbackCampaign>({
   id: '',
@@ -106,18 +92,6 @@ const statusOptions = [
   { value: 'draft', label: 'Draft' },
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
-];
-const responseFilterOptions: { value: ResponseFilter; label: string }[] = [
-  { value: 'all', label: 'All responses' },
-  { value: 'comments', label: 'With comments' },
-  { value: 'low_rating', label: 'Rating 3 or lower' },
-  { value: 'missed', label: 'Missed sessions' },
-];
-const responseSortOptions: { value: ResponseSort; label: string }[] = [
-  { value: 'newest', label: 'Newest first' },
-  { value: 'oldest', label: 'Oldest first' },
-  { value: 'rating_high', label: 'Highest rating' },
-  { value: 'rating_low', label: 'Lowest rating' },
 ];
 const isMonthlyEvent = computed(() => (
   event.value ? resolveEventSeriesType(event.value) === 'monthly' : false
@@ -204,73 +178,12 @@ const copyLinkLabel = computed(() => {
   if (copyState.value === 'copied') return 'Copied';
   return 'Copy attendee link';
 });
-// Question lookups happen per answer per submission per render; an id map
-// keeps them O(1) instead of rescanning form.questions every time.
-const questionById = computed(() => new Map(form.questions.map((question) => [question.id, question])));
 const feedbackReport = computed(() => buildEventFeedbackReport(form.questions, submissions.value));
 const primaryBinaryInsight = computed(() => feedbackReport.value.binaryQuestions[0] ?? null);
-const filteredSubmissions = computed(() => {
-  const normalizedSearch = responseSearch.value.trim().toLowerCase();
-  const matches = submissions.value.filter((submission) => {
-    const averageRating = submissionAverageRating(submission);
-    const matchesFilter = (
-      responseFilter.value === 'all'
-      || (responseFilter.value === 'comments' && submissionCommentCount(submission) > 0)
-      || (responseFilter.value === 'low_rating' && averageRating !== null && averageRating <= 3)
-      || (responseFilter.value === 'missed' && submissionNotAttendedCount(submission) > 0)
-    );
-
-    if (!matchesFilter) return false;
-    if (!normalizedSearch) return true;
-
-    return submission.answers.some((answer) => {
-      const question = questionById.value.get(answer.question_id);
-      return `${question?.label ?? ''} ${answerValueCopy(answer)}`.toLowerCase().includes(normalizedSearch);
-    });
-  });
-
-  return [...matches].sort((left, right) => {
-    if (responseSort.value === 'newest' || responseSort.value === 'oldest') {
-      const direction = responseSort.value === 'newest' ? -1 : 1;
-      return (new Date(left.created_at).getTime() - new Date(right.created_at).getTime()) * direction;
-    }
-
-    const leftRating = submissionAverageRating(left);
-    const rightRating = submissionAverageRating(right);
-    if (leftRating === null && rightRating === null) return 0;
-    if (leftRating === null) return 1;
-    if (rightRating === null) return -1;
-    return responseSort.value === 'rating_high'
-      ? rightRating - leftRating
-      : leftRating - rightRating;
-  });
-});
-const responsePageCount = computed(() => Math.max(1, Math.ceil(filteredSubmissions.value.length / RESPONSE_PAGE_SIZE)));
-const paginatedSubmissions = computed(() => {
-  const start = (responsePage.value - 1) * RESPONSE_PAGE_SIZE;
-  return filteredSubmissions.value.slice(start, start + RESPONSE_PAGE_SIZE);
-});
-const responseRangeCopy = computed(() => {
-  if (filteredSubmissions.value.length === 0) return 'No matching responses';
-  const start = (responsePage.value - 1) * RESPONSE_PAGE_SIZE + 1;
-  const end = Math.min(start + RESPONSE_PAGE_SIZE - 1, filteredSubmissions.value.length);
-  return `Showing ${start}–${end} of ${filteredSubmissions.value.length}`;
-});
 const ratingDistributionMaxCount = computed(() => Math.max(
   0,
   ...feedbackReport.value.ratingDistribution.map((item) => item.count),
 ));
-const selectedSubmission = computed(() => (
-  submissions.value.find((submission) => submission.id === responseDrawerSubmissionId.value) ?? null
-));
-
-watch([responseSearch, responseFilter, responseSort], () => {
-  responsePage.value = 1;
-});
-
-watch(responsePageCount, (pageCount) => {
-  if (responsePage.value > pageCount) responsePage.value = pageCount;
-});
 
 function hydrateCampaign(data: FeedbackCampaignResponse) {
   const shouldGenerateFromActivities = isDefaultCampaignDraft(data.campaign);
@@ -509,68 +422,6 @@ function setQuestionType(question: FeedbackQuestion, type: FeedbackQuestionType)
   }
 }
 
-function answerPreview(submission: EventFeedbackSubmission) {
-  return submission.answers
-    .map((answer) => {
-      const question = questionById.value.get(answer.question_id);
-      return `${question?.label ?? 'Question'}: ${answerValueCopy(answer)}`;
-    })
-    .join(' | ');
-}
-
-function answerQuestionLabel(questionId: string): string {
-  return questionById.value.get(questionId)?.label ?? 'Question';
-}
-
-function answerValueCopy(answer: EventFeedbackSubmission['answers'][number]): string {
-  if (answer.value === null || answer.value === '') return 'No answer';
-  if (answer.value === EVENT_FEEDBACK_NOT_ATTENDED) return 'Did not attend';
-  if (typeof answer.value === 'boolean') return answer.value ? 'Yes' : 'No';
-  return String(answer.value);
-}
-
-function submissionAverageRating(submission: EventFeedbackSubmission): number | null {
-  const ratings = submission.answers
-    .map((answer) => {
-      const question = questionById.value.get(answer.question_id);
-      return question?.type === 'rating' && isEventFeedbackRating(answer.value) ? answer.value : null;
-    })
-    .filter((value): value is number => value !== null);
-
-  if (ratings.length === 0) return null;
-  return Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 10) / 10;
-}
-
-function submissionCommentPreview(submission: EventFeedbackSubmission): string | null {
-  const textAnswer = submission.answers.find((answer) => {
-    const question = questionById.value.get(answer.question_id);
-    return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
-  });
-
-  if (!textAnswer || typeof textAnswer.value !== 'string') return null;
-
-  const normalized = textAnswer.value.trim().replace(/\s+/g, ' ');
-  return normalized.length > 120 ? `${normalized.slice(0, 117)}...` : normalized;
-}
-
-function submissionCommentCount(submission: EventFeedbackSubmission): number {
-  return submission.answers.filter((answer) => {
-    const question = questionById.value.get(answer.question_id);
-    return question?.type === 'text' && typeof answer.value === 'string' && answer.value.trim().length > 0;
-  }).length;
-}
-
-function submissionNotAttendedCount(submission: EventFeedbackSubmission): number {
-  return submission.answers.filter((answer) => {
-    const question = questionById.value.get(answer.question_id);
-    return question?.type === 'rating' && isEventFeedbackNotAttended(answer.value);
-  }).length;
-}
-
-function submissionAnsweredCount(submission: EventFeedbackSubmission): number {
-  return submission.answers.filter((answer) => answer.value !== null && answer.value !== '').length;
-}
-
 function ratingBarHeight(count: number): string {
   if (count === 0 || ratingDistributionMaxCount.value === 0) return '0%';
   return `${Math.max(8, Math.round((count / ratingDistributionMaxCount.value) * 100))}%`;
@@ -586,43 +437,10 @@ function questionRatingWidth(average: number | null): string {
   return average === null ? '0%' : `${Math.round((average / 5) * 100)}%`;
 }
 
-function setResponsePage(page: number) {
-  responsePage.value = Math.min(Math.max(page, 1), responsePageCount.value);
-  responseListElement.value?.scrollTo({ top: 0 });
-}
+function downloadResponsesCsv() {
+  if (submissions.value.length === 0) return;
 
-function csvCell(value: string | number): string {
-  const normalized = String(value);
-  return /[",\n\r]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
-}
-
-function exportResponsesCsv() {
-  if (filteredSubmissions.value.length === 0) return;
-
-  const orderedQuestions = [...form.questions].sort((left, right) => left.order_index - right.order_index);
-  const header = [
-    'Response',
-    'Submitted at',
-    'Average rating',
-    'Sessions missed',
-    ...orderedQuestions.map((question) => question.label),
-  ];
-  const rows = filteredSubmissions.value.map((submission, index) => {
-    const answerByQuestion = new Map(submission.answers.map((answer) => [answer.question_id, answer]));
-    return [
-      index + 1,
-      new Date(submission.created_at).toISOString(),
-      submissionAverageRating(submission) ?? '',
-      submissionNotAttendedCount(submission),
-      ...orderedQuestions.map((question) => {
-        const answer = answerByQuestion.get(question.id);
-        return answer ? answerValueCopy(answer) : 'No answer';
-      }),
-    ];
-  });
-  const csv = [header, ...rows]
-    .map((row) => row.map((cell) => csvCell(cell)).join(','))
-    .join('\r\n');
+  const csv = buildEventFeedbackCsv(form.questions, submissions.value);
   const blobUrl = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   const eventLabel = (event.value?.name ?? 'event-feedback')
@@ -635,15 +453,7 @@ function exportResponsesCsv() {
   link.click();
   link.remove();
   URL.revokeObjectURL(blobUrl);
-  notify.success(`Exported ${filteredSubmissions.value.length} response${filteredSubmissions.value.length === 1 ? '' : 's'}.`);
-}
-
-function openResponseDrawer(submissionId: string) {
-  responseDrawerSubmissionId.value = submissionId;
-}
-
-function closeResponseDrawer() {
-  responseDrawerSubmissionId.value = null;
+  notify.success(`Downloaded ${submissions.value.length} response${submissions.value.length === 1 ? '' : 's'}.`);
 }
 
 function previewDraftStorageKey() {
@@ -781,17 +591,27 @@ onBeforeUnmount(() => {
       <AdminFeedbackPageSkeleton v-if="loading" />
 
       <template v-else>
-        <header class="editorial-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <header class="editorial-header flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div class="min-w-0">
             <p class="editorial-eyebrow">event feedback</p>
             <h1 class="editorial-title">{{ responsesMode ? 'Responses' : 'Feedback form' }}</h1>
-            <p class="editorial-subtitle">{{ responsesMode ? 'See the patterns first, then search, filter, export, or open any individual response.' : 'Shape the form people see, then either publish it manually or leave it open by default.' }}</p>
+            <p class="editorial-subtitle">{{ responsesMode ? 'See the patterns across every response. Download the full response file when individual answers are needed.' : 'Shape the form people see, then either publish it manually or leave it open by default.' }}</p>
           </div>
-          <div class="editorial-panel p-4">
-            <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Status</p>
-            <p class="mt-1 text-2xl font-black tracking-tight text-dc-ink">{{ statusLabel }}</p>
-            <p class="mt-2 font-mono text-xs uppercase tracking-wide text-dc-pink">{{ completionRateCopy }}</p>
-            <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ windowCopy }}</p>
+          <div class="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end">
+            <button
+              v-if="responsesMode && submissions.length > 0"
+              type="button"
+              class="feedback-export-button motion-press"
+              @click="downloadResponsesCsv"
+            >
+              Download responses
+            </button>
+            <div class="editorial-panel p-4">
+              <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">Status</p>
+              <p class="mt-1 text-2xl font-black tracking-tight text-dc-ink">{{ statusLabel }}</p>
+              <p class="mt-2 font-mono text-xs uppercase tracking-wide text-dc-pink">{{ completionRateCopy }}</p>
+              <p class="mt-2 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ windowCopy }}</p>
+            </div>
           </div>
         </header>
 
@@ -799,11 +619,11 @@ onBeforeUnmount(() => {
         <template v-if="responsesMode">
           <section class="space-y-6">
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              <section class="editorial-panel p-5">
+              <section class="editorial-panel bg-dc-paper p-5">
                 <p class="editorial-eyebrow">responses</p>
                 <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ submissions.length }}</p>
               </section>
-              <section class="editorial-panel p-5">
+              <section class="editorial-panel bg-dc-paper-warm p-5">
                 <p class="editorial-eyebrow">avg rating</p>
                 <p class="mt-2 text-4xl font-black tracking-tight text-dc-ink">{{ feedbackReport.averageRating ?? '-' }}</p>
               </section>
@@ -822,7 +642,7 @@ onBeforeUnmount(() => {
             </div>
 
             <section class="feedback-insights-grid" aria-labelledby="feedback-insights-title">
-              <div class="feedback-insight-card feedback-insight-card--ratings">
+                <div class="feedback-insight-card feedback-insight-card--ratings">
                 <div>
                   <p class="editorial-eyebrow">rating distribution</p>
                   <h2 id="feedback-insights-title" class="feedback-insight-title">How the room scored it</h2>
@@ -857,7 +677,7 @@ onBeforeUnmount(() => {
                 <p v-else class="feedback-insight-empty">Ratings will appear here as responses arrive.</p>
               </div>
 
-              <div class="feedback-insight-card feedback-insight-card--return">
+                <div class="feedback-insight-card feedback-insight-card--return">
                 <div>
                   <p class="editorial-eyebrow">return intent</p>
                   <h2 class="feedback-insight-title">Would they come back?</h2>
@@ -890,7 +710,7 @@ onBeforeUnmount(() => {
                 <p v-else class="feedback-insight-empty">Yes/no answers will appear here as responses arrive.</p>
               </div>
 
-              <div class="feedback-insight-card feedback-insight-card--sessions">
+                <div class="feedback-insight-card feedback-insight-card--sessions">
                 <div>
                   <p class="editorial-eyebrow">session signals</p>
                   <h2 class="feedback-insight-title">What landed—and what did not</h2>
@@ -920,7 +740,7 @@ onBeforeUnmount(() => {
                   </article>
                 </div>
                 <p v-else class="feedback-insight-empty">Session-level rating questions will appear here.</p>
-              </div>
+                </div>
             </section>
 
             <section class="editorial-panel p-5">
@@ -978,190 +798,7 @@ onBeforeUnmount(() => {
               </div>
             </section>
 
-            <section class="editorial-panel p-5">
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p class="editorial-eyebrow">response inbox</p>
-                  <h2 class="text-2xl font-black tracking-tight text-dc-ink">Explore every response</h2>
-                </div>
-                <p class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">{{ submissions.length }} submission{{ submissions.length === 1 ? '' : 's' }}</p>
-              </div>
-
-              <div v-if="submissions.length === 0" class="mt-5 rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray">
-                This form is published, but no attendee responses have landed yet.
-              </div>
-
-              <template v-else>
-                <div class="feedback-response-toolbar">
-                  <label class="feedback-response-search">
-                    <span class="editorial-label">Search responses</span>
-                    <input
-                      v-model="responseSearch"
-                      class="editorial-input"
-                      type="search"
-                      placeholder="Search comments and answers"
-                    />
-                  </label>
-                  <label>
-                    <span class="editorial-label">Filter</span>
-                    <select v-model="responseFilter" class="editorial-input">
-                      <option v-for="option in responseFilterOptions" :key="option.value" :value="option.value">
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <label>
-                    <span class="editorial-label">Sort</span>
-                    <select v-model="responseSort" class="editorial-input">
-                      <option v-for="option in responseSortOptions" :key="option.value" :value="option.value">
-                        {{ option.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    class="feedback-export-button motion-press"
-                    :disabled="filteredSubmissions.length === 0"
-                    @click="exportResponsesCsv"
-                  >
-                    Export CSV
-                  </button>
-                </div>
-                <div class="feedback-response-results">
-                  <p aria-live="polite">{{ responseRangeCopy }}</p>
-                  <p v-if="filteredSubmissions.length !== submissions.length">{{ submissions.length }} total responses</p>
-                </div>
-              </template>
-
-              <div
-                v-if="submissions.length > 0 && filteredSubmissions.length === 0"
-                class="mt-4 rounded-md border-2 border-dashed border-dc-border p-5 text-sm leading-6 text-dc-gray"
-              >
-                No responses match this search and filter. Try a broader search or choose All responses.
-              </div>
-
-              <div
-                v-if="paginatedSubmissions.length > 0"
-                ref="responseListElement"
-                class="feedback-response-list mt-5 rounded-md border border-dc-border bg-dc-paper"
-                role="region"
-                :aria-label="`Feedback responses, page ${responsePage} of ${responsePageCount}`"
-                tabindex="0"
-              >
-                <article
-                  v-for="submission in paginatedSubmissions"
-                  :key="submission.id"
-                  class="feedback-response-row"
-                >
-                  <div class="feedback-response-row__identity">
-                    <p class="feedback-response-row__name">Anonymous response</p>
-                    <p class="feedback-response-row__email">Identity not collected</p>
-                  </div>
-                  <div class="feedback-response-row__summary">
-                    <div class="feedback-response-row__meta">
-                      <span>{{ submissionAverageRating(submission) === null ? 'No rating' : `${submissionAverageRating(submission)}/5 avg` }}</span>
-                      <span>{{ submissionNotAttendedCount(submission) }} missed</span>
-                      <span>{{ submissionAnsweredCount(submission) }} answer{{ submissionAnsweredCount(submission) === 1 ? '' : 's' }}</span>
-                      <span>{{ submissionCommentCount(submission) }} comment{{ submissionCommentCount(submission) === 1 ? '' : 's' }}</span>
-                    </div>
-                    <p class="feedback-response-row__preview">
-                      {{ submissionCommentPreview(submission) ?? 'No written comment. Open to review the full response.' }}
-                    </p>
-                  </div>
-                  <div class="feedback-response-row__timestamp">
-                    {{ new Date(submission.created_at).toLocaleString() }}
-                  </div>
-                  <div class="feedback-response-row__action">
-                    <button
-                      type="button"
-                      class="feedback-response-row__open-button"
-                      @click="openResponseDrawer(submission.id)"
-                    >
-                      Open
-                    </button>
-                  </div>
-                </article>
-              </div>
-
-              <nav
-                v-if="filteredSubmissions.length > RESPONSE_PAGE_SIZE"
-                class="feedback-response-pagination"
-                aria-label="Response pages"
-              >
-                <button
-                  type="button"
-                  class="feedback-response-page-button motion-press"
-                  :disabled="responsePage === 1"
-                  @click="setResponsePage(responsePage - 1)"
-                >
-                  Previous
-                </button>
-                <p>Page {{ responsePage }} of {{ responsePageCount }}</p>
-                <button
-                  type="button"
-                  class="feedback-response-page-button motion-press"
-                  :disabled="responsePage === responsePageCount"
-                  @click="setResponsePage(responsePage + 1)"
-                >
-                  Next
-                </button>
-              </nav>
-            </section>
           </section>
-
-          <Teleport to="body">
-            <Transition name="feedback-response-drawer">
-              <div
-                v-if="selectedSubmission"
-                class="feedback-response-drawer-shell"
-                role="presentation"
-                @click.self="closeResponseDrawer"
-              >
-                <aside
-                  class="feedback-response-drawer"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="feedback-response-drawer-title"
-                >
-                  <div class="feedback-response-drawer__header">
-                    <div>
-                      <p class="editorial-eyebrow">submission detail</p>
-                      <h2 id="feedback-response-drawer-title" class="mt-2 text-3xl font-black tracking-tight text-dc-ink">
-                        Anonymous response
-                      </h2>
-                      <p class="mt-2 text-sm font-semibold text-dc-gray">Identity not collected</p>
-                    </div>
-                    <button
-                      type="button"
-                      class="feedback-response-drawer__close"
-                      aria-label="Close response details"
-                      @click="closeResponseDrawer"
-                    >
-                      Close
-                    </button>
-                  </div>
-
-                  <div class="feedback-response-drawer__stats">
-                    <span>{{ new Date(selectedSubmission.created_at).toLocaleString() }}</span>
-                    <span>{{ submissionAverageRating(selectedSubmission) === null ? 'No rating' : `${submissionAverageRating(selectedSubmission)}/5 average` }}</span>
-                    <span>{{ submissionNotAttendedCount(selectedSubmission) }} missed</span>
-                    <span>{{ submissionAnsweredCount(selectedSubmission) }} answer{{ submissionAnsweredCount(selectedSubmission) === 1 ? '' : 's' }}</span>
-                  </div>
-
-                  <dl class="feedback-response-drawer__answers">
-                    <div
-                      v-for="answer in selectedSubmission.answers"
-                      :key="`${selectedSubmission.id}-${answer.question_id}`"
-                      class="feedback-response-answer"
-                    >
-                      <dt class="feedback-response-answer__question">{{ answerQuestionLabel(answer.question_id) }}</dt>
-                      <dd class="feedback-response-answer__value">{{ answerValueCopy(answer) }}</dd>
-                    </div>
-                  </dl>
-                </aside>
-              </div>
-            </Transition>
-          </Teleport>
         </template>
 
         <section v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">

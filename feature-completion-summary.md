@@ -15,9 +15,9 @@
 - `pnpm test`
 - `pnpm build`
 - Playwright browser smoke: `/`, `/archive`, `/leaderboard`, `/admin/login`
-- Playwright admin auth smoke: `/admin/events` redirects to login, default local password signs in, session is recognized
+- Server auth tests: protected organizer access fails closed when Supabase is incomplete, and configured Google sessions are recognized without a password fallback
 
 ## Known Prototype Boundaries
-- Admin auth is shared-password prototype auth. Set `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` for non-local use.
+- Organizer auth now requires Supabase Google OAuth, an active `admin_memberships` entry, and an app-owned HTTP-only session; there is no shared-password fallback.
 - Slide upload remains URL-based in the active Vue/Hono path; file storage still belongs to the legacy reference/Supabase future path.
 - JSON mock data remains the active persistence layer until the Supabase migration.

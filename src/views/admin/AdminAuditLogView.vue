@@ -39,7 +39,6 @@ const auditQuery = useQuery({
 });
 
 const logs = computed(() => auditQuery.data.value?.logs ?? []);
-const authMode = computed(() => auditQuery.data.value?.auth_mode ?? 'supabase');
 const loading = computed(() => auditQuery.isPending.value);
 const error = computed(() => auditQuery.error.value?.message ?? '');
 const actionOptions = computed(() => [...new Set(logs.value.map((log) => log.action))].sort());
@@ -236,7 +235,7 @@ onUnmounted(() => {
               />
               <button
                 type="button"
-                class="motion-press min-h-[50px] rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/30"
+                class="motion-press min-h-[50px] rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-sm font-bold uppercase tracking-wide text-dc-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25"
                 :class="groupByActorEmail ? 'bg-dc-yellow' : 'bg-dc-paper hover:bg-dc-paper-warm'"
                 :aria-pressed="groupByActorEmail"
                 @click="toggleGroupByActorEmail"
@@ -271,10 +270,7 @@ onUnmounted(() => {
             </p>
           </div>
 
-          <div v-if="authMode === 'local'" class="flex-1 px-4 py-10 text-sm text-dc-gray">
-            Hosted Supabase auth is required before audit logs are available.
-          </div>
-          <div v-else-if="logs.length === 0" class="flex-1 px-4 py-10 text-sm text-dc-gray">
+          <div v-if="logs.length === 0" class="flex-1 px-4 py-10 text-sm text-dc-gray">
             No audit rows match these filters.
           </div>
           <template v-else>

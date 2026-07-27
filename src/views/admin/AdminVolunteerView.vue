@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import {
-  ACTIVE_ANNUAL_CONFERENCE_EDITION,
   DECEMBER_2026_VOLUNTEER_PUBLIC_PATH,
   annualConferencePath,
 } from '@/src/annual-conference';
@@ -46,27 +45,37 @@ function openVolunteerDisplay() {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <AnnualConferenceNav />
-
-      <header class="feedback-hub-hero">
-        <div>
-          <p class="editorial-eyebrow">Annual Conference · {{ ACTIVE_ANNUAL_CONFERENCE_EDITION.label }}</p>
-          <h1 class="editorial-title">Volunteers</h1>
-          <p class="editorial-subtitle max-w-3xl">Share the form or put the QR display on screen, then review the people who signed up to help.</p>
+      <AnnualConferenceNav
+        title="Volunteers"
+        description="Share the sign-up, show its QR code, and review applications."
+      >
+        <template #actions>
+        <div class="flex flex-wrap items-center gap-2" aria-label="Volunteer form actions">
+          <button
+            type="button"
+            class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-pink px-4 py-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-white shadow-[2px_2px_0_#111111]"
+            @click="openVolunteerDisplay"
+          >
+            Show QR
+          </button>
+          <button
+            type="button"
+            class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-dc-ink hover:bg-dc-yellow"
+            @click="copyPublicUrl"
+          >
+            {{ copied ? 'Copied' : 'Copy link' }}
+          </button>
+          <a
+            :href="publicUrl"
+            target="_blank"
+            rel="noreferrer"
+            class="motion-press inline-flex min-h-10 items-center rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[10px] font-black uppercase tracking-[0.1em] text-dc-ink hover:bg-dc-yellow"
+          >
+            Open form
+          </a>
         </div>
-      </header>
-
-      <section class="editorial-panel mb-8 overflow-hidden">
-        <div class="border-b-2 border-dc-ink bg-dc-yellow px-5 py-4 sm:px-6">
-          <p class="editorial-eyebrow mb-1 text-dc-ink">Volunteer drive</p>
-          <h2 class="text-2xl font-black tracking-tight text-dc-ink">Share the sign-up.</h2>
-        </div>
-        <div class="flex flex-wrap items-center gap-3 p-5 sm:p-6">
-          <button type="button" class="editorial-action motion-press" @click="openVolunteerDisplay">Show QR</button>
-          <button type="button" class="editorial-secondary-action motion-press" @click="copyPublicUrl">{{ copied ? 'Copied' : 'Copy form link' }}</button>
-          <a :href="publicUrl" target="_blank" rel="noreferrer" class="editorial-secondary-action">Open form</a>
-        </div>
-      </section>
+        </template>
+      </AnnualConferenceNav>
 
       <section class="editorial-panel overflow-hidden">
         <div class="flex flex-wrap items-end justify-between gap-4 border-b border-dc-border px-5 py-5 sm:px-6">

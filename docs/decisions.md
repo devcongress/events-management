@@ -4,6 +4,30 @@
 
 ---
 
+## ADR-022: Supabase-Only Organizer Authentication
+
+**Date:** 2026-07-26
+**Status:** Accepted
+**Context:** The development-only shared-password fallback repeatedly appeared when a local restart selected `local-json` or incomplete Supabase configuration. That made a configuration mistake look like an intentional login method and silently created a synthetic owner identity with broader access than a named organizer should receive.
+**Decision:** Remove shared-password organizer authentication, its cookie format, and its login endpoint. Every organizer-capable environment uses Supabase Google OAuth, the `admin_memberships` allowlist, and app-owned HTTP-only sessions. `/api/auth/session` reports whether the required Supabase auth configuration is present. Missing configuration fails closed and the login page shows a configuration error; it never grants a local owner session. Local JSON may remain a persistence adapter for non-auth prototype domains, but it does not select a different authentication mechanism.
+**Trade-offs:** Local organizer development now requires network access to the configured Supabase project and a permitted Google account. Offline shared-owner testing is no longer available. In exchange, local and hosted identity, roles, task permissions, audit actors, and logout behavior use one security boundary.
+**Alternatives considered:** Keep the fallback but hide its password field (the endpoint and synthetic owner would remain), make it opt-in through another environment flag (still preserves a downgrade path), or continue coupling auth to `APP_DATA_SOURCE` (recreates the recurring configuration bug).
+**Revisit when:** A dedicated local Supabase stack provides equivalent Google/member/session behavior, or test-only authentication is introduced behind an isolated automated-test adapter that cannot run in normal app environments.
+
+---
+
+## ADR-020: Relational Annual Work Plan With Named Task Creation
+
+**Date:** 2026-07-26
+**Status:** Accepted
+**Context:** The December 2026 conference was being tracked in a shared Excel file with inconsistent status labels, multiple names in one owner cell, dependencies buried in comments, and no durable multi-user edit history. Organizers want that workbook to be a one-time starting point, not an ongoing synchronization source. They also want broad task editing while keeping creation of new work controlled by one specifically named organizer.
+**Decision:** Store annual editions and tasks in relational Supabase tables, scoped by edition, and seed the 26 non-empty 2026 spreadsheet rows once. Normalize tasks to exactly `not_started`, `in_progress`, `blocked`, and `done`. The first named spreadsheet owner is accountable and later names are collaborators; `All`, `TBD`, and blank owners import as unassigned. Treat 19 December 2026 as provisional. Every authenticated organizer may edit every task, but the server permits task creation only when the session email is `angelateyvi@gmail.com`. Keep finance outside this slice as a later restricted module, and do not add reminders. Use a local JSON adapter only when Supabase is not configured.
+**Trade-offs:** The named-email creation rule is intentionally narrower than the existing owner role and must be changed deliberately if responsibility moves. Eleven imported tasks begin unassigned because the source workbook did not name a person. Every task edit now has a named Supabase organizer identity; no synthetic local owner can read or edit the plan. The one-time seed will not reflect later spreadsheet edits, which is intentional once the application becomes the source of truth.
+**Alternatives considered:** Continue using Excel (no reliable multi-user application state or API authorization), synchronize the workbook indefinitely (creates two competing sources of truth), let every owner-role organizer add tasks (contradicts the named-organizer decision), or store the plan in `app_json_documents` (weaker constraints and reporting for a durable multi-user domain).
+**Revisit when:** Task-creation responsibility moves to another organizer, finance is ready for its restricted capability model, reminders are requested, or future editions need a rollover/template workflow.
+
+---
+
 ## ADR-019: Anonymous Event Feedback With Explicit Non-Attendance
 
 **Date:** 2026-07-26
@@ -75,7 +99,7 @@
 
 **Date:** 2026-06-16
 **Why:** Organizer access needs per-admin identity, role checks, and auditability before hosted use. Supabase Auth already fits the production data plan, while Hono-owned HTTP-only sessions preserve the same-origin cookie contract and avoid storing Supabase tokens in the browser.
-**Tradeoffs:** The app now owns session rows and organizer membership checks, so auth is more code than the prototype password. The local shared-password fallback remains only for development environments without Supabase auth configured.
+**Tradeoffs:** The app now owns session rows and organizer membership checks, so auth is more code than the prototype password. The development shared-password fallback described by this decision was removed by ADR-022.
 **Alternatives considered:** Keep the shared password (too weak for hosted admin workflows), use Cloudflare Access only (good outer gate, but not enough for API-level roles and audit logs), or store Supabase browser sessions directly (higher XSS blast radius and weaker same-origin control).
 **Revisit when:** Owner MFA is enforced, Cloudflare Access is added as an outer production gate, or Supabase Auth custom claims become the source of role truth.
 

@@ -33,6 +33,7 @@ const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue'
 const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
 const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDisplayView.vue');
 const AdminAnnualConferenceView = () => import('./views/admin/AdminAnnualConferenceView.vue');
+const AdminAnnualConferenceWorkPlanView = () => import('./views/admin/AdminAnnualConferenceWorkPlanView.vue');
 const AdminVolunteerView = () => import('./views/admin/AdminVolunteerView.vue');
 const AdminVolunteerDisplayView = () => import('./views/admin/AdminVolunteerDisplayView.vue');
 const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
@@ -75,6 +76,7 @@ export const router = createRouter({
     { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
     { path: adminPath('annual-conference'), redirect: annualConferencePath() },
     { path: annualConferencePath(), name: 'admin-annual-conference', component: AdminAnnualConferenceView },
+    { path: annualConferencePath('work-plan'), name: 'admin-annual-conference-work-plan', component: AdminAnnualConferenceWorkPlanView },
     { path: annualConferencePath('volunteers'), name: 'admin-annual-conference-volunteers', component: AdminVolunteerView },
     { path: annualConferencePath('volunteers/display'), name: 'admin-annual-conference-volunteer-display', component: AdminVolunteerDisplayView },
     { path: adminPath('volunteers'), redirect: annualConferencePath('volunteers') },
@@ -182,6 +184,7 @@ router.afterEach((to) => {
     document.title = VOLUNTEER_DISPLAY_TITLE;
   } else if (
     to.name === 'admin-annual-conference'
+    || to.name === 'admin-annual-conference-work-plan'
     || to.name === 'admin-annual-conference-volunteers'
   ) {
     document.title = ANNUAL_CONFERENCE_TITLE;

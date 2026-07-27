@@ -5,7 +5,7 @@
 Vue 3 + Vite + TypeScript 5 — community tech conference platform. Full-stack monorepo: Vue SPA, Hono API, and Bun production server in one app process.
 
 **Intended production stack:** Supabase (auth, PostgreSQL, storage, realtime).
-**Current state:** Prototype data still uses JSON flat files in several areas, while hosted admin auth uses Supabase Google OAuth with app-owned HTTP-only sessions and a local shared-password fallback for development.
+**Current state:** Prototype data still uses JSON flat files in several areas, while all organizer authentication uses Supabase Google OAuth with app-owned HTTP-only sessions and fails closed when configuration is incomplete.
 
 ---
 
@@ -89,6 +89,9 @@ devcongress-comm-idea/
 - Organizer routes live under `VITE_ADMIN_BASE_PATH` (`/organizer-console` by default) instead of `/admin`
 - `[adminBase]/login` — prototype organizer sign-in
 - `[adminBase]/events` — event management overview
+- `[adminBase]/annual-conference/2026` — active annual-edition overview
+- `[adminBase]/annual-conference/2026/work-plan` — shared annual-conference task plan
+- `[adminBase]/annual-conference/2026/volunteers` — December volunteer intake operations
 - `[adminBase]/events/new` — create event form
 - `[adminBase]/attendance` — monthly attendance ledger and cross-month insights
 - `[adminBase]/events/[eventId]` — event detail, shared checklist, and status progression
@@ -106,9 +109,10 @@ devcongress-comm-idea/
 - `/api/health/supabase` — Supabase config/table reachability smoke check
 - `/api/overview` — events, talks, and leaderboard summary for the Vue shell
 - `/api/public/meetups*` — read-only DevCongress.org integration contract with CORS and short public cache headers
-- `/api/auth/session`, `/api/auth/admin/login`, `/api/auth/admin/callback`, `/api/auth/logout` — organizer auth and app-owned session lifecycle
+- `/api/auth/session`, `/api/auth/admin/exchange`, `/api/auth/admin/callback`, `/api/auth/logout` — Google OAuth and app-owned organizer session lifecycle
 - `/api/admin/organizers*` — owner-only organizer email allowlist management
 - `/api/admin/audit-log` — owner-only audit ledger for organizer sign-ins and successful admin mutations
+- `/api/annual-conference/[year]/work-plan` — organizer-only annual edition/task reads, named-organizer task creation, and all-organizer task edits
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail, status update, and admin-only removal

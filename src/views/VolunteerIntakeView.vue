@@ -67,7 +67,7 @@ async function submitApplication() {
     <section class="volunteer-intake-shell" aria-labelledby="volunteer-intake-title">
       <div class="volunteer-intake-intro">
         <p class="editorial-eyebrow">December Mega Meetup</p>
-        <h1 id="volunteer-intake-title">Volunteer with DevCongress.</h1>
+        <h1 id="volunteer-intake-title">Volunteer for DevCongress.</h1>
         <p>Leave your details and we will contact you about helping make the meetup happen.</p>
       </div>
 

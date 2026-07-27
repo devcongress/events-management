@@ -67,7 +67,7 @@ Use `dc-*` Tailwind classes for all brand colors. For programmatic style generat
 const { className, label } = getStatusBadge(talk.status);
 ```
 
-The next rebrand should align public app surfaces with the `devcongress.org` light theme rather than preserving the dark companion palette:
+The active app aligns with the `devcongress.org` light theme:
 
 - Background: `#F5F2E8`
 - Ink/text: `#111111`
@@ -77,7 +77,7 @@ The next rebrand should align public app surfaces with the `devcongress.org` lig
 - Mid text: `#555555`
 - Muted text: `#888888`
 
-Keep `tailwind.config.ts`, `src/styles.css`, and `lib/design-system.ts` synchronized when applying the theme.
+Use the established cream, yellow, pink, and ink treatment consistently across organizer routes. Keep `tailwind.config.ts`, `src/styles.css`, and `lib/design-system.ts` synchronized when applying the theme.
 
 ### Toast Notifications
 Use `notify` from `src/lib/notify.ts` for app notifications so all messages target the globally mounted `AppToaster` and inherit the editorial/ops Sonner theme. Do not import `toast` from `vue-sonner` directly inside views unless a feature needs a deliberate separate toaster.

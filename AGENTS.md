@@ -12,6 +12,26 @@ After completing any feature or bugfix:
 3. If an architectural decision was made, add a new ADR to `docs/decisions.md`.
 4. Do not update docs after every small edit — only at natural checkpoints (before commit, before PR, or when explicitly asked).
 
+## Feature This Workflow
+
+When the user says **"feature this"** or **"feature-this"**, treat it as an explicit Git workflow request, not merely a request to implement a product feature.
+
+1. Audit the current branch and complete worktree first. Unless the user narrows the scope, include all current intended changes and preserve unrelated user work.
+2. Create a new branch from the current base branch using `feature/<concise-descriptive-slug>`. If the worktree is dirty, carry its changes onto the new branch without losing or rewriting them.
+3. Run verification appropriate to the combined change before committing.
+4. Stage all intended files and create exactly one detailed commit.
+5. Use a concise conventional commit subject. In the commit body, list each logical sub-change as a bullet and finish with the verification performed.
+6. Push the feature branch to `origin` and set its upstream.
+7. Open a ready-for-review pull request against the base branch.
+8. After creating the PR, replace any placeholder body with a polished description containing:
+   - a concise summary;
+   - user-facing changes grouped by logical sub-feature;
+   - important implementation notes;
+   - verification and check results.
+9. Verify that the local and remote commit SHAs match, the worktree is clean, the PR targets the correct branches, and required checks pass. Report the branch, commit, PR link, and check status.
+
+Do not merge the PR unless the user explicitly asks.
+
 ## Animation Standard
 
 Use `$ui-animations` (`/Users/TT/.codex/skills/ui-animations/SKILL.md`) for all animation decisions in this app.

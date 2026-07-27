@@ -139,13 +139,11 @@ Worker secrets and variables:
 
 ```bash
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-npx wrangler secret put ADMIN_PASSWORD
-npx wrangler secret put ADMIN_SESSION_SECRET
 npx wrangler secret put VITE_SUPABASE_URL
 npx wrangler secret put VITE_SUPABASE_ANON_KEY
 ```
 
-Use the service-role key only on the Worker. Do not add `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, or `ADMIN_SESSION_SECRET` to Cloudflare Pages environment variables. Keep public Worker origins such as `PUBLIC_APP_URL` and `PUBLIC_FRONTEND_ORIGIN` in `wrangler.toml` so deploys do not remove dashboard-only variables.
+Use the service-role key only on the Worker. Do not add `SUPABASE_SERVICE_ROLE_KEY` to Cloudflare Pages environment variables. Keep public Worker origins such as `PUBLIC_APP_URL` and `PUBLIC_FRONTEND_ORIGIN` in `wrangler.toml` so deploys do not remove dashboard-only variables.
 
 For organizer Google sign-in, also configure the Supabase Google provider and add `https://em.devcongress.org` plus the local Vite origin to the Google OAuth client. The Google Authorized redirect URI should be the Supabase callback URI shown in the provider settings, while the post-auth app redirect continues through `/api/auth/admin/callback`.
 
@@ -392,7 +390,6 @@ Goal: separate static frontend hosting from Worker API hosting.
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `ADMIN_SESSION_SECRET` only if a non-Supabase fallback environment is intentionally deployed
 6. Test preview deploys before binding the production domain.
 
 Exit check:
@@ -487,8 +484,7 @@ pnpm install
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-ADMIN_PASSWORD=devcon-admin
-ADMIN_SESSION_SECRET=replace-this-locally
+APP_DATA_SOURCE=supabase
 ```
 
 3. Run Supabase migrations from `supabase/migrations`.

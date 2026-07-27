@@ -2,11 +2,11 @@
 
 **Active edition:** December 2026
 
-**Plan status:** Discovery and assignment; workspace foundation available
+**Plan status:** Active planning; Overview and Work plan available
 
 **Last updated:** 2026-07-26
 
-**Maintainers:** DevCongress organizers; named workstream owners to be assigned
+**Maintainers:** DevCongress organizers; Angela (`angelateyvi@gmail.com`) manages new task creation
 
 This is the living operational plan for the annual December conference. Update it as decisions are made, work starts, ownership changes, or application support is added.
 
@@ -18,9 +18,7 @@ Use these statuses consistently:
 
 | Status | Meaning |
 | --- | --- |
-| Decision needed | Organizers must make or confirm a choice before dependent work proceeds |
 | Not started | Agreed work that has not begun |
-| Foundation available | The application has related reusable capability, but the annual-conference requirement is not complete |
 | In progress | Someone is actively delivering the annual-conference requirement |
 | Blocked | Work cannot proceed until the named dependency is resolved |
 | Done | The December 2026 requirement is complete and verified |
@@ -28,6 +26,7 @@ Use these statuses consistently:
 For every row:
 
 - assign one accountable owner;
+- list everyone else involved as collaborators;
 - add a realistic target date;
 - keep dependencies and the next concrete action visible;
 - link supporting documents when they exist;
@@ -62,16 +61,22 @@ Organizer Console
 
 ### Current application checkpoint
 
-The first migration-safe workspace slice is now in place:
+The first operational workspace slice is now in place:
 
 - the primary organizer navigation exposes **Annual Conference**, not a global Volunteer Hub;
 - `/organizer-console/annual-conference/2026` is the active-edition overview;
+- the provisional date is **19 December 2026**;
+- Work plan is live at `/organizer-console/annual-conference/2026/work-plan`, seeded once from `DevCongress 2026 — Event Checklist.xlsx`;
 - Volunteers is nested at `/organizer-console/annual-conference/2026/volunteers`;
-- only Overview and Volunteers are interactive today; future workstreams are visible as planned structure rather than empty routes;
+- Overview, Work plan, and Volunteers are interactive today; future modules remain visible as planned structure rather than empty routes;
 - the former organizer volunteer paths redirect to the new workspace;
 - the existing public form, QR link, campaign ID, submission API, and stored applications are unchanged.
+- every authenticated organizer can edit every task, while only `angelateyvi@gmail.com` can add a task;
+- the first named spreadsheet owner is accountable and the remaining names are collaborators; `All`, `TBD`, and blank owners remain unassigned;
+- new owner and collaborator selections use active organizer emails as stable identities, while the UI shows organizer names and preserves unchanged legacy spreadsheet assignments;
+- finance is deferred to a later restricted module, and reminders are not part of this release.
 
-This checkpoint is a route and organizer-information-architecture change. It does not introduce a relational annual-conference schema and requires no Supabase migration.
+The work plan uses relational `annual_conference_editions` and `annual_conference_tasks` Supabase tables in production, with a local JSON fallback for development. The one-time seed contains 26 tasks: 24 Not started and 2 Done.
 
 ### Annual workspace modules
 
@@ -124,40 +129,40 @@ The current December 2026 volunteer form is already public and must survive the 
 
 The intended result is one December 2026 volunteer dataset regardless of which valid 2026 link an applicant follows.
 
-## Current Decisions Needed
+## Current Edition Decisions
 
 | Decision | Status | Owner | Target | Notes |
 | --- | --- | --- | --- | --- |
-| Exact date or dates | Decision needed | Unassigned | TBD | Gates venue, speakers, suppliers, registration, and communications |
-| Conference theme | Decision needed | Unassigned | TBD | Gates keynote outreach, CFP framing, programme, sponsorship deck, and creative |
-| Venue | Decision needed | Unassigned | TBD | Record location, capacity, breakout rooms, accessibility, power, internet, and commercial terms |
-| Attendance target | Decision needed | Unassigned | TBD | Needed for capacity, ticketing, catering, badges, swag, connectivity, and budget |
-| Keynote speaker or speakers | Decision needed | Unassigned | TBD | Preferred candidates: Patrick G. Awuah; the NSMQ quiz host/mistress, with the specific invitee to confirm |
-| Ticketing approach | Decision needed | Unassigned | TBD | Decide free registration versus paid/limited tickets and who owns payments/refunds |
-| Overall conference budget | Decision needed | Unassigned | TBD | Establish spending ceiling, contingency, approval rules, and finance visibility |
+| Exact date or dates | Done | Unassigned | 19 Dec 2026 | 19 December 2026 is the provisional starting point; confirmation remains a later decision |
+| Conference theme | Not started | Unassigned | TBD | Gates keynote outreach, CFP framing, programme, sponsorship deck, and creative |
+| Venue | Not started | Angela | TBD | UPSA and Accra Digital Centre are the current candidates; Elijah and Elvis collaborate |
+| Attendance target | Not started | Unassigned | TBD | Needed for capacity, ticketing, catering, badges, swag, connectivity, and budget |
+| Keynote speaker or speakers | Not started | Elijah | TBD | Patrick G. Awuah is preferred; the original shortlist also mentioned the NSMQ quiz mistress |
+| Ticketing approach | Not started | Unassigned | TBD | Decide free registration versus paid/limited tickets and who owns payments/refunds |
+| Overall conference budget | Not started | Unassigned | TBD | Deferred to the later restricted finance module |
 
 ## Programme and Speakers
 
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
 | Put out the Call for Speakers | Not started | Unassigned | TBD | Define submission criteria, deadline, review committee, selection rubric, and response timeline |
-| Annual speaker submission form | Foundation available | Unassigned | TBD | Monthly CFP already captures core speaker data, but it is restricted to monthly events. Define the annual form for name, bio, topic, abstract, talk/workshop format, and technical requirements |
+| Annual speaker submission form | Not started | Elvis | TBD | Ernest collaborates; define the annual form for name, bio, topic, abstract, talk/workshop format, and technical requirements |
 | Speaker review committee | Not started | Unassigned | TBD | Name reviewers, resolve conflicts, and define selection/communication responsibilities |
 | Keynote outreach | Blocked | Unassigned | TBD | Starts after date, theme, venue confidence, and shortlist confirmation |
 | Workshops and breakout sessions | Not started | Unassigned | TBD | Assign facilitators, rooms, capacity, materials, equipment, and support volunteers |
 | Panel discussions | Not started | Unassigned | TBD | Define topics, moderator, panelists, duration, and audience-question format |
 | Demo sessions | Not started | Unassigned | TBD | Confirm presenters, time slots, power, network, projection, and fallback needs |
-| Programme outline | Foundation available | Unassigned | TBD | The app can create and reorder outline rows. Build the December run of show after sessions and rooms are known |
+| Programme outline | Not started | Angela | TBD | Build the December run of show after sessions and rooms are known |
 | Speaker communications | Not started | Unassigned | TBD | Plan acceptance, rejection, logistics, reminders, slides/materials, and day-of instructions |
 
 ## Volunteers and Work Assignments
 
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
-| Call for Volunteers | Foundation available | Unassigned | TBD | Public form, QR display, and the nested December 2026 organizer workspace exist; define the outreach window and target volunteer count |
-| Volunteer submission form | Foundation available | Unassigned | TBD | Current form captures name, email, X handle, and Slack name. Add availability, preferred role, and experience for the annual workflow |
+| Call for Volunteers | Not started | Elvis | TBD | Ernest collaborates; define the outreach window and target volunteer count |
+| Volunteer submission form | Done | Elvis | TBD | The public form is live; Ernest collaborates. Review, assignment, briefing, and communications are separate later-stage tasks |
 | Volunteer roles and staffing plan | Not started | Unassigned | TBD | Define teams, role descriptions, shift windows, team leads, and headcount per area |
-| Application review and selection | Foundation available | Unassigned | TBD | Organizer review now lives under Annual Conference → December 2026 → Volunteers; add decisions, status, notes, and duplicate/person handling in the relational workflow |
+| Application review and selection | Not started | Unassigned | TBD | Organizer review lives under Annual Conference → December 2026 → Volunteers; add decisions, status, notes, and duplicate/person handling in the relational workflow |
 | Workstreams and task assignment | Not started | Unassigned | TBD | Replace the December spreadsheet with workstreams, tasks, owners, deadlines, dependencies, and completion status |
 | Volunteer communication and briefing | Not started | Unassigned | TBD | Plan acceptance, team allocation, training, reminders, escalation contacts, and day-of check-in |
 
@@ -184,7 +189,7 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
-| Venue and room plan | Decision needed | Unassigned | TBD | Confirm location, capacity, breakout rooms, accessibility, setup/teardown time, furniture, security, and emergency arrangements |
+| Venue and room plan | Not started | Angela | TBD | UPSA and Accra Digital Centre are under consideration; confirm capacity, breakout rooms, accessibility, setup/teardown time, furniture, security, and emergency arrangements |
 | Catering | Not started | Unassigned | TBD | Plan breakfast and lunch, headcount, dietary needs, serving schedule, water, vendor, and waste handling |
 | AV equipment | Not started | Unassigned | TBD | Inventory microphones, projectors, screens, adapters, presentation machines, audio, lighting, and breakout-room equipment |
 | Wi-Fi and connectivity | Not started | Unassigned | TBD | Validate high-density bandwidth, guest access, speaker/demo needs, livestream capacity, support, and backup connectivity |
@@ -213,8 +218,8 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
-| Feedback survey | Foundation available | Unassigned | TBD | Event feedback forms and QR display exist; define annual questions, session mapping, opening/closing, and audience segments |
-| Feedback QR distribution | Foundation available | Unassigned | TBD | Decide stage display, room signage, closing remarks, attendee messages, and post-event reminder placement |
+| Feedback survey | Not started | Elvis | TBD | Event feedback forms and QR display exist; define annual questions, session mapping, opening/closing, and audience segments |
+| Feedback QR distribution | Not started | Unassigned | TBD | Decide stage display, room signage, closing remarks, attendee messages, and post-event placement |
 | Conference report | Not started | Unassigned | TBD | Agree reporting for attendance, programme, speakers, volunteers, sponsors, expenses, feedback, media, and lessons learned |
 | Retrospective | Not started | Unassigned | TBD | Schedule owner debrief, capture decisions and misses, and roll reusable tasks into the next annual edition |
 
@@ -226,7 +231,7 @@ Expenses are part of the confirmed annual-conference scope. The workflow and per
 | --- | --- | --- | --- | --- |
 | Budget baseline | Not started | Unassigned | TBD | Set expected income, planned spend by category, contingency, and total ceiling |
 | Expense categories | Not started | Unassigned | TBD | Start with venue, catering, AV/connectivity, creative/printing, media, badges, signage, swag, transport, speaker support, and contingency |
-| Expense request and approval policy | Decision needed | Unassigned | TBD | Define who can request, approve, reject, amend, and view financial records; include amount thresholds |
+| Expense request and approval policy | Not started | Unassigned | TBD | Deferred to the later restricted finance module; define who can request, approve, reject, amend, and view financial records |
 | Purchases and supplier commitments | Not started | Unassigned | TBD | Track vendor, quote, approved amount, order/contract, due date, owner, and payment status |
 | Receipts and supporting documents | Not started | Unassigned | TBD | Define required evidence, secure storage, retention, and who can access it |
 | Reimbursements | Not started | Unassigned | TBD | Track claimant, purpose, approved amount, paid amount, payment method, status, and payment date |

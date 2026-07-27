@@ -3,10 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { fetchAdminSession, queryKeys } from '@/src/lib/api';
-import { queryClient } from '@/src/lib/query';
-
-type AuthMode = 'supabase' | 'local';
+import { fetchAdminSession } from '@/src/lib/api';
 
 const PROGRAMME_COVER = {
   eyebrow: 'Organizer desk / Private',
@@ -20,8 +17,7 @@ const PROGRAMME_COVER = {
 
 const route = useRoute();
 const router = useRouter();
-const password = ref('');
-const authMode = ref<AuthMode | null>(null);
+const authConfigured = ref(false);
 const authResolved = ref(false);
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -34,24 +30,20 @@ const accessDescription = computed(() => {
     return 'Confirming how this organizer workspace is secured.';
   }
 
-  return authMode.value === 'supabase'
+  return authConfigured.value
     ? 'Continue with an approved Google account.'
-    : 'Use the local administrator password to continue.';
+    : 'Google organizer sign-in is not configured in this environment.';
 });
 
 const actionLabel = computed(() => {
   if (!authResolved.value) return 'Checking access…';
-  if (loading.value) {
-    return authMode.value === 'supabase' ? 'Opening Google…' : 'Signing in…';
-  }
-  return authMode.value === 'supabase' ? 'Continue with Google' : 'Sign in';
+  if (loading.value) return 'Opening Google…';
+  return 'Continue with Google';
 });
 
 const accessNote = computed(() => {
   if (!authResolved.value) return 'Your destination will be preserved while we check.';
-  if (authMode.value === 'local') {
-    return 'Local development access. Hosted organizers use approved Google accounts.';
-  }
+  if (!authConfigured.value) return 'Ask an owner to configure Supabase organizer access.';
   return 'Access is limited to approved DevCongress organizers.';
 });
 
@@ -65,62 +57,40 @@ function isLocalBrowserOrigin(origin: string): boolean {
 }
 
 async function login() {
-  if (!authResolved.value || !authMode.value) return;
+  if (!authResolved.value || !authConfigured.value) return;
 
   loading.value = true;
   error.value = null;
 
   try {
-    if (authMode.value === 'supabase') {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        error.value = 'Google organizer sign-in is not configured yet.';
-        return;
-      }
-
-      if (isLocalBrowserOrigin(window.location.origin) && window.location.origin !== LOCAL_GOOGLE_OAUTH_ORIGIN) {
-        error.value = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
-        return;
-      }
-
-      const callbackUrl = new URL('/api/auth/admin/callback', window.location.origin);
-      callbackUrl.searchParams.set('next', redirectTo.value);
-
-      window.sessionStorage.setItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY, redirectTo.value);
-
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: callbackUrl.toString(),
-          scopes: 'email profile',
-          queryParams: { prompt: 'select_account' },
-        },
-      });
-
-      if (oauthError) {
-        error.value = 'Unable to start Google sign-in. Please try again.';
-      }
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      error.value = 'Google organizer sign-in is not configured yet.';
       return;
     }
 
-    const response = await fetch('/api/auth/admin/login', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: password.value }),
-    });
-
-    if (!response.ok) {
-      error.value = 'The admin password was not accepted.';
+    if (isLocalBrowserOrigin(window.location.origin) && window.location.origin !== LOCAL_GOOGLE_OAUTH_ORIGIN) {
+      error.value = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
       return;
     }
 
-    await queryClient.fetchQuery({
-      queryKey: queryKeys.adminSession,
-      queryFn: fetchAdminSession,
-      staleTime: 0,
+    const callbackUrl = new URL('/api/auth/admin/callback', window.location.origin);
+    callbackUrl.searchParams.set('next', redirectTo.value);
+
+    window.sessionStorage.setItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY, redirectTo.value);
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: callbackUrl.toString(),
+        scopes: 'email profile',
+        queryParams: { prompt: 'select_account' },
+      },
     });
-    await router.push(redirectTo.value);
+
+    if (oauthError) {
+      error.value = 'Unable to start Google sign-in. Please try again.';
+    }
   } catch {
     error.value = 'Unable to sign in. Please check your connection and try again.';
   } finally {
@@ -136,12 +106,15 @@ onMounted(async () => {
 
   try {
     const session = await fetchAdminSession();
-    authMode.value = session.auth_mode;
+    authConfigured.value = session.auth_configured;
     if (session.authenticated) {
       await router.replace(redirectTo.value);
+    } else if (!session.auth_configured) {
+      error.value = 'Google organizer sign-in is not configured in this environment.';
     }
   } catch {
-    authMode.value = 'local';
+    authConfigured.value = false;
+    error.value = 'Unable to verify organizer access. Please check the local server and try again.';
   } finally {
     authResolved.value = true;
   }
@@ -197,19 +170,6 @@ onMounted(async () => {
           </div>
 
           <div class="login-control">
-            <label v-if="authResolved && authMode === 'local'" class="login-field">
-              <span>Password</span>
-              <input
-                v-model="password"
-                required
-                :disabled="loading"
-                type="password"
-                autocomplete="current-password"
-                placeholder="Admin password"
-                :aria-describedby="error ? 'organizer-login-error' : undefined"
-              >
-            </label>
-
             <div
               v-if="error"
               id="organizer-login-error"
@@ -225,13 +185,13 @@ onMounted(async () => {
             <button
               type="submit"
               class="login-submit"
-              :disabled="loading || !authResolved"
+              :disabled="loading || !authResolved || !authConfigured"
               :aria-busy="loading || !authResolved"
               :aria-describedby="error ? 'organizer-login-error organizer-access-note' : 'organizer-access-note'"
             >
               <span class="login-submit__content">
                 <svg
-                  v-if="authResolved && authMode === 'supabase'"
+                  v-if="authResolved && authConfigured"
                   class="google-mark"
                   aria-hidden="true"
                   viewBox="0 0 18 18"
@@ -436,9 +396,9 @@ onMounted(async () => {
   gap: 0.65rem;
   align-items: start;
   margin-bottom: 0.85rem;
-  border: 1px solid #f2c6ce;
+  border: 1px solid #e8117f;
   border-radius: 0.5rem;
-  background: #fff1f2;
+  background: #ffffff;
   padding: 0.75rem 0.8rem;
   color: #a61b34;
   font-size: 0.8rem;

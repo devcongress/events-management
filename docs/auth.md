@@ -1,6 +1,6 @@
 # Admin Auth
 
-DevCon-Comm uses Supabase Auth with Google OAuth for hosted organizer access and keeps a local shared-password fallback for development environments. Local/dev runs use the shared-password flow unless `APP_DATA_SOURCE=supabase` explicitly enables the Supabase runtime.
+DevCon-Comm uses Supabase Auth with Google OAuth for organizer access in every environment. Local and hosted runs share the same membership allowlist and app-owned session flow; incomplete configuration fails closed.
 
 ## Production Flow
 
@@ -77,16 +77,11 @@ Organizer access still depends on `admin_memberships`. A successful Google login
 
 For local development, keep Google OAuth pinned to `http://localhost:5173`. The login screen blocks Google sign-in on other local ports or `127.0.0.1` so Supabase does not fall back to the deployed Site URL.
 
-## Local Fallback
+## Local Development
 
-If Supabase admin auth is not enabled, `/organizer-console/login` falls back to the local shared password:
+Local organizer access uses the same Supabase Google OAuth and membership allowlist as hosted access. Configure `APP_DATA_SOURCE=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`.
 
-```bash
-ADMIN_PASSWORD=devcon-admin
-ADMIN_SESSION_SECRET=replace-this-locally
-```
-
-This fallback is for local development only. Hosted environments should configure `APP_DATA_SOURCE=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` so Google-based organizer auth is used.
+There is no shared-password fallback. When Supabase organizer auth is incomplete, `/api/auth/session` reports `auth_configured: false` and the login screen presents a configuration error instead of downgrading to a local owner account.
 
 ## Security Notes
 

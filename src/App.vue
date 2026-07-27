@@ -4,8 +4,8 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import { useRoute, useRouter } from 'vue-router';
 import AppToaster from './components/ui/AppToaster.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
-import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from './annual-conference';
-import { fetchAdminSession, fetchEventById, fetchRouteFeedbackInbox, queryKeys, type AdminSessionResponse, type RouteFeedbackSummary } from './lib/api';
+import { annualConferencePath } from './annual-conference';
+import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { notify } from './lib/notify';
 import { queryClient } from './lib/query';
 import {
@@ -22,18 +22,18 @@ interface NavLink {
   accent?: boolean;
 }
 
-interface AdminEventSummary {
-  id: string;
-  name: string;
-}
-
 const AdminEventTabs = defineAsyncComponent(() => import('./components/AdminEventTabs.vue'));
 const route = useRoute();
 const router = useRouter();
+const initialBrowserPath = typeof window === 'undefined' ? '/' : window.location.pathname;
+const startedOnProtectedOrganizerRoute = (
+  isAdminPath(initialBrowserPath)
+  && initialBrowserPath !== adminPath('login')
+  && initialBrowserPath !== adminPath('auth/callback')
+);
 const organizerPhoneMedia = typeof window === 'undefined'
   ? null
   : window.matchMedia(ORGANIZER_PHONE_MEDIA_QUERY);
-const adminEventNames = ref<Record<string, string>>({});
 const routeTransitionName = ref('page');
 const mobileMenuOpen = ref(false);
 const phoneViewport = ref(organizerPhoneMedia?.matches ?? false);
@@ -55,7 +55,6 @@ const adminBaseLinks: NavLink[] = [
 const ownerAdminLinks: NavLink[] = [
   { href: adminPath('audit-log'), label: 'Audit Log' },
 ];
-
 const isAdminRoute = computed(() => isAdminPath(route.path));
 const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
@@ -70,6 +69,17 @@ const adminSessionQuery = useQuery({
   queryFn: fetchAdminSession,
   enabled: isAdminRoute,
 });
+const organizerAccessUnresolved = computed(() => (
+  (isAdminRoute.value || startedOnProtectedOrganizerRoute)
+  && !isLoginRoute.value
+  && adminSessionQuery.data.value === undefined
+));
+const showOrganizerAccessError = computed(() => (
+  organizerAccessUnresolved.value && adminSessionQuery.isError.value
+));
+const showOrganizerAccessGate = computed(() => (
+  organizerAccessUnresolved.value && !adminSessionQuery.isError.value
+));
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
 const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
 const showPrimaryNavigation = computed(() => showAppHeader.value && isOrganizerAuthenticated.value);
@@ -109,22 +119,6 @@ const brandHomeLink = computed(() => (
 ));
 const showSignOut = computed(() => isOrganizerAuthenticated.value && !isLoginRoute.value);
 const showHeaderActions = computed(() => showSignOut.value);
-const shouldLoadRouteFeedbackSummary = computed(() => (
-  isOrganizerAuthenticated.value
-  && !showOrganizerPhoneView.value
-  && route.path !== adminPath('login')
-  && route.path !== adminPath('feedback')
-));
-const routeFeedbackInboxQuery = useQuery({
-  queryKey: queryKeys.routeFeedbackInbox,
-  queryFn: fetchRouteFeedbackInbox,
-  enabled: shouldLoadRouteFeedbackSummary,
-});
-const routeFeedbackSummary = computed<RouteFeedbackSummary | null>(() => {
-  if (!shouldLoadRouteFeedbackSummary.value) return null;
-  return routeFeedbackInboxQuery.data.value?.summary ?? null;
-});
-const routeFeedbackBadgeCount = computed(() => routeFeedbackSummary.value?.new ?? 0);
 const keyboardDismissStyle = computed(() => ({
   transform: `translate3d(0, -${keyboardInset.value}px, 0)`,
 }));
@@ -137,15 +131,6 @@ const adminFeedbackReturnMonth = computed(() => {
   const value = route.query.month;
   return typeof value === 'string' && /^\d{4}-\d{2}$/.test(value) ? value : null;
 });
-const adminReturnSearch = computed(() => {
-  if (!adminReturnSource.value) return '';
-
-  const params = new URLSearchParams({ from: adminReturnSource.value });
-  if (adminReturnSource.value === 'feedback' && adminFeedbackReturnMonth.value) {
-    params.set('month', adminFeedbackReturnMonth.value);
-  }
-  return params.toString();
-});
 const adminReturnLink = computed(() => {
   if (adminReturnSource.value === 'attendance') {
     return { href: adminPath('attendance'), label: 'Attendance Hub' };
@@ -153,10 +138,7 @@ const adminReturnLink = computed(() => {
 
   if (adminReturnSource.value === 'feedback') {
     if (adminFeedbackReturnMonth.value) {
-      const params = new URLSearchParams({
-        stream: 'event',
-        month: adminFeedbackReturnMonth.value,
-      });
+      const params = new URLSearchParams({ month: adminFeedbackReturnMonth.value });
       return { href: `${adminPath('feedback')}?${params.toString()}`, label: 'Feedback Hub' };
     }
 
@@ -182,10 +164,6 @@ const activeNavHref = computed(() => {
     })
     .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
 });
-const currentEventLabel = computed(() => {
-  if (!adminEventId.value) return 'Event';
-  return adminEventNames.value[adminEventId.value] ?? 'Event';
-});
 const showAdminEventTabs = computed(() => Boolean(
   isOrganizerAuthenticated.value
   && !showOrganizerPhoneView.value
@@ -195,94 +173,6 @@ const showAdminEventTabs = computed(() => Boolean(
 const appMainStyle = computed(() => ({
   '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
 }));
-const breadcrumbItems = computed(() => {
-  const items: { label: string; href?: string }[] = [];
-  const path = route.path;
-
-  if (path === '/' || path === adminPath('login')) return items;
-
-  if (isAdminRoute.value) {
-    items.push({ label: 'Organizer', href: adminPath('events') });
-
-    if (path === adminPath('events')) {
-      items.push({ label: 'Events' });
-      return items;
-    }
-
-    if (path === adminPath('attendance')) {
-      items.push({ label: 'Attendance' });
-      return items;
-    }
-
-    if (path === adminPath('feedback')) {
-      items.push({ label: 'Feedback' });
-      return items;
-    }
-
-    if (path.startsWith(adminPath('annual-conference'))) {
-      items.push({ label: 'Annual Conference', href: adminPath('annual-conference') });
-      items.push({
-        label: ACTIVE_ANNUAL_CONFERENCE_EDITION.label,
-        href: path === annualConferencePath() ? undefined : annualConferencePath(),
-      });
-
-      if (path.startsWith(annualConferencePath('volunteers'))) {
-        items.push({ label: 'Volunteers' });
-      }
-
-      return items;
-    }
-
-    if (path === adminPath('organizers')) {
-      items.push({ label: 'Organizers' });
-      return items;
-    }
-
-    if (path === adminPath('audit-log')) {
-      items.push({ label: 'Audit Log' });
-      return items;
-    }
-
-    if (path === adminPath('events/new')) {
-      items.push({ label: 'Events', href: adminPath('events') });
-      items.push({ label: 'Create event' });
-      return items;
-    }
-
-    if (adminEventId.value) {
-      if (adminReturnLink.value) {
-        items.push({ label: adminReturnLink.value.label, href: adminReturnLink.value.href });
-      } else {
-        items.push({ label: 'Events', href: adminPath('events') });
-      }
-
-      const eventHref = adminReturnSource.value && adminReturnSearch.value
-        ? `${adminPath(`events/${adminEventId.value}`)}?${adminReturnSearch.value}`
-        : adminPath(`events/${adminEventId.value}`);
-      items.push({ label: currentEventLabel.value, href: eventHref });
-
-      if (path.includes('/talks')) items.push({ label: 'Talks' });
-      else if (path.includes('/speakers')) items.push({ label: 'Speakers' });
-      else if (path.includes('/attendance')) items.push({ label: 'Attendance' });
-      else if (path.includes('/quiz/live')) items.push({ label: 'Live quiz' });
-      else if (path.includes('/quiz')) items.push({ label: 'Quiz' });
-      else if (path.includes('/feedback')) items.push({ label: 'Feedback' });
-      else items[items.length - 1] = { label: currentEventLabel.value };
-    }
-
-    return items;
-  }
-
-  return items;
-});
-const showBreadcrumbs = computed(() => (
-  isOrganizerAuthenticated.value
-  && !isStandaloneRoute.value
-  && !showOrganizerPhoneView.value
-  && isAdminRoute.value
-  && breadcrumbItems.value.length > 1
-));
-
 const adminEventSectionOrder = ['', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
 
 function getAdminEventSection(path: string): { eventId: string; index: number } | null {
@@ -330,10 +220,6 @@ function routeViewKey(routeForKey: typeof route) {
   return routeForKey.fullPath;
 }
 
-function isFeedbackHubLink(link: NavLink) {
-  return link.href === adminPath('feedback');
-}
-
 function linkClass(link: NavLink) {
   if (isActive(link.href)) {
     return link.accent
@@ -350,6 +236,10 @@ function linkClass(link: NavLink) {
 
 function closeMobileMenu() {
   mobileMenuOpen.value = false;
+}
+
+function retryOrganizerAccess() {
+  void adminSessionQuery.refetch();
 }
 
 function toggleMobileMenu() {
@@ -466,6 +356,7 @@ async function logout() {
     queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
       authenticated: false,
       auth_mode: cachedSession?.auth_mode ?? 'supabase',
+      auth_configured: cachedSession?.auth_configured ?? true,
     });
     window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
 
@@ -491,48 +382,6 @@ async function logout() {
   }
 }
 
-async function refreshAdminEventNames() {
-  if (showOrganizerPhoneView.value) {
-    return;
-  }
-
-  if (!isAdminRoute.value || route.path === adminPath('login')) {
-    return;
-  }
-
-  const eventId = adminEventId.value;
-  if (!eventId) return;
-
-  const cachedEventName = adminEventNames.value[eventId]
-    ?? queryClient.getQueryData<AdminEventSummary[]>(queryKeys.events)?.find((event) => event.id === eventId)?.name
-    ?? queryClient.getQueryData<AdminEventSummary>(queryKeys.event(eventId))?.name;
-
-  if (cachedEventName) {
-    adminEventNames.value = {
-      ...adminEventNames.value,
-      [eventId]: cachedEventName,
-    };
-    return;
-  }
-
-  try {
-    const event = await queryClient.fetchQuery({
-      queryKey: queryKeys.event(eventId),
-      queryFn: () => fetchEventById(eventId),
-    });
-    if (adminEventId.value !== eventId) return;
-    adminEventNames.value = {
-      ...adminEventNames.value,
-      [eventId]: event.name,
-    };
-  } catch {
-    adminEventNames.value = {
-      ...adminEventNames.value,
-      [eventId]: 'Event',
-    };
-  }
-}
-
 onMounted(() => {
   if (typeof ResizeObserver !== 'undefined') {
     adminEventTabsResizeObserver = new ResizeObserver(updateAdminEventTabsHeight);
@@ -548,7 +397,6 @@ onMounted(() => {
   organizerPhoneMedia?.addEventListener('change', syncPhoneViewport);
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
-  void refreshAdminEventNames();
 });
 
 watch(() => route.path, (toPath, fromPath) => {
@@ -557,7 +405,6 @@ watch(() => route.path, (toPath, fromPath) => {
   resetMainScroll();
   updateRouteTransition(toPath, fromPath);
   void nextTick(syncAdminEventTabsObserver);
-  void refreshAdminEventNames();
 });
 
 watch(
@@ -649,18 +496,11 @@ onUnmounted(() => {
               v-for="link in group"
               :key="link.href"
               :to="link.href"
-              class="app-nav-link motion-press relative flex min-h-11 shrink-0 items-center rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/35"
+              class="app-nav-link motion-press relative flex min-h-11 shrink-0 items-center rounded-md border-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-ink/25"
               :class="[link.accent ? 'sm:px-3' : '', linkClass(link)]"
               :aria-current="isActive(link.href) ? 'page' : undefined"
             >
               <span class="relative z-10">{{ link.label }}</span>
-              <span
-                v-if="isFeedbackHubLink(link) && routeFeedbackBadgeCount > 0"
-                class="app-nav-badge"
-                aria-label="New route feedback"
-              >
-                {{ routeFeedbackBadgeCount > 99 ? '99+' : routeFeedbackBadgeCount }}
-              </span>
             </RouterLink>
           </template>
         </nav>
@@ -712,13 +552,6 @@ onUnmounted(() => {
               @click="closeMobileMenu"
             >
               <span>{{ link.label }}</span>
-              <span
-                v-if="isFeedbackHubLink(link) && routeFeedbackBadgeCount > 0"
-                class="app-mobile-menu-badge"
-                aria-label="New route feedback"
-              >
-                {{ routeFeedbackBadgeCount > 99 ? '99+' : routeFeedbackBadgeCount }}
-              </span>
             </RouterLink>
           </template>
         </nav>
@@ -728,42 +561,6 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
-
-    <nav
-      v-if="showBreadcrumbs"
-      class="border-b border-dc-border/70 bg-dc-cream px-4 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] sm:px-6 lg:px-8"
-      aria-label="Breadcrumb"
-    >
-      <ol class="flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">
-        <li
-          v-for="(item, index) in breadcrumbItems"
-          :key="`${item.label}-${index}`"
-          class="flex shrink-0 items-center gap-2"
-        >
-          <RouterLink
-            v-if="item.href && index < breadcrumbItems.length - 1"
-            :to="item.href"
-            class="app-breadcrumb-link"
-          >
-            {{ item.label }}
-          </RouterLink>
-          <span
-            v-else
-            class="app-breadcrumb-current"
-            aria-current="page"
-          >
-            {{ item.label }}
-          </span>
-          <span
-            v-if="index < breadcrumbItems.length - 1"
-            class="app-breadcrumb-separator"
-            aria-hidden="true"
-          >
-            ›
-          </span>
-        </li>
-      </ol>
-    </nav>
 
     <main
       class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
@@ -784,7 +581,53 @@ onUnmounted(() => {
       </div>
 
       <div class="page-route-stack">
-        <RouterView v-slot="{ Component, route }">
+        <section
+          v-if="showOrganizerAccessError"
+          class="organizer-access-gate page-view"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div class="organizer-access-gate__inner">
+            <p class="organizer-access-gate__eyebrow">Access check failed</p>
+            <h1>The workspace could not be opened.</h1>
+            <p>The organizer session service did not respond. Try the check again or return to sign in.</p>
+            <div class="organizer-access-gate__actions">
+              <button
+                type="button"
+                class="editorial-action"
+                :disabled="adminSessionQuery.isFetching.value"
+                @click="retryOrganizerAccess"
+              >
+                {{ adminSessionQuery.isFetching.value ? 'Checking…' : 'Try again' }}
+              </button>
+              <RouterLink :to="adminPath('login')" class="editorial-secondary-action">
+                Return to sign in
+              </RouterLink>
+            </div>
+          </div>
+        </section>
+
+        <section
+          v-else-if="showOrganizerAccessGate"
+          class="organizer-access-gate page-view"
+          role="status"
+          aria-live="polite"
+          aria-label="Checking organizer access"
+          aria-busy="true"
+        >
+          <div class="organizer-access-gate__inner">
+            <p class="organizer-access-gate__eyebrow">Getting things ready</p>
+            <h1>Opening the workspace.</h1>
+            <p>Checking access and restoring your place.</p>
+            <div class="organizer-access-gate__signal" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        </section>
+
+        <RouterView v-else v-slot="{ Component, route }">
           <Transition :name="routeTransitionName" @after-enter="resetMainScroll">
             <component :is="Component" :key="routeViewKey(route)" class="page-view" />
           </Transition>
