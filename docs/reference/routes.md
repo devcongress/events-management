@@ -27,6 +27,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events` | Organizer event list |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview |
+| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan with workstream, status, accountable owner, collaborators, dates, dependencies, and notes |
 | `/organizer-console/annual-conference/2026/volunteers` | December 2026 volunteer-link sharing and private application review |
 | `/organizer-console/annual-conference/2026/volunteers/display` | Organizer-only TV-safe QR display for the December 2026 volunteer intake form |
 | `/organizer-console/organizers` | Owner-only organizer email allowlist |
@@ -43,7 +44,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
 | `/organizer-console/feedback-display/:eventId` | Organizer-only TV-safe QR display for an open event feedback form |
 | `/organizer-console/attendance` | Monthly attendance ledger |
-| `/organizer-console/feedback` | Feedback hub and app feedback inbox |
+| `/organizer-console/feedback` | Event feedback reports grouped by year and event period |
 | `/organizer-console/volunteers` | Compatibility redirect to `/organizer-console/annual-conference/2026/volunteers` |
 | `/organizer-console/volunteer-display` | Compatibility redirect to `/organizer-console/annual-conference/2026/volunteers/display` |
 
@@ -59,6 +60,9 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/feedback*` | App feedback, event campaigns, and anonymous public event-feedback submission. Session ratings accept 1–5 or `not_attended`; the latter is excluded from averages. |
 | `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by optional Turnstile, per-client limits, and email de-duplication |
 | `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
+| `GET /api/annual-conference/:year/work-plan` | Organizer-only annual edition, task list, summary, and task-creation permission |
+| `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to `angelateyvi@gmail.com` and requires one accountable owner |
+| `PATCH /api/annual-conference/:year/work-plan/:taskId` | Edit an existing task; available to every authenticated organizer |
 | `/api/integrations/luma*` | Organizer-only Luma event shell preview, public-page preview, and confirmed import |
 | `/api/quiz*` | Quiz sessions, questions, explicit state advancement, join/play/host state |
 | `/api/public/meetups*` | Read-only website integration API |

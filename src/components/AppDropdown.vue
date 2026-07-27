@@ -16,7 +16,9 @@ const props = defineProps<{
   modelValue: DropdownValue;
   options: DropdownOption[];
   label?: string;
+  placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
   density?: 'default' | 'compact';
   menuAlign?: 'left' | 'right';
   menuClass?: string;
@@ -37,8 +39,9 @@ const estimatedMenuHeight = computed(() => {
   return Math.min(288, props.options.length * optionHeight + menuPadding);
 });
 
-const selectedOption = computed(() => {
-  return props.options.find((option) => option.value === props.modelValue) ?? props.options[0] ?? null;
+const selectedLabel = computed(() => {
+  const exactOption = props.options.find((option) => option.value === props.modelValue);
+  return exactOption?.label ?? props.placeholder ?? props.options[0]?.label ?? 'Select';
 });
 const triggerClasses = computed(() => props.density === 'compact'
   ? 'min-h-10 px-3 py-2 text-sm'
@@ -150,21 +153,23 @@ watch(open, async (isOpen) => {
 
 <template>
   <div ref="root" class="relative block" :class="open ? 'z-[80]' : 'z-auto'">
-    <span v-if="label" class="editorial-label">{{ label }}</span>
+    <span v-if="label" :id="`${dropdownId}-label`" class="editorial-label">{{ label }}</span>
     <button
       type="button"
-      class="motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-semibold text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(232,17,127,0.14)] disabled:cursor-not-allowed disabled:opacity-50"
+      class="motion-press flex w-full items-center justify-between gap-3 rounded-md border bg-dc-paper text-left font-semibold text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         triggerClasses,
         label ? 'mt-2' : '',
-        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(232,17,127,0.14)]' : 'border-dc-border',
+        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]' : 'border-dc-border',
       ]"
       :disabled="disabled"
       :aria-expanded="open"
+      :aria-labelledby="label ? `${dropdownId}-label ${dropdownId}-value` : `${dropdownId}-value`"
+      :aria-required="required ? 'true' : undefined"
       aria-haspopup="listbox"
       @click.stop="toggle"
     >
-      <span class="min-w-0 truncate">{{ selectedOption?.label }}</span>
+      <span :id="`${dropdownId}-value`" class="min-w-0 truncate">{{ selectedLabel }}</span>
       <span class="motion-icon grid shrink-0 place-items-center rounded-full border border-dc-border text-dc-pink" :class="[iconClasses, open ? 'rotate-180 border-dc-pink' : '']">
         <svg viewBox="0 0 20 20" class="size-3.5" fill="none" aria-hidden="true">
           <path d="M5.5 8l4.5 4.5L14.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
@@ -206,7 +211,6 @@ watch(open, async (isOpen) => {
               </svg>
             </span>
             <span class="truncate font-semibold">{{ option.label }}</span>
-            <span v-if="option.disabled" class="ml-auto shrink-0 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-gray">Active</span>
           </button>
         </div>
       </div>

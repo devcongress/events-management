@@ -31,7 +31,6 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
   - [x] `VITE_SUPABASE_ANON_KEY`
   - [x] `VITE_ADMIN_BASE_PATH`
   - [x] `VITE_SHOW_ORGANIZER_LINK`
-  - [x] `VITE_SHOW_FEEDBACK_BOT`
   - [x] `VITE_TURNSTILE_SITE_KEY`, if overriding the baked-in key
 - [x] Confirm preview and production branch settings match the new repo flow.
   - 2026-06-25: `wrangler pages deployment list --project-name devcon-comm` shows production deployments from `main`; the latest listed source commit `27f5981` exists in `devcongress/events-management`. The Cloudflare Pages project still uses the historical project name/domain `devcon-comm`, while the browser-facing app URL remains `https://events-management.pages.dev`.
@@ -51,8 +50,6 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 
 - [x] Reconfirm Worker secrets after moving or redeploying:
   - [x] `SUPABASE_SERVICE_ROLE_KEY`
-  - [x] `ADMIN_PASSWORD`
-  - [x] `ADMIN_SESSION_SECRET`
   - [x] `VITE_SUPABASE_URL`
   - [x] `VITE_SUPABASE_ANON_KEY`
   - [x] `TURNSTILE_SECRET_KEY`, if Turnstile is enabled
@@ -78,8 +75,8 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 
 - [x] If the hostname changes, update Cloudflare Turnstile allowed domains.
 - [x] If strict hostname checking is enabled, update `TURNSTILE_EXPECTED_HOSTNAME`.
-- [x] Test the floating feedback bot or `/feedback` page after deployment.
-  - 2026-06-22: `/feedback` and the floating feedback bot submit successfully on `events-management.pages.dev` after the final Turnstile site key update.
+- [x] Test the route-feedback form after deployment.
+  - 2026-06-22: `/feedback` submitted successfully on `events-management.pages.dev` after the final Turnstile site key update. The floating website-feedback launcher was retired when the organizer Feedback Hub became event-only.
 
 ### Docs
 

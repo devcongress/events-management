@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { canonicalizeSystemDesignSchedule, hasSystemDesignTitleMarker } from '@/lib/system-design';
+import { canChangeChecklistItemAvailability, isSystemDesignChecklistItem, SYSTEM_DESIGN_CHECKLIST_LABEL } from '@/lib/event-checklist-policy';
 import { resolveEventStatus } from '@/lib/event-status';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
@@ -106,7 +107,7 @@ function checklistItemAvailable(item: EventChecklistItem): boolean {
       return availableChecklistFeatures.speakerAccess || availableChecklistFeatures.talkManagement;
     case 'Collect slides and prep quiz':
       return availableChecklistFeatures.talkManagement || availableChecklistFeatures.quiz;
-    case 'Prepare system design session':
+    case SYSTEM_DESIGN_CHECKLIST_LABEL:
       return availableChecklistFeatures.systemDesign;
     case 'Start event day':
       return availableChecklistFeatures.eventDayStart;
@@ -851,7 +852,19 @@ async function toggleChecklistItem(item: EventChecklistItem) {
 }
 
 function canDisableChecklistItem(item: EventChecklistItem): boolean {
-  return !isPublishedEvent.value && !item.completed;
+  return canChangeChecklistItemAvailability(item, isPublishedEvent.value);
+}
+
+function checklistAvailabilityActionLabel(item: EventChecklistItem): string {
+  if (checklistDisablingId.value === item.id) return 'Saving';
+  if (!isSystemDesignChecklistItem(item)) return item.disabled_at ? 'Enable' : 'Disable';
+  return item.disabled_at ? 'Include this month' : 'Not this month';
+}
+
+function checklistDisabledCopy(item: EventChecklistItem): string {
+  return isSystemDesignChecklistItem(item)
+    ? 'No system design session this month'
+    : 'Disabled for this event';
 }
 
 async function setChecklistItemDisabled(item: EventChecklistItem, disabled: boolean) {
@@ -881,7 +894,15 @@ async function setChecklistItemDisabled(item: EventChecklistItem, disabled: bool
     } else {
       await invalidateChecklistQueries();
     }
-    notify.success(disabled ? 'Checklist item disabled' : 'Checklist item enabled');
+    notify.success(
+      isSystemDesignChecklistItem(item)
+        ? disabled
+          ? 'System Design disabled for this month'
+          : 'System Design included for this month'
+        : disabled
+          ? 'Checklist item disabled'
+          : 'Checklist item enabled',
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update checklist item';
     notify.error(message);
@@ -1449,7 +1470,7 @@ onMounted(fetchOverview);
                         Done by {{ item.completed_by ?? 'Organizer' }} · {{ formatShortDateTime(item.completed_at) }}
                       </span>
                       <span v-else-if="item.disabled_at" class="event-checklist-item-meta">
-                        Disabled for this event
+                        {{ checklistDisabledCopy(item) }}
                       </span>
                     </span>
                     <span v-if="item.status_on_complete" class="event-checklist-status-chip">
@@ -1463,7 +1484,7 @@ onMounted(fetchOverview);
                     :disabled="Boolean(checklistSavingId) || Boolean(checklistDisablingId)"
                     @click="setChecklistItemDisabled(item, !item.disabled_at)"
                   >
-                    {{ checklistDisablingId === item.id ? 'Saving' : item.disabled_at ? 'Enable' : 'Disable' }}
+                    {{ checklistAvailabilityActionLabel(item) }}
                   </button>
                 </div>
               </div>

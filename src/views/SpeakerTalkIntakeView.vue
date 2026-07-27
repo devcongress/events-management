@@ -9,7 +9,6 @@ type IntakeEvent = Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 's
 type IntakePrefill = {
   speaker_name?: string;
   speaker_email?: string;
-  github_username?: string;
   title?: string;
   topic?: string;
   abstract?: string;
@@ -40,7 +39,6 @@ const popularTopics = [
 const form = reactive({
   speaker_name: '',
   speaker_email: '',
-  github_username: '',
   title: '',
   topic: '',
   abstract: '',
@@ -88,7 +86,6 @@ async function submitTalkDetails() {
   const payload = isSelectedSpeakerLink()
     ? { slides_url: form.slides_url }
     : {
-      github_username: form.github_username,
       title: form.title,
       topic: form.topic,
       abstract: form.abstract,
@@ -136,7 +133,6 @@ onMounted(async () => {
 function applyPrefill(prefill: IntakePrefill) {
   form.speaker_name = prefill.speaker_name || form.speaker_name;
   form.speaker_email = prefill.speaker_email || form.speaker_email;
-  form.github_username = prefill.github_username || form.github_username;
   form.title = prefill.title || form.title;
   form.topic = prefill.topic || form.topic;
   form.abstract = prefill.abstract || form.abstract;
@@ -182,9 +178,14 @@ function applyPrefill(prefill: IntakePrefill) {
         </p>
       </div>
 
-      <div v-if="event.description || expiresAt" class="mb-8 rounded-lg border-2 border-dc-ink bg-dc-paper p-6 shadow-[3px_3px_0_#111111]">
-        <p v-if="event.description" class="text-dc-gray">{{ event.description }}</p>
-        <p v-if="expiresAt" class="mt-4 font-mono text-xs font-bold uppercase tracking-wide text-dc-pink">
+      <div
+        v-if="event.description || expiresAt"
+        class="mb-6 flex flex-col gap-2 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111] sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+      >
+        <p v-if="event.description" class="line-clamp-2 min-w-0 flex-1 text-sm leading-5 text-dc-gray sm:line-clamp-1">
+          {{ event.description }}
+        </p>
+        <p v-if="expiresAt" class="shrink-0 font-mono text-[11px] font-bold uppercase tracking-wide text-dc-pink">
           Link expires {{ formatDateTime(expiresAt) }}
         </p>
       </div>
@@ -222,11 +223,6 @@ function applyPrefill(prefill: IntakePrefill) {
               />
             </div>
           </div>
-
-          <label class="block">
-            <span class="editorial-label">GitHub username</span>
-            <input v-model="form.github_username" placeholder="octocat" class="editorial-input font-mono" />
-          </label>
 
           <label class="block">
             <span class="editorial-label">Abstract</span>

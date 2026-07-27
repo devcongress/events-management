@@ -1,4 +1,11 @@
-import type { Event, LeaderboardEntry, PublicArchiveEventResponse, PublicArchiveResponse, PublicHomeResponse, PublicMeetup, QuizSession, Talk, VolunteerApplication } from '@/types';
+import type { Event, EventChecklistItem, LeaderboardEntry, PublicArchiveEventResponse, PublicArchiveResponse, PublicHomeResponse, PublicMeetup, QuizSession, Talk, VolunteerApplication } from '@/types';
+import type {
+  AnnualConferenceEdition,
+  AnnualConferenceTask,
+  AnnualConferenceTaskCreateInput,
+  AnnualConferenceTaskUpdateInput,
+  AnnualConferenceWorkPlanSummary,
+} from '@/lib/annual-conference-work-plan';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
 
@@ -101,7 +108,8 @@ export interface RouteFeedbackInboxResponse {
 
 export interface AdminSessionResponse {
   authenticated: boolean;
-  auth_mode: 'supabase' | 'local';
+  auth_mode: 'supabase';
+  auth_configured: boolean;
   user?: {
     email: string | null;
     display_name: string | null;
@@ -121,7 +129,7 @@ export interface OrganizerMembership {
 
 export interface OrganizerMembershipsResponse {
   organizers: OrganizerMembership[];
-  auth_mode: 'supabase' | 'local';
+  auth_mode: 'supabase';
 }
 
 export interface AdminAuditLogEntry {
@@ -141,7 +149,7 @@ export interface AdminAuditLogEntry {
 
 export interface AdminAuditLogResponse {
   logs: AdminAuditLogEntry[];
-  auth_mode: 'supabase' | 'local';
+  auth_mode: 'supabase';
 }
 
 export interface LumaImportResponse {
@@ -198,6 +206,21 @@ export interface VolunteerApplicationsResponse {
   applications: VolunteerApplication[];
 }
 
+export interface AnnualConferenceWorkPlanResponse {
+  edition: AnnualConferenceEdition;
+  tasks: AnnualConferenceTask[];
+  summary: AnnualConferenceWorkPlanSummary;
+  permissions: {
+    can_create_tasks: boolean;
+    task_creator_email: string;
+  };
+}
+
+export interface EventChecklistResponse {
+  event_status: Event['status'];
+  items: EventChecklistItem[];
+}
+
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
@@ -209,6 +232,7 @@ export const queryKeys = {
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
   volunteerApplications: ['volunteer-applications'] as const,
+  annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
@@ -234,6 +258,34 @@ export function fetchVolunteerApplications() {
   return fetchJson<VolunteerApplicationsResponse>('/api/admin/volunteer-applications');
 }
 
+export function fetchAnnualConferenceWorkPlan(year: string) {
+  return fetchJson<AnnualConferenceWorkPlanResponse>(`/api/annual-conference/${year}/work-plan`, {
+    credentials: 'include',
+  });
+}
+
+export function createAnnualConferenceTask(year: string, input: AnnualConferenceTaskCreateInput) {
+  return fetchJson<AnnualConferenceTask>(`/api/annual-conference/${year}/work-plan`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAnnualConferenceTask(
+  year: string,
+  taskId: string,
+  input: AnnualConferenceTaskUpdateInput,
+) {
+  return fetchJson<AnnualConferenceTask>(`/api/annual-conference/${year}/work-plan/${taskId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
 export function summarizeRouteFeedback(submissions: RouteFeedbackSubmission[]): RouteFeedbackSummary {
   return {
     total: submissions.length,
@@ -250,6 +302,10 @@ export function fetchOverview() {
 
 export function fetchEvents() {
   return fetchJson<Event[]>('/api/events');
+}
+
+export function fetchEventChecklist(eventId: string) {
+  return fetchJson<EventChecklistResponse>(`/api/events/${eventId}/checklist`);
 }
 
 export function fetchEventById(eventId: string) {

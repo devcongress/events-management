@@ -22,7 +22,7 @@ The dev server runs Vite and the Hono API on the same origin. Open the local URL
 
 ## Environment Variables
 
-The app defaults to JSON mock data in local/dev runs, even when Supabase credentials exist in `.env.local`. Leave `APP_DATA_SOURCE` unset locally unless you are intentionally testing deployed-style Supabase persistence.
+The server falls back to JSON mock data when local/dev runs omit `APP_DATA_SOURCE`, even when Supabase credentials exist in `.env.local`. The committed example selects `APP_DATA_SOURCE=supabase` because organizer access now uses Supabase in every environment; choose `local-json` only for public-only local work where organizer routes are not needed.
 
 See [Environment Variables](../reference/environment-variables.md) for the full table.
 
@@ -48,15 +48,17 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 
 ## Organizer Login
 
-Hosted organizer routes use Supabase Google OAuth and app-owned HTTP-only sessions. In local development, the login screen falls back to a shared password unless you explicitly set `APP_DATA_SOURCE=supabase`. Set these values in `.env.local` if you do not want defaults:
+Organizer routes use Supabase Google OAuth and app-owned HTTP-only sessions in every environment. Set these values in `.env.local`:
 
 ```bash
+APP_DATA_SOURCE=supabase
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 VITE_SHOW_ORGANIZER_LINK=true
-ADMIN_PASSWORD=devcon-admin
-ADMIN_SESSION_SECRET=replace-this-locally
 ```
 
-Do not use development defaults in a public deployment. Configure `APP_DATA_SOURCE=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` for hosted admin auth, then bootstrap the first owner as described in [Admin Auth](../auth.md).
+Bootstrap the first owner as described in [Admin Auth](../auth.md). There is no local password fallback; incomplete Supabase configuration produces a visible configuration error and does not grant organizer access.
 Set `VITE_SHOW_ORGANIZER_LINK=false` in public deployments when you want to hide the Organizer button from the public header. This is only a visibility toggle; organizer routes remain directly reachable and require auth.
 
 ## Common Troubleshooting

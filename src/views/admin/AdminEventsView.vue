@@ -563,7 +563,7 @@ function goToPage(nextPage: number) {
           </section>
 
         <div class="ops-panel overflow-visible">
-          <div class="border-b border-dc-border bg-white px-4 py-3">
+          <div class="border-b border-dc-border bg-dc-paper-warm px-4 py-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p class="editorial-eyebrow">filter</p>

@@ -47,7 +47,7 @@ function increase() {
   <div class="block">
     <span v-if="label" class="editorial-label">{{ label }}</span>
     <div
-      class="mt-2 grid min-h-[50px] grid-cols-[2.75rem_1fr_2.75rem] overflow-hidden rounded-md border-2 border-dc-ink bg-dc-paper text-dc-ink focus-within:border-dc-pink focus-within:shadow-[0_0_0_3px_rgba(232,17,127,0.14)]"
+      class="mt-2 grid min-h-[50px] grid-cols-[2.75rem_1fr_2.75rem] overflow-hidden rounded-md border-2 border-dc-ink bg-dc-paper text-dc-ink focus-within:border-dc-pink focus-within:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
       :class="{ 'opacity-50': disabled }"
     >
       <button

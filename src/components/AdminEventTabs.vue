@@ -2,10 +2,11 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
-import { useRoute } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
-import { fetchEventById, queryKeys } from '@/src/lib/api';
+import { isSystemDesignDisabledForEvent } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
+import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 
 const props = defineProps<{
   eventId: string;
@@ -15,6 +16,7 @@ type AdminEventTab = {
   href: string;
   label: string;
   disabled?: boolean;
+  disabledReason?: string;
 };
 
 const route = useRoute();
@@ -22,15 +24,6 @@ const tabsTrack = ref<HTMLElement | null>(null);
 const tabElements = ref<HTMLElement[]>([]);
 const indicator = ref({ left: 0, width: 0, ready: false });
 
-const fullTabs: AdminEventTab[] = [
-  { href: '', label: 'Overview' },
-  { href: 'talks', label: 'Talks' },
-  { href: 'speakers', label: 'Speakers', disabled: true },
-  { href: 'quiz', label: 'Quiz', disabled: true },
-  { href: 'system-design', label: 'System Design' },
-  { href: 'feedback', label: 'Feedback' },
-  { href: 'attendance', label: 'Attendance' },
-];
 const quarterlyTabs: AdminEventTab[] = [
   { href: '', label: 'Overview' },
   { href: 'feedback', label: 'Feedback' },
@@ -40,8 +33,30 @@ const eventQuery = useQuery({
   queryFn: () => fetchEventById(props.eventId),
   enabled: Boolean(props.eventId),
 });
+const checklistQuery = useQuery({
+  queryKey: queryKeys.eventChecklist(props.eventId),
+  queryFn: () => fetchEventChecklist(props.eventId),
+  enabled: Boolean(props.eventId),
+});
 const isQuarterlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'quarterly' : false);
-const tabs = computed<AdminEventTab[]>(() => (isQuarterlyEvent.value ? quarterlyTabs : fullTabs));
+const systemDesignDisabled = computed(() => (
+  isSystemDesignDisabledForEvent(checklistQuery.data.value?.items ?? [])
+));
+const fullTabs = computed<AdminEventTab[]>(() => [
+  { href: '', label: 'Overview' },
+  { href: 'talks', label: 'Talks' },
+  { href: 'speakers', label: 'Speakers', disabled: true, disabledReason: 'Speakers are unavailable for this event.' },
+  { href: 'quiz', label: 'Quiz', disabled: true, disabledReason: 'Quiz is unavailable for this event.' },
+  {
+    href: 'system-design',
+    label: 'System Design',
+    disabled: systemDesignDisabled.value,
+    disabledReason: systemDesignDisabled.value ? 'No system design session this month.' : undefined,
+  },
+  { href: 'feedback', label: 'Feedback' },
+  { href: 'attendance', label: 'Attendance' },
+]);
+const tabs = computed<AdminEventTab[]>(() => (isQuarterlyEvent.value ? quarterlyTabs : fullTabs.value));
 
 function tabPath(href: string) {
   return href ? adminPath(`events/${props.eventId}/${href}`) : adminPath(`events/${props.eventId}`);
@@ -90,6 +105,10 @@ function setTabElement(element: Element | ComponentPublicInstance | null, index:
   }
 }
 
+function tabElementRef(index: number) {
+  return (element: Element | ComponentPublicInstance | null) => setTabElement(element, index);
+}
+
 function updateIndicator() {
   const index = activeIndex.value;
   const element = index >= 0 ? tabElements.value[index] : null;
@@ -129,11 +148,12 @@ watch(tabs, () => {
   <nav class="mb-5 overflow-x-auto">
     <div ref="tabsTrack" class="admin-event-tabs-track flex min-w-max gap-2 border-b-2 border-dc-border pb-3 font-mono text-xs font-bold uppercase tracking-wide">
       <span class="admin-event-tabs-indicator" :style="indicatorStyle" aria-hidden="true" />
-      <RouterLink
+      <component
         v-for="(tab, index) in tabs"
         :key="tab.href"
-        :ref="(element) => setTabElement(element, index)"
-        :to="tabTo(tab.href)"
+        :is="tab.disabled ? 'span' : RouterLink"
+        :ref="tabElementRef(index)"
+        :to="tab.disabled ? undefined : tabTo(tab.href)"
         class="admin-event-tab motion-press"
         :class="[
           tab.disabled
@@ -142,11 +162,12 @@ watch(tabs, () => {
               ? 'text-dc-ink'
               : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:bg-dc-paper-warm hover:text-dc-ink',
         ]"
-        :aria-current="isActive(tab.href) ? 'page' : undefined"
+        :aria-current="!tab.disabled && isActive(tab.href) ? 'page' : undefined"
         :aria-disabled="tab.disabled ? 'true' : undefined"
+        :title="tab.disabledReason"
       >
         <span>{{ tab.label }}</span>
-      </RouterLink>
+      </component>
     </div>
   </nav>
 </template>

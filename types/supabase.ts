@@ -6,6 +6,17 @@ export type CommunityEventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcomi
 export type CommunityEventSeriesType = 'monthly' | 'quarterly' | 'special';
 export type AdminRole = 'owner' | 'organizer';
 export type AdminMembershipStatus = 'active' | 'disabled';
+export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
+export type AnnualConferenceWorkstream =
+  | 'programme_speakers'
+  | 'volunteers'
+  | 'website_registration'
+  | 'sponsors_partners'
+  | 'venue_production_logistics'
+  | 'creative_marketing'
+  | 'photo_video_livestream'
+  | 'feedback_reporting';
+export type AnnualConferenceTaskPriority = 'high' | 'medium' | 'low';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -169,6 +180,125 @@ export interface Database {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      annual_conference_editions: {
+        Row: {
+          id: string;
+          year: number;
+          name: string;
+          label: string;
+          provisional_date: string | null;
+          date_status: 'provisional' | 'confirmed';
+          venue_note: string | null;
+          keynote_note: string | null;
+          task_creator_email: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          year: number;
+          name: string;
+          label: string;
+          provisional_date?: string | null;
+          date_status?: 'provisional' | 'confirmed';
+          venue_note?: string | null;
+          keynote_note?: string | null;
+          task_creator_email: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          year?: number;
+          name?: string;
+          label?: string;
+          provisional_date?: string | null;
+          date_status?: 'provisional' | 'confirmed';
+          venue_note?: string | null;
+          keynote_note?: string | null;
+          task_creator_email?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      annual_conference_tasks: {
+        Row: {
+          id: string;
+          edition_id: string;
+          title: string;
+          details: string | null;
+          internal_note: string | null;
+          workstream: AnnualConferenceWorkstream;
+          accountable_owner: string | null;
+          collaborators: string[];
+          priority: AnnualConferenceTaskPriority | null;
+          target_date: string | null;
+          status: AnnualConferenceTaskStatus;
+          dependency_note: string | null;
+          source: 'excel_seed' | 'manual';
+          source_row: number | null;
+          sort_order: number;
+          created_by_email: string | null;
+          updated_by_email: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          edition_id: string;
+          title: string;
+          details?: string | null;
+          internal_note?: string | null;
+          workstream: AnnualConferenceWorkstream;
+          accountable_owner?: string | null;
+          collaborators?: string[];
+          priority?: AnnualConferenceTaskPriority | null;
+          target_date?: string | null;
+          status?: AnnualConferenceTaskStatus;
+          dependency_note?: string | null;
+          source?: 'excel_seed' | 'manual';
+          source_row?: number | null;
+          sort_order?: number;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          edition_id?: string;
+          title?: string;
+          details?: string | null;
+          internal_note?: string | null;
+          workstream?: AnnualConferenceWorkstream;
+          accountable_owner?: string | null;
+          collaborators?: string[];
+          priority?: AnnualConferenceTaskPriority | null;
+          target_date?: string | null;
+          status?: AnnualConferenceTaskStatus;
+          dependency_note?: string | null;
+          source?: 'excel_seed' | 'manual';
+          source_row?: number | null;
+          sort_order?: number;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_tasks_edition_id_fkey';
+            columns: ['edition_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       community_events: {
         Row: {
@@ -455,6 +585,9 @@ export interface Database {
       community_event_status: CommunityEventStatus;
       admin_role: AdminRole;
       admin_membership_status: AdminMembershipStatus;
+      annual_conference_task_status: AnnualConferenceTaskStatus;
+      annual_conference_workstream: AnnualConferenceWorkstream;
+      annual_conference_task_priority: AnnualConferenceTaskPriority;
     };
     CompositeTypes: Record<string, never>;
   };

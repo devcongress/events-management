@@ -6,7 +6,6 @@ import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supaba
 import type { Database, Json } from '@/types/supabase';
 
 export const ADMIN_SESSION_COOKIE = 'devcon_admin';
-const LOCAL_ADMIN_COOKIE_PREFIX = 'local:';
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 // Bump last_seen_at at most once per interval; it is telemetry, not worth a
 // blocking write on every authenticated request.
@@ -16,7 +15,7 @@ export type AdminRole = 'owner' | 'organizer';
 
 export interface AdminSession {
   authenticated: true;
-  mode: 'supabase' | 'local';
+  mode: 'supabase';
   user_id: string | null;
   membership_id: string | null;
   email: string | null;
@@ -32,14 +31,6 @@ export type AdminSessionResult = AdminSession | AnonymousAdminSession;
 
 type BrowserSafeSupabaseClient = ReturnType<typeof createClient<Database, 'public'>>;
 let browserSafeClient: BrowserSafeSupabaseClient | null = null;
-
-function adminPassword(c: Context): string {
-  return envValue('ADMIN_PASSWORD', c) ?? 'devcon-admin';
-}
-
-function adminSessionSecret(c: Context): string {
-  return envValue('ADMIN_SESSION_SECRET', c) ?? 'devcon-local-session';
-}
 
 function isProduction(c: Context): boolean {
   return envValue('NODE_ENV', c) === 'production';
@@ -224,27 +215,9 @@ export async function completeSupabaseAdminToken(c: Context, accessToken: string
   });
 }
 
-export function startLocalAdminSession(c: Context, password: unknown): boolean {
-  if (String(password ?? '') !== adminPassword(c)) return false;
-  setCookie(c, ADMIN_SESSION_COOKIE, `${LOCAL_ADMIN_COOKIE_PREFIX}${adminSessionSecret(c)}`, sessionCookieOptions(c));
-  return true;
-}
-
 export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
   const token = getCookie(c, ADMIN_SESSION_COOKIE);
   if (!token) return { authenticated: false };
-
-  if (token === `${LOCAL_ADMIN_COOKIE_PREFIX}${adminSessionSecret(c)}`) {
-    return {
-      authenticated: true,
-      mode: 'local',
-      user_id: null,
-      membership_id: null,
-      email: 'local-admin@devcongress.local',
-      display_name: 'Local admin',
-      role: 'owner',
-    };
-  }
 
   if (!isSupabaseAdminAuthConfigured(c)) {
     return { authenticated: false };
@@ -288,7 +261,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
 
 export async function revokeAdminSession(c: Context): Promise<void> {
   const token = getCookie(c, ADMIN_SESSION_COOKIE);
-  if (token && !token.startsWith(LOCAL_ADMIN_COOKIE_PREFIX) && isSupabaseAdminAuthConfigured(c)) {
+  if (token && isSupabaseAdminAuthConfigured(c)) {
     await getSupabaseAdminClient(c)
       .from('admin_sessions')
       .update({ revoked_at: new Date().toISOString() })

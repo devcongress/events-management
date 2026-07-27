@@ -442,7 +442,7 @@ onMounted(async () => {
                   rel: 'noopener noreferrer',
                 } : {}"
                 class="mt-3 block w-fit text-2xl font-black tracking-tight text-dc-ink"
-                :class="item.resources[0] ? 'border-b-2 border-dc-pink/30 transition-colors hover:border-dc-ink' : ''"
+                :class="item.resources[0] ? 'border-b-2 border-dc-yellow transition-colors hover:border-dc-ink' : ''"
               >
                 {{ systemDesignDisplayTitle(item) }}
               </component>

@@ -5,6 +5,94 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-27 — Organizer feature handoff hardening
+
+- Made the committed local environment example organizer-capable by selecting the required Supabase data source, while retaining `local-json` as an explicit public-only development mode.
+- Added an explicit organizer access-check failure state with retry and return-to-sign-in actions so a failed session request cannot leave the branded first-load gate onscreen indefinitely.
+- Switched new Annual Conference owner and collaborator selections to stable organizer emails while continuing to display friendly names and preserving legacy Excel assignments.
+- Enforced the same ownership rules at the API boundary by validating changed assignments against active organizer memberships, deduplicating collaborators, and rejecting accountable/collaborator overlap.
+- Removed the retired floating website-feedback toggle from current environment and migration guidance, and corrected the remaining password-era verification note.
+
+## 2026-07-27 — Compact attendance pattern charts
+
+- Replaced the Attendance Hub's four stacked planning cards with one compact three-view panel so the monthly ledger remains the primary surface without adding more page height.
+- Added a grouped bar chart for approved RSVPs versus check-ins across the latest six uploaded events, a five-bin histogram for repeat RSVP follow-through, and a selected-year pie chart for approved attendees versus no-shows.
+- Kept chart populations honest by excluding missing CSVs and pending or declined registrations, while retaining CSV coverage, median turnout, P80 turnout, and the room-capacity guide in the same panel.
+- Verified all three accessible chart summaries, zero horizontal overflow, and no browser errors at 1440px and 768px.
+
+## 2026-07-27 — RSVP follow-through trails
+
+- Replaced the repeat-attendee table's separate registration, check-in, and percentage columns with one chronological RSVP trail: pink checks show attended meetups, yellow crosses show approved RSVPs without a check-in, and exact came/missed counts plus the follow-through rate stay on the same row.
+- Ranked the table by repeat RSVP history so recurring attendees and recurring no-shows can both surface, excluded pending and declined registrations from the missed signal, and corrected the final column to show the person's latest actual check-in rather than their latest registration.
+
+## 2026-07-26 — Simpler speaker archive form
+
+- Removed GitHub username from the speaker archive intake UI, its local form state, and the browser-submitted payload; existing backend records and the separate CFP/admin talk contracts remain compatible.
+
+## 2026-07-26 — Content-sized Work Plan ledger
+
+- Replaced the Work Plan ledger’s fixed viewport height with an auto-sized task area that grows with its rows and becomes scrollable only after reaching the existing viewport cap.
+- Added a 220ms transform-and-opacity View Transition for status, workstream, owner, and clear-filter changes so the ledger morphs between result sizes without animating layout properties or wobbling the page.
+- Kept keyboard search immediate, disabled the transition for reduced-motion users, and prevented scroll anchoring from moving the page while results change.
+
+## 2026-07-26 — Editorial Annual Conference briefing
+
+- Replaced the boxed Annual Conference snapshot with an unboxed editorial edition brief: the provisional date anchors the page, delivery progress stays immediately visible, and Work Plan is the only filled action.
+- Moved venue and keynote facts behind a compact anchored Planning notes disclosure, while Volunteers remains a quiet utility route so secondary information does not compete with the next operational action.
+- Removed the redundant overview-only “Conference workspace” title and divider, preserving the shared edition navigation while letting the conference date become the page heading.
+- Preserved the deployed DevCongress cream, saturated pink, yellow, and ink palette; the disclosure uses transform-and-opacity motion, focus restoration, outside-click and Escape dismissal, and reduced-motion support.
+- Replaced the Work Plan ledger’s ambiguous plus/minus controls with eye icons and explicit “View details” labels so task inspection no longer resembles task creation.
+
+## 2026-07-26 — Clear attendance turnout denominators
+
+- Expanded each imported event's Attendance Hub readout from a standalone check-in count and rate to `checked in out of total registrations`, with the displayed percentage calculated from that same total so the values cannot contradict one another.
+
+## 2026-07-26 — Original organizer UI restored
+
+- Rebuilt the Annual Conference overview as one compact planning snapshot: the provisional date and Work Plan progress stay visible, Volunteers is a quiet secondary action, and venue/keynote notes open from an animated Edition details disclosure instead of occupying a permanent second card.
+- Replaced free-text accountable-owner entry with the shared app dropdown, populated from active organizer memberships and labelled with each organizer's name and email. Older assignments remain visible until an active organizer is selected.
+- Replaced comma-separated collaborator entry with an organizer multi-select that stays open for multiple choices, shows selected counts and checkmarks, and prevents the accountable owner from also being selected as a collaborator.
+- Aligned Priority and Target date as equal-height drawer controls, replacing the browser date field with the shared DevCongress calendar, day-first dates, coordinated dropdown dismissal, arrow-key navigation, focus restoration, and viewport-contained scrolling.
+- Kept the Add task action visible for every organizer instead of silently removing it: Angela sees the active create action, while other organizers see a clearly locked control that explains the named-creator restriction without weakening server authorization.
+- Consolidated the Annual Conference edition label, workspace navigation, page title, description, and page actions into one shared header so Work Plan, Volunteers, and Overview no longer repeat the same context.
+- Removed the duplicate Delivery Map from the Annual Conference overview; workstream progress remains available in the Work Plan.
+- Moved task creation, details, and editing into one accessible right-side drawer with a transform-only Slide in, a subtle left-origin content entrance, Escape/backdrop dismissal, focus trapping and restoration, scroll locking, and reduced-motion support.
+- Removed organizer breadcrumbs and their event-name lookup so pages begin directly beneath the primary or event navigation without an extra context strip.
+- Rolled back the route-wide minimalist/editorial redesign to the earlier DevCongress presentation: cream canvas and header, saturated yellow and pink accents, ink borders and offset shadows, and boxed tabs.
+- Restored the established route compositions for Events, Attendance, Feedback, Annual Conference, Organizers, Audit Log, and event-scoped work instead of applying one flattened surface and progressive-disclosure pattern everywhere.
+- Kept the approved functional work: Supabase-only organizer authentication, the branded first-load gate, event-only Feedback Hub, compact Annual Conference Work Plan and Volunteers actions, four task statuses, one accountable owner, collaborators, and named task-creation permission.
+- Returned lifecycle guidance, organizer access rules, event-feedback analytics, and Annual Conference workstreams to the earlier visible interaction patterns without the resize wobble introduced by the redesign.
+- Verified nine organizer routes at 1440px, 900px, and 768px, plus Mobile Ops at 390px, with no browser errors or horizontal overflow.
+- Verified all 88 tests, `pnpm typecheck`, `pnpm build`, and `git diff --check`.
+
+## 2026-07-26 — Event-only Feedback Hub
+
+- Changed the organizer Feedback Hub to open event feedback reports directly instead of presenting website and event feedback as two separate streams.
+- Removed the website-notes card, website-feedback inbox, and app-shell website-feedback badge from the active organizer UI.
+- Simplified each event row to Responses, Rating, and Attend again; missed-session analysis remains in the detailed event report.
+- Replaced the response download button's heavy black fill with the app's yellow action treatment.
+- Preserved event campaign, response, preview, QR-display, and month-aware return links while leaving the legacy app-feedback storage and API contract untouched.
+
+## 2026-07-26 — Annual conference overview and shared work plan
+
+- Replaced the static annual-conference overview with live progress, provisional 19 December edition facts, current venue/keynote decisions, and per-workstream delivery counts.
+- Added a searchable, filterable Work plan with exactly Not started, In progress, Blocked, and Done; all organizers can edit task details, accountability, collaborators, dates, dependencies, and notes.
+- Replaced the full-card task stack with a compact status strip, eight-workstream snapshot, and bounded task ledger so organizers can scan the conference on one screen and disclose task details or editing only when needed.
+- Imported the 26 non-empty Excel rows as a one-time December 2026 seed, assigning the first listed person as accountable and the remaining names as collaborators while leaving `All`, `TBD`, and blank owners unassigned.
+- Defined the live volunteer form as Done without treating review, assignment, briefing, or communications as complete.
+- Added relational Supabase edition/task tables with a local JSON fallback, authenticated API routes, audit entries, input validation, and server-enforced task creation restricted to `angelateyvi@gmail.com`.
+- Kept finance as a later restricted module and left reminders out of this release.
+- Verified all 86 tests, `pnpm typecheck`, `pnpm build`, authenticated local API reads/authorization, and zero horizontal overflow at 1440px and 900px.
+
+## 2026-07-26 — Optional monthly system design sessions
+
+- Added an explicit `Not this month` choice to the incomplete `Prepare system design session` checklist milestone, including for events that have already been published.
+- Persisted that per-event choice through the existing checklist `disabled_at` state, so no database or event-schema migration is required.
+- Made the event tab bar consume the shared checklist query and render System Design as a genuinely non-interactive tab with no link when that month excludes the session.
+- Added `Include this month` to reverse the choice, restore the tab immediately, and keep other published checklist milestones protected from availability changes.
+- Added focused policy tests and verified both directions in a 1280×900 browser run against a published monthly-event fixture.
+- `pnpm typecheck`, all 80 tests, `pnpm build`, and `git diff --check` pass.
+
 ## 2026-07-26 — Clear Luma rate-limit messaging
 
 - Preserved Luma's upstream rate-limit failure as an HTTP 429 and now tell organizers that Luma is temporarily limiting DevCongress imports instead of collapsing the failure into a generic 502.
@@ -15,19 +103,19 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Registered the generated `/speaker-talks/:eventId/:token` URL with the active Vue router so private backfill and selected-speaker links no longer fall through to the Events page.
 - Kept speaker intake as a standalone public exception without organizer navigation and added focused route coverage for event and token matching.
 
-## 2026-07-26 — Bounded monthly feedback windows and response scrolling
+## 2026-07-26 — Bounded monthly feedback windows and downloadable reports
 
 - Restored a real server-enforced feedback window for monthly meetups: forms without an explicit deadline now close 24 hours after `end_date`, or after `event_date` when no end time exists.
 - Kept late feedback recoverable without leaving forms open indefinitely by adding `Reopen for 24 hours`, plus an explicit `Close now` action for organizers.
 - Updated published feedback screens to show accurate Scheduled, Open, Auto-closed, or Closed status and expose attendee links/QR controls only while submissions are accepted.
-- Moved the response inbox into a bounded, keyboard-focusable, overscroll-contained inner scroller so long response lists no longer extend the entire organizer page.
 - Added an aggregate response dashboard with rating-distribution bars, a return-intent donut, and per-session score bars that keep missed-session counts separate from averages.
-- Reworked the inbox into a scalable response explorer with text search, signal filters, four sort modes, 25-row pagination, and CSV export of the current result set.
+- Removed the individual-response inbox from the organizer page and replaced it with one header-level CSV download containing every submission, one response per row, and all configured questions as columns.
+- Extracted the export into a pure tested helper and neutralized formula-like attendee answers before they reach spreadsheet software.
 - Kept the reporting surface dependency-free and extracted its aggregate calculations into a pure tested module.
 - Added six focused feedback-window tests covering monthly automatic windows, manual publishing, explicit reopening, manual closure, and unchanged quarterly behavior.
 - Added five focused reporting tests covering distributions, per-session averages, missed-session exclusion, yes/no summaries, comments, and empty states.
-- Verified the contained response list and both close/reopen UI states in a local 1280×900 browser run, then exercised the dashboard, pagination, search, filters, CSV export, and zero-overflow tablet layout with 200 mocked responses.
-- `pnpm typecheck`, all 72 tests, `pnpm build`, and `git diff --check` pass.
+- Verified both close/reopen UI states in a local 1280×900 browser run, then exercised the aggregate dashboard and zero-overflow tablet layout with 200 mocked responses.
+- `pnpm typecheck`, all 77 tests, `pnpm build`, and `git diff --check` pass.
 
 ## 2026-07-26 — Organizer responsive and performance hardening
 

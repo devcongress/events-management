@@ -80,7 +80,7 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 | [Architecture](docs/architecture.md) | App shape, route groups, API surface, persistence, realtime, and auth strategy |
 | [Implementation Notes](docs/implementation.md) | Entry points, module breakdown, constants, and key flows |
 | [Local Development](docs/technical/local-development.md) | Setup, scripts, seed data, environment variables, and troubleshooting |
-| [Auth](docs/auth.md) | Supabase organizer auth, local fallback, roles, sessions, and security notes |
+| [Auth](docs/auth.md) | Supabase-only organizer auth, roles, sessions, and security notes |
 | [Deployment Plan](docs/deployment-cloudflare-supabase.md) | Cloudflare Pages/Workers, Supabase, and production rollout notes |
 | [Public Meetup API](docs/public-meetups-api.md) | Read-only meetup API contract for `devcongress.org` integration |
 

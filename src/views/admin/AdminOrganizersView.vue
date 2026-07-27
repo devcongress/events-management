@@ -30,7 +30,6 @@ const adminSessionQuery = useQuery({
 });
 
 const organizers = computed(() => organizersQuery.data.value?.organizers ?? []);
-const authMode = computed(() => organizersQuery.data.value?.auth_mode ?? 'supabase');
 const currentUserRole = computed<AdminRole | null>(() => adminSessionQuery.data.value?.user?.role ?? null);
 const currentUserEmail = computed(() => adminSessionQuery.data.value?.user?.email?.toLowerCase() ?? null);
 const activeOrganizers = computed(() => organizers.value.filter((organizer) => organizer.status === 'active'));
@@ -159,7 +158,7 @@ function disableOrganizer(organizer: OrganizerMembership) {
 }
 
 function canDisableOrganizer(organizer: OrganizerMembership): boolean {
-  if (authMode.value === 'local' || organizer.status !== 'active' || disableOrganizerMutation.isPending.value) return false;
+  if (organizer.status !== 'active' || disableOrganizerMutation.isPending.value) return false;
   if (currentUserEmail.value && organizer.email.toLowerCase() === currentUserEmail.value) return false;
 
   if (organizer.role === 'owner') {
@@ -233,15 +232,7 @@ function roleLabel(role: AdminRole): string {
       <AdminOrganizersPageSkeleton v-if="loading" />
 
       <template v-else>
-        <div v-if="authMode === 'local'" class="editorial-panel mb-6 p-6">
-          <p class="editorial-eyebrow">local fallback</p>
-          <h2 class="mt-2 text-2xl font-black text-dc-ink">Supabase auth is not configured</h2>
-          <p class="mt-3 max-w-2xl text-sm leading-6 text-dc-gray">
-            Local development is using the shared admin password. Organizer email management becomes available once Supabase URL, anon key, and service-role key are configured.
-          </p>
-        </div>
-
-        <form v-else class="mb-3 rounded-md border border-dc-border bg-dc-paper p-3 sm:p-4" @submit.prevent="submitOrganizer">
+        <form class="mb-3 rounded-md border border-dc-border bg-dc-paper p-3 sm:p-4" @submit.prevent="submitOrganizer">
           <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-1">add access</p>

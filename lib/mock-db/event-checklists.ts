@@ -1,4 +1,5 @@
 import { readData, writeData } from './index';
+import { SYSTEM_DESIGN_CHECKLIST_LABEL } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { generateId, now } from '@/lib/utils';
 import type { Event, EventChecklistItem, EventChecklistPhase, EventStatus } from '@/types';
@@ -52,7 +53,7 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
   },
   {
     phase: 'program',
-    label: 'Prepare system design session',
+    label: SYSTEM_DESIGN_CHECKLIST_LABEL,
     description: 'Add the monthly architecture scenario, facilitator, and discussion slot.',
     status_on_complete: null,
   },
