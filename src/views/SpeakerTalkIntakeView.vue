@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import {
+  SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
+  SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
+} from '@/lib/speaker-intake-limits';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import type { ArchiveItemKind, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
-type IntakeEvent = Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'status'>;
+type IntakeEvent = Pick<Event, 'id' | 'name' | 'event_date' | 'status'>;
 type IntakePrefill = {
   speaker_name?: string;
   speaker_email?: string;
@@ -17,7 +21,6 @@ type IntakePrefill = {
 
 const route = useRoute();
 const event = ref<IntakeEvent | null>(null);
-const expiresAt = ref<string | null>(null);
 const linkPurpose = ref<SpeakerIntakeLinkPurpose>('archive_backfill');
 const archiveItemKind = ref<ArchiveItemKind>('talk');
 const loading = ref(true);
@@ -85,36 +88,35 @@ function resourceLabel() {
 
 function archiveHeading() {
   if (isSelectedSpeakerLink()) {
-    return isProductDemo() ? 'Send Your Demo Link' : 'Send Your Slides';
+    return isProductDemo() ? 'Add Your Demo Link' : 'Add Your Slides';
   }
 
   return isProductDemo() ? 'Share Product Demo Details' : 'Share Talk Details';
 }
 
-function archiveIntro() {
+function archiveDescription() {
   if (isSelectedSpeakerLink()) {
-    return isProductDemo()
-      ? 'The organizers already have your selected demo details. Add the public product or demo link to complete the archive record.'
-      : 'The organizers already have your selected talk details. Add your slides link to complete the archive record.';
+    return 'Add the public link to complete the DevCongress archive.';
   }
 
   return isProductDemo()
-    ? 'Complete the product demo record the organizers requested. Your name and email are already secured to this private link.'
-    : 'Complete the talk record the organizers requested. Your name and email are already secured to this private link.';
+    ? 'Your demo title is set. Add the remaining details to the DevCongress archive.'
+    : 'Your talk title is set. Add the remaining details to the DevCongress archive.';
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
+function displayEventName() {
+  const fullName = event.value?.name.trim() ?? '';
+  return fullName || 'this event';
 }
 
-function formatDateTime(value: string): string {
+function displayEventDate() {
+  if (!event.value?.event_date) return '';
+
   return new Intl.DateTimeFormat('en', {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date(value));
+  }).format(new Date(event.value.event_date));
 }
 
 async function submitTalkDetails() {
@@ -123,7 +125,6 @@ async function submitTalkDetails() {
   const payload = isSelectedSpeakerLink()
     ? { slides_url: form.slides_url }
     : {
-      title: form.title,
       topic: form.topic,
       abstract: form.abstract,
       bio: form.bio,
@@ -156,7 +157,6 @@ onMounted(async () => {
     const data = await response.json().catch(() => ({}));
     if (response.ok) {
       event.value = data.event;
-      expiresAt.value = data.link?.expires_at ?? null;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
       archiveItemKind.value = data.link?.kind === 'product_demo' ? 'product_demo' : 'talk';
       applyPrefill(data.prefill ?? {});
@@ -216,33 +216,29 @@ function applyPrefill(prefill: IntakePrefill) {
     </div>
 
     <div v-else class="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-      <div class="editorial-header !mb-5 !pb-5">
-        <p class="editorial-eyebrow">{{ isSelectedSpeakerLink() ? `selected ${archiveItemLabel()}` : `${archiveItemLabel()} archive` }}</p>
-        <h1 class="editorial-title">{{ archiveHeading() }}</h1>
-        <p class="editorial-subtitle">
-          {{ event.name }} · {{ formatDate(event.event_date) }}
+      <header class="mb-5 sm:mb-6">
+        <img
+          src="/brand/dev-con-logo.png"
+          alt="DevCongress"
+          class="mb-5 h-auto w-40 max-w-[56vw] sm:w-48"
+        >
+        <h1 class="max-w-3xl text-3xl font-bold leading-none tracking-tight text-dc-ink sm:text-4xl">
+          {{ archiveHeading() }}
+        </h1>
+        <p class="mt-2 max-w-3xl text-sm font-medium leading-5 text-dc-gray sm:text-base">
+          {{ displayEventName() }}<span v-if="displayEventDate()"> · {{ displayEventDate() }}</span>
         </p>
-        <p class="mt-3 max-w-2xl text-sm font-medium leading-6 text-dc-gray">{{ archiveIntro() }}</p>
-      </div>
+        <p class="mt-3 max-w-xl text-sm leading-5 text-dc-gray sm:text-base">
+          {{ archiveDescription() }}
+        </p>
+      </header>
 
-      <div
-        v-if="event.description || expiresAt"
-        class="mb-4 flex flex-col gap-2 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111] sm:flex-row sm:items-center sm:justify-between sm:gap-6"
-      >
-        <p v-if="event.description" class="line-clamp-2 min-w-0 flex-1 text-sm leading-5 text-dc-gray sm:line-clamp-1">
-          {{ event.description }}
-        </p>
-        <p v-if="expiresAt" class="shrink-0 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">
-          Link expires {{ formatDateTime(expiresAt) }}
-        </p>
-      </div>
-
-      <form class="editorial-panel space-y-5 p-5 sm:p-6" @submit.prevent="submitTalkDetails">
+      <form class="speaker-intake-form space-y-6 border-t border-dc-border pt-6" @submit.prevent="submitTalkDetails">
         <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
 
-        <div v-if="isSelectedSpeakerLink()" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-          <p class="editorial-eyebrow">Selected {{ archiveItemLabel() }}</p>
-          <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
+        <div v-if="isSelectedSpeakerLink()" class="border-l-4 border-dc-yellow pl-4">
+          <p class="editorial-label">Selected {{ archiveItemLabel() }}</p>
+          <h2 class="text-xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
           <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
             {{ form.speaker_name }} <span class="mx-2 text-dc-pink">/</span> {{ form.topic || 'General' }}
           </p>
@@ -250,16 +246,18 @@ function applyPrefill(prefill: IntakePrefill) {
         </div>
 
         <template v-else>
-          <section class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-            <p class="editorial-eyebrow">Invited {{ presenterLabel() }}</p>
-            <p class="mt-2 text-xl font-bold tracking-tight text-dc-ink">{{ form.speaker_name }}</p>
-            <p class="mt-1 font-mono text-xs font-semibold text-dc-gray">{{ form.speaker_email }}</p>
-          </section>
-
           <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
             <label class="block">
-              <span class="editorial-label">{{ archiveItemLabel() }} title *</span>
-              <input v-model="form.title" required :placeholder="`${archiveItemLabel()} title`" class="editorial-input" />
+              <span class="mb-2 flex items-center justify-between gap-3">
+                <span class="editorial-label !mb-0">{{ archiveItemLabel() }} title</span>
+                <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Locked</span>
+              </span>
+              <input
+                v-model="form.title"
+                readonly
+                aria-readonly="true"
+                class="speaker-intake-readonly editorial-input"
+              />
             </label>
             <AppDropdown
               v-model="form.topic"
@@ -271,13 +269,37 @@ function applyPrefill(prefill: IntakePrefill) {
 
           <div class="grid min-w-0 gap-4 lg:grid-cols-2">
             <label class="block min-w-0">
-              <span class="editorial-label">{{ isProductDemo() ? 'Demo summary' : 'Abstract' }}</span>
-              <textarea v-model="form.abstract" rows="4" class="editorial-input min-h-28 resize-y" />
+              <span class="mb-2 flex items-end justify-between gap-3">
+                <span class="editorial-label !mb-0">{{ isProductDemo() ? 'Demo summary' : 'Abstract' }}</span>
+                <span id="speaker-archive-abstract-count" class="font-mono text-[11px] font-semibold tabular-nums text-dc-gray">
+                  {{ form.abstract.length }} / {{ SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS }}
+                  <span class="sr-only">characters</span>
+                </span>
+              </span>
+              <textarea
+                v-model="form.abstract"
+                rows="4"
+                :maxlength="SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS"
+                aria-describedby="speaker-archive-abstract-count"
+                class="editorial-input h-28 resize-none overflow-y-auto"
+              />
             </label>
 
             <label class="block min-w-0">
-              <span class="editorial-label">{{ presenterLabel() }} bio</span>
-              <textarea v-model="form.bio" rows="4" class="editorial-input min-h-28 resize-y" />
+              <span class="mb-2 flex items-end justify-between gap-3">
+                <span class="editorial-label !mb-0">{{ presenterLabel() }} bio</span>
+                <span id="speaker-archive-bio-count" class="font-mono text-[11px] font-semibold tabular-nums text-dc-gray">
+                  {{ form.bio.length }} / {{ SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS }}
+                  <span class="sr-only">characters</span>
+                </span>
+              </span>
+              <textarea
+                v-model="form.bio"
+                rows="4"
+                :maxlength="SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS"
+                aria-describedby="speaker-archive-bio-count"
+                class="editorial-input h-28 resize-none overflow-y-auto"
+              />
             </label>
           </div>
         </template>
@@ -288,7 +310,7 @@ function applyPrefill(prefill: IntakePrefill) {
             <input v-model="form.slides_url" :required="isSelectedSpeakerLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
           </label>
 
-          <button type="submit" :disabled="submitting" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-72">
+          <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-56">
             {{
               submitting
                 ? 'SUBMITTING...'
@@ -306,3 +328,43 @@ function applyPrefill(prefill: IntakePrefill) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.speaker-intake-form :deep(.editorial-label) {
+  color: #555555;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.speaker-intake-form :deep(.editorial-input),
+.speaker-intake-form :deep(button[aria-haspopup='listbox']) {
+  min-height: 3.1rem;
+  border-width: 1px;
+  border-color: #c9c5bc;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
+}
+
+.speaker-intake-form :deep(.editorial-input:focus),
+.speaker-intake-form :deep(button[aria-haspopup='listbox']:focus),
+.speaker-intake-form :deep(button[aria-haspopup='listbox'][aria-expanded='true']) {
+  border-color: #111111;
+  box-shadow: 0 0 0 3px rgba(245, 230, 66, 0.5);
+}
+
+.speaker-intake-form :deep(.speaker-intake-readonly) {
+  cursor: default;
+  background: #f8f5ed;
+  color: #333333;
+}
+
+.speaker-intake-form :deep(.speaker-intake-readonly:focus) {
+  border-color: #c9c5bc;
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
+}
+
+.speaker-intake-submit {
+  min-height: 3rem;
+}
+</style>

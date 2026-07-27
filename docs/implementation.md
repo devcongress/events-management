@@ -285,9 +285,9 @@ POST /api/events/[eventId]/talks
 ### Event Archive Intake
 ```
 POST /api/events/[eventId]/speaker-intake-links
-  body: { kind: 'talk' | 'product_demo', speaker_name, speaker_email, expires_in_days }
+  body: { kind: 'talk' | 'product_demo', speaker_name, speaker_email, title, expires_in_days }
   → admin-only; creates a month-scoped, one-time Archive Request token
-  → locks the event, invited identity, and archive-item kind into that token
+  → locks the event, invited identity, archive-item kind, and title into that token
   → only one matching active manual token may exist for the same event, email, and kind; different recipients may use the same expiry duration
 
 POST /api/events/[eventId]/speaker-intake-emails
@@ -302,9 +302,9 @@ GET  /api/events/[eventId]/speaker-intake/[token]
   → returns public event context and the locked kind only when the link is active
 
 POST /api/events/[eventId]/speaker-intake/[token]
-  body for archive_backfill links: { title, topic?, abstract?, bio?, slides_url? }
+  body for archive_backfill links: { topic?, abstract?, bio?, slides_url? }
   body for selected_speaker_confirmation links: { slides_url }
-  → manual-request identity, event, and kind come from the organizer-issued token, not browser-provided form fields
+  → manual-request identity, event, kind, and title come from the organizer-issued token, not browser-provided form fields
   → creates/keeps the separate speaker allowlist row for that invited email
   → July manual Archive Requests create accepted or slides_received compatibility Talk records from submitted details
   → the later selected-proposal flow creates the same compatibility record from the proposal, its stored kind, and the submitted slides URL
