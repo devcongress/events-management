@@ -16,6 +16,10 @@ function truncateCardTitle(value: string, maxLength = 56): string {
   return `${characters.slice(0, maxLength - 1).join('').trimEnd()}…`;
 }
 
+function firstName(value: string): string {
+  return value.trim().split(/\s+/)[0] || 'there';
+}
+
 export function monthlyArchiveRequestEmail(input: {
   eventName: string;
   speakerName: string;
@@ -24,7 +28,8 @@ export function monthlyArchiveRequestEmail(input: {
   expiresAt: string;
 }): { subject: string; html: string; text: string } {
   const safeEventName = escapeHtml(input.eventName);
-  const safeSpeakerName = escapeHtml(input.speakerName);
+  const speakerFirstName = firstName(input.speakerName);
+  const safeSpeakerFirstName = escapeHtml(speakerFirstName);
   const safeTalkTitle = escapeHtml(input.talkTitle);
   const safeCardTitle = escapeHtml(truncateCardTitle(input.talkTitle));
   const safePrivateUrl = escapeHtml(input.privateUrl);
@@ -105,8 +110,7 @@ export function monthlyArchiveRequestEmail(input: {
         color-scheme: light dark;
         supported-color-schemes: light dark;
       }
-      u + .email-body .email-brand,
-      u + .email-body .email-cta-cell {
+      u + .email-body .email-brand {
         background-repeat: repeat !important;
       }
       @media only screen and (max-width: 640px) {
@@ -114,7 +118,6 @@ export function monthlyArchiveRequestEmail(input: {
         .email-pad { padding: 28px 22px !important; }
         .email-brand-pad { padding: 20px 22px !important; }
         .email-logo { width: 190px !important; }
-        .email-cta { display: block !important; text-align: center !important; }
         .email-heading { font-size: 29px !important; }
       }
       @media only screen and (max-width: 640px) and (prefers-color-scheme: dark) {
@@ -124,7 +127,6 @@ export function monthlyArchiveRequestEmail(input: {
         .email-logo { width: 166px !important; }
         .email-heading { font-size: 27px !important; line-height: 1.13 !important; }
         .email-copy { font-size: 15px !important; line-height: 1.58 !important; }
-        .email-cta { padding: 13px 16px !important; font-size: 12px !important; letter-spacing: .02em !important; }
       }
       @media (prefers-color-scheme: dark) {
         .email-body,
@@ -164,8 +166,7 @@ export function monthlyArchiveRequestEmail(input: {
         .email-session-label { color: #FF5AA5 !important; }
         .email-session-title { color: #E5E5E5 !important; }
         .email-session-event { color: #A1A1A1 !important; }
-        .email-cta-cell { background: #E5E5E5 !important; border-color: #E5E5E5 !important; }
-        .email-cta { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+        .email-cta { color: #FF5AA5 !important; -webkit-text-fill-color: #FF5AA5 !important; }
       }
       [data-ogsc] .email-body,
       [data-ogsc] .email-canvas {
@@ -204,8 +205,7 @@ export function monthlyArchiveRequestEmail(input: {
       [data-ogsc] .email-session-label { color: #FF5AA5 !important; }
       [data-ogsc] .email-session-title { color: #E5E5E5 !important; }
       [data-ogsc] .email-session-event { color: #A1A1A1 !important; }
-      [data-ogsc] .email-cta-cell { background: #E5E5E5 !important; border-color: #E5E5E5 !important; }
-      [data-ogsc] .email-cta { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+      [data-ogsc] .email-cta { color: #FF5AA5 !important; -webkit-text-fill-color: #FF5AA5 !important; }
     </style>
   </head>
   <body class="email-body" style="margin:0;background:#F5F2E8;color:#111111;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
@@ -243,7 +243,7 @@ export function monthlyArchiveRequestEmail(input: {
             <tr>
               <td bgcolor="#FFFFFF" class="email-pad email-content" style="padding:38px 40px 36px;background:#FFFFFF;">
                 <p class="email-eyebrow" style="margin:0 0 10px;color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Archive request / ${safeEventName}</p>
-                <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;letter-spacing:-.02em;">Hi ${safeSpeakerName},</h1>
+                <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;letter-spacing:-.02em;">Hi ${safeSpeakerFirstName},</h1>
                 <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:17px;line-height:1.6;">Let&rsquo;s give your session a permanent home in the DevCongress community archive.</p>
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5F2E8" class="email-session-card" style="width:100%;margin:0 0 24px;background:#F5F2E8;border:1px solid #D8D2C4;border-radius:8px;">
@@ -260,13 +260,9 @@ export function monthlyArchiveRequestEmail(input: {
                 </table>
 
                 <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:16px;line-height:1.65;">Add your presentation details and public resource using the private link below. It is secured to you and will close after a successful submission.</p>
-                <table role="presentation" cellspacing="0" cellpadding="0">
-                  <tr>
-                    <td bgcolor="#111111" class="email-cta-cell" style="background:#111111;background-image:linear-gradient(#111111,#111111);border:2px solid #111111;border-radius:6px;">
-                      <a href="${safePrivateUrl}" class="email-cta" style="display:inline-block;padding:15px 22px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-family:'IBM Plex Mono','Courier New',monospace;font-size:14px;font-weight:700;letter-spacing:.03em;text-decoration:none;text-transform:uppercase;">Add presentation details&nbsp;&nbsp;&rarr;</a>
-                    </td>
-                  </tr>
-                </table>
+                <p style="margin:0;">
+                  <a href="${safePrivateUrl}" class="email-cta" style="color:#C80D68;-webkit-text-fill-color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:13px;font-weight:700;letter-spacing:.03em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;text-transform:uppercase;">Open your private form&nbsp;&nbsp;&rarr;</a>
+                </p>
               </td>
             </tr>
             <tr>
@@ -285,7 +281,7 @@ export function monthlyArchiveRequestEmail(input: {
 </html>`;
 
   const text = [
-    `Hi ${input.speakerName},`,
+    `Hi ${speakerFirstName},`,
     '',
     `Thanks for being part of ${input.eventName}. We are completing the community archive for "${input.talkTitle}".`,
     '',
