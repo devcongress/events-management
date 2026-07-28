@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-28 — Readable Archive Request email action
+
+- Replaced the dark-mode-fragile boxed form action with a high-contrast underlined pink text link, which avoids Gmail repainting its background and label into the same colour.
+- Shortened personalized greetings to the first word of the invited speaker name in both HTML and plain-text email.
+
 ## 2026-07-27 — Stable Archive Request email contrast
 
 - Removed all live text from yellow email surfaces, replacing the presentation area with a neutral session card and the yellow CTA with a high-contrast action button.
