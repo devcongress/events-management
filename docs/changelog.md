@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-27 — Stable Archive Request email contrast
+
+- Removed all live text from yellow email surfaces, replacing the presentation area with a neutral session card and the yellow CTA with a high-contrast action button.
+- Retained DevCongress yellow only in image-based brand accents so Gmail mobile dark mode cannot create white-on-yellow copy.
+
 ## 2026-07-27 — Resend-powered Archive Request emails
 
 - Replaced one-at-a-time link generation and the obstructive speaker dropdown with an inline program roster that keeps selection, topic context, and per-speaker email entry in the same row, with bulk select/clear controls and up to 100 personalized sends per organizer action.

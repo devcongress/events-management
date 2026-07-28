@@ -3875,7 +3875,11 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
     }
 
     const workingLinks = [...existingLinks];
-    const pendingSends: { link: SpeakerIntakeLink; token: string; item: NonNullable<(typeof recipients)[number]['item']> }[] = [];
+    const pendingSends: {
+      link: SpeakerIntakeLink;
+      token: string;
+      item: NonNullable<(typeof recipients)[number]['item']>;
+    }[] = [];
     const alreadyAccepted: SpeakerIntakeLink[] = [];
 
     for (const recipient of recipients) {

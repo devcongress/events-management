@@ -106,36 +106,14 @@ export function monthlyArchiveRequestEmail(input: {
         supported-color-schemes: light dark;
       }
       u + .email-body .email-brand,
-      u + .email-body .email-yellow-surface {
+      u + .email-body .email-cta-cell {
         background-repeat: repeat !important;
-      }
-      u + .email-body .email-on-yellow {
-        color: #111111 !important;
-        -webkit-text-fill-color: #111111 !important;
-      }
-      /* Gmail iOS may invert ordinary text on a preserved yellow surface.
-         Paint the letters with a fixed black gradient instead of a mutable fill. */
-      u + .email-body .email-yellow-text-lock {
-        color: #111111 !important;
-        background-image: linear-gradient(#111111, #111111) !important;
-        -webkit-background-clip: text !important;
-        background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-      }
-      .email-yellow-text-lock {
-        color: #111111 !important;
-        background-image: linear-gradient(#111111, #111111) !important;
-        -webkit-background-clip: text !important;
-        background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
       }
       @media only screen and (max-width: 640px) {
         .email-wrap { padding: 20px 16px !important; }
         .email-pad { padding: 28px 22px !important; }
         .email-brand-pad { padding: 20px 22px !important; }
         .email-logo { width: 190px !important; }
-        .email-illustration-cell { width: 96px !important; }
-        .email-illustration { width: 88px !important; }
         .email-cta { display: block !important; text-align: center !important; }
         .email-heading { font-size: 29px !important; }
       }
@@ -146,11 +124,6 @@ export function monthlyArchiveRequestEmail(input: {
         .email-logo { width: 166px !important; }
         .email-heading { font-size: 27px !important; line-height: 1.13 !important; }
         .email-copy { font-size: 15px !important; line-height: 1.58 !important; }
-        .email-talk-copy { padding: 16px !important; }
-        .email-talk-title { font-size: 19px !important; }
-        .email-talk-event { font-size: 12px !important; }
-        .email-illustration-cell { width: 84px !important; padding: 10px 12px 10px 0 !important; }
-        .email-illustration { width: 76px !important; }
         .email-cta { padding: 13px 16px !important; font-size: 12px !important; letter-spacing: .02em !important; }
       }
       @media (prefers-color-scheme: dark) {
@@ -187,16 +160,12 @@ export function monthlyArchiveRequestEmail(input: {
         .email-footer-title { color: #F5E642 !important; }
         .email-footer-copy,
         .email-signoff { color: #A1A1A1 !important; }
-        .email-yellow-surface {
-          background: #F5E642 !important;
-          background-image: linear-gradient(#F5E642, #F5E642) !important;
-          border-color: #111111 !important;
-        }
-        .email-on-yellow {
-          color: #111111 !important;
-          -webkit-text-fill-color: #111111 !important;
-        }
-        .email-cta-cell { box-shadow: 3px 3px 0 #111111 !important; }
+        .email-session-card { background: #262626 !important; border-color: #3A3A3A !important; }
+        .email-session-label { color: #FF5AA5 !important; }
+        .email-session-title { color: #E5E5E5 !important; }
+        .email-session-event { color: #A1A1A1 !important; }
+        .email-cta-cell { background: #E5E5E5 !important; border-color: #E5E5E5 !important; }
+        .email-cta { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
       }
       [data-ogsc] .email-body,
       [data-ogsc] .email-canvas {
@@ -231,16 +200,12 @@ export function monthlyArchiveRequestEmail(input: {
       [data-ogsc] .email-footer-title { color: #F5E642 !important; }
       [data-ogsc] .email-footer-copy,
       [data-ogsc] .email-signoff { color: #A1A1A1 !important; }
-      [data-ogsc] .email-yellow-surface {
-        background: #F5E642 !important;
-        background-image: linear-gradient(#F5E642, #F5E642) !important;
-        border-color: #111111 !important;
-      }
-      [data-ogsc] .email-on-yellow {
-        color: #111111 !important;
-        -webkit-text-fill-color: #111111 !important;
-      }
-      [data-ogsc] .email-cta-cell { box-shadow: 3px 3px 0 #111111 !important; }
+      [data-ogsc] .email-session-card { background: #262626 !important; border-color: #3A3A3A !important; }
+      [data-ogsc] .email-session-label { color: #FF5AA5 !important; }
+      [data-ogsc] .email-session-title { color: #E5E5E5 !important; }
+      [data-ogsc] .email-session-event { color: #A1A1A1 !important; }
+      [data-ogsc] .email-cta-cell { background: #E5E5E5 !important; border-color: #E5E5E5 !important; }
+      [data-ogsc] .email-cta { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
     </style>
   </head>
   <body class="email-body" style="margin:0;background:#F5F2E8;color:#111111;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
@@ -281,21 +246,15 @@ export function monthlyArchiveRequestEmail(input: {
                 <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;letter-spacing:-.02em;">Hi ${safeSpeakerName},</h1>
                 <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:17px;line-height:1.6;">Let&rsquo;s give your session a permanent home in the DevCongress community archive.</p>
 
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5E642" class="email-talk-card email-yellow-surface" style="width:100%;margin:0 0 24px;background:#F5E642;background-image:linear-gradient(#F5E642,#F5E642);border:2px solid #111111;border-radius:6px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5F2E8" class="email-session-card" style="width:100%;margin:0 0 24px;background:#F5F2E8;border:1px solid #D8D2C4;border-radius:8px;">
                   <tr>
-                    <td class="email-talk-copy" style="padding:18px 20px;">
-                      <p class="email-on-yellow" style="margin:0 0 7px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Your presentation</span></p>
-                      <p class="email-talk-title email-on-yellow" style="margin:0;color:#111111;-webkit-text-fill-color:#111111;font-size:21px;font-weight:800;line-height:1.35;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">${safeCardTitle}</span></p>
-                      <p class="email-talk-event email-on-yellow" style="margin:7px 0 0;color:#333333;-webkit-text-fill-color:#333333;font-size:13px;font-weight:600;line-height:1.4;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">${safeEventName}</span></p>
+                    <td style="padding:20px 22px;">
+                      <p class="email-session-label" style="margin:0 0 8px;color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Your presentation</p>
+                      <p class="email-session-title" style="margin:0;color:#111111;font-size:22px;font-weight:800;line-height:1.3;">${safeCardTitle}</p>
+                      <p class="email-session-event" style="margin:8px 0 0;color:#666666;font-size:13px;font-weight:600;line-height:1.4;">${safeEventName}</p>
                     </td>
-                    <td width="118" align="right" valign="middle" class="email-illustration-cell" style="width:118px;padding:14px 16px 14px 0;">
-                      <img
-                        src="${safeIllustrationUrl}"
-                        width="104"
-                        alt=""
-                        class="email-illustration"
-                        style="display:block;width:104px;max-width:100%;height:auto;border:0;"
-                      >
+                    <td width="112" align="right" valign="middle" style="width:112px;padding:14px 18px 14px 0;">
+                      <img src="${safeIllustrationUrl}" width="92" alt="" style="display:block;width:92px;max-width:100%;height:auto;border:0;">
                     </td>
                   </tr>
                 </table>
@@ -303,8 +262,8 @@ export function monthlyArchiveRequestEmail(input: {
                 <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:16px;line-height:1.65;">Add your presentation details and public resource using the private link below. It is secured to you and will close after a successful submission.</p>
                 <table role="presentation" cellspacing="0" cellpadding="0">
                   <tr>
-                    <td bgcolor="#F5E642" class="email-cta-cell email-yellow-surface" style="background:#F5E642;background-image:linear-gradient(#F5E642,#F5E642);border:2px solid #111111;border-radius:6px;box-shadow:3px 3px 0 #111111;">
-                      <a href="${safePrivateUrl}" class="email-cta email-on-yellow" style="display:inline-block;padding:15px 22px;color:#111111;-webkit-text-fill-color:#111111;font-family:'IBM Plex Mono','Courier New',monospace;font-size:14px;font-weight:700;letter-spacing:.03em;text-decoration:none;text-transform:uppercase;"><span class="email-yellow-text-lock" style="color:#111111;background-image:linear-gradient(#111111,#111111);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Add my presentation details&nbsp;&nbsp;&rarr;</span></a>
+                    <td bgcolor="#111111" class="email-cta-cell" style="background:#111111;background-image:linear-gradient(#111111,#111111);border:2px solid #111111;border-radius:6px;">
+                      <a href="${safePrivateUrl}" class="email-cta" style="display:inline-block;padding:15px 22px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-family:'IBM Plex Mono','Courier New',monospace;font-size:14px;font-weight:700;letter-spacing:.03em;text-decoration:none;text-transform:uppercase;">Add presentation details&nbsp;&nbsp;&rarr;</a>
                     </td>
                   </tr>
                 </table>

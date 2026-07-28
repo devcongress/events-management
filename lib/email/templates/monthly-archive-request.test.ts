@@ -12,20 +12,15 @@ describe('monthly archive request email', () => {
     });
 
     expect(result.subject).toBe('Your DevCongress archive link');
-    expect(result.html).toContain('Add my presentation details');
     expect(result.html).toContain('href="https://em.devcongress.org/speaker-talks/event/token"');
     expect(result.html).toContain('src="https://em.devcongress.org/brand/dev-con-logo.png"');
     expect(result.html).toContain('src="https://em.devcongress.org/brand/speaker-archive-illustration.png"');
-    expect(result.html).toContain('bgcolor="#F5E642"');
+    expect(result.html).toContain('Add presentation details');
     expect(result.html).toContain('@media (prefers-color-scheme: dark)');
-    expect(result.html).toContain('background-image:linear-gradient(#F5E642,#F5E642)');
     expect(result.html).toContain('class="email-brand email-brand-pad"');
-    expect(result.html).toContain('class="email-talk-card email-yellow-surface"');
-    expect(result.html).toContain('class="email-cta email-on-yellow"');
-    expect(result.html).toContain('class="email-yellow-text-lock"');
-    expect(result.html).toContain('-webkit-text-fill-color:#111111');
-    expect(result.html).toContain('-webkit-text-fill-color:transparent');
-    expect(result.html).toContain('background-image:linear-gradient(#111111,#111111)');
+    expect(result.html).toContain('class="email-session-card"');
+    expect(result.html).toContain('bgcolor="#111111" class="email-cta-cell"');
+    expect(result.html).not.toContain('email-yellow-text-lock');
     expect(result.html).toContain('.email-wrap { padding: 20px 16px !important; }');
     expect(result.html).toContain('@media only screen and (max-width: 640px) and (prefers-color-scheme: dark)');
     expect(result.html).toContain('.email-wrap { padding: 14px 10px !important; }');

@@ -64,6 +64,17 @@ async function importEmailModules() {
   return { app, links };
 }
 
+function requestSpeakerEmails(app: { request: (input: string, init?: RequestInit) => Response | Promise<Response> }, body: unknown) {
+  return Promise.resolve(app.request(
+    `http://localhost/api/events/${event.id}/speaker-intake-emails`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  ));
+}
+
 beforeEach(async () => {
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'devcon-speaker-email-'));
   process.chdir(tempRoot);
@@ -94,20 +105,13 @@ describe('speaker intake email API', () => {
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
 
-    const firstResponse = await app.request(
-      `http://localhost/api/events/${event.id}/speaker-intake-emails`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: [
-            { program_item_index: 0, speaker_email: 'ama@example.com' },
-            { program_item_index: 1, speaker_email: 'kojo@example.com' },
-          ],
-          expires_in_days: 7,
-        }),
-      },
-    );
+    const firstResponse = await requestSpeakerEmails(app, {
+      recipients: [
+        { program_item_index: 0, speaker_email: 'ama@example.com' },
+        { program_item_index: 1, speaker_email: 'kojo@example.com' },
+      ],
+      expires_in_days: 7,
+    });
 
     expect(firstResponse.status).toBe(200);
     await expect(firstResponse.json()).resolves.toMatchObject({
@@ -144,20 +148,13 @@ describe('speaker intake email API', () => {
       }),
     ]);
 
-    const duplicateResponse = await app.request(
-      `http://localhost/api/events/${event.id}/speaker-intake-emails`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: [
-            { program_item_index: 0, speaker_email: 'different@example.com' },
-            { program_item_index: 1, speaker_email: 'kojo@example.com' },
-          ],
-          expires_in_days: 7,
-        }),
-      },
-    );
+    const duplicateResponse = await requestSpeakerEmails(app, {
+      recipients: [
+        { program_item_index: 0, speaker_email: 'different@example.com' },
+        { program_item_index: 1, speaker_email: 'kojo@example.com' },
+      ],
+      expires_in_days: 7,
+    });
 
     expect(duplicateResponse.status).toBe(200);
     await expect(duplicateResponse.json()).resolves.toMatchObject({
@@ -178,19 +175,10 @@ describe('speaker intake email API', () => {
       }));
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
-    const send = () => app.request(
-      `http://localhost/api/events/${event.id}/speaker-intake-emails`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: [
-            { program_item_index: 0, speaker_email: 'ama@example.com' },
-          ],
-          expires_in_days: 7,
-        }),
-      },
-    );
+    const send = () => requestSpeakerEmails(app, {
+      recipients: [{ program_item_index: 0, speaker_email: 'ama@example.com' }],
+      expires_in_days: 7,
+    });
 
     const failedResponse = await send();
     expect(failedResponse.status).toBe(502);
@@ -222,19 +210,10 @@ describe('speaker intake email API', () => {
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
 
-    const response = await app.request(
-      `http://localhost/api/events/${event.id}/speaker-intake-emails`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipients: [
-            { program_item_index: 0, speaker_email: 'not-an-email' },
-          ],
-          expires_in_days: 7,
-        }),
-      },
-    );
+    const response = await requestSpeakerEmails(app, {
+      recipients: [{ program_item_index: 0, speaker_email: 'not-an-email' }],
+      expires_in_days: 7,
+    });
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
