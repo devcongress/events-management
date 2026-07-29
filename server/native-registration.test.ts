@@ -48,6 +48,48 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('identifies existing events without a campaign as not internally managed', async () => {
+    const legacyEvent = {
+      id: 'legacy-luma-event',
+      name: 'DevCongress Historical Meetup',
+      description: 'Registration was handled before native registration launched.',
+      event_date: '2025-06-28T09:00:00.000Z',
+      status: 'completed',
+      created_at: '2025-06-01T09:00:00.000Z',
+      updated_at: '2025-06-29T09:00:00.000Z',
+      registration_url: 'https://lu.ma/legacy-event',
+      external_source: 'luma',
+      external_id: 'legacy-event',
+      external_url: 'https://lu.ma/legacy-event',
+    };
+    await fs.writeFile(
+      path.join(tempRoot, 'data', 'events.json'),
+      JSON.stringify([legacyEvent]),
+      'utf-8',
+    );
+
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      'http://localhost/api/events/legacy-luma-event/registrations',
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      managed_internally: false,
+      event: { id: legacyEvent.id },
+      campaign: null,
+      registrations: [],
+      summary: null,
+      public_url: null,
+    });
+
+    const unknownResponse = await app.request(
+      'http://localhost/api/events/unknown-event/registrations',
+    );
+    expect(unknownResponse.status).toBe(404);
+    await expect(unknownResponse.json()).resolves.toEqual({ error: 'Event not found.' });
+  });
+
   it('preserves an explicit no-series event and rejects unknown series values', async () => {
     const { default: app } = await import('./app');
     const createResponse = await app.request('http://localhost/api/events', {
@@ -227,6 +269,7 @@ describe('native event registration API', () => {
     const adminResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`);
     expect(adminResponse.status).toBe(200);
     await expect(adminResponse.json()).resolves.toMatchObject({
+      managed_internally: true,
       public_url: 'http://localhost/r/august-2026-meetup',
       summary: {
         total: 2,

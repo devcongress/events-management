@@ -4,15 +4,30 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+      day: monday
+      time: "09:00"
+      timezone: Africa/Accra
+    # Keep vulnerability detection and grouped security remediation enabled,
+    # but do not open routine "new version available" pull requests.
+    open-pull-requests-limit: 0
     groups:
-      production-dependencies:
-        dependency-type: production
-      development-dependencies:
-        dependency-type: development
+      npm-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+      day: monday
+      time: "09:15"
+      timezone: Africa/Accra
+    # Security updates are grouped separately by GitHub because Dependabot
+    # cannot combine security fixes from different package ecosystems.
+    open-pull-requests-limit: 0
+    groups:
+      github-actions-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"

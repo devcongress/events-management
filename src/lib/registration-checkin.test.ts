@@ -4,41 +4,51 @@ import {
   filterRegistrationsForCheckIn,
   registrationInitials,
   registrationNameInitial,
-  SIMULATED_REGISTRATION_COUNT,
 } from './registration-checkin';
-import {
-  createSimulatedRegistrations,
-  isSimulatedRegistration,
-} from './registration-simulation';
+import type { EventRegistration } from '@/types';
+
+function registration(
+  id: string,
+  name: string,
+  email: string,
+): EventRegistration {
+  return {
+    id,
+    campaign_id: 'campaign-1',
+    name,
+    email,
+    status: 'confirmed',
+    confirmed_at: '2026-07-28T10:00:00.000Z',
+    cancelled_at: null,
+    checked_in_at: null,
+    email_status: 'accepted',
+    created_at: '2026-07-28T10:00:00.000Z',
+    updated_at: '2026-07-28T10:00:00.000Z',
+  };
+}
+
+const registrations = [
+  registration('1', 'Adjoa Mensah', 'adjoa@example.com'),
+  registration('2', 'Kafui Dzakpasu', 'kafui@example.com'),
+  registration('3', 'Kofi Amoako', 'kofi@example.com'),
+  registration('4', 'Kojo Poku', 'kojo@example.com'),
+  registration('5', 'Kwabena Gyasi', 'kwabena@example.com'),
+];
 
 describe('registration check-in helpers', () => {
-  it('creates a deterministic non-persistent 64-guest simulation', () => {
-    const registrations = createSimulatedRegistrations();
-
-    expect(registrations).toHaveLength(SIMULATED_REGISTRATION_COUNT);
-    expect(registrations.filter((registration) => registration.status === 'confirmed')).toHaveLength(56);
-    expect(registrations.filter((registration) => registration.status === 'waitlisted')).toHaveLength(8);
-    expect(registrations.filter((registration) => registration.status === 'cancelled')).toHaveLength(0);
-    expect(registrations.every((registration) => registration.email.endsWith('@example.test'))).toBe(true);
-    expect(registrations.every((registration) => isSimulatedRegistration(registration.id))).toBe(true);
-  });
-
   it('derives available letters and normalizes accented initials', () => {
-    const registrations = createSimulatedRegistrations().slice(0, 2);
-    registrations.push({
-      ...registrations[0],
-      id: 'accented',
-      name: 'Ési Mensah',
-    });
+    const names = [
+      registrations[0],
+      registrations[1],
+      registration('accented', 'Ési Mensah', 'esi@example.com'),
+    ];
 
     expect(registrationNameInitial(' Ési Mensah')).toBe('E');
     expect(registrationNameInitial('123 Community')).toBe('#');
-    expect(registrationInitials(registrations)).toEqual(['A', 'E']);
+    expect(registrationInitials(names)).toEqual(['A', 'E', 'K']);
   });
 
   it('combines first-letter narrowing with name or email search', () => {
-    const registrations = createSimulatedRegistrations();
-
     expect(filterRegistrationsForCheckIn(registrations, {
       query: '',
       initial: 'K',

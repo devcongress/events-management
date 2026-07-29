@@ -5,6 +5,27 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-29 — Reviewable Dependabot updates
+
+- Disabled routine npm and GitHub Actions version-update pull requests so outdated-but-not-vulnerable packages no longer create repository noise.
+- Retained automated vulnerability remediation and grouped every available npm security fix into one npm pull request.
+- Grouped every available GitHub Actions security fix—including all CodeQL components—into one Actions pull request; GitHub does not combine security fixes across package ecosystems.
+
+## 2026-07-29 — Honest historical registration state
+
+- Removed the development-only fictional 64-guest registration simulation from both the full organizer Registration tab and focused phone check-in screen.
+- Changed the authenticated registration read contract to distinguish a real native campaign from an existing event whose registration was not managed internally; unknown events remain `404`.
+- Replaced the legacy campaign error with a calm, non-interactive explanation that no internal guest list, registration-email history, or native check-in record exists, while pointing organizers to imported historical Attendance data when available.
+- Preserved the future-event invariant: native event creation still provisions a private draft registration campaign and compensates by deleting the event if campaign creation fails.
+
+## 2026-07-29 — Unified organizer authentication surface
+
+- Reused the Programme Cover login surface for direct protected-route session checks and the Google OAuth callback, keeping `Checking session…` and `Confirming organizer access…` inside the existing action panel instead of navigating through standalone access pages.
+- Kept non-organizer, provider failure, rate-limit, service failure, and retry states on that same page with bounded generic copy and an explicit **Use another Google account** action.
+- Hardened intended-destination handling to reject external, protocol-relative, and backslash-based redirect values; callback failures now map HTTP statuses to allowlisted UI states rather than rendering provider or server error text.
+- Preserved the fail-closed boundary: organizer navigation and routed workspace content remain unmounted until the app-owned session and active membership are confirmed.
+- Added focused tests for auth-state mapping, non-sensitive denial copy, and safe internal redirect validation, plus desktop and phone browser checks for sign-in, delayed session, callback, and denied-account layouts.
+
 ## 2026-07-29 — Distributed rate-limit runtime repair
 
 - Added an additive Supabase migration that recreates `consume_public_rate_limit` with an unambiguous `timestamptz` variable, fixing PostgreSQL `42883` failures that blocked organizer OAuth exchange and other rate-limited forms after the security migration.

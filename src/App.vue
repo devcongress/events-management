@@ -25,6 +25,7 @@ interface NavLink {
 }
 
 const AdminEventTabs = defineAsyncComponent(() => import('./components/AdminEventTabs.vue'));
+const AdminLoginView = defineAsyncComponent(() => import('./views/admin/AdminLoginView.vue'));
 const route = useRoute();
 const router = useRouter();
 const initialBrowserPath = typeof window === 'undefined' ? '/' : window.location.pathname;
@@ -85,6 +86,9 @@ const showOrganizerAccessError = computed(() => (
 ));
 const showOrganizerAccessGate = computed(() => (
   organizerAccessUnresolved.value && !adminSessionQuery.isError.value
+));
+const showOrganizerAccessSurface = computed(() => (
+  showOrganizerAccessError.value || showOrganizerAccessGate.value
 ));
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
 const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
@@ -217,6 +221,10 @@ function isActive(href: string) {
 }
 
 function routeViewKey(routeForKey: typeof route) {
+  if (routeForKey.name === 'admin-login') {
+    return 'admin-login';
+  }
+
   if (routeForKey.name === 'admin-talks') {
     const value = routeForKey.params.eventId;
     const eventId = Array.isArray(value) ? value[0] : value;
@@ -246,6 +254,13 @@ function closeMobileMenu() {
 
 function retryOrganizerAccess() {
   void adminSessionQuery.refetch();
+}
+
+function returnToOrganizerSignIn() {
+  void router.replace({
+    path: adminPath('login'),
+    query: { redirect: route.fullPath },
+  });
 }
 
 function toggleMobileMenu() {
@@ -455,7 +470,7 @@ onUnmounted(() => {
   <div
     class="app-shell flex flex-col overflow-hidden bg-dc-cream text-dc-ink"
     :class="{
-      'app-shell--login': isLoginRoute,
+      'app-shell--login': isLoginRoute || showOrganizerAccessSurface,
       'app-shell--standalone': isStandaloneRoute,
     }"
   >
@@ -571,7 +586,10 @@ onUnmounted(() => {
 
     <main
       class="app-main page-transition-host min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
-      :class="{ 'app-main--with-event-tabs': showAdminEventTabs, 'app-main--login': isLoginRoute }"
+      :class="{
+        'app-main--with-event-tabs': showAdminEventTabs,
+        'app-main--login': isLoginRoute || showOrganizerAccessSurface,
+      }"
       :style="appMainStyle"
     >
       <div v-if="showAdminEventTabs && adminEventId" ref="adminEventTabsShell" class="admin-event-tabs-shell bg-dc-cream text-dc-ink">
@@ -588,51 +606,33 @@ onUnmounted(() => {
       </div>
 
       <div class="page-route-stack">
-        <section
+        <AdminLoginView
           v-if="showOrganizerAccessError"
-          class="organizer-access-gate page-view"
-          role="alert"
-          aria-live="assertive"
-        >
-          <div class="organizer-access-gate__inner">
-            <p class="organizer-access-gate__eyebrow">Access check failed</p>
-            <h1>The workspace could not be opened.</h1>
-            <p>The organizer session service did not respond. Try the check again or return to sign in.</p>
-            <div class="organizer-access-gate__actions">
-              <button
-                type="button"
-                class="editorial-action"
-                :disabled="adminSessionQuery.isFetching.value"
-                @click="retryOrganizerAccess"
-              >
-                {{ adminSessionQuery.isFetching.value ? 'Checking…' : 'Try again' }}
-              </button>
-              <RouterLink :to="adminPath('login')" class="editorial-secondary-action">
-                Return to sign in
-              </RouterLink>
-            </div>
-          </div>
-        </section>
+          class="page-view"
+          managed
+          access-title="Access check unavailable."
+          access-description="The organizer session service did not complete the access check."
+          :action-label="adminSessionQuery.isFetching.value ? 'Checking session…' : 'Try session check again'"
+          access-note="Access remains closed until the server confirms an active organizer session."
+          error="Unable to verify organizer access. Check your connection and try again."
+          :busy="adminSessionQuery.isFetching.value"
+          :action-disabled="adminSessionQuery.isFetching.value"
+          secondary-action-label="Return to Google sign-in"
+          @primary="retryOrganizerAccess"
+          @secondary="returnToOrganizerSignIn"
+        />
 
-        <section
+        <AdminLoginView
           v-else-if="showOrganizerAccessGate"
-          class="organizer-access-gate page-view"
-          role="status"
-          aria-live="polite"
-          aria-label="Checking organizer access"
-          aria-busy="true"
-        >
-          <div class="organizer-access-gate__inner">
-            <p class="organizer-access-gate__eyebrow">Getting things ready</p>
-            <h1>Opening the workspace.</h1>
-            <p>Checking access and restoring your place.</p>
-            <div class="organizer-access-gate__signal" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </div>
-          </div>
-        </section>
+          class="page-view"
+          managed
+          access-title="Checking access."
+          access-description="We are confirming your organizer session and restoring your destination."
+          action-label="Checking session…"
+          access-note="The protected workspace stays closed until this check succeeds."
+          busy
+          action-disabled
+        />
 
         <RouterView v-else v-slot="{ Component, route }">
           <Transition :name="routeTransitionName" @after-enter="resetMainScroll">

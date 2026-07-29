@@ -3610,13 +3610,25 @@ app.get('/api/events/:eventId', async (c) => {
 
 app.get('/api/events/:eventId/registrations', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
-  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
-  if (!event || !campaign) {
-    return c.json({ error: 'Registration campaign not found.' }, 404);
+  if (!event) {
+    return c.json({ error: 'Event not found.' }, 404);
+  }
+
+  const campaign = await getRegistrationCampaign(event.id, c);
+  if (!campaign) {
+    return c.json({
+      managed_internally: false as const,
+      event,
+      campaign: null,
+      registrations: [],
+      summary: null,
+      public_url: null,
+    });
   }
 
   const registrations = await getEventRegistrations(event.id, c);
   return c.json({
+    managed_internally: true as const,
     event,
     campaign,
     registrations,

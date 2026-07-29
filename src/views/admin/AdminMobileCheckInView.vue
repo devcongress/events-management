@@ -14,7 +14,6 @@ import {
   ALL_REGISTRATION_INITIALS,
   filterRegistrationsForCheckIn,
   registrationInitials,
-  SIMULATED_REGISTRATION_COUNT,
 } from '@/src/lib/registration-checkin';
 import { ORGANIZER_PHONE_ROUTE_PATH } from '@/src/organizer-viewport';
 import type { EventRegistration } from '@/types';
@@ -32,10 +31,7 @@ const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
-const simulationActive = ref(false);
-const simulatedRegistrations = ref<EventRegistration[]>([]);
 const actionRegistrationId = ref<string | null>(null);
-const devRegistrationSimulationEnabled = import.meta.env.DEV;
 
 const eventQuery = useQuery({
   queryKey: computed(() => queryKeys.event(eventId.value)),
@@ -48,11 +44,8 @@ const registrationsQuery = useQuery({
   enabled: computed(() => Boolean(eventId.value)),
   retry: false,
 });
-const displayedRegistrations = computed(() => (
-  simulationActive.value
-    ? simulatedRegistrations.value
-    : registrationsQuery.data.value?.registrations ?? []
-));
+const managedInternally = computed(() => registrationsQuery.data.value?.managed_internally === true);
+const displayedRegistrations = computed(() => registrationsQuery.data.value?.registrations ?? []);
 const availableInitials = computed(() => registrationInitials(displayedRegistrations.value));
 const filteredRegistrations = computed(() => filterRegistrationsForCheckIn(
   displayedRegistrations.value,
@@ -81,36 +74,9 @@ const eventContext = computed(() => {
     .join(' · ');
 });
 
-async function toggleSimulation() {
-  if (!devRegistrationSimulationEnabled || actionRegistrationId.value) return;
-
-  if (!simulationActive.value) {
-    const { createSimulatedRegistrations } = await import('@/src/lib/registration-simulation');
-    simulatedRegistrations.value = createSimulatedRegistrations();
-    simulationActive.value = true;
-  } else {
-    simulationActive.value = false;
-    simulatedRegistrations.value = [];
-  }
-
-  search.value = '';
-  selectedInitial.value = ALL_REGISTRATION_INITIALS;
-}
-
 async function checkInGuest(registration: EventRegistration) {
   if (!eventId.value || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
-
-  if (simulationActive.value) {
-    simulatedRegistrations.value = simulatedRegistrations.value.map((guest) => (
-      guest.id === registration.id
-        ? { ...guest, checked_in_at: new Date().toISOString() }
-        : guest
-    ));
-    notify.success(`${registration.name} checked in for this simulation.`);
-    actionRegistrationId.value = null;
-    return;
-  }
 
   try {
     await checkInEventRegistration(eventId.value, registration.id);
@@ -148,7 +114,7 @@ watch(availableInitials, (initials) => {
         <div class="mobile-checkin-title-row">
           <h1>{{ eventQuery.data.value?.name ?? 'Guest check-in' }}</h1>
           <span
-            v-if="simulationActive || registrationsQuery.data.value"
+            v-if="managedInternally"
             class="mobile-checkin-progress"
             aria-live="polite"
           >
@@ -160,61 +126,15 @@ watch(availableInitials, (initials) => {
       </header>
 
       <section class="mobile-ops-panel mobile-checkin-panel" aria-label="Guest check-in controls">
-        <div class="mobile-ops-checkin-heading">
-          <div>
-            <p class="editorial-eyebrow">find a guest</p>
-            <h2>Name or email</h2>
-          </div>
-        </div>
-
-        <label for="mobile-check-in-search" class="mobile-ops-checkin-label">
-          Guest name or email
-        </label>
-        <input
-          id="mobile-check-in-search"
-          v-model="search"
-          type="search"
-          inputmode="search"
-          autocomplete="off"
-          class="mobile-ops-checkin-search"
-          placeholder="Start typing to find a guest"
-        >
-
-        <button
-          v-if="devRegistrationSimulationEnabled"
-          type="button"
-          class="mobile-ops-simulation-toggle"
-          :aria-pressed="simulationActive"
-          @click="toggleSimulation"
-        >
-          {{ simulationActive ? 'Use live guest list' : `Preview ${SIMULATED_REGISTRATION_COUNT} guests` }}
-        </button>
-        <p v-if="simulationActive" class="mobile-ops-simulation-note" role="status">
-          Simulation only. These fictional guests and check-ins are not saved.
-        </p>
-
-        <div
-          v-if="simulationActive || registrationsQuery.data.value"
-          class="mobile-ops-checkin-filters"
-        >
-          <RegistrationAlphabetFilter
-            v-model="selectedInitial"
-            :initials="availableInitials"
-          />
-          <p>
-            {{ filteredRegistrations.length }} of {{ displayedRegistrations.length }} shown
-          </p>
-        </div>
-
         <p
-          v-if="!simulationActive && registrationsQuery.isPending.value"
+          v-if="registrationsQuery.isPending.value"
           class="mobile-ops-checkin-state"
           role="status"
         >
           Loading guest list…
         </p>
         <div
-          v-else-if="!simulationActive && registrationsQuery.isError.value"
+          v-else-if="registrationsQuery.isError.value"
           class="mobile-ops-checkin-state mobile-ops-checkin-state--error"
         >
           <p>Guest check-in is unavailable for this event.</p>
@@ -226,50 +146,94 @@ watch(availableInitials, (initials) => {
             Try again
           </button>
         </div>
-        <p
-          v-else-if="filteredRegistrations.length === 0"
-          class="mobile-ops-checkin-state"
+        <div
+          v-else-if="!managedInternally"
+          class="mobile-ops-checkin-state mobile-ops-checkin-state--historical"
+          role="status"
         >
-          {{
-            search || selectedInitial !== ALL_REGISTRATION_INITIALS
-              ? 'No guest matches that name, email, or first letter.'
-              : 'No registrations yet.'
-          }}
-        </p>
-        <ul v-else class="mobile-ops-guest-list">
-          <li
-            v-for="registration in filteredRegistrations"
-            :key="registration.id"
-            class="mobile-ops-guest"
-          >
-            <div class="mobile-ops-guest-heading">
-              <div class="min-w-0">
-                <p class="mobile-ops-guest-name">{{ registration.name }}</p>
-                <p class="mobile-ops-guest-email">{{ registration.email }}</p>
-              </div>
-              <span
-                v-if="registration.checked_in_at || registration.status !== 'confirmed'"
-                class="mobile-ops-guest-status"
-                :class="{
-                  'mobile-ops-guest-status--checked': registration.checked_in_at,
-                  'mobile-ops-guest-status--waiting': registration.status === 'waitlisted',
-                  'mobile-ops-guest-status--cancelled': registration.status === 'cancelled',
-                }"
-              >
-                {{ registration.checked_in_at ? 'Checked in' : registration.status }}
-              </span>
+          <p class="editorial-eyebrow">historical registration</p>
+          <h2>Registration was not managed in this app</h2>
+          <p>
+            This event has no internal guest list or native check-in records. Historical attendance,
+            when available, remains in the full Attendance workspace.
+          </p>
+        </div>
+        <template v-else>
+          <div class="mobile-ops-checkin-heading">
+            <div>
+              <p class="editorial-eyebrow">find a guest</p>
+              <h2>Name or email</h2>
             </div>
-            <button
-              v-if="registration.status === 'confirmed' && !registration.checked_in_at"
-              type="button"
-              class="mobile-ops-guest-checkin"
-              :disabled="Boolean(actionRegistrationId)"
-              @click="checkInGuest(registration)"
+          </div>
+
+          <label for="mobile-check-in-search" class="mobile-ops-checkin-label">
+            Guest name or email
+          </label>
+          <input
+            id="mobile-check-in-search"
+            v-model="search"
+            type="search"
+            inputmode="search"
+            autocomplete="off"
+            class="mobile-ops-checkin-search"
+            placeholder="Start typing to find a guest"
+          >
+
+          <div class="mobile-ops-checkin-filters">
+            <RegistrationAlphabetFilter
+              v-model="selectedInitial"
+              :initials="availableInitials"
+            />
+            <p>
+              {{ filteredRegistrations.length }} of {{ displayedRegistrations.length }} shown
+            </p>
+          </div>
+
+          <p
+            v-if="filteredRegistrations.length === 0"
+            class="mobile-ops-checkin-state"
+          >
+            {{
+              search || selectedInitial !== ALL_REGISTRATION_INITIALS
+                ? 'No guest matches that name, email, or first letter.'
+                : 'No registrations yet.'
+            }}
+          </p>
+          <ul v-else class="mobile-ops-guest-list">
+            <li
+              v-for="registration in filteredRegistrations"
+              :key="registration.id"
+              class="mobile-ops-guest"
             >
-              {{ actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
-            </button>
-          </li>
-        </ul>
+              <div class="mobile-ops-guest-heading">
+                <div class="min-w-0">
+                  <p class="mobile-ops-guest-name">{{ registration.name }}</p>
+                  <p class="mobile-ops-guest-email">{{ registration.email }}</p>
+                </div>
+                <span
+                  v-if="registration.checked_in_at || registration.status !== 'confirmed'"
+                  class="mobile-ops-guest-status"
+                  :class="{
+                    'mobile-ops-guest-status--checked': registration.checked_in_at,
+                    'mobile-ops-guest-status--waiting': registration.status === 'waitlisted',
+                    'mobile-ops-guest-status--cancelled': registration.status === 'cancelled',
+                  }"
+                >
+                  {{ registration.checked_in_at ? 'Checked in' : registration.status }}
+                </span>
+              </div>
+              <button
+                v-if="registration.status === 'confirmed' && !registration.checked_in_at"
+                type="button"
+                class="mobile-ops-guest-checkin"
+                :disabled="Boolean(actionRegistrationId)"
+                @click="checkInGuest(registration)"
+              >
+                {{ actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
+              </button>
+            </li>
+          </ul>
+        </template>
       </section>
     </div>
   </section>

@@ -1,10 +1,48 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
+import {
+  ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
+  adminPath,
+  safeInternalAppPath,
+} from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession } from '@/src/lib/api';
-import { notify } from '@/src/lib/notify';
+import {
+  adminAuthFailureCopy,
+  parseAdminAuthFailureReason,
+  type AdminAuthFailureReason,
+} from '@/src/lib/admin-auth-flow';
+
+interface ManagedAccessProps {
+  managed?: boolean;
+  accessTitle?: string;
+  accessDescription?: string;
+  actionLabel?: string;
+  accessNote?: string;
+  error?: string | null;
+  busy?: boolean;
+  actionDisabled?: boolean;
+  showGoogleMark?: boolean;
+  secondaryActionLabel?: string | null;
+}
+
+const props = withDefaults(defineProps<ManagedAccessProps>(), {
+  managed: false,
+  accessTitle: 'Back to the work.',
+  accessDescription: 'Continue with an approved Google account.',
+  actionLabel: 'Continue with Google',
+  accessNote: 'Access is limited to approved DevCongress organizers.',
+  error: null,
+  busy: false,
+  actionDisabled: false,
+  showGoogleMark: false,
+  secondaryActionLabel: null,
+});
+const emit = defineEmits<{
+  primary: [];
+  secondary: [];
+}>();
 
 const PROGRAMME_COVER = {
   eyebrow: 'Organizer desk / Private',
@@ -21,12 +59,25 @@ const router = useRouter();
 const authConfigured = ref(false);
 const authResolved = ref(false);
 const loading = ref(false);
-const error = ref<string | null>(null);
-const redirectTo = computed(() => String(route.query.redirect ?? route.query.next ?? adminPath('events')));
+const internalError = ref<string | null>(null);
+const failureReason = ref<AdminAuthFailureReason | null>(null);
+const redirectTo = computed(() => (
+  safeInternalAppPath(route.query.redirect)
+  ?? safeInternalAppPath(route.query.next)
+  ?? adminPath('events')
+));
 const LOCAL_GOOGLE_OAUTH_ORIGIN = 'http://localhost:5173';
 const logoSrc = '/brand/dev-con-logo.png';
 
-const accessDescription = computed(() => {
+const failureCopy = computed(() => (
+  failureReason.value ? adminAuthFailureCopy(failureReason.value) : null
+));
+
+const defaultAccessDescription = computed(() => {
+  if (failureCopy.value) {
+    return 'Organizer access remains closed until an approved account is confirmed.';
+  }
+
   if (!authResolved.value) {
     return 'Confirming how this organizer workspace is secured.';
   }
@@ -36,17 +87,48 @@ const accessDescription = computed(() => {
     : 'Google organizer sign-in is not configured in this environment.';
 });
 
-const actionLabel = computed(() => {
+const defaultActionLabel = computed(() => {
+  if (failureCopy.value) return failureCopy.value.actionLabel;
   if (!authResolved.value) return 'Checking access…';
   if (loading.value) return 'Opening Google…';
   return 'Continue with Google';
 });
 
-const accessNote = computed(() => {
+const defaultAccessNote = computed(() => {
+  if (failureCopy.value) return failureCopy.value.note;
   if (!authResolved.value) return 'Your destination will be preserved while we check.';
   if (!authConfigured.value) return 'Ask an owner to configure Supabase organizer access.';
   return 'Access is limited to approved DevCongress organizers.';
 });
+
+const surfaceAccessTitle = computed(() => (
+  props.managed
+    ? props.accessTitle
+    : failureCopy.value?.title ?? (authResolved.value ? PROGRAMME_COVER.accessTitle : 'Checking access.')
+));
+const surfaceAccessDescription = computed(() => (
+  props.managed ? props.accessDescription : defaultAccessDescription.value
+));
+const surfaceActionLabel = computed(() => (
+  props.managed ? props.actionLabel : defaultActionLabel.value
+));
+const surfaceAccessNote = computed(() => (
+  props.managed ? props.accessNote : defaultAccessNote.value
+));
+const surfaceError = computed(() => (
+  props.managed ? props.error : failureCopy.value?.description ?? internalError.value
+));
+const surfaceBusy = computed(() => (
+  props.managed ? props.busy : loading.value || !authResolved.value
+));
+const surfaceActionDisabled = computed(() => (
+  props.managed
+    ? props.actionDisabled || props.busy
+    : loading.value || !authResolved.value || !authConfigured.value
+));
+const surfaceShowGoogleMark = computed(() => (
+  props.managed ? props.showGoogleMark : authResolved.value && authConfigured.value
+));
 
 function isLocalBrowserOrigin(origin: string): boolean {
   try {
@@ -61,17 +143,18 @@ async function login() {
   if (!authResolved.value || !authConfigured.value) return;
 
   loading.value = true;
-  error.value = null;
+  internalError.value = null;
+  failureReason.value = null;
 
   try {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      error.value = 'Google organizer sign-in is not configured yet.';
+      internalError.value = 'Google organizer sign-in is not configured yet.';
       return;
     }
 
     if (isLocalBrowserOrigin(window.location.origin) && window.location.origin !== LOCAL_GOOGLE_OAUTH_ORIGIN) {
-      error.value = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
+      internalError.value = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
       return;
     }
 
@@ -90,23 +173,37 @@ async function login() {
     });
 
     if (oauthError) {
-      error.value = 'Unable to start Google sign-in. Please try again.';
+      internalError.value = 'Unable to start Google sign-in. Please try again.';
     }
   } catch {
-    error.value = 'Unable to sign in. Please check your connection and try again.';
+    internalError.value = 'Unable to sign in. Please check your connection and try again.';
   } finally {
     loading.value = false;
   }
 }
 
+async function handlePrimaryAction() {
+  if (props.managed) {
+    emit('primary');
+    return;
+  }
+
+  await login();
+}
+
 onMounted(async () => {
+  if (props.managed) return;
+
   const callbackError = route.query.error;
-  if (typeof callbackError === 'string' && callbackError) {
-    notify.error(callbackError);
+  const parsedFailureReason = parseAdminAuthFailureReason(route.query.auth_reason)
+    ?? (typeof callbackError === 'string' && callbackError ? 'oauth_failed' : null);
+  if (parsedFailureReason) {
+    failureReason.value = parsedFailureReason;
     await router.replace({
       query: {
         ...route.query,
         error: undefined,
+        auth_reason: undefined,
       },
     });
   }
@@ -117,11 +214,11 @@ onMounted(async () => {
     if (session.authenticated) {
       await router.replace(redirectTo.value);
     } else if (!session.auth_configured) {
-      error.value = 'Google organizer sign-in is not configured in this environment.';
+      internalError.value = 'Google organizer sign-in is not configured in this environment.';
     }
   } catch {
     authConfigured.value = false;
-    error.value = 'Unable to verify organizer access. Please check the local server and try again.';
+    failureReason.value = 'service_unavailable';
   } finally {
     authResolved.value = true;
   }
@@ -132,9 +229,9 @@ onMounted(async () => {
   <div class="login-studio">
     <form
       class="login-concept"
-      :aria-busy="loading || !authResolved"
+      :aria-busy="surfaceBusy"
       aria-labelledby="organizer-login-title"
-      @submit.prevent="login"
+      @submit.prevent="handlePrimaryAction"
     >
       <header class="login-masthead">
         <img :src="logoSrc" alt="DevCongress" class="login-logo">
@@ -170,15 +267,13 @@ onMounted(async () => {
         <section class="login-access" aria-labelledby="organizer-access-title">
           <div class="login-access__intro">
             <p class="login-access__label">{{ PROGRAMME_COVER.accessLabel }}</p>
-            <h2 id="organizer-access-title">
-              {{ authResolved ? PROGRAMME_COVER.accessTitle : 'Checking access.' }}
-            </h2>
-            <p>{{ accessDescription }}</p>
+            <h2 id="organizer-access-title">{{ surfaceAccessTitle }}</h2>
+            <p>{{ surfaceAccessDescription }}</p>
           </div>
 
           <div class="login-control">
             <div
-              v-if="error"
+              v-if="surfaceError"
               id="organizer-login-error"
               class="login-error"
               role="alert"
@@ -186,19 +281,19 @@ onMounted(async () => {
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M12 8v4.5M12 16.25v.01M20.25 12A8.25 8.25 0 1 1 3.75 12a8.25 8.25 0 0 1 16.5 0Z" />
               </svg>
-              <span>{{ error }}</span>
+              <span>{{ surfaceError }}</span>
             </div>
 
             <button
               type="submit"
               class="login-submit"
-              :disabled="loading || !authResolved || !authConfigured"
-              :aria-busy="loading || !authResolved"
-              :aria-describedby="error ? 'organizer-login-error organizer-access-note' : 'organizer-access-note'"
+              :disabled="surfaceActionDisabled"
+              :aria-busy="surfaceBusy"
+              :aria-describedby="surfaceError ? 'organizer-login-error organizer-access-note' : 'organizer-access-note'"
             >
               <span class="login-submit__content">
                 <svg
-                  v-if="authResolved && authConfigured"
+                  v-if="surfaceShowGoogleMark"
                   class="google-mark"
                   aria-hidden="true"
                   viewBox="0 0 18 18"
@@ -208,7 +303,7 @@ onMounted(async () => {
                   <path fill="#FBBC05" d="M3.963 10.707A5.41 5.41 0 0 1 3.682 9c0-.592.102-1.168.281-1.707V4.96H.955A9 9 0 0 0 0 9c0 1.452.347 2.827.955 4.04l3.008-2.333Z" />
                   <path fill="#34A853" d="M9 3.58c1.321 0 2.508.454 3.442 1.346l2.581-2.581C13.464.892 11.426 0 9 0A9 9 0 0 0 .955 4.96l3.008 2.333C4.672 5.165 6.656 3.58 9 3.58Z" />
                 </svg>
-                <span>{{ actionLabel }}</span>
+                <span>{{ surfaceActionLabel }}</span>
               </span>
               <svg class="login-submit__arrow" aria-hidden="true" viewBox="0 0 24 24">
                 <path d="m9 5 7 7-7 7M4 12h12" />
@@ -219,8 +314,17 @@ onMounted(async () => {
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M8.5 10V7.5a3.5 3.5 0 1 1 7 0V10M7 10h10a1 1 0 0 1 1 1v8H6v-8a1 1 0 0 1 1-1Z" />
               </svg>
-              {{ accessNote }}
+              {{ surfaceAccessNote }}
             </p>
+
+            <button
+              v-if="props.managed && props.secondaryActionLabel"
+              type="button"
+              class="login-secondary"
+              @click="emit('secondary')"
+            >
+              {{ props.secondaryActionLabel }}
+            </button>
           </div>
         </section>
       </main>
@@ -257,6 +361,7 @@ onMounted(async () => {
 }
 
 .login-submit:focus-visible,
+.login-secondary:focus-visible,
 .login-field input:focus-visible {
   outline: 3px solid var(--login-pink);
   outline-offset: 3px;
@@ -443,7 +548,8 @@ onMounted(async () => {
   transition:
     background-color 180ms var(--motion-fast),
     color 180ms var(--motion-fast),
-    border-color 180ms var(--motion-fast);
+    border-color 180ms var(--motion-fast),
+    transform 100ms var(--motion-fast);
 }
 
 .login-submit:disabled {
@@ -489,6 +595,29 @@ onMounted(async () => {
 .login-access-note svg {
   flex: 0 0 auto;
   margin-top: 0.08rem;
+}
+
+.login-secondary {
+  width: 100%;
+  min-height: 2.75rem;
+  margin-top: 0.65rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--login-muted);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: var(--font-weight-label);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+  transition:
+    color 150ms var(--motion-fast),
+    transform 100ms var(--motion-fast);
+}
+
+.login-submit:not(:disabled):active,
+.login-secondary:active {
+  transform: scale(0.97);
 }
 
 .login-footer {
@@ -723,10 +852,13 @@ onMounted(async () => {
 
 @media (prefers-reduced-motion: reduce) {
   .login-submit,
+  .login-secondary,
   .login-submit__arrow {
     transition: none;
   }
 
+  .login-submit,
+  .login-secondary,
   .login-submit__arrow {
     transform: none;
   }

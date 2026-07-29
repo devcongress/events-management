@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-027: Missing Campaign Means Registration Was Not Managed Internally
+
+**Date:** 2026-07-29
+**Status:** Accepted
+**Context:** Historical events may have registration links and attendance imported from an external provider but no native `event_registration_campaigns` row. The organizer registration views previously treated that absence as a generic `404` and offered a development-only fictional guest simulation, which made it harder to tell historical data from real DevCongress registrations.
+**Decision:** For an existing event, treat the absence of a registration campaign as an explicit `managed_internally: false` read state. Show organizers that registration was not managed in this app and direct them to historical Attendance data when available. Do not synthesize guests, create a campaign during a read, or retrofit an old event automatically. Keep unknown events as `404`. Every new event created through the active native command still receives a private draft campaign, and the command removes the event if campaign provisioning fails.
+**Trade-offs:** Campaign absence is now meaningful compatibility state for historical records, so a manually corrupted future event would present the same state until repaired. The native creation invariant and server-side write checks prevent normal product flows from producing that mismatch. Historical external guest data remains separate from the native registration tables.
+**Alternatives considered:** Keep returning a campaign `404` (conflates valid history with missing data), preserve the fictional preview (looks like guest data without being evidence), create missing campaigns on GET (a hidden write that could misclassify history), or add a new registration-mode column solely for existing records (unnecessary while campaign presence and the native creation invariant already define the boundary).
+**Revisit when:** Organizers need to migrate an external guest list into native registration, another first-party registration provider is introduced, or event/campaign creation moves into one database transaction.
+
+---
+
 ## ADR-026: Fail-Closed Public Boundaries and Relational Security State
 
 **Date:** 2026-07-28

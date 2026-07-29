@@ -1,27 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
+import {
+  ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
+  adminPath,
+  safeInternalAppPath,
+} from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession, queryKeys } from '@/src/lib/api';
+import {
+  adminAuthFailureReasonForStatus,
+  type AdminAuthFailureReason,
+} from '@/src/lib/admin-auth-flow';
 import { queryClient } from '@/src/lib/query';
+import AdminLoginView from './AdminLoginView.vue';
 
 const route = useRoute();
 const router = useRouter();
-const error = ref<string | null>(null);
-const loading = ref(true);
-const redirectTo = computed(() => String(route.query.next ?? route.query.redirect ?? adminPath('events')));
+const redirectTo = computed(() => (
+  safeInternalAppPath(route.query.next)
+  ?? safeInternalAppPath(route.query.redirect)
+  ?? adminPath('events')
+));
 
-async function redirectToLogin(message?: string) {
+async function redirectToLogin(reason?: AdminAuthFailureReason) {
   window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
 
   const query: Record<string, string> = {
     redirect: redirectTo.value,
   };
 
-  if (message) {
-    query.error = message;
-  }
+  if (reason) query.auth_reason = reason;
 
   await router.replace({
     path: adminPath('login'),
@@ -34,22 +43,21 @@ onMounted(async () => {
   const callbackError = typeof route.query.error === 'string' ? route.query.error : '';
 
   if (callbackError) {
-    await redirectToLogin(callbackError);
+    await redirectToLogin('oauth_failed');
     return;
   }
 
   if (code) {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
-      await redirectToLogin('Google organizer sign-in is not configured yet.');
+      await redirectToLogin('service_unavailable');
       return;
     }
 
     try {
       const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeError || !data.session?.access_token) {
-        console.warn('Organizer Google OAuth code exchange failed:', exchangeError?.message ?? 'Missing access token');
-        await redirectToLogin('Google organizer sign-in could not be completed. Please try again.');
+        await redirectToLogin('oauth_failed');
         return;
       }
 
@@ -60,11 +68,8 @@ onMounted(async () => {
         body: JSON.stringify({ access_token: data.session.access_token }),
       });
 
-      await supabase.auth.signOut();
-
       if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        await redirectToLogin(payload?.error ?? 'Google organizer sign-in could not be completed. Please try again.');
+        await redirectToLogin(adminAuthFailureReasonForStatus(response.status));
         return;
       }
 
@@ -74,7 +79,7 @@ onMounted(async () => {
         staleTime: 0,
       });
       if (!session.authenticated) {
-        await redirectToLogin('Google organizer sign-in could not be completed. Please try again.');
+        await redirectToLogin('oauth_failed');
         return;
       }
 
@@ -82,8 +87,10 @@ onMounted(async () => {
       window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
       return;
     } catch {
-      await redirectToLogin('Google organizer sign-in could not be completed. Please try again.');
+      await redirectToLogin('service_unavailable');
       return;
+    } finally {
+      await supabase.auth.signOut().catch(() => undefined);
     }
   }
 
@@ -97,36 +104,18 @@ onMounted(async () => {
     // Fall through to the login page when the hosted API/session check is unreachable.
   }
 
-  loading.value = false;
-  error.value = 'Organizer sign-in now uses Google. Return to the sign-in page and continue with your approved account.';
+  await redirectToLogin();
 });
 </script>
 
 <template>
-  <div class="editorial-page">
-    <div class="flex min-h-[calc(100svh-6rem)] items-center justify-center px-4 py-12">
-      <div class="editorial-panel w-full max-w-md p-8 text-center sm:p-10">
-        <p class="editorial-eyebrow">organizer access</p>
-        <h1 class="mt-3 text-4xl font-extrabold tracking-tight text-dc-ink">
-          {{ loading ? 'Checking Session' : 'Use Google Sign-In' }}
-        </h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray">
-          {{
-            loading
-              ? 'We are checking whether your organizer session is already active.'
-              : error
-          }}
-        </p>
-
-        <button
-          v-if="!loading"
-          type="button"
-          class="editorial-action mt-6 w-full justify-center"
-          @click="redirectToLogin()"
-        >
-          Back to Sign In
-        </button>
-      </div>
-    </div>
-  </div>
+  <AdminLoginView
+    managed
+    access-title="Confirming access."
+    access-description="Google sign-in is complete. We are checking organizer approval."
+    action-label="Confirming organizer access…"
+    access-note="The protected workspace stays closed until this check succeeds."
+    busy
+    action-disabled
+  />
 </template>
