@@ -7,7 +7,7 @@
 - Repository: `/Users/TT/Documents/personal/forks/website`, local `main` at `ad5c96f32ad5437061ccb04a111b046129dde96f`.
 - The repository is an Astro 6.4.2 static site (`output: 'static'`) with GitHub Pages deployment from `dist/`.
 - The local fork snapshot differs from the deployed upstream website. Phase 1 must establish one approved source commit while treating the live site as the visitor-parity reference.
-- `src/lib/meetups.ts` performs a build-time fetch from `https://events-management.pages.dev/api/public/meetups` and falls back to local meetup YAML. This means the generated site is static, but its event snapshot is only as fresh as the last successful deployment.
+- `src/lib/meetups.ts` performs a build-time fetch from `https://em.devcongress.org/api/public/meetups` and falls back to local meetup YAML. This means the generated site is static, but its event snapshot is only as fresh as the last successful deployment.
 - `src/components/Navbar.astro` is the insertion point for the future Organizer link and authenticated Sign out action on the homepage. Meetup archive/detail routes currently have separate compact headers and need an explicit product decision about whether organizer session controls appear there too.
 - Existing user-owned dirty state was present before this task: modified `AGENTS.md` plus untracked `.codex/git-identity.md`. This task must not overwrite or stage either.
 - User constraint for this planning pass: the website repository remains strictly read-only.
@@ -30,6 +30,7 @@
 - The production upstream `devcongress/website` head is `10de647f81f71b72a08226dfe41919cf599fd635` from 2026-06-15. The production HTML has the same last-modified date, while the local fork snapshot is newer; compare both intentionally instead of assuming they are equivalent.
 - The upstream GitHub Pages project uses the custom domain `devcongress.org`, HTTPS enforcement, and the `Build and Deploy` workflow.
 - `https://events-management.pages.dev/api/health`, `/api/health/data-sources`, `/api/auth/session`, and `/api/public/meetups` all returned HTTP 200 on 2026-07-10.
+- `https://em.devcongress.org/api/public/meetups` returned HTTP 200 and passed the public API contract verifier with 9 published meetups on 2026-07-29. This custom domain is the canonical production origin; the Pages hostname above is dated historical evidence.
 - Hosted organizer auth reports `auth_mode: supabase`. Hosted data-source health reports all listed product domains on Supabase, either dedicated relational tables or the Supabase JSON bridge; no hosted domain reported `local-json`.
 - `/api/health` reports the Worker runtime as `vite-dev-server` because its runtime label only distinguishes Bun from non-Bun. This is an observability naming defect, not evidence that production is actually running Vite.
 - The domain already uses Cloudflare nameservers, so a Worker Custom Domain can replace the current GitHub Pages origin without a nameserver migration.

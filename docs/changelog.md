@@ -5,6 +5,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-29 — Canonical production domain alignment
+
+- Standardized active public API verification, website-integration guidance, and Turnstile hostname fixtures on `https://em.devcongress.org`.
+- Retained dated `events-management.pages.dev` references only where they document historical deployment and migration checks.
+- Re-ran the public meetup API contract verifier through the canonical domain and confirmed `ok: true`, 9 published meetups, the expected detail lookup, and `talks: 0`.
+
 ## 2026-07-29 — Production organizer sign-out repair
 
 - Fixed hosted organizer sign-out returning `500` by preserving the mandatory `Secure` attribute while expiring the `__Host-devcon_admin` cookie.

@@ -66,7 +66,7 @@ The final state should not need the private compatibility binding. It exists onl
 
 For this integration, the requirement means:
 
-- no browser request to `events-management.pages.dev` or another community API domain;
+- no browser request to `em.devcongress.org` or another separate community API domain;
 - no `EVENTS_MANAGEMENT_ORIGIN`, forced API base URL, or cross-origin credential flow in the final website;
 - website UI calls only relative same-origin paths such as `/api/auth/session` and `/api/events`;
 - website build/runtime owns the public data contract and organizer API facade;
@@ -308,7 +308,7 @@ Goal: organizer edits and public event views share one source without a rebuild-
 
 Exit criteria:
 
-- no browser or build request targets `events-management.pages.dev`;
+- no browser or build request targets `em.devcongress.org` or its legacy Pages alias;
 - an organizer publish/update is visible through the website within the agreed freshness window;
 - YAML remains only an intentional editorial fallback/seed path, not a competing production source of truth.
 
