@@ -7,20 +7,14 @@ updates:
       day: monday
       time: "09:00"
       timezone: Africa/Accra
-    open-pull-requests-limit: 10
+    # Keep vulnerability detection and grouped security remediation enabled,
+    # but do not open routine "new version available" pull requests.
+    open-pull-requests-limit: 0
     groups:
-      production-dependencies:
-        applies-to: version-updates
-        dependency-type: production
-        update-types:
-          - minor
-          - patch
-      development-dependencies:
-        applies-to: version-updates
-        dependency-type: development
-        update-types:
-          - minor
-          - patch
+      npm-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
@@ -29,13 +23,11 @@ updates:
       day: monday
       time: "09:15"
       timezone: Africa/Accra
-    open-pull-requests-limit: 5
+    # Security updates are grouped separately by GitHub because Dependabot
+    # cannot combine security fixes from different package ecosystems.
+    open-pull-requests-limit: 0
     groups:
-      codeql-version-updates:
-        applies-to: version-updates
-        patterns:
-          - "github/codeql-action/*"
-      codeql-security-updates:
+      github-actions-security-updates:
         applies-to: security-updates
         patterns:
-          - "github/codeql-action/*"
+          - "*"
