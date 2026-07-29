@@ -44,6 +44,23 @@ describe('event series form payload', () => {
     });
   });
 
+  it('always confirms available places and waitlists registration overflow', () => {
+    const parsed = createEventFormSchema.parse({
+      name: 'DevCongress Monthly Meetup',
+      description: 'A free community meetup.',
+      event_date: '2026-08-20T18:00',
+      series_type: 'monthly',
+      location_name: 'Accra',
+      registration_capacity: 80,
+    });
+
+    expect(toCreateEventApiPayload(parsed).registration).toMatchObject({
+      capacity: 80,
+      auto_confirm: true,
+      waitlist_enabled: true,
+    });
+  });
+
   it('rejects an end time before the event starts', () => {
     const result = createEventFormSchema.safeParse({
       name: 'Community Demo Night',

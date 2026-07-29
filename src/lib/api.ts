@@ -409,7 +409,7 @@ export function fetchEventRegistrations(eventId: string) {
 
 export function updateEventRegistrationCampaign(
   eventId: string,
-  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'capacity' | 'opens_at' | 'closes_at' | 'waitlist_enabled' | 'auto_confirm'>>,
+  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'capacity' | 'opens_at' | 'closes_at'>>,
 ) {
   return fetchJson<EventRegistrationCampaign>(`/api/events/${eventId}/registrations`, {
     method: 'PATCH',
@@ -427,7 +427,7 @@ export function checkInEventRegistration(eventId: string, registrationId: string
 }
 
 export function cancelEventRegistration(eventId: string, registrationId: string) {
-  return fetchJson<{ ok: true }>(`/api/events/${eventId}/registrations/${registrationId}/cancel`, {
+  return fetchJson<{ ok: true; promoted_registration_id: string | null }>(`/api/events/${eventId}/registrations/${registrationId}/cancel`, {
     method: 'POST',
     credentials: 'include',
   });

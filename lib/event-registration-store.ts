@@ -3,6 +3,7 @@ import type {
   EventRegistration,
   EventRegistrationCampaign,
   EventRegistrationCampaignStatus,
+  RegistrationEmailKind,
   RegistrationEmailDeliveryStatus,
 } from '@/types';
 import {
@@ -38,6 +39,11 @@ export type RegistrationCampaignInput = {
   closes_at?: string | null;
   waitlist_enabled: boolean;
   auto_confirm: boolean;
+};
+
+export type RegistrationCancellationResult = {
+  cancelled: boolean;
+  promotedRegistrationId: string | null;
 };
 
 export async function createRegistrationCampaign(
@@ -92,7 +98,7 @@ export async function checkInRegistration(
 export async function cancelRegistration(
   registrationId: string,
   c?: Context,
-): Promise<boolean> {
+): Promise<RegistrationCancellationResult> {
   return await cancelSupabaseRegistration(registrationId, c) ?? cancelMockRegistration(registrationId);
 }
 
@@ -105,11 +111,16 @@ export async function deleteRegistration(
 
 export async function getPendingRegistrationEmails(
   eventId: string,
-  limit = 100,
+  input: {
+    limit?: number;
+    registrationId?: string;
+    statuses?: Array<Extract<RegistrationEmailDeliveryStatus, 'pending' | 'failed'>>;
+    kinds?: RegistrationEmailKind[];
+  } = {},
   c?: Context,
 ): Promise<PendingRegistrationEmail[]> {
-  return await getSupabasePendingRegistrationEmails(eventId, limit, c)
-    ?? getMockPendingRegistrationEmails(eventId, limit);
+  return await getSupabasePendingRegistrationEmails(eventId, input, c)
+    ?? getMockPendingRegistrationEmails(eventId, input);
 }
 
 export async function updateRegistrationEmailDelivery(

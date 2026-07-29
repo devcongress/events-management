@@ -58,6 +58,20 @@ describe('event registration confirmation email', () => {
     expect(content.text).not.toContain('ADD TO CALENDAR');
   });
 
+  it('renders a distinct promotion notice with confirmed-place calendar actions', () => {
+    const content = eventRegistrationConfirmationEmail({
+      ...confirmedInput,
+      kind: 'promotion',
+    });
+
+    expect(content.subject).toBe('A place opened up for DevCongress May Meetup');
+    expect(content.html).toContain('Place available');
+    expect(content.html).toContain('You’re off the waitlist.');
+    expect(content.text).toContain('A place became available and is now saved for you.');
+    expect(content.html).toContain('Google Calendar');
+    expect(content.html).toContain('Download .ics');
+  });
+
   it('escapes display content and drops unsafe or non-map links', () => {
     const content = eventRegistrationConfirmationEmail({
       attendeeName: 'Ama\r\nBcc: attacker@example.com <script>',

@@ -3,6 +3,7 @@ import type {
   EventRegistration,
   EventRegistrationCampaign,
   EventRegistrationCampaignStatus,
+  RegistrationEmailKind,
   RegistrationEmailDeliveryStatus,
 } from '@/types';
 import type { Database } from '@/types/supabase';
@@ -18,6 +19,7 @@ export type PendingRegistrationEmail = {
   registration_id: string;
   idempotency_key: string;
   attempts: number;
+  kind: RegistrationEmailKind;
   name: string;
   email: string;
   registration_status: EventRegistration['status'];
@@ -99,7 +101,10 @@ export async function registerSupabaseForEvent(
   });
 
   if (error) throw new Error(error.message);
-  return toEventRegistration(data, null, 'pending');
+  return toEventRegistration(data, null, {
+    status: 'pending',
+    kind: 'confirmation',
+  });
 }
 
 export async function getSupabaseEventRegistrations(
@@ -130,7 +135,7 @@ export async function getSupabaseEventRegistrations(
       .from('registration_email_deliveries')
       .select('*')
       .in('registration_id', registrationIds)
-      .eq('kind', 'confirmation'),
+      .order('updated_at', { ascending: true }),
   ]);
   if (checkinsResult.error) throw new Error(checkinsResult.error.message);
   if (deliveriesResult.error) throw new Error(deliveriesResult.error.message);
@@ -138,9 +143,10 @@ export async function getSupabaseEventRegistrations(
   const checkinsByRegistration = new Map(
     checkinsResult.data.map((checkin) => [checkin.registration_id, checkin.checked_in_at]),
   );
-  const deliveriesByRegistration = new Map(
-    deliveriesResult.data.map((delivery) => [delivery.registration_id, delivery.status]),
-  );
+  const deliveriesByRegistration = new Map<string, EmailDeliveryRow>();
+  for (const delivery of deliveriesResult.data) {
+    deliveriesByRegistration.set(delivery.registration_id, delivery);
+  }
 
   return registrationsResult.data.map((registration) => toEventRegistration(
     registration,
@@ -172,21 +178,22 @@ export async function checkInSupabaseRegistration(
 export async function cancelSupabaseRegistration(
   registrationId: string,
   c?: Context,
-): Promise<boolean | null> {
+): Promise<{
+  cancelled: boolean;
+  promotedRegistrationId: string | null;
+} | null> {
   if (!canUseSupabaseEventRegistrations(c)) return null;
 
-  const { data, error } = await getSupabaseAdminClient(c)
-    .from('event_registrations')
-    .update({
-      status: 'cancelled',
-      cancelled_at: new Date().toISOString(),
-    })
-    .eq('id', registrationId)
-    .select('id')
-    .maybeSingle();
+  const { data, error } = await getSupabaseAdminClient(c).rpc('cancel_registration_and_promote', {
+    p_registration_id: registrationId,
+  });
 
   if (error) throw new Error(error.message);
-  return Boolean(data);
+  const result = data?.[0];
+  return {
+    cancelled: result?.cancelled === true,
+    promotedRegistrationId: result?.promoted_registration_id ?? null,
+  };
 }
 
 export async function deleteSupabaseRegistration(
@@ -208,7 +215,12 @@ export async function deleteSupabaseRegistration(
 
 export async function getSupabasePendingRegistrationEmails(
   eventId: string,
-  limit = 100,
+  input: {
+    limit?: number;
+    registrationId?: string;
+    statuses?: Array<Extract<RegistrationEmailDeliveryStatus, 'pending' | 'failed'>>;
+    kinds?: RegistrationEmailKind[];
+  } = {},
   c?: Context,
 ): Promise<PendingRegistrationEmail[] | null> {
   if (!canUseSupabaseEventRegistrations(c)) return null;
@@ -225,15 +237,21 @@ export async function getSupabasePendingRegistrationEmails(
   if (registrationsError) throw new Error(registrationsError.message);
 
   const registrationsById = new Map(registrations.map((registration) => [registration.id, registration]));
+  if (input.registrationId) {
+    const registration = registrationsById.get(input.registrationId);
+    registrationsById.clear();
+    if (registration) registrationsById.set(registration.id, registration);
+  }
   if (registrationsById.size === 0) return [];
 
   const { data: deliveries, error: deliveriesError } = await client
     .from('registration_email_deliveries')
     .select('*')
     .in('registration_id', Array.from(registrationsById.keys()))
-    .in('status', ['pending', 'failed'])
+    .in('kind', input.kinds ?? ['confirmation', 'promotion'])
+    .in('status', input.statuses ?? ['pending', 'failed'])
     .order('created_at', { ascending: true })
-    .limit(limit);
+    .limit(input.limit ?? 100);
   if (deliveriesError) throw new Error(deliveriesError.message);
 
   return deliveries.flatMap((delivery) => {
@@ -280,7 +298,7 @@ export async function updateSupabaseRegistrationEmailDelivery(
 function toEventRegistration(
   row: RegistrationRow,
   checkedInAt: string | null,
-  emailStatus: RegistrationEmailDeliveryStatus | null,
+  emailDelivery: Pick<EmailDeliveryRow, 'status' | 'kind'> | null,
 ): EventRegistration {
   return {
     id: row.id,
@@ -291,7 +309,10 @@ function toEventRegistration(
     confirmed_at: row.confirmed_at,
     cancelled_at: row.cancelled_at,
     checked_in_at: checkedInAt,
-    email_status: emailStatus,
+    email_status: emailDelivery?.status ?? null,
+    email_kind: emailDelivery
+      ? registrationEmailKind(emailDelivery.kind)
+      : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -306,8 +327,13 @@ function toPendingEmail(
     registration_id: registration.id,
     idempotency_key: delivery.idempotency_key,
     attempts: delivery.attempts,
+    kind: registrationEmailKind(delivery.kind),
     name: registration.name,
     email: registration.email,
     registration_status: registration.status,
   };
+}
+
+function registrationEmailKind(value: string): RegistrationEmailKind {
+  return value === 'promotion' ? 'promotion' : 'confirmation';
 }

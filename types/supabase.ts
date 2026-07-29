@@ -952,6 +952,15 @@ export interface Database {
         };
         Returns: Database['public']['Tables']['event_registrations']['Row'];
       };
+      cancel_registration_and_promote: {
+        Args: {
+          p_registration_id: string;
+        };
+        Returns: {
+          cancelled: boolean;
+          promoted_registration_id: string | null;
+        }[];
+      };
       consume_public_rate_limit: {
         Args: {
           p_action: string;

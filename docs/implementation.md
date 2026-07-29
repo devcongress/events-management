@@ -51,7 +51,7 @@
 - **Native registration**
   - `POST /api/events` creates the classified event and one draft registration campaign as one application command; a failed campaign write compensates by removing the new event.
   - Authenticated registration reads return `managed_internally: true` with the private campaign/guest list, or `managed_internally: false` for an existing historical event with no campaign. Unknown events remain `404`, and reads never create campaigns or synthetic attendees.
-  - `register_for_event` serializes capacity allocation per campaign in Postgres, rejects duplicate active emails, confirms within capacity, and waitlists when configured.
+  - `register_for_event` serializes capacity allocation per campaign in Postgres, rejects duplicate active emails, confirms within capacity, and automatically waitlists overflow. The legacy `auto_confirm` and `waitlist_enabled` columns remain fixed internal compatibility fields and are no longer organizer-controlled. `cancel_registration_and_promote` takes the same campaign lock, cancels the selected registration, promotes the oldest waitlisted guest when a confirmed place opens, and queues the promotion delivery in the same transaction.
   - The canonical public `/r/:eventSlug` form collects name/email only; legacy `/register/:eventId` links remain valid. Attendee tables have RLS and no anonymous policies; all access goes through validated Hono routes.
   - Confirmation delivery is an outbox operation. Missing provider configuration or a Resend quota error never rolls back the attendee record.
 - **Speaker management**
@@ -129,6 +129,7 @@
 - `supabase/migrations/20260615000000_community_events.sql` adds `community_events`, modeled from the current `devcongress.org` Astro meetup collection and seeded with the existing website meetup YAML entries.
 - `supabase/migrations/20260620032000_event_series_type.sql` adds a nullable `series_type` field (`monthly`, `quarterly`, `special`, or `null` for no series) so organizers stop relying on event titles to drive attendance and organizer workflow decisions.
 - `supabase/migrations/20260728000000_native_event_registrations.sql` adds relational campaigns, attendee records, check-ins, retryable confirmation deliveries, and the atomic free-registration function.
+- `supabase/migrations/20260729010000_registration_waitlist_promotion.sql` fixes the automatic-allocation policy at the database boundary, adds promotion deliveries, and performs cancellation plus oldest-first waitlist promotion atomically.
 - `supabase/migrations/20260728020000_security_hardening.sql` removes direct anonymous feedback access, adds atomic public rate-limit buckets, moves CFP proposals to private relational rows with database-enforced active-proposal uniqueness, moves speaker links to relational hash-only state with atomic claim/consume/release functions, and revokes organizer sessions after membership role/status changes.
 - `supabase/migrations/20260729000000_fix_public_rate_limit_timestamp_ambiguity.sql` repairs the distributed limiter for projects that already applied the security migration by replacing its ambiguous `current_time` variable with an explicit `timestamptz` value.
 - `supabase/migrations/20260615001000_meetup_media_bucket.sql` adds the public `meetup-media` Supabase Storage bucket for selected image uploads.

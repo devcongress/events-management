@@ -169,8 +169,8 @@ describe('native event registration API', () => {
           capacity: 1,
           opens_at: null,
           closes_at: null,
-          waitlist_enabled: true,
-          auto_confirm: true,
+          waitlist_enabled: false,
+          auto_confirm: false,
         },
       }),
     });
@@ -178,11 +178,21 @@ describe('native event registration API', () => {
     expect(createResponse.status).toBe(201);
     const created = await createResponse.json() as {
       event: { id: string; slug: string; registration_url: string; stream_url: string | null };
-      registration_campaign: { status: string; capacity: number };
+      registration_campaign: {
+        status: string;
+        capacity: number;
+        waitlist_enabled: boolean;
+        auto_confirm: boolean;
+      };
     };
     expect(created.event.registration_url).toBe('http://localhost/r/august-2026-meetup');
     expect(created.event.stream_url).toBe('https://meet.google.com/abc-defg-hij');
-    expect(created.registration_campaign).toMatchObject({ status: 'draft', capacity: 1 });
+    expect(created.registration_campaign).toMatchObject({
+      status: 'draft',
+      capacity: 1,
+      waitlist_enabled: true,
+      auto_confirm: true,
+    });
 
     const draftPublicResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
     expect(draftPublicResponse.status).toBe(404);
@@ -215,6 +225,16 @@ describe('native event registration API', () => {
       body: JSON.stringify({ status: 'open' }),
     });
     expect(openResponse.status).toBe(200);
+
+    const policyOverrideResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_confirm: false, waitlist_enabled: false }),
+      },
+    );
+    expect(policyOverrideResponse.status).toBe(400);
 
     const slugPublicResponse = await app.request('http://localhost/api/registration/events/august-2026-meetup');
     expect(slugPublicResponse.status).toBe(200);
@@ -268,7 +288,23 @@ describe('native event registration API', () => {
 
     const adminResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`);
     expect(adminResponse.status).toBe(200);
-    await expect(adminResponse.json()).resolves.toMatchObject({
+    const beforeCancellation = await adminResponse.json() as {
+      managed_internally: boolean;
+      public_url: string;
+      summary: {
+        total: number;
+        confirmed: number;
+        waitlisted: number;
+        available: number;
+        pending_emails: number;
+      };
+      registrations: Array<{
+        id: string;
+        status: string;
+        email: string;
+      }>;
+    };
+    expect(beforeCancellation).toMatchObject({
       managed_internally: true,
       public_url: 'http://localhost/r/august-2026-meetup',
       summary: {
@@ -278,6 +314,53 @@ describe('native event registration API', () => {
         available: 0,
         pending_emails: 2,
       },
+    });
+
+    const confirmed = beforeCancellation.registrations.find((registration) => (
+      registration.status === 'confirmed'
+    ));
+    const waitlisted = beforeCancellation.registrations.find((registration) => (
+      registration.status === 'waitlisted'
+    ));
+    expect(confirmed).toBeDefined();
+    expect(waitlisted).toBeDefined();
+
+    const cancellationResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations/${confirmed!.id}/cancel`,
+      { method: 'POST' },
+    );
+    expect(cancellationResponse.status).toBe(200);
+    await expect(cancellationResponse.json()).resolves.toEqual({
+      ok: true,
+      promoted_registration_id: waitlisted!.id,
+    });
+
+    const afterCancellationResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
+    );
+    expect(afterCancellationResponse.status).toBe(200);
+    await expect(afterCancellationResponse.json()).resolves.toMatchObject({
+      summary: {
+        total: 1,
+        confirmed: 1,
+        waitlisted: 0,
+        available: 0,
+        pending_emails: 1,
+      },
+      registrations: expect.arrayContaining([
+        expect.objectContaining({
+          id: waitlisted!.id,
+          email: 'kojo@example.com',
+          status: 'confirmed',
+          email_kind: 'promotion',
+          email_status: 'pending',
+        }),
+        expect.objectContaining({
+          id: confirmed!.id,
+          email: 'ama@example.com',
+          status: 'cancelled',
+        }),
+      ]),
     });
   });
 
@@ -458,7 +541,7 @@ describe('native event registration API', () => {
     });
   });
 
-  it('sends confirmed event details, a safe map, and calendar actions in the email', async () => {
+  it('sends confirmed, waitlist, and automatic promotion emails to the intended guest', async () => {
     vi.stubEnv('RESEND_API_KEY', 're_test');
     vi.stubEnv('REGISTRATION_EMAIL_FROM', 'DevCongress <events@updates.devcongress.org>');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
@@ -502,7 +585,7 @@ describe('native event registration API', () => {
     await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'open' }),
+      body: JSON.stringify({ status: 'open', capacity: 1 }),
     });
     const registrationResponse = await app.request(
       'http://localhost/api/registration/events/august-email-test',
@@ -530,5 +613,63 @@ describe('native event registration API', () => {
       'Download calendar file: http://localhost/api/registration/events/august-email-test/calendar.ics',
     );
     expect(emails[0]?.html).not.toMatch(/QR code|confirmation code/i);
+
+    const waitlistResponse = await app.request(
+      'http://localhost/api/registration/events/august-email-test',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Kojo Owusu', email: 'kojo@example.com' }),
+      },
+    );
+    expect(waitlistResponse.status).toBe(202);
+    expect(providerFetch).toHaveBeenCalledTimes(2);
+    const waitlistRequest = providerFetch.mock.calls[1]?.[1] as RequestInit;
+    const waitlistEmails = JSON.parse(String(waitlistRequest.body)) as Array<{
+      subject: string;
+      to: string[];
+    }>;
+    expect(waitlistEmails).toEqual([
+      expect.objectContaining({
+        subject: 'You are on the waitlist for DevCongress August Meetup',
+        to: ['kojo@example.com'],
+      }),
+    ]);
+
+    const registrationsResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
+    );
+    const registrations = await registrationsResponse.json() as {
+      registrations: Array<{ id: string; email: string }>;
+    };
+    const confirmedRegistration = registrations.registrations.find((item) => (
+      item.email === 'ama@example.com'
+    ));
+    expect(confirmedRegistration).toBeDefined();
+
+    const cancelResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations/${confirmedRegistration!.id}/cancel`,
+      { method: 'POST' },
+    );
+    expect(cancelResponse.status).toBe(200);
+    await expect(cancelResponse.json()).resolves.toMatchObject({
+      ok: true,
+      promoted_registration_id: expect.any(String),
+    });
+    expect(providerFetch).toHaveBeenCalledTimes(3);
+    const promotionRequest = providerFetch.mock.calls[2]?.[1] as RequestInit;
+    const promotionEmails = JSON.parse(String(promotionRequest.body)) as Array<{
+      subject: string;
+      text: string;
+      to: string[];
+    }>;
+    expect(promotionEmails).toEqual([
+      expect.objectContaining({
+        subject: 'A place opened up for DevCongress August Meetup',
+        to: ['kojo@example.com'],
+      }),
+    ]);
+    expect(promotionEmails[0]?.text).toContain('You’re off the waitlist.');
+    expect(promotionEmails[0]?.text).toContain('ADD TO CALENDAR');
   });
 });

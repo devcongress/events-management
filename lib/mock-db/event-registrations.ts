@@ -6,6 +6,7 @@ import type {
   EventRegistration,
   EventRegistrationCampaign,
   EventRegistrationCampaignStatus,
+  RegistrationEmailKind,
   RegistrationEmailDeliveryStatus,
 } from '@/types';
 import { generateId, now } from '@/lib/utils';
@@ -19,6 +20,7 @@ const EMAILS_FILE = 'registration-email-deliveries';
 type MockEmailDelivery = {
   id: string;
   registration_id: string;
+  kind?: RegistrationEmailKind;
   status: RegistrationEmailDeliveryStatus;
   attempts: number;
   idempotency_key: string;
@@ -127,11 +129,15 @@ export async function registerMockForEvent(input: {
   });
 
   await updateData<MockEmailDelivery, void>(EMAILS_FILE, (deliveries) => {
-    const existingIndex = deliveries.findIndex((delivery) => delivery.registration_id === result.id);
+    const existingIndex = deliveries.findIndex((delivery) => (
+      delivery.registration_id === result.id
+      && (delivery.kind ?? 'confirmation') === 'confirmation'
+    ));
     const timestamp = now();
     const delivery: MockEmailDelivery = {
       id: existingIndex >= 0 ? deliveries[existingIndex].id : generateId(),
       registration_id: result.id,
+      kind: 'confirmation',
       status: 'pending',
       attempts: 0,
       idempotency_key: `registration-confirmation-${result.id}`,
@@ -152,15 +158,22 @@ export async function getMockEventRegistrations(eventId: string): Promise<EventR
   const campaign = await getMockRegistrationCampaign(eventId);
   if (!campaign) return [];
   const deliveries = await readData<MockEmailDelivery>(EMAILS_FILE);
-  const deliveryStatusByRegistration = new Map(
-    deliveries.map((delivery) => [delivery.registration_id, delivery.status]),
-  );
+  const latestDeliveryByRegistration = new Map<string, MockEmailDelivery>();
+  for (const delivery of [...deliveries].sort((first, second) => (
+    first.updated_at.localeCompare(second.updated_at)
+  ))) {
+    latestDeliveryByRegistration.set(delivery.registration_id, delivery);
+  }
   return (await readData<EventRegistration>(REGISTRATIONS_FILE))
     .filter((registration) => registration.campaign_id === campaign.id)
-    .map((registration) => ({
-      ...registration,
-      email_status: deliveryStatusByRegistration.get(registration.id) ?? registration.email_status,
-    }))
+    .map((registration) => {
+      const delivery = latestDeliveryByRegistration.get(registration.id);
+      return {
+        ...registration,
+        email_status: delivery?.status ?? registration.email_status,
+        email_kind: delivery?.kind ?? (delivery ? 'confirmation' : null),
+      };
+    })
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
@@ -174,19 +187,96 @@ export async function checkInMockRegistration(registrationId: string): Promise<s
   });
 }
 
-export async function cancelMockRegistration(registrationId: string): Promise<boolean> {
-  return updateData<EventRegistration, boolean>(REGISTRATIONS_FILE, (registrations) => {
+export async function cancelMockRegistration(registrationId: string): Promise<{
+  cancelled: boolean;
+  promotedRegistrationId: string | null;
+}> {
+  const result = await updateData<EventRegistration, {
+    cancelled: boolean;
+    promotedRegistrationId: string | null;
+  }>(REGISTRATIONS_FILE, (registrations) => {
     const index = registrations.findIndex((registration) => registration.id === registrationId);
-    if (index < 0) return { data: registrations, result: false };
+    if (index < 0 || registrations[index].status === 'cancelled') {
+      return {
+        data: registrations,
+        result: { cancelled: false, promotedRegistrationId: null },
+      };
+    }
+
     const timestamp = now();
+    const shouldPromote = registrations[index].status === 'confirmed';
+    const campaignId = registrations[index].campaign_id;
     registrations[index] = {
       ...registrations[index],
       status: 'cancelled',
       cancelled_at: timestamp,
       updated_at: timestamp,
     };
-    return { data: registrations, result: true };
+
+    const promoted = shouldPromote
+      ? registrations
+        .filter((registration) => (
+          registration.campaign_id === campaignId
+          && registration.status === 'waitlisted'
+        ))
+        .sort((first, second) => (
+          first.created_at.localeCompare(second.created_at)
+          || first.id.localeCompare(second.id)
+        ))[0]
+      : undefined;
+    if (promoted) {
+      const promotedIndex = registrations.findIndex((registration) => registration.id === promoted.id);
+      registrations[promotedIndex] = {
+        ...registrations[promotedIndex],
+        status: 'confirmed',
+        confirmed_at: timestamp,
+        cancelled_at: null,
+        email_status: 'pending',
+        email_kind: 'promotion',
+        updated_at: timestamp,
+      };
+    }
+
+    return {
+      data: registrations,
+      result: {
+        cancelled: true,
+        promotedRegistrationId: promoted?.id ?? null,
+      },
+    };
   });
+
+  if (!result.promotedRegistrationId) return result;
+
+  await updateData<MockEmailDelivery, void>(EMAILS_FILE, (deliveries) => {
+    const activeDeliveries = deliveries.filter((delivery) => !(
+      delivery.registration_id === result.promotedRegistrationId
+      && (delivery.kind ?? 'confirmation') === 'confirmation'
+      && delivery.status !== 'accepted'
+    ));
+    const existingIndex = activeDeliveries.findIndex((delivery) => (
+      delivery.registration_id === result.promotedRegistrationId
+      && delivery.kind === 'promotion'
+    ));
+    const timestamp = now();
+    const delivery: MockEmailDelivery = {
+      id: existingIndex >= 0 ? activeDeliveries[existingIndex].id : generateId(),
+      registration_id: result.promotedRegistrationId!,
+      kind: 'promotion',
+      status: 'pending',
+      attempts: 0,
+      idempotency_key: `registration-promotion-${result.promotedRegistrationId}-${Date.parse(timestamp)}`,
+      provider_id: null,
+      last_error: null,
+      created_at: existingIndex >= 0 ? activeDeliveries[existingIndex].created_at : timestamp,
+      updated_at: timestamp,
+    };
+    if (existingIndex >= 0) activeDeliveries[existingIndex] = delivery;
+    else activeDeliveries.push(delivery);
+    return { data: activeDeliveries, result: undefined };
+  });
+
+  return result;
 }
 
 export async function deleteMockRegistration(registrationId: string): Promise<boolean> {
@@ -206,18 +296,36 @@ export async function deleteMockRegistration(registrationId: string): Promise<bo
   return true;
 }
 
-export async function getMockPendingRegistrationEmails(eventId: string, limit = 100): Promise<PendingRegistrationEmail[]> {
+export async function getMockPendingRegistrationEmails(
+  eventId: string,
+  input: {
+    limit?: number;
+    registrationId?: string;
+    statuses?: Array<Extract<RegistrationEmailDeliveryStatus, 'pending' | 'failed'>>;
+    kinds?: RegistrationEmailKind[];
+  } = {},
+): Promise<PendingRegistrationEmail[]> {
   const registrations = await getMockEventRegistrations(eventId);
   const registrationsById = new Map(
     registrations
-      .filter((registration) => registration.status !== 'cancelled')
+      .filter((registration) => (
+        registration.status !== 'cancelled'
+        && (!input.registrationId || registration.id === input.registrationId)
+      ))
       .map((registration) => [registration.id, registration]),
   );
   const deliveries = await readData<MockEmailDelivery>(EMAILS_FILE);
+  const statuses = input.statuses ?? ['pending', 'failed'];
+  const kinds = input.kinds ?? ['confirmation', 'promotion'];
 
   return deliveries
-    .filter((delivery) => registrationsById.has(delivery.registration_id) && delivery.status !== 'accepted')
-    .slice(0, limit)
+    .filter((delivery) => (
+      registrationsById.has(delivery.registration_id)
+      && kinds.includes(delivery.kind ?? 'confirmation')
+      && statuses.includes(delivery.status as 'pending' | 'failed')
+    ))
+    .sort((first, second) => first.created_at.localeCompare(second.created_at))
+    .slice(0, input.limit ?? 100)
     .map((delivery) => {
       const registration = registrationsById.get(delivery.registration_id)!;
       return {
@@ -225,6 +333,7 @@ export async function getMockPendingRegistrationEmails(eventId: string, limit = 
         registration_id: registration.id,
         idempotency_key: delivery.idempotency_key,
         attempts: delivery.attempts,
+        kind: delivery.kind ?? 'confirmation',
         name: registration.name,
         email: registration.email,
         registration_status: registration.status,
