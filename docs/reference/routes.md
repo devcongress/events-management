@@ -25,9 +25,9 @@ There is no public-site header or organizer-link toggle in this deployment.
 | Route | Purpose |
 |---|---|
 | `/organizer-console/login` | Organizer sign-in through Supabase Google OAuth and the active membership allowlist; incomplete configuration fails closed |
-| `/organizer-console/auth/callback` | Legacy organizer auth landing page that redirects back to Google sign-in if a stale magic-link route is hit |
+| `/organizer-console/auth/callback` | Google PKCE exchange and organizer-membership verification using the same visual surface as login; temporary browser auth is cleared before the approved internal destination opens |
 | `/organizer-console/mobile` | Canonical authenticated phone-only Mobile Ops surface. Authenticated phone visits to full organizer routes resolve here; tablets/desktops visiting this route resolve to `/organizer-console/events`. |
-| `/organizer-console/mobile/events/:eventId/check-in` | Dedicated authenticated phone check-in screen for one native event. It omits the global organizer navigation and returns to Mobile Ops through a visible back action; tablets/desktops resolve it to the event’s full Registration tab. |
+| `/organizer-console/mobile/events/:eventId/check-in` | Dedicated authenticated phone check-in screen for one native event. It omits the global organizer navigation and returns to Mobile Ops through a visible back action; an existing event without a native campaign shows a historical-registration explanation, and tablets/desktops resolve the route to the event’s full Registration tab. |
 | `/organizer-console/events` | Organizer event list |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview |
@@ -37,7 +37,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/organizers` | Owner-only organizer email allowlist |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
-| `/organizer-console/events/:eventId/registrations` | Registration campaign settings, public-link sharing, guest-list search, name/email check-in, cancellation, confirmation-email retries, and local-development test-guest removal |
+| `/organizer-console/events/:eventId/registrations` | Registration campaign settings, public-link sharing, guest-list search, name/email check-in, cancellation, confirmation-email retries, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
 | `/organizer-console/events/:eventId/talks` | Compatibility URL that redirects to the Event Archive CFP step |
 | `/organizer-console/events/:eventId/talks/cfp` | CFP status and organizer proposal review controls |
 | `/organizer-console/events/:eventId/talks/proposals` | Talk and product-demo proposal review, organizer selection decisions, and selected-presenter Archive completion links |
@@ -60,7 +60,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/events*` | Event list, event details, organizer mutations, event removal, media metadata |
 | `GET/POST /api/registration/events/:eventKey` | Public registration status and non-enumerating name/email submission by event slug or ID, protected by strict input validation, production Turnstile, atomic cross-Worker limits, campaign/email uniqueness, and atomic capacity allocation |
 | `GET /api/registration/events/:eventKey/calendar.ics` | Public, attendee-free calendar download used by confirmed registration emails |
-| `/api/events/:eventId/registrations*` | Organizer registration settings, private guest list, check-in, cancellation, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes |
+| `/api/events/:eventId/registrations*` | Organizer registration settings, private guest list, check-in, cancellation, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
 | `POST /api/events/:eventId/registration-emails/process` | Organizer retry for queued confirmation emails |
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
 | `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send using stored program identities and validated one-off recipient emails; successful identities are suppressed from repeat UI/API sends |

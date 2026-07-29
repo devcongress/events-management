@@ -17,3 +17,18 @@ export function adminPath(path = ''): string {
 export function isAdminPath(path: string): boolean {
   return path === ADMIN_BASE_PATH || path.startsWith(`${ADMIN_BASE_PATH}/`);
 }
+
+export function safeInternalAppPath(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value, 'https://app.devcongress.invalid');
+    return parsed.origin === 'https://app.devcongress.invalid'
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : null;
+  } catch {
+    return null;
+  }
+}

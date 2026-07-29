@@ -1,7 +1,6 @@
 import type { EventRegistration } from '@/types';
 
 export const ALL_REGISTRATION_INITIALS = 'all';
-export const SIMULATED_REGISTRATION_COUNT = 64;
 
 export function registrationNameInitial(name: string): string {
   const normalized = name

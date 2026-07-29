@@ -1,5 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
+import {
+  ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
+  adminPath,
+  isAdminPath,
+  safeInternalAppPath,
+} from './admin-routes';
 import { annualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { queryClient } from './lib/query';
@@ -52,15 +57,9 @@ const AdminQuizView = () => import('./views/admin/AdminQuizView.vue');
 const AdminSystemDesignView = () => import('./views/admin/AdminSystemDesignView.vue');
 const AdminRegistrationsView = () => import('./views/admin/AdminRegistrationsView.vue');
 
-function safeInternalRedirect(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  if (!value.startsWith('/') || value.startsWith('//')) return null;
-  return value;
-}
-
 function storedAdminOAuthRedirect(): string {
   try {
-    return safeInternalRedirect(window.sessionStorage.getItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY)) ?? adminPath('events');
+    return safeInternalAppPath(window.sessionStorage.getItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY)) ?? adminPath('events');
   } catch {
     return adminPath('events');
   }
@@ -122,7 +121,7 @@ router.beforeEach(async (to, from) => {
     return {
       path: adminPath('auth/callback'),
       query: {
-        next: safeInternalRedirect(to.query.next) ?? safeInternalRedirect(to.query.redirect) ?? storedAdminOAuthRedirect(),
+        next: safeInternalAppPath(to.query.next) ?? safeInternalAppPath(to.query.redirect) ?? storedAdminOAuthRedirect(),
         ...(oauthCode ? { code: oauthCode } : {}),
         ...(oauthError ? { error: oauthError } : {}),
       },

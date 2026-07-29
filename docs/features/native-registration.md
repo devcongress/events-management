@@ -10,6 +10,8 @@ Events Management now owns event creation and registration. Creating an event wr
 
 The public form asks only for name and email. Confirmed guests check in at the event by either value; there are no QR codes or confirmation codes.
 
+Historical events without a native campaign remain readable but are explicitly labelled as not managed internally. Their Registration tab never invents a guest list; imported historical records remain in Attendance when available.
+
 ## Organizer Flow
 
 1. Open **Events → Create Event**.
@@ -18,8 +20,8 @@ The public form asks only for name and email. Confirmed guests check in at the e
 4. Open the event’s **Registration** tab. Immediately after event creation, the initial settings can be confirmed as-is; on later visits, **Save settings** remains disabled until a value actually changes.
 5. Review the confirmation dialog’s exact setting changes, then save. Change the campaign to **Open** before opening or copying the public form; the copy action confirms with **Copied**, while draft and closed campaigns do not expose either public-link action.
 6. On event day, select the guest’s first-name initial to narrow a large list, keep name/email search available for spelling uncertainty, then select **Check in**. Only initials represented in the current guest list are shown. Ordinary registered guests do not carry a redundant “Confirmed” badge; the list calls out only waitlisted, cancelled, or checked-in states. Tablet and desktop guest rows scroll inside a bounded region so the search and letter controls remain visible; phones retain one natural page scroll. Tablets use the event’s full Registration tab; on phones, **Check in guests** opens a dedicated event screen with its own back action, event identity, progress, filters, and guest actions. The other event cards remain behind that screen rather than sharing its scroll.
-7. In local development only, select **Preview 64 guests** to replace the visible list with a deterministic mix of fictional confirmed, checked-in, and waitlisted attendees. The preview also works for legacy events that do not have a registration campaign, so organizers can evaluate the high-volume interface before configuring live registration. Simulated check-ins stay in browser memory and leaving the preview restores the live list or its original setup error; no registration, email, capacity, or audit record is written.
-8. In local development only, use **Remove test guest** to permanently delete test registrations after confirming the attendee and linked-data cleanup. Production builds hide the action, and the production API rejects the delete route.
+7. For an older event with no native campaign, the tab explains that registration was not managed in this app. It does not expose campaign controls, guest actions, or made-up attendee data. Use Attendance for any historical CSV import.
+8. In local development only, use **Remove test guest** to permanently delete real test registrations after confirming the attendee and linked-data cleanup. Production builds hide the action, and the production API rejects the delete route.
 
 New events publish a short same-origin `/r/:eventSlug` URL through the existing `registration_url` compatibility field, so the public meetup API can expose the native action without changing its consumer contract. Existing `/register/:eventId` links remain valid.
 
@@ -66,12 +68,11 @@ Provider acceptance is recorded as `accepted`; it is not proof of inbox delivery
 | File | Purpose |
 |---|---|
 | `src/views/admin/AdminEventsView.vue` | Sole native event-creation flow |
-| `src/views/admin/AdminRegistrationsView.vue` | Campaign controls, large-list guest filtering, check-in, cancellation, development-only simulation/test cleanup, and email retry |
+| `src/views/admin/AdminRegistrationsView.vue` | Campaign controls, honest historical-registration state, large-list guest filtering, check-in, cancellation, development-only test cleanup, and email retry |
 | `src/views/admin/AdminMobileOrganizerView.vue` | Compact event list and links into focused phone operations |
 | `src/views/admin/AdminMobileCheckInView.vue` | Dedicated phone event-day name/email and first-letter guest check-in |
 | `src/components/ui/RegistrationAlphabetFilter.vue` | Shared 44px first-letter rail for phone, tablet, and desktop check-in |
 | `src/lib/registration-checkin.ts` | Shared initial normalization, filtering, and alphabetical ordering |
-| `src/lib/registration-simulation.ts` | Development-only dynamic 64-person fixture; excluded from production use |
 | `src/components/ui/AppDatePicker.vue` | Themed adaptive date and 24-hour date-time selection |
 | `src/components/ui/EventCoverPicker.vue` | Local cover selection, preview, limits, and URL fallback |
 | `src/views/EventRegistrationView.vue` | Standalone public name/email form and receipt |

@@ -208,13 +208,27 @@ export interface CreateNativeEventResponse {
   registration_campaign: EventRegistrationCampaign;
 }
 
-export interface AdminEventRegistrationsResponse {
+export interface AdminManagedEventRegistrationsResponse {
+  managed_internally: true;
   event: Event;
   campaign: EventRegistrationCampaign;
   registrations: EventRegistration[];
   summary: EventRegistrationSummary;
   public_url: string;
 }
+
+export interface AdminLegacyEventRegistrationsResponse {
+  managed_internally: false;
+  event: Event;
+  campaign: null;
+  registrations: [];
+  summary: null;
+  public_url: null;
+}
+
+export type AdminEventRegistrationsResponse =
+  | AdminManagedEventRegistrationsResponse
+  | AdminLegacyEventRegistrationsResponse;
 
 export interface PublicEventRegistrationResponse {
   available: boolean;

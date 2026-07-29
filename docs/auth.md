@@ -19,6 +19,8 @@ The browser Supabase client uses tab-scoped `sessionStorage` for PKCE storage so
 
 The login screen stores the intended organizer destination in session storage before starting Google OAuth. If Supabase falls back to the configured Site URL and returns the OAuth code to a public route, the router forwards that code to `/organizer-console/auth/callback` and resumes the organizer sign-in flow.
 
+The login route, protected-route session gate, and OAuth callback all render the same Programme Cover authentication surface. Only the access panel changes: it reports session checking, Google handoff, callback verification, bounded access denial, or retry states without replacing the page. Unapproved accounts receive a generic denial and a fresh Google account-selection action; provider and server error details are never rendered from query parameters. The router accepts only same-origin internal destination paths, and organizer content remains unmounted until the server confirms an active membership.
+
 On Cloudflare, `/api/*` requests can be proxied from Pages to the API Worker. The Worker must still redirect browser-facing OAuth callbacks back to the configured public origin from `PUBLIC_APP_URL` or `PUBLIC_FRONTEND_ORIGIN`; in production this is `https://em.devcongress.org`, while the Worker origin does not serve the Vue organizer routes.
 
 ## Sign out
@@ -92,4 +94,5 @@ There is no shared-password fallback. When Supabase organizer auth is incomplete
 - Audit log review requires `owner` role.
 - Every authenticated request joins the current membership role/status instead of trusting the login-time snapshot.
 - Changing a membership role or status revokes its active sessions in both the application command and a database trigger.
+- OAuth failure states are mapped from allowlisted status categories rather than displaying provider or server response bodies, and external, protocol-relative, or backslash-based redirect targets are rejected.
 - The Supabase service-role key is used only on the server and must never use a `VITE_` prefix.
