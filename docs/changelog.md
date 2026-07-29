@@ -5,6 +5,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-29 — Reviewable Dependabot updates
+
+- Scheduled routine npm and GitHub Actions version checks for Monday mornings in the `Africa/Accra` timezone instead of leaving their weekly run time implicit.
+- Kept production and development dependency groups limited to minor and patch updates so major upgrades arrive as isolated pull requests with a smaller review and rollback surface.
+- Grouped all `github/codeql-action` components for both version and security updates so CodeQL initialization and analysis cannot drift onto incompatible action versions.
+
 ## 2026-07-29 — Honest historical registration state
 
 - Removed the development-only fictional 64-guest registration simulation from both the full organizer Registration tab and focused phone check-in screen.
