@@ -1,7 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import type { Json } from '@/types/supabase';
+import { envValue } from '@/server/env';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const SHARED_DOCUMENT_FILES = new Set([
@@ -11,8 +12,6 @@ const SHARED_DOCUMENT_FILES = new Set([
   'quiz-participants',
   'quiz-sessions',
   'responses',
-  'speaker-intake-links',
-  'speaker-submissions',
   'speakers',
   'talks',
   'users',
@@ -62,47 +61,51 @@ export async function updateData<T, R>(
 async function readRemoteData<T>(filename: string): Promise<T[] | null> {
   if (!canUseRemoteDocument(filename)) return null;
 
-  try {
-    const { data, error } = await getSupabaseAdminClient()
-      .from('app_json_documents')
-      .select('data')
-      .eq('key', filename)
-      .maybeSingle();
+  const { data, error } = await getSupabaseAdminClient()
+    .from('app_json_documents')
+    .select('data')
+    .eq('key', filename)
+    .maybeSingle();
 
-    if (error) return null;
-    if (!data) {
-      const localData = await readDataFile<T>(filename);
-      if (localData.length > 0) {
-        await writeRemoteData(filename, localData);
-      }
-      return localData;
-    }
-
-    return Array.isArray(data.data) ? data.data as T[] : [];
-  } catch {
-    return null;
+  if (error) {
+    throw new Error(`Unable to read shared ${filename} data`);
   }
+  if (!data) {
+    if (envValue('NODE_ENV') === 'production') return [];
+
+    const localData = await readDataFile<T>(filename);
+    if (localData.length > 0) {
+      await writeRemoteData(filename, localData);
+    }
+    return localData;
+  }
+
+  if (!Array.isArray(data.data)) {
+    throw new Error(`Shared ${filename} data must contain an array`);
+  }
+
+  return data.data as T[];
 }
 
 async function writeRemoteData<T>(filename: string, data: T[]): Promise<boolean> {
   if (!canUseRemoteDocument(filename)) return false;
 
-  try {
-    const { error } = await getSupabaseAdminClient()
-      .from('app_json_documents')
-      .upsert({
-        key: filename,
-        data: data as Json[],
-      });
+  const { error } = await getSupabaseAdminClient()
+    .from('app_json_documents')
+    .upsert({
+      key: filename,
+      data: data as Json[],
+    });
 
-    return !error;
-  } catch {
-    return false;
+  if (error) {
+    throw new Error(`Unable to write shared ${filename} data`);
   }
+
+  return true;
 }
 
 function canUseRemoteDocument(filename: string): boolean {
-  return SHARED_DOCUMENT_FILES.has(filename) && isSupabaseServerConfigured();
+  return SHARED_DOCUMENT_FILES.has(filename) && isSupabaseRuntimeEnabled();
 }
 
 async function readDataFile<T>(filename: string): Promise<T[]> {

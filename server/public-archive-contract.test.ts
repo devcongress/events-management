@@ -10,6 +10,7 @@ const event = {
   id: 'event-july',
   name: 'DevCongress July Meetup',
   description: 'A community meetup.',
+  series_type: null,
   event_date: '2026-07-01T18:00:00.000Z',
   end_date: '2026-07-01T21:00:00.000Z',
   status: 'completed',
@@ -84,15 +85,77 @@ describe('public event archive contract', () => {
     const { default: app } = await import('./app');
     const response = await app.request('/api/public/archive');
     const payload = await response.json() as {
+      events: Record<string, unknown>[];
       talks: Record<string, unknown>[];
       archive_items: Record<string, unknown>[];
     };
 
     expect(response.status).toBe(200);
+    expect(payload.events[0]).toMatchObject({ id: event.id, series_type: null });
     expect(payload.archive_items).toEqual(payload.talks);
     expect(payload.archive_items[0]).toMatchObject({
       kind: 'product_demo',
       event_name: event.name,
     });
+  });
+
+  it('removes executable URL schemes from every public meetup link field', async () => {
+    await fs.writeFile(path.join('data', 'events.json'), JSON.stringify([{
+      ...event,
+      cover: 'javascript:alert(1)',
+      location: { name: 'Accra', url: 'javascript:alert(1)' },
+      stream_url: 'data:text/html,unsafe',
+      registration_url: 'javascript:alert(1)',
+      schedule: [{
+        time: '6:00 PM',
+        title: 'Security',
+        type: 'talk',
+        lead: null,
+        resources: [{ title: 'Unsafe', url: 'javascript:alert(1)' }],
+        shared_links: ['data:text/html,unsafe'],
+      }],
+      photos: [{ url: 'javascript:alert(1)', type: 'image' }],
+      videos: [{ title: 'Unsafe', embed_url: 'javascript:alert(1)' }],
+    }]), 'utf-8');
+    vi.resetModules();
+
+    const { default: app } = await import('./app');
+    const response = await app.request('/api/public/meetups');
+    const payload = await response.json() as { data: Array<Record<string, any>> };
+    const meetup = payload.data[0]!;
+
+    expect(response.status).toBe(200);
+    expect(meetup.cover).not.toContain('javascript:');
+    expect(meetup.location.url).toBeNull();
+    expect(meetup.stream_url).toBeNull();
+    expect(meetup.registration_url).toBeNull();
+    expect(meetup.schedule[0].resources).toEqual([]);
+    expect(meetup.schedule[0].shared_links).toEqual([]);
+    expect(meetup.photos).toEqual([]);
+    expect(meetup.videos).toEqual([]);
+  });
+
+  it('never exposes attendance identities from the public home response', async () => {
+    await fs.writeFile(path.join('data', 'event-attendance-imports.json'), JSON.stringify([{
+      id: 'attendance-1',
+      event_id: event.id,
+      row_count: 1,
+      imported_at: '2026-07-02T00:00:00.000Z',
+      records: [{
+        event_id: event.id,
+        name: 'Private Attendee',
+        email: 'private-attendee@example.com',
+        approval_status: 'approved',
+      }],
+    }]), 'utf-8');
+
+    const { default: app } = await import('./app');
+    const response = await app.request('/api/public/home');
+    const payload = await response.json() as { regulars: unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(payload.regulars).toEqual([]);
+    expect(JSON.stringify(payload)).not.toContain('private-attendee@example.com');
   });
 });

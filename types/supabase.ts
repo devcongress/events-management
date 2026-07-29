@@ -4,6 +4,9 @@ export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type CommunityEventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
 export type CommunityEventSeriesType = 'monthly' | 'quarterly' | 'special';
+export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
+export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
+export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type AdminRole = 'owner' | 'organizer';
 export type AdminMembershipStatus = 'active' | 'disabled';
 export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
@@ -390,6 +393,185 @@ export interface Database {
         };
         Relationships: [];
       };
+      event_registration_campaigns: {
+        Row: {
+          id: string;
+          event_id: string;
+          status: EventRegistrationCampaignStatus;
+          capacity: number;
+          opens_at: string | null;
+          closes_at: string | null;
+          waitlist_enabled: boolean;
+          auto_confirm: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          status?: EventRegistrationCampaignStatus;
+          capacity?: number;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          waitlist_enabled?: boolean;
+          auto_confirm?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          status?: EventRegistrationCampaignStatus;
+          capacity?: number;
+          opens_at?: string | null;
+          closes_at?: string | null;
+          waitlist_enabled?: boolean;
+          auto_confirm?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_registration_campaigns_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_registrations: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          name: string;
+          email: string;
+          normalized_email: string;
+          status: EventRegistrationStatus;
+          confirmed_at: string | null;
+          cancelled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          name: string;
+          email: string;
+          normalized_email: string;
+          status: EventRegistrationStatus;
+          confirmed_at?: string | null;
+          cancelled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          name?: string;
+          email?: string;
+          normalized_email?: string;
+          status?: EventRegistrationStatus;
+          confirmed_at?: string | null;
+          cancelled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_registrations_campaign_id_fkey';
+            columns: ['campaign_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_registration_campaigns';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_registration_checkins: {
+        Row: {
+          id: string;
+          registration_id: string;
+          checked_in_at: string;
+          checked_in_by_email: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          registration_id: string;
+          checked_in_at?: string;
+          checked_in_by_email?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          registration_id?: string;
+          checked_in_at?: string;
+          checked_in_by_email?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_registration_checkins_registration_id_fkey';
+            columns: ['registration_id'];
+            isOneToOne: true;
+            referencedRelation: 'event_registrations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      registration_email_deliveries: {
+        Row: {
+          id: string;
+          registration_id: string;
+          kind: string;
+          status: RegistrationEmailDeliveryStatus;
+          attempts: number;
+          provider_id: string | null;
+          idempotency_key: string;
+          last_error: string | null;
+          last_attempt_at: string | null;
+          accepted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          registration_id: string;
+          kind?: string;
+          status?: RegistrationEmailDeliveryStatus;
+          attempts?: number;
+          provider_id?: string | null;
+          idempotency_key: string;
+          last_error?: string | null;
+          last_attempt_at?: string | null;
+          accepted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          registration_id?: string;
+          kind?: string;
+          status?: RegistrationEmailDeliveryStatus;
+          attempts?: number;
+          provider_id?: string | null;
+          idempotency_key?: string;
+          last_error?: string | null;
+          last_attempt_at?: string | null;
+          accepted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'registration_email_deliveries_registration_id_fkey';
+            columns: ['registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_registrations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       feedback_testers: {
         Row: {
           id: string;
@@ -574,15 +756,249 @@ export interface Database {
           },
         ];
       };
+      public_rate_limit_buckets: {
+        Row: {
+          action: string;
+          key_hash: string;
+          window_started_at: string;
+          attempt_count: number;
+          updated_at: string;
+        };
+        Insert: {
+          action: string;
+          key_hash: string;
+          window_started_at?: string;
+          attempt_count?: number;
+          updated_at?: string;
+        };
+        Update: {
+          action?: string;
+          key_hash?: string;
+          window_started_at?: string;
+          attempt_count?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      speaker_submissions: {
+        Row: {
+          id: string;
+          event_id: string;
+          kind: 'talk' | 'product_demo';
+          speaker_name: string;
+          speaker_email: string;
+          github_username: string | null;
+          title: string;
+          topic: string;
+          abstract: string | null;
+          bio: string | null;
+          status: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
+          internal_note: string | null;
+          selected_intake_link_id: string | null;
+          selected_talk_id: string | null;
+          decided_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          kind?: 'talk' | 'product_demo';
+          speaker_name: string;
+          speaker_email: string;
+          github_username?: string | null;
+          title: string;
+          topic: string;
+          abstract?: string | null;
+          bio?: string | null;
+          status?: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
+          internal_note?: string | null;
+          selected_intake_link_id?: string | null;
+          selected_talk_id?: string | null;
+          decided_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          kind?: 'talk' | 'product_demo';
+          speaker_name?: string;
+          speaker_email?: string;
+          github_username?: string | null;
+          title?: string;
+          topic?: string;
+          abstract?: string | null;
+          bio?: string | null;
+          status?: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
+          internal_note?: string | null;
+          selected_intake_link_id?: string | null;
+          selected_talk_id?: string | null;
+          decided_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'speaker_submissions_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      speaker_intake_links: {
+        Row: {
+          id: string;
+          event_id: string;
+          event_month: string;
+          kind: string;
+          purpose: string;
+          speaker_submission_id: string | null;
+          speaker_name: string | null;
+          speaker_email: string | null;
+          talk_title: string | null;
+          token_hash: string;
+          email_status: string | null;
+          email_provider_id: string | null;
+          email_idempotency_key: string | null;
+          email_sent_at: string | null;
+          email_last_attempt_at: string | null;
+          email_last_error: string | null;
+          expires_at: string;
+          claim_id: string | null;
+          claimed_at: string | null;
+          used_at: string | null;
+          used_talk_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          event_month: string;
+          kind?: string;
+          purpose?: string;
+          speaker_submission_id?: string | null;
+          speaker_name?: string | null;
+          speaker_email?: string | null;
+          talk_title?: string | null;
+          token_hash: string;
+          email_status?: string | null;
+          email_provider_id?: string | null;
+          email_idempotency_key?: string | null;
+          email_sent_at?: string | null;
+          email_last_attempt_at?: string | null;
+          email_last_error?: string | null;
+          expires_at: string;
+          claim_id?: string | null;
+          claimed_at?: string | null;
+          used_at?: string | null;
+          used_talk_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          event_month?: string;
+          kind?: string;
+          purpose?: string;
+          speaker_submission_id?: string | null;
+          speaker_name?: string | null;
+          speaker_email?: string | null;
+          talk_title?: string | null;
+          token_hash?: string;
+          email_status?: string | null;
+          email_provider_id?: string | null;
+          email_idempotency_key?: string | null;
+          email_sent_at?: string | null;
+          email_last_attempt_at?: string | null;
+          email_last_error?: string | null;
+          expires_at?: string;
+          claim_id?: string | null;
+          claimed_at?: string | null;
+          used_at?: string | null;
+          used_talk_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'speaker_intake_links_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'speaker_intake_links_speaker_submission_id_fkey';
+            columns: ['speaker_submission_id'];
+            isOneToOne: false;
+            referencedRelation: 'speaker_submissions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      register_for_event: {
+        Args: {
+          p_event_id: string;
+          p_name: string;
+          p_email: string;
+        };
+        Returns: Database['public']['Tables']['event_registrations']['Row'];
+      };
+      consume_public_rate_limit: {
+        Args: {
+          p_action: string;
+          p_key_hash: string;
+          p_max_attempts: number;
+          p_window_seconds: number;
+        };
+        Returns: {
+          allowed: boolean;
+          retry_after_seconds: number;
+        }[];
+      };
+      claim_speaker_intake_link: {
+        Args: {
+          p_event_id: string;
+          p_token_hash: string;
+          p_claim_id: string;
+        };
+        Returns: Database['public']['Tables']['speaker_intake_links']['Row'];
+      };
+      consume_speaker_intake_link: {
+        Args: {
+          p_event_id: string;
+          p_token_hash: string;
+          p_claim_id: string;
+          p_talk_id: string;
+        };
+        Returns: Database['public']['Tables']['speaker_intake_links']['Row'];
+      };
+      release_speaker_intake_link_claim: {
+        Args: {
+          p_event_id: string;
+          p_token_hash: string;
+          p_claim_id: string;
+        };
+        Returns: boolean;
+      };
+    };
     Enums: {
       feedback_kind: FeedbackKind;
       feedback_status: FeedbackStatus;
       feedback_campaign_status: FeedbackCampaignStatus;
       feedback_question_type: FeedbackQuestionType;
       community_event_status: CommunityEventStatus;
+      event_registration_campaign_status: EventRegistrationCampaignStatus;
+      event_registration_status: EventRegistrationStatus;
+      registration_email_delivery_status: RegistrationEmailDeliveryStatus;
       admin_role: AdminRole;
       admin_membership_status: AdminMembershipStatus;
       annual_conference_task_status: AnnualConferenceTaskStatus;

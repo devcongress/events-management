@@ -263,7 +263,7 @@ function applyPrefill(prefill: IntakePrefill) {
               v-model="form.topic"
               label="Topic"
               :options="topicOptions"
-              menu-class="cfp-topic-menu"
+              menu-class="speaker-intake-topic-menu"
             />
           </div>
 
@@ -350,7 +350,20 @@ function applyPrefill(prefill: IntakePrefill) {
 .speaker-intake-form :deep(button[aria-haspopup='listbox']:focus),
 .speaker-intake-form :deep(button[aria-haspopup='listbox'][aria-expanded='true']) {
   border-color: #111111;
-  box-shadow: 0 0 0 3px rgba(245, 230, 66, 0.5);
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12);
+}
+
+.speaker-intake-form :deep(.speaker-intake-topic-menu .app-dropdown-scroll) {
+  max-height: min(16rem, calc(100svh - 12rem));
+}
+
+.speaker-intake-form :deep(.speaker-intake-topic-menu [role='option'][aria-selected='true']) {
+  background: rgba(232, 17, 127, 0.08);
+  color: #111111;
+}
+
+.speaker-intake-form :deep(.speaker-intake-topic-menu [role='option'][aria-selected='true'] svg) {
+  color: #e8117f;
 }
 
 .speaker-intake-form :deep(.speaker-intake-readonly) {

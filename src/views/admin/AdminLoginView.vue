@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession } from '@/src/lib/api';
+import { notify } from '@/src/lib/notify';
 
 const PROGRAMME_COVER = {
   eyebrow: 'Organizer desk / Private',
@@ -101,7 +102,13 @@ async function login() {
 onMounted(async () => {
   const callbackError = route.query.error;
   if (typeof callbackError === 'string' && callbackError) {
-    error.value = callbackError;
+    notify.error(callbackError);
+    await router.replace({
+      query: {
+        ...route.query,
+        error: undefined,
+      },
+    });
   }
 
   try {

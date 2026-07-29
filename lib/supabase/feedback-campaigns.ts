@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
+import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
 import type { EventFeedbackSubmission, FeedbackCampaign, FeedbackQuestion } from '@/types';
 import type { Database, Json } from '@/types/supabase';
 
@@ -8,7 +8,7 @@ type FeedbackCampaignUpdate = Database['public']['Tables']['feedback_campaigns']
 type FeedbackQuestionRow = Database['public']['Tables']['feedback_questions']['Row'];
 
 export function canUseSupabaseFeedbackCampaigns(c?: Context): boolean {
-  return isSupabaseServerConfigured(c);
+  return isSupabaseRuntimeEnabled(c);
 }
 
 function toFeedbackQuestion(row: FeedbackQuestionRow): FeedbackQuestion {

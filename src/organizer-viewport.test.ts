@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
   ORGANIZER_PHONE_ROUTE_PATH,
+  organizerPhoneCheckInPath,
   matchesOrganizerPhoneViewport,
   organizerViewportRedirect,
 } from './organizer-viewport';
@@ -36,6 +37,7 @@ describe('organizer viewport policy', () => {
       'admin-feedback-display',
       'admin-annual-conference-volunteer-display',
       'admin-mobile',
+      'admin-mobile-check-in',
     ]) {
       expect(organizerViewportRedirect({
         authenticated: true,
@@ -53,6 +55,20 @@ describe('organizer viewport policy', () => {
       isPhone: false,
       routeName: 'admin-mobile',
     })).toBe('/organizer-console/events');
+
+    expect(organizerViewportRedirect({
+      authenticated: true,
+      isAdminRoute: true,
+      isPhone: false,
+      routeName: 'admin-mobile-check-in',
+      eventId: 'event-one',
+    })).toBe('/organizer-console/events/event-one/registrations');
+  });
+
+  it('builds an encoded dedicated phone check-in route', () => {
+    expect(organizerPhoneCheckInPath('event / one')).toBe(
+      '/organizer-console/mobile/events/event%20%2F%20one/check-in',
+    );
   });
 
   it('does not redirect before authentication or outside organizer routes', () => {

@@ -30,6 +30,35 @@ export function validateMeetupMediaFile(file: File): string | null {
   return null;
 }
 
+export async function validateMeetupMediaContent(file: File): Promise<string | null> {
+  const bytes = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  const matches = {
+    'image/jpeg': bytes.length >= 3
+      && bytes[0] === 0xff
+      && bytes[1] === 0xd8
+      && bytes[2] === 0xff,
+    'image/png': bytes.length >= 8
+      && bytes[0] === 0x89
+      && bytes[1] === 0x50
+      && bytes[2] === 0x4e
+      && bytes[3] === 0x47
+      && bytes[4] === 0x0d
+      && bytes[5] === 0x0a
+      && bytes[6] === 0x1a
+      && bytes[7] === 0x0a,
+    'image/webp': bytes.length >= 12
+      && ascii(bytes, 0, 4) === 'RIFF'
+      && ascii(bytes, 8, 12) === 'WEBP',
+    'image/avif': bytes.length >= 16
+      && ascii(bytes, 4, 8) === 'ftyp'
+      && ['avif', 'avis'].some((brand) => ascii(bytes, 8, bytes.length).includes(brand)),
+  } as const;
+
+  return matches[file.type as keyof typeof matches]
+    ? null
+    : 'The file contents do not match the selected image type';
+}
+
 export function isMeetupMediaConfigured(c?: Context): boolean {
   return isSupabaseServerConfigured(c);
 }
@@ -82,4 +111,8 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
+}
+
+function ascii(bytes: Uint8Array, start: number, end: number): string {
+  return String.fromCharCode(...bytes.slice(start, end));
 }

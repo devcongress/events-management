@@ -110,10 +110,10 @@ Hosted mode stores these domains as one JSON array per row in `app_json_document
 |---|---:|---|
 | `event-attendance-imports` | 6 | `attendance_imports` + `attendance_records` |
 | `event-checklists` | 53 | `event_checklist_items` |
-| `speaker-intake-links` | 2 | Hash-only `speaker_intake_links` |
+| `speaker-intake-links` | 2 | Implemented by `20260728020000_security_hardening.sql` as hash-only `speaker_intake_links` |
 | `speakers` | 1 | `people`/`community_profiles` + event/talk relationships |
 | `talks` | 1 | `talks` + speaker/event foreign keys |
-| `speaker-submissions` | 0 | `speaker_submissions` |
+| `speaker-submissions` | 0 | Implemented by `20260728020000_security_hardening.sql` as relational `speaker_submissions` |
 | `questions` | 0 | `quiz_questions` |
 | `quiz-participants` | 0 | `quiz_participants` |
 | `quiz-sessions` | 0 | `quiz_sessions` |
@@ -126,7 +126,7 @@ This bridge is durable but unsafe as a final multi-writer store:
 - serialization exists only inside one JavaScript isolate;
 - there is no revision predicate, row lock, or compare-and-swap;
 - concurrent Workers can overwrite each other's changes;
-- Supabase failures silently fall back to local filesystem behavior;
+- hosted reads and writes now fail closed when the Supabase runtime is unavailable or misconfigured;
 - attendance documents embed sensitive attendee records inside one large value.
 
 The bridge may remain read-only during migration, but it must not be copied into the final website Worker as the long-term repository.
@@ -225,7 +225,7 @@ Map the three legacy campaign identifiers first, then split or normalize product
 
 ### 7. Speaker intake bearer tokens
 
-The current compatibility record stores the raw one-time speaker URL token alongside its hash. The relational replacement must store only `token_hash`; return the raw token once at creation and never persist it. Do not copy existing plaintext tokens into the new table; expire or reissue any still-active links during cutover.
+`20260728020000_security_hardening.sql` replaces the compatibility records with private relational rows that store only `token_hash`. Raw tokens are returned once at issuance and never persisted; migrated legacy links are deliberately expired and must be reissued.
 
 ### 8. Media lifecycle
 

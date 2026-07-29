@@ -36,6 +36,18 @@ Do not include real secrets in public issues, pull requests, or chat logs.
 - Rotate any key that appears in git history or public logs.
 - Use masked values when documenting findings.
 
+## Security Baseline
+
+- Organizer APIs deny by default and resolve the current active membership role on every session check.
+- Public writes use strict server schemas, production Turnstile verification, and distributed Supabase rate limits.
+- Public responses must use purpose-built DTOs and must never expose attendee email, attendance history, session tokens, or private workflow records.
+- One-time links and app sessions persist only cryptographic token hashes.
+- New external URLs must be restricted to approved hosts or HTTP(S), depending on their purpose.
+- Uploads require size, extension, MIME, and content-signature validation.
+- Dependency audit, Gitleaks, CodeQL, tests, typecheck, and build are required security gates.
+
+The current full review and rollout checklist are in [docs/security-audit-2026-07-28.md](docs/security-audit-2026-07-28.md).
+
 ## Maintainer Response
 
 Maintainers should acknowledge valid reports, triage severity, patch privately where needed, and publish a short disclosure note after the fix is available.

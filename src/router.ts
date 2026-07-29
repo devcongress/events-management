@@ -5,6 +5,7 @@ import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/a
 import { queryClient } from './lib/query';
 import {
   matchesOrganizerPhoneViewport,
+  ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerViewportRedirect,
 } from './organizer-viewport';
@@ -18,6 +19,7 @@ const FEEDBACK_TITLE = 'DevCongress | Feedback';
 const FEEDBACK_DISPLAY_TITLE = 'DevCongress | Feedback Display';
 const SPEAKER_TALK_INTAKE_TITLE = 'DevCongress | Archive Details';
 const CFP_TITLE = 'DevCongress | Call for Presentations';
+const REGISTRATION_TITLE = 'DevCongress | Registration';
 const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
 const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
 const ANNUAL_CONFERENCE_TITLE = 'DevCongress | Annual Conference';
@@ -26,9 +28,11 @@ const NotFoundView = () => import('./views/NotFoundView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
 const CfpView = () => import('./views/CfpView.vue');
 const VolunteerIntakeView = () => import('./views/VolunteerIntakeView.vue');
+const EventRegistrationView = () => import('./views/EventRegistrationView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
+const AdminMobileCheckInView = () => import('./views/admin/AdminMobileCheckInView.vue');
 const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
 const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceOverviewView.vue');
 const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
@@ -46,6 +50,7 @@ const AdminTalksView = () => import('./views/admin/AdminTalksView.vue');
 const AdminSpeakersView = () => import('./views/admin/AdminSpeakersView.vue');
 const AdminQuizView = () => import('./views/admin/AdminQuizView.vue');
 const AdminSystemDesignView = () => import('./views/admin/AdminSystemDesignView.vue');
+const AdminRegistrationsView = () => import('./views/admin/AdminRegistrationsView.vue');
 
 function safeInternalRedirect(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -67,12 +72,19 @@ export const router = createRouter({
     { path: '/', redirect: adminPath('events') },
     { path: '/feedback/:eventId', name: 'event-feedback', component: FeedbackView },
     { path: '/cfp/:eventId', name: 'event-cfp', component: CfpView },
+    { path: '/r/:eventKey', name: 'event-registration-short', component: EventRegistrationView },
+    { path: '/register/:eventId', name: 'event-registration', component: EventRegistrationView },
     speakerTalkIntakeRoute,
     { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
     { path: adminPath(), redirect: adminPath('events') },
     { path: ORGANIZER_PHONE_ROUTE_PATH, name: 'admin-mobile', component: AdminMobileOrganizerView },
+    {
+      path: adminPath('mobile/events/:eventId/check-in'),
+      name: ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
+      component: AdminMobileCheckInView,
+    },
     { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
@@ -92,6 +104,7 @@ export const router = createRouter({
     { path: adminPath('events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)'), name: 'admin-talks', component: AdminTalksView },
     { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView },
     { path: adminPath('events/:eventId/attendance'), name: 'admin-attendance', component: AdminAttendanceView },
+    { path: adminPath('events/:eventId/registrations'), name: 'admin-registrations', component: AdminRegistrationsView },
     { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView },
     { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView },
     { path: adminPath('events/:eventId/system-design'), name: 'admin-system-design', component: AdminSystemDesignView },
@@ -134,6 +147,7 @@ router.beforeEach(async (to, from) => {
       isAdminRoute: true,
       isPhone: matchesOrganizerPhoneViewport(),
       routeName: to.name,
+      eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
     });
     if (viewportRedirect) return viewportRedirect;
 
@@ -155,6 +169,7 @@ router.beforeEach(async (to, from) => {
         isAdminRoute: true,
         isPhone: matchesOrganizerPhoneViewport(),
         routeName: to.name,
+        eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
       });
       if (viewportRedirect) return viewportRedirect;
 
@@ -179,6 +194,8 @@ router.afterEach((to) => {
     document.title = FEEDBACK_TITLE;
   } else if (to.name === 'event-cfp') {
     document.title = CFP_TITLE;
+  } else if (to.name === 'event-registration' || to.name === 'event-registration-short') {
+    document.title = REGISTRATION_TITLE;
   } else if (to.name === 'admin-feedback-display') {
     document.title = FEEDBACK_DISPLAY_TITLE;
   } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME) {

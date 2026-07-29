@@ -1,4 +1,18 @@
-import type { Event, EventChecklistItem, LeaderboardEntry, PublicArchiveEventResponse, PublicArchiveResponse, PublicHomeResponse, PublicMeetup, QuizSession, Talk, VolunteerApplication } from '@/types';
+import type {
+  Event,
+  EventChecklistItem,
+  EventRegistration,
+  EventRegistrationCampaign,
+  EventRegistrationSummary,
+  LeaderboardEntry,
+  PublicArchiveEventResponse,
+  PublicArchiveResponse,
+  PublicHomeResponse,
+  PublicMeetup,
+  QuizSession,
+  Talk,
+  VolunteerApplication,
+} from '@/types';
 import type {
   AnnualConferenceEdition,
   AnnualConferenceTask,
@@ -152,44 +166,12 @@ export interface AdminAuditLogResponse {
   auth_mode: 'supabase';
 }
 
-export interface LumaImportResponse {
-  event: Event;
-  already_imported: boolean;
-}
-
-export interface LumaEventPreview {
-  name: string;
-  description: string | null;
-  event_date: string;
-  series_type?: Event['series_type'];
-  end_date: string | null;
-  cover: string | null;
-  registration_url: string | null;
-  location: Event['location'];
-  publish_to_website: boolean;
-  external_source: string;
-  external_id: string;
-  external_url: string | null;
-  external_synced_at: string;
-}
-
-export interface LumaPreviewResponse {
-  preview: LumaEventPreview;
-  existing_event: Event | null;
-  already_imported: boolean;
-}
-
 export interface PublicMeetupsResponse {
   data: PublicMeetup[];
 }
 
 export interface PublicMeetupResponse {
   data: PublicMeetup;
-}
-
-export interface PublicMeetupPreviewResponse {
-  data: PublicMeetup;
-  already_imported: boolean;
 }
 
 export interface FeedbackEventStatusResponse {
@@ -221,6 +203,26 @@ export interface EventChecklistResponse {
   items: EventChecklistItem[];
 }
 
+export interface CreateNativeEventResponse {
+  event: Event;
+  registration_campaign: EventRegistrationCampaign;
+}
+
+export interface AdminEventRegistrationsResponse {
+  event: Event;
+  campaign: EventRegistrationCampaign;
+  registrations: EventRegistration[];
+  summary: EventRegistrationSummary;
+  public_url: string;
+}
+
+export interface PublicEventRegistrationResponse {
+  available: boolean;
+  unavailable_reason: 'draft' | 'closed' | 'not_open' | 'ended' | null;
+  event: Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'end_date' | 'cover' | 'location'>;
+  campaign: Pick<EventRegistrationCampaign, 'status' | 'opens_at' | 'closes_at' | 'waitlist_enabled'>;
+}
+
 export const queryKeys = {
   overview: ['overview'] as const,
   events: ['events'] as const,
@@ -238,6 +240,8 @@ export const queryKeys = {
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
   event: (eventId: string) => ['events', eventId] as const,
   eventChecklist: (eventId: string) => ['event-checklist', eventId] as const,
+  eventRegistrations: (eventId: string) => ['event-registrations', eventId] as const,
+  publicEventRegistration: (eventId: string) => ['public-event-registration', eventId] as const,
 };
 
 export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
@@ -304,6 +308,15 @@ export function fetchEvents() {
   return fetchJson<Event[]>('/api/events');
 }
 
+export function createNativeEvent(input: Record<string, unknown>) {
+  return fetchJson<CreateNativeEventResponse>('/api/events', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
 export function fetchEventChecklist(eventId: string) {
   return fetchJson<EventChecklistResponse>(`/api/events/${eventId}/checklist`);
 }
@@ -349,30 +362,74 @@ export function fetchPublicHome() {
   });
 }
 
-export function fetchPreviewPublicMeetup(eventUrl: string, seriesType?: Event['series_type']) {
-  return fetchJson<PublicMeetupPreviewResponse>('/api/integrations/luma/public-preview', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_url: eventUrl, ...(seriesType ? { series_type: seriesType } : {}) }),
+export function fetchPublicEventRegistration(eventKey: string) {
+  return fetchJson<PublicEventRegistrationResponse>(`/api/registration/events/${encodeURIComponent(eventKey)}`, {
+    cache: 'no-store',
   });
 }
 
-export function importLumaEventUrl(eventUrl: string, seriesType: Event['series_type']) {
-  return fetchJson<LumaImportResponse>('/api/integrations/luma/import', {
+export function submitEventRegistration(
+  eventKey: string,
+  input: {
+    name: string;
+    email: string;
+    turnstile_action?: string;
+    turnstile_token?: string;
+  },
+) {
+  return fetchJson<{
+    accepted: true;
+    message: string;
+  }>(`/api/registration/events/${encodeURIComponent(eventKey)}`, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_url: eventUrl, series_type: seriesType }),
+    body: JSON.stringify(input),
   });
 }
 
-export function previewLumaEventUrl(eventUrl: string, seriesType?: Event['series_type']) {
-  return fetchJson<LumaPreviewResponse>('/api/integrations/luma/preview', {
-    method: 'POST',
+export function fetchEventRegistrations(eventId: string) {
+  return fetchJson<AdminEventRegistrationsResponse>(`/api/events/${eventId}/registrations`, {
+    credentials: 'include',
+  });
+}
+
+export function updateEventRegistrationCampaign(
+  eventId: string,
+  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'capacity' | 'opens_at' | 'closes_at' | 'waitlist_enabled' | 'auto_confirm'>>,
+) {
+  return fetchJson<EventRegistrationCampaign>(`/api/events/${eventId}/registrations`, {
+    method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_url: eventUrl, ...(seriesType ? { series_type: seriesType } : {}) }),
+    body: JSON.stringify(input),
+  });
+}
+
+export function checkInEventRegistration(eventId: string, registrationId: string) {
+  return fetchJson<{ checked_in_at: string }>(`/api/events/${eventId}/registrations/${registrationId}/check-in`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+}
+
+export function cancelEventRegistration(eventId: string, registrationId: string) {
+  return fetchJson<{ ok: true }>(`/api/events/${eventId}/registrations/${registrationId}/cancel`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+}
+
+export function removeEventRegistration(eventId: string, registrationId: string) {
+  return fetchJson<{ ok: true }>(`/api/events/${eventId}/registrations/${registrationId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}
+
+export function processEventRegistrationEmails(eventId: string) {
+  return fetchJson<{ accepted_count: number; delayed_count: number }>(`/api/events/${eventId}/registration-emails/process`, {
+    method: 'POST',
+    credentials: 'include',
   });
 }
 

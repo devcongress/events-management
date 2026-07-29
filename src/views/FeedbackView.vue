@@ -2,7 +2,10 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import PublicFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/PublicFeedbackPageSkeleton.vue';
+import { turnstileEnabled } from '@/src/lib/turnstile';
+import { EVENT_FEEDBACK_TURNSTILE_ACTION } from '@/lib/turnstile';
 import {
   EVENT_FEEDBACK_NOT_ATTENDED,
   isEventFeedbackAnswerPresent,
@@ -48,6 +51,10 @@ const event = ref<FeedbackPublicResponse['event'] | null>(null);
 const campaign = ref<FeedbackPublicResponse['campaign'] | null>(null);
 const talks = ref<FeedbackPublicResponse['talks']>([]);
 const answers = reactive<Record<string, string | number | boolean | null>>({});
+const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
+const turnstileToken = ref('');
+const turnstileError = ref('');
+const turnstileActive = turnstileEnabled();
 const orderedQuestions = computed(() => [...(campaign.value?.questions ?? [])].sort((a, b) => a.order_index - b.order_index));
 const hasRatingQuestions = computed(() => orderedQuestions.value.some((question) => question.type === 'rating'));
 const talkOptions = computed(() => [
@@ -56,9 +63,12 @@ const talkOptions = computed(() => [
 ]);
 const canSubmit = computed(() => (
   previewMode.value
-  || orderedQuestions.value.every((question) => (
-    !question.required || isEventFeedbackAnswerPresent(answers[question.id])
-  ))
+  || (
+    (!turnstileActive || turnstileToken.value.length > 0)
+    && orderedQuestions.value.every((question) => (
+      !question.required || isEventFeedbackAnswerPresent(answers[question.id])
+    ))
+  )
 ));
 
 function eventIdParam(): string {
@@ -205,6 +215,8 @@ async function submitFeedback() {
         question_id: question.id,
         value: answers[question.id] ?? null,
       })),
+      turnstile_action: turnstileActive ? EVENT_FEEDBACK_TURNSTILE_ACTION : undefined,
+      turnstile_token: turnstileActive ? turnstileToken.value : undefined,
     }),
   });
 
@@ -219,6 +231,10 @@ async function submitFeedback() {
   } else {
     const payload = await response.json().catch(() => ({}));
     error.value = payload.error ?? 'Unable to submit feedback';
+    if (turnstileActive) {
+      turnstileToken.value = '';
+      turnstileWidget.value?.reset();
+    }
   }
 
   submitting.value = false;
@@ -363,7 +379,15 @@ onMounted(fetchFeedbackForm);
           </fieldset>
           </TransitionGroup>
 
-          <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error }}</div>
+          <TurnstileWidget
+            v-if="turnstileActive && !previewMode"
+            ref="turnstileWidget"
+            :action="EVENT_FEEDBACK_TURNSTILE_ACTION"
+            @token-change="turnstileToken = $event"
+            @error="turnstileError = $event ?? ''"
+          />
+
+          <div v-if="error || turnstileError" class="rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error || turnstileError }}</div>
 
           <button type="submit" class="editorial-action w-full" :disabled="submitting || !canSubmit">
             {{ previewMode ? 'Preview Only' : submitting ? 'Sending...' : 'Submit Feedback' }}

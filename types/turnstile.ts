@@ -9,6 +9,7 @@ declare global {
     sitekey: string;
     action?: string;
     theme?: 'auto' | 'light' | 'dark';
+    size?: 'normal' | 'flexible' | 'compact';
     callback?: (token: string) => void;
     'error-callback'?: (code?: string) => void;
     'expired-callback'?: () => void;

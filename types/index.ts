@@ -14,6 +14,9 @@ export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type LumaAttendanceApprovalStatus = 'approved' | 'pending' | 'declined' | 'unknown';
 export type EventSeriesType = 'monthly' | 'quarterly' | 'special';
+export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
+export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
+export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 
 // ---- Entities ----
 export interface Event {
@@ -25,9 +28,9 @@ export interface Event {
   status: EventStatus;
   created_at: string;
   updated_at: string;
-  slug?: string;
-  end_date?: string;
-  cover?: string;
+  slug?: string | null;
+  end_date?: string | null;
+  cover?: string | null;
   location?: {
     label?: string;
     name: string;
@@ -50,6 +53,42 @@ export interface Event {
   external_id?: string | null;
   external_url?: string | null;
   external_synced_at?: string | null;
+}
+
+export interface EventRegistrationCampaign {
+  id: string;
+  event_id: string;
+  status: EventRegistrationCampaignStatus;
+  capacity: number;
+  opens_at: string | null;
+  closes_at: string | null;
+  waitlist_enabled: boolean;
+  auto_confirm: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventRegistration {
+  id: string;
+  campaign_id: string;
+  name: string;
+  email: string;
+  status: EventRegistrationStatus;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  checked_in_at: string | null;
+  email_status: RegistrationEmailDeliveryStatus | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventRegistrationSummary {
+  total: number;
+  confirmed: number;
+  waitlisted: number;
+  checked_in: number;
+  available: number;
+  pending_emails: number;
 }
 
 export interface EventChecklistItem {
@@ -184,7 +223,7 @@ export interface PublicMeetup {
   id: string;
   slug: string;
   name: string;
-  series_type: EventSeriesType;
+  series_type: EventSeriesType | null;
   status: PublicMeetupStatus;
   start: string;
   end: string;
@@ -220,7 +259,7 @@ export interface PublicArchiveEvent {
   name: string;
   description: string | null;
   event_date: string;
-  series_type: EventSeriesType;
+  series_type: EventSeriesType | null;
   cover: string;
   schedule: PublicMeetupScheduleItem[];
   photos: {

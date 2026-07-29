@@ -5,7 +5,7 @@ import type {
   AnnualConferenceTaskCreateInput,
   AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
-import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import type { Database } from '@/types/supabase';
 
 type EditionRow = Database['public']['Tables']['annual_conference_editions']['Row'];
@@ -30,7 +30,7 @@ export async function getSupabaseAnnualConferenceWorkPlan(
   year: number,
   c?: Context,
 ): Promise<AnnualConferenceWorkPlanStoreResult | null | undefined> {
-  if (!isSupabaseServerConfigured(c)) return null;
+  if (!isSupabaseRuntimeEnabled(c)) return null;
 
   const client = getSupabaseAdminClient(c);
   const editionResult = await client
@@ -63,7 +63,7 @@ export async function createSupabaseAnnualConferenceTask(
   actorEmail: string,
   c?: Context,
 ): Promise<AnnualConferenceTask | null> {
-  if (!isSupabaseServerConfigured(c)) return null;
+  if (!isSupabaseRuntimeEnabled(c)) return null;
 
   const client = getSupabaseAdminClient(c);
   const latestOrderResult = await client
@@ -114,7 +114,7 @@ export async function updateSupabaseAnnualConferenceTask(
   actorEmail: string,
   c?: Context,
 ): Promise<AnnualConferenceTask | null | undefined> {
-  if (!isSupabaseServerConfigured(c)) return null;
+  if (!isSupabaseRuntimeEnabled(c)) return null;
 
   const update: TaskUpdate = {
     ...input,

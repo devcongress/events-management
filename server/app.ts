@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
@@ -12,8 +14,24 @@ import {
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { sendResendEmailBatch, ResendBatchError } from '@/lib/email/resend';
+import {
+  eventRegistrationCalendarFile,
+  eventRegistrationConfirmationEmail,
+} from '@/lib/email/templates/event-registration-confirmation';
 import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
-import { evaluateRouteFeedbackRateLimit, recordRouteFeedbackSubmission, routeFeedbackRetryMessage } from '@/lib/feedback-rate-limit';
+import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
+import {
+  cancelRegistration,
+  checkInRegistration,
+  createRegistrationCampaign,
+  deleteRegistration,
+  getEventRegistrations,
+  getPendingRegistrationEmails,
+  getRegistrationCampaign,
+  registerForEvent,
+  updateRegistrationCampaign,
+  updateRegistrationEmailDelivery,
+} from '@/lib/event-registration-store';
 import {
   ANNUAL_CONFERENCE_TASK_PRIORITIES,
   ANNUAL_CONFERENCE_TASK_STATUSES,
@@ -28,9 +46,17 @@ import {
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
+import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { canChangeChecklistItemAvailability } from '@/lib/event-checklist-policy';
-import { inferEventSeriesType, isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
-import { ROUTE_FEEDBACK_TURNSTILE_ACTION, VOLUNTEER_INTAKE_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
+import { isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
+import {
+  CFP_SUBMISSION_TURNSTILE_ACTION,
+  EVENT_FEEDBACK_TURNSTILE_ACTION,
+  EVENT_REGISTRATION_TURNSTILE_ACTION,
+  ROUTE_FEEDBACK_TURNSTILE_ACTION,
+  VOLUNTEER_INTAKE_TURNSTILE_ACTION,
+  validateTurnstileToken,
+} from '@/lib/turnstile';
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
@@ -41,23 +67,22 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
-import { consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
+import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
-import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, type AdminSession } from '@/lib/supabase/admin-auth';
+import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseAnnualConferenceTask, getSupabaseAnnualConferenceWorkPlan, updateSupabaseAnnualConferenceTask } from '@/lib/supabase/annual-conference-work-plan';
-import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, deleteSupabaseCommunityEventsByImportMatch, getSupabaseCommunityEventByExternalId, getSupabaseCommunityEventById, getSupabaseCommunityEventByRegistrationUrl, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
-import { uploadMeetupMedia, validateMeetupMediaFile } from '@/lib/supabase/media';
-import { getPublicLumaEventByUrl, lumaImportFailure, type LumaImportDraft } from '@/lib/luma/events';
-import { createTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
+import { uploadMeetupMedia, validateMeetupMediaContent, validateMeetupMediaFile } from '@/lib/supabase/media';
+import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
+import { consumePublicRateLimit, type PublicRateLimitResult } from '@/lib/public-rate-limit';
 import {
   archiveRequestProgramItems,
-  sameArchiveProgramIdentity,
   sameArchiveProgramItemIdentity,
 } from '@/lib/speaker-archive-email';
 import {
@@ -65,22 +90,104 @@ import {
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
-import { evaluateVolunteerRateLimit, recordVolunteerSubmission, volunteerRetryMessage } from '@/lib/volunteer-rate-limit';
+import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
+import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
 import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
-const app = new Hono();
+type AppBindings = {
+  Variables: {
+    requestId: string;
+  };
+};
+
+const app = new Hono<AppBindings>();
 
 app.use('*', async (c, next) => {
   return withRequestEnv(c.env as Record<string, unknown> | undefined, next);
 });
+
+app.onError((error, c) => {
+  if (error instanceof HTTPException) {
+    return error.getResponse();
+  }
+
+  const requestId = c.get('requestId') as string | undefined;
+  console.error(JSON.stringify({
+    event: 'unhandled_request_error',
+    request_id: requestId ?? null,
+    method: c.req.method,
+    path: securitySafeRequestPath(c.req.path),
+    error_name: safeErrorName(error),
+  }));
+  return c.json({ error: 'An unexpected error occurred. Please try again.' }, 500);
+});
+
+app.use('*', async (c, next) => {
+  const requestId = c.req.header('cf-ray') ?? crypto.randomUUID();
+  c.set('requestId', requestId);
+  await next();
+
+  c.header('X-Request-ID', requestId);
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  c.header('Cross-Origin-Opener-Policy', 'same-origin');
+  c.header(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      "script-src 'self' https://challenges.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://api.fontshare.com",
+      "font-src 'self' data: https://cdn.fontshare.com",
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' https:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
+      "frame-src https://challenges.cloudflare.com",
+      "worker-src 'self' blob:",
+    ].join('; '),
+  );
+
+  if (envValue('NODE_ENV', c) === 'production') {
+    c.header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  }
+});
+
+const API_BODY_MAX_BYTES = 7 * 1024 * 1024;
+const PUBLIC_JSON_BODY_MAX_BYTES = 64 * 1024;
+const bodyTooLarge = (c: Context) => c.json({ error: 'Request body is too large.' }, 413);
+
+app.use('/api/*', bodyLimit({
+  maxSize: API_BODY_MAX_BYTES,
+  onError: bodyTooLarge,
+}));
+
+for (const publicWritePath of [
+  '/api/feedback',
+  '/api/feedback/events/*',
+  '/api/volunteer-applications',
+  '/api/cfp',
+  '/api/registration/events/*',
+  '/api/auth/admin/exchange',
+  '/api/events/*/speaker-intake/*',
+]) {
+  app.use(publicWritePath, bodyLimit({
+    maxSize: PUBLIC_JSON_BODY_MAX_BYTES,
+    onError: bodyTooLarge,
+  }));
+}
 
 const PUBLIC_MEETUP_COVERS = [
   '/images/apr-meetup.jpg',
@@ -103,14 +210,105 @@ const EVENT_FEEDBACK_TOKEN_MIN_CHARS = 20;
 const EVENT_FEEDBACK_TOKEN_MAX_CHARS = 160;
 const EVENT_FEEDBACK_COMMENT_MAX_CHARS = 1500;
 const FEEDBACK_SUBMISSION_MESSAGE_MAX_CHARS = 4000;
+const GOOGLE_SLIDES_MAX_TEXT_CHARS = 500_000;
+const GOOGLE_SLIDES_MAX_BYTES = 1_000_000;
+const GOOGLE_SLIDES_FETCH_TIMEOUT_MS = 8_000;
 const FEEDBACK_CAMPAIGN_STATUSES = new Set<FeedbackCampaignStatus>(['draft', 'active', 'closed']);
 const FEEDBACK_QUESTION_TYPES = new Set<FeedbackQuestionType>(['rating', 'text', 'choice', 'talk_select', 'yes_no']);
 const ROUTE_FEEDBACK_STATUSES = new Set<FeedbackStatus>(['new', 'reviewing', 'done', 'wont_fix']);
 const speakerIntakeSubmissionLocks = new Map<string, Promise<void>>();
-const lumaImportSchema = z.object({
-  event_url: z.string().trim().url(),
-  series_type: z.enum(['monthly', 'quarterly', 'special']).optional(),
+const eventRegistrationSubmissionSchema = z.object({
+  name: z.string().trim().min(1, 'Please enter your name.').max(120),
+  email: z.string().trim().toLowerCase().email('Please enter a valid email address.').max(254),
+  turnstile_action: z.string().trim().max(80).optional(),
+  turnstile_token: z.string().trim().max(4096).optional(),
+}).strict();
+const eventRegistrationCampaignUpdateSchema = z.object({
+  status: z.enum(['draft', 'open', 'closed']).optional(),
+  capacity: z.coerce.number().int().min(1).max(5000).optional(),
+  opens_at: z.string().datetime().nullable().optional(),
+  closes_at: z.string().datetime().nullable().optional(),
+  waitlist_enabled: z.boolean().optional(),
+  auto_confirm: z.boolean().optional(),
+}).superRefine((value, ctx) => {
+  if (
+    value.opens_at
+    && value.closes_at
+    && new Date(value.closes_at).getTime() < new Date(value.opens_at).getTime()
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['closes_at'],
+      message: 'Registration cannot close before it opens.',
+    });
+  }
 });
+const eventDateSchema = z.string().trim().max(40).refine(
+  (value) => !Number.isNaN(new Date(value).getTime()),
+  'Use a valid event date.',
+);
+const httpUrlSchema = z.string().trim().max(2048).refine(
+  (value) => Boolean(safeHttpUrl(value)),
+  'Use a valid http(s) URL.',
+);
+const websiteUrlSchema = z.string().trim().max(2048).refine(
+  (value) => Boolean(safeWebsiteUrl(value)),
+  'Use a valid site path or http(s) URL.',
+);
+const eventScheduleItemSchema = z.object({
+  time: z.string().trim().min(1).max(40),
+  title: z.string().trim().min(1).max(200),
+  type: z.enum([
+    'networking',
+    'talk',
+    'product_demo',
+    'panel',
+    'workshop',
+    'system_design',
+    'open_discussion',
+    'break',
+  ]),
+  lead: z.string().trim().max(120).nullable(),
+  description: z.string().trim().max(2000).nullable().optional(),
+  system_design_title: z.string().trim().max(200).nullable().optional(),
+  resources: z.array(z.object({
+    title: z.string().trim().min(1).max(120),
+    url: httpUrlSchema,
+  }).strict()).max(20),
+  shared_links: z.array(httpUrlSchema).max(20).optional(),
+}).strict();
+const eventUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  description: z.string().trim().max(10_000).nullable().optional(),
+  event_date: eventDateSchema.optional(),
+  end_date: eventDateSchema.nullable().optional(),
+  series_type: z.enum(['monthly', 'quarterly', 'special']).nullable().optional(),
+  status: z.enum(['draft', 'cfp_open', 'cfp_closed', 'upcoming', 'live', 'completed']).optional(),
+  slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80).nullable().optional(),
+  cover: websiteUrlSchema.nullable().optional(),
+  location: z.object({
+    label: z.string().trim().max(120).optional(),
+    name: z.string().trim().min(1).max(200),
+    url: z.string().trim().max(2048).nullable(),
+  }).strict().optional(),
+  stream_url: httpUrlSchema.nullable().optional(),
+  embed_stream: z.boolean().optional(),
+  registration_url: websiteUrlSchema.nullable().optional(),
+  schedule: z.array(eventScheduleItemSchema).max(100).optional(),
+  photos: z.array(z.object({
+    url: websiteUrlSchema,
+    type: z.enum(['image', 'folder']),
+  }).strict()).max(100).optional(),
+  videos: z.array(z.object({
+    title: z.string().trim().min(1).max(200),
+    embed_url: httpUrlSchema,
+  }).strict()).max(50).optional(),
+  publish_to_website: z.boolean().optional(),
+  external_source: z.string().trim().max(100).nullable().optional(),
+  external_id: z.string().trim().max(255).nullable().optional(),
+  external_url: httpUrlSchema.nullable().optional(),
+  external_synced_at: z.string().datetime().nullable().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'Add at least one field to update.');
 const systemDesignDraftRequestSchema = z.object({
   prompt_url: z.string().trim().url(),
   title: z.string().trim().optional(),
@@ -121,6 +319,9 @@ const addOrganizerSchema = z.object({
   display_name: z.string().trim().optional(),
   role: z.enum(['owner', 'organizer']).default('organizer'),
 });
+const adminTokenExchangeSchema = z.object({
+  access_token: z.string().trim().min(20).max(8192),
+}).strict();
 const auditLogQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(60),
   actor: z.string().trim().optional(),
@@ -130,16 +331,16 @@ const auditLogQuerySchema = z.object({
 const archiveItemKindSchema = z.enum(['talk', 'product_demo']);
 const adminCreateTalkSchema = z.object({
   kind: archiveItemKindSchema.optional().default('talk'),
-  speaker_name: z.string().trim().min(1, 'Presenter name is required'),
-  speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid'),
-  github_username: z.string().trim().optional().default(''),
-  title: z.string().trim().min(1, 'Archive item title is required'),
-  topic: z.string().trim().optional().default('General'),
-  abstract: z.string().trim().optional().default(''),
-  bio: z.string().trim().optional().default(''),
-  slides_url: z.string().trim().optional().default(''),
+  speaker_name: z.string().trim().min(1, 'Presenter name is required').max(120),
+  speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid').max(254),
+  github_username: z.string().trim().max(100).optional().default(''),
+  title: z.string().trim().min(1, 'Archive item title is required').max(200),
+  topic: z.string().trim().max(120).optional().default('General'),
+  abstract: z.string().trim().max(4000).optional().default(''),
+  bio: z.string().trim().max(2000).optional().default(''),
+  slides_url: z.string().trim().max(2048).optional().default(''),
   publish: z.boolean().optional().default(false),
-});
+}).strict();
 const CFP_ABSTRACT_WORD_LIMIT = 120;
 const CFP_BIO_WORD_LIMIT = 80;
 function normalizeArchiveItemKind(value: unknown): ArchiveItemKind {
@@ -163,7 +364,10 @@ const speakerSubmissionCreateSchema = adminCreateTalkSchema
       .refine((value) => countWords(value) <= CFP_ABSTRACT_WORD_LIMIT, `Presentation summary must be ${CFP_ABSTRACT_WORD_LIMIT} words or fewer`),
     bio: z.string().trim().min(1, 'Presenter bio is required')
       .refine((value) => countWords(value) <= CFP_BIO_WORD_LIMIT, `Presenter bio must be ${CFP_BIO_WORD_LIMIT} words or fewer`),
-  });
+    turnstile_action: z.string().trim().max(80).optional(),
+    turnstile_token: z.string().trim().max(4096).optional(),
+  })
+  .strict();
 const speakerSubmissionDecisionSchema = z.object({
   status: z.enum(['selected', 'not_selected']),
   internal_note: z.string().trim().max(1000).optional().default(''),
@@ -171,15 +375,16 @@ const speakerSubmissionDecisionSchema = z.object({
 });
 const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
 const selectedSpeakerSlidesSchema = z.object({
-  slides_url: z.string().trim().min(1, 'Resource URL is required'),
+  slides_url: z.string().trim().min(1, 'Resource URL is required').max(2048)
+    .refine((value) => Boolean(safeHttpUrl(value)), 'Resource URL must use http or https'),
 });
 const speakerIntakeLinkRequestSchema = z.object({
   kind: archiveItemKindSchema.optional().default('talk'),
   speaker_name: z.string().trim().min(1, 'Presenter name is required').max(120),
   speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid'),
-  title: z.string().trim().min(1, 'Archive item title is required'),
+  title: z.string().trim().min(1, 'Archive item title is required').max(200),
   expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
-});
+}).strict();
 const speakerIntakeEmailRecipientSchema = z.object({
   program_item_index: z.number().int().min(0),
   speaker_email: z.string().trim().toLowerCase().email('Presenter email must be valid').max(254),
@@ -200,6 +405,12 @@ const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({
   speaker_email: true,
   title: true,
 }).extend({
+  // Accepted only for compatibility with previously cached forms. These
+  // invitation-locked values are stripped by the transform below.
+  kind: archiveItemKindSchema.optional(),
+  speaker_name: z.string().trim().max(120).optional(),
+  speaker_email: z.string().trim().toLowerCase().email().max(254).optional(),
+  title: z.string().trim().max(200).optional(),
   abstract: z.string().trim()
     .max(
       SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
@@ -214,15 +425,39 @@ const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({
     )
     .optional()
     .default(''),
-});
+  slides_url: z.string().trim().max(2048)
+    .refine((value) => !value || Boolean(safeHttpUrl(value)), 'Resource URL must use http or https')
+    .optional()
+    .default(''),
+}).transform(({ kind: _kind, speaker_name: _speakerName, speaker_email: _speakerEmail, title: _title, ...details }) => details);
 const volunteerApplicationSchema = z.object({
   name: z.string().trim().min(1, 'Please enter your name.').max(120),
   email: z.string().trim().toLowerCase().email('Please enter a valid email address.').max(254),
   x_handle: z.string().trim().min(1, 'Please enter your X handle.').max(100),
   slack_name: z.string().trim().min(1, 'Please enter your Slack name.').max(120),
-  turnstile_action: z.string().trim().optional(),
-  turnstile_token: z.string().trim().optional(),
-});
+  turnstile_action: z.string().trim().max(80).optional(),
+  turnstile_token: z.string().trim().max(4096).optional(),
+}).strict();
+const routeFeedbackSubmissionSchema = z.object({
+  tester_id: z.string().uuid().nullable().optional(),
+  tester_name: z.string().trim().max(120).optional().default(''),
+  type: z.enum(['bug', 'confusing', 'suggestion']),
+  message: z.string().trim().min(1, 'Feedback message is required').max(4000, 'Feedback message is too long'),
+  page_path: z.string().trim().max(2048).nullable().optional(),
+  viewport_width: z.coerce.number().int().min(1).max(20000).nullable().optional(),
+  viewport_height: z.coerce.number().int().min(1).max(20000).nullable().optional(),
+  turnstile_action: z.string().trim().max(80).optional(),
+  turnstile_token: z.string().trim().max(4096).optional(),
+}).strict();
+const eventFeedbackSubmissionSchema = z.object({
+  response_token: z.string().trim().min(EVENT_FEEDBACK_TOKEN_MIN_CHARS).max(EVENT_FEEDBACK_TOKEN_MAX_CHARS),
+  answers: z.array(z.object({
+    question_id: z.string().trim().min(1).max(100),
+    value: z.union([z.string().max(EVENT_FEEDBACK_COMMENT_MAX_CHARS), z.number(), z.boolean(), z.null()]),
+  }).strict()).max(100),
+  turnstile_action: z.string().trim().max(80).optional(),
+  turnstile_token: z.string().trim().max(4096).optional(),
+}).strict();
 const annualConferenceTaskCreateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160),
   details: z.string().trim().max(2000).nullable().optional(),
@@ -322,11 +557,104 @@ function corsOrigin(origin: string | undefined, c: Context): string | undefined 
   if (!origin) return undefined;
 
   const allowedOrigins = configuredFrontendOrigins(c);
-  if (allowedOrigins.has(origin) || origin.startsWith('http://localhost:')) {
+  const localDevelopmentOrigin = envValue('NODE_ENV', c) !== 'production'
+    && origin.startsWith('http://localhost:');
+  if (allowedOrigins.has(origin) || localDevelopmentOrigin) {
     return origin;
   }
 
   return undefined;
+}
+
+function publicClientKey(c: Context): string {
+  return c.req.header('cf-connecting-ip')
+    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? `unknown:${c.req.header('user-agent') ?? 'unknown'}`;
+}
+
+function publicClientIp(c: Context): string | undefined {
+  const value = c.req.header('cf-connecting-ip')
+    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+  return value && value !== 'unknown' ? value : undefined;
+}
+
+function publicRateLimitError(
+  c: Context,
+  result: Extract<PublicRateLimitResult, { allowed: false }>,
+  message: string,
+): globalThis.Response {
+  c.header('Retry-After', String(result.retryAfterSeconds));
+
+  if (result.unavailable) {
+    return c.json({
+      error: 'This form is temporarily unavailable. Please try again shortly.',
+      retry_after_seconds: result.retryAfterSeconds,
+    }, 503);
+  }
+
+  console.warn(JSON.stringify({
+    event: 'public_rate_limit_exceeded',
+    action: securitySafeRequestPath(c.req.path),
+    request_id: c.get('requestId') ?? null,
+  }));
+  return c.json({
+    error: message,
+    retry_after_seconds: result.retryAfterSeconds,
+  }, 429);
+}
+
+async function enforcePublicRateLimit(
+  c: Context,
+  input: {
+    action: string;
+    clientKey: string;
+    maxAttempts: number;
+    windowSeconds: number;
+  },
+  message: string,
+): Promise<globalThis.Response | null> {
+  const result = await consumePublicRateLimit(c, input);
+  return result.allowed ? null : publicRateLimitError(c, result, message);
+}
+
+async function requirePublicTurnstile(
+  c: Context,
+  input: {
+    token?: string | null;
+    submittedAction?: string | null;
+    expectedAction: string;
+  },
+): Promise<globalThis.Response | null> {
+  const token = input.token?.trim() ?? '';
+  const submittedAction = input.submittedAction?.trim() ?? '';
+  const secretKey = envValue('TURNSTILE_SECRET_KEY', c)?.trim();
+
+  if (submittedAction && submittedAction !== input.expectedAction) {
+    return c.json({ error: 'Human verification did not match this form. Please try again.' }, 400);
+  }
+
+  if (!secretKey) {
+    if (envValue('NODE_ENV', c) === 'production' || token || submittedAction) {
+      console.error(JSON.stringify({
+        event: 'turnstile_configuration_missing',
+        action: input.expectedAction,
+        request_id: c.get('requestId') ?? null,
+      }));
+      return c.json({ error: 'Human verification is temporarily unavailable. Please try again later.' }, 503);
+    }
+
+    // Local and test environments may omit Turnstile entirely.
+    return null;
+  }
+
+  const result = await validateTurnstileToken({
+    token,
+    secretKey,
+    remoteIp: publicClientIp(c),
+    expectedAction: input.expectedAction,
+    expectedHostname: envValue('TURNSTILE_EXPECTED_HOSTNAME', c),
+  });
+  return result.ok ? null : c.json({ error: result.error }, result.status);
 }
 
 function isPublicFeedbackEventRequest(path: string, method: string): boolean {
@@ -334,8 +662,21 @@ function isPublicFeedbackEventRequest(path: string, method: string): boolean {
     || (method === 'POST' && /^\/api\/feedback\/events\/[^/]+\/submissions$/.test(path));
 }
 
+function isPublicCfpEventRequest(path: string, method: string): boolean {
+  return method === 'GET' && /^\/api\/cfp\/events\/[^/]+$/.test(path);
+}
+
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
   return (method === 'GET' || method === 'POST') && /^\/api\/events\/[^/]+\/speaker-intake\/[^/]+$/.test(path);
+}
+
+function isPublicEventRegistrationRequest(path: string, method: string): boolean {
+  const eventRegistrationPath = /^\/api\/registration\/events\/[^/]+$/;
+  return (method === 'GET' && (
+    eventRegistrationPath.test(path)
+    || /^\/api\/registration\/events\/[^/]+\/calendar\.ics$/.test(path)
+  ))
+    || (method === 'POST' && eventRegistrationPath.test(path));
 }
 
 function isUnauthenticatedApiRequest(path: string, method: string): boolean {
@@ -345,7 +686,8 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || path === '/api/public/archive'
     || path.startsWith('/api/public/archive/')
     || path === '/api/public/home'
-    || path.startsWith('/api/health')
+    || path === '/api/health'
+    || path === '/api/health/supabase'
     || path === '/api/auth/session'
     || path === '/api/auth/admin/callback'
     ))
@@ -356,7 +698,9 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
       || path === '/api/volunteer-applications'
     ))
     || isPublicFeedbackEventRequest(path, method)
-    || isSpeakerTalkIntakeRequest(path, method);
+    || isPublicCfpEventRequest(path, method)
+    || isSpeakerTalkIntakeRequest(path, method)
+    || isPublicEventRegistrationRequest(path, method);
 }
 
 function isLogoutPath(path: string): boolean {
@@ -383,7 +727,7 @@ app.use('/api/*', async (c, next) => {
     return;
   }
 
-  await credentialedApiCors(c, next);
+  return credentialedApiCors(c, next);
 });
 
 app.use('/api/*', async (c, next) => {
@@ -409,6 +753,17 @@ async function getEventById(id: string, c?: Context): Promise<Event | undefined>
   return fallback ? canonicalizeEventSchedule(fallback) : fallback;
 }
 
+async function getEventByRegistrationKey(key: string, c?: Context): Promise<Event | undefined> {
+  const event = await getSupabaseCommunityEventBySlug(key, c);
+  if (event !== null) {
+    if (event) return canonicalizeEventSchedule(event);
+    return getEventById(key, c);
+  }
+
+  const fallback = (await getAllMockEvents()).find((candidate) => candidate.slug === key);
+  return fallback ? canonicalizeEventSchedule(fallback) : getEventById(key, c);
+}
+
 async function createEvent(data: {
   name: string;
   description: string | null;
@@ -431,6 +786,15 @@ async function createEvent(data: {
     description: data.description,
     event_date: data.event_date,
     series_type: data.series_type,
+    end_date: data.end_date ?? undefined,
+    slug: data.slug ?? undefined,
+    cover: data.cover ?? undefined,
+    location: data.location ?? undefined,
+    registration_url: data.registration_url ?? null,
+    stream_url: data.stream_url ?? null,
+    embed_stream: data.embed_stream ?? false,
+    photos: data.photos ?? [],
+    publish_to_website: data.publish_to_website ?? false,
   }));
 }
 
@@ -549,40 +913,6 @@ async function getActiveOrganizerEmails(c: Context): Promise<string[] | null> {
   }
 }
 
-async function deleteImportedEvent(event: Event, c?: Context): Promise<{ deleted_ids: string[]; deleted: boolean }> {
-  const deletedIds = await deleteSupabaseCommunityEventsByImportMatch(event, c);
-  if (deletedIds !== null) {
-    return {
-      deleted_ids: deletedIds,
-      deleted: deletedIds.length > 0,
-    };
-  }
-
-  await deleteMockEvent(event.id);
-  return {
-    deleted_ids: [event.id],
-    deleted: true,
-  };
-}
-
-function lumaDraftToEventInput(lumaEvent: LumaImportDraft) {
-  return {
-    name: lumaEvent.name,
-    description: lumaEvent.description,
-    event_date: lumaEvent.event_date,
-    series_type: inferEventSeriesType(lumaEvent.name),
-    end_date: lumaEvent.end_date,
-    cover: lumaEvent.cover ?? undefined,
-    registration_url: lumaEvent.registration_url,
-    location: lumaEvent.location,
-    publish_to_website: false,
-    external_source: 'luma',
-    external_id: lumaEvent.external_id,
-    external_url: lumaEvent.external_url,
-    external_synced_at: new Date().toISOString(),
-  };
-}
-
 function canonicalizeEventSchedule(event: Event): Event {
   const normalizedEvent = withResolvedEventStatus(event);
 
@@ -594,17 +924,6 @@ function canonicalizeEventSchedule(event: Event): Event {
     ...normalizedEvent,
     schedule: canonicalizeSystemDesignSchedule(normalizedEvent.schedule),
   };
-}
-
-async function findExistingLumaEvent(lumaEvent: LumaImportDraft, c: Context): Promise<Event | undefined> {
-  const existingByExternalId = await getSupabaseCommunityEventByExternalId('luma', lumaEvent.external_id, c) ?? undefined;
-  if (existingByExternalId) return existingByExternalId;
-
-  if (!lumaEvent.registration_url) {
-    return undefined;
-  }
-
-  return await getSupabaseCommunityEventByRegistrationUrl(lumaEvent.registration_url, c) ?? undefined;
 }
 
 function setPublicApiCache(c: Context) {
@@ -652,18 +971,7 @@ function absoluteAppUrl(origin: string, path: string): string {
 }
 
 function validExternalUrl(value: string | null): string | null {
-  if (!value) return null;
-
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function isWebsiteMediaUrl(value: string): boolean {
-  return value.startsWith('/') || Boolean(validExternalUrl(value));
+  return safeHttpUrl(value);
 }
 
 function normalizeEventPhotos(value: unknown): NonNullable<Event['photos']> {
@@ -677,15 +985,47 @@ function normalizeEventPhotos(value: unknown): NonNullable<Event['photos']> {
     }
 
     const candidate = photo as { url?: unknown; type?: unknown };
-    const url = typeof candidate.url === 'string' ? candidate.url.trim() : '';
+    const url = safeWebsiteUrl(typeof candidate.url === 'string' ? candidate.url : null);
 
-    if (!url || !isWebsiteMediaUrl(url)) {
+    if (!url) {
       return [];
     }
 
     return [{
       url,
       type: candidate.type === 'folder' ? 'folder' : 'image',
+    }];
+  });
+}
+
+function normalizePublicSchedule(value: Event['schedule']): PublicMeetupScheduleItem[] {
+  return canonicalizeSystemDesignSchedule(value ?? []).map((item) => ({
+    ...item,
+    resources: item.resources.flatMap((resource) => {
+      const url = safeHttpUrl(resource.url);
+      return url ? [{ ...resource, url }] : [];
+    }),
+    shared_links: item.shared_links?.flatMap((link) => {
+      const url = safeHttpUrl(link);
+      return url ? [url] : [];
+    }) ?? [],
+  }));
+}
+
+function normalizeEventVideos(value: unknown): NonNullable<Event['videos']> {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((video) => {
+    if (!video || typeof video !== 'object') return [];
+    const candidate = video as { title?: unknown; embed_url?: unknown };
+    const embedUrl = safeHttpUrl(typeof candidate.embed_url === 'string' ? candidate.embed_url : null);
+    if (!embedUrl) return [];
+
+    return [{
+      title: typeof candidate.title === 'string' && candidate.title.trim()
+        ? candidate.title.trim()
+        : 'Recording',
+      embed_url: embedUrl,
     }];
   });
 }
@@ -745,7 +1085,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
   const location = event.location ?? DEFAULT_MEETUP_LOCATION;
   const endDate = event.end_date ? toWebsiteDateTime(event.end_date) : meetupEndDate(event.event_date);
   const photos = normalizeEventPhotos(event.photos);
-  const schedule = canonicalizeSystemDesignSchedule(event.schedule ?? scheduleForTalks(eventTalks));
+  const schedule = normalizePublicSchedule(event.schedule ?? scheduleForTalks(eventTalks));
 
   const cfpUrl = event.status === 'cfp_open'
     ? absoluteAppUrl(origin, `/cfp/${event.id}`)
@@ -755,20 +1095,23 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     id: event.id,
     slug: eventSlug(event),
     name: event.name,
-    series_type: event.series_type ?? inferEventSeriesType(event.name),
+    series_type: resolveEventSeriesType(event),
     status: publicMeetupStatus(event),
     start: toWebsiteDateTime(event.event_date),
     end: endDate,
     description: event.description ?? 'A DevCongress community meetup for talks, peer learning, and practical developer conversations.',
-    cover: coverForEvent(event),
-    location,
-    stream_url: event.stream_url ?? null,
+    cover: safeWebsiteUrl(coverForEvent(event)) ?? PUBLIC_MEETUP_COVERS[0],
+    location: {
+      ...location,
+      url: safeHttpUrl(location.url),
+    },
+    stream_url: safeHttpUrl(event.stream_url),
     embed_stream: event.embed_stream ?? false,
-    registration_url: registrationUrl,
+    registration_url: safeWebsiteUrl(registrationUrl),
     speakers: speakersForTalks(eventTalks, origin),
     schedule,
     photos,
-    videos: event.videos ?? [],
+    videos: normalizeEventVideos(event.videos),
     talks_count: eventTalks.length,
     published_talks_count: publishedTalks.length,
     cfp_url: cfpUrl,
@@ -787,9 +1130,9 @@ function toPublicArchiveEvent(event: Event): PublicArchiveEvent {
     name: event.name,
     description: event.description,
     event_date: event.event_date,
-    series_type: event.series_type ?? inferEventSeriesType(event.name),
-    cover: coverForEvent(event),
-    schedule: canonicalizeSystemDesignSchedule(event.schedule ?? []),
+    series_type: resolveEventSeriesType(event),
+    cover: safeWebsiteUrl(coverForEvent(event)) ?? PUBLIC_MEETUP_COVERS[0],
+    schedule: normalizePublicSchedule(event.schedule),
     photos: normalizeEventPhotos(event.photos),
   };
 }
@@ -872,7 +1215,7 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
 }
 
 async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
-  const [events, talks, attendanceImports] = await Promise.all([getAllEvents(c), getAllTalks(), getAttendanceImports()]);
+  const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
   const publicEvents = events.filter((event) => Boolean(event.publish_to_website));
   const archiveEvents = publicEvents.filter(isPublicArchiveEvent);
   const eventById = new Map(publicEvents.map((event) => [event.id, event]));
@@ -890,42 +1233,12 @@ async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
     completed_events_count: archiveEvents.length,
     published_talks_count: talks.filter((talk) => talk.status === 'published' && eventById.has(talk.event_id)).length,
     recent_talks: recentTalks,
-    regulars: buildPublicAttendanceRegulars(events, attendanceImports),
+    // Attendance records contain personal data and are intentionally excluded
+    // from every public contract. Keep the field empty for additive consumer
+    // compatibility while the public website removes the old leaderboard UI.
+    regulars: [],
     cfp_event: cfpEvent ? { id: cfpEvent.id, name: cfpEvent.name } : null,
   };
-}
-
-function toPreviewPublicMeetup(
-  lumaEvent: LumaImportDraft,
-  origin: string,
-  existingEvent?: Event,
-  seriesType?: EventSeriesType,
-): PublicMeetup {
-  const previewEvent: Event = {
-    id: existingEvent?.id ?? `preview-${lumaEvent.external_id}`,
-    name: lumaEvent.name,
-    description: lumaEvent.description,
-    event_date: lumaEvent.event_date,
-    series_type: existingEvent?.series_type ?? seriesType ?? inferEventSeriesType(lumaEvent.name),
-    end_date: lumaEvent.end_date ?? undefined,
-    status: existingEvent?.status ?? 'upcoming',
-    created_at: existingEvent?.created_at ?? now(),
-    updated_at: now(),
-    slug: existingEvent?.slug ?? slugify(lumaEvent.name),
-    cover: lumaEvent.cover ?? undefined,
-    location: lumaEvent.location,
-    registration_url: lumaEvent.registration_url,
-    schedule: existingEvent?.schedule ?? [],
-    photos: existingEvent?.photos ?? [],
-    videos: existingEvent?.videos ?? [],
-    publish_to_website: true,
-    external_source: 'luma',
-    external_id: lumaEvent.external_id,
-    external_url: lumaEvent.external_url,
-    external_synced_at: new Date().toISOString(),
-  };
-
-  return toPublicMeetup(previewEvent, [], origin);
 }
 
 async function buildPublicMeetups(origin: string, c?: Context) {
@@ -956,6 +1269,99 @@ function publicAppOrigin(c: Context): string {
   }
 
   return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? requestOrigin;
+}
+
+function publicRegistrationUrl(event: Event, c: Context): string {
+  const key = event.slug?.trim() || event.id;
+  return new URL(`/r/${encodeURIComponent(key)}`, publicAppOrigin(c)).toString();
+}
+
+function publicRegistrationCalendarUrl(event: Event, c: Context): string {
+  const key = event.slug?.trim() || event.id;
+  return new URL(
+    `/api/registration/events/${encodeURIComponent(key)}/calendar.ics`,
+    publicAppOrigin(c),
+  ).toString();
+}
+
+async function sendPendingRegistrationConfirmationEmails(
+  event: Event,
+  c: Context,
+  options: { registrationId?: string; limit?: number } = {},
+): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailFrom = envValue('REGISTRATION_EMAIL_FROM', c)?.trim()
+    || envValue('SPEAKER_EMAIL_FROM', c)?.trim();
+  const emailReplyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim()
+    || envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  if (!resendApiKey || !emailFrom || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    return { configured: false, accepted: [], failed: [] };
+  }
+
+  const pending = (await getPendingRegistrationEmails(event.id, options.limit ?? 100, c))
+    .filter((delivery) => !options.registrationId || delivery.registration_id === options.registrationId);
+  if (pending.length === 0) {
+    return { configured: true, accepted: [], failed: [] };
+  }
+
+  const emails = pending.map((delivery) => {
+    const content = eventRegistrationConfirmationEmail({
+      attendeeName: delivery.name,
+      eventName: event.name,
+      eventDate: event.event_date,
+      eventEndDate: event.end_date,
+      locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+      locationUrl: event.location?.url,
+      eventUrl: publicRegistrationUrl(event, c),
+      calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
+      status: delivery.registration_status,
+    });
+    return {
+      from: emailFrom,
+      to: [delivery.email],
+      reply_to: emailReplyTo,
+      ...content,
+    };
+  });
+  const batchDigest = crypto.createHash('sha256')
+    .update(pending.map((delivery) => delivery.idempotency_key).sort().join(':'))
+    .digest('hex');
+
+  try {
+    const result = await sendResendEmailBatch({
+      apiKey: resendApiKey,
+      idempotencyKey: `registration-${batchDigest}`,
+      emails,
+    });
+    await Promise.all(pending.map((delivery, index) => updateRegistrationEmailDelivery(delivery.delivery_id, {
+      status: 'accepted',
+      provider_id: result.ids[index],
+    }, c)));
+    return {
+      configured: true,
+      accepted: pending.map((delivery) => delivery.registration_id),
+      failed: [],
+    };
+  } catch (error) {
+    const message = error instanceof ResendBatchError && error.status === 429
+      ? 'Email provider daily quota reached; delivery will be retried.'
+      : 'Email provider did not accept this delivery; it can be retried.';
+    await Promise.all(pending.map((delivery) => updateRegistrationEmailDelivery(delivery.delivery_id, {
+      status: 'failed',
+      last_error: message,
+    }, c)));
+    console.warn(JSON.stringify({
+      event: 'registration_confirmation_email_delayed',
+      event_id: event.id,
+      recipient_count: pending.length,
+      provider_status: error instanceof ResendBatchError ? error.status : null,
+    }));
+    return {
+      configured: true,
+      accepted: [],
+      failed: pending.map((delivery) => delivery.registration_id),
+    };
+  }
 }
 
 function feedbackActivityLabelKey(label: string): string {
@@ -1281,6 +1687,28 @@ function inferSlidesSummary(text: string, title: string, lead?: string): string 
   return parts.join('\n\n');
 }
 
+async function readTextResponseWithLimit(response: globalThis.Response, maxBytes: number): Promise<string> {
+  if (!response.body) return '';
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let receivedBytes = 0;
+  let text = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    receivedBytes += value.byteLength;
+    if (receivedBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error('This Google Slides deck is too large to import safely.');
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+
+  return text + decoder.decode();
+}
+
 async function fetchGoogleSlidesDraft(input: {
   promptUrl: string;
   fallbackTitle?: string;
@@ -1291,11 +1719,14 @@ async function fetchGoogleSlidesDraft(input: {
     throw new Error('Use a public Google Slides presentation link to generate a draft.');
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GOOGLE_SLIDES_FETCH_TIMEOUT_MS);
   const response = await fetch(exportUrl, {
+    signal: controller.signal,
     headers: {
       Accept: 'text/plain, text/*;q=0.9, */*;q=0.1',
     },
-  });
+  }).finally(() => clearTimeout(timeout));
 
   if (!response.ok) {
     throw new Error(response.status === 403
@@ -1303,7 +1734,16 @@ async function fetchGoogleSlidesDraft(input: {
       : 'Could not read this Google Slides deck.');
   }
 
-  const text = normalizeSlideText(await response.text());
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > GOOGLE_SLIDES_MAX_TEXT_CHARS) {
+    throw new Error('This Google Slides deck is too large to import safely.');
+  }
+
+  const rawText = await readTextResponseWithLimit(response, GOOGLE_SLIDES_MAX_BYTES);
+  if (rawText.length > GOOGLE_SLIDES_MAX_TEXT_CHARS) {
+    throw new Error('This Google Slides deck is too large to import safely.');
+  }
+  const text = normalizeSlideText(rawText);
   if (!text) {
     throw new Error('Google Slides returned an empty deck export.');
   }
@@ -1458,7 +1898,6 @@ app.get('/api/health/supabase', async (c) => {
     return c.json({
       ok: false,
       configured: false,
-      error: 'Supabase env is missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
     }, 503);
   }
 
@@ -1470,10 +1909,14 @@ app.get('/api/health/supabase', async (c) => {
   const error = checks.find((check) => check.error)?.error;
 
   if (error) {
+    console.error(JSON.stringify({
+      event: 'supabase_health_check_failed',
+      request_id: c.get('requestId') ?? null,
+      error_code: error.code ?? null,
+    }));
     return c.json({
       ok: false,
       configured: true,
-      error: error.message,
     }, 500);
   }
 
@@ -1484,6 +1927,9 @@ app.get('/api/health/supabase', async (c) => {
 });
 
 app.get('/api/health/data-sources', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
   const supabaseConfigured = isSupabaseServerConfigured(c);
   const supabaseEnabled = isSupabaseRuntimeEnabled(c);
   const supabaseSource = supabaseConfigured ? 'supabase' : 'local-json';
@@ -1504,7 +1950,7 @@ app.get('/api/health/data-sources', async (c) => {
       event_feedback_submissions: supabaseSource,
       route_feedback: supabaseConfigured ? 'supabase' : 'unavailable',
       talks: documentSource,
-      speaker_intake_links: documentSource,
+      speaker_intake_links: supabaseConfigured ? 'supabase' : 'local-json',
       speakers: documentSource,
       attendance_imports: documentSource,
       event_checklists: documentSource,
@@ -1518,11 +1964,13 @@ app.get('/api/health/data-sources', async (c) => {
 });
 
 app.get('/api/health/supabase/community-events', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
   if (!isSupabaseServerConfigured(c)) {
     return c.json({
       ok: false,
       configured: false,
-      error: 'Supabase env is missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
     }, 503);
   }
 
@@ -1532,10 +1980,14 @@ app.get('/api/health/supabase/community-events', async (c) => {
     .limit(1);
 
   if (error) {
+    console.error(JSON.stringify({
+      event: 'community_events_health_check_failed',
+      request_id: c.get('requestId') ?? null,
+      error_code: error.code ?? null,
+    }));
     return c.json({
       ok: false,
       configured: true,
-      error: error.message,
     }, 500);
   }
 
@@ -1546,11 +1998,13 @@ app.get('/api/health/supabase/community-events', async (c) => {
 });
 
 app.get('/api/health/supabase/storage', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
   if (!isSupabaseServerConfigured(c)) {
     return c.json({
       ok: false,
       configured: false,
-      error: 'Supabase env is missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY',
     }, 503);
   }
 
@@ -1559,10 +2013,14 @@ app.get('/api/health/supabase/storage', async (c) => {
     .getBucket('meetup-media');
 
   if (error) {
+    console.error(JSON.stringify({
+      event: 'storage_health_check_failed',
+      request_id: c.get('requestId') ?? null,
+      error_name: error.name ?? null,
+    }));
     return c.json({
       ok: false,
       configured: true,
-      error: error.message,
     }, 500);
   }
 
@@ -1573,10 +2031,7 @@ app.get('/api/health/supabase/storage', async (c) => {
 });
 
 app.get('/api/health', (c) => {
-  return c.json({
-    ok: true,
-    runtime: typeof Bun === 'undefined' ? 'vite-dev-server' : 'bun',
-  });
+  return c.json({ ok: true });
 });
 
 app.get('/api/auth/session', async (c) => {
@@ -1627,62 +2082,39 @@ app.post('/api/feedback', async (c) => {
     return c.json({ error: 'Feedback is not configured' }, 503);
   }
 
-  const allowedTypes = new Set<FeedbackKind>(['bug', 'confusing', 'suggestion']);
-  const body = await c.req.json();
-  const type = String(body.type ?? '') as FeedbackKind;
-  const message = String(body.message ?? '').trim();
-  const turnstileAction = String(body.turnstile_action ?? '').trim();
-  const turnstileToken = String(body.turnstile_token ?? '').trim();
-  let testerId = typeof body.tester_id === 'string' && body.tester_id ? body.tester_id : null;
-  let testerName = String(body.tester_name ?? '').trim();
-
-  if (!allowedTypes.has(type)) {
-    return c.json({ error: 'Invalid feedback type' }, 400);
+  const parsed = routeFeedbackSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your feedback and try again.' }, 400);
   }
+  const body = parsed.data;
+  const type = body.type as FeedbackKind;
+  const message = body.message;
+  let testerId = body.tester_id ?? null;
+  let testerName = body.tester_name;
 
-  if (!message) {
-    return c.json({ error: 'Feedback message is required' }, 400);
-  }
+  const turnstileError = await requirePublicTurnstile(c, {
+    token: body.turnstile_token,
+    submittedAction: body.turnstile_action,
+    expectedAction: ROUTE_FEEDBACK_TURNSTILE_ACTION,
+  });
+  if (turnstileError) return turnstileError;
 
-  if (message.length > 4000) {
-    return c.json({ error: 'Feedback message is too long' }, 400);
-  }
+  const clientKey = publicClientKey(c);
+  const cooldownError = await enforcePublicRateLimit(c, {
+    action: 'route_feedback_cooldown',
+    clientKey,
+    maxAttempts: 1,
+    windowSeconds: 10 * 60,
+  }, 'Feedback was recently received from this device. Please wait before sending another note.');
+  if (cooldownError) return cooldownError;
 
-  const forwardedFor = c.req.header('cf-connecting-ip')
-    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? 'unknown';
-  const userAgent = c.req.header('user-agent') ?? 'unknown';
-  const turnstileSecretKey = envValue('TURNSTILE_SECRET_KEY', c);
-  const turnstileHostname = envValue('TURNSTILE_EXPECTED_HOSTNAME', c);
-  if (turnstileSecretKey) {
-    const turnstileCheck = await validateTurnstileToken({
-      token: turnstileToken,
-      secretKey: turnstileSecretKey,
-      remoteIp: forwardedFor !== 'unknown' ? forwardedFor : undefined,
-      expectedAction: ROUTE_FEEDBACK_TURNSTILE_ACTION,
-      expectedHostname: turnstileHostname,
-    });
-
-    if (!turnstileCheck.ok) {
-      return c.json({ error: turnstileCheck.error }, turnstileCheck.status);
-    }
-
-    if (turnstileAction && turnstileAction !== ROUTE_FEEDBACK_TURNSTILE_ACTION) {
-      return c.json({ error: 'Human verification did not match this form. Please try again.' }, 400);
-    }
-  } else if (turnstileToken || turnstileAction) {
-    return c.json({ error: 'Human verification is temporarily unavailable. Please try again later.' }, 503);
-  }
-  const routeFeedbackClientKey = `${forwardedFor}::${userAgent}`;
-  const rateLimit = evaluateRouteFeedbackRateLimit(routeFeedbackClientKey);
-  if (!rateLimit.allowed) {
-    const retryAfterSeconds = Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000));
-    c.header('Retry-After', String(retryAfterSeconds));
-    return c.json({
-      error: routeFeedbackRetryMessage(rateLimit),
-      retry_after_seconds: retryAfterSeconds,
-    }, 429);
-  }
+  const dailyLimitError = await enforcePublicRateLimit(c, {
+    action: 'route_feedback_daily',
+    clientKey,
+    maxAttempts: 3,
+    windowSeconds: 24 * 60 * 60,
+  }, 'This device has reached the feedback limit for today.');
+  if (dailyLimitError) return dailyLimitError;
 
   const supabase = getSupabaseAdminClient(c);
 
@@ -1695,7 +2127,7 @@ app.post('/api/feedback', async (c) => {
       .maybeSingle();
 
     if (error) {
-      return c.json({ error: error.message }, 500);
+      return c.json({ error: 'Unable to verify the selected tester.' }, 500);
     }
 
     if (!tester) {
@@ -1721,17 +2153,21 @@ app.post('/api/feedback', async (c) => {
       trigger_source: 'route_feedback',
       page_path: typeof body.page_path === 'string' ? body.page_path : null,
       user_agent: c.req.header('user-agent') ?? null,
-      viewport_width: Number.isFinite(Number(body.viewport_width)) ? Number(body.viewport_width) : null,
-      viewport_height: Number.isFinite(Number(body.viewport_height)) ? Number(body.viewport_height) : null,
+      viewport_width: body.viewport_width ?? null,
+      viewport_height: body.viewport_height ?? null,
     })
     .select('id')
     .single();
 
   if (error) {
-    return c.json({ error: error.message }, 500);
+    console.error(JSON.stringify({
+      event: 'route_feedback_insert_failed',
+      request_id: c.get('requestId') ?? null,
+      error_code: error.code ?? null,
+    }));
+    return c.json({ error: 'Unable to save feedback. Please try again.' }, 500);
   }
 
-  recordRouteFeedbackSubmission(routeFeedbackClientKey);
   return c.json({ id: data.id }, 201);
 });
 
@@ -2121,7 +2557,7 @@ app.get('/api/feedback/events/:eventId', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const campaign = await getOrCreateFeedbackCampaignStore(eventId, c);
+  const campaign = await getFeedbackCampaignByEventStore(eventId, c);
   const previewAllowed = previewRequested && !(await requireAdmin(c));
 
   if (!campaign || (!previewAllowed && !isFeedbackCampaignOpen(event, campaign))) {
@@ -2162,12 +2598,12 @@ app.get('/api/feedback/events/:eventId/status', async (c) => {
     return c.json({ available: false, error: 'Event not found' }, 404);
   }
 
-  const campaign = await getOrCreateFeedbackCampaignStore(eventId, c);
-  const available = isFeedbackCampaignOpen(event, campaign);
+  const campaign = await getFeedbackCampaignByEventStore(eventId, c);
+  const available = Boolean(campaign && isFeedbackCampaignOpen(event, campaign));
 
   return c.json({
     available,
-    feedback_window: feedbackCampaignWindow(event, campaign),
+    feedback_window: campaign ? feedbackCampaignWindow(event, campaign) : null,
     public_url: available ? `${publicAppOrigin(c)}/feedback/${eventId}` : null,
   });
 });
@@ -2180,16 +2616,32 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const campaign = await getOrCreateFeedbackCampaignStore(eventId, c);
+  const campaign = await getFeedbackCampaignByEventStore(eventId, c);
 
   if (!campaign || !isFeedbackCampaignOpen(event, campaign)) {
     return c.json({ error: 'Feedback is not open for this event' }, 403);
   }
 
-  const body = await c.req.json().catch(() => null);
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return c.json({ error: 'Please check your feedback and try again.' }, 400);
+  const parsed = eventFeedbackSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your feedback and try again.' }, 400);
   }
+  const body = parsed.data;
+
+  const turnstileError = await requirePublicTurnstile(c, {
+    token: body.turnstile_token,
+    submittedAction: body.turnstile_action,
+    expectedAction: EVENT_FEEDBACK_TURNSTILE_ACTION,
+  });
+  if (turnstileError) return turnstileError;
+
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: `event_feedback:${eventId}`,
+    clientKey: publicClientKey(c),
+    maxAttempts: 5,
+    windowSeconds: 60 * 60,
+  }, 'This device has sent several feedback responses. Please try again later.');
+  if (rateLimitError) return rateLimitError;
 
   const normalized = normalizeFeedbackSubmissionAnswers(campaign, body.answers);
   if (!normalized.valid) {
@@ -2273,43 +2725,29 @@ app.post('/api/volunteer-applications', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your details and try again.' }, 400);
   }
 
-  const forwardedFor = c.req.header('cf-connecting-ip')
-    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? 'unknown';
-  const userAgent = c.req.header('user-agent') ?? 'unknown';
-  const turnstileSecretKey = envValue('TURNSTILE_SECRET_KEY', c);
-  const turnstileHostname = envValue('TURNSTILE_EXPECTED_HOSTNAME', c);
+  const turnstileError = await requirePublicTurnstile(c, {
+    token: parsed.data.turnstile_token,
+    submittedAction: parsed.data.turnstile_action,
+    expectedAction: VOLUNTEER_INTAKE_TURNSTILE_ACTION,
+  });
+  if (turnstileError) return turnstileError;
 
-  if (turnstileSecretKey) {
-    const turnstileCheck = await validateTurnstileToken({
-      token: parsed.data.turnstile_token ?? '',
-      secretKey: turnstileSecretKey,
-      remoteIp: forwardedFor === 'unknown' ? undefined : forwardedFor,
-      expectedAction: VOLUNTEER_INTAKE_TURNSTILE_ACTION,
-      expectedHostname: turnstileHostname,
-    });
+  const clientKey = publicClientKey(c);
+  const cooldownError = await enforcePublicRateLimit(c, {
+    action: 'volunteer_application_cooldown',
+    clientKey,
+    maxAttempts: 1,
+    windowSeconds: 10 * 60,
+  }, 'A volunteer application was recently received from this device.');
+  if (cooldownError) return cooldownError;
 
-    if (!turnstileCheck.ok) {
-      return c.json({ error: turnstileCheck.error }, turnstileCheck.status);
-    }
-
-    if (parsed.data.turnstile_action && parsed.data.turnstile_action !== VOLUNTEER_INTAKE_TURNSTILE_ACTION) {
-      return c.json({ error: 'Human verification did not match this form. Please try again.' }, 400);
-    }
-  } else if (parsed.data.turnstile_token || parsed.data.turnstile_action) {
-    return c.json({ error: 'Human verification is temporarily unavailable. Please try again later.' }, 503);
-  }
-
-  const clientKey = `${forwardedFor}::${userAgent}`;
-  const rateLimit = evaluateVolunteerRateLimit(clientKey);
-  if (!rateLimit.allowed) {
-    const retryAfterSeconds = Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000));
-    c.header('Retry-After', String(retryAfterSeconds));
-    return c.json({
-      error: volunteerRetryMessage(rateLimit),
-      retry_after_seconds: retryAfterSeconds,
-    }, 429);
-  }
+  const dailyLimitError = await enforcePublicRateLimit(c, {
+    action: 'volunteer_application_daily',
+    clientKey,
+    maxAttempts: 2,
+    windowSeconds: 24 * 60 * 60,
+  }, 'This device has reached the volunteer application limit for today.');
+  if (dailyLimitError) return dailyLimitError;
 
   const result = await createVolunteerApplication({
     name: parsed.data.name,
@@ -2319,11 +2757,10 @@ app.post('/api/volunteer-applications', async (c) => {
   });
 
   if (!result.created) {
-    return c.json({ error: 'A volunteer application with this email has already been received.' }, 409);
+    return c.json({ accepted: true }, 202);
   }
 
-  recordVolunteerSubmission(clientKey);
-  return c.json({ id: result.application.id }, 201);
+  return c.json({ accepted: true }, 202);
 });
 
 app.get('/api/admin/volunteer-applications', async (c) => {
@@ -2523,9 +2960,20 @@ app.post('/api/auth/admin/exchange', async (c) => {
     return c.json({ error: 'Supabase admin auth is not configured.' }, 503);
   }
 
-  const body = await c.req.json();
-  const accessToken = String(body.access_token ?? '');
-  const result = await completeSupabaseAdminToken(c, accessToken);
+  const parsed = adminTokenExchangeSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: 'Google organizer sign-in could not be completed. Please try again.' }, 400);
+  }
+
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: 'admin_token_exchange',
+    clientKey: publicClientKey(c),
+    maxAttempts: 10,
+    windowSeconds: 10 * 60,
+  }, 'Too many sign-in attempts. Please wait a few minutes and try again.');
+  if (rateLimitError) return rateLimitError;
+
+  const result = await completeSupabaseAdminToken(c, parsed.data.access_token);
   if (!result.ok) {
     return c.json({ error: result.error }, { status: result.status as 401 | 403 | 500 });
   }
@@ -2621,6 +3069,17 @@ app.post('/api/admin/organizers', async (c) => {
     return c.json({ error: 'Unable to save organizer email.' }, 500);
   }
 
+  if (
+    existingMembership
+    && (existingMembership.role !== data.role || existingMembership.status !== data.status)
+  ) {
+    try {
+      await revokeAdminSessionsForMembership(c, data.id);
+    } catch {
+      return c.json({ error: 'Organizer access changed, but existing sessions could not be revoked.' }, 500);
+    }
+  }
+
   await recordAdminAudit(c, {
     actor_user_id: session.user_id,
     actor_email: session.email,
@@ -2699,6 +3158,11 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
   if (!data) {
     return c.json({ error: 'Organizer was not found.' }, 404);
   }
+  try {
+    await revokeAdminSessionsForMembership(c, data.id);
+  } catch {
+    return c.json({ error: 'Organizer access was disabled, but existing sessions could not be revoked.' }, 500);
+  }
   await recordAdminAudit(c, {
     actor_user_id: session.user_id,
     actor_email: session.email,
@@ -2752,151 +3216,6 @@ app.get('/api/admin/audit-log', async (c) => {
   }
 
   return c.json({ logs: data ?? [], auth_mode: 'supabase' });
-});
-
-app.post('/api/integrations/luma/preview', async (c) => {
-  const adminError = await requireAdmin(c);
-  if (adminError) return adminError;
-
-  if (!isSupabaseServerConfigured(c)) {
-    return c.json({ error: 'Supabase community events must be configured before previewing Luma imports.' }, 503);
-  }
-
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = lumaImportSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'Enter a valid public Luma event URL.' }, 400);
-  }
-
-  try {
-    const lumaEvent = await getPublicLumaEventByUrl(parsed.data.event_url);
-    if (!lumaEvent) {
-      return c.json({ error: 'Luma event was not found.' }, 404);
-    }
-
-    const existingEvent = await findExistingLumaEvent(lumaEvent, c);
-    const seriesType = isEventSeriesType(parsed.data.series_type)
-      ? parsed.data.series_type
-      : existingEvent?.series_type ?? inferEventSeriesType(lumaEvent.name);
-
-    return c.json({
-      preview: {
-        ...lumaDraftToEventInput(lumaEvent),
-        series_type: seriesType,
-      },
-      existing_event: existingEvent ?? null,
-      already_imported: Boolean(existingEvent),
-    });
-  } catch (error) {
-    const failure = lumaImportFailure(error, 'Unable to preview Luma event right now.');
-    return c.json({ error: failure.message }, failure.status);
-  }
-});
-
-app.post('/api/integrations/luma/public-preview', async (c) => {
-  const adminError = await requireAdmin(c);
-  if (adminError) return adminError;
-
-  if (!isSupabaseServerConfigured(c)) {
-    return c.json({ error: 'Supabase community events must be configured before previewing Luma imports.' }, 503);
-  }
-
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = lumaImportSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'Enter a valid public Luma event URL.' }, 400);
-  }
-
-  try {
-    const lumaEvent = await getPublicLumaEventByUrl(parsed.data.event_url);
-    if (!lumaEvent) {
-      return c.json({ error: 'Luma event was not found.' }, 404);
-    }
-
-    const existingEvent = await findExistingLumaEvent(lumaEvent, c);
-    const seriesType = isEventSeriesType(parsed.data.series_type)
-      ? parsed.data.series_type
-      : existingEvent?.series_type ?? inferEventSeriesType(lumaEvent.name);
-    return c.json({
-      data: toPreviewPublicMeetup(lumaEvent, publicAppOrigin(c), existingEvent, seriesType),
-      already_imported: Boolean(existingEvent),
-    });
-  } catch (error) {
-    const failure = lumaImportFailure(error, 'Unable to build the event preview right now.');
-    return c.json({ error: failure.message }, failure.status);
-  }
-});
-
-app.post('/api/integrations/luma/import', async (c) => {
-  const adminError = await requireAdmin(c);
-  if (adminError) return adminError;
-
-  if (!isSupabaseServerConfigured(c)) {
-    return c.json({ error: 'Supabase community events must be configured before importing from Luma.' }, 503);
-  }
-
-  const body = await c.req.json().catch(() => ({}));
-  const parsed = lumaImportSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: 'Enter a valid public Luma event URL.' }, 400);
-  }
-
-  const session = await getAdminSession(c);
-  if (!session.authenticated) {
-    return c.json({ error: 'Admin session required' }, 401);
-  }
-
-  try {
-    const lumaEvent = await getPublicLumaEventByUrl(parsed.data.event_url);
-    if (!lumaEvent) {
-      return c.json({ error: 'Luma event was not found.' }, 404);
-    }
-
-    const existingEvent = await findExistingLumaEvent(lumaEvent, c);
-    const seriesType = isEventSeriesType(parsed.data.series_type)
-      ? parsed.data.series_type
-      : existingEvent?.series_type ?? inferEventSeriesType(lumaEvent.name);
-    if (existingEvent) {
-      if (existingEvent.publish_to_website) {
-        return c.json({
-          error: 'This Luma event is already published in community. Remove it and re-import to start a fresh draft.',
-          event: existingEvent,
-          already_imported: true,
-          requires_reimport: true,
-        }, 409);
-      }
-
-      return c.json({ event: existingEvent, already_imported: true });
-    }
-
-    const event = await createSupabaseCommunityEvent({
-      ...lumaDraftToEventInput(lumaEvent),
-      series_type: seriesType,
-    }, c);
-
-    if (!event) {
-      return c.json({ error: 'Unable to import Luma event.' }, 500);
-    }
-
-    await recordAdminAudit(c, {
-      actor_user_id: session.user_id,
-      actor_email: session.email,
-      actor_role: session.role,
-      action: 'admin.luma.import',
-      target_type: 'community_event',
-      target_id: event.id,
-      metadata: {
-        external_id: lumaEvent.external_id,
-        external_url: lumaEvent.external_url,
-        series_type: seriesType,
-      },
-    });
-
-    return c.json({ event, already_imported: false }, 201);
-  } catch (error) {
-    const failure = lumaImportFailure(error, 'Unable to import Luma event right now.');
-    return c.json({ error: failure.message }, failure.status);
-  }
 });
 
 function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllEvents>>, imports: Awaited<ReturnType<typeof getAttendanceImports>>) {
@@ -3015,7 +3334,7 @@ app.get('/api/public/archive/:eventId', async (c) => {
 });
 
 app.get('/api/public/home', async (c) => {
-  setPublicApiCache(c);
+  c.header('Cache-Control', 'no-store');
   return c.json(await publicHomePayload(c));
 });
 
@@ -3056,6 +3375,156 @@ app.get('/api/public/meetups/:slug/talks', async (c) => {
   });
 });
 
+app.get('/api/cfp/events/:eventId', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event || event.status !== 'cfp_open' || !canOpenCfpForEvent(event)) {
+    return c.json({ error: 'CFP event not found' }, 404);
+  }
+
+  return c.json({
+    id: event.id,
+    name: event.name,
+    description: event.description,
+    event_date: event.event_date,
+    status: event.status,
+    series_type: resolveEventSeriesType(event),
+  });
+});
+
+app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
+  const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign || campaign.status === 'draft') {
+    return c.json({ error: 'Event calendar not found.' }, 404);
+  }
+
+  const calendar = eventRegistrationCalendarFile({
+    eventId: event.id,
+    eventName: event.name,
+    eventDate: event.event_date,
+    eventEndDate: event.end_date,
+    locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+    eventUrl: publicRegistrationUrl(event, c),
+    updatedAt: event.updated_at,
+  });
+  if (!calendar) {
+    return c.json({ error: 'Event calendar not found.' }, 404);
+  }
+
+  return c.body(calendar.content, 200, {
+    'Cache-Control': 'public, max-age=300',
+    'Content-Disposition': `attachment; filename="${calendar.filename}"`,
+    'Content-Type': 'text/calendar; charset=utf-8',
+  });
+});
+
+app.get('/api/registration/events/:eventId', async (c) => {
+  const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign || campaign.status === 'draft') {
+    return c.json({ available: false, error: 'Registration is not available for this event.' }, 404);
+  }
+
+  const availability = registrationAvailability(campaign);
+  return c.json({
+    available: availability.available,
+    unavailable_reason: availability.available ? null : availability.reason,
+    event: {
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      event_date: event.event_date,
+      end_date: event.end_date ?? null,
+      cover: event.cover ?? null,
+      location: event.location ?? null,
+    },
+    campaign: {
+      status: campaign.status,
+      opens_at: campaign.opens_at,
+      closes_at: campaign.closes_at,
+      waitlist_enabled: campaign.waitlist_enabled,
+    },
+  });
+});
+
+app.post('/api/registration/events/:eventId', async (c) => {
+  const parsed = eventRegistrationSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your details and try again.' }, 400);
+  }
+
+  const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign || campaign.status === 'draft') {
+    return c.json({ error: 'Registration is not available for this event.' }, 404);
+  }
+
+  const turnstileError = await requirePublicTurnstile(c, {
+    token: parsed.data.turnstile_token,
+    submittedAction: parsed.data.turnstile_action,
+    expectedAction: EVENT_REGISTRATION_TURNSTILE_ACTION,
+  });
+  if (turnstileError) return turnstileError;
+
+  const clientKey = publicClientKey(c);
+  const clientLimitError = await enforcePublicRateLimit(c, {
+    action: `event_registration:${event.id}`,
+    clientKey,
+    maxAttempts: 5,
+    windowSeconds: 10 * 60,
+  }, 'Too many registration attempts. Please wait a few minutes and try again.');
+  if (clientLimitError) return clientLimitError;
+
+  const emailLimitError = await enforcePublicRateLimit(c, {
+    action: `event_registration_email:${event.id}`,
+    clientKey: parsed.data.email,
+    maxAttempts: 3,
+    windowSeconds: 24 * 60 * 60,
+  }, 'Too many registration attempts. Please try again later.');
+  if (emailLimitError) return emailLimitError;
+
+  try {
+    const registration = await registerForEvent({
+      event_id: event.id,
+      name: parsed.data.name,
+      email: parsed.data.email,
+    }, c);
+    await sendPendingRegistrationConfirmationEmails(event, c, {
+      registrationId: registration.id,
+      limit: 1,
+    });
+
+    return c.json({
+      accepted: true,
+      message: 'If this email can be registered, a confirmation will be sent shortly.',
+    }, 202);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('registration_duplicate')) {
+      return c.json({
+        accepted: true,
+        message: 'If this email can be registered, a confirmation will be sent shortly.',
+      }, 202);
+    }
+    if (message.includes('registration_closed')) {
+      return c.json({ error: 'Registration is not open for this event.' }, 409);
+    }
+    if (message.includes('registration_full')) {
+      return c.json({ error: 'This event is full and the waitlist is closed.' }, 409);
+    }
+    if (message.includes('registration_unavailable')) {
+      return c.json({ error: 'Registration is not available for this event.' }, 404);
+    }
+    console.error(JSON.stringify({
+      event: 'event_registration_failed',
+      event_id: event.id,
+      error_name: safeErrorName(error),
+    }));
+    return c.json({ error: 'We could not save your registration. Please try again.' }, 500);
+  }
+});
+
 app.get('/api/events', async (c) => {
   return c.json(await getAllEvents(c));
 });
@@ -3069,14 +3538,19 @@ app.post('/api/events', async (c) => {
     name: body.name,
     description: body.description,
     event_date: body.event_date,
-    series_type: body.series_type,
+    series_type: body.series_type === null ? 'none' : body.series_type,
     end_date: body.end_date ?? '',
     slug: body.slug ?? '',
     cover: body.cover ?? '',
-    registration_url: body.registration_url ?? '',
     location_name: body.location?.name ?? body.location?.label ?? '',
     location_url: body.location?.url ?? '',
+    stream_url: body.stream_url ?? '',
     publish_to_website: Boolean(body.publish_to_website),
+    registration_capacity: body.registration?.capacity ?? 100,
+    registration_opens_at: body.registration?.opens_at ?? '',
+    registration_closes_at: body.registration?.closes_at ?? '',
+    waitlist_enabled: body.registration?.waitlist_enabled ?? true,
+    auto_confirm: body.registration?.auto_confirm ?? true,
   });
 
   if (!parsed.success) {
@@ -3085,23 +3559,43 @@ app.post('/api/events', async (c) => {
 
   const payload = toCreateEventApiPayload(parsed.data);
 
-  const event = await createEvent({
-    ...payload,
-    stream_url: typeof body.stream_url === 'string' ? body.stream_url : null,
-    embed_stream: Boolean(body.embed_stream),
-    photos: normalizeEventPhotos(body.photos),
-    location: payload.location,
-    series_type: payload.series_type,
-  }, c);
+  let event: Event | null = null;
+  try {
+    event = await createEvent({
+      ...payload,
+      registration_url: null,
+      photos: normalizeEventPhotos(body.photos),
+      location: payload.location,
+      series_type: payload.series_type,
+    }, c);
+    event = await updateEvent(event.id, {
+      registration_url: publicRegistrationUrl(event, c),
+    }, c);
+    const registrationCampaign = await createRegistrationCampaign(event.id, payload.registration, c);
 
-  await auditAdminAction(c, {
-    action: 'event.create',
-    targetType: 'event',
-    targetId: event.id,
-    metadata: { name: event.name, status: event.status, event_date: event.event_date },
-  });
+    await auditAdminAction(c, {
+      action: 'event.create_native',
+      targetType: 'event',
+      targetId: event.id,
+      metadata: {
+        name: event.name,
+        status: event.status,
+        event_date: event.event_date,
+        series_type: event.series_type,
+        registration_campaign_id: registrationCampaign.id,
+        registration_capacity: registrationCampaign.capacity,
+      },
+    });
 
-  return c.json(event, 201);
+    return c.json({ event, registration_campaign: registrationCampaign }, 201);
+  } catch (error) {
+    if (event) {
+      await deleteEvent(event.id, c).catch(() => undefined);
+    }
+    return c.json({
+      error: error instanceof Error ? error.message : 'Unable to create the event.',
+    }, 500);
+  }
 });
 
 app.get('/api/events/:eventId', async (c) => {
@@ -3112,6 +3606,154 @@ app.get('/api/events/:eventId', async (c) => {
   }
 
   return c.json(event);
+});
+
+app.get('/api/events/:eventId/registrations', async (c) => {
+  const event = await getEventById(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign) {
+    return c.json({ error: 'Registration campaign not found.' }, 404);
+  }
+
+  const registrations = await getEventRegistrations(event.id, c);
+  return c.json({
+    event,
+    campaign,
+    registrations,
+    summary: summarizeEventRegistrations(campaign, registrations),
+    public_url: publicRegistrationUrl(event, c),
+  });
+});
+
+app.patch('/api/events/:eventId/registrations', async (c) => {
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign) {
+    return c.json({ error: 'Registration campaign not found.' }, 404);
+  }
+
+  const parsed = eventRegistrationCampaignUpdateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the registration settings.' }, 400);
+  }
+
+  if (parsed.data.capacity !== undefined) {
+    const registrations = await getEventRegistrations(eventId, c);
+    const confirmed = registrations.filter((registration) => registration.status === 'confirmed').length;
+    if (parsed.data.capacity < confirmed) {
+      return c.json({ error: `Capacity cannot be lower than the ${confirmed} confirmed guests.` }, 409);
+    }
+  }
+
+  const updated = await updateRegistrationCampaign(eventId, parsed.data, c);
+  if (!updated) {
+    return c.json({ error: 'Registration campaign not found.' }, 404);
+  }
+  await auditAdminAction(c, {
+    action: 'event.registration_campaign.update',
+    targetType: 'event',
+    targetId: eventId,
+    metadata: parsed.data,
+  });
+  return c.json(updated);
+});
+
+app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c) => {
+  const eventId = c.req.param('eventId');
+  const registrations = await getEventRegistrations(eventId, c);
+  const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+  if (!registration) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+  if (registration.status !== 'confirmed') {
+    return c.json({ error: 'Only confirmed guests can be checked in.' }, 409);
+  }
+
+  const session = await getAdminSession(c);
+  const checkedInAt = await checkInRegistration(
+    registration.id,
+    session.authenticated ? session.email : null,
+    c,
+  );
+  if (!checkedInAt) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+  await auditAdminAction(c, {
+    action: 'event.registration.check_in',
+    targetType: 'event_registration',
+    targetId: registration.id,
+    metadata: { event_id: eventId },
+  });
+  return c.json({ checked_in_at: checkedInAt });
+});
+
+app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) => {
+  const eventId = c.req.param('eventId');
+  const registrations = await getEventRegistrations(eventId, c);
+  const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+  if (!registration) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+
+  const cancelled = await cancelRegistration(registration.id, c);
+  if (!cancelled) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+  await auditAdminAction(c, {
+    action: 'event.registration.cancel',
+    targetType: 'event_registration',
+    targetId: registration.id,
+    metadata: { event_id: eventId },
+  });
+  return c.json({ ok: true });
+});
+
+app.delete('/api/events/:eventId/registrations/:registrationId', async (c) => {
+  const runtime = envValue('NODE_ENV', c)?.trim().toLowerCase();
+  if (runtime !== 'development' && runtime !== 'test') {
+    return c.json({ error: 'Not found.' }, 404);
+  }
+
+  const eventId = c.req.param('eventId');
+  const registrations = await getEventRegistrations(eventId, c);
+  const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+  if (!registration) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+
+  const deleted = await deleteRegistration(registration.id, c);
+  if (!deleted) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+  await auditAdminAction(c, {
+    action: 'event.registration.dev_delete',
+    targetType: 'event_registration',
+    targetId: registration.id,
+    metadata: { event_id: eventId },
+  });
+  return c.json({ ok: true });
+});
+
+app.post('/api/events/:eventId/registration-emails/process', async (c) => {
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) {
+    return c.json({ error: 'Event not found.' }, 404);
+  }
+  const result = await sendPendingRegistrationConfirmationEmails(event, c);
+  if (!result.configured) {
+    return c.json({ error: 'Registration email sending is not configured.' }, 503);
+  }
+  await auditAdminAction(c, {
+    action: 'event.registration_email.process',
+    targetType: 'event',
+    targetId: event.id,
+    metadata: { accepted_count: result.accepted.length, delayed_count: result.failed.length },
+  });
+  return c.json({
+    accepted_count: result.accepted.length,
+    delayed_count: result.failed.length,
+  });
 });
 
 app.post('/api/events/:eventId/system-design/draft', async (c) => {
@@ -3166,9 +3808,7 @@ app.delete('/api/events/:eventId', async (c) => {
   }
 
   try {
-    const deletion = await (event.external_source === 'luma'
-      ? deleteImportedEvent(event, c)
-      : deleteEvent(eventId, c).then(() => ({ deleted_ids: [eventId], deleted: true })));
+    await deleteEvent(eventId, c);
     await auditAdminAction(c, {
       action: 'event.delete',
       targetType: 'event',
@@ -3180,7 +3820,7 @@ app.delete('/api/events/:eventId', async (c) => {
         external_source: event.external_source ?? null,
         external_id: event.external_id ?? null,
         registration_url: event.registration_url ?? null,
-        deleted_event_ids: deletion.deleted_ids,
+        deleted_event_ids: [eventId],
       },
     });
 
@@ -3309,7 +3949,12 @@ app.patch('/api/events/:eventId', async (c) => {
   if (adminError) return adminError;
 
   try {
-    const body = await c.req.json();
+    const parsed = eventUpdateSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues[0]?.message ?? 'Invalid event update.' }, 400);
+    }
+
+    const body = parsed.data;
     const eventId = c.req.param('eventId');
     const event = await getEventById(eventId, c);
 
@@ -3321,9 +3966,34 @@ app.patch('/api/events/:eventId', async (c) => {
       return c.json({ error: 'CFP can only be opened for upcoming monthly events.' }, 409);
     }
 
+    let normalizedLocation = body.location;
+    if (body.location) {
+      const locationInput = body.location;
+      if (Object.prototype.hasOwnProperty.call(locationInput, 'url')) {
+        const rawLocationUrl = locationInput.url;
+        const locationUrl = rawLocationUrl === null || rawLocationUrl === ''
+          ? null
+          : safeGoogleMapsUrl(rawLocationUrl);
+        if (rawLocationUrl !== null && rawLocationUrl !== '' && !locationUrl) {
+          return c.json({ error: 'Location URL must be an HTTPS Google Maps link.' }, 400);
+        }
+        normalizedLocation = {
+          ...locationInput,
+          url: locationUrl,
+        };
+      }
+    }
+
     const updates = {
       ...body,
-      ...(Array.isArray(body.photos) ? { photos: normalizeEventPhotos(body.photos) } : {}),
+      ...(body.location ? { location: normalizedLocation } : {}),
+      ...(body.cover !== undefined ? { cover: safeWebsiteUrl(body.cover) } : {}),
+      ...(body.stream_url !== undefined ? { stream_url: safeHttpUrl(body.stream_url) } : {}),
+      ...(body.registration_url !== undefined ? { registration_url: safeWebsiteUrl(body.registration_url) } : {}),
+      ...(body.external_url !== undefined ? { external_url: safeHttpUrl(body.external_url) } : {}),
+      ...(body.schedule ? { schedule: normalizePublicSchedule(body.schedule) } : {}),
+      ...(body.photos ? { photos: normalizeEventPhotos(body.photos) } : {}),
+      ...(body.videos ? { videos: normalizeEventVideos(body.videos) } : {}),
     };
 
     const updatedEvent = await updateEvent(eventId, updates, c);
@@ -3372,6 +4042,11 @@ app.post('/api/events/:eventId/media', async (c) => {
   }
 
   try {
+    const contentValidationError = await validateMeetupMediaContent(uploadedFile);
+    if (contentValidationError) {
+      return c.json({ error: contentValidationError }, 400);
+    }
+
     const publicUrl = await uploadMeetupMedia(event.slug ?? event.id, purpose, uploadedFile, c);
     const updatedEvent = purpose === 'cover'
       ? await updateEvent(event.id, { cover: publicUrl }, c)
@@ -3396,8 +4071,8 @@ app.post('/api/events/:eventId/media', async (c) => {
         type: purpose,
       },
     });
-  } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to upload image' }, 500);
+  } catch {
+    return c.json({ error: 'Failed to upload image' }, 500);
   }
 });
 
@@ -3434,7 +4109,6 @@ function serializeSpeakerIntakeLink(link: Pick<
   | 'speaker_name'
   | 'speaker_email'
   | 'talk_title'
-  | 'token'
   | 'email_status'
   | 'email_provider_id'
   | 'email_sent_at'
@@ -3445,7 +4119,7 @@ function serializeSpeakerIntakeLink(link: Pick<
   | 'used_talk_id'
   | 'created_at'
   | 'updated_at'
->, options: { includeToken?: boolean } = {}) {
+>) {
   return {
     id: link.id,
     event_id: link.event_id,
@@ -3456,7 +4130,7 @@ function serializeSpeakerIntakeLink(link: Pick<
     speaker_name: link.speaker_name ?? null,
     speaker_email: link.speaker_email ?? null,
     talk_title: link.talk_title ?? null,
-    token: options.includeToken ? link.token ?? null : null,
+    token: null,
     email_status: link.email_status ?? null,
     email_provider_id: link.email_provider_id ?? null,
     email_sent_at: link.email_sent_at ?? null,
@@ -3736,7 +4410,10 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
 
     return c.json({
       submission: serializeSpeakerSubmission(submission),
-      link: selectedLink ? serializeSpeakerIntakeLink(selectedLink) : null,
+      link: selectedLink ? {
+        ...serializeSpeakerIntakeLink(selectedLink),
+        token,
+      } : null,
       token,
     });
   } catch (error) {
@@ -3758,7 +4435,7 @@ app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
   const links = await getSpeakerIntakeLinksByEvent(eventId);
   return c.json({
     event_month: eventMonthKey(event.event_date),
-    links: links.map((link) => serializeSpeakerIntakeLink(link, { includeToken: true })),
+    links: links.map((link) => serializeSpeakerIntakeLink(link)),
   });
 });
 
@@ -3819,7 +4496,10 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
   });
 
   return c.json({
-    link: serializeSpeakerIntakeLink(link, { includeToken: true }),
+    link: {
+      ...serializeSpeakerIntakeLink(link),
+      token,
+    },
     token,
   }, 201);
 });
@@ -3899,21 +4579,8 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
         continue;
       }
 
-      const reusableLink = matchingItemLinks.find((link) => (
-        speakerIntakeLinkStatus(link) === 'active'
-        && Boolean(link.token)
-        && (link.email_status === 'pending' || link.email_status === 'failed')
-        && sameArchiveProgramIdentity(link, {
-          kind: item.kind,
-          speakerName: item.speakerName,
-          speakerEmail,
-          title: item.title,
-        })
-      ));
-
-      if (reusableLink?.token) {
-        pendingSends.push({ link: reusableLink, token: reusableLink.token, item });
-        continue;
+      for (const failedLink of matchingItemLinks.filter((link) => link.email_status === 'failed' && !link.used_at)) {
+        await deleteSpeakerIntakeLink(eventId, failedLink.id);
       }
 
       const created = await createSpeakerIntakeLink({
@@ -4105,6 +4772,14 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
 app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
   const eventId = c.req.param('eventId');
   const token = c.req.param('token');
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: `speaker_intake:${eventId}`,
+    clientKey: `${publicClientKey(c)}:${token}`,
+    maxAttempts: 10,
+    windowSeconds: 60 * 60,
+  }, 'This private form has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+
   const event = await getEventById(eventId, c);
 
   if (!event) {
@@ -4132,7 +4807,10 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
       return c.json({ error: selectedLinkError.error }, selectedLinkError.status);
     }
 
+    let claimId: string | null = null;
     try {
+      const claim = await claimSpeakerIntakeLink(eventId, token);
+      claimId = claim.claimId;
       let talk: Talk;
 
       if (selectedSpeakerLink) {
@@ -4168,7 +4846,13 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
         talk = result.talk;
       }
 
-      await consumeSpeakerIntakeLink(eventId, token, talk.id);
+      try {
+        await consumeSpeakerIntakeLink(eventId, token, talk.id, claimId);
+      } catch (error) {
+        await deleteTalk(talk.id);
+        throw error;
+      }
+      claimId = null;
       if (selectedSubmission) {
         await updateSpeakerSubmission(selectedSubmission.id, {
           selected_talk_id: talk.id,
@@ -4176,13 +4860,18 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
       }
       return c.json(talk, 201);
     } catch (error) {
+      await releaseSpeakerIntakeLinkClaim(eventId, token, claimId);
       const message = error instanceof Error ? error.message : 'Failed to submit archive item details';
       const status = message.includes('already been submitted') || message.includes('already exists')
         ? 409
         : message.includes('already been used') || message.includes('expired')
           ? 410
+          : message.includes('already being submitted')
+            ? 409
           : 400;
-      return c.json({ error: message }, status);
+      return c.json({
+        error: status === 400 ? 'Unable to submit archive item details. Please check the form and try again.' : message,
+      }, status);
     }
   } finally {
     releaseSubmissionLock();
@@ -4532,6 +5221,21 @@ app.post('/api/cfp', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presentation proposal' }, 400);
   }
 
+  const turnstileError = await requirePublicTurnstile(c, {
+    token: parsed.data.turnstile_token,
+    submittedAction: parsed.data.turnstile_action,
+    expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
+  });
+  if (turnstileError) return turnstileError;
+
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: `cfp_submission:${parsed.data.event_id}`,
+    clientKey: publicClientKey(c),
+    maxAttempts: 5,
+    windowSeconds: 60 * 60,
+  }, 'This device has sent several proposals. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+
   const event = await getEventById(parsed.data.event_id, c);
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
@@ -4546,7 +5250,7 @@ app.post('/api/cfp', async (c) => {
   }
 
   try {
-    const submission = await createSpeakerSubmission({
+    await createSpeakerSubmission({
       event_id: parsed.data.event_id,
       kind: parsed.data.kind,
       speaker_name: parsed.data.speaker_name,
@@ -4558,10 +5262,19 @@ app.post('/api/cfp', async (c) => {
       bio: parsed.data.bio || null,
     });
 
-    return c.json(serializeSpeakerSubmission(submission), 201);
+    return c.json({
+      accepted: true,
+      message: 'If this proposal is eligible, it has been added for organizer review.',
+    }, 202);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to submit presentation proposal';
-    return c.json({ error: message }, message.includes('already been submitted') ? 409 : 400);
+    if (message.includes('already been submitted')) {
+      return c.json({
+        accepted: true,
+        message: 'If this proposal is eligible, it has been added for organizer review.',
+      }, 202);
+    }
+    return c.json({ error: 'The proposal could not be submitted. Please check the form and try again.' }, 400);
   }
 });
 
@@ -4729,7 +5442,10 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
   try {
     extractedText = await extractTextFromPdf(bytes);
   } catch (error) {
-    console.error('PDF extraction failed:', error);
+    console.error(JSON.stringify({
+      event: 'pdf_extraction_failed',
+      error_name: safeErrorName(error),
+    }));
     return c.json({ error: 'Could not extract text from this PDF. Try a text-based, non-password-protected PDF.' }, 422);
   }
 

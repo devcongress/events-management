@@ -18,6 +18,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   process.chdir(originalCwd);
   await fs.rm(tempRoot, { recursive: true, force: true });
 });
@@ -100,5 +101,17 @@ describe('speaker submissions', () => {
       selected_talk_id: null,
     });
     expect(selected.decided_at).toEqual(expect.any(String));
+  });
+
+  it('fails closed instead of using local files when the hosted data source is misconfigured', async () => {
+    vi.stubEnv('APP_DATA_SOURCE', 'supabase');
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+    const { getSpeakerSubmissionsByEvent } = await importSubmissionsStore();
+
+    await expect(getSpeakerSubmissionsByEvent('event-july')).rejects.toThrow(
+      'Supabase server config is missing',
+    );
   });
 });

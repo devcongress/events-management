@@ -113,6 +113,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `[adminBase]/attendance` — monthly attendance ledger and cross-month insights
 - `[adminBase]/events/[eventId]` — event detail, shared checklist, and status progression
 - `[adminBase]/events/[eventId]/talks` — Event Archive, proposal review, and Archive Requests (compatibility URL)
+- `[adminBase]/events/[eventId]/registrations` — registration campaign, private guest list, and name/email check-in
 - `[adminBase]/events/[eventId]/speakers` — legacy speaker allowlist compatibility route, hidden from event navigation
 - `[adminBase]/events/[eventId]/attendance` — organizer-only Luma attendance analysis
 - `[adminBase]/events/[eventId]/quiz` — quiz builder
@@ -122,8 +123,9 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 
 ### Active Hono API Routes (`server/app.ts`)
 
-- `/api/health` — single-server runtime smoke check
-- `/api/health/supabase` — Supabase config/table reachability smoke check
+- `/api/health` — minimal public runtime smoke check
+- `/api/health/supabase` — minimal public Supabase readiness check
+- `/api/health/data-sources`, `/api/health/supabase/community-events`, `/api/health/supabase/storage` — owner-only internal diagnostics
 - `/api/overview` — events, talks, and leaderboard summary for the Vue shell
 - `/api/public/meetups*` — read-only DevCongress.org integration contract with CORS and short public cache headers
 - `/api/auth/session`, `/api/auth/admin/exchange`, `/api/auth/admin/callback`, `/api/auth/logout` — Google OAuth and app-owned organizer session lifecycle
@@ -139,17 +141,19 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/events/[eventId]/speaker-intake-emails` — authenticated, program-identity-derived personalized Resend Batch delivery using validated one-off recipient emails and accepted-send suppression
 - `/api/events/[eventId]/speaker-intake/[token]` — public manual or selected-participant archive submission through an event-, identity-, and kind-locked token
 - `/api/events/[eventId]/speaker-submissions` — admin-only CFP proposal inbox for organizer selection decisions
+- `/api/events/[eventId]/registrations*` — admin-only registration campaign, guest list, check-in, and cancellation
+- `/api/events/[eventId]/registration-emails/process` — admin-only queued confirmation-email retry
 - `/api/events/[eventId]/attendance` — admin-only attendance summary for the latest Luma import
 - `/api/events/[eventId]/attendance/import` — admin-only CSV import endpoint for Luma guest exports
 - `DELETE /api/events/[eventId]/attendance` — admin-only removal of the stored Luma import
 - `/api/events/[eventId]/speakers*` — speaker allowlist CRUD
 - `/api/events/[eventId]/feedback-campaign` — admin feedback campaign setup, public link, and response list
 - `/api/events/[eventId]/validate-speaker` — speaker allowlist validation for legacy/manual speaker access checks
-- `/api/integrations/luma/preview` — organizer-only public Luma URL preview without creating an event
-- `/api/integrations/luma/import` — organizer-only public Luma URL import after preview
+- `GET/POST /api/registration/events/[eventId]` — public registration availability and name/email submission
 - `/api/feedback/events/[eventId]` — public feedback campaign payload when open
 - `/api/feedback/events/[eventId]/status` — public feedback availability for community CTAs
 - `/api/feedback/events/[eventId]/submissions` — public structured event feedback submission
+- `/api/cfp/events/[eventId]` — minimal public event context for an open monthly CFP
 - `/api/cfp` — CFP submission
 - `/api/talks` — all talks, optional `eventId` query filter
 - `/api/talks/[talkId]` — admin talk status update

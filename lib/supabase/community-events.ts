@@ -1,9 +1,10 @@
 import type { Context } from 'hono';
-import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
+import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
 import type { Event, EventStatus, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } from '@/types/supabase';
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
+import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
@@ -40,7 +41,7 @@ export type CreateCommunityEventInput = {
 };
 
 export function canUseSupabaseCommunityEvents(c?: Context): boolean {
-  return isSupabaseServerConfigured(c);
+  return isSupabaseRuntimeEnabled(c);
 }
 
 export async function getSupabaseCommunityEvents(c?: Context): Promise<Event[] | null> {
@@ -51,7 +52,7 @@ export async function getSupabaseCommunityEvents(c?: Context): Promise<Event[] |
     .select('*')
     .order('starts_at', { ascending: false });
 
-  if (error) return null;
+  if (error) throw new Error('Unable to load community events');
   return data.map(toEvent);
 }
 
@@ -64,7 +65,20 @@ export async function getSupabaseCommunityEventById(id: string, c?: Context): Pr
     .eq('id', id)
     .maybeSingle();
 
-  if (error) return null;
+  if (error) throw new Error('Unable to load community event');
+  return data ? toEvent(data) : undefined;
+}
+
+export async function getSupabaseCommunityEventBySlug(slug: string, c?: Context): Promise<Event | null | undefined> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('community_events')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (error) throw new Error('Unable to load community event');
   return data ? toEvent(data) : undefined;
 }
 
@@ -82,7 +96,7 @@ export async function getSupabaseCommunityEventByExternalId(
     .eq('external_id', externalId)
     .maybeSingle();
 
-  if (error) return null;
+  if (error) throw new Error('Unable to load community event');
   return data ? toEvent(data) : undefined;
 }
 
@@ -98,7 +112,7 @@ export async function getSupabaseCommunityEventByRegistrationUrl(
     .eq('registration_url', registrationUrl)
     .maybeSingle();
 
-  if (error) return null;
+  if (error) throw new Error('Unable to load community event');
   return data ? toEvent(data) : undefined;
 }
 
@@ -112,7 +126,7 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
     slug: input.slug?.trim() || uniqueSlug(slugify(input.name)),
     name: input.name,
     description: input.description,
-    series_type: input.series_type ?? inferEventSeriesType(input.name),
+    series_type: input.series_type === undefined ? inferEventSeriesType(input.name) : input.series_type,
     starts_at: startsAt.toISOString(),
     ends_at: endsAt.toISOString(),
     status: 'draft',
@@ -305,7 +319,7 @@ export async function getSupabasePublicMeetups(origin: string, c?: Context): Pro
     .eq('publish_to_website', true)
     .order('starts_at', { ascending: false });
 
-  if (error) return null;
+  if (error) throw new Error('Unable to load public meetups');
   return data.map((row) => toPublicMeetup(row, origin));
 }
 
@@ -319,22 +333,22 @@ function toEvent(row: CommunityEventRow): Event {
     event_date: row.starts_at,
     end_date: row.ends_at,
     status: row.status as EventStatus,
-    cover: row.cover_url,
+    cover: safeWebsiteUrl(row.cover_url) ?? undefined,
     location: {
       label: row.location_label ?? undefined,
       name: row.location_name,
-      url: row.location_url,
+      url: safeHttpUrl(row.location_url),
     },
-    stream_url: row.stream_url,
+    stream_url: safeHttpUrl(row.stream_url),
     embed_stream: row.embed_stream,
-    registration_url: row.registration_url,
+    registration_url: safeWebsiteUrl(row.registration_url),
     schedule: normalizeSchedule(row.schedule),
     photos: normalizePhotos(row.photos),
     videos: normalizeVideos(row.videos),
     publish_to_website: row.publish_to_website,
     external_source: row.external_source,
     external_id: row.external_id,
-    external_url: row.external_url,
+    external_url: safeHttpUrl(row.external_url),
     external_synced_at: row.external_synced_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -349,20 +363,20 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     id: row.id,
     slug: row.slug,
     name: row.name,
-    series_type: isEventSeriesType(row.series_type) ? row.series_type : inferEventSeriesType(row.name),
+    series_type: isEventSeriesType(row.series_type) ? row.series_type : null,
     status: publicMeetupStatus(row.starts_at, row.ends_at),
     start: toWebsiteDateTime(row.starts_at),
     end: toWebsiteDateTime(row.ends_at),
     description: row.description ?? 'A DevCongress community meetup.',
-    cover: row.cover_url,
+    cover: safeWebsiteUrl(row.cover_url) ?? '/images/logo.png',
     location: {
       label: row.location_label ?? undefined,
       name: row.location_name,
-      url: row.location_url,
+      url: safeHttpUrl(row.location_url),
     },
-    stream_url: row.stream_url,
+    stream_url: safeHttpUrl(row.stream_url),
     embed_stream: row.embed_stream,
-    registration_url: row.registration_url,
+    registration_url: safeWebsiteUrl(row.registration_url),
     speakers,
     schedule,
     photos: normalizePhotos(row.photos),
@@ -389,13 +403,19 @@ function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
       description: typeof item.description === 'string' ? item.description : null,
       system_design_title: typeof item.system_design_title === 'string' ? item.system_design_title : null,
       resources: Array.isArray(item.resources)
-        ? item.resources.filter(isRecord).map((resource) => ({
-          title: stringValue(resource.title, 'Resource'),
-          url: stringValue(resource.url, '#'),
-        }))
+        ? item.resources.filter(isRecord).flatMap((resource) => {
+          const url = safeHttpUrl(typeof resource.url === 'string' ? resource.url : null);
+          return url ? [{
+            title: stringValue(resource.title, 'Resource'),
+            url,
+          }] : [];
+        })
         : [],
       shared_links: Array.isArray(item.shared_links)
-        ? item.shared_links.filter((link): link is string => typeof link === 'string' && link.trim().length > 0)
+        ? item.shared_links.flatMap((link) => {
+          const url = safeHttpUrl(typeof link === 'string' ? link : null);
+          return url ? [url] : [];
+        })
         : [],
     })),
   );
@@ -408,15 +428,16 @@ function normalizeSpeakers(value: Json[]): PublicMeetupSpeaker[] {
       name: stringValue(speaker.name, 'Speaker'),
       title: stringValue(speaker.title, 'DevCongress community speaker'),
       bio: typeof speaker.bio === 'string' ? speaker.bio : null,
-      image: stringValue(speaker.image, '/images/logo.png'),
+      image: safeWebsiteUrl(typeof speaker.image === 'string' ? speaker.image : null) ?? '/images/logo.png',
       talk_title: stringValue(speaker.talk_title, 'Community talk'),
       talk_description: typeof speaker.talk_description === 'string' ? speaker.talk_description : null,
-      slides_url: typeof speaker.slides_url === 'string' ? speaker.slides_url : null,
-      recording_url: typeof speaker.recording_url === 'string' ? speaker.recording_url : null,
+      slides_url: safeHttpUrl(typeof speaker.slides_url === 'string' ? speaker.slides_url : null),
+      recording_url: safeHttpUrl(typeof speaker.recording_url === 'string' ? speaker.recording_url : null),
       socials: Array.isArray(speaker.socials)
         ? speaker.socials.filter(isRecord).flatMap((social) => {
           const platform = social.platform === 'github' || social.platform === 'website' ? social.platform : null;
-          return platform && typeof social.url === 'string' ? [{ platform, url: social.url }] : [];
+          const url = safeHttpUrl(typeof social.url === 'string' ? social.url : null);
+          return platform && url ? [{ platform, url }] : [];
         })
         : [],
     }));
@@ -425,21 +446,25 @@ function normalizeSpeakers(value: Json[]): PublicMeetupSpeaker[] {
 function normalizePhotos(value: Json[]): PublicMeetup['photos'] {
   return value
     .filter(isRecord)
-    .map((photo) => ({
-      url: stringValue(photo.url, ''),
-      type: (photo.type === 'folder' ? 'folder' : 'image') as 'folder' | 'image',
-    }))
-    .filter((photo) => photo.url.length > 0);
+    .flatMap((photo) => {
+      const url = safeWebsiteUrl(typeof photo.url === 'string' ? photo.url : null);
+      return url ? [{
+        url,
+        type: (photo.type === 'folder' ? 'folder' : 'image') as 'folder' | 'image',
+      }] : [];
+    });
 }
 
 function normalizeVideos(value: Json[]): PublicMeetup['videos'] {
   return value
     .filter(isRecord)
-    .map((video) => ({
-      title: stringValue(video.title, 'Recording'),
-      embed_url: stringValue(video.embed_url, ''),
-    }))
-    .filter((video) => video.embed_url.length > 0);
+    .flatMap((video) => {
+      const embedUrl = safeHttpUrl(typeof video.embed_url === 'string' ? video.embed_url : null);
+      return embedUrl ? [{
+        title: stringValue(video.title, 'Recording'),
+        embed_url: embedUrl,
+      }] : [];
+    });
 }
 
 function isRecord(value: Json): value is Record<string, Json> {

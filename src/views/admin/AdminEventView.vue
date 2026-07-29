@@ -7,7 +7,15 @@ import { canChangeChecklistItemAvailability, isSystemDesignChecklistItem, SYSTEM
 import { resolveEventStatus } from '@/lib/event-status';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
-import { EVENT_SERIES_HELP_TEXT, EVENT_SERIES_LABELS, EVENT_SERIES_TYPES, resolveEventSeriesType, type EventSeriesType } from '@/lib/event-series';
+import {
+  EVENT_SERIES_HELP_TEXT,
+  EVENT_SERIES_LABELS,
+  EVENT_SERIES_SELECTIONS,
+  eventSeriesSelectionToValue,
+  eventSeriesValueToSelection,
+  resolveEventSeriesType,
+  type EventSeriesSelection,
+} from '@/lib/event-series';
 import { queryKeys } from '@/src/lib/api';
 import {
   compressionSavingsPercent,
@@ -47,7 +55,7 @@ interface OutlineDraftItem extends PublicMeetupScheduleItem {
 let outlineDraftSequence = 0;
 const outlineDrafts = ref<OutlineDraftItem[]>([]);
 const outlineBulkText = ref('');
-const seriesTypeDraft = ref<EventSeriesType>('monthly');
+const seriesTypeDraft = ref<EventSeriesSelection>('monthly');
 const seriesTypeSaving = ref(false);
 const seriesTypeError = ref<string | null>(null);
 const photoSaving = ref(false);
@@ -197,7 +205,7 @@ const checklistByPhase = computed(() => checklistPhaseOrder
   }))
   .filter((group) => group.items.length > 0));
 const currentEventId = computed(() => String(route.params.eventId));
-const eventSeriesTypeOptions = EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
+const eventSeriesTypeOptions = EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
 const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeDraft.value]);
 const rawEventSchedule = computed(() => event.value?.schedule ?? []);
 const isQuarterlyEvent = computed(currentEventIsQuarterly);
@@ -333,7 +341,7 @@ function parseBulkOutline() {
 
 function syncSeriesTypeDraft() {
   if (!event.value) return;
-  seriesTypeDraft.value = resolveEventSeriesType(event.value);
+  seriesTypeDraft.value = eventSeriesValueToSelection(resolveEventSeriesType(event.value));
 }
 
 async function fetchOverview() {
@@ -790,7 +798,7 @@ async function saveOutline() {
 async function saveSeriesType() {
   if (!event.value || seriesTypeSaving.value) return;
 
-  const currentSeriesType = resolveEventSeriesType(event.value);
+  const currentSeriesType = eventSeriesValueToSelection(resolveEventSeriesType(event.value));
   if (seriesTypeDraft.value === currentSeriesType) {
     seriesTypeError.value = null;
     return;
@@ -803,7 +811,7 @@ async function saveSeriesType() {
     const response = await fetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ series_type: seriesTypeDraft.value }),
+      body: JSON.stringify({ series_type: eventSeriesSelectionToValue(seriesTypeDraft.value) }),
     });
 
     if (!response.ok) {

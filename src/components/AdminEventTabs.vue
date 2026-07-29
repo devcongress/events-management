@@ -26,6 +26,7 @@ const indicator = ref({ left: 0, width: 0, ready: false });
 
 const quarterlyTabs: AdminEventTab[] = [
   { href: '', label: 'Overview' },
+  { href: 'registrations', label: 'Registration' },
   { href: 'feedback', label: 'Feedback' },
 ];
 const eventQuery = useQuery({
@@ -44,6 +45,7 @@ const systemDesignDisabled = computed(() => (
 ));
 const fullTabs = computed<AdminEventTab[]>(() => [
   { href: '', label: 'Overview' },
+  { href: 'registrations', label: 'Registration' },
   { href: 'talks', label: 'Archive' },
   { href: 'quiz', label: 'Quiz', disabled: true, disabledReason: 'Quiz is unavailable for this event.' },
   {

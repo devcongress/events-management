@@ -2,7 +2,11 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
+import { turnstileEnabled } from '@/src/lib/turnstile';
+import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
+import { resolveEventSeriesType } from '@/lib/event-series';
 import type { ArchiveItemKind, Event } from '@/types';
 
 const route = useRoute();
@@ -12,6 +16,10 @@ const submitting = ref(false);
 const submitted = ref(false);
 const error = ref<string | null>(null);
 const loadError = ref(false);
+const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
+const turnstileToken = ref('');
+const turnstileError = ref('');
+const turnstileActive = turnstileEnabled();
 const ABSTRACT_WORD_LIMIT = 120;
 const BIO_WORD_LIMIT = 80;
 const CUSTOM_TOPIC_VALUE = '__custom_topic__';
@@ -67,15 +75,19 @@ const requiredFieldsComplete = computed(() => Boolean(
   && form.bio.trim(),
 ));
 const eventIsMonthly = computed(() => (
-  event.value?.series_type ?? (event.value?.name?.toLowerCase().includes('quarterly') ? 'quarterly' : 'monthly')
-) === 'monthly');
+  event.value ? resolveEventSeriesType(event.value) === 'monthly' : false
+));
 const eventIsUpcoming = computed(() => {
   if (!event.value?.event_date) return false;
   const eventDateMs = new Date(event.value.event_date).getTime();
   return Number.isFinite(eventDateMs) && eventDateMs > Date.now();
 });
 const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status === 'cfp_open' && eventIsMonthly.value && eventIsUpcoming.value));
-const canSubmitProposal = computed(() => cfpIsAvailable.value && !submitting.value);
+const canSubmitProposal = computed(() => (
+  cfpIsAvailable.value
+  && (!turnstileActive || turnstileToken.value.length > 0)
+  && !submitting.value
+));
 const cfpClosedTitle = computed(() => {
   if (!eventIsMonthly.value || !eventIsUpcoming.value) return 'Presentation proposals are unavailable';
   return event.value?.status === 'cfp_closed' ? 'Presentation proposals are closed' : 'Presentation proposals are not open yet';
@@ -144,6 +156,8 @@ async function submitProposal() {
         topic: form.topic.trim(),
         abstract: form.abstract.trim(),
         bio: form.bio.trim(),
+        turnstile_action: turnstileActive ? CFP_SUBMISSION_TURNSTILE_ACTION : undefined,
+        turnstile_token: turnstileActive ? turnstileToken.value : undefined,
       }),
     });
 
@@ -152,6 +166,10 @@ async function submitProposal() {
     } else {
       const data = await response.json().catch(() => ({}));
       error.value = data.error || 'The proposal could not be submitted. Please try again.';
+      if (turnstileActive) {
+        turnstileToken.value = '';
+        turnstileWidget.value?.reset();
+      }
     }
   } catch {
     error.value = 'The proposal could not be submitted. Check your connection and try again.';
@@ -162,9 +180,11 @@ async function submitProposal() {
 
 onMounted(async () => {
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}`);
+    const response = await fetch(`/api/cfp/events/${route.params.eventId}`);
     if (response.ok) {
       event.value = await response.json();
+    } else {
+      loadError.value = true;
     }
   } catch {
     loadError.value = true;
@@ -333,6 +353,14 @@ onMounted(async () => {
             :class="{ 'cfp-input-error border-red-700 bg-red-50': bioOverLimit }"
           />
         </div>
+        <TurnstileWidget
+          v-if="turnstileActive"
+          ref="turnstileWidget"
+          :action="CFP_SUBMISSION_TURNSTILE_ACTION"
+          @token-change="turnstileToken = $event"
+          @error="turnstileError = $event ?? ''"
+        />
+        <p v-if="turnstileError" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
         <button type="submit" :disabled="!canSubmitProposal" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50">
           {{ submitting ? 'SUBMITTING...' : 'SUBMIT PROPOSAL' }}
         </button>
