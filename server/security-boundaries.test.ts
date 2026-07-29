@@ -13,6 +13,9 @@ describe('HTTP security boundaries', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toContain(
+      'frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com',
+    );
     expect(response.headers.get('strict-transport-security')).toContain('max-age=63072000');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('x-frame-options')).toBe('DENY');

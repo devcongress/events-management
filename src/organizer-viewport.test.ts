@@ -36,6 +36,8 @@ describe('organizer viewport policy', () => {
       'admin-auth-callback',
       'admin-feedback-display',
       'admin-annual-conference-volunteer-display',
+      'admin-public-events-preview',
+      'admin-public-event-preview',
       'admin-mobile',
       'admin-mobile-check-in',
     ]) {

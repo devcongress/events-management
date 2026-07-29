@@ -2,7 +2,9 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted } from 'vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
+import PublicEventPreviewBar from '@/src/components/PublicEventPreviewBar.vue';
 import EventsPageSkeleton from '@/src/components/ui/page-skeletons/EventsPageSkeleton.vue';
+import { adminPath } from '@/src/admin-routes';
 import { fetchPublicMeetups, queryKeys } from '@/src/lib/api';
 import type { PublicMeetup, PublicMeetupStatus } from '@/types';
 
@@ -40,51 +42,14 @@ function statusClass(status: PublicMeetupStatus) {
   return 'bg-dc-info-soft text-dc-info';
 }
 
-function isInternalAppHref(value: string) {
-  if (value.startsWith('/')) return true;
-  if (typeof window === 'undefined') return false;
-
-  try {
-    const url = new URL(value);
-    return url.origin === window.location.origin;
-  } catch {
-    return false;
-  }
+function eventPreviewPath(meetup: PublicMeetup): string {
+  return adminPath(`website-preview/events/${encodeURIComponent(meetup.slug)}`);
 }
 
-function toInternalAppPath(value: string) {
-  if (value.startsWith('/')) return value;
-
-  const url = new URL(value);
-  return `${url.pathname}${url.search}${url.hash}`;
-}
-
-function primaryAction(meetup: PublicMeetup): { href: string; label: string; external: boolean } {
-  if (meetup.status === 'upcoming' && meetup.registration_url) {
-    return {
-      href: meetup.registration_url,
-      label: 'Register',
-      external: !isInternalAppHref(meetup.registration_url),
-    };
-  }
-
-  if (meetup.status === 'live' && meetup.stream_url) {
-    return { href: meetup.stream_url, label: 'Follow live', external: true };
-  }
-
-  if (meetup.status === 'past' && meetup.archive_url) {
-    return {
-      href: meetup.archive_url,
-      label: 'View recap',
-      external: !isInternalAppHref(meetup.archive_url),
-    };
-  }
-
-  return {
-    href: `/events/${meetup.slug}`,
-    label: meetup.status === 'upcoming' ? 'Register' : 'View meetup',
-    external: false,
-  };
+function eventPreviewAction(status: PublicMeetupStatus): string {
+  if (status === 'live') return 'See live event';
+  if (status === 'upcoming') return 'Preview event';
+  return 'View recap';
 }
 
 function handlePublicMeetupRefresh(event: StorageEvent) {
@@ -109,6 +74,11 @@ onUnmounted(() => {
 
 <template>
   <div class="editorial-page">
+    <PublicEventPreviewBar
+      endpoint="/api/public/meetups"
+      :event-count="sortedMeetups.length"
+    />
+
     <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
       <CommunityMasthead
         eyebrow="meetups"
@@ -133,7 +103,11 @@ onUnmounted(() => {
           :key="meetup.id"
           class="motion-surface motion-lift flex min-h-full flex-col overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]"
         >
-          <div class="relative aspect-video border-b-2 border-dc-ink bg-dc-ink">
+          <RouterLink
+            :to="eventPreviewPath(meetup)"
+            class="relative block aspect-video border-b-2 border-dc-ink bg-dc-ink"
+            :aria-label="`Preview ${meetup.name}`"
+          >
             <img :src="meetup.cover" :alt="`${meetup.name} cover`" class="absolute inset-0 size-full object-cover">
             <div class="absolute inset-x-4 bottom-4 flex items-end justify-between gap-3">
               <span class="rounded-md border-2 border-dc-ink px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wider shadow-[2px_2px_0_#111111]" :class="statusClass(meetup.status)">
@@ -143,7 +117,7 @@ onUnmounted(() => {
                 {{ meetup.photos.length }} photos
               </span>
             </div>
-          </div>
+          </RouterLink>
 
           <div class="flex flex-1 flex-col gap-3 p-5 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
@@ -152,7 +126,9 @@ onUnmounted(() => {
             </div>
 
             <h2 class="community-meetup-card-title text-2xl font-bold leading-tight tracking-tight text-dc-ink sm:text-3xl">
-              {{ meetup.name }}
+              <RouterLink :to="eventPreviewPath(meetup)" class="hover:text-dc-pink">
+                {{ meetup.name }}
+              </RouterLink>
             </h2>
 
             <p class="community-meetup-card-description flex-1 text-sm leading-6 text-dc-gray">
@@ -160,17 +136,13 @@ onUnmounted(() => {
             </p>
 
             <div class="pt-2">
-              <component
-                :is="primaryAction(meetup).external ? 'a' : 'RouterLink'"
-                :to="!primaryAction(meetup).external ? toInternalAppPath(primaryAction(meetup).href) : undefined"
-                :href="primaryAction(meetup).external ? primaryAction(meetup).href : undefined"
-                :target="primaryAction(meetup).external ? '_blank' : undefined"
-                :rel="primaryAction(meetup).external ? 'noopener noreferrer' : undefined"
+              <RouterLink
+                :to="eventPreviewPath(meetup)"
                 class="editorial-secondary-action group inline-flex items-center gap-2"
               >
-                <span>{{ primaryAction(meetup).label }}</span>
+                <span>{{ eventPreviewAction(meetup.status) }}</span>
                 <span aria-hidden="true" class="text-base leading-none transition-transform duration-200 group-hover:translate-x-0.5">→</span>
-              </component>
+              </RouterLink>
             </div>
           </div>
         </article>

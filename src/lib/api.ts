@@ -168,6 +168,10 @@ export interface AdminAuditLogResponse {
 
 export interface PublicMeetupsResponse {
   data: PublicMeetup[];
+  meta: {
+    source: 'devcongress-comm';
+    version: 1;
+  };
 }
 
 export interface PublicMeetupResponse {
@@ -353,7 +357,7 @@ export function fetchPublicMeetups() {
 }
 
 export function fetchPublicMeetup(slug: string) {
-  return fetchJson<PublicMeetupResponse>(`/api/public/meetups/${slug}`, {
+  return fetchJson<PublicMeetupResponse>(`/api/public/meetups/${encodeURIComponent(slug)}`, {
     cache: 'no-store',
   });
 }

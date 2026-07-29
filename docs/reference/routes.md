@@ -29,6 +29,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/mobile` | Canonical authenticated phone-only Mobile Ops surface. Authenticated phone visits to full organizer routes resolve here; tablets/desktops visiting this route resolve to `/organizer-console/events`. |
 | `/organizer-console/mobile/events/:eventId/check-in` | Dedicated authenticated phone check-in screen for one native event. It omits the global organizer navigation and returns to Mobile Ops through a visible back action; an existing event without a native campaign shows a historical-registration explanation, and tablets/desktops resolve the route to the event’s full Registration tab. |
 | `/organizer-console/events` | Organizer event list |
+| `/organizer-console/website-preview/events` | Authenticated, phone-safe preview of the published event collection rendered from the exact `GET /api/public/meetups` consumer payload |
+| `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/public/meetups/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview |
 | `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan with workstream, status, accountable owner, collaborators, dates, dependencies, and notes |

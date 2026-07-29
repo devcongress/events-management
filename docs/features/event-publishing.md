@@ -13,7 +13,7 @@ Event publishing lets organizers create meetup records in the app and expose pub
 - Organizer creates or edits an event in the organizer console.
 - Organizer adds public-facing fields such as location, cover image, external RSVP link, and summary.
 - Organizer marks the event publishable.
-- Community members see the event on `/events`.
+- Organizer selects **Preview Website Events** to inspect the published collection, then opens a card to inspect the consumer-shaped event detail.
 - External sites can consume published events through `/api/public/meetups*`.
 
 ## Key Files
@@ -22,7 +22,9 @@ Event publishing lets organizers create meetup records in the app and expose pub
 |---|---|
 | `src/views/admin/AdminEventsView.vue` | Organizer event list and creation flow |
 | `src/views/admin/AdminEventView.vue` | Event overview and checklist |
-| `src/views/EventsView.vue` | Public meetup listing |
+| `src/views/EventsView.vue` | Authenticated public-consumer collection preview |
+| `src/views/EventView.vue` | Authenticated public-consumer event-detail preview |
+| `src/components/PublicEventPreviewBar.vue` | Preview context, exact endpoint, JSON inspection, and return action |
 | `server/app.ts` | Event and public meetup API routes |
 | `lib/supabase/community-events.ts` | Supabase community-event repository |
 | `lib/supabase/media.ts` | Supabase Storage helpers for event media |
@@ -44,5 +46,6 @@ pnpm verify:public-api
 Manual checks:
 
 - Create or edit an organizer event.
-- Confirm unpublished drafts do not appear in `/events`.
-- Confirm published events appear in `/events` and `/api/public/meetups`.
+- Confirm unpublished drafts do not appear in the website preview or `/api/public/meetups`.
+- Confirm published events appear in `/organizer-console/website-preview/events` and `/api/public/meetups`.
+- Open a preview card and confirm its detail content matches `/api/public/meetups/:slug`.
