@@ -5,6 +5,12 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-29 — Production organizer sign-out repair
+
+- Fixed hosted organizer sign-out returning `500` by preserving the mandatory `Secure` attribute while expiring the `__Host-devcon_admin` cookie.
+- Kept the legacy/local `devcon_admin` cookie cleanup so sessions created before the secure-cookie migration are still removed.
+- Added an HTTPS logout regression test that verifies the successful response and both cookie-expiry headers.
+
 ## 2026-07-29 — Reviewable Dependabot updates
 
 - Disabled routine npm and GitHub Actions version-update pull requests so outdated-but-not-vulnerable packages no longer create repository noise.
