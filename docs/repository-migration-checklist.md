@@ -34,6 +34,7 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
   - [x] `VITE_TURNSTILE_SITE_KEY`, if overriding the baked-in key
 - [x] Confirm preview and production branch settings match the new repo flow.
   - 2026-06-25: `wrangler pages deployment list --project-name devcon-comm` shows production deployments from `main`; the latest listed source commit `27f5981` exists in `devcongress/events-management`. The Cloudflare Pages project still uses the historical project name/domain `devcon-comm`, while the browser-facing app URL remains `https://events-management.pages.dev`.
+  - 2026-07-29: `https://em.devcongress.org` is the canonical browser-facing production URL. The Pages hostname is retained only as a legacy platform alias and in dated migration evidence.
 
 ### Cloudflare Worker
 
@@ -126,11 +127,12 @@ git push -u origin feature/some-work
 - [x] Public meetup API contract verifier passes against the final Cloudflare URL:
 
 ```bash
-PUBLIC_API_BASE_URL=https://events-management.pages.dev pnpm verify:public-api
+PUBLIC_API_BASE_URL=https://em.devcongress.org pnpm verify:public-api
 ```
 
   - 2026-06-22: Passed against Cloudflare with `ok: true`, `meetups: 8`, and `checked_slug: devcongress-july-meetup-mqlvyz26`.
   - 2026-06-25: Re-checked with the direct `tsx` verifier against `https://events-management.pages.dev`; passed with `ok: true`, `meetups: 8`, `checked_slug: devcongress-july-meetup-mqlvyz26`, and `talks: 0`.
+  - 2026-07-29: Re-checked through the canonical `https://em.devcongress.org` origin; passed with `ok: true`, `meetups: 9`, `checked_slug: devcongress-july-meetup-mqlvyz26`, and `talks: 0`.
 
 - [x] Public pages load from the final Cloudflare URL.
 - [x] Feedback bot or `/feedback` can submit when Turnstile is configured.
