@@ -277,7 +277,10 @@ export async function revokeAdminSession(c: Context): Promise<void> {
       .eq('token_hash', await sessionTokenHash(token));
   }
 
-  deleteCookie(c, cookieName, { path: '/' });
+  deleteCookie(c, cookieName, {
+    path: '/',
+    secure: cookieName === HOST_ADMIN_SESSION_COOKIE,
+  });
   if (cookieName !== ADMIN_SESSION_COOKIE) {
     deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
   }
