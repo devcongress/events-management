@@ -2,9 +2,9 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import { adminPath } from '@/src/admin-routes';
 import { fetchEvents, queryKeys } from '@/src/lib/api';
-import { resolveEventSeriesType } from '@/lib/event-series';
+import { organizerPhoneCheckInPath } from '@/src/organizer-viewport';
+import { EVENT_SERIES_LABELS, eventSeriesValueToSelection, resolveEventSeriesType } from '@/lib/event-series';
 import type { Event as CommunityEvent, EventStatus } from '@/types';
 
 interface MobileEventAction {
@@ -39,17 +39,10 @@ const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   live: 'Live now',
   completed: 'Completed',
 };
-const EVENT_SERIES_LABELS = {
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  special: 'Special',
-} as const;
-
 const eventsQuery = useQuery({
   queryKey: queryKeys.events,
   queryFn: fetchEvents,
 });
-
 const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((first, second) => (
   new Date(first.event_date).getTime() - new Date(second.event_date).getTime()
 )));
@@ -99,11 +92,19 @@ function eventStatusClass(status: EventStatus): string {
 }
 
 function eventSeriesLabel(event: CommunityEvent): string {
-  return EVENT_SERIES_LABELS[resolveEventSeriesType(event)];
+  return EVENT_SERIES_LABELS[eventSeriesValueToSelection(resolveEventSeriesType(event))];
 }
 
 function eventActions(event: CommunityEvent): MobileEventAction[] {
   const actions: MobileEventAction[] = [];
+
+  if (event.registration_url && event.external_source !== 'luma') {
+    actions.push({
+      label: 'Check in guests',
+      href: organizerPhoneCheckInPath(event.id),
+      primary: true,
+    });
+  }
 
   if (event.registration_url && event.status !== 'completed') {
     actions.push({
@@ -165,7 +166,7 @@ const priorityEventCards = computed<MobileEventCard[]>(() => priorityEvents.valu
           </div>
 
           <div v-if="priorityEventCards.length === 0" class="p-4 text-sm leading-6 text-dc-gray">
-            No organizer events are available yet. Create or import events from a tablet or laptop.
+            No organizer events are available yet. Create events from a tablet or laptop.
           </div>
 
           <article

@@ -4,6 +4,42 @@
 
 ---
 
+## ADR-026: Fail-Closed Public Boundaries and Relational Security State
+
+**Date:** 2026-07-28
+**Status:** Accepted; supersedes ADR-025 and the JSON-link portions of ADR-015/ADR-016.
+**Context:** The security audit found that per-isolate throttles, optional public verification, whole-document one-time links, cached duplicate responses, and login-time role snapshots were insufficient for a multi-Worker production app. A public attendance response and direct anonymous Supabase feedback policies also bypassed the intended privacy and validation boundaries.
+**Decision:** Public writes fail closed in production unless Turnstile and the atomic Supabase rate limiter are available. Registration and CFP return non-enumerating acknowledgements. CFP proposals move to relational rows with a normalized partial unique index so concurrent Workers cannot overwrite or duplicate active submissions. Speaker links move to a relational, hash-only table with atomic claim/consume/release functions. Organizer sessions resolve the current membership role and are revoked on role/status changes. Public contracts revalidate URLs and never include attendance identity. The Pages proxy remains the same-origin browser boundary, enabling `SameSite=Lax` `__Host-` cookies and strict origin checks without cross-site session cookies.
+**Trade-offs:** A Turnstile or rate-limit-store outage temporarily disables public submissions instead of accepting unverified writes. Raw speaker links cannot be recovered or reused after issuance; a failed email retry creates a new link. Deployment must coordinate the database migration, Worker, Pages, and Turnstile secret. Cloudflare edge controls and production alerting remain necessary for volumetric attacks.
+**Alternatives considered:** Keep best-effort per-isolate limits (bypassable across Workers), retain recoverable tokens (larger database-read blast radius), accept public writes when security dependencies fail (unsafe), or use cross-site session cookies for direct Worker calls (unnecessary with the Pages proxy).
+**Revisit when:** Public forms move to a different origin, participant-scoped quiz authorization is designed, remaining compatibility domains become concurrent/high-value, or an edge security policy can replace part of the application limiter without reducing coverage.
+
+---
+
+## ADR-025: Free Meetup Registration Without a Turnstile Dependency
+
+**Date:** 2026-07-28
+**Status:** Superseded by ADR-026.
+**Context:** The registration browser bundle had a baked-in Turnstile site key while the registration API could run without `TURNSTILE_SECRET_KEY`. A visitor could therefore complete the visible human check successfully and then receive a server `503` because the two sides disagreed about whether verification was configured. Free monthly meetup registration is a low-volume name/email flow, and making an external challenge a hard prerequisite adds both friction and a third-party availability failure to the primary attendee action.
+**Decision:** Do not use Turnstile on native free-event registration. Keep server-side schema validation, a best-effort twenty-attempt-per-ten-minute client network limit, one active registration per normalized campaign/email, atomic campaign locking and capacity allocation, server-only Supabase access, and RLS. Ignore obsolete Turnstile fields from a cached pre-change browser during rollout so mixed client/server versions do not fail valid registrations. Turnstile remains available for the separate feedback and volunteer flows.
+**Trade-offs:** A distributed attacker can rotate network identities, and the in-process limit is scoped to a running server/Worker isolate rather than a globally durable counter. The database constraints still prevent duplicate-email amplification, but they do not stop a coordinated bot from using many unique addresses. Removing the challenge materially improves reliability and completion for the expected monthly-meetup traffic while accepting that stronger edge abuse controls may be required later.
+**Alternatives considered:** Require matching Turnstile secrets in every environment (retains a hard external dependency and visible challenge), expose server verification configuration to the browser (prevents drift but keeps the same attendee friction), or remove all abuse controls (unacceptable because unique-address spam could consume capacity).
+**Revisit when:** Registration spam affects capacity or email delivery, monthly traffic grows beyond the best-effort limiter, or a durable Cloudflare edge-rate-limit/challenge policy can be introduced without challenging every attendee.
+
+---
+
+## ADR-024: Native Event Creation and Relational Free Registration
+
+**Date:** 2026-07-28
+**Status:** Accepted; supersedes ADR-014 for active event creation.
+**Context:** Public Luma page extraction is blocked from the deployed Cloudflare Worker, so an import-first workflow can no longer create events reliably. DevCongress also intends to move registration into the product instead of keeping Luma as the registration source of truth. Monthly meetups are free; the December 2026 conference will be paid, but its payment provider and reconciliation rules are not ready.
+**Decision:** Make native organizer creation the only active event-creation path. One create command writes the classified `community_events` record and provisions a private draft registration campaign. Store campaigns, attendee identities, check-ins, and email delivery state in dedicated relational Supabase tables with RLS and server-only access. Allocate confirmed capacity atomically in Postgres; use a waitlist after capacity when enabled. Ask attendees only for name and email, and let organizers check in with those values instead of a QR or confirmation code. Save registration before attempting Resend delivery and retain failed/quota-limited confirmations in a retryable outbox. Keep the current public meetup `registration_url` field as an additive compatibility link to the internal form. Preserve historical Luma metadata and attendance imports as readable legacy records, but expose no active Luma preview/import API or UI. Defer payments behind a later paid-registration capability rather than mixing incomplete payment state into the free path.
+**Trade-offs:** Event creation plus campaign provisioning uses an application command with compensating event deletion when campaign creation fails, rather than one cross-table RPC. Attendee identities now become first-party private data and require retention/access policy. Waitlists do not yet auto-promote. Email acceptance does not prove delivery, and free-tier quota delays are visible as queued delivery. Keeping `registration_url` preserves the public API but its values may point to historical external pages or the new internal form depending on the record.
+**Alternatives considered:** Continue scraping public Luma pages (blocked and unreliable from the Worker), ask organizers to copy Luma fields manually (retains two sources of truth), retain external/no-registration modes (contradicts the decision to own registration), or build paid December checkout first (adds payment and refund risk before the free registration core is proven).
+**Revisit when:** December paid registration begins, attendee cancellation/self-service is required, waitlist promotion becomes operationally important, or event/campaign creation moves into one database transaction.
+
+---
+
 ## ADR-023: Unified Event Archive With Talk Compatibility Records
 
 **Date:** 2026-07-27
@@ -74,6 +110,8 @@
 **Alternatives considered:** Keep expanding `monthly | quarterly | special` (would make `special` an ambiguous catch-all), create a separate December app (would fragment people, events, and reporting), give speakers and volunteers global roles (too much access and loses event context), or replace the public API immediately (unnecessary breakage for `devcongress.org`).
 **Revisit when:** DevCongress co-owns external events, a breaking public API version is justified, a new event ownership model appears, or ticketing/sponsor finance creates a separate compliance boundary.
 
+**Implementation note (2026-07-28):** Native event creation and editing now expose **None of these** as a deliberate series choice. It persists as `series_type = null`, remains filterable as **None of these**, and is returned as `null` by the public API; it is not rewritten to `special` or inferred as `monthly`.
+
 ---
 
 ## ADR-016: Campaign-Scoped Volunteer Intake In Existing Shared Documents
@@ -81,7 +119,7 @@
 **Date:** 2026-07-25
 **Status:** Active transitional implementation; the relational-workflow revisit trigger was reached on 2026-07-26.
 **Why:** The December Mega Meetup needs a fast public volunteer form and a private organizer review surface without creating a new production schema dependency during event preparation. The app already has a Supabase-backed `app_json_documents` compatibility store for cross-instance JSON domains, so the campaign records live there under the `volunteer-applications` key when server-side Supabase is configured. This keeps deployed submissions durable while preserving the local JSON fallback used by the rest of the compatibility layer.
-**Tradeoffs:** This is deliberately limited to one campaign and does not provide relational reporting, database-level uniqueness, or a long-term volunteer CRM. The server protects it with one application per campaign/email, optional Turnstile, and per-client rate limiting; a future multi-event volunteer workflow should move to dedicated relational Supabase tables with database constraints.
+**Tradeoffs:** This is deliberately limited to one campaign and does not provide relational reporting, database-level uniqueness, or a long-term volunteer CRM. The server protects it with one application per campaign/email, mandatory production Turnstile, and atomic cross-Worker per-client rate limiting; a future multi-event volunteer workflow should move to dedicated relational Supabase tables with database constraints.
 **Alternatives considered:** Add a new Supabase table immediately (more migration and rollout coordination than the December drive needs), keep applications only in the Worker filesystem (not durable across instances), or use a third-party form (loses the existing organizer console and QR-display experience).
 **Revisit when:** More than one volunteer campaign is active, volunteer assignments/communications are added, or reporting needs to join volunteers to events and organizer actions.
 
@@ -102,6 +140,7 @@
 ## ADR-014: Read-Only Luma Event Import
 
 **Date:** 2026-06-17
+**Status:** Superseded by ADR-024 on 2026-07-28. Historical imported rows and attendance files remain readable.
 **Why:** Organizers already create DevCongress meetups in Luma, so the app should avoid duplicate manual entry while preserving Luma as the source of truth for registration. A read-only import from Luma into Supabase `community_events` gives the organizer console the event shell it needs for website publishing, checklists, talks, feedback, media, and attendance without trying to manage Luma itself.
 **Tradeoffs:** The import reads public Luma event pages instead of the Plus-only Luma API, so it can only import fields Luma exposes in page metadata. Supabase-backed events are still required because local JSON fallback cannot deduplicate external records safely. Imported data is a snapshot, so later Luma edits will not automatically appear until a refresh/sync feature is added.
 **Alternatives considered:** Creating Luma events from DevCon-Comm (rejected because organizers prefer Luma as the event-registration tool), requiring Luma Plus API keys (rejected because the project is not paying for Luma Plus), or full automatic sync/webhooks now (larger operational surface before the import mapping is proven).

@@ -4,6 +4,7 @@ export const ORGANIZER_PHONE_MAX_WIDTH_PX = 767;
 export const ORGANIZER_PHONE_MEDIA_QUERY = `(max-width: ${ORGANIZER_PHONE_MAX_WIDTH_PX}px)`;
 export const ORGANIZER_PHONE_ROUTE_NAME = 'admin-mobile';
 export const ORGANIZER_PHONE_ROUTE_PATH = adminPath('mobile');
+export const ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME = 'admin-mobile-check-in';
 
 const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
   'admin-login',
@@ -17,6 +18,15 @@ interface OrganizerViewportRouteInput {
   isAdminRoute: boolean;
   isPhone: boolean;
   routeName: string | symbol | null | undefined;
+  eventId?: string | null;
+}
+
+export function organizerPhoneCheckInPath(eventId: string): string {
+  return adminPath(`mobile/events/${encodeURIComponent(eventId)}/check-in`);
+}
+
+export function isOrganizerPhoneRouteName(routeName: string | symbol | null | undefined): boolean {
+  return routeName === ORGANIZER_PHONE_ROUTE_NAME || routeName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME;
 }
 
 export function matchesOrganizerPhoneViewport(
@@ -30,13 +40,14 @@ export function organizerViewportRedirect({
   isAdminRoute,
   isPhone,
   routeName,
+  eventId,
 }: OrganizerViewportRouteInput): string | null {
   if (!authenticated || !isAdminRoute) return null;
 
   const normalizedRouteName = typeof routeName === 'string' ? routeName : '';
   if (isPhone) {
     if (
-      normalizedRouteName === ORGANIZER_PHONE_ROUTE_NAME
+      isOrganizerPhoneRouteName(normalizedRouteName)
       || PHONE_ALLOWED_ADMIN_ROUTE_NAMES.has(normalizedRouteName)
     ) {
       return null;
@@ -45,7 +56,9 @@ export function organizerViewportRedirect({
     return ORGANIZER_PHONE_ROUTE_PATH;
   }
 
-  return normalizedRouteName === ORGANIZER_PHONE_ROUTE_NAME
-    ? adminPath('events')
-    : null;
+  if (normalizedRouteName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME && eventId) {
+    return adminPath(`events/${encodeURIComponent(eventId)}/registrations`);
+  }
+
+  return normalizedRouteName === ORGANIZER_PHONE_ROUTE_NAME ? adminPath('events') : null;
 }

@@ -6,6 +6,7 @@ type PublicMeetup = {
   id: unknown;
   slug: unknown;
   name: unknown;
+  series_type: unknown;
   status: unknown;
   start: unknown;
   end: unknown;
@@ -72,6 +73,10 @@ function assertMeetup(value: unknown, label: string): asserts value is PublicMee
   assertString(meetup.id, `${label}.id`);
   assertString(meetup.slug, `${label}.slug`);
   assertString(meetup.name, `${label}.name`);
+  assert(
+    meetup.series_type === null || ['monthly', 'quarterly', 'special'].includes(String(meetup.series_type)),
+    `${label}.series_type must be monthly, quarterly, special, or null`,
+  );
   assert(['upcoming', 'live', 'past'].includes(String(meetup.status)), `${label}.status must be upcoming, live, or past`);
   assertWebsiteDateTime(meetup.start, `${label}.start`);
   assertWebsiteDateTime(meetup.end, `${label}.end`);

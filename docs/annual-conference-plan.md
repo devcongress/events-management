@@ -138,7 +138,7 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 | Venue | Not started | Angela | TBD | UPSA and Accra Digital Centre are the current candidates; Elijah and Elvis collaborate |
 | Attendance target | Not started | Unassigned | TBD | Needed for capacity, ticketing, catering, badges, swag, connectivity, and budget |
 | Keynote speaker or speakers | Not started | Elijah | TBD | Patrick G. Awuah is preferred; the original shortlist also mentioned the NSMQ quiz mistress |
-| Ticketing approach | Not started | Unassigned | TBD | Decide free registration versus paid/limited tickets and who owns payments/refunds |
+| Ticketing approach | In progress | Unassigned | TBD | Paid registration is confirmed for December; choose the payment provider and define payment, refund, reconciliation, and failure ownership after the free monthly flow is proven |
 | Overall conference budget | Not started | Unassigned | TBD | Deferred to the later restricted finance module |
 
 ## Programme and Speakers
@@ -172,7 +172,7 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 | --- | --- | --- | --- | --- |
 | Conference website/page | Not started | Unassigned | TBD | Public page on `devcongress.org` should cover the theme, venue, programme, speakers, sponsors, forms, and attendee actions |
 | Registration or ticketing | Not started | Unassigned | TBD | Decide provider, capacity rules, ticket classes, confirmation, check-in, cancellation, payments, refunds, and attendee-data ownership |
-| Registration forms and embeds | Not started | Unassigned | TBD | Embed or link registration, CFP, volunteer, sponsor, and feedback actions without duplicating sources of truth |
+| Registration forms and embeds | In progress | Unassigned | TBD | Extend the internal native registration foundation with paid checkout for December; keep event, attendee, payment, CFP, volunteer, sponsor, and feedback ownership explicit |
 | Badges and lanyards | Not started | Unassigned | TBD | Define badge data, design, printing, pickup, walk-ins, reprints, and check-in-system integration |
 | Attendee communications | Not started | Unassigned | TBD | Plan confirmation, reminders, venue guidance, programme changes, and post-event follow-up |
 
@@ -255,7 +255,7 @@ Expenses are part of the confirmed annual-conference scope. The workflow and per
 | Speakers | Monthly CFP, proposal review, private speaker links | Annual CFP, talk/workshop format, technical requirements, review committee, programme/room workflow, and communications |
 | Programme | Editable and reorderable outline rows | Annual edition, rooms/tracks, facilitator assignment, conflicts, and publication |
 | Feedback | Public form, protected QR display, response review | Annual survey design, session/track mapping, campaign schedule, and conference report |
-| Attendance | Luma CSV import and ticket fields | Registration/ticketing ownership, live capacity, check-in design, badges, payments/refunds, and privacy rules |
+| Attendance | Native free registration plus name/email check-in; historical Luma CSV compatibility | Paid ticket ownership, live paid capacity, badges, payments/refunds, reconciliation, and privacy/retention rules |
 | Tasks | No durable conference workflow | Workstreams, owners, deadlines, dependencies, status, audit history, and views by person/team |
 | Sponsors | No conference pipeline | Contacts, stages, commitments, finance, deliverables, fulfilment, and reporting |
 | Expenses | No budget or expense workflow | Budget, approvals, purchases, receipts, reimbursements, payments, income, audit, and variance |

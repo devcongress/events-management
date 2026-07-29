@@ -18,6 +18,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   process.chdir(originalCwd);
   await fs.rm(tempRoot, { recursive: true, force: true });
 });
@@ -43,5 +44,15 @@ describe('mock-db file store', () => {
 
     await expect(readData<{ id: string }>('items')).resolves.toEqual([{ id: 'one' }]);
     await expect(fs.readdir(path.join(tempRoot, 'data'))).resolves.toEqual(['items.json']);
+  });
+
+  it('does not downgrade hosted shared data to local files when Supabase credentials are missing', async () => {
+    vi.stubEnv('APP_DATA_SOURCE', 'supabase');
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('VITE_SUPABASE_URL', '');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+    const { readData } = await importMockDb();
+
+    await expect(readData('talks')).rejects.toThrow('Supabase server config is missing');
   });
 });

@@ -5,6 +5,72 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-29 — Distributed rate-limit runtime repair
+
+- Added an additive Supabase migration that recreates `consume_public_rate_limit` with an unambiguous `timestamptz` variable, fixing PostgreSQL `42883` failures that blocked organizer OAuth exchange and other rate-limited forms after the security migration.
+- Kept the limiter fail-closed and retained its validation, expiry cleanup, atomic upsert, retry calculation, and service-role-only execution boundary.
+
+## 2026-07-28 — OWASP 2025 security hardening
+
+- Removed attendee identity and attendance history from the public home API, made it non-cacheable, and revoked the direct anonymous Supabase feedback paths that bypassed server controls.
+- Stopped draft registration links/calendars from exposing unpublished event details and removed unauthenticated feedback GET/POST side effects.
+- Made organizer authorization use live membership roles, revoke sessions on role/status changes, require an origin on authenticated mutations, and use secure same-origin `__Host-` cookies in hosted environments.
+- Replaced recoverable speaker bearer tokens with hash-only relational records and atomic cross-Worker claim/consume/release transitions.
+- Moved CFP proposals out of whole-document JSON into private relational rows with database-enforced active-proposal uniqueness, preventing concurrent Workers from overwriting or duplicating submissions.
+- Added production-fail-closed Turnstile checks and distributed Supabase rate limits to registration, CFP, feedback, volunteer, token exchange, and private intake boundaries; duplicate registration/CFP responses no longer enumerate emails.
+- Added strict update/input schemas, public URL revalidation, image signature checks, request body limits, bounded external fetches, generic exception responses, token-redacted structured security events, fail-closed configured data stores, and browser security headers.
+- Upgraded vulnerable dependencies to a zero-advisory lockfile and added pinned CI dependency audit, Gitleaks, CodeQL, and Dependabot coverage.
+- Added the complete OWASP Top 10:2025 scenario/prevention audit and production release gate in `docs/security-audit-2026-07-28.md`.
+
+## 2026-07-28 — Native free-event registration
+
+- Moved phone guest check-in out of expandable event cards and onto a dedicated event route with a visible **Back to events** action, event identity/progress, focused filters, and no competing organizer chrome; 768px-and-wider visits resolve to the event’s full Registration tab.
+- Added a development-only 64-person guest-list simulation for realistic high-volume review without creating registrations, sending email, consuming capacity, or writing audit data; simulated check-ins reset when the preview closes and the fixture is dynamically excluded from normal production use.
+- Fixed that simulation so it can open for legacy events with no registration campaign instead of remaining trapped behind the campaign `404`; exiting the simulation restores the original setup error.
+- Removed the misleading **Confirmed** badge from ordinary guest rows because registration does not promise attendance; waitlisted, cancelled, and checked-in states remain visible, and the capacity summary now says **Has a place**.
+- Contained long guest lists inside their own momentum-scroll region on tablets and desktops so search and first-letter filters remain visible; phone Mobile Ops keeps a single natural page scroll to avoid nested touch scrolling.
+- Added thumb-first first-letter guest filtering to phone Mobile Ops and the full Registration tab. The rail shows only represented initials, keeps every target at least 44px, combines with name/email search, and was browser-verified without horizontal page overflow at 320, 390, 430, 744, and 768px.
+- Added focused native guest check-in to phone Mobile Ops while preserving the limited-phone boundary: organizers can open an event card, search registrations by name/email, and check in confirmed guests with full-width touch controls; tablets retain the full Registration tab with 44px minimum row actions.
+- Added a confirmation-protected **Remove test guest** action for local development; permanent deletion clears the registration plus linked check-in/email-delivery data, while production hides the control and returns `404` from the delete endpoint.
+- Added a restrained brand-colour confetti burst to confirmed registrations, removed redundant QR/confirmation-code wording, and preserved a static reduced-motion treatment; waitlist receipts remain non-celebratory.
+- Upgraded native event creation to collect real start/end times and a validated HTTPS Google Maps share link for Ghana venues, so public details, email confirmations, and calendar exports no longer fall back to midnight or an unlinked address.
+- Rebuilt registration email as a responsive DevCongress confirmation with prominent date/time and location rows, sink-validated Google Maps links, matching plain text, and confirmed-only Google Calendar plus downloadable `.ics` actions; waitlist messages retain their distinct status without implying a reserved place.
+- Fixed live Supabase registrations failing with PostgreSQL `42702` by removing an ambiguous `normalized_email` function variable, added an additive repair migration for projects that already ran the original schema, and recorded unexpected registration errors in server logs without attendee details.
+- Shortened the public form action from **Register for free** to **Register**.
+- Reframed the public registration page as one cohesive event ticket with a perforated RSVP stub instead of two separate panels; the ticket unfolds vertically on phones with a lighter event title, roomier content groups, and stacked date/location details.
+- Split the open-campaign sharing action into **Open form** and **Copy form**, added a temporary **Copied** confirmation, and shortened new public links to the unique event-slug route `/r/:eventSlug` while keeping existing UUID links valid.
+- Removed Turnstile from free meetup registration after verifying that a baked-in browser site key could conflict with a missing server secret and reject a successfully completed form; retained validated input, campaign/email uniqueness, atomic capacity allocation, RLS, and tightened per-client request throttling.
+- Matched the desktop event and form card heights, kept long event descriptions to a three-line registration summary without changing stored copy, and vertically centered the complete composition when space is available.
+- Reworked phones into a relaxed top-down page with natural scrolling, warm page separation, clearer type hierarchy, persistent context, comfortable form spacing, safe-area padding, and full-size touch targets.
+- Disabled **Save settings** on ordinary registration-campaign visits until the organizer makes a real change, retained a one-time active confirmation immediately after event creation, and added a pre-save dialog that lists every changed value.
+- Reworked public registration into balanced desktop columns with safe-area padding and bounded event copy.
+- Removed the redundant registration preview and exposed the copy-link action only for saved Open campaigns; draft and closed campaigns retain server-side submission rejection.
+- Fixed the standalone registration route’s blank canvas by keeping its public logo URL as an image request instead of a failed JavaScript module import, restoring both unavailable-link messaging and the open name/email form.
+- Moved the campaign status dropdown into a viewport-aware overlay layer so its options are no longer clipped by the registration settings panel.
+- Made today a persistent visual anchor in the custom date picker with a pink outline and dot, distinct from the yellow selected-date state.
+- Added an optional validated video conference link to native event creation for online and hybrid meetups, backed by the existing event stream field.
+- Locked the create-event description textarea to its designed height so organizers cannot resize and distort the form layout.
+- Replaced the blocked Luma URL preview/import workflow with the sole native event form, retaining monthly/quarterly/special classification or an explicit no-series choice and creating a private draft registration campaign alongside every event.
+- Added relational Supabase campaigns, registrations, check-ins, and confirmation-email deliveries with RLS, atomic capacity allocation, duplicate prevention, waitlisting, and cascading event cleanup.
+- Added the standalone `/register/:eventId` name/email form with rate limiting, confirmed/waitlisted receipts, and explicit delayed-email messaging.
+- Added an organizer Registration tab for campaign opening/closing, capacity/windows, public-link copying, guest search by name/email, check-in, cancellation, and queued Resend retries.
+- Replaced browser-native date and date-time controls with the themed app calendar, including 24-hour time entry, viewport-aware upward/downward placement, narrow-screen clamping, and constrained-height scrolling.
+- Made the website slug follow the event name automatically until an organizer edits it, with normalization and a one-click return to the generated value.
+- Added cover selection from the organizer’s computer with an immediate preview, replace/remove controls, a 15MB source limit, browser compression, server-side 5MB/type enforcement, and URL fallback.
+- Added **None of these** to event-series selection and filtering, storing it as a true nullable series instead of misclassifying independent events as Special or Monthly.
+- Preserved historical Luma metadata and CSV attendance readouts while removing all active Luma preview/import UI and API routes.
+- Added policy and API tests for campaign windows, capacity/waitlist behavior, native event provisioning, duplicates, and delayed confirmation email state.
+
+## 2026-07-28 — Quieter Archive Details form focus
+
+- Replaced the yellow focus halo around Archive Details inputs, textareas, and the Topic trigger with a subtle neutral ink ring.
+- Replaced the Topic menu's solid yellow selected row with a restrained pink tint and pink checkmark, scoped to the private speaker form.
+
+## 2026-07-28 — Transient organizer access feedback
+
+- Replaced the persistent inline login alert shown after an unapproved Google account attempts organizer sign-in with the shared app error toast.
+- Removed the consumed callback error from the login URL so refreshing the page does not repeat stale access feedback, while configuration and connectivity failures remain inline because they block sign-in.
+
 ## 2026-07-28 — Readable Archive Request email action
 
 - Replaced the dark-mode-fragile boxed form action with a high-contrast underlined pink text link, which avoids Gmail repainting its background and label into the same colour.

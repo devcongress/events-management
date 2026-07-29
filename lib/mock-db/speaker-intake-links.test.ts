@@ -23,7 +23,7 @@ afterEach(async () => {
 });
 
 describe('speaker intake links', () => {
-  it('creates a recoverable, speaker-bound one-time token that can be consumed once', async () => {
+  it('returns a speaker-bound token once while persisting only its hash', async () => {
     const {
       consumeSpeakerIntakeLink,
       createSpeakerIntakeLink,
@@ -39,7 +39,9 @@ describe('speaker intake links', () => {
       speaker_email: 'ama@example.com',
     });
 
-    await expect(fs.readFile(path.join(tempRoot, 'data', 'speaker-intake-links.json'), 'utf-8')).resolves.toContain(token);
+    const stored = await fs.readFile(path.join(tempRoot, 'data', 'speaker-intake-links.json'), 'utf-8');
+    expect(stored).not.toContain(token);
+    expect(stored).toContain(link.token_hash);
     await expect(getSpeakerIntakeLinkByToken('event-june', token)).resolves.toMatchObject({
       id: link.id,
       kind: 'talk',

@@ -20,7 +20,7 @@ The monthly request is a direct operational follow-up to a selected person. The 
 ```mermaid
 flowchart LR
   organizer["Organizer chooses an email action"] --> kind{"Which type?"}
-  kind -->|"Monthly archive request"| privateLink["Create or reuse one private link per selected person"]
+  kind -->|"Monthly archive request"| privateLink["Create a private link per selected person"]
   privateLink --> transactional["Resend Send Email or Batch API"]
   kind -->|"Conference Call for Speakers"| publicForm["Use the public conference CFP link"]
   publicForm --> broadcast["Resend Broadcast with unsubscribe handling"]
@@ -33,6 +33,7 @@ flowchart LR
 - The organizer-facing destination is **Event Archive**. Its items have a `kind` of `talk` or `product_demo`; the existing `Talk` model, routes, and public field names remain as a compatibility layer.
 - Existing records without `kind` are read as `talk`.
 - A public monthly speaker proposal becomes a `SpeakerSubmission`.
+- Hosted proposals are private relational Supabase rows; normalized database uniqueness prevents concurrent Workers from accepting the same active event/kind/email/title proposal twice.
 - Marking a proposal `selected` creates a speaker-bound `selected_speaker_confirmation` link.
 - The selected-speaker form reuses the proposal's name, title, topic, abstract, and bio, then asks the speaker for the remaining slides URL.
 - Completing that link creates the same archive-item/Talk compatibility record used by the manual path. It does not publish the item.
@@ -50,14 +51,15 @@ Relevant code:
 
 **Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Because the July program outline does not store speaker emails, the organizer enters one address for each selected row. The address is used for this one-off request and its identity-locked private link; it is not written back into the program outline or speaker allowlist. The selected program row remains the server-authoritative source of presenter name, talk title, and archive-item kind.
 
-One submit creates or reuses the matching `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. The email uses the public app's DevCongress wordmark, a near-black responsive body, and a neutral session card with the existing presentation-kit illustration. Yellow stays in image-based brand accents only; no live text is placed on a yellow email surface, so forced dark palettes cannot turn a yellow card into a low-contrast state. The private token stays exclusively in the CTA `href` and plain-text fallback. The session card truncates unusually long titles deterministically while the plain-text fallback retains the complete title. The private form presents that organizer-selected title as locked invitation context and omits it from the browser submission; the API always restores the title from the one-time link. The form collects the remaining topic, optional public resource URL, and concise fixed-height content fields: the abstract or demo summary is capped at 500 characters and the presenter bio at 300, with live counters and matching server validation. It reuses the existing archive path instead of introducing a second archive form.
+One submit creates a fresh `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. An already accepted program identity is suppressed; a failed provider attempt is deleted and a retry receives a new token because raw tokens are never recoverable. The email uses the public app's DevCongress wordmark, a near-black responsive body, and a neutral session card with the existing presentation-kit illustration. Yellow stays in image-based brand accents only; no live text is placed on a yellow email surface, so forced dark palettes cannot turn a yellow card into a low-contrast state. The private token stays exclusively in the CTA `href` and plain-text fallback. The session card truncates unusually long titles deterministically while the plain-text fallback retains the complete title. The private form presents that organizer-selected title as locked invitation context and omits it from the browser submission; the API always restores the title from the one-time link. The form collects the remaining topic, optional public resource URL, and concise fixed-height content fields: the abstract or demo summary is capped at 500 characters and the presenter bio at 300, with live counters and matching server validation. Inputs and the topic trigger use a quiet ink focus ring instead of a yellow halo, while the selected topic uses a restrained pink tint and checkmark. It reuses the existing archive path instead of introducing a second archive form.
 
 ### Private-link behavior
 
 - Every recipient gets their own cryptographically random link.
 - Links are scoped to one event, one recipient identity, and one archive-item kind.
 - Links expire and close after one successful submission.
-- The token is hashed for lookup, although the current compatibility store also retains the recoverable token so organizers can copy or open active links.
+- Only the SHA-256 token hash is persisted. The raw bearer token exists only in the issuance response or outgoing email construction and cannot be recovered later.
+- Hosted links use relational Supabase rows and atomic claim/consume/release functions so two Workers cannot complete the same link concurrently.
 - The form cannot change the locked identity, event, kind, or title.
 - Used, expired, deleted, anonymous legacy, cross-event, and type-mismatched links must not be emailed or accepted.
 
@@ -102,8 +104,8 @@ In **Archive Requests**:
 2. Selecting a row activates its required email field; `Select all unsent` and `Clear selection` support the one-off bulk workflow.
 3. Successfully sent rows are disabled and labelled `Sent`; the server enforces the same program-item suppression even if a different address is submitted later.
 4. The organizer chooses the link lifetime; seven days remains the default.
-5. `Send email` creates or reuses one matching link per selection and submits one personalized Resend batch.
-6. A successful Resend response produces an `Email sent` or count-aware success toast. Configuration, network, and provider rejections use the same non-blocking error-toast surface instead of a persistent page banner. A rejected request remains retryable with the same link and address; correcting the address creates a new link.
+5. `Send email` creates one fresh link per unsent selection and submits one personalized Resend batch.
+6. A successful Resend response produces an `Email sent` or count-aware success toast. Configuration, network, and provider rejections use the same non-blocking error-toast surface instead of a persistent page banner. A rejected request remains retryable, but retry issuance creates a new raw token/link.
 
 ### Server behavior
 
@@ -111,7 +113,7 @@ The Hono API:
 
 1. Require an authenticated organizer.
 2. Validates the event, unique program indexes, organizer-supplied addresses, server-derived identity, archive-item kind, title, and expiry.
-3. Reuses an eligible failed/pending link for the same event/email/kind/title or creates a new `archive_backfill` link.
+3. Suppresses an already accepted program identity; removes unused failed links and creates a fresh `archive_backfill` token for each retry.
 4. Build the absolute private URL on the server from `PUBLIC_APP_URL`; never accept a link URL from the browser.
 5. Render code-owned HTML and plain-text versions, retaining the private URL in the CTA link.
 6. Stores `pending` delivery state on the link before calling Resend.
@@ -148,7 +150,7 @@ After the July single-send flow is stable:
 1. Add checkboxes to the selected-participant list.
 2. Let the organizer choose one, many, or `Select all eligible` selected participants.
 3. Show a confirmation summary with eligible, already completed, expired-link, and missing-email counts.
-4. Create or reuse one link per eligible speaker.
+4. Create one fresh link per eligible speaker while suppressing already accepted identities.
 5. Render one personalized email per speaker.
 6. Send the set through Resend's Batch API.
 7. Show a per-person result instead of one ambiguous “batch sent” message.
@@ -292,7 +294,7 @@ The browser supplies a stored schedule index and validated one-off email for eac
 
 ### Delivery records
 
-The first pilot stores delivery metadata with each compatibility link:
+Delivery metadata is stored with each relational link:
 
 ```text
 email_status
@@ -303,7 +305,7 @@ email_last_attempt_at
 email_last_error
 ```
 
-The link store still uses the whole-array `app_json_documents` compatibility bridge and retains recoverable tokens for the organizer Copy/Open fallback. Move this to relational, hash-only records with controlled reissue before materially broader volume.
+The Supabase link store is relational and hash-only. The raw token is emitted once, cannot be copied back out of storage, and is reissued as a new link after an unsuccessful provider attempt. The local JSON fallback follows the same hash-only token contract for development.
 
 ### Status language
 

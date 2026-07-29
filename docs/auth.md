@@ -11,7 +11,7 @@ DevCon-Comm uses Supabase Auth with Google OAuth for organizer access in every e
 5. Supabase handles the Google OAuth redirect and returns to `/api/auth/admin/callback` with an authorization code.
 6. Hono forwards the code to `/organizer-console/auth/callback` on `PUBLIC_APP_URL`, where the browser completes the Supabase PKCE exchange.
 7. The browser posts the temporary Supabase access token to `/api/auth/admin/exchange`.
-8. Hono verifies the token, checks the verified email against active `admin_memberships`, stores an app-owned row in `admin_sessions`, and sets the `devcon_admin` HTTP-only cookie.
+8. Hono verifies the token, checks the verified email against active `admin_memberships`, stores an app-owned row in `admin_sessions`, and sets an HTTP-only session cookie (`__Host-devcon_admin` on secure deployments).
 9. The callback route clears the browser Supabase session and redirects into the organizer console.
 10. Organizer APIs call `requireAdmin`, which validates the session cookie, active membership, role, and request origin.
 
@@ -42,7 +42,7 @@ Sign out revokes the app-owned `devcon_admin` session and removes its HTTP-only 
 
 ## Audit Log
 
-Owners can review recent admin activity at `/organizer-console/audit-log`. The ledger is backed by `public.admin_audit_log` and records successful organizer mutations such as login/logout, organizer allowlist changes, Luma imports, event and checklist edits, media uploads, feedback status changes, attendance CSV import/removal, speaker access changes, talk review actions, and quiz builder changes.
+Owners can review recent admin activity at `/organizer-console/audit-log`. The ledger is backed by `public.admin_audit_log` and records successful organizer mutations such as login/logout, organizer allowlist changes, native event and registration changes, check-ins, checklist edits, media uploads, feedback status changes, historical attendance CSV import/removal, speaker access changes, talk review actions, and quiz builder changes.
 
 Audit metadata should stay small and non-sensitive. Store identifiers, counts, statuses, and changed field names rather than raw CSV contents, feedback text, OAuth provider tokens, or full request bodies.
 
@@ -85,10 +85,11 @@ There is no shared-password fallback. When Supabase organizer auth is incomplete
 
 ## Security Notes
 
-- Admin cookies are `HttpOnly`, path-scoped to `/`, and expire after 12 hours.
-- Cookies use `SameSite=Lax` by default. Split-origin deployments that configure `PUBLIC_FRONTEND_ORIGIN` use `SameSite=None; Secure`.
-- State-changing admin requests reject unexpected `Origin` headers.
+- Admin cookies are `HttpOnly`, path-scoped to `/`, and expire after 12 hours. Hosted cookies are also `Secure` and use the `__Host-` prefix.
+- Cookies always use `SameSite=Lax`. The supported hosted design proxies `/api/*` through the Pages origin; direct cross-origin cookie authentication is intentionally unsupported.
+- State-changing admin requests require an `Origin` header and reject origins outside the configured app/frontend allowlist.
 - Organizer management requires `owner` role.
 - Audit log review requires `owner` role.
-- Disabling a membership blocks future session validation for that email.
+- Every authenticated request joins the current membership role/status instead of trusting the login-time snapshot.
+- Changing a membership role or status revokes its active sessions in both the application command and a database trigger.
 - The Supabase service-role key is used only on the server and must never use a `VITE_` prefix.

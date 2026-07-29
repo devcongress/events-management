@@ -5,10 +5,12 @@ import { loadTurnstile, turnstileEnabled, turnstileSiteKey } from '@/src/lib/tur
 const props = withDefaults(defineProps<{
   action?: string;
   disabled?: boolean;
+  size?: 'normal' | 'flexible' | 'compact';
   theme?: 'auto' | 'light' | 'dark';
 }>(), {
   action: 'default',
   disabled: false,
+  size: 'normal',
   theme: 'light',
 });
 
@@ -42,6 +44,7 @@ async function renderWidget() {
     widgetId.value = turnstile.render(container.value, {
       sitekey: turnstileSiteKey,
       action: props.action,
+      size: props.size,
       theme: props.theme,
       callback: (token) => {
         widgetError.value = '';

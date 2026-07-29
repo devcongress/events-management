@@ -61,7 +61,11 @@ function toInternalAppPath(value: string) {
 
 function primaryAction(meetup: PublicMeetup): { href: string; label: string; external: boolean } {
   if (meetup.status === 'upcoming' && meetup.registration_url) {
-    return { href: meetup.registration_url, label: 'Register', external: true };
+    return {
+      href: meetup.registration_url,
+      label: 'Register',
+      external: !isInternalAppHref(meetup.registration_url),
+    };
   }
 
   if (meetup.status === 'live' && meetup.stream_url) {

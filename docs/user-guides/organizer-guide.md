@@ -4,7 +4,7 @@ This guide covers the organizer console workflows used to prepare and run DevCon
 
 ## Log In
 
-Open the organizer console and sign in with the prototype organizer password:
+Open the organizer console and continue with Google using an approved organizer account:
 
 ```text
 /organizer-console/login
@@ -14,7 +14,9 @@ The base path can be changed with `VITE_ADMIN_BASE_PATH`.
 
 ## Manage Events
 
-Use the event list to create, edit, publish, and remove meetups. If a Luma import comes in with the wrong event shell, remove it from the organizer list and import the corrected public URL again.
+Use the event list to create, classify, edit, publish, and remove meetups. Native creation is the only path: the event record and its internal registration campaign are created together.
+
+Open the event’s **Registration** tab to review the draft campaign and choose its capacity and schedule. Change the campaign to **Open** before the console exposes the copy-link action; draft and closed campaigns have no public-link action. Guests register with name and email. On event day, select the first letter of the guest’s name to narrow a long list, use name/email search when needed, then select **Check in**. Only letters represented in the current guest list appear. Tablet and laptop organizers use the Registration tab. Phone organizers select **Mobile Ops → Check in guests** on the relevant event card; this opens a dedicated check-in screen, and **Back to events** returns to the event list. Phones do not expose campaign editing, cancellation, or test-record deletion. In local development, **Preview 64 guests** demonstrates the high-volume interface with fictional data and local-only check-ins; exiting restores the live list and nothing is saved or emailed. Guests do not need a QR code or confirmation code. If confirmation email is delayed by the provider quota, the registration remains valid and the tab offers a retry action.
 
 Event outlines are optional. When a meetup has a known run of show, add time/title/type/lead rows on the event overview; otherwise leave the outline empty and continue with the event checklist, talks, attendance, and feedback flows. Organizers can paste a plain text program outline and let the editor split it into rows before saving or publishing.
 
@@ -52,9 +54,9 @@ For later meetups, use CFP to open or close the public proposal form and Proposa
 
 The Speakers section is an event-scoped identity and access allowlist. It is separate from Event Archive: adding someone to the allowlist does not create or publish an archive item, and an archive item remains content even if access rules later change. Archive creation may keep a matching speaker email on the allowlist for compatibility, but organizers should use Event Archive—not Speakers—to review and publish talks or product demos.
 
-## Review Attendance
+## Review Historical Attendance
 
-The Attendance section accepts a Luma guest CSV export for the event. After import, organizers can review:
+The legacy Attendance section accepts historical Luma guest CSV exports. New native events use the Registration tab for the live guest list and check-ins. After a historical CSV import, organizers can review:
 
 - Approved registrations
 - Recorded check-ins

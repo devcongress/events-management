@@ -1,12 +1,28 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
 import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
-import { deleteEventById, fetchEvents, importLumaEventUrl, previewLumaEventUrl, queryKeys, type LumaPreviewResponse } from '@/src/lib/api';
-import { EVENT_SERIES_HELP_TEXT, EVENT_SERIES_LABELS, EVENT_SERIES_TYPES, inferEventSeriesType, resolveEventSeriesType, type EventSeriesType } from '@/lib/event-series';
+import { createNativeEvent, deleteEventById, fetchEvents, queryKeys } from '@/src/lib/api';
+import { createEventFormSchema, toCreateEventApiPayload, toEventSlug } from '@/src/lib/event-form';
+import { REGISTRATION_SETUP_HISTORY_KEY } from '@/src/lib/registration-settings';
+import {
+  compressionSavingsPercent,
+  compressMeetupImageForUpload,
+  uploadEventMedia,
+} from '@/src/lib/meetup-media-client';
+import {
+  EVENT_SERIES_HELP_TEXT,
+  EVENT_SERIES_LABELS,
+  EVENT_SERIES_SELECTIONS,
+  eventSeriesValueToSelection,
+  resolveEventSeriesType,
+  type EventSeriesSelection,
+} from '@/lib/event-series';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventStatus } from '@/types';
 import { adminPath } from '@/src/admin-routes';
@@ -18,14 +34,29 @@ const eventsQuery = useQuery({
   queryKey: queryKeys.events,
   queryFn: fetchEvents,
 });
-const lumaPreviewing = ref(false);
-const lumaImporting = ref(false);
-const lumaError = ref<string | null>(null);
-const lumaEventUrl = ref('');
-const lumaEventUrlInput = ref<HTMLInputElement | null>(null);
-const lumaSeriesType = ref<EventSeriesType>('monthly');
-const lumaPreview = ref<LumaPreviewResponse | null>(null);
-const lumaPreviewUrl = ref('');
+const form = reactive({
+  name: '',
+  description: '',
+  event_date: '',
+  end_date: '',
+  series_type: 'monthly' as EventSeriesSelection,
+  slug: '',
+  cover: '',
+  location_name: '',
+  location_url: '',
+  stream_url: '',
+  publish_to_website: false,
+  registration_capacity: 100,
+  registration_opens_at: '',
+  registration_closes_at: '',
+  waitlist_enabled: true,
+  auto_confirm: true,
+});
+const createPending = ref(false);
+const createProgress = ref<'idle' | 'preparing-cover' | 'creating' | 'uploading-cover'>('idle');
+const createError = ref<string | null>(null);
+const slugWasEdited = ref(false);
+const coverFile = ref<File | null>(null);
 const eventPendingDelete = ref<CommunityEvent | null>(null);
 const deletePending = ref(false);
 const page = ref(1);
@@ -87,14 +118,10 @@ const creating = computed(() => route.path.endsWith('/new'));
 const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime()));
 const loading = computed(() => eventsQuery.isPending.value);
 const eventsError = computed(() => eventsQuery.error.value?.message ?? null);
-const lumaPreviewLocked = computed(() => Boolean(lumaPreview.value));
-const lumaPublishedConflict = computed(() => Boolean(
-  lumaPreview.value?.already_imported && lumaPreview.value?.existing_event?.publish_to_website,
-));
-const seriesTypeOptions = EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
+const seriesTypeOptions = EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
 const seriesFilterOptions = [
   { value: 'all', label: 'All types' },
-  ...EVENT_SERIES_TYPES.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] })),
+  ...EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] })),
 ];
 const monthOptions = computed(() => {
   const uniqueMonths = Array.from(new Set(events.value.map((event) => eventMonthValue(event.event_date))));
@@ -107,7 +134,8 @@ const monthOptions = computed(() => {
 const selectedMonthLabel = computed(() => monthOptions.value.find((option) => option.value === selectedMonth.value)?.label ?? 'All months');
 const filteredEvents = computed(() => events.value.filter((event) => {
   const matchesMonth = selectedMonth.value === 'all' || eventMonthValue(event.event_date) === selectedMonth.value;
-  const matchesSeries = selectedSeriesFilter.value === 'all' || resolveEventSeriesType(event) === selectedSeriesFilter.value;
+  const matchesSeries = selectedSeriesFilter.value === 'all'
+    || eventSeriesValueToSelection(resolveEventSeriesType(event)) === selectedSeriesFilter.value;
 
   return matchesMonth && matchesSeries;
 }));
@@ -115,12 +143,14 @@ const pageCount = computed(() => Math.max(1, Math.ceil(filteredEvents.value.leng
 const paginatedEvents = computed(() => filteredEvents.value.slice((page.value - 1) * pageSize, page.value * pageSize));
 const pageStart = computed(() => (filteredEvents.value.length === 0 ? 0 : (page.value - 1) * pageSize + 1));
 const pageEnd = computed(() => Math.min(filteredEvents.value.length, page.value * pageSize));
-const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[lumaSeriesType.value]);
-
-function focusLumaEventUrlInput() {
-  if (lumaPreviewLocked.value) return;
-  lumaEventUrlInput.value?.focus();
-}
+const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[form.series_type]);
+const generatedSlug = computed(() => toEventSlug(form.name));
+const createButtonLabel = computed(() => {
+  if (createProgress.value === 'preparing-cover') return 'PREPARING COVER…';
+  if (createProgress.value === 'uploading-cover') return 'UPLOADING COVER…';
+  if (createProgress.value === 'creating') return 'CREATING…';
+  return 'CREATE EVENT + REGISTRATION';
+});
 
 function broadcastPublicMeetupsRefresh() {
   if (typeof window === 'undefined') return;
@@ -144,98 +174,98 @@ watch(pageCount, (nextPageCount) => {
   }
 });
 
-onMounted(() => {
-  void nextTick(focusLumaEventUrlInput);
-});
-
 watch([selectedMonth, selectedSeriesFilter], () => {
   page.value = 1;
 });
 
-async function handleLumaPreview() {
-  const url = lumaEventUrl.value.trim();
-  if (!url) {
-    lumaError.value = 'Paste a public Luma event URL first.';
+watch(generatedSlug, (nextSlug) => {
+  if (!slugWasEdited.value || form.slug === nextSlug) {
+    slugWasEdited.value = false;
+    form.slug = nextSlug;
+  }
+});
+
+function handleSlugInput(event: Event) {
+  form.slug = (event.target as HTMLInputElement).value;
+  slugWasEdited.value = form.slug !== generatedSlug.value;
+}
+
+function normalizeWebsiteSlug() {
+  const normalized = toEventSlug(form.slug);
+  if (!normalized) {
+    slugWasEdited.value = false;
+    form.slug = generatedSlug.value;
+    return;
+  }
+  form.slug = normalized;
+  slugWasEdited.value = normalized !== generatedSlug.value;
+}
+
+function resetWebsiteSlug() {
+  slugWasEdited.value = false;
+  form.slug = generatedSlug.value;
+}
+
+function optionalLocalDateTimeToIso(value: string | null): string | null {
+  if (!value) return null;
+  return new Date(value).toISOString();
+}
+
+async function createEvent() {
+  if (createPending.value) return;
+  createError.value = null;
+  normalizeWebsiteSlug();
+
+  const parsed = createEventFormSchema.safeParse(form);
+  if (!parsed.success) {
+    createError.value = parsed.error.issues[0]?.message ?? 'Check the event details.';
     return;
   }
 
-  lumaPreviewing.value = true;
-  lumaError.value = null;
-  lumaPreview.value = null;
-
+  createPending.value = true;
+  createProgress.value = coverFile.value ? 'preparing-cover' : 'creating';
   try {
-    lumaPreview.value = await previewLumaEventUrl(url, lumaSeriesType.value);
-    if (lumaPreview.value.preview.series_type) {
-      lumaSeriesType.value = lumaPreview.value.preview.series_type;
-    }
-    lumaPreviewUrl.value = url;
-  } catch (previewError) {
-    lumaError.value = previewError instanceof Error ? previewError.message : 'Unable to preview Luma event.';
-    notify.error(lumaError.value);
-  } finally {
-    lumaPreviewing.value = false;
-  }
-}
-
-async function confirmLumaImport() {
-  const url = lumaPreviewUrl.value || lumaEventUrl.value.trim();
-  if (!url) return;
-
-  lumaImporting.value = true;
-  lumaError.value = null;
-
-  try {
-    const payload = await importLumaEventUrl(url, lumaSeriesType.value);
-    await refreshEventQueries();
-    notify.success(payload.already_imported ? 'Luma event was already imported.' : 'Imported Luma event.');
-    lumaEventUrl.value = '';
-    lumaPreviewUrl.value = '';
-    lumaPreview.value = null;
-    await router.push({
-      path: adminPath(`events/${payload.event.id}`),
-      query: payload.event.series_type ? undefined : { seriesType: lumaSeriesType.value },
+    const payload = toCreateEventApiPayload(parsed.data);
+    const originalCoverFile = coverFile.value;
+    const compressedCoverFile = originalCoverFile
+      ? await compressMeetupImageForUpload(originalCoverFile)
+      : null;
+    createProgress.value = 'creating';
+    const result = await createNativeEvent({
+      ...payload,
+      registration: {
+        ...payload.registration,
+        opens_at: optionalLocalDateTimeToIso(payload.registration.opens_at),
+        closes_at: optionalLocalDateTimeToIso(payload.registration.closes_at),
+      },
     });
-  } catch (importError) {
-    lumaError.value = importError instanceof Error ? importError.message : 'Unable to import Luma event.';
-    notify.error(lumaError.value);
-  } finally {
-    lumaImporting.value = false;
-  }
-}
-
-async function removeAndReimportLumaEvent() {
-  const existingEvent = lumaPreview.value?.existing_event;
-  const url = lumaPreviewUrl.value || lumaEventUrl.value.trim();
-  if (!existingEvent || !url) return;
-
-  lumaImporting.value = true;
-  lumaError.value = null;
-
-  try {
-    await deleteEventById(existingEvent.id);
-    const payload = await importLumaEventUrl(url, lumaSeriesType.value);
+    let coverUploadError: string | null = null;
+    if (compressedCoverFile && originalCoverFile) {
+      createProgress.value = 'uploading-cover';
+      try {
+        await uploadEventMedia(result.event.id, compressedCoverFile, 'cover');
+        const savedPercent = compressionSavingsPercent(originalCoverFile, compressedCoverFile);
+        notify.success(`Cover uploaded${savedPercent > 0 ? ` (${savedPercent}% smaller)` : ''}.`);
+      } catch (error) {
+        coverUploadError = error instanceof Error ? error.message : 'Unable to upload the cover image.';
+      }
+    }
     await refreshEventQueries();
-    notify.success('Published event removed and re-imported as a fresh draft.');
-    lumaEventUrl.value = '';
-    lumaPreviewUrl.value = '';
-    lumaPreview.value = null;
-    await router.push(adminPath(`events/${payload.event.id}`));
+    notify.success('Event and registration draft created.');
+    if (coverUploadError) {
+      notify.error(`Event created, but its cover was not uploaded: ${coverUploadError}`);
+    }
+    await router.push({
+      path: adminPath(`events/${result.event.id}/registrations`),
+      state: { [REGISTRATION_SETUP_HISTORY_KEY]: true },
+    });
   } catch (error) {
-    lumaError.value = error instanceof Error ? error.message : 'Unable to remove and re-import Luma event.';
-    notify.error(lumaError.value);
+    createError.value = error instanceof Error ? error.message : 'Unable to create the event.';
+    notify.error(createError.value);
   } finally {
-    lumaImporting.value = false;
+    createPending.value = false;
+    createProgress.value = 'idle';
   }
-}
-
-function clearLumaPreview() {
-  lumaPreview.value = null;
-  lumaPreviewUrl.value = '';
-}
-
-async function openExistingLumaEvent() {
-  if (!lumaPreview.value?.existing_event) return;
-  await router.push(adminPath(`events/${lumaPreview.value.existing_event.id}`));
 }
 
 function requestDeleteEvent(event: CommunityEvent) {
@@ -283,7 +313,7 @@ function formatMonthOption(value: string): string {
 }
 
 function eventKindLabel(event: CommunityEvent): string {
-  return EVENT_SERIES_LABELS[resolveEventSeriesType(event)];
+  return EVENT_SERIES_LABELS[eventSeriesValueToSelection(resolveEventSeriesType(event))];
 }
 
 function eventKindClass(event: CommunityEvent): string {
@@ -300,21 +330,13 @@ function eventKindClass(event: CommunityEvent): string {
   return 'border-dc-border text-dc-gray';
 }
 
-function isImportedEvent(event: CommunityEvent): boolean {
-  return event.external_source === 'luma';
-}
-
 function isDraftEvent(event: CommunityEvent): boolean {
   return !event.publish_to_website;
 }
 
 function removalMessage(event: CommunityEvent): string {
   const eventMonth = formatEventMonth(event.event_date);
-  if (isImportedEvent(event)) {
-    return `This removes the imported ${eventMonth} event from the organizer event list so you can import it again with a cleaner version later.`;
-  }
-
-  return `This removes ${eventMonth} from the organizer event list for now.`;
+  return `This permanently removes ${eventMonth}, including its registration list and check-ins.`;
 }
 
 function statusMeta(status: string) {
@@ -371,139 +393,157 @@ function goToPage(nextPage: number) {
           <div>
             <p class="editorial-eyebrow">organizer</p>
             <h1 class="editorial-title">Create New Event</h1>
-            <p class="editorial-subtitle">Import from Luma now, or keep the manual form shape visible while it is being finished.</p>
+            <p class="editorial-subtitle">Create the event and its private registration campaign together. Registration stays in draft until you open it.</p>
           </div>
         </div>
 
-        <section class="editorial-panel mb-6 overflow-hidden">
+        <form class="space-y-6" @submit.prevent="createEvent">
+        <section class="editorial-panel overflow-hidden">
           <div class="border-b-2 border-dc-ink bg-dc-paper-warm px-5 py-4">
-            <p class="editorial-eyebrow">active path</p>
-            <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Import from Luma Event</h2>
-            <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Paste the public Luma event URL and we will pull in the event shell from the details Luma exposes.</p>
+            <p class="editorial-eyebrow">event details</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">The meetup</h2>
+            <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">This native event record becomes the source of truth for the organizer console and public website.</p>
           </div>
-          <form class="space-y-4 p-5" @submit.prevent="handleLumaPreview">
-            <div v-if="lumaError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{{ lumaError }}</div>
-            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-              <div>
-                <label class="editorial-label">Public Luma event URL</label>
-                <input
-                  ref="lumaEventUrlInput"
-                  v-model="lumaEventUrl"
-                  type="url"
-                  required
-                  class="editorial-input font-mono"
-                  placeholder="https://luma.com/..."
-                  :disabled="lumaPreviewing || lumaImporting || lumaPreviewLocked"
-                />
-              </div>
-              <AppDropdown
-                v-model="lumaSeriesType"
-                label="Series type"
-                :options="seriesTypeOptions"
-                :disabled="lumaPreviewing || lumaImporting"
-              />
-              <button type="submit" class="editorial-action min-h-[54px] justify-center disabled:cursor-not-allowed disabled:opacity-60" :disabled="lumaPreviewing || lumaImporting || lumaPreviewLocked">
-                {{ lumaPreviewing ? 'PREVIEWING...' : 'PREVIEW EVENT' }}
-              </button>
-            </div>
-            <p class="text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
-            <p class="text-sm leading-6 text-dc-gray">Use the event-page preview to see how the imported shell will feel on the public site. Timeline, speakers, gallery, and recap details can be filled in later.</p>
-
-            <section v-if="lumaPreview" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-              <p class="editorial-eyebrow mb-2">import summary</p>
-              <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                <div class="min-w-0">
-                  <h3 class="text-2xl font-bold leading-tight text-dc-ink">{{ lumaPreview.preview.name }}</h3>
-                  <p class="mt-2 font-mono text-sm font-semibold uppercase text-dc-gray">{{ formatDate(lumaPreview.preview.event_date) }}</p>
-                  <div class="mt-3 flex flex-wrap gap-2">
-                    <span class="rounded-sm border border-dc-border px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                      {{ EVENT_SERIES_LABELS[lumaSeriesType] }}
-                    </span>
-                  </div>
-                  <p class="mt-2 text-sm leading-6 text-dc-gray">{{ lumaPreview.preview.location?.label ?? lumaPreview.preview.location?.name ?? 'Location not provided' }}</p>
-                  <p v-if="lumaPreview.preview.description" class="mt-3 line-clamp-3 text-sm leading-6 text-dc-gray">{{ lumaPreview.preview.description }}</p>
-                  <a
-                    v-if="lumaPreview.preview.registration_url"
-                    :href="lumaPreview.preview.registration_url"
-                    target="_blank"
-                    rel="noreferrer"
-                    class="mt-3 inline-flex font-mono text-xs font-semibold uppercase text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4"
-                  >
-                    View Luma page
-                  </a>
-                  <p v-if="lumaPublishedConflict" class="mt-3 text-sm font-medium text-dc-gray">This Luma event is already published in community. Remove it and re-import if you want a fresh draft.</p>
-                  <p v-else-if="lumaPreview.already_imported" class="mt-3 text-sm font-medium text-dc-gray">This Luma event already exists in the event list.</p>
-                </div>
-                <div class="flex flex-col gap-2 sm:flex-row lg:flex-col">
-                  <button
-                    v-if="lumaPreview.already_imported"
-                    type="button"
-                    class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink"
-                    @click="openExistingLumaEvent"
-                  >
-                    OPEN ORGANIZER EVENT
-                  </button>
-                  <button
-                    v-if="lumaPublishedConflict"
-                    type="button"
-                    class="editorial-action min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60"
-                    :disabled="lumaImporting"
-                    @click="removeAndReimportLumaEvent"
-                  >
-                    {{ lumaImporting ? 'REMOVING...' : 'REMOVE AND RE-IMPORT' }}
-                  </button>
-                  <button
-                    v-else-if="!lumaPreview.already_imported"
-                    type="button"
-                    class="editorial-action min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60"
-                    :disabled="lumaImporting"
-                    @click="confirmLumaImport"
-                  >
-                    {{ lumaImporting ? 'IMPORTING...' : 'IMPORT EVENT' }}
-                  </button>
-                  <button
-                    type="button"
-                    class="rounded-md border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink"
-                    :disabled="lumaImporting"
-                    @click="clearLumaPreview"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-            </section>
-          </form>
-        </section>
-
-        <section class="editorial-panel relative overflow-hidden p-5 sm:p-6">
-          <div class="coming-soon-ribbon">Coming soon</div>
-          <div class="pl-16 sm:pl-20">
-            <p class="editorial-eyebrow">manual path</p>
-            <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Event Form</h2>
-            <p class="mt-1 text-sm leading-6 text-dc-gray">This manual setup flow is visible for shape and review, but disabled while Luma import is the supported event creation path.</p>
-          </div>
-          <div class="mt-5 grid gap-3 opacity-50 md:grid-cols-4">
+          <div class="grid gap-5 p-5 md:grid-cols-2">
             <div class="md:col-span-2">
-              <label class="editorial-label">Name <span class="text-red-600">*</span></label>
-              <div class="h-12 rounded-md border-2 border-dc-ink bg-white" />
+              <label for="event-name" class="editorial-label">Name <span class="text-red-600">*</span></label>
+              <input id="event-name" v-model="form.name" class="editorial-input" maxlength="160" required placeholder="DevCongress August Meetup">
+            </div>
+            <div class="md:col-span-2">
+              <label for="event-description" class="editorial-label">Description <span class="text-red-600">*</span></label>
+              <textarea id="event-description" v-model="form.description" class="editorial-input min-h-32 resize-none" required placeholder="What the meetup is about and who should attend." />
+            </div>
+            <AppDatePicker v-model="form.event_date" label="Starts at" mode="datetime" required />
+            <AppDatePicker v-model="form.end_date" label="Ends at" mode="datetime" />
+            <AppDropdown
+              v-model="form.series_type"
+              label="Event type"
+              :options="seriesTypeOptions"
+            />
+            <div>
+              <label for="event-location" class="editorial-label">Location <span class="text-red-600">*</span></label>
+              <input id="event-location" v-model="form.location_name" class="editorial-input" required placeholder="Fido, Accra">
+            </div>
+            <div class="md:col-span-2 -mt-2">
+              <p class="text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
             </div>
             <div>
-              <label class="editorial-label">Date <span class="text-red-600">*</span></label>
-              <div class="h-12 rounded-md border-2 border-dc-ink bg-white" />
+              <label for="event-location-url" class="editorial-label">Google Maps link</label>
+              <input
+                id="event-location-url"
+                v-model="form.location_url"
+                type="url"
+                class="editorial-input"
+                maxlength="2048"
+                inputmode="url"
+                autocomplete="url"
+                placeholder="https://maps.app.goo.gl/..."
+              >
+              <p class="mt-2 text-xs leading-5 text-dc-gray">Optional. Paste the Google Maps share link for the venue in Ghana.</p>
             </div>
             <div>
-              <label class="editorial-label">Location</label>
-              <div class="h-12 rounded-md border-2 border-dc-ink bg-white" />
+              <label for="event-stream-url" class="editorial-label">Video conference link</label>
+              <input
+                id="event-stream-url"
+                v-model="form.stream_url"
+                type="url"
+                class="editorial-input"
+                maxlength="2048"
+                inputmode="url"
+                autocomplete="url"
+                placeholder="https://meet.google.com/..."
+              >
+              <p class="mt-2 text-xs leading-5 text-dc-gray">Optional for online or hybrid events. Add the link attendees will use to join.</p>
             </div>
-            <div class="md:col-span-3">
-              <label class="editorial-label">Description</label>
-              <div class="h-12 rounded-md border-2 border-dc-ink bg-white" />
+            <EventCoverPicker
+              v-model="form.cover"
+              v-model:selected-file="coverFile"
+              class="md:col-span-2"
+              :disabled="createPending"
+            />
+            <div>
+              <label for="event-slug" class="editorial-label">Website slug</label>
+              <input
+                id="event-slug"
+                :value="form.slug"
+                class="editorial-input font-mono"
+                placeholder="generated-from-event-name"
+                autocomplete="off"
+                spellcheck="false"
+                @input="handleSlugInput"
+                @blur="normalizeWebsiteSlug"
+              >
+              <div class="mt-2 flex items-center justify-between gap-3">
+                <p class="text-xs leading-5 text-dc-gray">
+                  {{ slugWasEdited ? 'Custom slug. The event name will no longer replace it.' : 'Generated from the event name. You can edit it.' }}
+                </p>
+                <button
+                  v-if="slugWasEdited"
+                  type="button"
+                  class="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink hover:text-dc-ink"
+                  @click="resetWebsiteSlug"
+                >
+                  Use generated
+                </button>
+              </div>
             </div>
-            <div class="flex items-end">
-              <button type="button" disabled class="editorial-action min-h-12 w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">CREATE EVENT</button>
+            <label class="flex items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
+              <input v-model="form.publish_to_website" type="checkbox" class="size-4 accent-dc-pink">
+              <div>
+                <span class="block text-sm font-bold text-dc-ink">Publish event shell now</span>
+                <span class="block text-xs leading-5 text-dc-gray">Leave off to finish setup before it appears publicly.</span>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <section class="editorial-panel overflow-hidden">
+          <div class="border-b-2 border-dc-ink bg-dc-paper-warm px-5 py-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="editorial-eyebrow">registration</p>
+                <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Free guest list</h2>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">The campaign is created as a draft. Open it from the Registration tab when the public form is ready.</p>
+              </div>
+              <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Draft</span>
+            </div>
+          </div>
+          <div class="grid gap-5 p-5 md:grid-cols-3">
+            <div>
+              <label for="registration-capacity" class="editorial-label">Capacity</label>
+              <input id="registration-capacity" v-model.number="form.registration_capacity" type="number" min="1" max="5000" class="editorial-input" required>
+            </div>
+            <AppDatePicker v-model="form.registration_opens_at" label="Opens at" mode="datetime" />
+            <AppDatePicker v-model="form.registration_closes_at" label="Closes at" mode="datetime" />
+            <label class="flex items-start gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
+              <input v-model="form.auto_confirm" type="checkbox" class="mt-0.5 size-4 accent-dc-pink">
+              <span>
+                <span class="block text-sm font-bold text-dc-ink">Auto-confirm places</span>
+                <span class="mt-1 block text-xs leading-5 text-dc-gray">Confirm guests until capacity is reached.</span>
+              </span>
+            </label>
+            <label class="flex items-start gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
+              <input v-model="form.waitlist_enabled" type="checkbox" class="mt-0.5 size-4 accent-dc-pink">
+              <span>
+                <span class="block text-sm font-bold text-dc-ink">Enable waitlist</span>
+                <span class="mt-1 block text-xs leading-5 text-dc-gray">Keep collecting names after capacity.</span>
+              </span>
+            </label>
+            <div class="rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
+              <p class="text-sm font-bold text-dc-ink">Check-in method</p>
+              <p class="mt-1 text-xs leading-5 text-dc-gray">Organizers search by guest name or email. No QR code or confirmation code.</p>
             </div>
           </div>
         </section>
+
+        <div v-if="createError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">{{ createError }}</div>
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <RouterLink :to="adminPath('events')" class="inline-flex min-h-12 items-center justify-center rounded-md border-2 border-dc-ink bg-white px-5 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink">Cancel</RouterLink>
+          <button type="submit" class="editorial-action min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60" :disabled="createPending">
+            {{ createButtonLabel }}
+          </button>
+        </div>
+        </form>
       </template>
 
       <template v-else>

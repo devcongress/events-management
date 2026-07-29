@@ -2,10 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { envValue } from '@/server/env';
+import { securitySafeRequestPath } from '@/server/security-log';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import type { Database, Json } from '@/types/supabase';
 
 export const ADMIN_SESSION_COOKIE = 'devcon_admin';
+const HOST_ADMIN_SESSION_COOKIE = '__Host-devcon_admin';
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 // Bump last_seen_at at most once per interval; it is telemetry, not worth a
 // blocking write on every authenticated request.
@@ -36,12 +38,14 @@ function isProduction(c: Context): boolean {
   return envValue('NODE_ENV', c) === 'production';
 }
 
-function cookieSameSite(c: Context): 'Lax' | 'None' {
-  return configuredFrontendOrigins(c).size > 0 ? 'None' : 'Lax';
+function cookieSameSite(): 'Lax' {
+  // The deployed Pages Worker proxies /api/* on the same browser origin.
+  // Cross-site cookies are deliberately unsupported.
+  return 'Lax';
 }
 
 function isSecureCookie(c: Context): boolean {
-  return isProduction(c) || configuredFrontendOrigins(c).size > 0;
+  return isProduction(c) || new URL(c.req.url).protocol === 'https:';
 }
 
 function normalizeEmail(value: unknown): string {
@@ -51,11 +55,15 @@ function normalizeEmail(value: unknown): string {
 function sessionCookieOptions(c: Context) {
   return {
     httpOnly: true,
-    sameSite: cookieSameSite(c),
+    sameSite: cookieSameSite(),
     secure: isSecureCookie(c),
     path: '/',
     maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
   } as const;
+}
+
+function sessionCookieName(c: Context): string {
+  return isSecureCookie(c) ? HOST_ADMIN_SESSION_COOKIE : ADMIN_SESSION_COOKIE;
 }
 
 export function configuredFrontendOrigins(c: Context): Set<string> {
@@ -198,7 +206,7 @@ async function createAdminSessionForUser(c: Context, input: { userId: string; em
     target_id: membership.id,
   });
 
-  setCookie(c, ADMIN_SESSION_COOKIE, sessionToken, sessionCookieOptions(c));
+  setCookie(c, sessionCookieName(c), sessionToken, sessionCookieOptions(c));
   return { ok: true as const };
 }
 
@@ -216,7 +224,7 @@ export async function completeSupabaseAdminToken(c: Context, accessToken: string
 }
 
 export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
-  const token = getCookie(c, ADMIN_SESSION_COOKIE);
+  const token = getCookie(c, sessionCookieName(c));
   if (!token) return { authenticated: false };
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -225,7 +233,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
 
   const { data, error } = await getSupabaseAdminClient(c)
     .from('admin_sessions')
-    .select('id, user_id, membership_id, email, role, expires_at, revoked_at, last_seen_at, admin_memberships!inner(display_name, status)')
+    .select('id, user_id, membership_id, email, role, expires_at, revoked_at, last_seen_at, admin_memberships!inner(display_name, role, status)')
     .eq('token_hash', await sessionTokenHash(token))
     .is('revoked_at', null)
     .maybeSingle();
@@ -255,12 +263,13 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
     membership_id: data.membership_id,
     email: data.email,
     display_name: membership.display_name,
-    role: data.role,
+    role: membership.role,
   };
 }
 
 export async function revokeAdminSession(c: Context): Promise<void> {
-  const token = getCookie(c, ADMIN_SESSION_COOKIE);
+  const cookieName = sessionCookieName(c);
+  const token = getCookie(c, cookieName);
   if (token && isSupabaseAdminAuthConfigured(c)) {
     await getSupabaseAdminClient(c)
       .from('admin_sessions')
@@ -268,7 +277,22 @@ export async function revokeAdminSession(c: Context): Promise<void> {
       .eq('token_hash', await sessionTokenHash(token));
   }
 
-  deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
+  deleteCookie(c, cookieName, { path: '/' });
+  if (cookieName !== ADMIN_SESSION_COOKIE) {
+    deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
+  }
+}
+
+export async function revokeAdminSessionsForMembership(c: Context, membershipId: string): Promise<void> {
+  const { error } = await getSupabaseAdminClient(c)
+    .from('admin_sessions')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('membership_id', membershipId)
+    .is('revoked_at', null);
+
+  if (error) {
+    throw new Error('Unable to revoke organizer sessions');
+  }
 }
 
 export function assertAdminOrigin(c: Context): globalThis.Response | null {
@@ -277,7 +301,9 @@ export function assertAdminOrigin(c: Context): globalThis.Response | null {
   }
 
   const origin = c.req.header('origin');
-  if (!origin) return null;
+  if (!origin) {
+    return c.json({ error: 'Request origin is required' }, 403);
+  }
 
   const requestOrigin = new URL(c.req.url).origin;
   if (origin === requestOrigin || configuredFrontendOrigins(c).has(origin)) {
@@ -316,23 +342,42 @@ export async function recordAdminAudit(c: Context, input: {
     });
 
   if (error) {
-    console.warn('Failed to record admin audit log:', error.message);
+    console.error(JSON.stringify({
+      event: 'admin_audit_write_failed',
+      action: input.action,
+      target_type: input.target_type ?? null,
+      target_id: input.target_id ?? null,
+      error_code: error.code ?? null,
+    }));
   }
 }
 
 export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'organizer']): Promise<globalThis.Response | null> {
-  const originError = assertAdminOrigin(c);
-  if (originError) return originError;
-
   // The /api/* middleware resolves the session once per request; handlers that
   // re-check roles reuse it instead of paying for another Supabase round trip.
   const cached = c.get('adminSession') as AdminSession | undefined;
   const session = cached ?? await getAdminSession(c);
   if (!session.authenticated) {
+    console.warn(JSON.stringify({
+      event: 'admin_access_denied',
+      reason: 'session_required',
+      method: c.req.method,
+      path: securitySafeRequestPath(c.req.path),
+    }));
     return c.json({ error: 'Admin session required' }, 401);
   }
 
+  const originError = assertAdminOrigin(c);
+  if (originError) return originError;
+
   if (!roles.includes(session.role)) {
+    console.warn(JSON.stringify({
+      event: 'admin_access_denied',
+      reason: 'role_required',
+      role: session.role,
+      method: c.req.method,
+      path: securitySafeRequestPath(c.req.path),
+    }));
     return c.json({ error: 'Owner access required' }, 403);
   }
 

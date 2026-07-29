@@ -25,18 +25,24 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 
 Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
 
-All public `/api/public/*` endpoints:
+Public `/api/public/*` endpoints:
 
 - are unauthenticated read-only endpoints
 - send permissive CORS headers for static-site consumption
-- send short public cache headers
 - return JSON objects
+
+Meetup and archive reads send short public cache headers. `/api/public/home` is
+explicitly non-cacheable because older versions of that aggregate included
+attendance-derived data.
 
 Meetup list, meetup detail, and compatibility-talk responses use a top-level `data` field. Event Archive and homepage endpoints return their payloads directly:
 
 - `/api/public/archive`: `{ events, talks, archive_items }`
 - `/api/public/archive/:eventId`: `{ event, talks, archive_items, feedback }`
-- `/api/public/home`: `{ completed_events_count, published_talks_count, recent_talks, regulars, cfp_event }`
+- `/api/public/home`: `{ completed_events_count, published_talks_count, recent_talks, regulars: [], cfp_event }`
+
+`regulars` remains as an always-empty compatibility field so existing website
+clients do not break; it never contains attendee or attendance-derived data.
 
 ## List Response
 
@@ -47,6 +53,7 @@ Meetup list, meetup detail, and compatibility-talk responses use a top-level `da
       "id": "event-id",
       "slug": "devcon-comm-march-2026-a1a7b2e5",
       "name": "DevCon-Comm March 2026",
+      "series_type": "monthly",
       "status": "upcoming",
       "start": "2026-03-15T18:00:00+00:00",
       "end": "2026-03-15T21:00:00+00:00",
@@ -58,7 +65,7 @@ Meetup list, meetup detail, and compatibility-talk responses use a top-level `da
       },
       "stream_url": null,
       "embed_stream": false,
-      "registration_url": "http://localhost:3000/cfp/event-id",
+      "registration_url": "http://localhost:3000/r/devcon-comm-march-2026-a1a7b2e5",
       "speakers": [],
       "schedule": [],
       "photos": [],
@@ -80,6 +87,7 @@ Meetup list, meetup detail, and compatibility-talk responses use a top-level `da
 The meetup DTO follows the current `devcongress.org` Astro meetup schema where practical:
 
 - `start`, `end`, and `updated_at` use `YYYY-MM-DDTHH:mm:ss+00:00` datetime strings.
+- `series_type` is `monthly`, `quarterly`, `special`, or `null` when the event belongs to no DevCongress series.
 - `location.url`, `stream_url`, `registration_url`, speaker images, schedule resource URLs, videos, `cfp_url`, and `archive_url` are full URLs when present.
 - `cover` and `photos[].url` may be app-relative paths because the Astro schema allows relative image paths.
 - `photos[]` supports direct image links and shared gallery/folder links. Each item uses `{ "url": string, "type": "image" | "folder" }`.

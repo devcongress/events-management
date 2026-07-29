@@ -2,9 +2,8 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem } from '@/lib/system-design';
-import { fetchPreviewPublicMeetup, fetchPublicMeetup, queryKeys } from '@/src/lib/api';
+import { fetchPublicMeetup, queryKeys } from '@/src/lib/api';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 
@@ -16,28 +15,18 @@ let meetupPhotoTimer: number | undefined;
 let meetupPhotoShiftTimer: number | undefined;
 const PUBLIC_TALK_SUMMARY_WORDS = 38;
 
-const isLumaPreview = computed(() => route.query.preview === 'luma' && typeof route.query.eventUrl === 'string');
-const previewEventUrl = computed(() => (typeof route.query.eventUrl === 'string' ? route.query.eventUrl : ''));
-const previewSeriesType = computed(() => (isEventSeriesType(route.query.seriesType) ? route.query.seriesType : undefined));
 const meetupSlug = computed(() => String(route.params.slug ?? ''));
 const backLink = computed(() => ({
   to: '/events',
   label: 'All meetups',
 }));
 const meetupQuery = useQuery({
-  queryKey: computed(() => (isLumaPreview.value
-    ? ['public-meetup-preview', previewEventUrl.value, previewSeriesType.value ?? 'default']
-    : queryKeys.publicMeetup(meetupSlug.value))),
+  queryKey: computed(() => queryKeys.publicMeetup(meetupSlug.value)),
   queryFn: async () => {
-    if (isLumaPreview.value && previewEventUrl.value) {
-      const payload = await fetchPreviewPublicMeetup(previewEventUrl.value, previewSeriesType.value);
-      return payload.data;
-    }
-
     const payload = await fetchPublicMeetup(meetupSlug.value);
     return payload.data;
   },
-  enabled: computed(() => (isLumaPreview.value ? Boolean(previewEventUrl.value) : Boolean(meetupSlug.value))),
+  enabled: computed(() => Boolean(meetupSlug.value)),
   staleTime: 0,
 });
 const meetup = computed<PublicMeetup | null>(() => meetupQuery.data.value ?? null);
@@ -212,7 +201,7 @@ function startMeetupPhotoRotation() {
 function refreshMeetupQueries() {
   void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
 
-  if (!isLumaPreview.value && meetupSlug.value) {
+  if (meetupSlug.value) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetup(meetupSlug.value) });
   }
 }
@@ -305,16 +294,9 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
       </section>
 
       <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
-        <RouterLink v-if="!isLumaPreview" :to="backLink.to" class="mb-8 inline-flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-wide text-dc-gray transition-colors hover:text-dc-pink">
+        <RouterLink :to="backLink.to" class="mb-8 inline-flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-wide text-dc-gray transition-colors hover:text-dc-pink">
           <span>&larr;</span> {{ backLink.label }}
         </RouterLink>
-
-        <section v-if="isLumaPreview" class="mb-8 rounded-lg border border-dc-border bg-dc-paper-warm px-5 py-4">
-          <p class="editorial-eyebrow">preview mode</p>
-          <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
-            This is the public meetup page shell from the current Luma import. Schedule, speakers, gallery, and recap details can be added later after the event shell is imported.
-          </p>
-        </section>
 
         <section class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
           <div>

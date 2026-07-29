@@ -40,6 +40,9 @@ const emit = defineEmits<{
           {{ title }}
         </h2>
         <p class="mt-3 text-sm leading-6 text-dc-gray">{{ message }}</p>
+        <div v-if="$slots.default" class="mt-4">
+          <slot />
+        </div>
         <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"

@@ -7,7 +7,8 @@ Feature docs explain user-facing behavior, key files, and follow-up work. Add a 
 | Feature | Status | Document |
 |---|---|---|
 | Event Publishing | Active | [event-publishing.md](event-publishing.md) |
-| Luma Attendance | Active | [luma-attendance.md](luma-attendance.md) |
+| Native Registration | Active — free meetups | [native-registration.md](native-registration.md) |
+| Historical Luma Attendance | Legacy import/readout | [luma-attendance.md](luma-attendance.md) |
 | Feedback | Active | [feedback.md](feedback.md) |
 | Quiz | Preview | [quiz.md](quiz.md) |
 | Speaker Email Delivery with Resend | Active — program multi-send pilot | [speaker-link-email.md](speaker-link-email.md) |

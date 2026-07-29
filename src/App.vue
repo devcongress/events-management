@@ -10,8 +10,10 @@ import { notify } from './lib/notify';
 import { queryClient } from './lib/query';
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
+  ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_PATH,
+  isOrganizerPhoneRouteName,
   organizerViewportRedirect,
 } from './organizer-viewport';
 import { SPEAKER_TALK_INTAKE_ROUTE_NAME } from './speaker-intake-route';
@@ -59,6 +61,9 @@ const isAdminRoute = computed(() => isAdminPath(route.path));
 const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
   || route.name === 'event-cfp'
+  || route.name === 'event-registration-short'
+  || route.name === 'event-registration'
+  || route.name === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
   || route.name === 'admin-feedback-display'
   || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME
   || route.name === 'volunteer-intake'
@@ -102,7 +107,7 @@ const showOrganizerPhoneView = computed(() => (
   isOrganizerAuthenticated.value
   && isAdminRoute.value
   && phoneViewport.value
-  && route.name === ORGANIZER_PHONE_ROUTE_NAME
+  && isOrganizerPhoneRouteName(route.name)
 ));
 const navGroups = computed(() => {
   if (showOrganizerPhoneView.value) {
@@ -174,7 +179,7 @@ const showAdminEventTabs = computed(() => Boolean(
 const appMainStyle = computed(() => ({
   '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
 }));
-const adminEventSectionOrder = ['', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
+const adminEventSectionOrder = ['', 'registrations', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
 
 function getAdminEventSection(path: string): { eventId: string; index: number } | null {
   const eventsBase = `${adminPath('events')}/`;
@@ -274,6 +279,7 @@ function syncOrganizerViewportRoute() {
     isAdminRoute: isAdminRoute.value,
     isPhone: phoneViewport.value,
     routeName: route.name,
+    eventId: typeof adminEventId.value === 'string' ? adminEventId.value : null,
   });
 
   if (redirect && redirect !== route.path) {

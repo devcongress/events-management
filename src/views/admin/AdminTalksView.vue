@@ -7,6 +7,7 @@ import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
+import { resolveEventSeriesType } from '@/lib/event-series';
 import { archiveRequestProgramItems, sameArchiveProgramItemIdentity } from '@/lib/speaker-archive-email';
 import type { ArchiveItemKind, Event, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
@@ -135,7 +136,9 @@ const cfpFormUrl = computed(() => {
 const eventStatus = computed(() => event.value?.status ?? 'draft');
 const cfpIsOpen = computed(() => eventStatus.value === 'cfp_open');
 const cfpIsClosed = computed(() => eventStatus.value === 'cfp_closed');
-const eventIsMonthly = computed(() => (event.value?.series_type ?? (event.value?.name?.toLowerCase().includes('quarterly') ? 'quarterly' : 'monthly')) === 'monthly');
+const eventIsMonthly = computed(() => (
+  event.value ? resolveEventSeriesType(event.value) === 'monthly' : false
+));
 const eventIsUpcoming = computed(() => {
   if (!event.value?.event_date) return false;
   const eventDateMs = new Date(event.value.event_date).getTime();
@@ -258,6 +261,24 @@ async function fetchSpeakerIntakeLinks() {
     const data = await response.json();
     speakerIntakeLinks.value = data.links ?? [];
   }
+}
+
+function rememberIssuedSpeakerLink(payload: { link?: AdminSpeakerIntakeLink | null; token?: string | null }) {
+  if (!payload.link || !payload.token) return;
+
+  const issuedLink: AdminSpeakerIntakeLink = {
+    ...payload.link,
+    token: payload.token,
+  };
+  const index = speakerIntakeLinks.value.findIndex((link) => link.id === issuedLink.id);
+  if (index === -1) {
+    speakerIntakeLinks.value = [issuedLink, ...speakerIntakeLinks.value];
+    return;
+  }
+
+  const next = [...speakerIntakeLinks.value];
+  next[index] = issuedLink;
+  speakerIntakeLinks.value = next;
 }
 
 async function fetchPageData() {
@@ -388,6 +409,7 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
     if (response.ok) {
       await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
       if (status === 'selected' && data.token) {
+        rememberIssuedSpeakerLink(data);
         resetSpeakerIntakeLinkCopied();
         notify.success('Private archive completion link generated.');
       } else {
@@ -417,7 +439,7 @@ async function generateSelectedSpeakerLinks() {
   try {
     // Independent mutations: run them concurrently instead of paying one
     // round trip per selected speaker.
-    await Promise.all(submissionsNeedingLinks.map(async (submission) => {
+    const issuedLinks = await Promise.all(submissionsNeedingLinks.map(async (submission) => {
       const response = await fetch(`/api/speaker-submissions/${submission.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -431,9 +453,11 @@ async function generateSelectedSpeakerLinks() {
       if (!response.ok) {
         throw new Error(data.error || `Could not generate an archive completion link for ${submission.speaker_name}.`);
       }
+      return data as { link?: AdminSpeakerIntakeLink | null; token?: string | null };
     }));
 
     await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
+    issuedLinks.forEach(rememberIssuedSpeakerLink);
     resetSpeakerIntakeLinkCopied();
     notify.success(submissionsNeedingLinks.length === 1 ? 'Archive completion link generated.' : 'Selected presenter links generated.');
   } catch (caught) {
@@ -1079,7 +1103,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <p v-if="!link.token" class="mt-3 rounded-md border border-dc-border bg-dc-paper px-3 py-2 text-sm leading-6 text-dc-gray">
-                  This older link was generated before link recovery was enabled. Generate a new one if you need to copy it again.
+                  For security, private tokens are shown only when issued and are never stored in recoverable form. Generate a new link if you need to copy it again.
                 </p>
               </article>
             </div>

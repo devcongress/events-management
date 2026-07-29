@@ -185,7 +185,7 @@ Do not copy `server/app.ts` wholesale. It is a large mixed route file and import
 2. organizer memberships and audit log;
 3. community events and public meetup projections;
 4. event checklist, speakers, talks, and speaker intake;
-5. attendance and Luma imports;
+5. native registration and historical attendance compatibility;
 6. feedback and media;
 7. leaderboard/account compatibility domains;
 8. quiz builder and live quiz coordination.

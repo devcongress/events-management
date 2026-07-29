@@ -164,7 +164,7 @@ describe('speaker intake email API', () => {
     expect(resendFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps a rejected provider request retryable with the same private link', async () => {
+  it('reissues a fresh private link when a provider-rejected email is retried', async () => {
     const resendFetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>()
       .mockResolvedValueOnce(new Response('{}', { status: 429 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -190,19 +190,16 @@ describe('speaker intake email API', () => {
     await expect(retryResponse.json()).resolves.toMatchObject({ sent_count: 1 });
     const [acceptedLink] = await links.getSpeakerIntakeLinksByEvent(event.id);
     expect(acceptedLink).toMatchObject({
-      id: failedLink.id,
-      token: failedLink.token,
+      token: null,
       email_status: 'accepted',
       email_provider_id: 'resend-retry',
     });
+    expect(acceptedLink.id).not.toBe(failedLink.id);
     expect(resendFetch.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({
       'Idempotency-Key': expect.any(String),
     }));
-    expect(resendFetch.mock.calls[1][1]?.headers).toEqual(expect.objectContaining({
-      'Idempotency-Key': resendFetch.mock.calls[0][1]?.headers
-        ? (resendFetch.mock.calls[0][1]!.headers as Record<string, string>)['Idempotency-Key']
-        : '',
-    }));
+    expect((resendFetch.mock.calls[1][1]!.headers as Record<string, string>)['Idempotency-Key'])
+      .not.toBe((resendFetch.mock.calls[0][1]!.headers as Record<string, string>)['Idempotency-Key']);
   });
 
   it('rejects an invalid organizer-provided email before calling Resend', async () => {
