@@ -228,9 +228,7 @@ const eventRegistrationCampaignUpdateSchema = z.object({
   capacity: z.coerce.number().int().min(1).max(5000).optional(),
   opens_at: z.string().datetime().nullable().optional(),
   closes_at: z.string().datetime().nullable().optional(),
-  waitlist_enabled: z.boolean().optional(),
-  auto_confirm: z.boolean().optional(),
-}).superRefine((value, ctx) => {
+}).strict().superRefine((value, ctx) => {
   if (
     value.opens_at
     && value.closes_at
@@ -1287,7 +1285,12 @@ function publicRegistrationCalendarUrl(event: Event, c: Context): string {
 async function sendPendingRegistrationConfirmationEmails(
   event: Event,
   c: Context,
-  options: { registrationId?: string; limit?: number } = {},
+  options: {
+    registrationId?: string;
+    limit?: number;
+    statuses?: Array<'pending' | 'failed'>;
+    kinds?: Array<'confirmation' | 'promotion'>;
+  } = {},
 ): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailFrom = envValue('REGISTRATION_EMAIL_FROM', c)?.trim()
@@ -1298,8 +1301,12 @@ async function sendPendingRegistrationConfirmationEmails(
     return { configured: false, accepted: [], failed: [] };
   }
 
-  const pending = (await getPendingRegistrationEmails(event.id, options.limit ?? 100, c))
-    .filter((delivery) => !options.registrationId || delivery.registration_id === options.registrationId);
+  const pending = await getPendingRegistrationEmails(event.id, {
+    limit: options.limit,
+    registrationId: options.registrationId,
+    statuses: options.statuses,
+    kinds: options.kinds,
+  }, c);
   if (pending.length === 0) {
     return { configured: true, accepted: [], failed: [] };
   }
@@ -1315,6 +1322,7 @@ async function sendPendingRegistrationConfirmationEmails(
       eventUrl: publicRegistrationUrl(event, c),
       calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
       status: delivery.registration_status,
+      kind: delivery.kind,
     });
     return {
       from: emailFrom,
@@ -3493,6 +3501,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
     await sendPendingRegistrationConfirmationEmails(event, c, {
       registrationId: registration.id,
       limit: 1,
+      kinds: ['confirmation'],
     });
 
     return c.json({
@@ -3549,8 +3558,6 @@ app.post('/api/events', async (c) => {
     registration_capacity: body.registration?.capacity ?? 100,
     registration_opens_at: body.registration?.opens_at ?? '',
     registration_closes_at: body.registration?.closes_at ?? '',
-    waitlist_enabled: body.registration?.waitlist_enabled ?? true,
-    auto_confirm: body.registration?.auto_confirm ?? true,
   });
 
   if (!parsed.success) {
@@ -3702,23 +3709,40 @@ app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c
 
 app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) => {
   const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) {
+    return c.json({ error: 'Event not found.' }, 404);
+  }
   const registrations = await getEventRegistrations(eventId, c);
   const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
   if (!registration) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
 
-  const cancelled = await cancelRegistration(registration.id, c);
-  if (!cancelled) {
+  const result = await cancelRegistration(registration.id, c);
+  if (!result.cancelled) {
     return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+  if (result.promotedRegistrationId) {
+    await sendPendingRegistrationConfirmationEmails(event, c, {
+      registrationId: result.promotedRegistrationId,
+      limit: 1,
+      kinds: ['promotion'],
+    });
   }
   await auditAdminAction(c, {
     action: 'event.registration.cancel',
     targetType: 'event_registration',
     targetId: registration.id,
-    metadata: { event_id: eventId },
+    metadata: {
+      event_id: eventId,
+      promoted_registration_id: result.promotedRegistrationId,
+    },
   });
-  return c.json({ ok: true });
+  return c.json({
+    ok: true,
+    promoted_registration_id: result.promotedRegistrationId,
+  });
 });
 
 app.delete('/api/events/:eventId/registrations/:registrationId', async (c) => {
@@ -3752,7 +3776,9 @@ app.post('/api/events/:eventId/registration-emails/process', async (c) => {
   if (!event) {
     return c.json({ error: 'Event not found.' }, 404);
   }
-  const result = await sendPendingRegistrationConfirmationEmails(event, c);
+  const result = await sendPendingRegistrationConfirmationEmails(event, c, {
+    statuses: ['failed'],
+  });
   if (!result.configured) {
     return c.json({ error: 'Registration email sending is not configured.' }, 503);
   }

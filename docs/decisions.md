@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-028: Immediate Places With Contextual Registration Operations
+
+**Date:** 2026-07-29
+**Status:** Accepted
+**Context:** Free meetups do not require organizers to approve individual guests. The earlier campaign UI exposed `auto_confirm` and `waitlist_enabled` as monthly organizer settings, mixed capacity controls, guest actions, and email retries on one long page, and displayed waitlist/no-show concepts even when they had no operational meaning.
+**Decision:** Give every registration a place immediately while capacity remains, then place overflow registrations on the waitlist automatically. Keep the legacy database flags as internal compatibility fields fixed to that policy and reject organizer API attempts to change them. When an organizer cancels a confirmed guest, atomically promote the oldest waitlisted registration and queue a distinct transactional promotion notice; cancelling a waitlisted guest does not trigger promotion. Structure the organizer Registration area as **Summary**, **Guests**, **Form & Capacity**, and **Emails**. Show waitlist information only when overflow exists and calculate no-shows only after the event ends. Limit Emails to transactional receipt/waitlist/promotion delivery state and failed retries; do not add broadcasts, bulk messaging, exports, marketing analytics, pending approval, or an organizer-facing monthly auto-confirm setting.
+**Trade-offs:** Organizers cannot pause automatic allocation independently of closing the campaign or manually reorder/promote the waitlist. Oldest-first promotion is predictable and avoids a new discretionary admission surface; the shared campaign lock prevents registration and cancellation races from over-allocating capacity. The focused workspace reduces accidental policy changes and keeps privacy-sensitive guest operations distinct from campaign configuration and transactional delivery.
+**Alternatives considered:** Keep both booleans as organizer settings (creates contradictory monthly behavior), show every metric at all times (makes zero-value waitlists and pre-event no-shows look meaningful), add a general communications tab (expands authorization, privacy, audit, and abuse scope), or combine historical external registrations with native guests (misrepresents data provenance).
+**Revisit when:** Paid registration introduces explicit reservation/payment states, organizers need a documented waitlist-priority exception, or another event type requires approval-based admission.
+
+---
+
 ## ADR-027: Missing Campaign Means Registration Was Not Managed Internally
 
 **Date:** 2026-07-29

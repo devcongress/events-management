@@ -49,8 +49,6 @@ const form = reactive({
   registration_capacity: 100,
   registration_opens_at: '',
   registration_closes_at: '',
-  waitlist_enabled: true,
-  auto_confirm: true,
 });
 const createPending = ref(false);
 const createProgress = ref<'idle' | 'preparing-cover' | 'creating' | 'uploading-cover'>('idle');
@@ -515,20 +513,14 @@ function goToPage(nextPage: number) {
             </div>
             <AppDatePicker v-model="form.registration_opens_at" label="Opens at" mode="datetime" />
             <AppDatePicker v-model="form.registration_closes_at" label="Closes at" mode="datetime" />
-            <label class="flex items-start gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
-              <input v-model="form.auto_confirm" type="checkbox" class="mt-0.5 size-4 accent-dc-pink">
-              <span>
-                <span class="block text-sm font-bold text-dc-ink">Auto-confirm places</span>
-                <span class="mt-1 block text-xs leading-5 text-dc-gray">Confirm guests until capacity is reached.</span>
-              </span>
-            </label>
-            <label class="flex items-start gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
-              <input v-model="form.waitlist_enabled" type="checkbox" class="mt-0.5 size-4 accent-dc-pink">
-              <span>
-                <span class="block text-sm font-bold text-dc-ink">Enable waitlist</span>
-                <span class="mt-1 block text-xs leading-5 text-dc-gray">Keep collecting names after capacity.</span>
-              </span>
-            </label>
+            <div class="rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
+              <p class="text-sm font-bold text-dc-ink">Places are automatic</p>
+              <p class="mt-1 text-xs leading-5 text-dc-gray">Each registration receives a place until capacity is reached. No organizer approval is required.</p>
+            </div>
+            <div class="rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
+              <p class="text-sm font-bold text-dc-ink">Overflow becomes the waitlist</p>
+              <p class="mt-1 text-xs leading-5 text-dc-gray">Once capacity is full, later registrations join the waitlist automatically.</p>
+            </div>
             <div class="rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
               <p class="text-sm font-bold text-dc-ink">Check-in method</p>
               <p class="mt-1 text-xs leading-5 text-dc-gray">Organizers search by guest name or email. No QR code or confirmation code.</p>

@@ -10,8 +10,6 @@ const baseline: RegistrationSettingsDraft = {
   capacity: 100,
   opens_at: '2026-07-28T08:11',
   closes_at: '2026-07-29T08:11',
-  auto_confirm: true,
-  waitlist_enabled: true,
 };
 
 describe('registration settings change review', () => {
@@ -24,8 +22,7 @@ describe('registration settings change review', () => {
       ...baseline,
       status: 'open',
       capacity: 150,
-      waitlist_enabled: false,
-    })).toEqual(['status', 'capacity', 'waitlist_enabled']);
+    })).toEqual(['status', 'capacity']);
   });
 
   it('recognizes only the explicit one-time creation handoff', () => {

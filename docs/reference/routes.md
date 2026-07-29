@@ -37,7 +37,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/organizers` | Owner-only organizer email allowlist |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
-| `/organizer-console/events/:eventId/registrations` | Registration campaign settings, public-link sharing, guest-list search, name/email check-in, cancellation, confirmation-email retries, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
+| `/organizer-console/events/:eventId/registrations` | Four-part registration workspace for capacity summary, public-link/settings, private guest operations, atomic cancellation/promotion, transactional delivery retries, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
 | `/organizer-console/events/:eventId/talks` | Compatibility URL that redirects to the Event Archive CFP step |
 | `/organizer-console/events/:eventId/talks/cfp` | CFP status and organizer proposal review controls |
 | `/organizer-console/events/:eventId/talks/proposals` | Talk and product-demo proposal review, organizer selection decisions, and selected-presenter Archive completion links |
@@ -60,8 +60,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/events*` | Event list, event details, organizer mutations, event removal, media metadata |
 | `GET/POST /api/registration/events/:eventKey` | Public registration status and non-enumerating name/email submission by event slug or ID, protected by strict input validation, production Turnstile, atomic cross-Worker limits, campaign/email uniqueness, and atomic capacity allocation |
 | `GET /api/registration/events/:eventKey/calendar.ics` | Public, attendee-free calendar download used by confirmed registration emails |
-| `/api/events/:eventId/registrations*` | Organizer registration settings, private guest list, check-in, cancellation, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
-| `POST /api/events/:eventId/registration-emails/process` | Organizer retry for queued confirmation emails |
+| `/api/events/:eventId/registrations*` | Organizer registration status/window/capacity, private guest list, check-in, cancellation with atomic oldest-waitlisted promotion, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. Monthly place allocation and overflow waitlisting are server policy, not mutable organizer settings. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
+| `POST /api/events/:eventId/registration-emails/process` | Organizer retry for failed transactional receipt, waitlist, or promotion deliveries |
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
 | `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send using stored program identities and validated one-off recipient emails; successful identities are suppressed from repeat UI/API sends |
 | `GET /api/cfp/events/:eventId` | Minimal public event context for an open monthly CFP; avoids exposing organizer event records |

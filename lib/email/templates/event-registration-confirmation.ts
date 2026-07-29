@@ -1,5 +1,5 @@
 import { safeGoogleMapsUrl } from '@/lib/location-links';
-import type { EventRegistrationStatus } from '@/types';
+import type { EventRegistrationStatus, RegistrationEmailKind } from '@/types';
 
 const EVENT_TIME_ZONE = 'Africa/Accra';
 const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
@@ -16,6 +16,7 @@ type EventCalendarDetails = {
 export type EventRegistrationEmailInput = EventCalendarDetails & {
   attendeeName: string;
   status: EventRegistrationStatus;
+  kind?: RegistrationEmailKind;
   locationUrl?: string | null;
   calendarDownloadUrl?: string | null;
 };
@@ -260,16 +261,25 @@ export function eventRegistrationConfirmationEmail(
   input: EventRegistrationEmailInput,
 ): { subject: string; html: string; text: string } {
   const waitlisted = input.status === 'waitlisted';
+  const promoted = input.kind === 'promotion';
   const attendeeName = textLine(input.attendeeName, 'there');
   const eventName = textLine(input.eventName, 'DevCongress event');
   const locationName = textLine(input.locationName, 'Location to be announced');
-  const subject = waitlisted
-    ? `You are on the waitlist for ${eventName}`
-    : `You are registered for ${eventName}`;
-  const heading = waitlisted ? 'You’re on the waitlist.' : 'You’re in. See you there!';
-  const statusLine = waitlisted
-    ? 'We’ll email you if a place becomes available.'
-    : 'Your place is saved. Here’s everything you need for the day.';
+  const subject = promoted
+    ? `A place opened up for ${eventName}`
+    : waitlisted
+      ? `You are on the waitlist for ${eventName}`
+      : `You are registered for ${eventName}`;
+  const heading = promoted
+    ? 'You’re off the waitlist.'
+    : waitlisted
+      ? 'You’re on the waitlist.'
+      : 'You’re in. See you there!';
+  const statusLine = promoted
+    ? 'A place became available and is now saved for you.'
+    : waitlisted
+      ? 'We’ll email you if a place becomes available.'
+      : 'Your place is saved. Here’s everything you need for the day.';
   const schedule = formatEventSchedule(input);
   const mapUrl = safeGoogleMapsUrl(input.locationUrl);
   const eventUrl = safeHttpUrl(input.eventUrl);
@@ -347,7 +357,11 @@ export function eventRegistrationConfirmationEmail(
   </head>
   <body class="email-body" style="margin:0;background:#F5F2E8;color:#111111;font-family:Inter,'Helvetica Neue',Arial,sans-serif;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-      ${escapeHtml(waitlisted ? `Waitlist details for ${eventName}.` : `Your date, time, location, and calendar links for ${eventName}.`)}
+      ${escapeHtml(promoted
+        ? `Your waitlist promotion and event details for ${eventName}.`
+        : waitlisted
+          ? `Waitlist details for ${eventName}.`
+          : `Your date, time, location, and calendar links for ${eventName}.`)}
     </div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5F2E8" class="email-canvas" style="width:100%;background:#F5F2E8;">
       <tr>
@@ -376,7 +390,7 @@ export function eventRegistrationConfirmationEmail(
             </tr>
             <tr>
               <td bgcolor="#FFFFFF" class="email-content email-pad" style="padding:38px 38px 34px;background:#FFFFFF;">
-                <p style="margin:0 0 10px;color:#C80D68;font-family:'Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">${waitlisted ? 'Waitlist update' : 'Registration confirmed'}</p>
+                <p style="margin:0 0 10px;color:#C80D68;font-family:'Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">${promoted ? 'Place available' : waitlisted ? 'Waitlist update' : 'Registration confirmed'}</p>
                 <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:38px;font-weight:800;line-height:1.08;letter-spacing:-.025em;">${escapeHtml(heading)}</h1>
                 <p class="email-copy" style="margin:0 0 28px;color:#4B4B4B;font-size:17px;line-height:1.6;">Hi ${safe.attendeeName}, ${escapeHtml(statusLine)}</p>
                 <p class="email-title" style="margin:0 0 16px;color:#111111;font-size:22px;font-weight:800;line-height:1.3;">${safe.eventName}</p>

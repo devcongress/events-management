@@ -74,8 +74,6 @@ export const createEventFormSchema = z.object({
   registration_capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1.').max(5000, 'Capacity cannot exceed 5,000.').default(100),
   registration_opens_at: z.string().trim().optional().default(''),
   registration_closes_at: z.string().trim().optional().default(''),
-  waitlist_enabled: z.boolean().default(true),
-  auto_confirm: z.boolean().default(true),
 }).superRefine((value, ctx) => {
   if (value.end_date && !isValidCalendarValue(value.end_date)) {
     ctx.addIssue({
@@ -185,8 +183,8 @@ export function toCreateEventApiPayload(value: CreateEventFormPayload) {
       capacity: value.registration_capacity,
       opens_at: emptyToNull(value.registration_opens_at),
       closes_at: emptyToNull(value.registration_closes_at),
-      waitlist_enabled: value.waitlist_enabled,
-      auto_confirm: value.auto_confirm,
+      waitlist_enabled: true,
+      auto_confirm: true,
     },
   };
 }

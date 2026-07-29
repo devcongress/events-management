@@ -11,6 +11,14 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Kept the legacy/local `devcon_admin` cookie cleanup so sessions created before the secure-cookie migration are still removed.
 - Added an HTTPS logout regression test that verifies the successful response and both cookie-expiry headers.
 
+## 2026-07-29 — Focused registration operations workspace
+
+- Split native registration into Summary, Guests, Form & Capacity, and Emails so capacity context, attendee actions, campaign configuration, and transactional delivery are no longer mixed on one page.
+- Added contextual waitlist visibility, post-event-only no-shows, guest status filters, and distinct accepted/queued/failed delivery counts while preserving name/email and first-letter check-in.
+- Removed organizer-facing auto-confirm and waitlist toggles from event creation and campaign updates: free registrations receive places immediately until capacity, then overflow joins the waitlist automatically.
+- Added concurrency-safe oldest-first waitlist promotion when a confirmed guest is cancelled, including a durable promotion-notice outbox record, automatic delivery attempt, failed retry support, and promotion metadata in the organizer audit event.
+- Kept Emails transactional-only, explicitly excluding broadcasts, bulk messages, exports, and marketing analytics.
+
 ## 2026-07-29 — Reviewable Dependabot updates
 
 - Disabled routine npm and GitHub Actions version-update pull requests so outdated-but-not-vulnerable packages no longer create repository noise.

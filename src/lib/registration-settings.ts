@@ -7,8 +7,6 @@ export interface RegistrationSettingsDraft {
   capacity: number;
   opens_at: string;
   closes_at: string;
-  waitlist_enabled: boolean;
-  auto_confirm: boolean;
 }
 
 export type RegistrationSettingsField = keyof RegistrationSettingsDraft;
@@ -18,8 +16,6 @@ export const REGISTRATION_SETTINGS_FIELDS: RegistrationSettingsField[] = [
   'capacity',
   'opens_at',
   'closes_at',
-  'auto_confirm',
-  'waitlist_enabled',
 ];
 
 export function changedRegistrationSettings(

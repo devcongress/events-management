@@ -17,6 +17,7 @@ export type EventSeriesType = 'monthly' | 'quarterly' | 'special';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
+export type RegistrationEmailKind = 'confirmation' | 'promotion';
 
 // ---- Entities ----
 export interface Event {
@@ -78,6 +79,7 @@ export interface EventRegistration {
   cancelled_at: string | null;
   checked_in_at: string | null;
   email_status: RegistrationEmailDeliveryStatus | null;
+  email_kind?: RegistrationEmailKind | null;
   created_at: string;
   updated_at: string;
 }
