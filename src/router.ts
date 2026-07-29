@@ -34,6 +34,8 @@ const FeedbackView = () => import('./views/FeedbackView.vue');
 const CfpView = () => import('./views/CfpView.vue');
 const VolunteerIntakeView = () => import('./views/VolunteerIntakeView.vue');
 const EventRegistrationView = () => import('./views/EventRegistrationView.vue');
+const EventsView = () => import('./views/EventsView.vue');
+const EventView = () => import('./views/EventView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
@@ -85,6 +87,16 @@ export const router = createRouter({
       component: AdminMobileCheckInView,
     },
     { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
+    {
+      path: adminPath('website-preview/events'),
+      name: 'admin-public-events-preview',
+      component: EventsView,
+    },
+    {
+      path: adminPath('website-preview/events/:slug'),
+      name: 'admin-public-event-preview',
+      component: EventView,
+    },
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
     { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },

@@ -2,8 +2,11 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem } from '@/lib/system-design';
+import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
+import PublicEventPreviewBar from '@/src/components/PublicEventPreviewBar.vue';
+import { adminPath } from '@/src/admin-routes';
 import { fetchPublicMeetup, queryKeys } from '@/src/lib/api';
+import { canEmbedPublicMeetupMedia } from '@/src/lib/public-meetup-media';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 
@@ -17,9 +20,12 @@ const PUBLIC_TALK_SUMMARY_WORDS = 38;
 
 const meetupSlug = computed(() => String(route.params.slug ?? ''));
 const backLink = computed(() => ({
-  to: '/events',
+  to: adminPath('website-preview/events'),
   label: 'All meetups',
 }));
+const publicEndpoint = computed(() => (
+  `/api/public/meetups/${encodeURIComponent(meetupSlug.value)}`
+));
 const meetupQuery = useQuery({
   queryKey: computed(() => queryKeys.publicMeetup(meetupSlug.value)),
   queryFn: async () => {
@@ -36,7 +42,6 @@ const scheduleItems = computed(() => canonicalizeSystemDesignSchedule(meetup.val
 const imagePhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => !photo.type || photo.type === 'image'));
 const folderPhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) => photo.type === 'folder'));
 const isQuarterlyMeetup = computed(() => meetup.value?.series_type === 'quarterly');
-const systemDesignArchivePath = computed(() => meetup.value ? `/archive/${meetup.value.id}` : '');
 const stackedImagePhotos = computed(() => {
   const photos = imagePhotos.value;
   if (photos.length === 0) return [];
@@ -90,10 +95,6 @@ function statusLabel(status: PublicMeetup['status']) {
   return 'Past';
 }
 
-function systemDesignActionLabel(status: PublicMeetup['status']) {
-  return status === 'past' ? 'View recap' : 'View details';
-}
-
 function primaryAction(meetupItem: PublicMeetup): { href: string | null; label: string | null } {
   if (meetupItem.status === 'upcoming') {
     if (meetupItem.registration_url) return { href: meetupItem.registration_url, label: 'Register' };
@@ -104,8 +105,8 @@ function primaryAction(meetupItem: PublicMeetup): { href: string | null; label: 
     return { href: meetupItem.stream_url, label: meetupItem.embed_stream ? 'Watch stream' : 'Follow live' };
   }
 
-  if (meetupItem.status === 'past' && meetupItem.archive_url) {
-    return { href: meetupItem.archive_url, label: 'View recap' };
+  if (meetupItem.status === 'past' && meetupItem.stream_url && !meetupItem.embed_stream) {
+    return { href: meetupItem.stream_url, label: 'Watch recording' };
   }
 
   return { href: null, label: null };
@@ -236,6 +237,11 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
 
 <template>
   <div class="editorial-page">
+    <PublicEventPreviewBar
+      :endpoint="publicEndpoint"
+      detail
+    />
+
     <div v-if="loading" class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
       <div class="view-skeleton space-y-6" aria-busy="true" aria-label="Loading meetup">
         <div class="skeleton-line skeleton-line--third h-12" />
@@ -252,15 +258,19 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
         <p class="editorial-eyebrow">meetup</p>
         <h1 class="mt-3 text-4xl font-extrabold tracking-tight text-dc-ink">Meetup not found</h1>
         <p class="mt-3 text-sm leading-6 text-dc-gray">{{ error ?? 'This meetup could not be loaded.' }}</p>
-        <RouterLink to="/events" class="editorial-secondary-action mt-6 inline-flex">Back to Events</RouterLink>
+        <RouterLink :to="backLink.to" class="editorial-secondary-action mt-6 inline-flex">Back to Events</RouterLink>
       </div>
     </div>
 
     <template v-else>
       <section
         class="relative min-h-[36rem] overflow-hidden border-b-2 border-dc-ink bg-dc-ink sm:min-h-[40rem] lg:min-h-[44rem] xl:min-h-[48rem]"
-        :style="{ backgroundImage: `url('${meetup.cover}')`, backgroundSize: 'cover', backgroundPosition: 'center' }"
       >
+        <img
+          :src="meetup.cover"
+          alt=""
+          class="absolute inset-0 size-full object-cover"
+        >
         <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,17,17,0.34)_0%,rgba(17,17,17,0.28)_38%,rgba(17,17,17,0.78)_100%)]" />
         <div class="relative mx-auto flex min-h-[36rem] max-w-7xl items-end px-4 pb-10 pt-32 sm:min-h-[40rem] sm:px-6 sm:pb-12 lg:min-h-[44rem] lg:px-8 lg:pb-16 xl:min-h-[48rem]">
           <div class="max-w-3xl">
@@ -325,6 +335,42 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
               <span>{{ meetupPrimaryAction.label }}</span>
               <span aria-hidden="true" class="text-lg leading-none transition-transform duration-200 group-hover:translate-x-0.5">→</span>
             </component>
+          </div>
+        </section>
+
+        <section
+          v-if="meetup.stream_url && meetup.embed_stream"
+          class="mt-12"
+          aria-labelledby="event-stream-heading"
+        >
+          <div class="mb-5">
+            <p class="editorial-eyebrow">{{ meetup.status === 'past' ? 'recording' : 'live stream' }}</p>
+            <h2 id="event-stream-heading" class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">
+              {{ meetup.status === 'past' ? 'Watch the meetup' : 'Follow the meetup live' }}
+            </h2>
+          </div>
+          <div class="overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-ink shadow-[4px_4px_0_#e8117f]">
+            <iframe
+              v-if="canEmbedPublicMeetupMedia(meetup.stream_url)"
+              :src="meetup.stream_url"
+              :title="`${meetup.name} ${meetup.status === 'past' ? 'recording' : 'live stream'}`"
+              class="aspect-video w-full border-0"
+              loading="lazy"
+              allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+              sandbox="allow-scripts allow-same-origin allow-presentation"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            />
+            <div v-else class="flex min-h-56 items-center justify-center p-6">
+              <a
+                :href="meetup.stream_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="editorial-action"
+              >
+                {{ meetup.status === 'past' ? 'Open recording' : 'Open live stream' }}
+              </a>
+            </div>
           </div>
         </section>
 
@@ -395,15 +441,7 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
                   </span>
                 </div>
                 <p v-if="item.lead" class="mt-2 text-sm text-dc-gray">Led by {{ item.lead }}</p>
-                <div v-if="isSystemDesignSessionItem(item) && systemDesignArchivePath" class="mt-3 flex flex-wrap gap-2">
-                  <RouterLink
-                    :to="systemDesignArchivePath"
-                    class="rounded-md border border-dc-border px-3 py-1.5 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm"
-                  >
-                    {{ systemDesignActionLabel(meetup.status) }}
-                  </RouterLink>
-                </div>
-                <div v-else-if="item.resources.length > 0" class="mt-3 flex flex-wrap gap-2">
+                <div v-if="item.resources.length > 0" class="mt-3 flex flex-wrap gap-2">
                   <a
                     v-for="resource in item.resources"
                     :key="resource.url"
@@ -432,7 +470,10 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
           </ol>
         </section>
 
-        <section v-if="imagePhotos.length > 0 || folderPhotos.length > 0" class="mt-12">
+        <section
+          v-if="meetup.status === 'past' && (imagePhotos.length > 0 || folderPhotos.length > 0)"
+          class="mt-12"
+        >
           <div class="mb-5">
             <p class="editorial-eyebrow">photos</p>
             <h2 class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">Moments from the meetup</h2>
@@ -497,6 +538,46 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
                 {{ folderPhotos.length }} gallery links available
               </p>
             </aside>
+          </div>
+        </section>
+
+        <section v-if="meetup.status === 'past' && meetup.videos.length > 0" class="mt-12">
+          <div class="mb-5">
+            <p class="editorial-eyebrow">recordings</p>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-dc-ink">Watch it back</h2>
+          </div>
+
+          <div class="grid gap-5 lg:grid-cols-2">
+            <article
+              v-for="video in meetup.videos"
+              :key="`${video.title}-${video.embed_url}`"
+              class="overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]"
+            >
+              <iframe
+                v-if="canEmbedPublicMeetupMedia(video.embed_url)"
+                :src="video.embed_url"
+                :title="video.title"
+                class="aspect-video w-full border-0 bg-dc-ink"
+                loading="lazy"
+                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                sandbox="allow-scripts allow-same-origin allow-presentation"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen
+              />
+              <div v-else class="flex aspect-video items-center justify-center bg-dc-ink p-5">
+                <a
+                  :href="video.embed_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="editorial-secondary-action bg-white"
+                >
+                  Open recording
+                </a>
+              </div>
+              <h3 class="border-t-2 border-dc-ink p-4 text-lg font-bold text-dc-ink">
+                {{ video.title }}
+              </h3>
+            </article>
           </div>
         </section>
       </main>

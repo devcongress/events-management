@@ -40,6 +40,13 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Preserved the fail-closed boundary: organizer navigation and routed workspace content remain unmounted until the app-owned session and active membership are confirmed.
 - Added focused tests for auth-state mapping, non-sensitive denial copy, and safe internal redirect validation, plus desktop and phone browser checks for sign-in, delayed session, callback, and denied-account layouts.
 
+## 2026-07-29 — Public event consumer preview
+
+- Added an authenticated **Preview Website Events** flow from Event Management so organizers can inspect only the published events exposed to external consumers.
+- Added collection and event-detail previews backed by the exact `/api/public/meetups` and `/api/public/meetups/:slug` responses, with card-to-detail navigation, endpoint context, direct JSON inspection, and a return to Event Management.
+- Kept the preview available on phones without exposing the wider desktop organizer console, and verified responsive layouts without horizontal overflow.
+- Restricted third-party iframe previews to exact HTTPS YouTube and Vimeo player hosts, matched them with the production Content Security Policy, sandboxed embedded media, encoded route slugs at the shared API boundary, and kept all other validated media as external links.
+
 ## 2026-07-29 — Distributed rate-limit runtime repair
 
 - Added an additive Supabase migration that recreates `consume_public_rate_limit` with an unambiguous `timestamptz` variable, fixing PostgreSQL `42883` failures that blocked organizer OAuth exchange and other rate-limited forms after the security migration.

@@ -25,6 +25,21 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 
 Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
 
+## Organizer Consumer Preview
+
+Authenticated organizers can inspect this contract before another service consumes it:
+
+- `/organizer-console/website-preview/events` renders the collection from `GET /api/public/meetups`.
+- `/organizer-console/website-preview/events/:slug` renders one event from `GET /api/public/meetups/:slug`.
+- **View JSON** opens the exact public endpoint in a separate tab.
+- **Back to Event Management** returns to the private event workspace.
+
+The preview deliberately uses the public DTO rather than `/api/events`, so it
+shows only records that a consumer can receive. It does not publish a draft or
+create a second public API. The preview is an integration aid shaped after the
+current Astro meetup pages; the consuming Astro website remains responsible for
+its final templates and data adapter.
+
 Public `/api/public/*` endpoints:
 
 - are unauthenticated read-only endpoints

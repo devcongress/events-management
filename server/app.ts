@@ -155,7 +155,7 @@ app.use('*', async (c, next) => {
       "img-src 'self' data: blob: https:",
       "media-src 'self' https:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
-      "frame-src https://challenges.cloudflare.com",
+      "frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
       "worker-src 'self' blob:",
     ].join('; '),
   );

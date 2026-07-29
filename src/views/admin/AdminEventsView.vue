@@ -545,7 +545,17 @@ function goToPage(nextPage: number) {
             <h1 class="editorial-title">Event Management</h1>
             <p class="editorial-subtitle">Create events, move them through the program lifecycle, and jump into talk, speaker, or quiz operations.</p>
           </div>
-          <RouterLink :to="adminPath('events/new')" class="editorial-action shrink-0 self-start sm:self-auto">CREATE EVENT</RouterLink>
+          <div class="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">
+            <RouterLink
+              :to="adminPath('website-preview/events')"
+              class="editorial-secondary-action min-h-12 justify-center"
+            >
+              PREVIEW WEBSITE EVENTS
+            </RouterLink>
+            <RouterLink :to="adminPath('events/new')" class="editorial-action min-h-12 justify-center">
+              CREATE EVENT
+            </RouterLink>
+          </div>
         </div>
 
         <AdminEventsPageSkeleton v-if="loading" />
