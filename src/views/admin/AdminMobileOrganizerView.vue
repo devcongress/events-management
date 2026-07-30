@@ -4,7 +4,7 @@ import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { fetchEvents, queryKeys } from '@/src/lib/api';
 import { organizerPhoneCheckInPath } from '@/src/organizer-viewport';
-import { EVENT_SERIES_LABELS, eventSeriesValueToSelection, resolveEventSeriesType } from '@/lib/event-series';
+import { eventSeriesBadgeLabel } from '@/lib/event-series';
 import type { Event as CommunityEvent, EventStatus } from '@/types';
 
 interface MobileEventAction {
@@ -21,7 +21,7 @@ interface MobileEventCard {
   locationLabel: string | null;
   statusClass: string;
   statusLabel: string;
-  seriesLabel: string;
+  seriesLabel: string | null;
   actions: MobileEventAction[];
 }
 
@@ -91,10 +91,6 @@ function eventStatusClass(status: EventStatus): string {
   return 'mobile-ops-status--upcoming';
 }
 
-function eventSeriesLabel(event: CommunityEvent): string {
-  return EVENT_SERIES_LABELS[eventSeriesValueToSelection(resolveEventSeriesType(event))];
-}
-
 function eventActions(event: CommunityEvent): MobileEventAction[] {
   const actions: MobileEventAction[] = [];
 
@@ -132,7 +128,7 @@ const priorityEventCards = computed<MobileEventCard[]>(() => priorityEvents.valu
   locationLabel: event.location?.label ?? event.location?.name ?? null,
   statusClass: eventStatusClass(event.status),
   statusLabel: eventStatusLabel(event.status),
-  seriesLabel: eventSeriesLabel(event),
+  seriesLabel: eventSeriesBadgeLabel(event),
   actions: eventActions(event),
 })));
 </script>
@@ -178,7 +174,7 @@ const priorityEventCards = computed<MobileEventCard[]>(() => priorityEvents.valu
               <span class="mobile-ops-status" :class="event.statusClass">
                 {{ event.statusLabel }}
               </span>
-              <span class="mobile-ops-kind">{{ event.seriesLabel }}</span>
+              <span v-if="event.seriesLabel" class="mobile-ops-kind">{{ event.seriesLabel }}</span>
             </div>
             <h3>{{ event.name }}</h3>
             <p class="mobile-ops-meta">{{ event.dateLabel }}</p>

@@ -37,6 +37,7 @@ import {
 import type { EventRegistration } from '@/types';
 
 type RegistrationWorkspaceTab = 'summary' | 'guests' | 'form' | 'emails';
+type RegistrationOverviewPhase = 'before' | 'live' | 'after';
 
 const route = useRoute();
 const queryClient = useQueryClient();
@@ -53,6 +54,7 @@ const settings = reactive({
   closes_at: '',
 });
 const activeWorkspaceTab = ref<RegistrationWorkspaceTab>('summary');
+const workspacePanelTransition = ref('registration-panel-forward');
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
 const selectedGuestStatus = ref<RegistrationGuestFilter>('all');
@@ -83,7 +85,7 @@ const workspaceTabs: Array<{
 }> = [
   { id: 'summary', label: 'Summary' },
   { id: 'guests', label: 'Guests' },
-  { id: 'form', label: 'Form & Capacity' },
+  { id: 'form', label: 'Form & capacity' },
   { id: 'emails', label: 'Emails' },
 ];
 const data = computed(() => registrationQuery.data.value ?? null);
@@ -100,11 +102,162 @@ const workspaceSummary = computed(() => (
     : null
 ));
 const emailSummary = computed(() => summarizeRegistrationEmails(displayedRegistrations.value));
-const capacityUsePercent = computed(() => {
+const registrationOverviewPhase = computed<RegistrationOverviewPhase>(() => {
   const summary = workspaceSummary.value;
-  if (!summary || summary.capacity <= 0) return 0;
-  return Math.min(100, Math.round((summary.going / summary.capacity) * 100));
+  const event = data.value?.event;
+  if (!summary || !event) return 'before';
+  if (summary.eventEnded) return 'after';
+  if (event.status === 'live') return 'live';
+
+  const eventStartMs = new Date(event.event_date).getTime();
+  return Number.isFinite(eventStartMs) && eventStartMs <= Date.now()
+    ? 'live'
+    : 'before';
 });
+const registrationOverview = computed(() => {
+  const summary = workspaceSummary.value;
+  const phase = registrationOverviewPhase.value;
+  const campaignStatus = data.value?.campaign?.status ?? 'draft';
+
+  if (!summary) {
+    return {
+      phase,
+      primaryValue: 0,
+      primaryTotal: 0,
+      primaryLabel: 'confirmed registrations',
+      secondaryValue: 0,
+      secondaryLabel: 'places left',
+      progressPercent: 0,
+      progressLabel: 'Registration capacity filled',
+      progressCaption: '0% filled',
+      statusLabel: 'Registration unavailable',
+      statusTone: 'neutral',
+    };
+  }
+
+  if (phase === 'after') {
+    const noShows = summary.noShows ?? 0;
+    const progressPercent = summary.going > 0
+      ? Math.min(100, Math.round((summary.checkedIn / summary.going) * 100))
+      : 0;
+
+    return {
+      phase,
+      primaryValue: summary.checkedIn,
+      primaryTotal: summary.going,
+      primaryLabel: summary.checkedIn === 1 ? 'guest attended' : 'guests attended',
+      secondaryValue: noShows,
+      secondaryLabel: noShows === 1 ? 'no-show' : 'no-shows',
+      progressPercent,
+      progressLabel: 'Final event attendance',
+      progressCaption: `${progressPercent}% attendance`,
+      statusLabel: 'Event complete',
+      statusTone: 'neutral',
+    };
+  }
+
+  if (phase === 'live') {
+    const stillToArrive = Math.max(0, summary.going - summary.checkedIn);
+    const progressPercent = summary.going > 0
+      ? Math.min(100, Math.round((summary.checkedIn / summary.going) * 100))
+      : 0;
+
+    return {
+      phase,
+      primaryValue: summary.checkedIn,
+      primaryTotal: summary.going,
+      primaryLabel: summary.checkedIn === 1 ? 'guest checked in' : 'guests checked in',
+      secondaryValue: stillToArrive,
+      secondaryLabel: stillToArrive === 1 ? 'guest still to arrive' : 'guests still to arrive',
+      progressPercent,
+      progressLabel: 'Guest check-in progress',
+      progressCaption: `${progressPercent}% arrived`,
+      statusLabel: 'Event in progress',
+      statusTone: 'positive',
+    };
+  }
+
+  const progressPercent = summary.capacity > 0
+    ? Math.min(100, Math.round((summary.going / summary.capacity) * 100))
+    : 0;
+  const statusLabel = campaignStatus === 'open'
+    ? 'Registration open'
+    : campaignStatus === 'closed'
+      ? 'Registration closed'
+      : 'Registration draft';
+
+  return {
+    phase,
+    primaryValue: summary.going,
+    primaryTotal: summary.capacity,
+    primaryLabel: summary.going === 1 ? 'confirmed registration' : 'confirmed registrations',
+    secondaryValue: summary.placesLeft,
+    secondaryLabel: summary.placesLeft === 1 ? 'place left' : 'places left',
+    progressPercent,
+    progressLabel: 'Registration capacity filled',
+    progressCaption: `${progressPercent}% filled`,
+    statusLabel,
+    statusTone: campaignStatus === 'open'
+      ? 'positive'
+      : campaignStatus === 'draft'
+        ? 'attention'
+        : 'neutral',
+  };
+});
+const registrationOverviewDetails = computed(() => {
+  const summary = workspaceSummary.value;
+  if (!summary) return [];
+
+  const details: Array<{
+    label: string;
+    value: number;
+    tone: 'neutral' | 'waitlist';
+  }> = [];
+
+  if (registrationOverviewPhase.value !== 'after' && summary.waitlisted > 0) {
+    details.push({
+      label: 'Waitlisted',
+      value: summary.waitlisted,
+      tone: 'waitlist',
+    });
+  }
+  if (summary.cancelled > 0) {
+    details.push({
+      label: 'Cancelled',
+      value: summary.cancelled,
+      tone: 'neutral',
+    });
+  }
+
+  return details;
+});
+const registrationOverviewIsEmpty = computed(() => (
+  registrationOverviewPhase.value === 'before'
+  && (workspaceSummary.value?.going ?? 0) === 0
+));
+const registrationOverviewEmptyCopy = computed(() => (
+  canUsePublicRegistrationForm.value
+    ? 'Share the registration form to start filling this event.'
+    : data.value?.campaign?.status === 'closed'
+      ? 'Registration is closed. Review the form settings before inviting guests.'
+      : 'Finish the form settings and open registration when you are ready to invite guests.'
+));
+const registrationOverviewActionLabel = computed(() => (
+  canUsePublicRegistrationForm.value
+    ? publicLinkCopied.value
+      ? 'Link copied'
+      : 'Copy registration link'
+    : 'Review form settings'
+));
+const registrationOverviewProgressMax = computed(() => (
+  Math.max(1, registrationOverview.value.primaryTotal)
+));
+const registrationOverviewProgressNow = computed(() => (
+  Math.min(
+    registrationOverviewProgressMax.value,
+    registrationOverview.value.primaryValue,
+  )
+));
 const canUsePublicRegistrationForm = computed(() => (
   Boolean(data.value?.public_url)
   && data.value?.campaign?.status === 'open'
@@ -326,6 +479,25 @@ function requestSaveSettings() {
   settingsConfirmationOpen.value = true;
 }
 
+function selectWorkspaceTab(tab: RegistrationWorkspaceTab) {
+  if (tab === activeWorkspaceTab.value) return;
+
+  const currentIndex = workspaceTabs.findIndex((item) => item.id === activeWorkspaceTab.value);
+  const nextIndex = workspaceTabs.findIndex((item) => item.id === tab);
+  workspacePanelTransition.value = nextIndex >= currentIndex
+    ? 'registration-panel-forward'
+    : 'registration-panel-backward';
+  activeWorkspaceTab.value = tab;
+}
+
+async function handleRegistrationOverviewAction() {
+  if (canUsePublicRegistrationForm.value) {
+    await copyPublicLink();
+    return;
+  }
+  selectWorkspaceTab('form');
+}
+
 async function saveSettings() {
   if (savePending.value) return;
   savePending.value = true;
@@ -438,21 +610,18 @@ async function retryEmails() {
 <template>
   <div class="editorial-page">
     <div class="editorial-wrap">
-      <div class="editorial-header">
-        <div>
-          <p class="editorial-eyebrow">registration</p>
-          <h1 class="editorial-title">{{ data && !managedInternally ? 'Registration History' : 'Registration' }}</h1>
-          <p class="editorial-subtitle">
-            {{
-              data && !managedInternally
-                ? 'Review how registration records are represented for this event.'
-                : data?.event?.name
-                  ? `Manage places, guests, and transactional delivery for ${data.event.name}.`
-                  : 'Manage places, guests, and transactional delivery for this event.'
-            }}
-          </p>
-        </div>
-      </div>
+      <header class="registration-page-header">
+        <h1>{{ data && !managedInternally ? 'Registration history' : 'Registration' }}</h1>
+        <p>
+          {{
+            data && !managedInternally
+              ? 'Review how registration records are represented for this event.'
+              : data?.event?.name
+                ? `Manage capacity, guests, and confirmations for ${data.event.name}.`
+                : 'Manage capacity, guests, and confirmations for this event.'
+          }}
+        </p>
+      </header>
 
       <div v-if="registrationQuery.isPending.value" class="editorial-panel min-h-80 animate-pulse" />
       <div v-else-if="registrationQuery.isError.value || !data" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -502,125 +671,121 @@ async function retryEmails() {
             type="button"
             role="tab"
             class="registration-workspace-tab"
-            :class="activeWorkspaceTab === tab.id
-              ? 'border-dc-yellow text-[#E5E5E5]'
-              : 'border-transparent text-[#A1A1A1]'"
             :aria-selected="activeWorkspaceTab === tab.id"
             :aria-controls="`registration-panel-${tab.id}`"
             :tabindex="activeWorkspaceTab === tab.id ? 0 : -1"
-            @click="activeWorkspaceTab = tab.id"
+            @click="selectWorkspaceTab(tab.id)"
           >
             {{ tab.label }}
           </button>
         </div>
 
-        <section
-          v-if="activeWorkspaceTab === 'summary'"
-          id="registration-panel-summary"
-          role="tabpanel"
-          aria-labelledby="registration-tab-summary"
-          class="editorial-panel mt-5 overflow-hidden"
-        >
-          <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-5 sm:px-6">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="editorial-eyebrow">at a glance</p>
-                <h2 class="mt-1 text-2xl font-bold text-dc-ink">Guest position</h2>
-              </div>
-              <span class="rounded-sm border border-dc-border bg-white px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                {{ data?.campaign?.status ?? 'Unavailable' }}
+        <Transition :name="workspacePanelTransition" mode="out-in">
+          <section
+            v-if="activeWorkspaceTab === 'summary'"
+            id="registration-panel-summary"
+            key="summary"
+            role="tabpanel"
+            aria-labelledby="registration-tab-summary"
+            class="registration-overview mt-5"
+          >
+            <div class="registration-overview-header">
+              <h2>Registration overview</h2>
+              <span
+                class="registration-overview-status"
+                :class="`registration-overview-status--${registrationOverview.statusTone}`"
+              >
+                {{ registrationOverview.statusLabel }}
               </span>
             </div>
-          </div>
 
-          <div class="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
-            <div class="rounded-lg border border-dc-border bg-white p-5 sm:p-6">
-              <div class="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <p class="text-3xl font-bold tracking-tight text-emerald-700">
-                    <span aria-hidden="true">●</span>
-                    {{ workspaceSummary?.going ?? 0 }} going
-                  </p>
-                  <p class="mt-1 text-sm text-dc-gray">
-                    Registered guests receive a place immediately until capacity is reached.
-                  </p>
-                </div>
-                <p class="text-right text-sm font-semibold text-dc-gray">
-                  Capacity
-                  <span class="ml-1 text-2xl font-bold text-dc-ink">{{ workspaceSummary?.capacity ?? 0 }}</span>
+            <div class="registration-overview-metrics">
+              <div class="registration-overview-primary">
+                <p class="registration-overview-figure">
+                  <Transition name="registration-value" mode="out-in">
+                    <strong :key="registrationOverview.primaryValue">
+                      {{ registrationOverview.primaryValue }}
+                    </strong>
+                  </Transition>
+                  <span aria-hidden="true">/</span>
+                  <span>{{ registrationOverview.primaryTotal }}</span>
                 </p>
+                <p>{{ registrationOverview.primaryLabel }}</p>
               </div>
 
+              <div class="registration-overview-secondary">
+                <Transition name="registration-value" mode="out-in">
+                  <strong :key="registrationOverview.secondaryValue">
+                    {{ registrationOverview.secondaryValue }}
+                  </strong>
+                </Transition>
+                <span>{{ registrationOverview.secondaryLabel }}</span>
+              </div>
+            </div>
+
+            <div class="registration-overview-progress-row">
               <div
-                class="mt-6 h-3 overflow-hidden rounded-full bg-dc-paper-warm"
+                class="registration-overview-progress"
                 role="progressbar"
-                aria-label="Places allocated"
+                :aria-label="registrationOverview.progressLabel"
                 aria-valuemin="0"
-                :aria-valuemax="workspaceSummary?.capacity ?? 0"
-                :aria-valuenow="workspaceSummary?.going ?? 0"
+                :aria-valuemax="registrationOverviewProgressMax"
+                :aria-valuenow="registrationOverviewProgressNow"
+                :aria-valuetext="registrationOverview.progressCaption"
               >
                 <div
-                  class="h-full rounded-full bg-emerald-500"
-                  :style="{ width: `${capacityUsePercent}%` }"
+                  class="registration-overview-progress-fill"
+                  :style="{ transform: `scaleX(${registrationOverview.progressPercent / 100})` }"
                 />
               </div>
-
-              <div
-                v-if="(workspaceSummary?.waitlisted ?? 0) > 0"
-                class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-dc-border pt-4"
-              >
-                <p class="font-semibold text-amber-700">
-                  <span aria-hidden="true">●</span>
-                  {{ workspaceSummary?.waitlisted }} waitlisted
-                </p>
-                <p class="text-sm text-dc-gray">Capacity is full; overflow is being held automatically.</p>
-              </div>
-              <p
-                v-else
-                class="mt-4 border-t border-dc-border pt-4 text-sm leading-6 text-dc-gray"
-              >
-                The waitlist stays out of the way until capacity is reached, then overflow registrations join it automatically.
-              </p>
+              <p>{{ registrationOverview.progressCaption }}</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div
-                v-for="item in [
-                  { label: 'Places left', value: workspaceSummary?.placesLeft ?? 0 },
-                  { label: 'Checked in', value: workspaceSummary?.checkedIn ?? 0 },
-                  { label: 'Cancelled', value: workspaceSummary?.cancelled ?? 0 },
-                ]"
-                :key="item.label"
-                class="rounded-lg border border-dc-border bg-white px-4 py-4"
-              >
-                <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ item.label }}</p>
-                <p class="mt-2 text-3xl font-bold text-dc-ink">{{ item.value }}</p>
+            <div v-if="registrationOverviewIsEmpty" class="registration-overview-empty">
+              <div>
+                <p class="registration-overview-empty-title">No registrations yet</p>
+                <p class="registration-overview-empty-copy">{{ registrationOverviewEmptyCopy }}</p>
               </div>
-              <div
-                v-if="workspaceSummary?.eventEnded"
-                class="rounded-lg border border-red-200 bg-red-50 px-4 py-4"
+              <button
+                type="button"
+                class="registration-overview-action motion-press"
+                @click="handleRegistrationOverviewAction"
               >
-                <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700">No-shows</p>
-                <p class="mt-2 text-3xl font-bold text-red-700">{{ workspaceSummary?.noShows ?? 0 }}</p>
-              </div>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M7 6.25V4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75v6.5A1.75 1.75 0 0 1 15.25 13h-1.5" />
+                  <rect x="3" y="7" width="10" height="10" rx="1.75" />
+                </svg>
+                <span aria-live="polite">{{ registrationOverviewActionLabel }}</span>
+              </button>
+            </div>
+
+            <div
+              v-if="registrationOverviewDetails.length > 0"
+              class="registration-overview-details"
+              aria-label="Additional registration details"
+            >
               <div
-                v-else
-                class="rounded-lg border border-dc-border bg-dc-paper-warm px-4 py-4"
+                v-for="detail in registrationOverviewDetails"
+                :key="detail.label"
+                class="registration-overview-detail"
+                :class="{ 'registration-overview-detail--waitlist': detail.tone === 'waitlist' }"
               >
-                <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">No-shows</p>
-                <p class="mt-2 text-sm font-semibold leading-5 text-dc-gray">Available after the event</p>
+                <Transition name="registration-value" mode="out-in">
+                  <strong :key="detail.value">{{ detail.value }}</strong>
+                </Transition>
+                <span>{{ detail.label }}</span>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section
-          v-else-if="activeWorkspaceTab === 'guests'"
-          id="registration-panel-guests"
-          role="tabpanel"
-          aria-labelledby="registration-tab-guests"
-          class="ops-panel mt-5 overflow-hidden"
-        >
+          <section
+            v-else-if="activeWorkspaceTab === 'guests'"
+            id="registration-panel-guests"
+            key="guests"
+            role="tabpanel"
+            aria-labelledby="registration-tab-guests"
+            class="ops-panel mt-5 overflow-hidden"
+          >
           <div class="border-b border-dc-border bg-dc-paper-warm px-4 py-4">
             <div class="flex flex-col gap-4">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -640,7 +805,7 @@ async function retryEmails() {
                   type="button"
                   class="min-h-11 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-wide"
                   :class="selectedGuestStatus === option.value
-                    ? 'border-dc-ink bg-dc-ink text-white'
+                    ? 'border-dc-pink bg-dc-pink text-white'
                     : 'border-dc-border bg-white text-dc-gray'"
                   :aria-pressed="selectedGuestStatus === option.value"
                   @click="selectedGuestStatus = option.value"
@@ -735,15 +900,16 @@ async function retryEmails() {
               </div>
             </div>
           </div>
-        </section>
+          </section>
 
-        <section
-          v-else-if="activeWorkspaceTab === 'form'"
-          id="registration-panel-form"
-          role="tabpanel"
-          aria-labelledby="registration-tab-form"
-          class="editorial-panel mt-5 overflow-hidden"
-        >
+          <section
+            v-else-if="activeWorkspaceTab === 'form'"
+            id="registration-panel-form"
+            key="form"
+            role="tabpanel"
+            aria-labelledby="registration-tab-form"
+            class="editorial-panel mt-5 overflow-hidden"
+          >
           <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-4">
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -804,15 +970,16 @@ async function retryEmails() {
               </p>
             </div>
           </div>
-        </section>
+          </section>
 
-        <section
-          v-else
-          id="registration-panel-emails"
-          role="tabpanel"
-          aria-labelledby="registration-tab-emails"
-          class="editorial-panel mt-5 overflow-hidden"
-        >
+          <section
+            v-else
+            id="registration-panel-emails"
+            key="emails"
+            role="tabpanel"
+            aria-labelledby="registration-tab-emails"
+            class="editorial-panel mt-5 overflow-hidden"
+          >
           <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-4">
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -899,7 +1066,8 @@ async function retryEmails() {
               </span>
             </div>
           </div>
-        </section>
+          </section>
+        </Transition>
       </template>
     </div>
 
@@ -969,14 +1137,35 @@ async function retryEmails() {
 </template>
 
 <style scoped>
+.registration-page-header {
+  margin-bottom: 2rem;
+  border-bottom: 1px solid #d6d2c8;
+  padding-bottom: 1.5rem;
+}
+
+.registration-page-header h1 {
+  color: #111111;
+  font-size: clamp(2.25rem, 5vw, 3.25rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+
+.registration-page-header p {
+  max-width: 42rem;
+  margin-top: 0.75rem;
+  color: #6f6c65;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
 .registration-workspace-tabs {
   display: flex;
-  gap: 0.25rem;
+  gap: 1.5rem;
   overflow-x: auto;
-  border: 1px solid #1c1c1c;
-  border-radius: 8px;
-  background: #1c1c1c;
-  padding: 0 0.5rem;
+  border-bottom: 1px solid #d6d2c8;
+  padding: 0 0.125rem;
   scrollbar-width: none;
 }
 
@@ -985,34 +1174,381 @@ async function retryEmails() {
 }
 
 .registration-workspace-tab {
-  min-height: 3rem;
+  position: relative;
+  min-height: 3.25rem;
   flex: 0 0 auto;
-  border-bottom-width: 3px;
-  padding: 0 0.875rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  transition: transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0.125rem 0;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition:
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.registration-workspace-tab::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #e8117f;
+  content: '';
+  opacity: 0;
+  transform: scaleX(0.5);
+  transform-origin: center;
+  transition:
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-workspace-tab[aria-selected='true'] {
+  color: #111111;
+}
+
+.registration-workspace-tab[aria-selected='true']::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.registration-workspace-tab:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid rgba(232, 17, 127, 0.35);
+  outline-offset: 3px;
 }
 
 .registration-workspace-tab:active {
   transform: scale(0.97);
 }
 
+.registration-overview {
+  border: 1px solid #d6d2c8;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: clamp(1.25rem, 2.6vw, 2rem);
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
+}
+
+.registration-overview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.registration-overview-header h2 {
+  color: #111111;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.registration-overview-status {
+  display: inline-flex;
+  min-height: 1.875rem;
+  align-items: center;
+  border: 1px solid #d6d2c8;
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  background: #faf9f5;
+  color: #625f58;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.registration-overview-status--positive {
+  border-color: #a8d9c8;
+  background: #eef9f4;
+  color: #0f7154;
+}
+
+.registration-overview-status--attention {
+  border-color: #e8d37c;
+  background: #fff9dc;
+  color: #785f00;
+}
+
+.registration-overview-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 2rem;
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+}
+
+.registration-overview-figure {
+  display: flex;
+  min-height: 4rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: #111111;
+  line-height: 1;
+}
+
+.registration-overview-figure strong {
+  display: inline-block;
+  min-width: 1ch;
+  font-size: clamp(3rem, 6vw, 4.5rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+}
+
+.registration-overview-figure span {
+  color: #85817a;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.registration-overview-primary > p:last-child,
+.registration-overview-secondary span {
+  color: #6f6c65;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.registration-overview-secondary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.registration-overview-secondary strong {
+  color: #111111;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.registration-overview-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+
+.registration-overview-progress {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9e6de;
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.05);
+}
+
+.registration-overview-progress-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #148461;
+  transform-origin: left center;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-overview-progress-row > p {
+  min-width: 4.5rem;
+  color: #6f6c65;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.registration-overview-empty,
+.registration-overview-details {
+  margin-top: 1.75rem;
+  border-top: 1px solid #e2ded5;
+  padding-top: 1.25rem;
+}
+
+.registration-overview-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+}
+
+.registration-overview-empty-title {
+  color: #111111;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.registration-overview-empty-copy {
+  margin-top: 0.25rem;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.registration-overview-action {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  padding: 0.625rem 1rem;
+  background: #e8117f;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.registration-overview-action svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.registration-overview-action:focus-visible {
+  outline: 3px solid rgba(232, 17, 127, 0.28);
+  outline-offset: 3px;
+}
+
+.registration-overview-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.registration-overview-detail {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.registration-overview-detail strong {
+  color: #111111;
+  font-size: 1.125rem;
+}
+
+.registration-overview-detail--waitlist,
+.registration-overview-detail--waitlist strong {
+  color: #866a00;
+}
+
+.registration-value-enter-active,
+.registration-value-leave-active {
+  transition:
+    opacity 140ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-value-enter-from {
+  opacity: 0;
+  transform: translate3d(0, 0.35rem, 0);
+}
+
+.registration-value-leave-to {
+  opacity: 0;
+  transform: translate3d(0, -0.25rem, 0);
+}
+
+.registration-panel-forward-enter-active,
+.registration-panel-forward-leave-active,
+.registration-panel-backward-enter-active,
+.registration-panel-backward-leave-active {
+  transition:
+    opacity 160ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-panel-forward-enter-from,
+.registration-panel-backward-leave-to {
+  opacity: 0;
+  transform: translate3d(1rem, 0, 0);
+}
+
+.registration-panel-forward-leave-to,
+.registration-panel-backward-enter-from {
+  opacity: 0;
+  transform: translate3d(-0.75rem, 0, 0);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .registration-workspace-tab:hover {
-    color: #e5e5e5;
+    color: #111111;
+  }
+
+  .registration-overview-action:hover {
+    background: #c90f6f;
+  }
+}
+
+@media (max-width: 639px) {
+  .registration-page-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.125rem;
+  }
+
+  .registration-page-header h1 {
+    font-size: 2rem;
+    letter-spacing: -0.035em;
+    line-height: 1;
+  }
+
+  .registration-page-header p {
+    margin-top: 0.625rem;
+    font-size: 0.875rem;
+  }
+
+  .registration-workspace-tabs {
+    gap: 1.125rem;
+  }
+
+  .registration-overview-metrics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .registration-overview-secondary {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .registration-overview-progress-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .registration-overview-progress-row > p {
+    text-align: left;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .registration-workspace-tab {
+  .registration-workspace-tab,
+  .registration-workspace-tab::after,
+  .registration-overview-progress-fill,
+  .registration-value-enter-active,
+  .registration-value-leave-active,
+  .registration-panel-forward-enter-active,
+  .registration-panel-forward-leave-active,
+  .registration-panel-backward-enter-active,
+  .registration-panel-backward-leave-active {
     transition: none;
   }
 
-  .registration-workspace-tab:active {
+  .registration-workspace-tab:active,
+  .registration-value-enter-from,
+  .registration-value-leave-to,
+  .registration-panel-forward-enter-from,
+  .registration-panel-forward-leave-to,
+  .registration-panel-backward-enter-from,
+  .registration-panel-backward-leave-to {
     transform: none;
   }
 }
