@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-07-30
+
+- Fixed the native event-blasts database migration path by granting the server-only Supabase `service_role` access to `event_blasts` and its status enum. Browser roles remain denied by RLS, while the Worker can load history and persist blasts.
+- Restored the registration-email visual system for event blasts: header wordmark, event detail cards, calendar links, and compact unsubscribe footer. Calendar actions stay side-by-side in both receipt and blast emails.
+- Refined receipt and blast event details into a compact **When / Where** itinerary card with a map-pin icon; Google Calendar is now the visually primary action and both templates provide deliberate near-black dark-mode rendering.
+
 _Update this file at natural checkpoints: before a commit, before a PR, or when explicitly asked._
 _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet points._
 

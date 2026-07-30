@@ -645,7 +645,7 @@ describe('native event registration API', () => {
     expect(emails[0]?.from).toBe('DevCongress Events <events@updates.devcongress.org>');
     expect(emails[0]?.html).toContain('Saturday, August 29, 2026');
     expect(emails[0]?.html).toContain('6:00 PM – 9:00 PM GMT');
-    expect(emails[0]?.html).toContain('View map ↗');
+    expect(emails[0]?.html).toContain('View map →');
     expect(emails[0]?.html).toContain('Google Calendar');
     expect(emails[0]?.html).toContain('Download .ics');
     expect(emails[0]?.html).toContain('http://localhost/r/august-email-test?view=details');

@@ -65,6 +65,12 @@ describe('Resend broadcast client', () => {
     await expect(createResendBroadcast({
       apiKey: 're_broadcast_test',
       eventName: 'July meetup',
+      eventDate: '2026-07-30T08:30:00.000Z',
+      eventEndDate: '2026-07-30T16:00:00.000Z',
+      locationName: 'Fido, Accra',
+      locationUrl: 'https://www.google.com/maps/place/Accra',
+      eventUrl: 'https://em.devcongress.org/r/july-meetup?view=details',
+      calendarDownloadUrl: 'https://em.devcongress.org/api/registration/events/july-meetup/calendar.ics',
       subject: 'Venue update',
       body: 'We have moved rooms.',
       from: 'DevCongress <events@updates.devcongress.org>',

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue';
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
+import type { Event } from '@/types';
 
 const props = defineProps<{
   open: boolean;
   subject: string;
   body: string;
+  event: Event | null;
   actionLabel: string;
   busy?: boolean;
 }>();
@@ -15,6 +17,13 @@ const emailMarkup = computed(() => eventBlastEmail({
   subject: props.subject,
   body: props.body,
   unsubscribeUrl: '#',
+  eventName: props.event?.name ?? 'DevCongress event',
+  eventDate: props.event?.event_date ?? '',
+  eventEndDate: props.event?.end_date,
+  locationName: props.event?.location?.label ?? props.event?.location?.name ?? 'Location to be announced',
+  locationUrl: props.event?.location?.url,
+  eventUrl: '#',
+  calendarDownloadUrl: '#',
 }).html);
 
 function onKeydown(event: KeyboardEvent) {

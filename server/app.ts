@@ -3752,6 +3752,12 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     const provider = await createResendBroadcast({
       apiKey,
       eventName: event.name,
+      eventDate: event.event_date,
+      eventEndDate: event.end_date,
+      locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+      locationUrl: event.location?.url,
+      eventUrl: publicEventDetailsUrl(event, c),
+      calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
       subject: blast.subject,
       body: blast.body,
       from,
