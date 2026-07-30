@@ -5,6 +5,36 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-30 — Registration email wordmark
+
+- Replaced the text-only DevCongress label in the registration email header with the official compact wordmark, while retaining accessible text as the image fallback.
+
+## 2026-07-30 — Registration sender identity
+
+- Gave registration receipts and event blasts their own `DevCongress Events <events@updates.devcongress.org>` sender, rather than presenting them as Monthly Speakers mail.
+- Removed the registration-to-speaker sender fallback so a missing attendee identity holds delivery as unconfigured instead of sending under the wrong program.
+
+## 2026-07-30 — Blast templates and delivery preview
+
+- Prefilled new event blasts with editable Event update, Reminder, and Venue change drafts instead of an empty composer.
+- Added one modal preview that uses the same escaped HTML email template as Resend delivery; its primary action directly sends or schedules the blast, replacing the duplicate review step.
+
+## 2026-07-30 — Blast composer sizing
+
+- Locked the custom-message field to its intended composed height so organizers cannot distort the blast workspace by resizing it.
+
+## 2026-07-30 — Confirmation email event-details destination
+
+- Changed the confirmation and promotion email’s **View event details** URL from the RSVP form to a read-only event-details state.
+- Kept the ticket’s familiar event context and safe map action, while removing the registration fields so confirmed guests are not invited to register again.
+
+## 2026-07-30 — Native event email blasts
+
+- Added a dedicated **Blasts** workspace for custom, email-only event updates to confirmed guests, with a composed send-now or schedule-later flow and a concise sent/scheduled history.
+- Enforced a 100-recipient hard stop, excluded waitlisted and cancelled registrations, and avoided partial sends.
+- Added a safe capacity outcome: missing Broadcast configuration and provider plan/quota rejections remain visible as **Needs email capacity** instead of a raw provider error.
+- Added an event-scoped Resend Segment and separate least-privilege Broadcast API key boundary so each blast is isolated to the intended event and uses provider unsubscribe/scheduling support.
+
 ## 2026-07-30 — Quieter registration page heading
 
 - Removed the duplicated **Registration** eyebrow and reduced the view-specific title scale so the page intro matches the calmer workspace hierarchy.

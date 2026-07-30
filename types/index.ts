@@ -18,6 +18,7 @@ export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type RegistrationEmailKind = 'confirmation' | 'promotion';
+export type EventBlastStatus = 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
 
 // ---- Entities ----
 export interface Event {
@@ -91,6 +92,22 @@ export interface EventRegistrationSummary {
   checked_in: number;
   available: number;
   pending_emails: number;
+}
+
+export interface EventBlast {
+  id: string;
+  event_id: string;
+  subject: string;
+  body: string;
+  status: EventBlastStatus;
+  recipient_count: number;
+  scheduled_for: string | null;
+  sent_at: string | null;
+  provider_broadcast_id: string | null;
+  provider_segment_id: string | null;
+  created_by_email: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface EventChecklistItem {

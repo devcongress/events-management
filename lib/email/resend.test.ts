@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ResendBatchError, sendResendEmailBatch } from './resend';
+import { createResendBroadcast, ResendBatchError, sendResendEmailBatch } from './resend';
 
 const email = {
   from: 'DevCongress <speakers@updates.devcongress.org>',
@@ -49,5 +49,37 @@ describe('Resend batch client', () => {
       emails: [email],
       fetcher,
     })).rejects.toEqual(new ResendBatchError('The email provider did not accept the request.', 429));
+  });
+});
+
+describe('Resend broadcast client', () => {
+  it('isolates recipients in a new segment and asks Resend to schedule the blast', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 200 });
+      if (url.endsWith('/contacts')) return new Response(JSON.stringify({ id: 'contact-1' }), { status: 200 });
+      if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 200 });
+      return new Response(JSON.stringify({ method: init?.method }), { status: 404 });
+    });
+
+    await expect(createResendBroadcast({
+      apiKey: 're_broadcast_test',
+      eventName: 'July meetup',
+      subject: 'Venue update',
+      body: 'We have moved rooms.',
+      from: 'DevCongress <events@updates.devcongress.org>',
+      replyTo: 'hello@devcongress.org',
+      scheduledFor: '2026-08-01T12:00:00.000Z',
+      recipients: [{ email: 'ama@example.com', name: 'Ama Mensah' }],
+      fetcher,
+    })).resolves.toEqual({ broadcastId: 'broadcast-1', segmentId: 'segment-1' });
+
+    const broadcastCall = fetcher.mock.calls.find(([url]) => String(url).endsWith('/broadcasts'));
+    expect(broadcastCall?.[1]).toEqual(expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('"segment_id":"segment-1"'),
+    }));
+    expect(broadcastCall?.[1]?.body).toContain('"scheduled_at":"2026-08-01T12:00:00.000Z"');
+    expect(broadcastCall?.[1]?.body).toContain('RESEND_UNSUBSCRIBE_URL');
   });
 });

@@ -4,6 +4,7 @@ import type { EventRegistrationStatus, RegistrationEmailKind } from '@/types';
 const EVENT_TIME_ZONE = 'Africa/Accra';
 const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DEVCONGRESS_WORDMARK_URL = 'https://devcongress.org/images/logo-nav%402x.png';
 
 type EventCalendarDetails = {
   eventName: string;
@@ -325,6 +326,7 @@ export function eventRegistrationConfirmationEmail(
     eventUrl: eventUrl ? escapeHtml(eventUrl) : null,
     calendarUrl: calendarUrl ? escapeHtml(calendarUrl) : null,
     calendarDownloadUrl: calendarDownloadUrl ? escapeHtml(calendarDownloadUrl) : null,
+    wordmarkUrl: escapeHtml(DEVCONGRESS_WORDMARK_URL),
   };
 
   const html = `<!doctype html>
@@ -371,7 +373,14 @@ export function eventRegistrationConfirmationEmail(
               <td bgcolor="#111111" style="padding:21px 30px;background:#111111;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                   <tr>
-                    <td style="color:#FFFFFF;font-size:22px;font-weight:800;letter-spacing:-.02em;">DevCongress<span style="color:#E8117F;">.</span></td>
+                    <td valign="middle">
+                      <img
+                        src="${safe.wordmarkUrl}"
+                        width="152"
+                        alt="DevCongress"
+                        style="display:block;width:152px;max-width:100%;height:auto;border:0;color:#FFFFFF;font-size:18px;font-weight:700;"
+                      >
+                    </td>
                     <td align="right" style="color:#FFFFFF;font-family:'Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Community RSVP</td>
                   </tr>
                 </table>
