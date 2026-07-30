@@ -33,6 +33,7 @@ import {
   updateRegistrationEmailDelivery,
 } from '@/lib/event-registration-store';
 import { createEventBlast, getEventBlasts, updateEventBlast } from '@/lib/event-blast-store';
+import { EventBlastStorageError } from '@/lib/supabase/event-blasts';
 import {
   ANNUAL_CONFERENCE_TASK_PRIORITIES,
   ANNUAL_CONFERENCE_TASK_STATUSES,
@@ -3666,7 +3667,20 @@ app.get('/api/events/:eventId/blasts', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
   if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
-  return c.json({ blasts: await getEventBlasts(event.id, c) });
+  try {
+    return c.json({ blasts: await getEventBlasts(event.id, c) });
+  } catch (error) {
+    if (!(error instanceof EventBlastStorageError)) throw error;
+    console.error(JSON.stringify({
+      event: 'event_blast_storage_unavailable',
+      event_id: event.id,
+      provider_code: error.code,
+    }));
+    return c.json({
+      error: 'Blast history is unavailable. Check the event-blasts database migration, then try again.',
+      code: 'blast_storage_unavailable',
+    }, 503);
+  }
 });
 
 app.post('/api/events/:eventId/blasts', async (c) => {
@@ -3694,18 +3708,32 @@ app.post('/api/events/:eventId/blasts', async (c) => {
 
   const scheduledFor = parsed.data.scheduled_for ?? null;
   const session = await getAdminSession(c);
-  const blast = await createEventBlast({
-    event_id: event.id,
-    subject: parsed.data.subject,
-    body: parsed.data.body,
-    status: 'needs_capacity',
-    recipient_count: recipients.length,
-    scheduled_for: scheduledFor,
-    sent_at: null,
-    provider_broadcast_id: null,
-    provider_segment_id: null,
-    created_by_email: session.authenticated ? session.email : null,
-  }, c);
+  let blast;
+  try {
+    blast = await createEventBlast({
+      event_id: event.id,
+      subject: parsed.data.subject,
+      body: parsed.data.body,
+      status: 'needs_capacity',
+      recipient_count: recipients.length,
+      scheduled_for: scheduledFor,
+      sent_at: null,
+      provider_broadcast_id: null,
+      provider_segment_id: null,
+      created_by_email: session.authenticated ? session.email : null,
+    }, c);
+  } catch (error) {
+    if (!(error instanceof EventBlastStorageError)) throw error;
+    console.error(JSON.stringify({
+      event: 'event_blast_storage_unavailable',
+      event_id: event.id,
+      provider_code: error.code,
+    }));
+    return c.json({
+      error: 'This blast could not be saved. Check the event-blasts database migration, then try again.',
+      code: 'blast_storage_unavailable',
+    }, 503);
+  }
 
   const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
   const from = envValue('REGISTRATION_EMAIL_FROM', c)?.trim();

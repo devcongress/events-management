@@ -1270,10 +1270,17 @@ async function retryEmails() {
               </div>
             </form>
 
-            <div v-if="blastsQuery.isPending.value" class="px-5 py-8 text-sm text-dc-gray">Loading blast history…</div>
-            <div v-else-if="blasts.length === 0" class="px-5 py-12 text-center">
-              <p class="text-sm font-semibold text-dc-ink">No event updates have been sent.</p>
-              <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">Use a blast for a useful pre-event reminder, venue change, or last detail—not routine registration receipts.</p>
+            <div v-if="blastsQuery.isPending.value" class="px-5 py-6 text-sm text-dc-gray">Loading blast history…</div>
+            <div v-else-if="blastsQuery.isError.value" class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border bg-red-50 px-5 py-5">
+              <div>
+                <p class="text-sm font-semibold text-red-800">Blast history could not load.</p>
+                <p class="mt-1 text-sm text-red-700">Check the event-blasts database setup, then try again.</p>
+              </div>
+              <button type="button" class="editorial-action min-h-10 px-3 text-[10px]" @click="blastsQuery.refetch()">TRY AGAIN</button>
+            </div>
+            <div v-else-if="blasts.length === 0" class="px-5 py-6">
+              <p class="text-sm font-semibold text-dc-ink">No event updates yet.</p>
+              <p class="mt-1 text-sm leading-6 text-dc-gray">Use a blast for a pre-event reminder, venue change, or final detail—not a registration receipt.</p>
             </div>
             <div v-else class="divide-y divide-dc-border">
               <div v-for="blast in blasts" :key="blast.id" class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
