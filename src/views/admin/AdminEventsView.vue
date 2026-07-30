@@ -19,6 +19,7 @@ import {
   EVENT_SERIES_HELP_TEXT,
   EVENT_SERIES_LABELS,
   EVENT_SERIES_SELECTIONS,
+  eventSeriesBadgeLabel,
   eventSeriesValueToSelection,
   resolveEventSeriesType,
   type EventSeriesSelection,
@@ -310,8 +311,8 @@ function formatMonthOption(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(`${value}-01T00:00:00`));
 }
 
-function eventKindLabel(event: CommunityEvent): string {
-  return EVENT_SERIES_LABELS[eventSeriesValueToSelection(resolveEventSeriesType(event))];
+function eventKindLabel(event: CommunityEvent): string | null {
+  return eventSeriesBadgeLabel(event);
 }
 
 function eventKindClass(event: CommunityEvent): string {
@@ -660,6 +661,7 @@ function goToPage(nextPage: number) {
                         <div class="flex min-w-0 flex-wrap items-center gap-2">
                           <div class="event-list-title">{{ formatEventMonth(event.event_date) }}</div>
                           <span
+                            v-if="eventKindLabel(event)"
                             class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide"
                             :class="eventKindClass(event)"
                           >

@@ -35,6 +35,11 @@ export function resolveEventSeriesType(event: Pick<Event, 'name' | 'series_type'
   return isEventSeriesType(event.series_type) ? event.series_type : inferEventSeriesType(event.name);
 }
 
+export function eventSeriesBadgeLabel(event: Pick<Event, 'name' | 'series_type'>): string | null {
+  const seriesType = resolveEventSeriesType(event);
+  return seriesType ? EVENT_SERIES_LABELS[seriesType] : null;
+}
+
 export function eventSeriesValueToSelection(value: EventSeriesType | null): EventSeriesSelection {
   return value ?? 'none';
 }

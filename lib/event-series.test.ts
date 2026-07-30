@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  eventSeriesBadgeLabel,
   eventSeriesSelectionToValue,
   eventSeriesValueToSelection,
   resolveEventSeriesType,
@@ -19,5 +20,16 @@ describe('event series classification', () => {
   it('converts the form sentinel into a nullable stored value', () => {
     expect(eventSeriesSelectionToValue('none')).toBeNull();
     expect(eventSeriesSelectionToValue('special')).toBe('special');
+  });
+
+  it('omits a badge for an explicitly unclassified event', () => {
+    expect(eventSeriesBadgeLabel({
+      name: 'Community Demo Night',
+      series_type: null,
+    })).toBeNull();
+    expect(eventSeriesBadgeLabel({
+      name: 'DevCongress Monthly Meetup',
+      series_type: 'monthly',
+    })).toBe('Monthly');
   });
 });

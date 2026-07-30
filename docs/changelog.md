@@ -5,6 +5,24 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-30 — Quieter registration page heading
+
+- Removed the duplicated **Registration** eyebrow and reduced the view-specific title scale so the page intro matches the calmer workspace hierarchy.
+- Kept the event context and historical-registration wording while leaving the shared editorial heading system unchanged.
+- Replaced the black selected guest-status filter with the existing brand-pink active treatment used by registration controls.
+
+## 2026-07-30 — No-series event badge cleanup
+
+- Kept **None of these** as the explicit event-creation choice and nullable stored series value, but stopped rendering it as a category badge in desktop and phone organizer event cards.
+- Preserved Monthly, Quarterly, Special, legacy series inference, and the existing event-type filters.
+
+## 2026-07-30 — Registration overview visual hierarchy
+
+- Replaced the Registration workspace’s black navigation slab with a quiet paper-aligned tab rail, sentence-case labels, and a restrained pink active indicator.
+- Consolidated confirmed registrations, capacity, places left, and percentage filled into one synchronized overview instead of disconnected cards; zero registrations now presents a clear empty state with one contextual form-sharing action.
+- Made the overview follow the event lifecycle: upcoming events show capacity, live events show check-in progress and guests still to arrive, and completed events show attendance and no-shows.
+- Revealed waitlisted and cancelled counts only when they exist, removed the pre-event no-show placeholder, and added short transform-and-opacity transitions with reduced-motion fallbacks.
+
 ## 2026-07-29 — Canonical production domain alignment
 
 - Standardized active public API verification, website-integration guidance, and Turnstile hostname fixtures on `https://em.devcongress.org`.
