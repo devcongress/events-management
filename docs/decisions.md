@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-029: Native Email-Only Event Blasts Through Isolated Resend Segments
+
+**Date:** 2026-07-30
+**Status:** Accepted
+**Context:** Organizers need to send a useful event update before a registered event, including scheduling it, without reconnecting Luma or turning registration operations into a general multi-channel marketing product. The first operating limit is 100 confirmed guests per blast, but an artificial monthly blast cap would prevent normal event follow-up. Provider plan/quota errors must not leave organizers with an opaque failure or a partial audience.
+**Decision:** Add a native **Blasts** workspace beside transactional registration email state. It accepts a plain-text subject and message, targets the current confirmed registrations only, and creates a new Resend Contact Segment per blast before requesting a Resend Broadcast send or scheduled send. Use a separate least-privilege `RESEND_BROADCASTS_API_KEY`, rather than widening the transactional key. Persist message metadata and provider IDs in `event_blasts`, but retain attendee email only in the existing registration table. Reject sends above 100 recipients; do not pick the first 100. If configuration or plan/quota capacity is unavailable, preserve the blast in a friendly `needs_capacity` state and do not send any subset.
+**Trade-offs:** Per-blast segments leave operational provider records and use Resend's global contact model, but create the clearest recipient snapshot and avoid a shared all-attendees audience. The first release is intentionally plain text and does not offer templates, per-recipient variables, cross-event segments, or editing/cancelling an already scheduled provider broadcast. Provider acceptance is still not proof of inbox delivery; delivery webhooks remain a later addition.
+**Alternatives considered:** Integrate Luma (would surrender the native registration source of truth), send through the transactional batch endpoint (does not provide provider-owned scheduling/unsubscribe mechanics), build a Worker cron queue now (more delivery machinery than the initial scale needs), or allow arbitrary recipient selection (adds privacy and accidental-send risk).
+**Revisit when:** Events routinely exceed 100 confirmed guests, organizers need cancellation/editing of a scheduled blast, delivery/open metrics become an operational need, or email updates need a consent/topic model beyond event logistics.
+
+---
+
 ## ADR-028: Immediate Places With Contextual Registration Operations
 
 **Date:** 2026-07-29

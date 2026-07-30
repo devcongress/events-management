@@ -7,6 +7,7 @@ export type CommunityEventSeriesType = 'monthly' | 'quarterly' | 'special';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
+export type EventBlastStatus = 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
 export type AdminRole = 'owner' | 'organizer';
 export type AdminMembershipStatus = 'active' | 'disabled';
 export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
@@ -435,6 +436,62 @@ export interface Database {
             foreignKeyName: 'event_registration_campaigns_event_id_fkey';
             columns: ['event_id'];
             isOneToOne: true;
+            referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_blasts: {
+        Row: {
+          id: string;
+          event_id: string;
+          subject: string;
+          body: string;
+          status: EventBlastStatus;
+          recipient_count: number;
+          scheduled_for: string | null;
+          sent_at: string | null;
+          provider_broadcast_id: string | null;
+          provider_segment_id: string | null;
+          created_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          subject: string;
+          body: string;
+          status: EventBlastStatus;
+          recipient_count: number;
+          scheduled_for?: string | null;
+          sent_at?: string | null;
+          provider_broadcast_id?: string | null;
+          provider_segment_id?: string | null;
+          created_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          subject?: string;
+          body?: string;
+          status?: EventBlastStatus;
+          recipient_count?: number;
+          scheduled_for?: string | null;
+          sent_at?: string | null;
+          provider_broadcast_id?: string | null;
+          provider_segment_id?: string | null;
+          created_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_blasts_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
             referencedRelation: 'community_events';
             referencedColumns: ['id'];
           },

@@ -19,11 +19,12 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `TURNSTILE_EXPECTED_HOSTNAME` | Required in production | No | Strict hostname check for Turnstile verification; production uses `em.devcongress.org` |
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 | `RESEND_API_KEY` | Required for Archive Request email sends | No | Server-only, sending-restricted Resend API key used by the authenticated speaker email batch endpoint. |
+| `RESEND_BROADCASTS_API_KEY` | Required to send or schedule event blasts | No | Separate server-only Resend key restricted to Contacts, Segments, and Broadcasts. The app saves a friendly capacity state when it is missing or the provider rejects the send for plan/quota reasons. |
 | `RESEND_WEBHOOK_SECRET` | Planned feature only | No | Server-only signing secret used to verify Resend delivery webhooks against the raw request body. |
 | `SPEAKER_EMAIL_FROM` | Required for Archive Request email sends | No | Approved monthly sender: `DevCongress Monthly Speakers <speakers@updates.devcongress.org>`. Reserve `DevCongress Conference Speakers` for the future annual-conference outreach flow. |
 | `SPEAKER_EMAIL_REPLY_TO` | Required for Archive Request email sends | No | Monitored DevCongress mailbox that receives replies; production is `hello@devcongress.org`. |
-| `REGISTRATION_EMAIL_FROM` | No | No | Optional registration-specific sender; falls back to `SPEAKER_EMAIL_FROM` when omitted. |
-| `REGISTRATION_EMAIL_REPLY_TO` | No | No | Optional registration-specific reply mailbox; falls back to `SPEAKER_EMAIL_REPLY_TO` when omitted. |
+| `REGISTRATION_EMAIL_FROM` | Required for registration receipts and event blasts | No | Approved attendee-facing sender: `DevCongress Events <events@updates.devcongress.org>`. It is deliberately independent from the speaker-program sender. |
+| `REGISTRATION_EMAIL_REPLY_TO` | Required for registration receipts and event blasts | No | Monitored mailbox for attendee replies; production is `hello@devcongress.org`. |
 
 ## Rules
 
@@ -42,5 +43,6 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.
-- Store `RESEND_API_KEY` as a Cloudflare Worker secret; never expose it through a `VITE_` variable or commit it. `RESEND_WEBHOOK_SECRET` remains reserved for the future verified delivery-webhook route.
+- Store `RESEND_API_KEY` and `RESEND_BROADCASTS_API_KEY` as separate Cloudflare Worker secrets; never expose either through a `VITE_` variable or commit them. `RESEND_WEBHOOK_SECRET` remains reserved for the future verified delivery-webhook route.
 - Keep `SPEAKER_EMAIL_FROM` on the verified Resend sending subdomain and point `SPEAKER_EMAIL_REPLY_TO` at a mailbox the DevCongress team actively monitors.
+- Keep `REGISTRATION_EMAIL_FROM` on the same verified Resend sending subdomain, with the attendee-facing `DevCongress Events` identity. Registration never falls back to the speaker-program sender.

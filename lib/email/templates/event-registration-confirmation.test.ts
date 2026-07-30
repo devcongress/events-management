@@ -22,6 +22,8 @@ describe('event registration confirmation email', () => {
 
     expect(content.subject).toBe('You are registered for DevCongress May Meetup');
     expect(content.html).toContain('Registration confirmed');
+    expect(content.html).toContain('src="https://devcongress.org/images/logo-nav%402x.png"');
+    expect(content.html).toContain('alt="DevCongress"');
     expect(content.html).toContain('Friday, May 3, 2024');
     expect(content.html).toContain('6:00 PM – 9:00 PM GMT');
     expect(content.html).toContain('buro, Accra');

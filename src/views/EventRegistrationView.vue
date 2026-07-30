@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
+import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_REGISTRATION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import {
@@ -13,6 +14,7 @@ import {
 
 const route = useRoute();
 const eventKey = computed(() => String(route.params.eventKey ?? route.params.eventId ?? ''));
+const eventDetailsView = computed(() => route.query.view === 'details');
 const logoSrc = '/brand/dev-con-logo.png';
 const form = reactive({ name: '', email: '' });
 const submitting = ref(false);
@@ -30,6 +32,7 @@ const registrationQuery = useQuery({
   retry: false,
 });
 const registration = computed(() => registrationQuery.data.value ?? null);
+const detailsMapUrl = computed(() => safeGoogleMapsUrl(registration.value?.event.location?.url));
 const canSubmit = computed(() => (
   registration.value?.available === true
   && form.name.trim().length > 0
@@ -90,7 +93,7 @@ async function submitRegistration() {
         <img :src="logoSrc" alt="DevCongress" class="registration-brand-logo">
         <div>
           <p class="registration-brand-name">DevCongress</p>
-          <p class="registration-brand-copy">Community meetup registration</p>
+          <p class="registration-brand-copy">{{ eventDetailsView ? 'Community meetup details' : 'Community meetup registration' }}</p>
         </div>
       </header>
 
@@ -131,7 +134,30 @@ async function submitRegistration() {
         </section>
 
         <section
-          v-if="receipt"
+          v-if="eventDetailsView"
+          class="registration-action-card"
+        >
+          <div class="registration-stub-header">
+            <p class="editorial-eyebrow">event details</p>
+            <span class="registration-stub-code" aria-hidden="true">DEVCONGRESS / ACCRA</span>
+          </div>
+          <h2 class="registration-action-title">Everything for the day.</h2>
+          <p class="registration-action-copy">
+            You’ll find the event time, venue, and calendar actions here and in your confirmation email.
+          </p>
+          <a
+            v-if="detailsMapUrl"
+            :href="detailsMapUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="registration-details-map editorial-secondary-action"
+          >
+            OPEN MAP
+          </a>
+        </section>
+
+        <section
+          v-else-if="receipt"
           class="registration-action-card"
           aria-live="polite"
         >
@@ -582,6 +608,16 @@ async function submitRegistration() {
   line-height: 1.4;
 }
 
+.registration-details-map {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.25rem;
+  padding: 0.625rem 1rem;
+}
+
 .registration-form {
   display: flex;
   flex: 0 0 auto;
@@ -793,6 +829,11 @@ async function submitRegistration() {
     margin-top: 0.85rem;
     padding: 0.75rem;
     font-size: 0.75rem;
+  }
+
+  .registration-details-map {
+    min-height: 3rem;
+    margin-top: 1rem;
   }
 
   .registration-form {

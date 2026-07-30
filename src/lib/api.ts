@@ -1,6 +1,7 @@
 import type {
   Event,
   EventChecklistItem,
+  EventBlast,
   EventRegistration,
   EventRegistrationCampaign,
   EventRegistrationSummary,
@@ -221,6 +222,10 @@ export interface AdminManagedEventRegistrationsResponse {
   public_url: string;
 }
 
+export interface EventBlastsResponse {
+  blasts: EventBlast[];
+}
+
 export interface AdminLegacyEventRegistrationsResponse {
   managed_internally: false;
   event: Event;
@@ -259,6 +264,7 @@ export const queryKeys = {
   event: (eventId: string) => ['events', eventId] as const,
   eventChecklist: (eventId: string) => ['event-checklist', eventId] as const,
   eventRegistrations: (eventId: string) => ['event-registrations', eventId] as const,
+  eventBlasts: (eventId: string) => ['event-blasts', eventId] as const,
   publicEventRegistration: (eventId: string) => ['public-event-registration', eventId] as const,
 };
 
@@ -449,6 +455,25 @@ export function processEventRegistrationEmails(eventId: string) {
     method: 'POST',
     credentials: 'include',
   });
+}
+
+export function fetchEventBlasts(eventId: string) {
+  return fetchJson<EventBlastsResponse>(`/api/events/${eventId}/blasts`, { credentials: 'include' });
+}
+
+export function createEventBlast(
+  eventId: string,
+  input: { subject: string; body: string; scheduled_for?: string | null },
+) {
+  return fetchJson<{ blast: EventBlast; delivery: 'scheduled' | 'sent' | 'needs_capacity' | 'failed' }>(
+    `/api/events/${eventId}/blasts`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function fetchFeedbackMonths() {

@@ -13,7 +13,7 @@ import {
   normalizeEventFeedbackAnswer,
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
-import { sendResendEmailBatch, ResendBatchError } from '@/lib/email/resend';
+import { createResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError } from '@/lib/email/resend';
 import {
   eventRegistrationCalendarFile,
   eventRegistrationConfirmationEmail,
@@ -32,6 +32,7 @@ import {
   updateRegistrationCampaign,
   updateRegistrationEmailDelivery,
 } from '@/lib/event-registration-store';
+import { createEventBlast, getEventBlasts, updateEventBlast } from '@/lib/event-blast-store';
 import {
   ANNUAL_CONFERENCE_TASK_PRIORITIES,
   ANNUAL_CONFERENCE_TASK_STATUSES,
@@ -238,6 +239,19 @@ const eventRegistrationCampaignUpdateSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['closes_at'],
       message: 'Registration cannot close before it opens.',
+    });
+  }
+});
+const eventBlastRequestSchema = z.object({
+  subject: z.string().trim().min(1, 'Add an email subject.').max(160),
+  body: z.string().trim().min(1, 'Add a message.').max(5000),
+  scheduled_for: z.string().datetime().nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.scheduled_for && new Date(value.scheduled_for).getTime() < Date.now() + 60_000) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['scheduled_for'],
+      message: 'Choose a send time at least one minute from now.',
     });
   }
 });
@@ -1274,6 +1288,12 @@ function publicRegistrationUrl(event: Event, c: Context): string {
   return new URL(`/r/${encodeURIComponent(key)}`, publicAppOrigin(c)).toString();
 }
 
+function publicEventDetailsUrl(event: Event, c: Context): string {
+  const url = new URL(publicRegistrationUrl(event, c));
+  url.searchParams.set('view', 'details');
+  return url.toString();
+}
+
 function publicRegistrationCalendarUrl(event: Event, c: Context): string {
   const key = event.slug?.trim() || event.id;
   return new URL(
@@ -1293,10 +1313,8 @@ async function sendPendingRegistrationConfirmationEmails(
   } = {},
 ): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
-  const emailFrom = envValue('REGISTRATION_EMAIL_FROM', c)?.trim()
-    || envValue('SPEAKER_EMAIL_FROM', c)?.trim();
-  const emailReplyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim()
-    || envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  const emailFrom = envValue('REGISTRATION_EMAIL_FROM', c)?.trim();
+  const emailReplyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
   if (!resendApiKey || !emailFrom || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return { configured: false, accepted: [], failed: [] };
   }
@@ -1319,7 +1337,7 @@ async function sendPendingRegistrationConfirmationEmails(
       eventEndDate: event.end_date,
       locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
       locationUrl: event.location?.url,
-      eventUrl: publicRegistrationUrl(event, c),
+      eventUrl: publicEventDetailsUrl(event, c),
       calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
       status: delivery.registration_status,
       kind: delivery.kind,
@@ -3413,7 +3431,7 @@ app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
     eventDate: event.event_date,
     eventEndDate: event.end_date,
     locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
-    eventUrl: publicRegistrationUrl(event, c),
+    eventUrl: publicEventDetailsUrl(event, c),
     updatedAt: event.updated_at,
   });
   if (!calendar) {
@@ -3642,6 +3660,115 @@ app.get('/api/events/:eventId/registrations', async (c) => {
     summary: summarizeEventRegistrations(campaign, registrations),
     public_url: publicRegistrationUrl(event, c),
   });
+});
+
+app.get('/api/events/:eventId/blasts', async (c) => {
+  const event = await getEventById(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
+  return c.json({ blasts: await getEventBlasts(event.id, c) });
+});
+
+app.post('/api/events/:eventId/blasts', async (c) => {
+  const event = await getEventById(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
+
+  const parsed = eventBlastRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the blast details.' }, 400);
+  }
+
+  const recipients = (await getEventRegistrations(event.id, c))
+    .filter((registration) => registration.status === 'confirmed')
+    .map((registration) => ({ email: registration.email, name: registration.name }));
+  if (recipients.length === 0) {
+    return c.json({ error: 'A blast needs at least one confirmed guest.' }, 409);
+  }
+  if (recipients.length > 100) {
+    return c.json({
+      error: `This event has ${recipients.length} confirmed guests. Blasts are limited to 100 recipients.`,
+      code: 'recipient_limit',
+    }, 409);
+  }
+
+  const scheduledFor = parsed.data.scheduled_for ?? null;
+  const session = await getAdminSession(c);
+  const blast = await createEventBlast({
+    event_id: event.id,
+    subject: parsed.data.subject,
+    body: parsed.data.body,
+    status: 'needs_capacity',
+    recipient_count: recipients.length,
+    scheduled_for: scheduledFor,
+    sent_at: null,
+    provider_broadcast_id: null,
+    provider_segment_id: null,
+    created_by_email: session.authenticated ? session.email : null,
+  }, c);
+
+  const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
+  const from = envValue('REGISTRATION_EMAIL_FROM', c)?.trim();
+  const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
+  if (!apiKey || !from || !replyTo || !z.string().email().safeParse(replyTo).success) {
+    await auditAdminAction(c, {
+      action: 'event.blast.needs_capacity',
+      targetType: 'event_blast',
+      targetId: blast.id,
+      metadata: { event_id: event.id, recipient_count: recipients.length, reason: 'not_configured' },
+    });
+    return c.json({ blast, delivery: 'needs_capacity' as const }, 202);
+  }
+
+  try {
+    const provider = await createResendBroadcast({
+      apiKey,
+      eventName: event.name,
+      subject: blast.subject,
+      body: blast.body,
+      from,
+      replyTo,
+      scheduledFor,
+      recipients,
+    });
+    const status = scheduledFor ? 'scheduled' : 'sent';
+    const updated = await updateEventBlast(blast.id, {
+      status,
+      provider_broadcast_id: provider.broadcastId,
+      provider_segment_id: provider.segmentId,
+      sent_at: scheduledFor ? null : new Date().toISOString(),
+    }, c);
+    await auditAdminAction(c, {
+      action: scheduledFor ? 'event.blast.schedule' : 'event.blast.send',
+      targetType: 'event_blast',
+      targetId: blast.id,
+      metadata: { event_id: event.id, recipient_count: recipients.length, scheduled_for: scheduledFor },
+    });
+    return c.json({ blast: updated ?? blast, delivery: status }, 201);
+  } catch (error) {
+    const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
+    const status = providerStatus === 402 || providerStatus === 403 || providerStatus === 429
+      ? 'needs_capacity'
+      : 'failed';
+    const updated = await updateEventBlast(blast.id, { status }, c);
+    await auditAdminAction(c, {
+      action: status === 'needs_capacity' ? 'event.blast.needs_capacity' : 'event.blast.failed',
+      targetType: 'event_blast',
+      targetId: blast.id,
+      metadata: { event_id: event.id, recipient_count: recipients.length, provider_status: providerStatus },
+    });
+    console.warn(JSON.stringify({
+      event: 'event_blast_delayed',
+      event_id: event.id,
+      blast_id: blast.id,
+      recipient_count: recipients.length,
+      provider_status: providerStatus,
+    }));
+    return c.json({
+      blast: updated ?? blast,
+      delivery: status,
+    }, status === 'needs_capacity' ? 202 : 502);
+  }
 });
 
 app.patch('/api/events/:eventId/registrations', async (c) => {

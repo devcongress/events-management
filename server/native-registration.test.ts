@@ -48,6 +48,44 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('keeps a blast in a friendly capacity state when Broadcasts are not configured', async () => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Blast-ready meetup',
+        description: 'An event with an update.',
+        event_date: '2026-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+    await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
+    await app.request(`http://localhost/api/registration/events/${created.event.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Ama Mensah', email: 'ama@example.com' }),
+    });
+
+    const blastResponse = await app.request(`http://localhost/api/events/${created.event.id}/blasts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.' }),
+    });
+
+    expect(blastResponse.status).toBe(202);
+    await expect(blastResponse.json()).resolves.toMatchObject({
+      delivery: 'needs_capacity',
+      blast: { recipient_count: 1, status: 'needs_capacity' },
+    });
+  });
+
   it('identifies existing events without a campaign as not internally managed', async () => {
     const legacyEvent = {
       id: 'legacy-luma-event',
@@ -543,7 +581,7 @@ describe('native event registration API', () => {
 
   it('sends confirmed, waitlist, and automatic promotion emails to the intended guest', async () => {
     vi.stubEnv('RESEND_API_KEY', 're_test');
-    vi.stubEnv('REGISTRATION_EMAIL_FROM', 'DevCongress <events@updates.devcongress.org>');
+    vi.stubEnv('REGISTRATION_EMAIL_FROM', 'DevCongress Events <events@updates.devcongress.org>');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
     const providerFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       data: [{ id: 'email-1' }],
@@ -603,12 +641,14 @@ describe('native event registration API', () => {
     });
     expect(providerFetch).toHaveBeenCalledTimes(1);
     const request = providerFetch.mock.calls[0]?.[1] as RequestInit;
-    const emails = JSON.parse(String(request.body)) as Array<{ html: string; text: string }>;
+    const emails = JSON.parse(String(request.body)) as Array<{ from: string; html: string; text: string }>;
+    expect(emails[0]?.from).toBe('DevCongress Events <events@updates.devcongress.org>');
     expect(emails[0]?.html).toContain('Saturday, August 29, 2026');
     expect(emails[0]?.html).toContain('6:00 PM – 9:00 PM GMT');
     expect(emails[0]?.html).toContain('View map ↗');
     expect(emails[0]?.html).toContain('Google Calendar');
     expect(emails[0]?.html).toContain('Download .ics');
+    expect(emails[0]?.html).toContain('http://localhost/r/august-email-test?view=details');
     expect(emails[0]?.text).toContain(
       'Download calendar file: http://localhost/api/registration/events/august-email-test/calendar.ics',
     );

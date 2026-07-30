@@ -4,11 +4,14 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import RegistrationAlphabetFilter from '@/src/components/ui/RegistrationAlphabetFilter.vue';
 import {
   cancelEventRegistration,
   checkInEventRegistration,
+  createEventBlast,
+  fetchEventBlasts,
   fetchEventRegistrations,
   processEventRegistrationEmails,
   queryKeys,
@@ -34,9 +37,9 @@ import {
   summarizeRegistrationWorkspace,
   type RegistrationGuestFilter,
 } from '@/src/lib/registration-workspace';
-import type { EventRegistration } from '@/types';
+import type { EventBlast, EventRegistration } from '@/types';
 
-type RegistrationWorkspaceTab = 'summary' | 'guests' | 'form' | 'emails';
+type RegistrationWorkspaceTab = 'summary' | 'guests' | 'form' | 'emails' | 'blasts';
 type RegistrationOverviewPhase = 'before' | 'live' | 'after';
 
 const route = useRoute();
@@ -46,6 +49,11 @@ const registrationQuery = useQuery({
   queryKey: computed(() => queryKeys.eventRegistrations(eventId.value)),
   queryFn: () => fetchEventRegistrations(eventId.value),
   enabled: computed(() => Boolean(eventId.value)),
+});
+const blastsQuery = useQuery({
+  queryKey: computed(() => queryKeys.eventBlasts(eventId.value)),
+  queryFn: () => fetchEventBlasts(eventId.value),
+  enabled: computed(() => Boolean(eventId.value) && registrationQuery.data.value?.managed_internally === true),
 });
 const settings = reactive({
   status: 'draft' as 'draft' | 'open' | 'closed',
@@ -61,6 +69,12 @@ const selectedGuestStatus = ref<RegistrationGuestFilter>('all');
 const savePending = ref(false);
 const settingsConfirmationOpen = ref(false);
 const retryPending = ref(false);
+const blastComposerOpen = ref(false);
+const blastPreviewOpen = ref(false);
+const blastPending = ref(false);
+const blastSubject = ref('');
+const blastBody = ref('');
+const blastScheduledFor = ref('');
 const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
 const pendingRemoval = ref<EventRegistration | null>(null);
@@ -87,6 +101,7 @@ const workspaceTabs: Array<{
   { id: 'guests', label: 'Guests' },
   { id: 'form', label: 'Form & capacity' },
   { id: 'emails', label: 'Emails' },
+  { id: 'blasts', label: 'Blasts' },
 ];
 const data = computed(() => registrationQuery.data.value ?? null);
 const managedInternally = computed(() => data.value?.managed_internally === true);
@@ -102,6 +117,40 @@ const workspaceSummary = computed(() => (
     : null
 ));
 const emailSummary = computed(() => summarizeRegistrationEmails(displayedRegistrations.value));
+const blasts = computed(() => blastsQuery.data.value?.blasts ?? []);
+const confirmedBlastRecipients = computed(() => displayedRegistrations.value.filter((registration) => registration.status === 'confirmed').length);
+const canCreateBlast = computed(() => (
+  confirmedBlastRecipients.value > 0
+  && confirmedBlastRecipients.value <= 100
+  && blastSubject.value.trim().length > 0
+  && blastBody.value.trim().length > 0
+));
+const blastTemplates = computed(() => {
+  const eventName = data.value?.event.name ?? 'this event';
+  const eventDate = data.value?.event.event_date
+    ? formatDateTime(data.value.event.event_date)
+    : 'the event day';
+  return [
+    {
+      id: 'update',
+      label: 'Event update',
+      subject: `${eventName} — quick update`,
+      body: `Hi,\n\nHere’s a quick update about ${eventName}.\n\n[Add your update]\n\nSee you there,\nDevCongress`,
+    },
+    {
+      id: 'reminder',
+      label: 'Reminder',
+      subject: `${eventName} — see you soon`,
+      body: `Hi,\n\nA quick reminder that ${eventName} is happening ${eventDate}.\n\n[Add any final details]\n\nSee you there,\nDevCongress`,
+    },
+    {
+      id: 'venue',
+      label: 'Venue change',
+      subject: `${eventName} — venue update`,
+      body: `Hi,\n\nThe venue for ${eventName} has changed.\n\n[Add the new venue and any arrival details]\n\nSee you there,\nDevCongress`,
+    },
+  ];
+});
 const registrationOverviewPhase = computed<RegistrationOverviewPhase>(() => {
   const summary = workspaceSummary.value;
   const event = data.value?.event;
@@ -470,8 +519,25 @@ function emailStatusClass(status: EventRegistration['email_status']): string {
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 
+function blastStatusLabel(status: EventBlast['status']): string {
+  if (status === 'scheduled') return 'Scheduled';
+  if (status === 'sent') return 'Sent';
+  if (status === 'needs_capacity') return 'Needs email capacity';
+  return 'Needs attention';
+}
+
+function blastStatusClass(status: EventBlast['status']): string {
+  if (status === 'sent') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
+  if (status === 'scheduled') return 'border-sky-300 bg-sky-50 text-sky-800';
+  if (status === 'needs_capacity') return 'border-amber-300 bg-amber-50 text-amber-800';
+  return 'border-red-300 bg-red-50 text-red-700';
+}
+
 async function refresh() {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.eventRegistrations(eventId.value) });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.eventRegistrations(eventId.value) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.eventBlasts(eventId.value) }),
+  ]);
 }
 
 function requestSaveSettings() {
@@ -488,6 +554,53 @@ function selectWorkspaceTab(tab: RegistrationWorkspaceTab) {
     ? 'registration-panel-forward'
     : 'registration-panel-backward';
   activeWorkspaceTab.value = tab;
+}
+
+function openBlastPreview() {
+  if (!canCreateBlast.value || blastPending.value) return;
+  blastPreviewOpen.value = true;
+}
+
+function openBlastComposer() {
+  blastComposerOpen.value = true;
+  if (blastSubject.value.trim() || blastBody.value.trim()) return;
+  applyBlastTemplate('update');
+}
+
+function applyBlastTemplate(templateId: string) {
+  const template = blastTemplates.value.find((item) => item.id === templateId);
+  if (!template) return;
+  blastSubject.value = template.subject;
+  blastBody.value = template.body;
+}
+
+async function sendBlast() {
+  if (!canCreateBlast.value || blastPending.value) return;
+  blastPending.value = true;
+  try {
+    const result = await createEventBlast(eventId.value, {
+      subject: blastSubject.value.trim(),
+      body: blastBody.value.trim(),
+      scheduled_for: toIso(blastScheduledFor.value),
+    });
+    await refresh();
+    blastComposerOpen.value = false;
+    blastPreviewOpen.value = false;
+    blastSubject.value = '';
+    blastBody.value = '';
+    blastScheduledFor.value = '';
+    notify.success(
+      result.delivery === 'scheduled'
+        ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
+        : result.delivery === 'sent'
+          ? `Blast sent to ${result.blast.recipient_count} confirmed guests.`
+          : 'Blast saved. Add email capacity in Resend, then try again.',
+    );
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to create this blast.');
+  } finally {
+    blastPending.value = false;
+  }
 }
 
 async function handleRegistrationOverviewAction() {
@@ -973,7 +1086,7 @@ async function retryEmails() {
           </section>
 
           <section
-            v-else
+            v-else-if="activeWorkspaceTab === 'emails'"
             id="registration-panel-emails"
             key="emails"
             role="tabpanel"
@@ -1067,9 +1180,130 @@ async function retryEmails() {
             </div>
           </div>
           </section>
+
+          <section
+            v-else
+            id="registration-panel-blasts"
+            key="blasts"
+            role="tabpanel"
+            aria-labelledby="registration-tab-blasts"
+            class="editorial-panel mt-5 overflow-hidden"
+          >
+            <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-5">
+              <div class="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p class="editorial-eyebrow">event updates</p>
+                  <h2 class="mt-1 text-xl font-bold text-dc-ink">Email blasts</h2>
+                  <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">
+                    Send one custom update to confirmed guests. Waitlisted and cancelled guests are never included.
+                  </p>
+                </div>
+                <button
+                  v-if="!blastComposerOpen"
+                  type="button"
+                  class="editorial-action min-h-11 justify-center px-4"
+                  :disabled="confirmedBlastRecipients === 0 || confirmedBlastRecipients > 100"
+                  @click="openBlastComposer"
+                >
+                  CREATE BLAST
+                </button>
+              </div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+                  {{ confirmedBlastRecipients }} confirmed guest{{ confirmedBlastRecipients === 1 ? '' : 's' }}
+                </span>
+                <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+                  100 recipient limit
+                </span>
+              </div>
+            </div>
+
+            <div v-if="confirmedBlastRecipients === 0" class="border-b border-dc-border px-5 py-5 text-sm leading-6 text-dc-gray">
+              A blast becomes available once at least one guest has a confirmed place.
+            </div>
+            <div v-else-if="confirmedBlastRecipients > 100" class="border-b border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-6 text-amber-900">
+              This event has {{ confirmedBlastRecipients }} confirmed guests. Blasts stop at 100 recipients so an organizer never sends a partial update by accident.
+            </div>
+
+            <form v-if="blastComposerOpen" class="border-b border-dc-border p-5" @submit.prevent="openBlastPreview">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="font-semibold text-dc-ink">Write the update</p>
+                  <p class="mt-1 text-xs leading-5 text-dc-gray">Plain text keeps the message clean in every inbox. Links can be pasted directly.</p>
+                </div>
+                <button type="button" class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray" @click="blastComposerOpen = false">
+                  Cancel
+                </button>
+              </div>
+              <div class="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_15rem]">
+                <div>
+                  <label for="blast-subject" class="editorial-label">Subject</label>
+                  <input id="blast-subject" v-model="blastSubject" maxlength="160" class="editorial-input" placeholder="A quick update about the event" required>
+                </div>
+                <AppDatePicker v-model="blastScheduledFor" label="Send later (optional)" mode="datetime" />
+              </div>
+              <div class="mt-4">
+                <p class="editorial-label">Start with</p>
+                <div class="mt-2 flex flex-wrap gap-2" aria-label="Blast starter templates">
+                  <button
+                    v-for="template in blastTemplates"
+                    :key="template.id"
+                    type="button"
+                    class="min-h-10 rounded-md border border-dc-border bg-dc-paper-warm px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray transition-colors duration-150 hover:bg-white"
+                    @click="applyBlastTemplate(template.id)"
+                  >
+                    {{ template.label }}
+                  </button>
+                </div>
+              </div>
+              <div class="mt-4">
+                <label for="blast-body" class="editorial-label">Message</label>
+                <textarea id="blast-body" v-model="blastBody" class="editorial-input min-h-40 resize-none" maxlength="5000" placeholder="Share the update guests need to know." required />
+              </div>
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs leading-5 text-dc-gray">
+                  {{ confirmedBlastRecipients }} confirmed guest{{ confirmedBlastRecipients === 1 ? '' : 's' }} will receive this email.
+                </p>
+                <button type="submit" class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50" :disabled="!canCreateBlast || blastPending">
+                  PREVIEW EMAIL
+                </button>
+              </div>
+            </form>
+
+            <div v-if="blastsQuery.isPending.value" class="px-5 py-8 text-sm text-dc-gray">Loading blast history…</div>
+            <div v-else-if="blasts.length === 0" class="px-5 py-12 text-center">
+              <p class="text-sm font-semibold text-dc-ink">No event updates have been sent.</p>
+              <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">Use a blast for a useful pre-event reminder, venue change, or last detail—not routine registration receipts.</p>
+            </div>
+            <div v-else class="divide-y divide-dc-border">
+              <div v-for="blast in blasts" :key="blast.id" class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate font-bold text-dc-ink">{{ blast.subject }}</p>
+                  <p class="mt-1 text-sm text-dc-gray">
+                    {{ blast.recipient_count }} confirmed guest{{ blast.recipient_count === 1 ? '' : 's' }}
+                    <span v-if="blast.scheduled_for"> · {{ formatDateTime(blast.scheduled_for) }}</span>
+                    <span v-else-if="blast.sent_at"> · {{ formatDateTime(blast.sent_at) }}</span>
+                  </p>
+                </div>
+                <span class="w-fit rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold uppercase" :class="blastStatusClass(blast.status)">
+                  {{ blastStatusLabel(blast.status) }}
+                </span>
+              </div>
+            </div>
+          </section>
         </Transition>
       </template>
     </div>
+
+    <BlastEmailPreview
+      :open="blastPreviewOpen"
+      :subject="blastSubject"
+      :body="blastBody"
+      :action-label="blastScheduledFor ? `SCHEDULE FOR ${formatDateTime(toIso(blastScheduledFor) ?? new Date().toISOString())}` : `SEND TO ${confirmedBlastRecipients} GUEST${confirmedBlastRecipients === 1 ? '' : 'S'}`"
+      :busy="blastPending"
+      @close="blastPreviewOpen = false"
+      @confirm="sendBlast"
+    />
 
     <ConfirmDialog
       :open="settingsConfirmationOpen"
