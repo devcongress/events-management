@@ -5,6 +5,11 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 
 ---
 
+## 2026-07-30 — Blast storage clarity
+
+- Replaced the oversized empty blast-history panel with a compact state, and surfaced unavailable blast storage with a retry action and safe migration guidance rather than an opaque generic error.
+- Added a safe storage-error code to Worker logs so deployment configuration can be diagnosed without exposing database details to organizers.
+
 ## 2026-07-30 — Registration email wordmark
 
 - Replaced the text-only DevCongress label in the registration email header with the official compact wordmark, while retaining accessible text as the image fallback.

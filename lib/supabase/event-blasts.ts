@@ -6,6 +6,13 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
 type BlastInsert = Database['public']['Tables']['event_blasts']['Insert'];
 type BlastUpdate = Database['public']['Tables']['event_blasts']['Update'];
 
+export class EventBlastStorageError extends Error {
+  constructor(readonly code: string | null) {
+    super('Event blast storage is unavailable.');
+    this.name = 'EventBlastStorageError';
+  }
+}
+
 export function canUseSupabaseEventBlasts(c?: Context): boolean {
   return isSupabaseRuntimeEnabled(c);
 }
@@ -20,7 +27,7 @@ export async function getSupabaseEventBlasts(
     .select('*')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throw new EventBlastStorageError(error.code ?? null);
   return data;
 }
 
@@ -30,7 +37,7 @@ export async function createSupabaseEventBlast(
 ): Promise<EventBlast | null> {
   if (!canUseSupabaseEventBlasts(c)) return null;
   const { data, error } = await getSupabaseAdminClient(c).from('event_blasts').insert(input).select('*').single();
-  if (error) throw new Error(error.message);
+  if (error) throw new EventBlastStorageError(error.code ?? null);
   return data;
 }
 
@@ -46,6 +53,6 @@ export async function updateSupabaseEventBlast(
     .eq('id', id)
     .select('*')
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new EventBlastStorageError(error.code ?? null);
   return data;
 }
