@@ -27,7 +27,7 @@ describe('event registration confirmation email', () => {
     expect(content.html).toContain('Friday, May 3, 2024');
     expect(content.html).toContain('6:00 PM – 9:00 PM GMT');
     expect(content.html).toContain('buro, Accra');
-    expect(content.html).toContain('View map ↗');
+    expect(content.html).toContain('View map →');
     expect(content.html).toContain('Google Calendar');
     expect(content.html).toContain('Download .ics');
     expect(content.text).not.toMatch(/QR code|confirmation code/i);

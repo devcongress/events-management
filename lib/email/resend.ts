@@ -83,6 +83,12 @@ function recipientName(name: string): { first_name?: string; last_name?: string 
 export async function createResendBroadcast(input: {
   apiKey: string;
   eventName: string;
+  eventDate: string;
+  eventEndDate?: string | null;
+  locationName: string;
+  locationUrl?: string | null;
+  eventUrl?: string | null;
+  calendarDownloadUrl?: string | null;
   subject: string;
   body: string;
   from: string;
@@ -131,6 +137,13 @@ export async function createResendBroadcast(input: {
     subject: input.subject,
     body: input.body,
     unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
+    eventName: input.eventName,
+    eventDate: input.eventDate,
+    eventEndDate: input.eventEndDate,
+    locationName: input.locationName,
+    locationUrl: input.locationUrl,
+    eventUrl: input.eventUrl,
+    calendarDownloadUrl: input.calendarDownloadUrl,
   });
   const response = await resendRequest(input.apiKey, '/broadcasts', {
     method: 'POST',

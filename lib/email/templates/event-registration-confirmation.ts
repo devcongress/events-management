@@ -343,8 +343,6 @@ export function eventRegistrationConfirmationEmail(
         .email-wrap { padding: 16px 10px !important; }
         .email-pad { padding: 28px 22px !important; }
         .email-heading { font-size: 31px !important; }
-        .calendar-action { display: block !important; width: 100% !important; padding: 0 0 10px !important; }
-        .calendar-action a { display: block !important; text-align: center !important; }
       }
       @media (prefers-color-scheme: dark) {
         .email-body, .email-canvas { background: #111111 !important; }
@@ -352,6 +350,7 @@ export function eventRegistrationConfirmationEmail(
         .email-heading, .email-title, .email-detail-title { color: #E5E5E5 !important; }
         .email-copy, .email-detail-copy, .email-footer { color: #A1A1A1 !important; }
         .email-detail { background: #262626 !important; border-color: #3A3A3A !important; }
+        .email-detail-divider { background: #3A3A3A !important; }
         .email-date-tile { background: #F5E642 !important; }
         .email-secondary-action { color: #E5E5E5 !important; border-color: #666666 !important; }
       }
@@ -404,44 +403,43 @@ export function eventRegistrationConfirmationEmail(
                 <p class="email-copy" style="margin:0 0 28px;color:#4B4B4B;font-size:17px;line-height:1.6;">Hi ${safe.attendeeName}, ${escapeHtml(statusLine)}</p>
                 <p class="email-title" style="margin:0 0 16px;color:#111111;font-size:22px;font-weight:800;line-height:1.3;">${safe.eventName}</p>
 
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F7F4EA" class="email-detail" style="width:100%;margin:0 0 12px;background:#F7F4EA;border:1px solid #D8D2C4;border-radius:8px;border-collapse:separate;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F7F4EA" class="email-detail" style="width:100%;margin:0 0 22px;background:#F7F4EA;border:1px solid #D8D2C4;border-radius:8px;border-collapse:separate;overflow:hidden;">
                   <tr>
-                    <td width="72" valign="middle" style="width:72px;padding:16px 0 16px 16px;">
+                    <td width="72" valign="middle" style="width:72px;padding:14px 0 14px 16px;">
                       <table role="presentation" width="56" cellspacing="0" cellpadding="0" bgcolor="#F5E642" class="email-date-tile" style="width:56px;background:#F5E642;border:1px solid #111111;border-radius:8px;border-collapse:separate;overflow:hidden;">
                         <tr><td align="center" style="padding:5px 4px 3px;color:#111111;font-family:'Courier New',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;">${safe.monthLabel}</td></tr>
                         <tr><td align="center" style="padding:2px 4px 7px;color:#111111;font-size:24px;font-weight:800;line-height:1;">${safe.dayLabel}</td></tr>
                       </table>
                     </td>
-                    <td valign="middle" style="padding:16px 18px 16px 14px;">
+                    <td valign="middle" style="padding:14px 18px 14px 14px;">
+                      <p style="margin:0 0 4px;color:#C80D68;font-family:'Courier New',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">When</p>
                       <p class="email-detail-title" style="margin:0 0 5px;color:#111111;font-size:16px;font-weight:800;line-height:1.35;">${safe.dateLabel}</p>
                       <p class="email-detail-copy" style="margin:0;color:#666666;font-size:15px;line-height:1.4;">${safe.timeLabel}</p>
                     </td>
                   </tr>
-                </table>
-
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F7F4EA" class="email-detail" style="width:100%;margin:0 0 24px;background:#F7F4EA;border:1px solid #D8D2C4;border-radius:8px;border-collapse:separate;">
+                  <tr><td colspan="2" class="email-detail-divider" style="height:1px;background:#D8D2C4;font-size:0;line-height:0;">&nbsp;</td></tr>
                   <tr>
-                    <td width="72" align="center" valign="middle" style="width:72px;padding:18px 0 18px 16px;">
-                      <div style="width:54px;height:54px;border:1px solid #111111;border-radius:8px;color:#E8117F;font-size:27px;font-weight:800;line-height:54px;text-align:center;">⌖</div>
+                    <td width="72" align="center" valign="middle" style="width:72px;padding:14px 0 14px 16px;">
+                      <div aria-label="Location" style="width:54px;height:54px;border:1px solid #111111;border-radius:8px;color:#E8117F;font-size:27px;font-weight:800;line-height:54px;text-align:center;">⌖</div>
                     </td>
-                    <td valign="middle" style="padding:17px 18px 17px 14px;">
+                    <td valign="middle" style="padding:14px 18px 14px 14px;">
                       <p style="margin:0 0 5px;color:#C80D68;font-family:'Courier New',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Location</p>
                       <p class="email-detail-title" style="margin:0;color:#111111;font-size:17px;font-weight:800;line-height:1.35;">${safe.locationName}</p>
-                      ${safe.mapUrl ? `<p style="margin:7px 0 0;"><a href="${safe.mapUrl}" target="_blank" rel="noopener noreferrer" style="color:#C80D68;font-size:13px;font-weight:700;text-decoration:underline;">View map ↗</a></p>` : ''}
+                      ${safe.mapUrl ? `<p style="margin:7px 0 0;"><a href="${safe.mapUrl}" target="_blank" rel="noopener noreferrer" style="color:#C80D68;font-size:13px;font-weight:700;text-decoration:none;">View map →</a></p>` : ''}
                     </td>
                   </tr>
                 </table>
 
                 ${safe.calendarUrl || safe.calendarDownloadUrl ? `
                 <p style="margin:0 0 11px;color:#777777;font-family:'Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Add to calendar</p>
-                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 24px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;margin:0 0 24px;">
                   <tr>
-                    ${safe.calendarUrl ? `<td class="calendar-action" style="padding:0 10px 0 0;"><a href="${safe.calendarUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 18px;background:#E8117F;border:1px solid #E8117F;border-radius:6px;color:#FFFFFF;font-size:14px;font-weight:800;text-decoration:none;">Google Calendar</a></td>` : ''}
-                    ${safe.calendarDownloadUrl ? `<td class="calendar-action"><a href="${safe.calendarDownloadUrl}" target="_blank" rel="noopener noreferrer" class="email-secondary-action" style="display:inline-block;padding:13px 18px;background:transparent;border:1px solid #111111;border-radius:6px;color:#111111;font-size:14px;font-weight:800;text-decoration:none;">Download .ics</a></td>` : ''}
+                    ${safe.calendarUrl ? `<td class="calendar-action" width="58%" style="padding:0 5px 0 0;"><a href="${safe.calendarUrl}" target="_blank" rel="noopener noreferrer" style="display:block;padding:13px 8px;background:#E8117F;border:1px solid #E8117F;border-radius:6px;color:#FFFFFF;font-size:14px;font-weight:800;text-decoration:none;text-align:center;white-space:nowrap;">Google Calendar</a></td>` : ''}
+                    ${safe.calendarDownloadUrl ? `<td class="calendar-action" width="42%" style="padding:0 0 0 5px;"><a href="${safe.calendarDownloadUrl}" target="_blank" rel="noopener noreferrer" class="email-secondary-action" style="display:block;padding:13px 8px;background:transparent;border:1px solid #111111;border-radius:6px;color:#111111;font-size:13px;font-weight:700;text-decoration:none;text-align:center;white-space:nowrap;">Download .ics</a></td>` : ''}
                   </tr>
                 </table>` : ''}
 
-                ${safe.eventUrl ? `<p style="margin:0 0 26px;"><a href="${safe.eventUrl}" target="_blank" rel="noopener noreferrer" style="color:#C80D68;font-size:14px;font-weight:700;text-decoration:underline;">View event details ↗</a></p>` : ''}
+                ${safe.eventUrl ? `<p style="margin:0 0 26px;"><a href="${safe.eventUrl}" target="_blank" rel="noopener noreferrer" style="color:#C80D68;font-size:14px;font-weight:700;text-decoration:none;">View event details →</a></p>` : ''}
                 <p class="email-footer" style="margin:0;padding-top:22px;border-top:1px solid #DDD6C8;color:#777777;font-size:13px;line-height:1.6;">See you in the community,<br><strong style="color:#111111;">DevCongress</strong></p>
               </td>
             </tr>

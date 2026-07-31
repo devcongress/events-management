@@ -1306,6 +1306,7 @@ async function retryEmails() {
       :open="blastPreviewOpen"
       :subject="blastSubject"
       :body="blastBody"
+      :event="data?.event ?? null"
       :action-label="blastScheduledFor ? `SCHEDULE FOR ${formatDateTime(toIso(blastScheduledFor) ?? new Date().toISOString())}` : `SEND TO ${confirmedBlastRecipients} GUEST${confirmedBlastRecipients === 1 ? '' : 'S'}`"
       :busy="blastPending"
       @close="blastPreviewOpen = false"
