@@ -2,6 +2,8 @@
 
 ## 2026-07-31
 
+- Made event location entry mutually exclusive: organizers now choose a verified Ghana venue from an autocomplete dropdown, a Google Maps location, or required online joining details instead of combining unrelated location fields.
+- Shortened the public registration receipt greeting to the attendee's first submitted name while preserving their full name on the registration record.
 - Activated System Design learning rooms on top of the existing saved-artifact workspace: organizers generate and review five source-based questions in place, then open a separate QR-first presentation view. Participation is account-free and device-only; facilitators release and reveal questions and see the aggregate room pulse.
 - Added required reveal explanations to System Design learning questions so every interaction teaches the underlying decision rather than acting as trivia.
 - Kept learning questions and presentation runs available to every previous meetup with a saved System Design link. Completed rooms start a fresh room-scoped run without losing the persistent scenario or reviewed questions.

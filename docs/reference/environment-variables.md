@@ -25,6 +25,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `SPEAKER_EMAIL_REPLY_TO` | Required for Archive Request email sends | No | Monitored DevCongress mailbox that receives replies; production is `hello@devcongress.org`. |
 | `REGISTRATION_EMAIL_FROM` | Required for registration receipts and event blasts | No | Approved attendee-facing sender: `DevCongress Events <events@updates.devcongress.org>`. It is deliberately independent from the speaker-program sender. |
 | `REGISTRATION_EMAIL_REPLY_TO` | Required for registration receipts and event blasts | No | Monitored mailbox for attendee replies; production is `hello@devcongress.org`. |
+| `GOOGLE_MAPS_PLACES_API_KEY` | Required for organizer venue autocomplete | No | Server-only Google Maps Platform key restricted to Places API (New); venue predictions are proxied through the authenticated API and restricted to Ghana. |
 
 ## Rules
 
@@ -46,3 +47,4 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Store `RESEND_API_KEY` and `RESEND_BROADCASTS_API_KEY` as separate Cloudflare Worker secrets; never expose either through a `VITE_` variable or commit them. `RESEND_WEBHOOK_SECRET` remains reserved for the future verified delivery-webhook route.
 - Keep `SPEAKER_EMAIL_FROM` on the verified Resend sending subdomain and point `SPEAKER_EMAIL_REPLY_TO` at a mailbox the DevCongress team actively monitors.
 - Keep `REGISTRATION_EMAIL_FROM` on the same verified Resend sending subdomain, with the attendee-facing `DevCongress Events` identity. Registration never falls back to the speaker-program sender.
+- Keep `GOOGLE_MAPS_PLACES_API_KEY` server-only, restrict it to Places API (New), and store it in `.env.local` or the Cloudflare Worker secret store. The browser must never receive this key.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   filterRegistrationGuests,
+  registrationFirstName,
   registrationEventHasEnded,
   summarizeRegistrationEmails,
   summarizeRegistrationWorkspace,
@@ -47,6 +48,14 @@ const registrations = [
   registration('three', 'waitlisted', { emailStatus: 'pending' }),
   registration('four', 'cancelled', { emailStatus: null }),
 ];
+
+describe('registration receipt name', () => {
+  it('uses only the first submitted name in the thank-you heading', () => {
+    expect(registrationFirstName('Elvis Opoku Amoako')).toBe('Elvis');
+    expect(registrationFirstName('  Ama   Mensah  ')).toBe('Ama');
+    expect(registrationFirstName('Kojo')).toBe('Kojo');
+  });
+});
 
 describe('registration workspace summary', () => {
   it('does not label guests as no-shows before the event ends', () => {
