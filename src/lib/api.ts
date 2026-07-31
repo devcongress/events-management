@@ -476,6 +476,16 @@ export function createEventBlast(
   );
 }
 
+export function retryEventBlast(eventId: string, blastId: string) {
+  return fetchJson<{ blast: EventBlast; delivery: 'scheduled' | 'sent' | 'failed' }>(
+    `/api/events/${eventId}/blasts/${blastId}/retry`,
+    {
+      method: 'POST',
+      credentials: 'include',
+    },
+  );
+}
+
 export function fetchFeedbackMonths() {
   return fetchJson<FeedbackMonthsResponse>('/api/feedback/monthly');
 }

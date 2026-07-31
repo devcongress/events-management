@@ -86,6 +86,70 @@ describe('native event registration API', () => {
     });
   });
 
+  it('retries a persisted provider draft without creating another blast audience', async () => {
+    vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
+    vi.stubEnv('REGISTRATION_EMAIL_FROM', 'DevCongress Events <events@updates.devcongress.org>');
+    vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
+    let sendAttempts = 0;
+    const providerFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 200 });
+      if (url.endsWith('/contacts')) return new Response(JSON.stringify({ id: 'contact-1' }), { status: 200 });
+      if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 200 });
+      if (url.endsWith('/broadcasts/broadcast-1/send')) {
+        sendAttempts += 1;
+        if (sendAttempts === 1) throw new Error('socket closed after provider accepted');
+        return new Response(JSON.stringify({ id: 'send-1' }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', providerFetch);
+
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Resilient blast meetup',
+        description: 'An event with an update.',
+        event_date: '2026-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+    await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
+    await app.request(`http://localhost/api/registration/events/${created.event.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Ama Mensah', email: 'ama@example.com' }),
+    });
+
+    const failed = await app.request(`http://localhost/api/events/${created.event.id}/blasts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.' }),
+    });
+    expect(failed.status).toBe(502);
+    const failedPayload = await failed.json() as { blast: { id: string; status: string; provider_broadcast_id: string } };
+    expect(failedPayload.blast).toMatchObject({ status: 'failed', provider_broadcast_id: 'broadcast-1' });
+
+    const retried = await app.request(
+      `http://localhost/api/events/${created.event.id}/blasts/${failedPayload.blast.id}/retry`,
+      { method: 'POST' },
+    );
+    expect(retried.status).toBe(201);
+    await expect(retried.json()).resolves.toMatchObject({
+      delivery: 'sent',
+      blast: { id: failedPayload.blast.id, status: 'sent', provider_broadcast_id: 'broadcast-1' },
+    });
+    expect(providerFetch.mock.calls.filter(([url]) => String(url).endsWith('/broadcasts'))).toHaveLength(1);
+  });
+
   it('identifies existing events without a campaign as not internally managed', async () => {
     const legacyEvent = {
       id: 'legacy-luma-event',

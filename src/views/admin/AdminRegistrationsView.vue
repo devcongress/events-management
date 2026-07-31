@@ -16,6 +16,7 @@ import {
   processEventRegistrationEmails,
   queryKeys,
   removeEventRegistration,
+  retryEventBlast,
   updateEventRegistrationCampaign,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
@@ -72,6 +73,7 @@ const retryPending = ref(false);
 const blastComposerOpen = ref(false);
 const blastPreviewOpen = ref(false);
 const blastPending = ref(false);
+const blastRetryId = ref<string | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
 const blastScheduledFor = ref('');
@@ -520,6 +522,7 @@ function emailStatusClass(status: EventRegistration['email_status']): string {
 }
 
 function blastStatusLabel(status: EventBlast['status']): string {
+  if (status === 'preparing') return 'Preparing safely';
   if (status === 'scheduled') return 'Scheduled';
   if (status === 'sent') return 'Sent';
   if (status === 'needs_capacity') return 'Needs email capacity';
@@ -527,6 +530,7 @@ function blastStatusLabel(status: EventBlast['status']): string {
 }
 
 function blastStatusClass(status: EventBlast['status']): string {
+  if (status === 'preparing') return 'border-dc-border bg-dc-paper-warm text-dc-gray';
   if (status === 'sent') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
   if (status === 'scheduled') return 'border-sky-300 bg-sky-50 text-sky-800';
   if (status === 'needs_capacity') return 'border-amber-300 bg-amber-50 text-amber-800';
@@ -600,6 +604,24 @@ async function sendBlast() {
     notify.error(error instanceof Error ? error.message : 'Unable to create this blast.');
   } finally {
     blastPending.value = false;
+  }
+}
+
+async function retryBlast(blast: EventBlast) {
+  if (blastRetryId.value || blast.status !== 'failed' || !blast.provider_broadcast_id) return;
+  blastRetryId.value = blast.id;
+  try {
+    const result = await retryEventBlast(eventId.value, blast.id);
+    await refresh();
+    notify.success(
+      result.delivery === 'scheduled'
+        ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
+        : `Blast sent to ${result.blast.recipient_count} confirmed guests.`,
+    );
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to retry this blast.');
+  } finally {
+    blastRetryId.value = null;
   }
 }
 
@@ -1292,9 +1314,20 @@ async function retryEmails() {
                     <span v-else-if="blast.sent_at"> · {{ formatDateTime(blast.sent_at) }}</span>
                   </p>
                 </div>
-                <span class="w-fit rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold uppercase" :class="blastStatusClass(blast.status)">
-                  {{ blastStatusLabel(blast.status) }}
-                </span>
+                <div class="flex w-fit items-center gap-2">
+                  <span class="rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold uppercase" :class="blastStatusClass(blast.status)">
+                    {{ blastStatusLabel(blast.status) }}
+                  </span>
+                  <button
+                    v-if="blast.status === 'failed' && blast.provider_broadcast_id"
+                    type="button"
+                    class="editorial-secondary-action min-h-8 px-2 text-[9px]"
+                    :disabled="blastRetryId === blast.id"
+                    @click="retryBlast(blast)"
+                  >
+                    {{ blastRetryId === blast.id ? 'RETRYING…' : 'RETRY SEND' }}
+                  </button>
+                </div>
               </div>
             </div>
           </section>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createResendBroadcast, ResendBatchError, sendResendEmailBatch } from './resend';
+import { prepareResendBroadcast, ResendBatchError, sendResendBroadcast, sendResendEmailBatch } from './resend';
 
 const email = {
   from: 'DevCongress <speakers@updates.devcongress.org>',
@@ -62,7 +62,7 @@ describe('Resend broadcast client', () => {
       return new Response(JSON.stringify({ method: init?.method }), { status: 404 });
     });
 
-    await expect(createResendBroadcast({
+    await expect(prepareResendBroadcast({
       apiKey: 're_broadcast_test',
       eventName: 'July meetup',
       eventDate: '2026-07-30T08:30:00.000Z',
@@ -75,7 +75,6 @@ describe('Resend broadcast client', () => {
       body: 'We have moved rooms.',
       from: 'DevCongress <events@updates.devcongress.org>',
       replyTo: 'hello@devcongress.org',
-      scheduledFor: '2026-08-01T12:00:00.000Z',
       recipients: [{ email: 'ama@example.com', name: 'Ama Mensah' }],
       fetcher,
     })).resolves.toEqual({ broadcastId: 'broadcast-1', segmentId: 'segment-1' });
@@ -85,7 +84,29 @@ describe('Resend broadcast client', () => {
       method: 'POST',
       body: expect.stringContaining('"segment_id":"segment-1"'),
     }));
-    expect(broadcastCall?.[1]?.body).toContain('"scheduled_at":"2026-08-01T12:00:00.000Z"');
+    expect(broadcastCall?.[1]?.body).toContain('"send":false');
     expect(broadcastCall?.[1]?.body).toContain('RESEND_UNSUBSCRIBE_URL');
+  });
+
+  it('sends a persisted broadcast separately so a retry cannot create another audience', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe('https://api.resend.com/broadcasts/broadcast-1/send');
+      return new Response(JSON.stringify({ id: 'send-1' }), { status: 200 });
+    });
+
+    await expect(sendResendBroadcast({
+      apiKey: 're_broadcast_test',
+      broadcastId: 'broadcast-1',
+      scheduledFor: '2026-08-01T12:00:00.000Z',
+      fetcher,
+    })).resolves.toBeUndefined();
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://api.resend.com/broadcasts/broadcast-1/send',
+      expect.objectContaining({
+        method: 'POST',
+        body: '{"scheduled_at":"2026-08-01T12:00:00.000Z"}',
+      }),
+    );
   });
 });

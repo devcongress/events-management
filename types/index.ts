@@ -18,7 +18,7 @@ export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type RegistrationEmailKind = 'confirmation' | 'promotion';
-export type EventBlastStatus = 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
+export type EventBlastStatus = 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
 
 // ---- Entities ----
 export interface Event {
