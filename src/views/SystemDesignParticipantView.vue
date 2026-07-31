@@ -13,11 +13,13 @@ const participantId = ref<string | null>(null);
 const state = ref<QuizStateResponse | null>(null);
 const joinError = ref<string | null>(null);
 const joining = ref(true);
-const showNamePrompt = ref(false);
 const nicknameInput = ref('');
 const nameError = ref<string | null>(null);
 const displayName = ref<string | null>(null);
+const savingName = ref(false);
+const nameSaved = ref(false);
 const selectedAnswer = ref<number | null>(null);
+const answerError = ref<string | null>(null);
 const submitting = ref(false);
 const now = ref(Date.now());
 
@@ -41,7 +43,7 @@ const playerStanding = computed(() => state.value?.player_standing ?? null);
 const avatarSeed = computed(() => playerStanding.value?.avatar_seed ?? participantId.value ?? userId.value ?? displayName.value ?? 'participant');
 const isTopFive = computed(() => Boolean(playerStanding.value && playerStanding.value.rank <= 5));
 
-async function joinLearningRoom(nickname = '') {
+async function joinLearningRoom() {
   joining.value = true;
   joinError.value = null;
   nameError.value = null;
@@ -53,18 +55,11 @@ async function joinLearningRoom(nickname = '') {
       join_code: String(route.params.code).toUpperCase(),
       device_id: getDeviceId(),
       purpose: 'system_design_learning',
-      nickname,
     }),
   });
 
   if (!response.ok) {
     const data = await response.json();
-    if (data.code === 'nickname_required' || data.code === 'invalid_nickname' || data.code === 'nickname_taken') {
-      showNamePrompt.value = true;
-      nameError.value = data.code === 'nickname_required' ? null : data.error;
-      joining.value = false;
-      return;
-    }
     joinError.value = data.error || 'This System Design learning room is not available.';
     joining.value = false;
     return;
@@ -75,19 +70,37 @@ async function joinLearningRoom(nickname = '') {
   userId.value = data.user_id;
   participantId.value = data.participant_id;
   displayName.value = data.display_name;
-  showNamePrompt.value = false;
+  nicknameInput.value = data.display_name;
   joining.value = false;
   await pollState();
   pollTimer = window.setInterval(pollState, 2000);
 }
 
-function submitName() {
+async function saveName() {
+  if (!participantId.value || savingName.value) return;
   const nickname = nicknameInput.value.trim();
   if (!nickname) {
     nameError.value = 'Enter the name you want to use in this room.';
     return;
   }
-  void joinLearningRoom(nickname);
+
+  savingName.value = true;
+  nameError.value = null;
+  nameSaved.value = false;
+  const response = await fetch(`/api/quiz/participants/${participantId.value}/name`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ device_id: getDeviceId(), nickname }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    nameError.value = data.error || 'Your name could not be updated.';
+  } else {
+    displayName.value = data.display_name;
+    nicknameInput.value = data.display_name;
+    nameSaved.value = true;
+  }
+  savingName.value = false;
 }
 
 async function pollState() {
@@ -98,6 +111,7 @@ async function pollState() {
     const nextState = await response.json() as QuizStateResponse;
     if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
       selectedAnswer.value = null;
+      answerError.value = null;
     }
     state.value = nextState;
     return;
@@ -109,10 +123,10 @@ async function pollState() {
 }
 
 async function submitAnswer(answerIndex: number) {
-  if (!sessionId.value || !userId.value || submitting.value || state.value?.player_result) return;
+  if (!sessionId.value || !userId.value || submitting.value || state.value?.player_result || remaining.value <= 0) return;
 
   submitting.value = true;
-  selectedAnswer.value = answerIndex;
+  answerError.value = null;
 
   const response = await fetch('/api/quiz/answer', {
     method: 'POST',
@@ -126,7 +140,9 @@ async function submitAnswer(answerIndex: number) {
 
   if (!response.ok) {
     const data = await response.json();
-    joinError.value = data.error || 'Your answer could not be submitted.';
+    answerError.value = data.error || 'Your answer could not be submitted.';
+  } else {
+    selectedAnswer.value = answerIndex;
   }
 
   submitting.value = false;
@@ -149,21 +165,7 @@ onUnmounted(() => {
 
 <template>
   <main class="min-h-screen bg-dc-cream text-dc-ink">
-    <section v-if="showNamePrompt" class="flex min-h-screen items-center justify-center px-5 py-12">
-      <form class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 shadow-[3px_3px_0_#111111] sm:p-10" @submit.prevent="submitName">
-        <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">System Design learning room</p>
-        <h1 class="mt-4 text-4xl font-extrabold tracking-tight">What should we call you?</h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray">This name identifies your answers in the room summary. No account is created.</p>
-        <label class="mt-7 block">
-          <span class="editorial-label">Your display name</span>
-          <input v-model="nicknameInput" required maxlength="24" autocomplete="nickname" autofocus class="editorial-input mt-2" placeholder="e.g. Ama" />
-        </label>
-        <p v-if="nameError" class="mt-3 text-sm font-semibold text-red-700">{{ nameError }}</p>
-        <button type="submit" class="editorial-action mt-6 w-full" :disabled="joining">{{ joining ? 'Joining...' : 'Join room' }}</button>
-      </form>
-    </section>
-
-    <section v-else-if="joinError" class="flex min-h-screen items-center justify-center px-5 py-12">
+    <section v-if="joinError" class="flex min-h-screen items-center justify-center px-5 py-12">
       <div class="w-full max-w-lg rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111] sm:p-12">
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">System Design learning room</p>
         <h1 class="mt-4 text-4xl font-extrabold tracking-tight">This room is not open.</h1>
@@ -180,17 +182,23 @@ onUnmounted(() => {
     </section>
 
     <section v-else-if="state.session.status === 'waiting' || state.session.status === 'draft'" class="flex min-h-screen items-center justify-center p-6">
-      <div class="w-full max-w-sm text-center">
-        <div class="mx-auto mb-10 flex size-36 items-center justify-center rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]">
-          <span class="font-mono text-5xl text-dc-pink">...</span>
-        </div>
+      <div class="w-full max-w-md text-center">
+        <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="128" class="mx-auto" />
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Live learning room</p>
         <h1 class="mt-4 font-mono text-4xl font-bold">YOU'RE IN</h1>
-        <div v-if="displayName" class="mx-auto mt-6 flex w-fit items-center gap-3 rounded-lg border-2 border-dc-ink bg-dc-yellow px-4 py-3 shadow-[2px_2px_0_#111111]">
-          <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="48" />
-          <span class="font-mono text-lg font-semibold">{{ displayName }}</span>
-        </div>
-        <p class="mt-4 font-mono text-dc-gray">Waiting for the facilitator to start</p>
+        <p class="mt-3 text-sm leading-6 text-dc-gray">Your avatar is fixed for this room. Keep the name below or change it before the presentation starts.</p>
+        <form class="mt-7 rounded-lg border-2 border-dc-ink bg-dc-paper p-5 text-left shadow-[3px_3px_0_#111111]" @submit.prevent="saveName">
+          <label class="block">
+            <span class="editorial-label">Your room name</span>
+            <input v-model="nicknameInput" required maxlength="24" autocomplete="nickname" class="editorial-input mt-2" />
+          </label>
+          <p v-if="nameError" class="mt-3 text-sm font-semibold text-red-700">{{ nameError }}</p>
+          <p v-else-if="nameSaved" class="mt-3 text-sm font-semibold text-green-700">Name saved.</p>
+          <button type="submit" class="editorial-action mt-4 w-full" :disabled="savingName || nicknameInput.trim() === displayName">
+            {{ savingName ? 'Saving...' : 'Save name' }}
+          </button>
+        </form>
+        <p class="mt-5 font-mono text-dc-gray">Waiting for the facilitator to start</p>
       </div>
     </section>
 
@@ -225,6 +233,21 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <section v-else-if="state.session.question_phase === 'answering' && remaining <= 0" class="flex min-h-screen items-center justify-center p-6">
+      <div class="w-full max-w-md text-center">
+        <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="112" class="mx-auto" />
+        <p class="mt-7 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Question {{ state.session.current_question_index + 1 }}</p>
+        <h1 class="mt-4 text-5xl font-extrabold tracking-tight">Time's up.</h1>
+        <p class="mt-4 text-base leading-7 text-dc-gray">
+          {{ selectedAnswer !== null ? 'Your answer is locked in.' : 'Answers are now closed.' }}
+        </p>
+        <div class="mt-8 rounded-lg border-2 border-dc-ink bg-dc-paper p-6 shadow-[3px_3px_0_#111111]">
+          <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink">Waiting for the facilitator</p>
+          <p class="mt-2 text-sm leading-6 text-dc-gray">The answer will be revealed on this screen shortly.</p>
+        </div>
+      </div>
+    </section>
+
     <section v-else class="flex min-h-screen flex-col">
       <div class="h-3 border-b-2 border-dc-ink bg-dc-border">
         <div class="h-full bg-dc-yellow" :style="{ width: `${progress}%` }" />
@@ -245,13 +268,17 @@ onUnmounted(() => {
           <p class="mt-3 font-mono text-sm text-dc-gray">{{ state.answers_count }} of {{ state.participants_count }} people answered</p>
         </div>
 
+        <p v-if="answerError" class="mx-auto mb-5 w-full max-w-xl rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-700">
+          {{ answerError }}
+        </p>
+
         <div class="mx-auto grid w-full max-w-xl grid-cols-2 gap-4">
           <button
             v-for="(label, index) in ['A', 'B', 'C', 'D']"
             :key="label"
             class="quiz-answer-tile flex aspect-square min-h-[132px] items-center justify-center border-2 border-dc-ink font-mono text-5xl font-bold text-white shadow-[3px_3px_0_#111111] disabled:cursor-not-allowed disabled:opacity-40"
             :class="[index === 0 ? 'bg-quiz-red' : index === 1 ? 'bg-quiz-blue' : index === 2 ? 'bg-quiz-yellow' : 'bg-quiz-green', selectedAnswer === index ? 'scale-95 ring-4 ring-dc-ink' : '']"
-            :disabled="selectedAnswer !== null || submitting || state.session.question_phase !== 'answering' || !state.current_question || index >= state.current_question.options.length"
+            :disabled="remaining <= 0 || selectedAnswer !== null || submitting || state.session.question_phase !== 'answering' || !state.current_question || index >= state.current_question.options.length"
             @click="submitAnswer(index)"
           >
             {{ label }}

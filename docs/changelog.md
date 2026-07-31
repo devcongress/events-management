@@ -8,7 +8,10 @@
 - Moved the presenter onto an organizer-protected standalone route that opens in a new tab, preserves the original admin workspace, and removes admin navigation and editing controls from the shared screen.
 - Preserved reviewed question order during presentation and kept pre-reveal answer percentages exclusive to the protected presenter state.
 - Registered the QR destination as a dedicated public System Design attendee route, restricted it to learning-room codes, and removed its organizer-only active-session precheck while keeping presenter controls authenticated.
-- Added facilitator-selectable participant identity modes: unique generated aliases by default or validated attendee-entered room names. Reveal summaries now label each answer group with deterministic participant Navii avatars and names for the authenticated presenter.
+- Every participant now receives a unique default room name and fixed Navii avatar immediately after scanning. Participants may edit only their name on their phone while waiting; identity editing closes when the facilitator starts, and the organizer no longer manages a naming mode.
+- Replaced the unbounded per-answer participant cards with four compact response bars showing the number and percentage of people who chose each option; participant identities remain in the final leaderboard instead of the question chart.
+- Added a visible answer-timer control to every reviewed System Design question so organizers can save question-specific durations before opening the presentation.
+- Added a dedicated participant **Time's up** state that removes answer controls at zero and waits for the facilitator's reveal; late submission errors no longer appear as room-unavailable failures.
 - Added a final presenter leaderboard and personal phone finish cards. Each attendee phone receives only its participant's avatar, name, and position; a one-shot, reduced-motion-safe confetti burst is limited to the top five.
 
 ## 2026-07-31 — Performance and blast delivery hardening

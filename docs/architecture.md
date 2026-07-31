@@ -238,6 +238,7 @@ Browser GET /archive
 ```
 Browser (player)
   → POST /api/quiz/join           (get sessionId + participantId + room display name)
+  → PATCH /api/quiz/participants/[id]/name (optional device-authorized rename while waiting)
   → setInterval GET /api/quiz/state (read-only state fetch)
       ↓ strips correct_index and pre-reveal answer distribution
   → POST /api/quiz/answer         (submit answer → score)

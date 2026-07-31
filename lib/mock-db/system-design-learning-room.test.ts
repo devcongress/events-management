@@ -79,4 +79,27 @@ describe('System Design presentation runs', () => {
     await expect(readData<QuizParticipant>('quiz-participants')).resolves.toEqual([participants[1]]);
     await expect(readData<Response>('responses')).resolves.toEqual([responses[1]]);
   });
+
+  it('renames only the selected session participant and rejects duplicate room names', async () => {
+    const { readData, writeData } = await import('./index');
+    const { renameQuizParticipant } = await import('./quiz-participants');
+    const participants: QuizParticipant[] = [
+      { id: 'participant-1', quiz_session_id: 'room-1', user_id: 'user-1', nickname_used: 'Bright Fox', total_score: 0, current_streak: 0, joined_at: '2026-07-01T10:00:00.000Z' },
+      { id: 'participant-2', quiz_session_id: 'room-1', user_id: 'user-2', nickname_used: 'Calm Owl', total_score: 0, current_streak: 0, joined_at: '2026-07-01T10:00:01.000Z' },
+    ];
+    await writeData('quiz-participants', participants);
+
+    await expect(renameQuizParticipant('participant-1', 'room-1', 'Ama')).resolves.toMatchObject({
+      participant: { id: 'participant-1', nickname_used: 'Ama' },
+      nicknameTaken: false,
+    });
+    await expect(renameQuizParticipant('participant-2', 'room-1', 'ama')).resolves.toEqual({
+      participant: null,
+      nicknameTaken: true,
+    });
+    await expect(readData<QuizParticipant>('quiz-participants')).resolves.toEqual([
+      { ...participants[0], nickname_used: 'Ama' },
+      participants[1],
+    ]);
+  });
 });

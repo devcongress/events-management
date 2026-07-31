@@ -1,5 +1,3 @@
-import type { ParticipantIdentityMode, QuizSession } from '@/types';
-
 const ALIAS_ADJECTIVES = [
   'Bold',
   'Bright',
@@ -31,10 +29,6 @@ const ALIAS_NOUNS = [
 ] as const;
 
 const aliasCount = ALIAS_ADJECTIVES.length * ALIAS_NOUNS.length;
-
-export function participantIdentityMode(session: Pick<QuizSession, 'participant_identity_mode'>): ParticipantIdentityMode {
-  return session.participant_identity_mode === 'self_named' ? 'self_named' : 'generated';
-}
 
 export function validateParticipantDisplayName(value: unknown): string | null {
   if (typeof value !== 'string') return null;

@@ -66,7 +66,7 @@ import { createMockAnnualConferenceTask, getMockAnnualConferenceWorkPlan, update
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
-import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
+import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun } from '@/lib/mock-db/system-design-learning-room';
@@ -95,7 +95,6 @@ import {
 import { canonicalizeSystemDesignSchedule, findSystemDesignSource } from '@/lib/system-design';
 import {
   generateParticipantAlias,
-  participantIdentityMode,
   validateParticipantDisplayName,
 } from '@/lib/system-design-participant-identity';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
@@ -107,7 +106,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, ParticipantIdentityMode, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -190,6 +189,7 @@ for (const publicWritePath of [
   '/api/registration/events/*',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
+  '/api/quiz/participants/*',
 ]) {
   app.use(publicWritePath, bodyLimit({
     maxSize: PUBLIC_JSON_BODY_MAX_BYTES,
@@ -721,7 +721,8 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
-    || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'));
+    || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
+    || (method === 'PATCH' && /^\/api\/quiz\/participants\/[^/]+\/name$/.test(path));
 }
 
 function isLogoutPath(path: string): boolean {
@@ -5681,7 +5682,6 @@ app.post('/api/quiz/sessions', async (c) => {
     event_id,
     expires_at: sessionPurpose === 'system_design_learning' ? null : event.end_date ?? null,
     purpose: sessionPurpose,
-    participant_identity_mode: sessionPurpose === 'system_design_learning' ? 'generated' : undefined,
   });
   await auditAdminAction(c, {
     action: 'quiz.session.create',
@@ -5715,23 +5715,6 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
   try {
     const sessionId = c.req.param('sessionId');
     const body = await c.req.json();
-    if (body.participant_identity_mode !== undefined) {
-      const identityMode = body.participant_identity_mode as ParticipantIdentityMode;
-      if (identityMode !== 'generated' && identityMode !== 'self_named') {
-        return c.json({ error: 'participant_identity_mode must be generated or self_named' }, 400);
-      }
-
-      const existing = await getQuizSessionById(sessionId);
-      if (!existing) return c.json({ error: 'Session not found' }, 404);
-      if (existing.purpose !== 'system_design_learning') {
-        return c.json({ error: 'Participant identity mode is only available for System Design learning rooms.' }, 409);
-      }
-
-      const participants = await getQuizParticipantsBySession(sessionId);
-      if (existing.status !== 'finished' && participants.length > 0 && participantIdentityMode(existing) !== identityMode) {
-        return c.json({ error: 'Choose the participant name mode before people join the room.' }, 409);
-      }
-    }
     const session = await updateQuizSession(sessionId, body);
     await auditAdminAction(c, {
       action: 'quiz.session.update',
@@ -5994,7 +5977,16 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     }
     if (body.correct_index !== undefined) updates.correct_index = Number(body.correct_index);
     if (body.order_index !== undefined) updates.order_index = Number(body.order_index);
-    if (body.time_limit_seconds !== undefined) updates.time_limit_seconds = Number(body.time_limit_seconds);
+    if (body.time_limit_seconds !== undefined) {
+      const timeLimitSeconds = Number(body.time_limit_seconds);
+      if (!Number.isInteger(timeLimitSeconds) || timeLimitSeconds < 5 || timeLimitSeconds > 300) {
+        return c.json({ error: 'time_limit_seconds must be a whole number between 5 and 300' }, 400);
+      }
+      if (targetSession?.status === 'active') {
+        return c.json({ error: 'Question timers cannot be changed after the presentation starts.' }, 409);
+      }
+      updates.time_limit_seconds = timeLimitSeconds;
+    }
     if (body.points !== undefined) updates.points = Number(body.points);
     if (body.explanation !== undefined) updates.explanation = String(body.explanation).trim();
 
@@ -6101,7 +6093,7 @@ app.post('/api/quiz/join', async (c) => {
       participant_id: existingParticipant.id,
       purpose: session.purpose ?? 'quiz',
       display_name: existingParticipant.nickname_used,
-      participant_identity_mode: participantIdentityMode(session),
+      avatar_seed: existingParticipant.id,
     });
   }
 
@@ -6110,19 +6102,7 @@ app.post('/api/quiz/join', async (c) => {
     : [];
   let participantNickname = requestedNickname;
 
-  if (systemDesignLearningRoom && participantIdentityMode(session) === 'self_named') {
-    if (!requestedNickname) {
-      return c.json({ error: 'Enter the name you want to use in this room.', code: 'nickname_required' }, 400);
-    }
-    const validatedNickname = validateParticipantDisplayName(nickname);
-    if (!validatedNickname) {
-      return c.json({ error: 'Use 1–24 letters, numbers, spaces, apostrophes, periods, or hyphens.', code: 'invalid_nickname' }, 400);
-    }
-    if (participants.some((participant) => participant.nickname_used.toLocaleLowerCase() === validatedNickname.toLocaleLowerCase())) {
-      return c.json({ error: 'That name is already in use in this room.', code: 'nickname_taken' }, 409);
-    }
-    participantNickname = validatedNickname;
-  } else if (systemDesignLearningRoom) {
+  if (systemDesignLearningRoom) {
     participantNickname = generateParticipantAlias(participants.map((participant) => participant.nickname_used));
   }
 
@@ -6145,7 +6125,57 @@ app.post('/api/quiz/join', async (c) => {
     participant_id: participant.id,
     purpose: session.purpose ?? 'quiz',
     display_name: participant.nickname_used,
-    participant_identity_mode: participantIdentityMode(session),
+    avatar_seed: participant.id,
+  });
+});
+
+app.patch('/api/quiz/participants/:participantId/name', async (c) => {
+  const participantId = c.req.param('participantId');
+  const body = await c.req.json();
+  const deviceId = String(body.device_id ?? '');
+  const nickname = validateParticipantDisplayName(body.nickname);
+
+  if (!/^[a-f0-9-]{36}$/i.test(participantId) || !/^[a-f0-9-]{36}$/i.test(deviceId)) {
+    return c.json({ error: 'A valid participant and device are required.' }, 400);
+  }
+  if (!nickname) {
+    return c.json({ error: 'Use 1–24 letters, numbers, spaces, apostrophes, periods, or hyphens.', code: 'invalid_nickname' }, 400);
+  }
+
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: 'system-design-participant-name',
+    clientKey: `${participantId}:${deviceId}`,
+    maxAttempts: 12,
+    windowSeconds: 60,
+  }, 'Too many name changes. Please wait a moment and try again.');
+  if (rateLimitError) return rateLimitError;
+
+  const participant = await getQuizParticipantById(participantId);
+  if (!participant) return c.json({ error: 'Participant not found.' }, 404);
+
+  const [session, user] = await Promise.all([
+    getQuizSessionById(participant.quiz_session_id),
+    getUserById(participant.user_id),
+  ]);
+  if (!session || session.purpose !== 'system_design_learning') {
+    return c.json({ error: 'Participant not found.' }, 404);
+  }
+  if (!user || user.device_id !== deviceId) {
+    return c.json({ error: 'This participant belongs to another device.' }, 403);
+  }
+  if (session.status !== 'waiting' && session.status !== 'draft') {
+    return c.json({ error: 'Names can only be edited before the presentation starts.', code: 'name_edit_closed' }, 409);
+  }
+
+  const result = await renameQuizParticipant(participant.id, session.id, nickname);
+  if (result.nicknameTaken) {
+    return c.json({ error: 'That name is already in use in this room.', code: 'nickname_taken' }, 409);
+  }
+  if (!result.participant) return c.json({ error: 'Participant not found.' }, 404);
+
+  return c.json({
+    display_name: result.participant.nickname_used,
+    avatar_seed: result.participant.id,
   });
 });
 
@@ -6249,7 +6279,7 @@ app.get('/api/quiz/state', async (c) => {
   await expireQuizSessionIfNeeded(foundSession, c);
   const stateResponse = await buildQuizStateResponse(sessionId, userId, {
     includeAnswerDistribution: presenterStateRequested,
-    includeRespondentIdentifiers: presenterStateRequested,
+    includePresenterLeaderboard: presenterStateRequested,
   });
   if (!stateResponse) {
     return c.json({ error: 'Session not found' }, 404);

@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import { systemDesignPresenterPath } from '@/src/system-design-presenter-route';
-import type { ParticipantIdentityMode, Question, QuizSession } from '@/types';
+import type { Question, QuizSession } from '@/types';
 
 type SessionWithQuestions = QuizSession & { questions: Question[]; participantCount: number };
 type QuestionForm = {
@@ -26,7 +26,7 @@ const loading = ref(true);
 const generating = ref(false);
 const openingPresenter = ref(false);
 const saving = ref(false);
-const savingIdentityMode = ref(false);
+const savingTimerQuestionId = ref<string | null>(null);
 const showQuestionReview = ref(false);
 const editingQuestionId = ref<string | null>(null);
 const error = ref('');
@@ -43,14 +43,19 @@ const correctAnswerOptions = [
   { value: 2, label: 'C correct' },
   { value: 3, label: 'D correct' },
 ];
+const timerOptions = [10, 15, 20, 30, 45, 60, 90].map((seconds) => ({
+  value: seconds,
+  label: `${seconds} seconds`,
+}));
+
+function timerOptionsFor(seconds: number) {
+  if (timerOptions.some((option) => option.value === seconds)) return timerOptions;
+  return [...timerOptions, { value: seconds, label: `${seconds} seconds` }]
+    .sort((left, right) => left.value - right.value);
+}
 
 const questions = computed(() => session.value?.questions ?? []);
 const hasCompleteQuestionSet = computed(() => questions.value.length === 5);
-const identityMode = computed(() => session.value?.participant_identity_mode ?? 'generated');
-const identityModeOptions = [
-  { value: 'generated', label: 'Give everyone a random alias' },
-  { value: 'self_named', label: 'Let people choose a name' },
-];
 const generateLabel = computed(() => {
   const remaining = Math.max(0, 5 - questions.value.length);
   if (generating.value) return 'Generating...';
@@ -149,25 +154,6 @@ async function openPresenter() {
   openingPresenter.value = false;
 }
 
-async function updateIdentityMode(value: string | number) {
-  if (!session.value || savingIdentityMode.value) return;
-  const participantIdentityMode = String(value) as ParticipantIdentityMode;
-  savingIdentityMode.value = true;
-  error.value = '';
-  const response = await fetch(`/api/quiz/sessions/${session.value.id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ participant_identity_mode: participantIdentityMode }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    error.value = payload.error ?? 'Unable to update how participant names are assigned.';
-  } else {
-    session.value = { ...session.value, ...payload };
-  }
-  savingIdentityMode.value = false;
-}
-
 function beginEditQuestion(question: Question) {
   editingQuestionId.value = question.id;
   editForm.question_text = question.question_text;
@@ -205,6 +191,27 @@ async function saveEditedQuestion() {
     await fetchSession();
   }
   saving.value = false;
+}
+
+async function updateQuestionTimer(questionId: string, value: string | number) {
+  if (!session.value || savingTimerQuestionId.value) return;
+  savingTimerQuestionId.value = questionId;
+  error.value = '';
+  const response = await fetch(`/api/quiz/questions/${questionId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ time_limit_seconds: Number(value) }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    error.value = payload.error ?? 'Unable to update this question timer.';
+  } else {
+    session.value = {
+      ...session.value,
+      questions: session.value.questions.map((question) => question.id === questionId ? payload : question),
+    };
+  }
+  savingTimerQuestionId.value = null;
 }
 
 async function deleteQuestion(questionId: string) {
@@ -259,22 +266,6 @@ onMounted(fetchSession);
       </div>
     </div>
 
-    <div v-if="!loading && session" class="grid gap-3 border-t-2 border-dc-border bg-dc-paper-warm px-6 py-5 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
-      <div>
-        <p class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-dc-pink">Participant names</p>
-        <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">
-          Choose how people are identified in the answer summary. This setting locks once someone joins the room.
-        </p>
-      </div>
-      <AppDropdown
-        :model-value="identityMode"
-        label="Name mode"
-        :options="identityModeOptions"
-        :disabled="savingIdentityMode || (session.status !== 'finished' && session.participantCount > 0)"
-        @update:model-value="updateIdentityMode"
-      />
-    </div>
-
     <div v-if="loading" class="border-t-2 border-dc-border px-6 py-5 sm:px-8">
       <div class="skeleton-line w-1/3" />
     </div>
@@ -309,7 +300,7 @@ onMounted(fetchSession);
             <AppDropdown :model-value="editForm.correct_index" label="Correct answer" :options="correctAnswerOptions" @update:model-value="editForm.correct_index = Number($event)" />
             <label>
               <span class="editorial-label">Answer time</span>
-              <input v-model.number="editForm.time_limit_seconds" type="number" min="5" step="5" class="editorial-input mt-2" />
+              <input v-model.number="editForm.time_limit_seconds" type="number" min="5" max="300" step="5" class="editorial-input mt-2" />
             </label>
           </div>
           <button type="submit" :disabled="saving" class="editorial-action w-full">{{ saving ? 'Saving...' : 'Save question' }}</button>
@@ -321,6 +312,19 @@ onMounted(fetchSession);
               <span class="inline-flex rounded-md border border-dc-pink bg-dc-pink px-2 py-1 font-mono text-xs font-semibold text-white">Q{{ index + 1 }}</span>
               <h3 class="mt-3 max-w-5xl text-base font-semibold leading-7 text-dc-ink sm:text-lg">{{ question.question_text }}</h3>
               <p class="mt-2 text-sm leading-6 text-dc-gray">Reveal: {{ question.explanation }}</p>
+              <div class="mt-4 w-36">
+                <AppDropdown
+                  :model-value="question.time_limit_seconds"
+                  label="Answer timer"
+                  :options="timerOptionsFor(question.time_limit_seconds)"
+                  density="compact"
+                  menu-align="left"
+                  teleport
+                  :disabled="savingTimerQuestionId !== null"
+                  @update:model-value="updateQuestionTimer(question.id, $event)"
+                />
+                <p v-if="savingTimerQuestionId === question.id" class="mt-1 font-mono text-[11px] text-dc-gray">Saving...</p>
+              </div>
             </div>
             <div class="flex shrink-0 items-center gap-3">
               <button type="button" class="font-mono text-xs font-semibold uppercase text-dc-gray disabled:opacity-30" :disabled="index === 0" aria-label="Move question earlier" @click="moveQuestion(question.id, -1)">↑</button>
