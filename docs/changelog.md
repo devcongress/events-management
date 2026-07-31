@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-31 — Performance and blast delivery hardening
+
+- Coalesced the organizer-login session lookup through the shared query client, removing the duplicate `/api/auth/session` request observed in the production login journey.
+- Marked fingerprinted `/assets/*` responses immutable for one year, preserving the stale-module fallback while avoiding routine revalidation of a deploy-specific asset URL.
+- Split Resend blast preparation from delivery: the event-specific segment and provider broadcast are durably recorded before the send/schedule operation. Failed final sends retain that provider ID and can be retried safely from blast history instead of creating another audience.
+- Bounded contact preparation to eight concurrent provider requests, replacing the previous 100-contact serial wait while retaining the 100-recipient safety limit.
+
 ## 2026-07-30
 
 - Fixed the native event-blasts database migration path by granting the server-only Supabase `service_role` access to `event_blasts` and its status enum. Browser roles remain denied by RLS, while the Worker can load history and persist blasts.

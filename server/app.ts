@@ -13,7 +13,7 @@ import {
   normalizeEventFeedbackAnswer,
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
-import { createResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError } from '@/lib/email/resend';
+import { prepareResendBroadcast, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError } from '@/lib/email/resend';
 import {
   eventRegistrationCalendarFile,
   eventRegistrationConfirmationEmail,
@@ -3714,7 +3714,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       event_id: event.id,
       subject: parsed.data.subject,
       body: parsed.data.body,
-      status: 'needs_capacity',
+      status: 'preparing',
       recipient_count: recipients.length,
       scheduled_for: scheduledFor,
       sent_at: null,
@@ -3739,17 +3739,21 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   const from = envValue('REGISTRATION_EMAIL_FROM', c)?.trim();
   const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
   if (!apiKey || !from || !replyTo || !z.string().email().safeParse(replyTo).success) {
+    const unavailable = await updateEventBlast(blast.id, { status: 'needs_capacity' }, c);
     await auditAdminAction(c, {
       action: 'event.blast.needs_capacity',
       targetType: 'event_blast',
       targetId: blast.id,
       metadata: { event_id: event.id, recipient_count: recipients.length, reason: 'not_configured' },
     });
-    return c.json({ blast, delivery: 'needs_capacity' as const }, 202);
+    return c.json({ blast: unavailable ?? blast, delivery: 'needs_capacity' as const }, 202);
   }
 
   try {
-    const provider = await createResendBroadcast({
+    // A provider draft is persisted before it can be sent. If the final send
+    // response is interrupted, a retry addresses this exact broadcast instead
+    // of creating a second message for the same guests.
+    const provider = await prepareResendBroadcast({
       apiKey,
       eventName: event.name,
       eventDate: event.event_date,
@@ -3762,14 +3766,23 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       body: blast.body,
       from,
       replyTo,
-      scheduledFor,
       recipients,
+    });
+    const prepared = await updateEventBlast(blast.id, {
+      status: 'preparing',
+      provider_broadcast_id: provider.broadcastId,
+      provider_segment_id: provider.segmentId,
+    }, c);
+    if (!prepared) throw new EventBlastStorageError('blast_not_found_after_prepare');
+
+    await sendResendBroadcast({
+      apiKey,
+      broadcastId: provider.broadcastId,
+      scheduledFor,
     });
     const status = scheduledFor ? 'scheduled' : 'sent';
     const updated = await updateEventBlast(blast.id, {
       status,
-      provider_broadcast_id: provider.broadcastId,
-      provider_segment_id: provider.segmentId,
       sent_at: scheduledFor ? null : new Date().toISOString(),
     }, c);
     await auditAdminAction(c, {
@@ -3802,6 +3815,51 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       blast: updated ?? blast,
       delivery: status,
     }, status === 'needs_capacity' ? 202 : 502);
+  }
+});
+
+app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
+  const event = await getEventById(c.req.param('eventId'), c);
+  const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+  if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
+
+  const blast = (await getEventBlasts(event.id, c)).find((item) => item.id === c.req.param('blastId'));
+  if (!blast) return c.json({ error: 'Blast not found.' }, 404);
+  if (!blast.provider_broadcast_id || blast.status !== 'failed') {
+    return c.json({ error: 'Only a prepared blast that needs attention can be retried.' }, 409);
+  }
+
+  const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
+  if (!apiKey) return c.json({ error: 'Email broadcasts are not configured.' }, 503);
+
+  try {
+    await sendResendBroadcast({
+      apiKey,
+      broadcastId: blast.provider_broadcast_id,
+      scheduledFor: blast.scheduled_for,
+    });
+    const status = blast.scheduled_for ? 'scheduled' : 'sent';
+    const updated = await updateEventBlast(blast.id, {
+      status,
+      sent_at: blast.scheduled_for ? null : new Date().toISOString(),
+    }, c);
+    await auditAdminAction(c, {
+      action: 'event.blast.retry',
+      targetType: 'event_blast',
+      targetId: blast.id,
+      metadata: { event_id: event.id, recipient_count: blast.recipient_count },
+    });
+    return c.json({ blast: updated ?? blast, delivery: status }, 201);
+  } catch (error) {
+    const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
+    const updated = await updateEventBlast(blast.id, { status: 'failed' }, c);
+    console.warn(JSON.stringify({
+      event: 'event_blast_retry_delayed',
+      event_id: event.id,
+      blast_id: blast.id,
+      provider_status: providerStatus,
+    }));
+    return c.json({ blast: updated ?? blast, delivery: 'failed' as const }, 502);
   }
 });
 

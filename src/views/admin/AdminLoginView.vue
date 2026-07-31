@@ -7,7 +7,8 @@ import {
   safeInternalAppPath,
 } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { fetchAdminSession } from '@/src/lib/api';
+import { fetchAdminSession, queryKeys } from '@/src/lib/api';
+import { queryClient } from '@/src/lib/query';
 import {
   adminAuthFailureCopy,
   parseAdminAuthFailureReason,
@@ -209,7 +210,12 @@ onMounted(async () => {
   }
 
   try {
-    const session = await fetchAdminSession();
+    // App.vue asks the same question while this route mounts. Going through the
+    // shared query client coalesces the two consumers into one network request.
+    const session = await queryClient.fetchQuery({
+      queryKey: queryKeys.adminSession,
+      queryFn: fetchAdminSession,
+    });
     authConfigured.value = session.auth_configured;
     if (session.authenticated) {
       await router.replace(redirectTo.value);

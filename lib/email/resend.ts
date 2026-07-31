@@ -45,6 +45,11 @@ export type ResendBroadcastRecipient = {
   name: string;
 };
 
+export type PreparedResendBroadcast = {
+  broadcastId: string;
+  segmentId: string;
+};
+
 async function resendRequest(
   apiKey: string,
   path: string,
@@ -80,7 +85,18 @@ function recipientName(name: string): { first_name?: string; last_name?: string 
   return { first_name: words[0], last_name: words.slice(1).join(' ') || undefined };
 }
 
-export async function createResendBroadcast(input: {
+async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (item) await worker(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
+export async function prepareResendBroadcast(input: {
   apiKey: string;
   eventName: string;
   eventDate: string;
@@ -93,10 +109,9 @@ export async function createResendBroadcast(input: {
   body: string;
   from: string;
   replyTo?: string;
-  scheduledFor?: string | null;
   recipients: ResendBroadcastRecipient[];
   fetcher?: Fetcher;
-}): Promise<{ broadcastId: string; segmentId: string }> {
+}): Promise<PreparedResendBroadcast> {
   if (input.recipients.length < 1 || input.recipients.length > 100) {
     throw new ResendBroadcastError('Blasts must have between 1 and 100 recipients.');
   }
@@ -107,7 +122,7 @@ export async function createResendBroadcast(input: {
     body: JSON.stringify({ name: `DevCongress · ${input.eventName}`.slice(0, 120) }),
   }, fetcher));
 
-  for (const recipient of input.recipients) {
+  await runWithConcurrency(input.recipients, 8, async (recipient) => {
     const createResponse = await resendRequest(input.apiKey, '/contacts', {
       method: 'POST',
       body: JSON.stringify({
@@ -116,7 +131,7 @@ export async function createResendBroadcast(input: {
         segments: [{ id: segmentId }],
       }),
     }, fetcher);
-    if (createResponse.ok) continue;
+    if (createResponse.ok) return;
 
     // Contacts are global in Resend. A duplicate is still eligible for this
     // event's new segment, so add it directly instead of failing the blast.
@@ -127,11 +142,11 @@ export async function createResendBroadcast(input: {
         { method: 'POST', body: JSON.stringify({}) },
         fetcher,
       );
-      if (addResponse.ok || addResponse.status === 409) continue;
+      if (addResponse.ok || addResponse.status === 409) return;
       throw new ResendBroadcastError('The email provider did not accept the guest list.', addResponse.status);
     }
     throw new ResendBroadcastError('The email provider did not accept the guest list.', createResponse.status);
-  }
+  });
 
   const content = eventBlastEmail({
     subject: input.subject,
@@ -155,12 +170,24 @@ export async function createResendBroadcast(input: {
       subject: input.subject,
       html: content.html,
       text: content.text,
-      send: true,
-      ...(input.scheduledFor ? { scheduled_at: input.scheduledFor } : {}),
+      send: false,
     }),
   }, fetcher);
   const broadcastId = await requireResendId(response);
   return { broadcastId, segmentId };
+}
+
+export async function sendResendBroadcast(input: {
+  apiKey: string;
+  broadcastId: string;
+  scheduledFor?: string | null;
+  fetcher?: Fetcher;
+}): Promise<void> {
+  const response = await resendRequest(input.apiKey, `/broadcasts/${encodeURIComponent(input.broadcastId)}/send`, {
+    method: 'POST',
+    body: JSON.stringify(input.scheduledFor ? { scheduled_at: input.scheduledFor } : {}),
+  }, input.fetcher ?? fetch);
+  await requireResendId(response);
 }
 
 export async function sendResendEmailBatch(input: {
