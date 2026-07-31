@@ -121,18 +121,55 @@ describe('quiz state helpers', () => {
     expect(answeringState?.player_result).toBeUndefined();
     expect(answeringState?.answer_distribution).toBeUndefined();
 
-    const presenterState = await buildQuizStateResponse('session-1', null, { includeAnswerDistribution: true });
+    const presenterState = await buildQuizStateResponse('session-1', null, {
+      includeAnswerDistribution: true,
+      includeRespondentIdentifiers: true,
+    });
     expect(presenterState?.answer_distribution).toEqual([
       { option_index: 0, count: 0, percentage: 0 },
       { option_index: 1, count: 0, percentage: 0 },
       { option_index: 2, count: 1, percentage: 100 },
       { option_index: 3, count: 0, percentage: 0 },
     ]);
+    expect(presenterState?.leaderboard[0]?.nickname).toBe('Ada');
 
     getQuizSessionById.mockResolvedValue({ ...activeSession, question_phase: 'revealing' });
     const revealedState = await buildQuizStateResponse('session-1', 'user-1');
     expect(revealedState?.player_result).toMatchObject({ is_correct: true, correct_index: 2, points_awarded: 500 });
     expect(revealedState?.participants_count).toBe(1);
     expect(revealedState?.answers_count).toBe(1);
+    expect(revealedState?.answer_distribution?.[2]).not.toHaveProperty('respondents');
+    expect(revealedState?.leaderboard).toEqual([]);
+
+    const presenterRevealState = await buildQuizStateResponse('session-1', null, {
+      includeAnswerDistribution: true,
+      includeRespondentIdentifiers: true,
+    });
+    expect(presenterRevealState?.answer_distribution?.[2]?.respondents).toEqual([
+      { user_id: 'user-1', nickname: 'Ada', avatar_seed: 'participant-1' },
+    ]);
+  });
+
+  it('returns the final leaderboard to the presenter and only the requesting player standing publicly', async () => {
+    const { buildQuizStateResponse } = await import('./quiz-state');
+    getQuizSessionById.mockResolvedValue({ ...activeSession, status: 'finished', question_phase: null });
+
+    const playerState = await buildQuizStateResponse('session-1', 'user-1');
+    expect(playerState?.leaderboard).toEqual([]);
+    expect(playerState?.player_standing).toEqual({
+      rank: 1,
+      nickname: 'Ada',
+      participant_count: 1,
+      avatar_seed: 'participant-1',
+    });
+
+    const presenterState = await buildQuizStateResponse('session-1', null, {
+      includeAnswerDistribution: true,
+      includeRespondentIdentifiers: true,
+    });
+    expect(presenterState?.leaderboard).toEqual([
+      expect.objectContaining({ user_id: 'user-1', nickname: 'Ada', rank: 1, total_score: 500 }),
+    ]);
+    expect(presenterState?.player_standing).toBeUndefined();
   });
 });

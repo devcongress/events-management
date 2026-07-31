@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import { systemDesignParticipantPath } from '@/src/system-design-participant-route';
 import type { Question, QuizSession, QuizStateResponse } from '@/types';
 
@@ -25,6 +26,7 @@ const currentQuestion = computed(() => session.value?.questions.find((question) 
 const participantsCount = computed(() => liveState.value?.participants_count ?? session.value?.participantCount ?? 0);
 const releasedCount = computed(() => session.value?.released_question_ids?.length ?? 0);
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
+const participantIdentityMode = computed(() => session.value?.participant_identity_mode ?? 'generated');
 
 async function fetchPresenterState() {
   const response = await fetch(`/api/quiz/sessions/${sessionId.value}`);
@@ -114,9 +116,11 @@ onUnmounted(() => {
 
     <section v-else-if="session.status === 'waiting' || session.status === 'draft'" class="quiz-stage-shell flex min-h-[100svh] items-center justify-center rounded-none border-0 p-6 sm:p-10">
       <div class="relative z-10 w-full max-w-5xl text-center">
-        <p class="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Anonymous live learning</p>
+        <p class="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Live learning room</p>
         <h1 class="mt-5 text-5xl font-extrabold uppercase tracking-tight text-white sm:text-7xl lg:text-8xl">Scan to join</h1>
-        <p class="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#A1A1A1] sm:text-xl">No names. No leaderboard. Answer from your phone as the room works through the scenario together.</p>
+        <p class="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#A1A1A1] sm:text-xl">
+          {{ participantIdentityMode === 'self_named' ? 'Choose a display name, then answer from your phone as we work through the scenario together.' : 'You will receive a random room alias. Answer from your phone as we work through the scenario together.' }}
+        </p>
 
         <div class="mx-auto mt-10 grid max-w-4xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
           <div class="rounded-xl border-2 border-dc-yellow bg-dc-yellow px-8 py-8 text-dc-ink shadow-[7px_7px_0_#e8117f] sm:px-12">
@@ -138,11 +142,23 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section v-else-if="session.status === 'finished'" class="quiz-stage-shell flex min-h-[100svh] items-center justify-center rounded-none border-0 p-8">
-      <div class="relative z-10 max-w-3xl text-center">
+    <section v-else-if="session.status === 'finished'" class="quiz-stage-shell flex min-h-[100svh] items-center justify-center rounded-none border-0 p-6 sm:p-10">
+      <div class="relative z-10 w-full max-w-5xl">
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Session complete</p>
-        <h1 class="mt-5 text-5xl font-extrabold tracking-tight text-white sm:text-7xl">That’s the room.</h1>
-        <p class="mt-5 text-xl leading-8 text-[#A1A1A1]">Thanks for thinking it through together.</p>
+        <h1 class="mt-4 text-5xl font-extrabold tracking-tight text-white sm:text-7xl">Final leaderboard</h1>
+        <p class="mt-4 text-lg leading-8 text-[#A1A1A1]">The room’s strongest decisions across all five questions.</p>
+
+        <div v-if="liveState?.leaderboard.length" class="mt-8 overflow-hidden rounded-xl border border-white/15 bg-black/25">
+          <div v-for="entry in liveState.leaderboard" :key="entry.user_id" class="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/10 px-4 py-3 last:border-b-0 sm:grid-cols-[4rem_minmax(0,1fr)_auto] sm:px-6 sm:py-4">
+            <span class="font-mono text-2xl font-bold" :class="entry.rank <= 3 ? 'text-dc-yellow' : 'text-[#A1A1A1]'">#{{ entry.rank }}</span>
+            <div class="flex min-w-0 items-center gap-3 sm:gap-4">
+              <NaviiAvatar :seed="entry.avatar_seed ?? entry.user_id" :title="`${entry.nickname} avatar`" :size="entry.rank <= 3 ? 52 : 44" />
+              <span class="truncate text-lg font-bold text-white sm:text-2xl">{{ entry.nickname }}</span>
+            </div>
+            <span class="font-mono text-lg font-semibold text-dc-pink sm:text-2xl">{{ entry.total_score }} pts</span>
+          </div>
+        </div>
+        <p v-else class="mt-8 rounded-xl border border-white/15 bg-black/25 p-8 text-center text-[#A1A1A1]">No answers were submitted in this run.</p>
       </div>
     </section>
 
@@ -187,6 +203,12 @@ onUnmounted(() => {
               </div>
               <div class="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
                 <div class="h-full rounded-full bg-dc-pink" :style="{ width: `${result.percentage}%` }" />
+              </div>
+              <div v-if="session.question_phase === 'revealing' && result.respondents?.length" class="mt-2 flex flex-wrap gap-2">
+                <span v-for="respondent in result.respondents" :key="respondent.user_id" class="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] py-1 pl-1 pr-2 font-mono text-[11px] font-medium text-[#E5E5E5]">
+                  <NaviiAvatar :seed="respondent.avatar_seed" :title="`${respondent.nickname} avatar`" :size="24" />
+                  {{ respondent.nickname }}
+                </span>
               </div>
             </div>
           </div>

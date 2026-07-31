@@ -4,6 +4,30 @@
 
 ---
 
+## ADR-032: Session-Scoped Navii Avatars And Final Learning-Room Standings
+
+**Date:** 2026-07-31
+**Status:** Accepted
+**Context:** Room-scoped names make the per-question reveal understandable, but participants also need a visual identity and a clear closing moment. A shared final leaderboard helps the room recognize the overall outcome, while sending the full ranking to every phone would unnecessarily expose other participants' scores and labels.
+**Decision:** Give every System Design session participant a deterministic Navii avatar seeded from the participant record ID, so the avatar remains paired with that participant's generated alias or chosen name throughout one run. Show avatars beside respondent labels during facilitator reveals and on the authenticated presenter's final top-ten leaderboard. When the room finishes, return only the requesting participant's own name, avatar seed, position, and participant count to their phone; do not return scores or the full System Design leaderboard publicly. Render the phone finish card with only the participant avatar, name, and position. Trigger one confetti burst only for positions one through five, with a static reduced-motion fallback.
+**Trade-offs:** System Design now has a competitive closing rank even though its questions remain discussion-led. Position uses the existing score calculation and deterministic join order to break equal scores. The presenter shows the top ten rather than an unbounded room list, while attendee phones deliberately receive a minimal personal result.
+**Alternatives considered:** Use names without avatars (weaker visual continuity), seed avatars from display names (duplicate or changed names could collide), send the complete leaderboard to every phone (unnecessary identity exposure), celebrate every participant (dilutes the requested top-five distinction), or add a new avatar service (unnecessary because `@usenavii/core` already renders deterministic avatars locally).
+**Revisit when:** Tied ranks need shared positions, the room wants a non-competitive mode, participant-scoped API tokens replace device/user IDs, or final leaderboards need more than ten visible entries.
+
+---
+
+## ADR-031: Room-Scoped Participant Identity With Presenter-Only Response Labels
+
+**Date:** 2026-07-31
+**Status:** Accepted; final standing behavior extended by ADR-032.
+**Context:** System Design facilitators need to connect the post-question response summary to recognizable people without requiring participant accounts or turning the learning room into a scored leaderboard. Some rooms benefit from playful anonymity, while others need participants to use the names by which the group knows them.
+**Decision:** Store one identity mode on each reusable System Design session. Default legacy and new rooms to unique server-generated friendly aliases; alternatively, let the organizer select attendee-entered display names before anyone joins. Validate self-entered names as 1–24 character room labels, reject duplicates case-insensitively, and make clear that no account or verified identity is created. Persist the chosen label on the session participant record. During answer reveal, attach respondent labels to answer groups only in the organizer-authenticated presenter state. Keep respondent identifiers and the System Design leaderboard out of public attendee state.
+**Trade-offs:** Self-entered labels can be inaccurate or playful because they are not authenticated, and the JSON compatibility store cannot provide a cross-Worker uniqueness transaction. Locking the mode after the first join avoids mixed identity semantics within a run. Names and answers remain ephemeral run data and are cleared together when a completed room is reopened.
+**Alternatives considered:** Require organizer or attendee accounts (too much friction for QR participation), always collect names (removes the low-pressure alias option), always use aliases (less useful for discussion follow-up), or expose respondent labels to every attendee payload (unnecessary privacy expansion).
+**Revisit when:** Learning-room runs move to relational or durable realtime persistence, verified attendance identity is required, or historical participant-level analytics are intentionally introduced with a retention policy.
+
+---
+
 ## ADR-030: Reusable System Design Content With Independent Live Runs
 
 **Date:** 2026-07-31

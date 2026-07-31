@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import { systemDesignPresenterPath } from '@/src/system-design-presenter-route';
-import type { Question, QuizSession } from '@/types';
+import type { ParticipantIdentityMode, Question, QuizSession } from '@/types';
 
 type SessionWithQuestions = QuizSession & { questions: Question[]; participantCount: number };
 type QuestionForm = {
@@ -26,6 +26,7 @@ const loading = ref(true);
 const generating = ref(false);
 const openingPresenter = ref(false);
 const saving = ref(false);
+const savingIdentityMode = ref(false);
 const showQuestionReview = ref(false);
 const editingQuestionId = ref<string | null>(null);
 const error = ref('');
@@ -45,6 +46,11 @@ const correctAnswerOptions = [
 
 const questions = computed(() => session.value?.questions ?? []);
 const hasCompleteQuestionSet = computed(() => questions.value.length === 5);
+const identityMode = computed(() => session.value?.participant_identity_mode ?? 'generated');
+const identityModeOptions = [
+  { value: 'generated', label: 'Give everyone a random alias' },
+  { value: 'self_named', label: 'Let people choose a name' },
+];
 const generateLabel = computed(() => {
   const remaining = Math.max(0, 5 - questions.value.length);
   if (generating.value) return 'Generating...';
@@ -143,6 +149,25 @@ async function openPresenter() {
   openingPresenter.value = false;
 }
 
+async function updateIdentityMode(value: string | number) {
+  if (!session.value || savingIdentityMode.value) return;
+  const participantIdentityMode = String(value) as ParticipantIdentityMode;
+  savingIdentityMode.value = true;
+  error.value = '';
+  const response = await fetch(`/api/quiz/sessions/${session.value.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ participant_identity_mode: participantIdentityMode }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    error.value = payload.error ?? 'Unable to update how participant names are assigned.';
+  } else {
+    session.value = { ...session.value, ...payload };
+  }
+  savingIdentityMode.value = false;
+}
+
 function beginEditQuestion(question: Question) {
   editingQuestionId.value = question.id;
   editForm.question_text = question.question_text;
@@ -232,6 +257,22 @@ onMounted(fetchSession);
           {{ openingPresenter ? 'Opening...' : 'Open presentation view' }}
         </button>
       </div>
+    </div>
+
+    <div v-if="!loading && session" class="grid gap-3 border-t-2 border-dc-border bg-dc-paper-warm px-6 py-5 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
+      <div>
+        <p class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-dc-pink">Participant names</p>
+        <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">
+          Choose how people are identified in the answer summary. This setting locks once someone joins the room.
+        </p>
+      </div>
+      <AppDropdown
+        :model-value="identityMode"
+        label="Name mode"
+        :options="identityModeOptions"
+        :disabled="savingIdentityMode || (session.status !== 'finished' && session.participantCount > 0)"
+        @update:model-value="updateIdentityMode"
+      />
     </div>
 
     <div v-if="loading" class="border-t-2 border-dc-border px-6 py-5 sm:px-8">

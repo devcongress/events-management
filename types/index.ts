@@ -357,6 +357,8 @@ export interface User {
   created_at: string;
 }
 
+export type ParticipantIdentityMode = 'generated' | 'self_named';
+
 export interface QuizSession {
   id: string;
   event_id: string;
@@ -372,6 +374,7 @@ export interface QuizSession {
   expires_at?: string | null;
   released_question_ids?: string[];
   purpose?: 'quiz' | 'system_design_learning';
+  participant_identity_mode?: ParticipantIdentityMode;
 }
 
 export interface Question {
@@ -558,7 +561,7 @@ export interface AttendanceMonthlyInsights {
 
 // ---- API payloads ----
 export interface QuizStateResponse {
-  session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase' | 'purpose'>;
+  session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase' | 'purpose' | 'participant_identity_mode'>;
   current_question: Omit<Question, 'correct_index'> | null;  // hide answer from player
   question_started_at: string | null;                         // when this question was shown
   participants_count: number;
@@ -568,6 +571,11 @@ export interface QuizStateResponse {
     option_index: number;
     count: number;
     percentage: number;
+    respondents?: {                                            // presenter-only participant labels
+      user_id: string;
+      nickname: string;
+      avatar_seed: string;
+    }[];
   }[];
   reveal_explanation?: string | null;
   player_result?: {                                           // if player already answered
@@ -575,6 +583,12 @@ export interface QuizStateResponse {
     points_awarded: number;
     correct_index: number;                                    // reveal after answered
     streak_count: number;                                     // current streak
+  };
+  player_standing?: {                                         // finished System Design room, requesting player only
+    rank: number;
+    nickname: string;
+    participant_count: number;
+    avatar_seed: string;
   };
 }
 
@@ -584,6 +598,7 @@ export interface LeaderboardEntry {
   total_score: number;
   rank: number;
   streak_count: number;                                       // display streak indicator
+  avatar_seed?: string;                                       // session participant identity for Navii
   previous_rank?: number;                                     // for animation
 }
 
