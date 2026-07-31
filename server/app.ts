@@ -6041,7 +6041,7 @@ app.post('/api/quiz/questions/reorder', async (c) => {
 
 app.post('/api/quiz/join', async (c) => {
   const body = await c.req.json();
-  const { join_code, device_id, nickname } = body;
+  const { join_code, device_id, nickname, purpose } = body;
 
   if (!/^[A-HJ-NP-Z2-9]{6}$/i.test(String(join_code)) || !/^[a-f0-9-]{36}$/i.test(String(device_id))) {
     return c.json({ error: 'A valid join code and device are required' }, 400);
@@ -6055,6 +6055,10 @@ app.post('/api/quiz/join', async (c) => {
 
   if (session.status === 'finished') {
     return c.json({ error: 'This quiz has already finished' }, 400);
+  }
+
+  if (purpose === 'system_design_learning' && session.purpose !== 'system_design_learning') {
+    return c.json({ error: 'This code is not for a System Design learning room.' }, 404);
   }
 
   const anonymousLearningRoom = session.purpose === 'system_design_learning';

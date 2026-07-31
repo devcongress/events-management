@@ -8,6 +8,7 @@ import { annualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { notify } from './lib/notify';
 import { queryClient } from './lib/query';
+import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from './system-design-participant-route';
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
@@ -63,6 +64,7 @@ const isAdminRoute = computed(() => isAdminPath(route.path));
 const isOrganizerProtectedRoute = computed(() => isAdminRoute.value || route.meta.requiresOrganizer === true);
 const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
+  || route.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME
   || route.name === 'event-cfp'
   || route.name === 'event-registration-short'
   || route.name === 'event-registration'

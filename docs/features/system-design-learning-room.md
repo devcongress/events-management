@@ -24,6 +24,8 @@ A saved System Design source link also keeps the event's System Design tab avail
 
 Opening a completed room starts a fresh run: old anonymous participants and responses for that room are cleared, while the saved questions remain unchanged. An already waiting or active run is resumed.
 
+The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected.
+
 ## Key Files
 
 | File | Purpose |
@@ -31,7 +33,8 @@ Opening a completed room starts a fresh run: old anonymous participants and resp
 | `src/views/admin/AdminSystemDesignView.vue` | Existing saved-artifact workspace and learning-room placement |
 | `src/components/SystemDesignLearningRoomPanel.vue` | Question generation, review, editing, and presenter launch |
 | `src/views/SystemDesignPresenterView.vue` | Standalone full-screen presenter experience with no admin chrome |
-| `src/views/PlayCodeView.vue` | Anonymous attendee waiting and answer experience |
+| `src/views/SystemDesignParticipantView.vue` | Public anonymous attendee waiting, answering, and reveal experience |
+| `src/system-design-participant-route.ts` | Dedicated public route and QR destination helper |
 | `lib/mock-db/system-design-learning-room.ts` | Prepares a fresh presentation run without changing the questions |
 | `server/app.ts` | Generation, presentation, join, release, reveal, and answer API routes |
 

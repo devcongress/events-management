@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { systemDesignParticipantPath } from '@/src/system-design-participant-route';
 import type { Question, QuizSession, QuizStateResponse } from '@/types';
 
 type SessionWithQuestions = QuizSession & { questions: Question[]; participantCount: number };
@@ -15,7 +16,9 @@ const error = ref('');
 let pollTimer: number | undefined;
 
 const sessionId = computed(() => String(route.params.sessionId ?? ''));
-const playUrl = computed(() => session.value ? `${window.location.origin}/play/${session.value.join_code}` : '');
+const playUrl = computed(() => session.value
+  ? `${window.location.origin}${systemDesignParticipantPath(session.value.join_code)}`
+  : '');
 const currentQuestion = computed(() => session.value?.questions.find((question) => (
   question.order_index === session.value?.current_question_index
 )) ?? null);
