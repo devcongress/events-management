@@ -9,46 +9,48 @@ export interface QuizAdvanceResult {
   advanced: boolean;
 }
 
+export interface QuizStateOptions {
+  includeAnswerDistribution?: boolean;
+}
+
 export async function advanceQuizSessionState(sessionId: string): Promise<QuizAdvanceResult> {
   let session = await getQuizSessionById(sessionId);
-  if (!session) {
-    return { session: null, advanced: false };
-  }
+  if (!session) return { session: null, advanced: false };
 
-  if (session.status !== 'active' || session.question_phase !== 'answering') {
+  // System Design is discussion-led; the separate presenter controls reveal.
+  // The original quiz keeps its timed/all-answered transition behavior.
+  if (session.purpose === 'system_design_learning'
+    || session.status !== 'active'
+    || session.question_phase !== 'answering') {
     return { session, advanced: false };
   }
 
   const questions = await getQuestionsBySession(sessionId);
-  const currentQuestion = questions.find((question) => question.order_index === session!.current_question_index);
-
-  if (!currentQuestion || !session.question_started_at) {
-    return { session, advanced: false };
-  }
+  const currentQuestionIndex = session.current_question_index;
+  const currentQuestion = questions.find((question) => question.order_index === currentQuestionIndex);
+  if (!currentQuestion || !session.question_started_at) return { session, advanced: false };
 
   const elapsed = Date.now() - new Date(session.question_started_at).getTime();
   const timeLimit = currentQuestion.time_limit_seconds * 1000;
-  // Each read fetches a whole document (file or Supabase blob); run them in
-  // parallel because this endpoint is hit on every client poll tick.
   const [responses, participants] = await Promise.all([
     getResponsesByQuestion(currentQuestion.id),
     getQuizParticipantsBySession(sessionId),
   ]);
   const allAnswered = responses.length >= participants.length && participants.length > 0;
-
-  if (elapsed < timeLimit && !allAnswered) {
-    return { session, advanced: false };
-  }
+  if (elapsed < timeLimit && !allAnswered) return { session, advanced: false };
 
   session = await updateQuizSession(sessionId, {
     question_phase: 'revealing',
     phase_started_at: new Date().toISOString(),
   });
-
   return { session, advanced: true };
 }
 
-export async function buildQuizStateResponse(sessionId: string, userId?: string | null): Promise<QuizStateResponse | null> {
+export async function buildQuizStateResponse(
+  sessionId: string,
+  userId?: string | null,
+  options: QuizStateOptions = {},
+): Promise<QuizStateResponse | null> {
   const session = await getQuizSessionById(sessionId);
   if (!session) return null;
 
@@ -94,7 +96,11 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
       rank: index + 1,
     }));
 
-  const answerDistribution = fullCurrentQuestion && (session.question_phase === 'revealing' || session.question_phase === 'scoreboard')
+  const answerDistribution = fullCurrentQuestion && (
+    options.includeAnswerDistribution
+    || session.question_phase === 'revealing'
+    || session.question_phase === 'scoreboard'
+  )
     ? [0, 1, 2, 3].map((optionIndex) => {
       const count = responses.filter((response) => response.answer_index === optionIndex).length;
       return {
@@ -110,7 +116,10 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
     // Derive from the already-fetched responses instead of re-reading the
     // whole collection a second time.
     const response = responses.find((candidate) => candidate.user_id === userId);
-    if (response) {
+    const resultIsVisible = session.purpose !== 'system_design_learning'
+      || session.question_phase === 'revealing'
+      || session.question_phase === 'scoreboard';
+    if (response && resultIsVisible) {
       const participant = participants.find((candidate) => candidate.user_id === userId);
 
       playerResult = {
@@ -129,6 +138,7 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
       current_question_index: session.current_question_index,
       join_code: session.join_code,
       question_phase: session.question_phase,
+      purpose: session.purpose,
     },
     current_question: currentQuestion,
     question_started_at: questionStartedAt,
@@ -136,6 +146,9 @@ export async function buildQuizStateResponse(sessionId: string, userId?: string 
     answers_count: answersCount,
     leaderboard,
     answer_distribution: answerDistribution,
+    reveal_explanation: session.question_phase === 'revealing'
+      ? fullCurrentQuestion?.explanation ?? null
+      : undefined,
     player_result: playerResult,
   };
 }

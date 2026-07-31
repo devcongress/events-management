@@ -1,4 +1,4 @@
-import { readData, writeData } from './index';
+import { readData, updateData, writeData } from './index';
 import { QuizParticipant } from '@/types';
 import { generateId, now } from '@/lib/utils';
 
@@ -77,4 +77,14 @@ export async function deleteQuizParticipant(id: string): Promise<void> {
   const participants = await readData<QuizParticipant>(FILE);
   const filtered = participants.filter(p => p.id !== id);
   await writeData(FILE, filtered);
+}
+
+export async function deleteQuizParticipantsBySession(sessionId: string): Promise<number> {
+  return updateData<QuizParticipant, number>(FILE, (participants) => {
+    const retained = participants.filter((participant) => participant.quiz_session_id !== sessionId);
+    return {
+      data: retained,
+      result: participants.length - retained.length,
+    };
+  });
 }

@@ -16,7 +16,7 @@ const showNicknamePrompt = ref(false);
 const selectedAnswer = ref<number | null>(null);
 const submitting = ref(false);
 const now = ref(Date.now());
-const quizPaused = true;
+const quizPaused = false;
 
 let pollTimer: number | undefined;
 let clockTimer: number | undefined;
@@ -32,7 +32,7 @@ const progress = computed(() => {
   return (remaining.value / limit) * 100;
 });
 
-async function joinQuiz(name: string) {
+async function joinQuiz(name = '') {
   joining.value = true;
   joinError.value = null;
 
@@ -48,6 +48,12 @@ async function joinQuiz(name: string) {
 
   if (!response.ok) {
     const data = await response.json();
+    if (data.code === 'nickname_required') {
+      showNicknamePrompt.value = true;
+      nicknameInput.value = nickname.value;
+      joining.value = false;
+      return;
+    }
     joinError.value = data.error || 'Invalid quiz code or quiz not available';
     joining.value = false;
     return;
@@ -58,7 +64,7 @@ async function joinQuiz(name: string) {
   userId.value = data.user_id;
   joining.value = false;
   await pollState();
-  pollTimer = window.setInterval(pollState, 1500);
+  pollTimer = window.setInterval(pollState, 2000);
 }
 
 function submitNickname() {
@@ -81,7 +87,11 @@ async function pollState() {
 
   const response = await fetch(`/api/quiz/state?sessionId=${sessionId.value}&userId=${userId.value}`);
   if (response.ok) {
-    state.value = await response.json();
+    const nextState = await response.json() as QuizStateResponse;
+    if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
+      selectedAnswer.value = null;
+    }
+    state.value = nextState;
     return;
   }
 
@@ -110,11 +120,6 @@ async function submitAnswer(answerIndex: number) {
 }
 
 onMounted(async () => {
-  if (quizPaused) {
-    joining.value = false;
-    return;
-  }
-
   clockTimer = window.setInterval(() => {
     now.value = Date.now();
   }, 250);
@@ -123,12 +128,6 @@ onMounted(async () => {
   const active = await activeResponse.json();
   if (!active.has_active_quiz) {
     joinError.value = 'No live quiz is available right now';
-    joining.value = false;
-    return;
-  }
-
-  if (!nickname.value) {
-    showNicknamePrompt.value = true;
     joining.value = false;
     return;
   }
@@ -145,7 +144,7 @@ onUnmounted(() => {
 <template>
   <div class="min-h-screen bg-dc-cream text-dc-ink">
     <div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <section class="coming-soon-banner">
+    <section v-if="quizPaused" class="coming-soon-banner">
         <div class="coming-soon-ribbon">Coming soon</div>
         <div>
           <h1 class="text-4xl font-extrabold tracking-tight text-dc-ink sm:text-6xl">Live quiz is paused.</h1>
@@ -159,8 +158,7 @@ onUnmounted(() => {
         </div>
       </section>
     </div>
-    <div class="hidden">
-    <div v-if="showNicknamePrompt" class="flex min-h-screen items-center justify-center px-4">
+    <div v-if="!quizPaused && showNicknamePrompt" class="flex min-h-screen items-center justify-center px-4">
       <form class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 shadow-[3px_3px_0_#111111] sm:p-12" @submit.prevent="submitNickname">
         <div class="mb-8 text-center">
           <h1 class="mb-2 text-3xl font-extrabold text-dc-ink sm:text-4xl">Welcome to the <span class="text-dc-pink">Quiz</span></h1>
@@ -172,7 +170,7 @@ onUnmounted(() => {
       </form>
     </div>
 
-    <div v-else-if="joinError" class="editorial-wrap flex min-h-[calc(100svh-6rem)] items-center py-10 lg:py-14">
+    <div v-else-if="!quizPaused && joinError" class="editorial-wrap flex min-h-[calc(100svh-6rem)] items-center py-10 lg:py-14">
       <div class="grid w-full gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-end">
         <div>
           <p class="editorial-eyebrow">quiz room</p>
@@ -224,10 +222,19 @@ onUnmounted(() => {
         </div>
         <h1 class="mb-8 font-mono text-5xl font-bold text-dc-ink">WAITING...</h1>
         <div class="mb-8 inline-block rounded-lg border-2 border-dc-ink bg-dc-yellow px-8 py-6 shadow-[3px_3px_0_#111111]">
-          <div class="mb-2 font-mono text-sm uppercase tracking-wider text-dc-gray">Players Connected</div>
+          <div class="mb-2 font-mono text-sm uppercase tracking-wider text-dc-gray">{{ state.session.purpose === 'system_design_learning' ? 'People connected' : 'Players connected' }}</div>
           <div class="font-mono text-6xl font-bold tabular-nums text-dc-ink">{{ state.participants_count }}</div>
         </div>
         <p class="font-mono text-dc-gray">Waiting for host to start</p>
+      </div>
+    </div>
+
+    <div v-else-if="state.session.status === 'finished' && state.session.purpose === 'system_design_learning'" class="flex min-h-screen items-center justify-center p-4 py-12">
+      <div class="w-full max-w-lg text-center">
+        <div class="inline-block rounded-md border-2 border-dc-ink bg-dc-paper p-10 shadow-[3px_3px_0_#111111]">
+          <p class="font-mono text-sm font-semibold uppercase tracking-wide text-dc-pink">Live room closed</p>
+          <h1 class="mt-3 text-4xl font-extrabold tracking-tight text-dc-ink">This live session has ended.</h1>
+        </div>
       </div>
     </div>
 
@@ -237,15 +244,13 @@ onUnmounted(() => {
           <div class="mb-8 inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">Quiz Complete</div>
           <div class="mb-6 rounded-lg border-2 border-dc-ink bg-dc-paper p-10 shadow-[3px_3px_0_#111111]">
             <div class="mb-3 font-mono text-sm font-semibold uppercase tracking-wider text-dc-gray">Final Score</div>
-            <div class="font-mono text-6xl font-bold tabular-nums text-dc-ink">
-              {{ state.leaderboard.find((entry) => entry.user_id === userId)?.total_score ?? 0 }}
-            </div>
+            <div class="font-mono text-6xl font-bold tabular-nums text-dc-ink">{{ state.leaderboard.find((entry) => entry.user_id === userId)?.total_score ?? 0 }}</div>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-else-if="state.session.question_phase === 'scoreboard'" class="flex min-h-screen items-center justify-center p-6">
+    <div v-else-if="state.session.question_phase === 'scoreboard' && state.session.purpose !== 'system_design_learning'" class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-lg">
         <div class="mb-8 text-center">
           <div class="mb-6 inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-6 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111]">Scoreboard</div>
@@ -274,6 +279,7 @@ onUnmounted(() => {
           <div class="mb-2 font-mono text-sm font-semibold uppercase tracking-wide">Points Earned</div>
           <div class="font-mono text-7xl font-bold tabular-nums">+{{ state.player_result.points_awarded }}</div>
         </div>
+        <p v-if="state.reveal_explanation" class="mx-auto mt-8 max-w-lg rounded-lg bg-white/95 p-5 text-left text-base leading-7 text-dc-ink">{{ state.reveal_explanation }}</p>
       </div>
     </div>
 
@@ -291,7 +297,7 @@ onUnmounted(() => {
           <div class="mt-2 font-mono text-sm uppercase tracking-wider text-dc-gray">Seconds Remaining</div>
         </div>
 
-        <div v-if="state.player_result" class="mb-8 text-center">
+        <div v-if="selectedAnswer !== null" class="mb-8 text-center">
           <div class="inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-8 py-5 font-mono text-2xl font-semibold text-dc-ink shadow-[2px_2px_0_#111111]">ANSWER LOCKED IN</div>
           <div class="mt-4 font-mono text-sm text-dc-gray">{{ state.answers_count }} / {{ state.participants_count }} players answered</div>
         </div>
@@ -302,14 +308,13 @@ onUnmounted(() => {
             :key="label"
             class="quiz-answer-tile flex aspect-square min-h-[140px] items-center justify-center font-mono text-6xl font-bold text-white shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
             :class="[index === 0 ? 'bg-quiz-red' : index === 1 ? 'bg-quiz-blue' : index === 2 ? 'bg-quiz-yellow' : 'bg-quiz-green', selectedAnswer === index ? 'scale-95 ring-8 ring-white' : '']"
-            :disabled="Boolean(state.player_result) || submitting || !state.current_question || index >= state.current_question.options.length"
+            :disabled="selectedAnswer !== null || submitting || state.session.question_phase !== 'answering' || !state.current_question || index >= state.current_question.options.length"
             @click="submitAnswer(index)"
           >
             {{ label }}
           </button>
         </div>
       </div>
-    </div>
     </div>
   </div>
 </template>

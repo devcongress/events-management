@@ -234,22 +234,25 @@ Browser GET /archive
   → renders HTML with embedded data
 ```
 
-### Quiz (Client Component + polling)
+### Quiz and System Design learning rooms (client + polling)
 ```
 Browser (player)
   → POST /api/quiz/join           (get sessionId + userId)
-  → setInterval POST /api/quiz/state/advance (explicit phase tick)
-      ↓ server checks elapsed time and all-answered state
-      ↓ advances phase if needed
   → setInterval GET /api/quiz/state (read-only state fetch)
-      ↓ strips correct_index from current_question
+      ↓ strips correct_index and pre-reveal answer distribution
   → POST /api/quiz/answer         (submit answer → score)
+
+Browser (System Design presenter, organizer-protected)
+  → POST /api/quiz/sessions/[id]/presentation (prepare or resume run)
+  → GET /api/quiz/state?presenter=true (protected live room pulse)
+  → POST /api/quiz/sessions/[id]/release (next reviewed question)
+  → POST /api/quiz/sessions/[id]/reveal (answer + teaching explanation)
 ```
 
 ### Admin quiz control
 ```
 Browser (admin) → PATCH /api/quiz/sessions/[id]
-  { action: 'start' | 'next' | 'finish' }
+  { status | question_phase | runtime timestamps }
   → updates session status/phase in data/quiz-sessions.json
 ```
 

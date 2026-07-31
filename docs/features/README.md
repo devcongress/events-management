@@ -10,6 +10,7 @@ Feature docs explain user-facing behavior, key files, and follow-up work. Add a 
 | Native Registration | Active — free meetups | [native-registration.md](native-registration.md) |
 | Historical Luma Attendance | Legacy import/readout | [luma-attendance.md](luma-attendance.md) |
 | Feedback | Active | [feedback.md](feedback.md) |
+| System Design Learning Rooms | Active | [system-design-learning-room.md](system-design-learning-room.md) |
 | Quiz | Preview | [quiz.md](quiz.md) |
 | Speaker Email Delivery with Resend | Active — program multi-send pilot | [speaker-link-email.md](speaker-link-email.md) |
 

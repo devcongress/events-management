@@ -20,6 +20,18 @@ export function isSystemDesignSessionItem(
   return hasSystemDesignTitleMarker(item.title);
 }
 
+export function findSystemDesignSource(
+  items: Pick<PublicMeetupScheduleItem, 'type' | 'title' | 'system_design_title' | 'resources'>[],
+): PublicMeetupScheduleItem['resources'][number] | null {
+  for (const item of items) {
+    if (!isSystemDesignSessionItem(item)) continue;
+    const source = item.resources.find((resource) => Boolean(resource.url?.trim()));
+    if (source) return source;
+  }
+
+  return null;
+}
+
 export function canonicalizeSystemDesignSchedule<T extends PublicMeetupScheduleItem>(items: T[]): T[] {
   const outlineSlots = items.flatMap((item, index) => (
     item.type !== 'system_design' && isSystemDesignSessionItem(item) ? [{ item, index }] : []

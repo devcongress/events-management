@@ -1,4 +1,4 @@
-import { readData, writeData } from './index';
+import { readData, updateData, writeData } from './index';
 import { Response } from '@/types';
 import { generateId, now } from '@/lib/utils';
 
@@ -80,4 +80,15 @@ export async function deleteResponse(id: string): Promise<void> {
   const responses = await readData<Response>(FILE);
   const filtered = responses.filter(r => r.id !== id);
   await writeData(FILE, filtered);
+}
+
+export async function deleteResponsesByQuestionIds(questionIds: string[]): Promise<number> {
+  const questionIdSet = new Set(questionIds);
+  return updateData<Response, number>(FILE, (responses) => {
+    const retained = responses.filter((response) => !questionIdSet.has(response.question_id));
+    return {
+      data: retained,
+      result: responses.length - retained.length,
+    };
+  });
 }

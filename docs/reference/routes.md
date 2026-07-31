@@ -14,6 +14,8 @@ This deployment is an organizer-only console, with deliberate public exceptions 
 | `/register/:eventId` | Backward-compatible free-event registration link retained for previously shared UUID URLs. |
 | `/speaker-talks/:eventId/:token` | Standalone private Archive completion form opened by selected-proposal and manual Archive Request links. The token locks the presenter identity, event, and archive-item kind. |
 | `/volunteer/december-mega-meetup` | Standalone December 2026 annual-conference volunteer form for name, email, X handle, and Slack name. This compatibility path remains the canonical public link for the active campaign. |
+| `/play/:code` | Anonymous device-only quiz or System Design learning-room join and answer surface. |
+| `/present/system-design/:sessionId` | Organizer-protected, standalone System Design presenter opened in a new tab without organizer navigation or editing controls. |
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
 
@@ -48,6 +50,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/speakers` | Compatibility route for the legacy speaker access allowlist; it is not the Event Archive and is no longer shown in event navigation |
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |
+| `/organizer-console/events/:eventId/system-design` | Saved System Design scenario workspace plus five-question generation/review and presentation launch; saved sources keep this available for completed meetups |
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
 | `/organizer-console/feedback-display/:eventId` | Organizer-only TV-safe QR display for an open event feedback form |
 | `/organizer-console/attendance` | Monthly attendance ledger |
@@ -76,7 +79,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `GET /api/annual-conference/:year/work-plan` | Organizer-only annual edition, task list, summary, and task-creation permission |
 | `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to `angelateyvi@gmail.com` and requires one accountable owner |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId` | Edit an existing task; available to every authenticated organizer |
-| `/api/quiz*` | Quiz sessions, questions, explicit state advancement, join/play/host state |
+| `/api/quiz*` | Separate quiz and System Design learning-room sessions, reviewed questions, protected presenter controls/state, and anonymous join/answer state |
 | `/api/public/meetups*` | Read-only website integration API |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Owner-only organizer email allowlist management |

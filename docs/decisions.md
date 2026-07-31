@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-030: Reusable System Design Content With Independent Live Runs
+
+**Date:** 2026-07-31
+**Status:** Accepted
+**Context:** The System Design workspace already owns each meetup's saved scenario, source link, facilitator, and recap. The first learning-room implementation placed question preparation in a replacement setup page and copied the meetup end time into the live session, so historical meetups immediately appeared finished and could only open a completion slide. Organizers need to reuse any previous meetup that still has a System Design source link.
+**Decision:** Keep the saved System Design page as the persistent organizer workspace and add exactly five generated, reviewable learning questions to it. A saved System Design source keeps that workspace available even when an older checklist record says the monthly workflow was disabled. Open the presenter in a new browser tab on a standalone route outside the admin shell, with no admin navigation or editing links; mark that route organizer-protected and keep every facilitator mutation behind the existing HTTP-only organizer session. Treat a presentation as a temporary run of the persistent content: meetup dates never expire System Design learning rooms; opening a completed room clears only that room's prior anonymous participants, responses, and runtime phase fields, then starts a fresh waiting lobby while preserving the scenario and questions. Opening a waiting or active room resumes it.
+**Trade-offs:** The compatibility JSON model still stores the question set and current run under one quiz-session identity, so restarting intentionally discards the previous anonymous pulse instead of retaining run history. This keeps the first implementation direct and avoids introducing a second live-run schema before reporting is required. Polling remains the realtime mechanism.
+**Alternatives considered:** Replace the System Design page with a dedicated learning-room builder (breaks the established artifact workflow), permanently close rooms at the meetup end time (prevents historical reuse), show a read-only completion page for old rooms (does not support another learning session), or introduce separate template/run tables immediately (cleaner history, but unnecessary until multiple-run reporting is required).
+**Revisit when:** Organizers need historical per-run analytics, concurrent presentations of one scenario, durable realtime coordination, or the compatibility JSON domains move to relational persistence.
+
+---
+
 ## ADR-029: Native Email-Only Event Blasts Through Isolated Resend Segments
 
 **Date:** 2026-07-30

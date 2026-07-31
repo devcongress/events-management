@@ -38,6 +38,7 @@ const activeSession: QuizSession = {
   created_at: '2026-06-15T09:00:00.000Z',
   question_started_at: '2026-06-15T10:00:00.000Z',
   phase_started_at: '2026-06-15T10:00:00.000Z',
+  purpose: 'system_design_learning',
 };
 
 const question: Question = {
@@ -87,26 +88,51 @@ beforeEach(() => {
 });
 
 describe('quiz state helpers', () => {
-  it('advances an active answering session after the time limit expires', async () => {
+  it('never auto-reveals an answer; the facilitator controls the discussion reveal', async () => {
     const { advanceQuizSessionState } = await import('./quiz-state');
 
     const result = await advanceQuizSessionState('session-1');
 
-    expect(result.advanced).toBe(true);
-    expect(updateQuizSession).toHaveBeenCalledWith('session-1', expect.objectContaining({ question_phase: 'revealing' }));
+    expect(result.advanced).toBe(false);
+    expect(updateQuizSession).not.toHaveBeenCalled();
   });
 
-  it('builds read-only quiz state without exposing the correct index in current_question', async () => {
+  it('preserves timed auto-reveal for the separate quiz flow', async () => {
+    const { advanceQuizSessionState } = await import('./quiz-state');
+    getQuizSessionById.mockResolvedValue({ ...activeSession, purpose: 'quiz' });
+
+    const result = await advanceQuizSessionState('session-1');
+
+    expect(result.advanced).toBe(true);
+    expect(updateQuizSession).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      question_phase: 'revealing',
+    }));
+  });
+
+  it('withholds the answer until reveal, then returns the attendee result', async () => {
     const { buildQuizStateResponse } = await import('./quiz-state');
     getResponsesByQuestion.mockResolvedValue([response]);
     getResponseByQuestionAndUser.mockResolvedValue(response);
 
-    const state = await buildQuizStateResponse('session-1', 'user-1');
+    const answeringState = await buildQuizStateResponse('session-1', 'user-1');
 
     expect(updateQuizSession).not.toHaveBeenCalled();
-    expect(state?.current_question).toEqual(expect.not.objectContaining({ correct_index: expect.any(Number) }));
-    expect(state?.player_result).toMatchObject({ is_correct: true, correct_index: 2, points_awarded: 500 });
-    expect(state?.participants_count).toBe(1);
-    expect(state?.answers_count).toBe(1);
+    expect(answeringState?.current_question).toEqual(expect.not.objectContaining({ correct_index: expect.any(Number) }));
+    expect(answeringState?.player_result).toBeUndefined();
+    expect(answeringState?.answer_distribution).toBeUndefined();
+
+    const presenterState = await buildQuizStateResponse('session-1', null, { includeAnswerDistribution: true });
+    expect(presenterState?.answer_distribution).toEqual([
+      { option_index: 0, count: 0, percentage: 0 },
+      { option_index: 1, count: 0, percentage: 0 },
+      { option_index: 2, count: 1, percentage: 100 },
+      { option_index: 3, count: 0, percentage: 0 },
+    ]);
+
+    getQuizSessionById.mockResolvedValue({ ...activeSession, question_phase: 'revealing' });
+    const revealedState = await buildQuizStateResponse('session-1', 'user-1');
+    expect(revealedState?.player_result).toMatchObject({ is_correct: true, correct_index: 2, points_awarded: 500 });
+    expect(revealedState?.participants_count).toBe(1);
+    expect(revealedState?.answers_count).toBe(1);
   });
 });

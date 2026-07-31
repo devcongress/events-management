@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
+import { findSystemDesignSource, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
+import SystemDesignLearningRoomPanel from '@/src/components/SystemDesignLearningRoomPanel.vue';
 import { adminPath } from '@/src/admin-routes';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, PublicMeetupScheduleItem } from '@/types';
@@ -60,6 +61,14 @@ const systemDesignSessions = computed(() => {
   }
 
   return outlineSlots;
+});
+const primaryLearningSource = computed(() => {
+  const source = findSystemDesignSource(systemDesignSessions.value);
+  if (!source) return null;
+  return {
+    title: source.title?.trim() || 'System Design source',
+    url: source.url,
+  };
 });
 const hasSavedDrafts = computed(() => systemDesignSessions.value.some((item) => (
   item.type === 'system_design'
@@ -425,6 +434,13 @@ onMounted(async () => {
             </div>
           </div>
         </article>
+
+        <SystemDesignLearningRoomPanel
+          v-if="primaryLearningSource"
+          :event-id="String(route.params.eventId)"
+          :source-title="primaryLearningSource.title"
+          :source-url="primaryLearningSource.url"
+        />
 
         <article
           v-for="(item, index) in systemDesignSessions"

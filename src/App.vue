@@ -17,6 +17,7 @@ import {
   organizerViewportRedirect,
 } from './organizer-viewport';
 import { SPEAKER_TALK_INTAKE_ROUTE_NAME } from './speaker-intake-route';
+import { isSystemDesignPresenterPath, SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
 
 interface NavLink {
   href: string;
@@ -30,7 +31,7 @@ const route = useRoute();
 const router = useRouter();
 const initialBrowserPath = typeof window === 'undefined' ? '/' : window.location.pathname;
 const startedOnProtectedOrganizerRoute = (
-  isAdminPath(initialBrowserPath)
+  (isAdminPath(initialBrowserPath) || isSystemDesignPresenterPath(initialBrowserPath))
   && initialBrowserPath !== adminPath('login')
   && initialBrowserPath !== adminPath('auth/callback')
 );
@@ -59,6 +60,7 @@ const ownerAdminLinks: NavLink[] = [
   { href: adminPath('audit-log'), label: 'Audit Log' },
 ];
 const isAdminRoute = computed(() => isAdminPath(route.path));
+const isOrganizerProtectedRoute = computed(() => isAdminRoute.value || route.meta.requiresOrganizer === true);
 const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
   || route.name === 'event-cfp'
@@ -71,12 +73,13 @@ const isStandaloneRoute = computed(() => (
   || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME
   || route.name === 'volunteer-intake'
   || route.name === 'admin-annual-conference-volunteer-display'
+  || route.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME
 ));
 const isLoginRoute = computed(() => route.path === adminPath('login') || route.path === adminPath('auth/callback'));
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
-  enabled: isAdminRoute,
+  enabled: isOrganizerProtectedRoute,
 });
 const organizerAccessUnresolved = computed(() => (
   (isAdminRoute.value || startedOnProtectedOrganizerRoute)
@@ -438,7 +441,7 @@ watch(
     routeFullPath: route.fullPath,
   }),
   ({ authenticated, routePath, routeFullPath }) => {
-    if (!isAdminPath(routePath) || routePath === adminPath('login') || routePath === adminPath('auth/callback')) {
+    if ((!isAdminPath(routePath) && !isSystemDesignPresenterPath(routePath)) || routePath === adminPath('login') || routePath === adminPath('auth/callback')) {
       return;
     }
 
