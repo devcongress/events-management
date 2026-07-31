@@ -14,7 +14,7 @@ This deployment is an organizer-only console, with deliberate public exceptions 
 | `/register/:eventId` | Backward-compatible free-event registration link retained for previously shared UUID URLs. |
 | `/speaker-talks/:eventId/:token` | Standalone private Archive completion form opened by selected-proposal and manual Archive Request links. The token locks the presenter identity, event, and archive-item kind. |
 | `/volunteer/december-mega-meetup` | Standalone December 2026 annual-conference volunteer form for name, email, X handle, and Slack name. This compatibility path remains the canonical public link for the active campaign. |
-| `/play/:code` | Anonymous device-only quiz or System Design learning-room join and answer surface. |
+| `/learn/system-design/:code` | Public standalone anonymous System Design learning-room join and answer surface. It bypasses organizer routing/authentication and rejects codes belonging to the separate Quiz feature. |
 | `/present/system-design/:sessionId` | Organizer-protected, standalone System Design presenter opened in a new tab without organizer navigation or editing controls. |
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.

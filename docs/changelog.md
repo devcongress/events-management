@@ -7,6 +7,7 @@
 - Kept learning questions and presentation runs available to every previous meetup with a saved System Design link. Completed rooms start a fresh anonymous run without losing the persistent scenario or reviewed questions.
 - Moved the presenter onto an organizer-protected standalone route that opens in a new tab, preserves the original admin workspace, and removes admin navigation and editing controls from the shared screen.
 - Preserved reviewed question order during presentation and kept pre-reveal answer percentages exclusive to the protected presenter state.
+- Registered the QR destination as a dedicated public System Design attendee route, restricted it to learning-room codes, and removed its organizer-only active-session precheck while keeping presenter controls authenticated.
 
 ## 2026-07-31 — Performance and blast delivery hardening
 

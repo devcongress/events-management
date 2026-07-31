@@ -8,6 +8,10 @@ import {
 import { annualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { queryClient } from './lib/query';
+import {
+  SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME,
+  systemDesignParticipantRoute,
+} from './system-design-participant-route';
 import { SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
 import {
   matchesOrganizerPhoneViewport,
@@ -29,6 +33,7 @@ const REGISTRATION_TITLE = 'DevCongress | Registration';
 const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
 const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
 const ANNUAL_CONFERENCE_TITLE = 'DevCongress | Annual Conference';
+const SYSTEM_DESIGN_PARTICIPANT_TITLE = 'DevCongress | System Design Learning Room';
 const ownerOnlyPaths = new Set([adminPath('audit-log')]);
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
@@ -77,6 +82,7 @@ export const router = createRouter({
     { path: '/cfp/:eventId', name: 'event-cfp', component: CfpView },
     { path: '/r/:eventKey', name: 'event-registration-short', component: EventRegistrationView },
     { path: '/register/:eventId', name: 'event-registration', component: EventRegistrationView },
+    systemDesignParticipantRoute,
     {
       path: '/present/system-design/:sessionId',
       name: SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,
@@ -228,6 +234,8 @@ router.afterEach((to) => {
     document.title = VOLUNTEER_DISPLAY_TITLE;
   } else if (to.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME) {
     document.title = 'DevCongress | System Design Presentation';
+  } else if (to.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME) {
+    document.title = SYSTEM_DESIGN_PARTICIPANT_TITLE;
   } else if (
     to.name === 'admin-annual-conference'
     || to.name === 'admin-annual-conference-work-plan'

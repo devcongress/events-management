@@ -61,4 +61,29 @@ describe('HTTP security boundaries', () => {
     expect(response.status).toBe(413);
     await expect(response.json()).resolves.toEqual({ error: 'Request body is too large.' });
   });
+
+  it('keeps the complete System Design participant request flow outside organizer auth', async () => {
+    const { default: app } = await import('./app');
+    const requests = [
+      app.request('http://localhost/api/quiz/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          join_code: 'invalid',
+          device_id: 'invalid',
+          purpose: 'system_design_learning',
+        }),
+      }),
+      app.request('http://localhost/api/quiz/state?sessionId=invalid&userId=invalid'),
+      app.request('http://localhost/api/quiz/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: 'invalid', user_id: 'invalid', answer_index: 0 }),
+      }),
+    ];
+
+    const responses = await Promise.all(requests);
+    expect(responses.map((response) => response.status)).not.toContain(401);
+    expect(responses.every((response) => response.status >= 400 && response.status < 500)).toBe(true);
+  });
 });
