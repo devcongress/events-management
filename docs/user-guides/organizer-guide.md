@@ -78,8 +78,12 @@ The Feedback Hub opens directly to event feedback reports, grouped by year and e
 
 ## Prepare Quiz Sessions
 
-The Quiz section supports building questions and hosting a live quiz. Quiz is currently a preview/phase-two area and still uses polling rather than a production realtime channel.
+The Quiz section is a separate ice-breaker flow and remains a preview/phase-two area. It is not used for the System Design learning-room workflow.
+
+## Prepare System Design Learning Rooms
+
+Use the learning-question panel directly on the saved System Design workspace. Generate and review five questions with concise reveal explanations, then choose **Open presentation view** to open a standalone shared screen in a new browser tab. The organizer workspace remains open in the original tab; the presenter has no admin navigation or editing links. Its QR-first lobby waits for anonymous attendees before the facilitator starts, releases, and reveals one question at a time. This remains available for previous meetups with saved System Design links: meetup completion does not disable the artifact, questions, or presenter. Opening a completed room prepares a fresh live run while preserving the reviewed question set.
 
 ## Prepare System Design Sessions
 
-The System Design tab is the monthly scenario workspace. Add the scenario as a `System design` row in the event overview's program outline, then use the tab to publish the prompt link and short recap notes. If a month has no system design session, choose `Not this month` on the event checklist; the System Design tab becomes unavailable for that event until `Include this month` is selected. Public meetup schedules link saved system design rows into the archive entry for the same meetup, where attendees can read the recap and open the prompt deck.
+The System Design tab is the monthly scenario workspace. Add the scenario as a `System design` row in the event overview's program outline, then use the tab to publish the prompt link and short recap notes. If a month has no system design session, choose `Not this month` on the event checklist; the tab stays unavailable until `Include this month` is selected or a saved System Design source already exists. Public meetup schedules link saved system design rows into the archive entry for the same meetup, where attendees can read the recap and open the prompt deck.

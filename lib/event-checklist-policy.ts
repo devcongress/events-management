@@ -17,6 +17,13 @@ export function isSystemDesignDisabledForEvent(
   ));
 }
 
+export function isSystemDesignWorkspaceDisabled(
+  items: Pick<EventChecklistItem, 'label' | 'disabled_at'>[],
+  hasSavedSystemDesignSource: boolean,
+): boolean {
+  return !hasSavedSystemDesignSource && isSystemDesignDisabledForEvent(items);
+}
+
 export function canChangeChecklistItemAvailability(
   item: Pick<EventChecklistItem, 'label' | 'completed'>,
   isPublishedEvent: boolean,

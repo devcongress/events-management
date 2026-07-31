@@ -69,6 +69,7 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
+import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
@@ -91,7 +92,7 @@ import {
   SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
-import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
+import { canonicalizeSystemDesignSchedule, findSystemDesignSource } from '@/lib/system-design';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { generateId, now } from '@/lib/utils';
@@ -101,7 +102,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -713,7 +714,9 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isPublicFeedbackEventRequest(path, method)
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
-    || isPublicEventRegistrationRequest(path, method);
+    || isPublicEventRegistrationRequest(path, method)
+    || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
+    || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'));
 }
 
 function isLogoutPath(path: string): boolean {
@@ -1614,6 +1617,14 @@ function googleSlidesExportUrl(input: string): string | null {
   return `https://docs.google.com/presentation/d/${presentationId}/export/txt`;
 }
 
+function googleDocumentExportUrl(input: string): string | null {
+  if (!URL.canParse(input)) return null;
+  const url = new URL(input);
+  if (url.hostname !== 'docs.google.com') return null;
+  const match = url.pathname.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  return match?.[1] ? `https://docs.google.com/document/d/${match[1]}/export?format=txt` : null;
+}
+
 function normalizeSlideText(text: string): string {
   return text
     .replace(/\r\n/g, '\n')
@@ -1784,6 +1795,22 @@ async function fetchGoogleSlidesDraft(input: {
     summary: inferSlidesSummary(text, title, input.lead),
     export_url: exportUrl,
   };
+}
+
+async function fetchSystemDesignSourceText(promptUrl: string, fallbackTitle?: string): Promise<{ title: string; content: string }> {
+  if (googleSlidesExportUrl(promptUrl)) {
+    const draft = await fetchGoogleSlidesDraft({ promptUrl, fallbackTitle });
+    return { title: draft.title, content: draft.content };
+  }
+  const exportUrl = googleDocumentExportUrl(promptUrl);
+  if (!exportUrl) throw new Error('Use a public Google Slides or Google Docs link for the System Design source.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GOOGLE_SLIDES_FETCH_TIMEOUT_MS);
+  const response = await fetch(exportUrl, { signal: controller.signal, headers: { Accept: 'text/plain' } }).finally(() => clearTimeout(timeout));
+  if (!response.ok) throw new Error(response.status === 403 ? 'This Google Doc is not publicly readable. Open sharing first.' : 'Could not read this Google Doc.');
+  const content = normalizeSlideText(await readTextResponseWithLimit(response, GOOGLE_SLIDES_MAX_BYTES));
+  if (!content) throw new Error('Google Docs returned an empty document export.');
+  return { title: fallbackTitle?.trim() || 'System Design source', content };
 }
 
 function eventMonthKey(value: string): string {
@@ -4053,6 +4080,52 @@ app.post('/api/events/:eventId/system-design/draft', async (c) => {
   }
 });
 
+app.post('/api/events/:eventId/system-design/learning-room/questions/generate', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const body = await c.req.json().catch(() => ({}));
+  const sessionId = typeof body.session_id === 'string' ? body.session_id : '';
+  if (!/^[a-f0-9-]{36}$/i.test(sessionId)) return c.json({ error: 'A valid learning room is required.' }, 400);
+  const session = await getQuizSessionById(sessionId);
+  if (!session || session.event_id !== event.id || session.purpose !== 'system_design_learning') {
+    return c.json({ error: 'This learning room does not belong to the selected System Design session.' }, 409);
+  }
+  if (session.status === 'waiting' || session.status === 'active') {
+    return c.json({ error: 'Finish the current presentation before changing its question set.' }, 409);
+  }
+  const source = findSystemDesignSource(event.schedule ?? []);
+  if (!source) return c.json({ error: 'Add the related System Design prompt link first.' }, 422);
+
+  try {
+    const existing = await getQuestionsBySession(session.id);
+    const remainingCount = Math.max(0, 5 - existing.length);
+    if (remainingCount === 0) return c.json({ questions: [], source_title: source.title });
+    const existingText = new Set(existing.map((question) => question.question_text.trim().toLowerCase()));
+    const draft = await fetchSystemDesignSourceText(source.url, source.title);
+    const questions = generateQuestionDraftsFromText(draft.content, 8)
+      .filter((question) => !existingText.has(question.question_text.trim().toLowerCase()))
+      .slice(0, remainingCount);
+    if (questions.length < remainingCount) return c.json({ error: 'The linked prompt did not contain enough distinct concepts to complete this five-question set.' }, 422);
+    const created = await Promise.all(questions.map((question, index) => createQuestion({
+      quiz_session_id: session.id,
+      question_text: question.question_text,
+      options: question.options,
+      correct_index: question.correct_index,
+      explanation: question.explanation,
+      source_url: source.url,
+      order_index: existing.length + index,
+      time_limit_seconds: 20,
+      points: 1000,
+    })));
+    await auditAdminAction(c, { action: 'system_design.learning_room.generate_questions', targetType: 'quiz_session', targetId: session.id, metadata: { source_url: source.url, created_question_count: created.length } });
+    return c.json({ questions: created, source_title: source.title }, 201);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Could not read the related System Design source.' }, 422);
+  }
+});
+
 app.delete('/api/events/:eventId', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
@@ -5561,20 +5634,49 @@ app.get('/api/quiz/active', async (c) => {
   });
 });
 
+async function expireQuizSessionIfNeeded(session: QuizSession, c: Context) {
+  if (session.purpose === 'system_design_learning' || session.status === 'finished' || !session.expires_at || new Date(session.expires_at).getTime() > Date.now()) {
+    return session;
+  }
+
+  return updateQuizSession(session.id, {
+    status: 'finished',
+    question_phase: null,
+    finished_at: new Date().toISOString(),
+  });
+}
+
 app.get('/api/quiz/sessions', async (c) => {
   const eventId = c.req.query('eventId');
-  return c.json(eventId ? await getQuizSessionsByEvent(eventId) : await getAllQuizSessions());
+  const purpose = c.req.query('purpose');
+  const sessions = eventId ? await getQuizSessionsByEvent(eventId) : await getAllQuizSessions();
+  return c.json(sessions.filter((session) => purpose === 'system_design_learning'
+    ? session.purpose === 'system_design_learning'
+    : session.purpose !== 'system_design_learning'));
 });
 
 app.post('/api/quiz/sessions', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
-  const { event_id } = await c.req.json();
+  const { event_id, purpose } = await c.req.json();
   if (!event_id) {
     return c.json({ error: 'event_id is required' }, 400);
   }
-  const session = await createQuizSession({ event_id });
+  const event = await getEventById(String(event_id), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const sessionPurpose = purpose === 'system_design_learning' ? 'system_design_learning' : 'quiz';
+  if (sessionPurpose === 'system_design_learning') {
+    const systemDesignSource = findSystemDesignSource(event.schedule ?? []);
+    if (!systemDesignSource) {
+      return c.json({ error: 'Add the related System Design prompt link before creating the learning room.' }, 422);
+    }
+  }
+  const session = await createQuizSession({
+    event_id,
+    expires_at: sessionPurpose === 'system_design_learning' ? null : event.end_date ?? null,
+    purpose: sessionPurpose,
+  });
   await auditAdminAction(c, {
     action: 'quiz.session.create',
     targetType: 'quiz_session',
@@ -5585,7 +5687,8 @@ app.post('/api/quiz/sessions', async (c) => {
 });
 
 app.get('/api/quiz/sessions/:sessionId', async (c) => {
-  const session = await getQuizSessionById(c.req.param('sessionId'));
+  const existing = await getQuizSessionById(c.req.param('sessionId'));
+  const session = existing ? await expireQuizSessionIfNeeded(existing, c) : undefined;
   if (!session) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -5619,18 +5722,98 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
   }
 });
 
+app.post('/api/quiz/sessions/:sessionId/presentation', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const session = await getQuizSessionById(c.req.param('sessionId'));
+  if (!session) return c.json({ error: 'Session not found' }, 404);
+  if (session.purpose !== 'system_design_learning') {
+    return c.json({ error: 'Only System Design learning rooms can use this presentation flow.' }, 409);
+  }
+
+  const questions = await getQuestionsBySession(session.id);
+  if (questions.length !== 5) {
+    return c.json({ error: 'Review a complete set of five questions before opening the presentation view.' }, 409);
+  }
+
+  if (session.status === 'waiting' || session.status === 'active') {
+    return c.json(session);
+  }
+
+  const prepared = await prepareSystemDesignPresentationRun(session, questions);
+  await auditAdminAction(c, {
+    action: 'system_design.learning_room.open_presentation',
+    targetType: 'quiz_session',
+    targetId: session.id,
+    metadata: { removed_participant_count: prepared.removedParticipants, removed_response_count: prepared.removedResponses },
+  });
+  return c.json(prepared.session);
+});
+
+app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const existing = await getQuizSessionById(c.req.param('sessionId'));
+  if (!existing) return c.json({ error: 'Session not found' }, 404);
+  const session = await expireQuizSessionIfNeeded(existing, c);
+  if (session.status === 'finished') return c.json({ error: 'This live session has ended.' }, 409);
+
+  const questions = await getQuestionsBySession(session.id);
+  const releasedQuestionIds = session.released_question_ids ?? [];
+  const question = nextUnreleasedLearningQuestion(questions, releasedQuestionIds);
+  if (!question) return c.json({ error: 'All prepared questions have been released.' }, 409);
+
+  const updated = await updateQuizSession(session.id, {
+    status: 'active',
+    current_question_index: question.order_index,
+    question_phase: 'answering',
+    question_started_at: new Date().toISOString(),
+    phase_started_at: new Date().toISOString(),
+    started_at: session.started_at ?? new Date().toISOString(),
+    released_question_ids: [...releasedQuestionIds, question.id],
+  });
+  await auditAdminAction(c, {
+    action: 'quiz.question.release', targetType: 'quiz_session', targetId: session.id,
+    metadata: { question_id: question.id, released_count: updated.released_question_ids?.length ?? 0 },
+  });
+  return c.json(updated);
+});
+
+app.post('/api/quiz/sessions/:sessionId/reveal', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const existing = await getQuizSessionById(c.req.param('sessionId'));
+  if (!existing) return c.json({ error: 'Session not found' }, 404);
+  const session = await expireQuizSessionIfNeeded(existing, c);
+  if (session.status !== 'active' || session.question_phase !== 'answering') {
+    return c.json({ error: 'There is no question ready to reveal.' }, 409);
+  }
+  return c.json(await updateQuizSession(session.id, { question_phase: 'revealing', phase_started_at: new Date().toISOString() }));
+});
+
 app.post('/api/quiz/questions', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
   const body = await c.req.json();
-  const { quiz_session_id, question_text, options, correct_index, order_index, time_limit_seconds, points } = body;
+  const { quiz_session_id, question_text, explanation, options, correct_index, order_index, time_limit_seconds, points } = body;
 
   if (!quiz_session_id || !question_text || !Array.isArray(options) || correct_index === undefined || order_index === undefined) {
     return c.json({ error: 'quiz_session_id, question_text, options, correct_index, and order_index are required' }, 400);
   }
 
-  const validationError = validateQuestionPayload(question_text, options, Number(correct_index));
+  const targetSession = await getQuizSessionById(String(quiz_session_id));
+  if (!targetSession) return c.json({ error: 'Session not found' }, 404);
+  const explanationRequired = targetSession.purpose === 'system_design_learning';
+  const validationError = validateQuestionPayload(
+    question_text,
+    options,
+    Number(correct_index),
+    explanation,
+    explanationRequired,
+  );
   if (validationError) {
     return c.json({ error: validationError }, 400);
   }
@@ -5643,6 +5826,7 @@ app.post('/api/quiz/questions', async (c) => {
     order_index,
     time_limit_seconds,
     points,
+    explanation: explanation === undefined ? null : String(explanation).trim(),
   });
   await auditAdminAction(c, {
     action: 'quiz.question.create',
@@ -5774,6 +5958,8 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
 
     const body = await c.req.json();
     const updates: Partial<Omit<Question, 'id' | 'created_at'>> = {};
+    const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
+    const explanationRequired = targetSession?.purpose === 'system_design_learning';
 
     if (body.quiz_session_id !== undefined) updates.quiz_session_id = String(body.quiz_session_id);
     if (body.question_text !== undefined) updates.question_text = String(body.question_text).trim();
@@ -5787,12 +5973,15 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     if (body.order_index !== undefined) updates.order_index = Number(body.order_index);
     if (body.time_limit_seconds !== undefined) updates.time_limit_seconds = Number(body.time_limit_seconds);
     if (body.points !== undefined) updates.points = Number(body.points);
+    if (body.explanation !== undefined) updates.explanation = String(body.explanation).trim();
 
-    if (body.question_text !== undefined || body.options !== undefined || body.correct_index !== undefined) {
+    if (body.question_text !== undefined || body.options !== undefined || body.correct_index !== undefined || body.explanation !== undefined) {
       const validationError = validateQuestionPayload(
         updates.question_text ?? existingQuestion.question_text,
         updates.options ?? existingQuestion.options,
         updates.correct_index ?? existingQuestion.correct_index,
+        updates.explanation ?? existingQuestion.explanation,
+        explanationRequired,
       );
       if (validationError) {
         return c.json({ error: validationError }, 400);
@@ -5852,13 +6041,14 @@ app.post('/api/quiz/questions/reorder', async (c) => {
 
 app.post('/api/quiz/join', async (c) => {
   const body = await c.req.json();
-  const { join_code, nickname, device_id } = body;
+  const { join_code, device_id, nickname } = body;
 
-  if (!join_code || !nickname || !device_id) {
-    return c.json({ error: 'join_code, nickname, and device_id are required' }, 400);
+  if (!/^[A-HJ-NP-Z2-9]{6}$/i.test(String(join_code)) || !/^[a-f0-9-]{36}$/i.test(String(device_id))) {
+    return c.json({ error: 'A valid join code and device are required' }, 400);
   }
 
-  const session = await getQuizSessionByCode(String(join_code).toUpperCase());
+  const foundSession = await getQuizSessionByCode(String(join_code).toUpperCase());
+  const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
   if (!session) {
     return c.json({ error: 'Invalid join code' }, 404);
   }
@@ -5867,9 +6057,16 @@ app.post('/api/quiz/join', async (c) => {
     return c.json({ error: 'This quiz has already finished' }, 400);
   }
 
+  const anonymousLearningRoom = session.purpose === 'system_design_learning';
+  const requestedNickname = String(nickname ?? '').trim().slice(0, 20);
+  if (!anonymousLearningRoom && !requestedNickname) {
+    return c.json({ error: 'Enter a nickname to join this quiz.', code: 'nickname_required' }, 400);
+  }
+  const participantNickname = anonymousLearningRoom ? 'Anonymous' : requestedNickname;
+
   let user = await getUserByDeviceId(device_id);
   if (!user) {
-    user = await createUser({ device_id, nickname });
+    user = await createUser({ device_id, nickname: participantNickname });
   }
 
   const existingParticipant = await getQuizParticipantBySessionAndUser(session.id, user.id);
@@ -5878,13 +6075,14 @@ app.post('/api/quiz/join', async (c) => {
       session_id: session.id,
       user_id: user.id,
       participant_id: existingParticipant.id,
+      purpose: session.purpose ?? 'quiz',
     });
   }
 
   const participant = await createQuizParticipant({
     quiz_session_id: session.id,
     user_id: user.id,
-    nickname_used: nickname,
+    nickname_used: participantNickname,
   });
   await updateUser(user.id, {
     events_participated: user.events_participated + 1,
@@ -5894,6 +6092,7 @@ app.post('/api/quiz/join', async (c) => {
     session_id: session.id,
     user_id: user.id,
     participant_id: participant.id,
+    purpose: session.purpose ?? 'quiz',
   });
 });
 
@@ -5901,11 +6100,12 @@ app.post('/api/quiz/answer', async (c) => {
   const body = await c.req.json();
   const { session_id, user_id, answer_index } = body;
 
-  if (!session_id || !user_id || answer_index === undefined) {
+  if (!/^[a-f0-9-]{36}$/i.test(String(session_id)) || !/^[a-f0-9-]{36}$/i.test(String(user_id)) || !Number.isInteger(answer_index) || answer_index < 0 || answer_index > 3) {
     return c.json({ error: 'session_id, user_id, and answer_index are required' }, 400);
   }
 
-  const session = await getQuizSessionById(session_id);
+  const foundSession = await getQuizSessionById(session_id);
+  const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
   if (!session || session.status !== 'active') {
     return c.json({ error: 'Quiz is not active' }, 400);
   }
@@ -5967,23 +6167,36 @@ app.post('/api/quiz/answer', async (c) => {
     });
   }
 
-  return c.json({
-    is_correct: isCorrect,
-    points_awarded: totalPoints,
-    correct_index: currentQuestion.correct_index,
-    streak_count: newStreak,
-  });
+  return c.json(session.purpose === 'system_design_learning'
+    ? { accepted: true }
+    : {
+      is_correct: isCorrect,
+      points_awarded: totalPoints,
+      correct_index: currentQuestion.correct_index,
+      streak_count: newStreak,
+    });
 });
 
 app.get('/api/quiz/state', async (c) => {
   const sessionId = c.req.query('sessionId');
   const userId = c.req.query('userId');
+  const presenterStateRequested = c.req.query('presenter') === 'true';
 
   if (!sessionId) {
     return c.json({ error: 'sessionId is required' }, 400);
   }
 
-  const stateResponse = await buildQuizStateResponse(sessionId, userId);
+  if (presenterStateRequested) {
+    const adminError = await requireAdmin(c);
+    if (adminError) return adminError;
+  }
+
+  const foundSession = await getQuizSessionById(sessionId);
+  if (!foundSession) return c.json({ error: 'Session not found' }, 404);
+  await expireQuizSessionIfNeeded(foundSession, c);
+  const stateResponse = await buildQuizStateResponse(sessionId, userId, {
+    includeAnswerDistribution: presenterStateRequested,
+  });
   if (!stateResponse) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -6224,9 +6437,10 @@ function normalizeExtractedText(text: string): string {
     .trim();
 }
 
-type QuestionDraft = Pick<Question, 'question_text' | 'options' | 'correct_index'>;
+type QuestionDraft = Pick<Question, 'question_text' | 'options' | 'correct_index' | 'explanation'>;
 
 function generateQuestionDraftsFromText(text: string, requestedCount: number): QuestionDraft[] {
+  const drafts = generateSystemDesignConceptDrafts(text).slice(0, requestedCount);
   const terms = extractTerms(text, 80);
   const sentences = splitCandidateSentences(text)
     .map((sentence) => ({
@@ -6237,7 +6451,6 @@ function generateQuestionDraftsFromText(text: string, requestedCount: number): Q
     .filter((candidate) => candidate.terms.length > 0)
     .sort((a, b) => b.score - a.score);
 
-  const drafts: QuestionDraft[] = [];
   const usedAnswers = new Set<string>();
 
   for (const candidate of sentences) {
@@ -6266,13 +6479,47 @@ function generateQuestionDraftsFromText(text: string, requestedCount: number): Q
     }
 
     drafts.push({
-      question_text: `Prototype from paper: which term best completes this statement? "${blankSentence(candidate.sentence, answer)}"`,
+      question_text: `Which concept best completes this statement? "${blankSentence(candidate.sentence, answer)}"`,
       options,
       correct_index: correctIndex,
+      explanation: `${answer} is the concept identified in the source material: ${truncateText(candidate.sentence, 240)}`,
     });
     usedAnswers.add(normalizeTermKey(answer));
   }
 
+  return drafts;
+}
+
+function generateSystemDesignConceptDrafts(text: string): QuestionDraft[] {
+  const source = text.toLowerCase();
+  const drafts: QuestionDraft[] = [];
+  const isVcbcScenario = source.includes('vcbc')
+    || (source.includes('student') && source.includes('slot') && source.includes('booking'))
+    || (source.includes('for update') && source.includes('ephemeral'));
+  const add = (when: boolean, question_text: string, options: string[], correct_index: number, explanation: string) => {
+    if (when) drafts.push({ question_text, options, correct_index, explanation });
+  };
+
+  add(source.includes('schema vs schema-less') || isVcbcScenario,
+    'VCBC has students, courses, faculties, slots, and bookings with clear relationships. What is the strongest starting point?',
+    ['A relational schema with explicit relationships', 'A single unstructured text field', 'One spreadsheet per student', 'No stored data'], 0,
+    'The source describes stable entities and relationships. An explicit schema makes constraints and joins enforceable.');
+  add((source.includes('10 seats') && source.includes('4800 students')) || isVcbcScenario,
+    '4,800 students try to claim a favourite slot with only 10 seats. What must the booking write guarantee?',
+    ['The seat count cannot go below zero', 'Every student sees the same cached page', 'Faculty names are hidden', 'Slots are created monthly'], 0,
+    'The scarce resource is the seat count. The write must be atomic so concurrent requests cannot oversell a slot.');
+  add(source.includes('select') && source.includes('for update'),
+    'Which database tool from the deck is most relevant when two students try to take the final seat at once?',
+    ['SELECT … FOR UPDATE', 'A read replica', 'A longer cache TTL', 'A full-text search index'], 0,
+    'A row lock lets the booking transaction serialize access to the scarce slot before it confirms a seat.');
+  add(source.includes('ephemeral or persistent'),
+    'A student starts selecting a slot but has not confirmed it. How should that temporary choice be treated?',
+    ['Ephemeral until a confirmed booking is made', 'A permanent booking immediately', 'A faculty profile', 'A deleted record'], 0,
+    'A temporary selection should not consume a real seat permanently; persistence belongs to the confirmed booking.');
+  add(source.includes('students don’t pick a faculty') || isVcbcScenario,
+    'Students choose a time, then discover the faculty. Which model best matches that rule?',
+    ['Store the booking against a scheduled slot, which links to its faculty', 'Store only the faculty on the student', 'Store the time as free text on the faculty', 'Remove the faculty from the model'], 0,
+    'The chosen unit is the scheduled slot. Its relationship to faculty can be resolved after the student selects the time.');
   return drafts;
 }
 
@@ -6403,7 +6650,13 @@ function truncateText(text: string, maxLength: number): string {
   return `${text.slice(0, maxLength - 3).trim()}...`;
 }
 
-function validateQuestionPayload(questionText: unknown, options: unknown[], correctIndex: number): string | null {
+function validateQuestionPayload(
+  questionText: unknown,
+  options: unknown[],
+  correctIndex: number,
+  explanation?: unknown,
+  explanationRequired = false,
+): string | null {
   if (!String(questionText ?? '').trim()) {
     return 'Question text is required';
   }
@@ -6418,6 +6671,14 @@ function validateQuestionPayload(questionText: unknown, options: unknown[], corr
 
   if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
     return 'correct_index must be between 0 and 3';
+  }
+
+  if (explanationRequired && (!String(explanation ?? '').trim() || String(explanation).trim().length > 800)) {
+    return 'Add a concise reveal explanation (up to 800 characters)';
+  }
+
+  if (!explanationRequired && explanation !== undefined && String(explanation).trim().length > 800) {
+    return 'Reveal explanations cannot exceed 800 characters';
   }
 
   return null;

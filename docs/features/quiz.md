@@ -6,17 +6,17 @@ Preview.
 
 ## Overview
 
-The quiz flow is a Kahoot-style community game for meetup days. Organizers prepare questions, open a lobby, and attendees join with a code.
+The quiz flow is a separate Kahoot-style ice-breaker for meetup days. It is not the System Design learning room.
 
-The current implementation is useful for prototyping but not yet treated as the phase-one production focus.
+The current implementation remains a preserved preview and is not part of the System Design learning-room workflow.
+
+Its nickname, timed reveal, scoring, and leaderboard behavior remain separate from anonymous System Design participation.
 
 ## User Flows
 
 - Organizer creates or edits quiz questions for an event.
 - Organizer opens a quiz lobby.
 - Attendees join through `/play/:code`.
-- The server controls question phases while players poll for state.
-- Scores update based on correctness, speed, and streak bonuses.
 
 ## Key Files
 
@@ -34,8 +34,6 @@ The current implementation is useful for prototyping but not yet treated as the 
 ## Known Gaps
 
 - Polling is used instead of WebSockets or Supabase Realtime.
-- Clients call `POST /api/quiz/state/advance` before `GET /api/quiz/state` as an explicit polling-era phase tick; this should still become a job, Durable Object, or realtime-backed state machine before larger live games.
-- Realtime scale testing is still needed before public launch.
 
 ## Testing
 

@@ -8,6 +8,7 @@ import {
 import { annualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { queryClient } from './lib/query';
+import { SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
 import {
   matchesOrganizerPhoneViewport,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
@@ -57,6 +58,7 @@ const AdminTalksView = () => import('./views/admin/AdminTalksView.vue');
 const AdminSpeakersView = () => import('./views/admin/AdminSpeakersView.vue');
 const AdminQuizView = () => import('./views/admin/AdminQuizView.vue');
 const AdminSystemDesignView = () => import('./views/admin/AdminSystemDesignView.vue');
+const SystemDesignPresenterView = () => import('./views/SystemDesignPresenterView.vue');
 const AdminRegistrationsView = () => import('./views/admin/AdminRegistrationsView.vue');
 
 function storedAdminOAuthRedirect(): string {
@@ -75,6 +77,12 @@ export const router = createRouter({
     { path: '/cfp/:eventId', name: 'event-cfp', component: CfpView },
     { path: '/r/:eventKey', name: 'event-registration-short', component: EventRegistrationView },
     { path: '/register/:eventId', name: 'event-registration', component: EventRegistrationView },
+    {
+      path: '/present/system-design/:sessionId',
+      name: SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,
+      component: SystemDesignPresenterView,
+      meta: { requiresOrganizer: true },
+    },
     speakerTalkIntakeRoute,
     { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
@@ -119,6 +127,8 @@ export const router = createRouter({
     { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView },
     { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView },
     { path: adminPath('events/:eventId/system-design'), name: 'admin-system-design', component: AdminSystemDesignView },
+    { path: adminPath('events/:eventId/system-design/learning-room'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/system-design`) },
+    { path: adminPath('events/:eventId/system-design/learning-room/live'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/system-design`) },
     { path: adminPath('events/:eventId/feedback'), name: 'admin-feedback', component: AdminFeedbackView },
     { path: adminPath(':pathMatch(.*)*'), name: 'admin-not-found', component: NotFoundView },
     { path: '/:pathMatch(.*)*', redirect: adminPath('events') },
@@ -140,7 +150,8 @@ router.beforeEach(async (to, from) => {
     };
   }
 
-  if (!isAdminPath(to.path) || to.path === adminPath('login') || to.path === adminPath('auth/callback')) {
+  const requiresOrganizer = isAdminPath(to.path) || to.meta.requiresOrganizer === true;
+  if (!requiresOrganizer || to.path === adminPath('login') || to.path === adminPath('auth/callback')) {
     return true;
   }
 
@@ -155,7 +166,7 @@ router.beforeEach(async (to, from) => {
 
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,
-      isAdminRoute: true,
+      isAdminRoute: isAdminPath(to.path),
       isPhone: matchesOrganizerPhoneViewport(),
       routeName: to.name,
       eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
@@ -177,7 +188,7 @@ router.beforeEach(async (to, from) => {
     if (session.authenticated) {
       const viewportRedirect = organizerViewportRedirect({
         authenticated: true,
-        isAdminRoute: true,
+        isAdminRoute: isAdminPath(to.path),
         isPhone: matchesOrganizerPhoneViewport(),
         routeName: to.name,
         eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
@@ -215,6 +226,8 @@ router.afterEach((to) => {
     document.title = VOLUNTEER_TITLE;
   } else if (to.name === 'admin-annual-conference-volunteer-display') {
     document.title = VOLUNTEER_DISPLAY_TITLE;
+  } else if (to.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME) {
+    document.title = 'DevCongress | System Design Presentation';
   } else if (
     to.name === 'admin-annual-conference'
     || to.name === 'admin-annual-conference-work-plan'

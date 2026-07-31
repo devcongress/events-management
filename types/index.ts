@@ -369,6 +369,9 @@ export interface QuizSession {
   created_at: string;
   question_started_at: string | null;  // When current question started
   phase_started_at: string | null;  // When current phase started (for auto-advance)
+  expires_at?: string | null;
+  released_question_ids?: string[];
+  purpose?: 'quiz' | 'system_design_learning';
 }
 
 export interface Question {
@@ -381,6 +384,8 @@ export interface Question {
   points: number;
   order_index: number;
   created_at: string;
+  explanation?: string | null;
+  source_url?: string | null;
 }
 
 export interface Response {
@@ -553,7 +558,7 @@ export interface AttendanceMonthlyInsights {
 
 // ---- API payloads ----
 export interface QuizStateResponse {
-  session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase'>;
+  session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase' | 'purpose'>;
   current_question: Omit<Question, 'correct_index'> | null;  // hide answer from player
   question_started_at: string | null;                         // when this question was shown
   participants_count: number;
@@ -564,6 +569,7 @@ export interface QuizStateResponse {
     count: number;
     percentage: number;
   }[];
+  reveal_explanation?: string | null;
   player_result?: {                                           // if player already answered
     is_correct: boolean;
     points_awarded: number;

@@ -24,7 +24,7 @@ export async function getQuizSessionsByEvent(eventId: string): Promise<QuizSessi
 }
 
 export async function createQuizSession(
-  data: Pick<QuizSession, 'event_id'>
+  data: Pick<QuizSession, 'event_id' | 'expires_at' | 'purpose'>
 ): Promise<QuizSession> {
   const sessions = await readData<QuizSession>(FILE);
 
@@ -45,6 +45,9 @@ export async function createQuizSession(
     finished_at: null,
     question_started_at: null,
     phase_started_at: null,
+    expires_at: data.expires_at ?? null,
+    released_question_ids: [],
+    purpose: data.purpose,
     created_at: now(),
   };
 

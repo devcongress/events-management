@@ -3,6 +3,7 @@ import {
   canChangeChecklistItemAvailability,
   isSystemDesignChecklistItem,
   isSystemDesignDisabledForEvent,
+  isSystemDesignWorkspaceDisabled,
   SYSTEM_DESIGN_CHECKLIST_LABEL,
 } from './event-checklist-policy';
 
@@ -22,6 +23,15 @@ describe('event checklist feature policy', () => {
       { label: SYSTEM_DESIGN_CHECKLIST_LABEL, disabled_at: null },
       { label: 'Confirm speakers and talks', disabled_at: '2026-07-26T15:00:00.000Z' },
     ])).toBe(false);
+  });
+
+  it('keeps historical System Design workspaces available when saved source evidence exists', () => {
+    const disabledChecklist = [
+      { label: SYSTEM_DESIGN_CHECKLIST_LABEL, disabled_at: '2026-07-26T15:00:00.000Z' },
+    ];
+
+    expect(isSystemDesignWorkspaceDisabled(disabledChecklist, true)).toBe(false);
+    expect(isSystemDesignWorkspaceDisabled(disabledChecklist, false)).toBe(true);
   });
 
   it('keeps the monthly system design choice editable after event publication', () => {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-31
+
+- Activated System Design learning rooms on top of the existing saved-artifact workspace: organizers generate and review five source-based questions in place, then open a separate QR-first presentation view. Participation is anonymous and device-only; facilitators release and reveal questions and see the aggregate room pulse.
+- Added required reveal explanations to System Design learning questions so every interaction teaches the underlying decision rather than acting as trivia.
+- Kept learning questions and presentation runs available to every previous meetup with a saved System Design link. Completed rooms start a fresh anonymous run without losing the persistent scenario or reviewed questions.
+- Moved the presenter onto an organizer-protected standalone route that opens in a new tab, preserves the original admin workspace, and removes admin navigation and editing controls from the shared screen.
+- Preserved reviewed question order during presentation and kept pre-reveal answer percentages exclusive to the protected presenter state.
+
 ## 2026-07-31 — Performance and blast delivery hardening
 
 - Coalesced the organizer-login session lookup through the shared query client, removing the duplicate `/api/auth/session` request observed in the production login journey.

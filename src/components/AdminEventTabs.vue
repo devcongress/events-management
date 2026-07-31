@@ -4,8 +4,9 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
-import { isSystemDesignDisabledForEvent } from '@/lib/event-checklist-policy';
+import { isSystemDesignWorkspaceDisabled } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
+import { isSystemDesignSessionItem } from '@/lib/system-design';
 import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 
 const props = defineProps<{
@@ -40,8 +41,15 @@ const checklistQuery = useQuery({
   enabled: Boolean(props.eventId),
 });
 const isQuarterlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'quarterly' : false);
-const systemDesignDisabled = computed(() => (
-  isSystemDesignDisabledForEvent(checklistQuery.data.value?.items ?? [])
+const hasSavedSystemDesignSource = computed(() => (
+  eventQuery.data.value?.schedule?.some((item) => (
+    isSystemDesignSessionItem(item)
+    && item.resources.some((resource) => Boolean(resource.url?.trim()))
+  )) ?? false
+));
+const systemDesignDisabled = computed(() => isSystemDesignWorkspaceDisabled(
+  checklistQuery.data.value?.items ?? [],
+  hasSavedSystemDesignSource.value,
 ));
 const fullTabs = computed<AdminEventTab[]>(() => [
   { href: '', label: 'Overview' },
