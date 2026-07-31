@@ -2,12 +2,14 @@
 
 ## 2026-07-31
 
-- Activated System Design learning rooms on top of the existing saved-artifact workspace: organizers generate and review five source-based questions in place, then open a separate QR-first presentation view. Participation is anonymous and device-only; facilitators release and reveal questions and see the aggregate room pulse.
+- Activated System Design learning rooms on top of the existing saved-artifact workspace: organizers generate and review five source-based questions in place, then open a separate QR-first presentation view. Participation is account-free and device-only; facilitators release and reveal questions and see the aggregate room pulse.
 - Added required reveal explanations to System Design learning questions so every interaction teaches the underlying decision rather than acting as trivia.
-- Kept learning questions and presentation runs available to every previous meetup with a saved System Design link. Completed rooms start a fresh anonymous run without losing the persistent scenario or reviewed questions.
+- Kept learning questions and presentation runs available to every previous meetup with a saved System Design link. Completed rooms start a fresh room-scoped run without losing the persistent scenario or reviewed questions.
 - Moved the presenter onto an organizer-protected standalone route that opens in a new tab, preserves the original admin workspace, and removes admin navigation and editing controls from the shared screen.
 - Preserved reviewed question order during presentation and kept pre-reveal answer percentages exclusive to the protected presenter state.
 - Registered the QR destination as a dedicated public System Design attendee route, restricted it to learning-room codes, and removed its organizer-only active-session precheck while keeping presenter controls authenticated.
+- Added facilitator-selectable participant identity modes: unique generated aliases by default or validated attendee-entered room names. Reveal summaries now label each answer group with deterministic participant Navii avatars and names for the authenticated presenter.
+- Added a final presenter leaderboard and personal phone finish cards. Each attendee phone receives only its participant's avatar, name, and position; a one-shot, reduced-motion-safe confetti burst is limited to the top five.
 
 ## 2026-07-31 — Performance and blast delivery hardening
 

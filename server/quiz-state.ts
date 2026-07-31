@@ -2,6 +2,7 @@ import { getQuestionsBySession } from '@/lib/mock-db/questions';
 import { getQuizParticipantsBySession } from '@/lib/mock-db/quiz-participants';
 import { getQuizSessionById, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { getResponsesByQuestion } from '@/lib/mock-db/responses';
+import { participantIdentityMode } from '@/lib/system-design-participant-identity';
 import type { Question, QuizSession, QuizStateResponse, Response } from '@/types';
 
 export interface QuizAdvanceResult {
@@ -11,6 +12,7 @@ export interface QuizAdvanceResult {
 
 export interface QuizStateOptions {
   includeAnswerDistribution?: boolean;
+  includeRespondentIdentifiers?: boolean;
 }
 
 export async function advanceQuizSessionState(sessionId: string): Promise<QuizAdvanceResult> {
@@ -85,16 +87,20 @@ export async function buildQuizStateResponse(
     answersCount = responses.length;
   }
 
-  const leaderboard = participants
-    .sort((a, b) => b.total_score - a.total_score)
-    .slice(0, 10)
-    .map((participant, index) => ({
-      user_id: participant.user_id,
-      nickname: participant.nickname_used,
-      total_score: participant.total_score,
-      streak_count: participant.current_streak,
-      rank: index + 1,
-    }));
+  const participantByUserId = new Map(participants.map((participant) => [participant.user_id, participant]));
+  const rankedParticipants = [...participants]
+    .sort((left, right) => right.total_score - left.total_score || left.joined_at.localeCompare(right.joined_at));
+  const fullLeaderboard = rankedParticipants.map((participant, index) => ({
+    user_id: participant.user_id,
+    nickname: participant.nickname_used,
+    total_score: participant.total_score,
+    streak_count: participant.current_streak,
+    rank: index + 1,
+    avatar_seed: participant.id,
+  }));
+  const leaderboard = session.purpose === 'system_design_learning' && !options.includeRespondentIdentifiers
+    ? []
+    : fullLeaderboard.slice(0, 10);
 
   const answerDistribution = fullCurrentQuestion && (
     options.includeAnswerDistribution
@@ -103,10 +109,27 @@ export async function buildQuizStateResponse(
   )
     ? [0, 1, 2, 3].map((optionIndex) => {
       const count = responses.filter((response) => response.answer_index === optionIndex).length;
+      const revealIdentifiers = options.includeRespondentIdentifiers && (
+        session.question_phase === 'revealing' || session.question_phase === 'scoreboard'
+      );
       return {
         option_index: optionIndex,
         count,
         percentage: responses.length > 0 ? Math.round((count / responses.length) * 100) : 0,
+        ...(revealIdentifiers ? {
+          respondents: responses
+            .filter((response) => response.answer_index === optionIndex)
+            .map((response) => {
+              const participant = participantByUserId.get(response.user_id);
+              return participant ? {
+                user_id: participant.user_id,
+                nickname: participant.nickname_used,
+                avatar_seed: participant.id,
+              } : null;
+            })
+            .filter((participant): participant is { user_id: string; nickname: string; avatar_seed: string } => Boolean(participant))
+            .sort((left, right) => left.nickname.localeCompare(right.nickname)),
+        } : {}),
       };
     })
     : undefined;
@@ -131,6 +154,18 @@ export async function buildQuizStateResponse(
     }
   }
 
+  const playerStanding = session.purpose === 'system_design_learning' && session.status === 'finished' && userId
+    ? (() => {
+        const entry = fullLeaderboard.find((candidate) => candidate.user_id === userId);
+        return entry ? {
+          rank: entry.rank,
+          nickname: entry.nickname,
+          participant_count: participants.length,
+          avatar_seed: entry.avatar_seed!,
+        } : undefined;
+      })()
+    : undefined;
+
   return {
     session: {
       id: session.id,
@@ -139,6 +174,7 @@ export async function buildQuizStateResponse(
       join_code: session.join_code,
       question_phase: session.question_phase,
       purpose: session.purpose,
+      participant_identity_mode: participantIdentityMode(session),
     },
     current_question: currentQuestion,
     question_started_at: questionStartedAt,
@@ -150,5 +186,6 @@ export async function buildQuizStateResponse(
       ? fullCurrentQuestion?.explanation ?? null
       : undefined,
     player_result: playerResult,
+    player_standing: playerStanding,
   };
 }

@@ -93,6 +93,11 @@ import {
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
 import { canonicalizeSystemDesignSchedule, findSystemDesignSource } from '@/lib/system-design';
+import {
+  generateParticipantAlias,
+  participantIdentityMode,
+  validateParticipantDisplayName,
+} from '@/lib/system-design-participant-identity';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { generateId, now } from '@/lib/utils';
@@ -102,7 +107,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, ParticipantIdentityMode, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -5676,6 +5681,7 @@ app.post('/api/quiz/sessions', async (c) => {
     event_id,
     expires_at: sessionPurpose === 'system_design_learning' ? null : event.end_date ?? null,
     purpose: sessionPurpose,
+    participant_identity_mode: sessionPurpose === 'system_design_learning' ? 'generated' : undefined,
   });
   await auditAdminAction(c, {
     action: 'quiz.session.create',
@@ -5709,6 +5715,23 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
   try {
     const sessionId = c.req.param('sessionId');
     const body = await c.req.json();
+    if (body.participant_identity_mode !== undefined) {
+      const identityMode = body.participant_identity_mode as ParticipantIdentityMode;
+      if (identityMode !== 'generated' && identityMode !== 'self_named') {
+        return c.json({ error: 'participant_identity_mode must be generated or self_named' }, 400);
+      }
+
+      const existing = await getQuizSessionById(sessionId);
+      if (!existing) return c.json({ error: 'Session not found' }, 404);
+      if (existing.purpose !== 'system_design_learning') {
+        return c.json({ error: 'Participant identity mode is only available for System Design learning rooms.' }, 409);
+      }
+
+      const participants = await getQuizParticipantsBySession(sessionId);
+      if (existing.status !== 'finished' && participants.length > 0 && participantIdentityMode(existing) !== identityMode) {
+        return c.json({ error: 'Choose the participant name mode before people join the room.' }, 409);
+      }
+    }
     const session = await updateQuizSession(sessionId, body);
     await auditAdminAction(c, {
       action: 'quiz.session.update',
@@ -6061,26 +6084,50 @@ app.post('/api/quiz/join', async (c) => {
     return c.json({ error: 'This code is not for a System Design learning room.' }, 404);
   }
 
-  const anonymousLearningRoom = session.purpose === 'system_design_learning';
+  const systemDesignLearningRoom = session.purpose === 'system_design_learning';
   const requestedNickname = String(nickname ?? '').trim().slice(0, 20);
-  if (!anonymousLearningRoom && !requestedNickname) {
+  if (!systemDesignLearningRoom && !requestedNickname) {
     return c.json({ error: 'Enter a nickname to join this quiz.', code: 'nickname_required' }, 400);
   }
-  const participantNickname = anonymousLearningRoom ? 'Anonymous' : requestedNickname;
 
   let user = await getUserByDeviceId(device_id);
-  if (!user) {
-    user = await createUser({ device_id, nickname: participantNickname });
-  }
-
-  const existingParticipant = await getQuizParticipantBySessionAndUser(session.id, user.id);
-  if (existingParticipant) {
+  const existingParticipant = user
+    ? await getQuizParticipantBySessionAndUser(session.id, user.id)
+    : undefined;
+  if (existingParticipant && user) {
     return c.json({
       session_id: session.id,
       user_id: user.id,
       participant_id: existingParticipant.id,
       purpose: session.purpose ?? 'quiz',
+      display_name: existingParticipant.nickname_used,
+      participant_identity_mode: participantIdentityMode(session),
     });
+  }
+
+  const participants = systemDesignLearningRoom
+    ? await getQuizParticipantsBySession(session.id)
+    : [];
+  let participantNickname = requestedNickname;
+
+  if (systemDesignLearningRoom && participantIdentityMode(session) === 'self_named') {
+    if (!requestedNickname) {
+      return c.json({ error: 'Enter the name you want to use in this room.', code: 'nickname_required' }, 400);
+    }
+    const validatedNickname = validateParticipantDisplayName(nickname);
+    if (!validatedNickname) {
+      return c.json({ error: 'Use 1–24 letters, numbers, spaces, apostrophes, periods, or hyphens.', code: 'invalid_nickname' }, 400);
+    }
+    if (participants.some((participant) => participant.nickname_used.toLocaleLowerCase() === validatedNickname.toLocaleLowerCase())) {
+      return c.json({ error: 'That name is already in use in this room.', code: 'nickname_taken' }, 409);
+    }
+    participantNickname = validatedNickname;
+  } else if (systemDesignLearningRoom) {
+    participantNickname = generateParticipantAlias(participants.map((participant) => participant.nickname_used));
+  }
+
+  if (!user) {
+    user = await createUser({ device_id, nickname: participantNickname });
   }
 
   const participant = await createQuizParticipant({
@@ -6097,6 +6144,8 @@ app.post('/api/quiz/join', async (c) => {
     user_id: user.id,
     participant_id: participant.id,
     purpose: session.purpose ?? 'quiz',
+    display_name: participant.nickname_used,
+    participant_identity_mode: participantIdentityMode(session),
   });
 });
 
@@ -6200,6 +6249,7 @@ app.get('/api/quiz/state', async (c) => {
   await expireQuizSessionIfNeeded(foundSession, c);
   const stateResponse = await buildQuizStateResponse(sessionId, userId, {
     includeAnswerDistribution: presenterStateRequested,
+    includeRespondentIdentifiers: presenterStateRequested,
   });
   if (!stateResponse) {
     return c.json({ error: 'Session not found' }, 404);
