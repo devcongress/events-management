@@ -123,7 +123,7 @@ describe('quiz state helpers', () => {
 
     const presenterState = await buildQuizStateResponse('session-1', null, {
       includeAnswerDistribution: true,
-      includeRespondentIdentifiers: true,
+      includePresenterLeaderboard: true,
     });
     expect(presenterState?.answer_distribution).toEqual([
       { option_index: 0, count: 0, percentage: 0 },
@@ -138,16 +138,17 @@ describe('quiz state helpers', () => {
     expect(revealedState?.player_result).toMatchObject({ is_correct: true, correct_index: 2, points_awarded: 500 });
     expect(revealedState?.participants_count).toBe(1);
     expect(revealedState?.answers_count).toBe(1);
-    expect(revealedState?.answer_distribution?.[2]).not.toHaveProperty('respondents');
     expect(revealedState?.leaderboard).toEqual([]);
 
     const presenterRevealState = await buildQuizStateResponse('session-1', null, {
       includeAnswerDistribution: true,
-      includeRespondentIdentifiers: true,
+      includePresenterLeaderboard: true,
     });
-    expect(presenterRevealState?.answer_distribution?.[2]?.respondents).toEqual([
-      { user_id: 'user-1', nickname: 'Ada', avatar_seed: 'participant-1' },
-    ]);
+    expect(presenterRevealState?.answer_distribution?.[2]).toEqual({
+      option_index: 2,
+      count: 1,
+      percentage: 100,
+    });
   });
 
   it('returns the final leaderboard to the presenter and only the requesting player standing publicly', async () => {
@@ -165,7 +166,7 @@ describe('quiz state helpers', () => {
 
     const presenterState = await buildQuizStateResponse('session-1', null, {
       includeAnswerDistribution: true,
-      includeRespondentIdentifiers: true,
+      includePresenterLeaderboard: true,
     });
     expect(presenterState?.leaderboard).toEqual([
       expect.objectContaining({ user_id: 'user-1', nickname: 'Ada', rank: 1, total_score: 500 }),

@@ -357,8 +357,6 @@ export interface User {
   created_at: string;
 }
 
-export type ParticipantIdentityMode = 'generated' | 'self_named';
-
 export interface QuizSession {
   id: string;
   event_id: string;
@@ -374,7 +372,6 @@ export interface QuizSession {
   expires_at?: string | null;
   released_question_ids?: string[];
   purpose?: 'quiz' | 'system_design_learning';
-  participant_identity_mode?: ParticipantIdentityMode;
 }
 
 export interface Question {
@@ -561,7 +558,7 @@ export interface AttendanceMonthlyInsights {
 
 // ---- API payloads ----
 export interface QuizStateResponse {
-  session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase' | 'purpose' | 'participant_identity_mode'>;
+  session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase' | 'purpose'>;
   current_question: Omit<Question, 'correct_index'> | null;  // hide answer from player
   question_started_at: string | null;                         // when this question was shown
   participants_count: number;
@@ -571,11 +568,6 @@ export interface QuizStateResponse {
     option_index: number;
     count: number;
     percentage: number;
-    respondents?: {                                            // presenter-only participant labels
-      user_id: string;
-      nickname: string;
-      avatar_seed: string;
-    }[];
   }[];
   reveal_explanation?: string | null;
   player_result?: {                                           // if player already answered

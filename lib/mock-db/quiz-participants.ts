@@ -73,6 +73,30 @@ export async function updateQuizParticipant(
   return participants[index];
 }
 
+export async function renameQuizParticipant(
+  id: string,
+  sessionId: string,
+  nickname: string,
+): Promise<{ participant: QuizParticipant | null; nicknameTaken: boolean }> {
+  return updateData<QuizParticipant, { participant: QuizParticipant | null; nicknameTaken: boolean }>(FILE, (participants) => {
+    const index = participants.findIndex((participant) => (
+      participant.id === id && participant.quiz_session_id === sessionId
+    ));
+    if (index === -1) return { data: participants, result: { participant: null, nicknameTaken: false } };
+
+    const nicknameTaken = participants.some((participant, participantIndex) => (
+      participantIndex !== index
+      && participant.quiz_session_id === sessionId
+      && participant.nickname_used.toLocaleLowerCase() === nickname.toLocaleLowerCase()
+    ));
+    if (nicknameTaken) return { data: participants, result: { participant: null, nicknameTaken: true } };
+
+    const renamed = { ...participants[index]!, nickname_used: nickname };
+    participants[index] = renamed;
+    return { data: participants, result: { participant: renamed, nicknameTaken: false } };
+  });
+}
+
 export async function deleteQuizParticipant(id: string): Promise<void> {
   const participants = await readData<QuizParticipant>(FILE);
   const filtered = participants.filter(p => p.id !== id);

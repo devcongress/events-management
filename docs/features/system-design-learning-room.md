@@ -16,20 +16,22 @@ A saved System Design source link also keeps the event's System Design tab avail
 
 1. Save a System Design scenario with a supported public Google Slides or Google Docs link.
 2. Generate a five-question teaching sequence from the source.
-3. Review and edit question wording, answers, order, timing, and reveal explanations on the same System Design page.
+3. Review and edit question wording, answers, order, and reveal explanations on the same System Design page. Set each question's answer timer directly on its review card before presenting.
 4. Open the separate presentation view in a new browser tab. The System Design workspace remains open in the original tab.
-5. Choose whether attendees receive unique generated aliases or enter the display names they want to use, then share the QR code or join code.
+5. Share the QR code or join code. Every attendee immediately receives a default room name and fixed Navii avatar, and may edit the name on their phone while the lobby is open.
 6. Start when the room is ready, release one question at a time, and reveal the answer and teaching explanation for discussion.
 7. Finish the run. The presenter shows the final leaderboard, while each phone shows only that participant's Navii avatar, room name, and position. Top-five participants receive a reduced-motion-safe confetti celebration.
 8. The saved scenario and five questions remain available for another presentation.
 
 Opening a completed room starts a fresh run: old participant labels and responses for that room are cleared, while the saved questions remain unchanged. An already waiting or active run is resumed.
 
-The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected. Generated aliases are the backward-compatible default. If organizers choose self-entered names, the attendee enters a validated room-only display name before joining; no account is created.
+The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected. Joining immediately creates a validated, unique default room name and fixed avatar. The attendee may keep or edit that name before the facilitator starts; no account is created and the organizer has no naming-mode setting.
 
-Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During the reveal, the presenter summary labels each answer group with participant avatars and room identifiers. Those respondent lists are available only in the authenticated presenter payload.
+Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During each question, the presenter summary uses four compact aggregate bars showing the option, number of people, and percentage. It does not render or return an unbounded respondent list.
 
 At completion, the authenticated presenter receives the top-ten final leaderboard. Each attendee request receives only that attendee's own final standing, so their phone can show their avatar, name, and position without exposing the rest of the leaderboard. Confetti runs once for positions one through five and becomes a static celebratory treatment when reduced motion is enabled.
+
+When a question timer reaches zero, the phone removes the answer controls and shows a clear **Time's up** state while it waits for the facilitator to reveal the answer. Late-answer failures remain question-level feedback and never replace the room with an unavailable-room error.
 
 ## Key Files
 
@@ -42,7 +44,7 @@ At completion, the authenticated presenter receives the top-ten final leaderboar
 | `src/components/NaviiAvatar.vue` | Local deterministic participant avatars rendered from session participant IDs |
 | `src/components/CelebrationConfetti.vue` | Top-five phone celebration with a reduced-motion fallback |
 | `src/system-design-participant-route.ts` | Dedicated public route and QR destination helper |
-| `lib/system-design-participant-identity.ts` | Identity-mode defaults, display-name validation, and unique alias generation |
+| `lib/system-design-participant-identity.ts` | Display-name validation and unique default-name generation |
 | `lib/mock-db/system-design-learning-room.ts` | Prepares a fresh presentation run without changing the questions |
 | `server/app.ts` | Generation, presentation, join, release, reveal, and answer API routes |
 
@@ -52,7 +54,7 @@ At completion, the authenticated presenter receives the top-ten final leaderboar
 - Source generation supports publicly readable Google Slides and Google Docs links.
 - Live state uses polling rather than a production realtime channel.
 - Room-scoped participant identities and responses from the previous run are cleared when a completed room starts again; historical run reporting is not yet retained.
-- Self-entered display names are labels chosen by attendees, not verified real-world identities.
+- Edited display names are labels chosen by attendees, not verified real-world identities.
 - The presenter leaderboard is capped at ten visible participants; attendee phones receive only their own standing.
 - The standalone presenter route is organizer-protected even though it intentionally renders outside the admin shell. Facilitator mutations still require the HTTP-only organizer session.
 

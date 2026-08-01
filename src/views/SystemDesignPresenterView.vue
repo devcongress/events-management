@@ -26,7 +26,6 @@ const currentQuestion = computed(() => session.value?.questions.find((question) 
 const participantsCount = computed(() => liveState.value?.participants_count ?? session.value?.participantCount ?? 0);
 const releasedCount = computed(() => session.value?.released_question_ids?.length ?? 0);
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
-const participantIdentityMode = computed(() => session.value?.participant_identity_mode ?? 'generated');
 
 async function fetchPresenterState() {
   const response = await fetch(`/api/quiz/sessions/${sessionId.value}`);
@@ -119,7 +118,7 @@ onUnmounted(() => {
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Live learning room</p>
         <h1 class="mt-5 text-5xl font-extrabold uppercase tracking-tight text-white sm:text-7xl lg:text-8xl">Scan to join</h1>
         <p class="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#A1A1A1] sm:text-xl">
-          {{ participantIdentityMode === 'self_named' ? 'Choose a display name, then answer from your phone as we work through the scenario together.' : 'You will receive a random room alias. Answer from your phone as we work through the scenario together.' }}
+          Everyone receives a name and avatar on their phone. Names can be edited before you start.
         </p>
 
         <div class="mx-auto mt-10 grid max-w-4xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
@@ -195,20 +194,17 @@ onUnmounted(() => {
           <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Room pulse</p>
           <p class="mt-3 text-4xl font-extrabold text-white">{{ liveState?.answers_count ?? 0 }} / {{ participantsCount }}</p>
           <p class="mt-1 text-sm text-[#A1A1A1]">people answered</p>
-          <div class="mt-7 space-y-4">
+          <div class="mt-7 space-y-5">
             <div v-for="result in liveState?.answer_distribution ?? []" :key="result.option_index">
-              <div class="flex items-center justify-between font-mono text-xs font-semibold uppercase tracking-wide">
-                <span class="text-[#E5E5E5]">{{ ['A', 'B', 'C', 'D'][result.option_index] }}</span>
-                <span class="text-dc-yellow">{{ result.percentage }}%</span>
+              <div class="flex items-end justify-between gap-4">
+                <span class="font-mono text-2xl font-bold text-[#E5E5E5]">{{ ['A', 'B', 'C', 'D'][result.option_index] }}</span>
+                <div class="flex items-baseline gap-2 text-right">
+                  <span class="font-mono text-sm font-semibold text-white">{{ result.count }} {{ result.count === 1 ? 'person' : 'people' }}</span>
+                  <span class="font-mono text-xs font-semibold text-dc-yellow">{{ result.percentage }}%</span>
+                </div>
               </div>
-              <div class="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+              <div class="mt-2 h-3 overflow-hidden rounded-full bg-white/10">
                 <div class="h-full rounded-full bg-dc-pink" :style="{ width: `${result.percentage}%` }" />
-              </div>
-              <div v-if="session.question_phase === 'revealing' && result.respondents?.length" class="mt-2 flex flex-wrap gap-2">
-                <span v-for="respondent in result.respondents" :key="respondent.user_id" class="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] py-1 pl-1 pr-2 font-mono text-[11px] font-medium text-[#E5E5E5]">
-                  <NaviiAvatar :seed="respondent.avatar_seed" :title="`${respondent.nickname} avatar`" :size="24" />
-                  {{ respondent.nickname }}
-                </span>
               </div>
             </div>
           </div>

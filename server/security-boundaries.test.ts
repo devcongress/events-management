@@ -80,6 +80,11 @@ describe('HTTP security boundaries', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: 'invalid', user_id: 'invalid', answer_index: 0 }),
       }),
+      app.request('http://localhost/api/quiz/participants/invalid/name', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_id: 'invalid', nickname: 'Ama' }),
+      }),
     ];
 
     const responses = await Promise.all(requests);

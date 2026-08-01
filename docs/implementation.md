@@ -96,7 +96,7 @@
   - Active Vue pages: `src/views/admin/AdminSystemDesignView.vue`, `src/views/SystemDesignPresenterView.vue`, `src/views/SystemDesignParticipantView.vue`, `src/views/EventView.vue`, `src/views/ArchiveEventView.vue`
   - Storage: `event.schedule` rows with type `system_design`, optional public recap notes, and prompt-link resources
   - Draft generation: `POST /api/events/[eventId]/system-design/draft` reads public Google Slides prompt decks and returns extracted `title`, raw `content`, and a generated `summary`
-  - Learning room: `src/components/SystemDesignLearningRoomPanel.vue` generates and reviews exactly five source-based questions on the saved-artifact page. `POST /api/quiz/sessions/[sessionId]/presentation` prepares a fresh room-scoped run after completion without expiring the reusable content; `/present/system-design/:sessionId` opens separately outside the admin shell. The public `/learn/system-design/:code` participant page either receives a generated alias or prompts for a validated display name according to the session setting.
+  - Learning room: `src/components/SystemDesignLearningRoomPanel.vue` generates and reviews exactly five source-based questions on the saved-artifact page, including a directly adjustable per-question answer timer. `POST /api/quiz/sessions/[sessionId]/presentation` prepares a fresh room-scoped run after completion without expiring the reusable content; `/present/system-design/:sessionId` opens separately outside the admin shell. The public `/learn/system-design/:code` participant page receives a unique default room name and fixed avatar, then permits a device-authorized name edit only while the lobby is waiting.
 - **Attendance analysis**
   - Active Vue pages: `src/views/admin/AdminAttendanceOverviewView.vue`, `src/views/admin/AdminAttendanceView.vue`
   - The hub pairs the monthly ledger with one compact attendance-pattern panel: approved RSVP/check-in bars for the latest uploaded events, an approved came/missed pie, and a small venue-planning footer.
@@ -209,7 +209,7 @@
 
 - **Key function:** `GET /api/quiz/state?sessionId=&userId=`
 - **Facilitator commands:** protected `POST /api/quiz/sessions/:sessionId/release` selects the next unreleased System Design question in reviewed order, while `POST /api/quiz/sessions/:sessionId/reveal` controls when its answer and explanation appear. The compatibility `POST /api/quiz/state/advance` remains timed/all-answered for the separate quiz flow and is a no-op for facilitator-led System Design rooms.
-- **Non-obvious logic:** `GET /api/quiz/state` is read-only. Attendee requests do not receive live answer distribution before reveal; the standalone authenticated presenter opts into that room pulse with `presenter=true`. Respondent identifiers and Navii avatar seeds are added only to that protected presenter payload and are rendered with each answer group during reveal. On finish, the presenter receives the top-ten leaderboard; a System Design attendee receives only `player_standing` for the requesting participant and never the full leaderboard.
+- **Non-obvious logic:** `GET /api/quiz/state` is read-only. Attendee requests do not receive live answer distribution before reveal; the standalone authenticated presenter opts into aggregate option counts and percentages with `presenter=true`. Per-answer respondent identities are not returned. On finish, the presenter receives the top-ten leaderboard with Navii avatars; a System Design attendee receives only `player_standing` for the requesting participant and never the full leaderboard.
 - `correct_index` is stripped from `current_question` in the state payload; player-specific reveal data is returned through `player_result.correct_index` after answering.
 - A `SIMULATED_DELAY_MS` (300ms) `setTimeout` is added to simulate realistic network latency.
 
@@ -352,7 +352,7 @@ POST /api/quiz/join              body: { join_code, device_id }
   → increments User.events_participated when joining a new session
   → returns { session_id, user_id, participant_id }
 
-System Design joins also send purpose: 'system_design_learning'. The response includes a room-scoped display_name; self-named rooms require a validated nickname, while generated rooms assign a unique friendly alias.
+System Design joins also send purpose: 'system_design_learning'. The response includes a unique default room-scoped `display_name` and immutable participant-derived `avatar_seed`. While the room is waiting, the same device can send a validated replacement name to `PATCH /api/quiz/participants/[participantId]/name`; the endpoint closes once presentation starts. On participant phones, expiry of the local question countdown removes the answer grid and shows a waiting-for-reveal state; answer submission errors remain local to the question rather than becoming room-level failures.
 
 GET  /api/quiz/state?sessionId=&userId=   read-only state fetch, polled every 1500ms
 POST /api/quiz/answer            body: { session_id, user_id, answer_index }
