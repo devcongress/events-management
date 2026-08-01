@@ -163,7 +163,7 @@ Campaigns, questions, submissions, response-token deduplication, and public acti
 
 ## Gaps That Must Be Reconciled
 
-### 1. Live schema is ahead of `main`
+### 1. Live schema was ahead of `main` (reconciled in code)
 
 Live Supabase contains:
 
@@ -172,7 +172,9 @@ Live Supabase contains:
 
 Those objects are absent from current `main` but exist on `feature/community-event-submissions`. The table is empty, while all nine current events are classified `official`.
 
-Before the website runtime is introduced, choose one of two explicit paths:
+`20260801020000_community_event_submissions.sql` takes the replacement path: it upgrades the empty hosted `event_submissions` table additively, removes the obsolete all-`official` `event_classification` column, and replaces it with independent ownership, series, format, source, moderation, and publication fields. Apply and verify that migration before enabling the website form.
+
+The original decision point was:
 
 - adopt the feature schema into the canonical migration history and checked-in types; or
 - add a new migration that deliberately removes/replaces it.

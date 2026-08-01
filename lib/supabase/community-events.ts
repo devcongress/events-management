@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
-import type { Event, EventStatus, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
+import type { Event, EventStatus, PublicEvent, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
 import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } from '@/types/supabase';
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
@@ -138,6 +138,7 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
     stream_url: input.stream_url ?? null,
     embed_stream: input.embed_stream ?? false,
     publish_to_website: input.publish_to_website ?? false,
+    publication_status: input.publish_to_website ? 'published' : 'draft',
   };
   const insertWithExternal: CommunityEventInsert = {
     ...baseInsert,
@@ -216,7 +217,10 @@ export async function updateSupabaseCommunityEvent(
   if (typeof input.stream_url === 'string' || input.stream_url === null) update.stream_url = input.stream_url ?? null;
   if (typeof input.embed_stream === 'boolean') update.embed_stream = input.embed_stream;
   if (typeof input.registration_url === 'string' || input.registration_url === null) update.registration_url = input.registration_url ?? null;
-  if (typeof input.publish_to_website === 'boolean') update.publish_to_website = input.publish_to_website;
+  if (typeof input.publish_to_website === 'boolean') {
+    update.publish_to_website = input.publish_to_website;
+    update.publication_status = input.publish_to_website ? 'published' : 'draft';
+  }
   if (typeof input.external_source === 'string' || input.external_source === null) update.external_source = input.external_source ?? null;
   if (typeof input.external_id === 'string' || input.external_id === null) update.external_id = input.external_id ?? null;
   if (typeof input.external_url === 'string' || input.external_url === null) update.external_url = input.external_url ?? null;
@@ -317,10 +321,27 @@ export async function getSupabasePublicMeetups(origin: string, c?: Context): Pro
     .from('community_events')
     .select('*')
     .eq('publish_to_website', true)
+    .eq('event_ownership', 'devcongress')
     .order('starts_at', { ascending: false });
 
   if (error) throw new Error('Unable to load public meetups');
   return data.map((row) => toPublicMeetup(row, origin));
+}
+
+export async function getSupabasePublicEvents(c?: Context): Promise<PublicEvent[] | null> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('community_events')
+    .select('*')
+    .eq('publish_to_website', true)
+    .eq('publication_status', 'published')
+    .order('starts_at', { ascending: false });
+
+  if (error) throw new Error('Unable to load public events');
+  return data
+    .filter((row) => row.event_ownership === 'devcongress' || row.moderation_status === 'approved')
+    .map(toPublicEvent);
 }
 
 function toEvent(row: CommunityEventRow): Event {
@@ -346,11 +367,52 @@ function toEvent(row: CommunityEventRow): Event {
     photos: normalizePhotos(row.photos),
     videos: normalizeVideos(row.videos),
     publish_to_website: row.publish_to_website,
+    ownership: row.event_ownership,
+    format: row.event_format,
+    submission_source: row.submission_source,
+    moderation_status: row.moderation_status,
+    publication_status: row.publication_status,
+    timezone: row.timezone,
+    location_type: row.location_type,
+    venue_address: row.venue_address,
+    online_url: safeHttpUrl(row.online_url),
+    organizer_name: row.organizer_name,
+    organizer_url: safeHttpUrl(row.organizer_url),
+    source_submission_id: row.source_submission_id,
     external_source: row.external_source,
     external_id: row.external_id,
     external_url: safeHttpUrl(row.external_url),
     external_synced_at: row.external_synced_at,
     created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function toPublicEvent(row: CommunityEventRow): PublicEvent {
+  const external = row.event_ownership === 'external';
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.name,
+    summary: row.description ?? '',
+    ownership: external ? 'external' : 'devcongress',
+    series: isEventSeriesType(row.series_type) ? row.series_type : null,
+    format: row.event_format,
+    source: row.submission_source,
+    moderation_status: row.moderation_status,
+    publication_status: row.publication_status,
+    classification: external ? 'community' : 'official',
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    timezone: row.timezone,
+    location_type: row.location_type,
+    venue_name: row.location_name || null,
+    venue_address: row.venue_address ?? row.location_label,
+    online_url: safeHttpUrl(row.online_url ?? row.stream_url),
+    registration_url: safeWebsiteUrl(row.registration_url),
+    organizer_name: external ? (row.organizer_name ?? 'External organizer') : 'DevCongress',
+    organizer_website: safeHttpUrl(row.organizer_url),
+    cover_url: safeWebsiteUrl(row.cover_url),
     updated_at: row.updated_at,
   };
 }

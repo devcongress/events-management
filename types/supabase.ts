@@ -4,6 +4,12 @@ export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type CommunityEventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
 export type CommunityEventSeriesType = 'monthly' | 'quarterly' | 'special';
+export type CommunityEventOwnership = 'devcongress' | 'external';
+export type CommunityEventFormat = 'meetup' | 'conference' | 'workshop' | 'hackathon' | 'webinar' | 'other';
+export type CommunityEventSubmissionSource = 'internal' | 'public_submission';
+export type CommunityEventModerationStatus = 'pending' | 'approved' | 'rejected';
+export type CommunityEventPublicationStatus = 'draft' | 'published' | 'archived';
+export type CommunityEventLocationType = 'in_person' | 'online' | 'hybrid';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
@@ -329,6 +335,18 @@ export interface Database {
           photos: Json[];
           videos: Json[];
           publish_to_website: boolean;
+          event_ownership: CommunityEventOwnership;
+          event_format: CommunityEventFormat;
+          submission_source: CommunityEventSubmissionSource;
+          moderation_status: CommunityEventModerationStatus | null;
+          publication_status: CommunityEventPublicationStatus;
+          timezone: string;
+          location_type: CommunityEventLocationType;
+          venue_address: string | null;
+          online_url: string | null;
+          organizer_name: string | null;
+          organizer_url: string | null;
+          source_submission_id: string | null;
           website_source_id: string | null;
           external_source: string | null;
           external_id: string | null;
@@ -358,6 +376,18 @@ export interface Database {
           photos?: Json[];
           videos?: Json[];
           publish_to_website?: boolean;
+          event_ownership?: CommunityEventOwnership;
+          event_format?: CommunityEventFormat;
+          submission_source?: CommunityEventSubmissionSource;
+          moderation_status?: CommunityEventModerationStatus | null;
+          publication_status?: CommunityEventPublicationStatus;
+          timezone?: string;
+          location_type?: CommunityEventLocationType;
+          venue_address?: string | null;
+          online_url?: string | null;
+          organizer_name?: string | null;
+          organizer_url?: string | null;
+          source_submission_id?: string | null;
           website_source_id?: string | null;
           external_source?: string | null;
           external_id?: string | null;
@@ -387,6 +417,18 @@ export interface Database {
           photos?: Json[];
           videos?: Json[];
           publish_to_website?: boolean;
+          event_ownership?: CommunityEventOwnership;
+          event_format?: CommunityEventFormat;
+          submission_source?: CommunityEventSubmissionSource;
+          moderation_status?: CommunityEventModerationStatus | null;
+          publication_status?: CommunityEventPublicationStatus;
+          timezone?: string;
+          location_type?: CommunityEventLocationType;
+          venue_address?: string | null;
+          online_url?: string | null;
+          organizer_name?: string | null;
+          organizer_url?: string | null;
+          source_submission_id?: string | null;
           website_source_id?: string | null;
           external_source?: string | null;
           external_id?: string | null;
@@ -396,6 +438,72 @@ export interface Database {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      event_submissions: {
+        Row: {
+          id: string;
+          title: string;
+          summary: string;
+          event_format: CommunityEventFormat;
+          starts_at: string;
+          ends_at: string;
+          timezone: string;
+          location_type: CommunityEventLocationType;
+          location_name: string | null;
+          venue_name: string | null;
+          venue_address: string | null;
+          online_url: string | null;
+          registration_url: string | null;
+          organizer_name: string;
+          organizer_email: string;
+          organizer_website: string | null;
+          submitter_notes: string | null;
+          source_app: string;
+          review_status: CommunityEventModerationStatus;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          rejection_reason: string | null;
+          approved_event_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          summary: string;
+          event_format: CommunityEventFormat;
+          starts_at: string;
+          ends_at: string;
+          timezone: string;
+          location_type: CommunityEventLocationType;
+          location_name?: string | null;
+          venue_name?: string | null;
+          venue_address?: string | null;
+          online_url?: string | null;
+          registration_url?: string | null;
+          organizer_name: string;
+          organizer_email: string;
+          organizer_website?: string | null;
+          submitter_notes?: string | null;
+          source_app?: string;
+          review_status?: CommunityEventModerationStatus;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          rejection_reason?: string | null;
+          approved_event_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['event_submissions']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'event_submissions_approved_event_id_fkey';
+            columns: ['approved_event_id'];
+            isOneToOne: false;
+            referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       event_registration_campaigns: {
         Row: {
@@ -1158,6 +1266,22 @@ export interface Database {
           allowed: boolean;
           retry_after_seconds: number;
         }[];
+      };
+      approve_event_submission: {
+        Args: {
+          p_submission_id: string;
+          p_reviewed_by: string;
+          p_publish: boolean;
+        };
+        Returns: Database['public']['Tables']['event_submissions']['Row'];
+      };
+      reject_event_submission: {
+        Args: {
+          p_submission_id: string;
+          p_reviewed_by: string;
+          p_reason: string;
+        };
+        Returns: Database['public']['Tables']['event_submissions']['Row'];
       };
       merge_quiz_participant_users: {
         Args: {

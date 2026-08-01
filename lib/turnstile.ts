@@ -6,6 +6,7 @@ export const VOLUNTEER_INTAKE_TURNSTILE_ACTION = 'volunteer_intake';
 export const EVENT_REGISTRATION_TURNSTILE_ACTION = 'event_registration';
 export const CFP_SUBMISSION_TURNSTILE_ACTION = 'cfp_submission';
 export const EVENT_FEEDBACK_TURNSTILE_ACTION = 'event_feedback';
+export const EVENT_SUBMISSION_TURNSTILE_ACTION = 'event_submission';
 
 type TurnstileSuccess = {
   ok: true;
@@ -21,7 +22,7 @@ type TurnstileValidationResult = TurnstileSuccess | TurnstileFailure;
 
 type TurnstileValidationInput = {
   expectedAction?: string;
-  expectedHostname?: string;
+  expectedHostname?: string | string[];
   remoteIp?: string;
   secretKey?: string;
   token: string;
@@ -104,7 +105,12 @@ export async function validateTurnstileToken({
     };
   }
 
-  if (expectedHostname && result.hostname !== expectedHostname) {
+  const expectedHostnames = Array.isArray(expectedHostname)
+    ? expectedHostname
+    : expectedHostname
+      ? [expectedHostname]
+      : [];
+  if (expectedHostnames.length > 0 && (!result.hostname || !expectedHostnames.includes(result.hostname))) {
     return {
       ok: false,
       error: 'Human verification did not match this site. Please refresh and try again.',

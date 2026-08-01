@@ -17,6 +17,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS and state-changing request checks; production is `https://em.devcongress.org` |
 | `TURNSTILE_SECRET_KEY` | Required for production public writes | No | Server-only Cloudflare Turnstile secret used to validate every protected public submission |
 | `TURNSTILE_EXPECTED_HOSTNAME` | Required in production | No | Strict hostname check for Turnstile verification; production uses `em.devcongress.org` |
+| `EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES` | Required for production community submissions | No | Comma-separated strict hostname allowlist for the `devcongress.org` submission widget, for example `devcongress.org,www.devcongress.org`; it does not weaken the `em.devcongress.org` check used by other forms |
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 | `RESEND_API_KEY` | Required for Archive Request email sends | No | Server-only, sending-restricted Resend API key used by the authenticated speaker email batch endpoint. |
 | `RESEND_BROADCASTS_API_KEY` | Required to send or schedule event blasts | No | Separate server-only Resend key restricted to Contacts, Segments, and Broadcasts. The app saves a friendly capacity state when it is missing or the provider rejects the send for plan/quota reasons. |
@@ -35,6 +36,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - If `VITE_FORCE_API_BASE_URL=true`, keep `VITE_API_BASE_URL` pointed at the Worker origin only; do not include a trailing slash.
 - `VITE_SHOW_ORGANIZER_LINK=false` only hides the public navigation button; it does not secure organizer routes.
 - The browser sitekey and Worker secret must belong to the same Turnstile widget. Keep the secret server-only and verify the production hostname.
+- The public website's Turnstile widget must cover every hostname in `EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES`. Community submissions fail closed when this dedicated allowlist is missing in production; they never fall back to an unchecked hostname.
 - Production public writes fail closed if Turnstile or the atomic Supabase rate-limit store is unavailable. Validate all public form actions after every key/widget change.
 - Organizer auth requires `APP_DATA_SOURCE=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` on every organizer-capable runtime. Missing configuration fails closed; no shared-password fallback exists.
 - Google OAuth client credentials live in the Supabase dashboard provider settings, not in this app repo.

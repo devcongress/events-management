@@ -47,6 +47,7 @@ const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
 const AdminMobileCheckInView = () => import('./views/admin/AdminMobileCheckInView.vue');
 const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
+const AdminEventSubmissionsView = () => import('./views/admin/AdminEventSubmissionsView.vue');
 const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceOverviewView.vue');
 const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
 const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
@@ -101,6 +102,7 @@ export const router = createRouter({
       component: AdminMobileCheckInView,
     },
     { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
+    { path: adminPath('event-submissions'), name: 'admin-event-submissions', component: AdminEventSubmissionsView },
     {
       path: adminPath('website-preview/events'),
       name: 'admin-public-events-preview',

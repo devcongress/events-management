@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-01 — Community event submission and moderation
+
+- Added a strict, Turnstile-protected and distributed-rate-limited public proposal API backed by a service-role-only relational moderation queue.
+- Added a current-design organizer inbox with simple approve-and-publish or reject decisions, transactional idempotent promotion, and private audit actions.
+- Separated event ownership, series, format, source, moderation, and publication in the canonical event model, while preserving the official-only meetup compatibility feed.
+- Added a generic public events feed for published DevCongress programming and approved external community listings, retaining the external organizer identity.
+- Recorded the dedicated `devcongress.org` Turnstile hostname allowlist and deferred notification email until it has a durable delivery ledger.
+
 ## 2026-08-01 — Database-owned quiz runtime
 
 - Moved hosted quiz sessions, questions, and responses from whole-array compatibility documents into constrained relational Supabase tables, retaining JSON only for local development and rollback evidence.

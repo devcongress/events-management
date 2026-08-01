@@ -32,6 +32,22 @@ describe('turnstile validation', () => {
     );
   });
 
+  it('accepts a hostname from a purpose-specific allowlist', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      success: true,
+      action: 'event_submission',
+      hostname: 'www.devcongress.org',
+      'error-codes': [],
+    })));
+
+    await expect(validateTurnstileToken({
+      token: 'token-123',
+      secretKey: 'secret-123',
+      expectedAction: 'event_submission',
+      expectedHostname: ['devcongress.org', 'www.devcongress.org'],
+    })).resolves.toEqual({ ok: true });
+  });
+
   it('returns a configuration error when the secret key is missing', async () => {
     const result = await validateTurnstileToken({
       token: 'token-123',

@@ -17,13 +17,17 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/public/meetups` | Lists public meetup summaries and page data |
+| `GET /api/public/events` | Lists published official events and approved, published external community events |
+| `POST /api/public/event-submissions` | Accepts a Turnstile-protected external event proposal for organizer review |
 | `GET /api/public/meetups/:slug` | Returns one meetup by slug or event id |
 | `GET /api/public/meetups/:slug/talks` | Returns explicitly published Event Archive items through the compatibility talks route |
 | `GET /api/public/archive` | Returns completed published meetup archive cards plus public archive metadata |
 | `GET /api/public/archive/:eventId` | Returns one completed published meetup archive entry with published items and feedback availability |
 | `GET /api/public/home` | Returns the public homepage counts and recent published archive items |
 
-Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
+Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Public reads are cacheable; the event-submission write is strictly validated, Turnstile-protected, and distributed-rate-limited. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
+
+The compatibility meetup routes return DevCongress-owned events only. Generic public discovery must use `/api/public/events`, which includes an external event only when both moderation is `approved` and publication is `published`. Its version-1 DTO exposes `ownership`, `series`, `format`, `source`, `moderation_status`, `publication_status`, organizer identity, location mode, dates, and public URLs without submitter email, private notes, reviewer identity, or rejected/pending proposals.
 
 ## Organizer Consumer Preview
 

@@ -173,7 +173,7 @@ See [Public Meetup API](public-meetups-api.md) for the current implemented contr
 
 ## 7. External Event Submissions
 
-The community-submission workflow is planned but not implemented.
+The community-submission workflow is implemented in Events Management. The public form remains owned by `devcongress.org`.
 
 The intended flow is:
 
@@ -184,6 +184,8 @@ The intended flow is:
 5. Publication makes the approved event available through the same public API consumed by `devcongress.org`.
 
 The public listing must identify the real organizer. “Approved” means permitted to appear in the DevCongress listing; it does not transfer ownership to DevCongress.
+
+The initial organizer surface intentionally keeps review to **Approve & publish** or **Reject**. Approval and publication remain independent database fields, and the API can approve as a draft without changing the taxonomy. Receipt/decision email delivery remains a follow-up until it has durable delivery state.
 
 ## 8. Persistence Direction
 
