@@ -125,6 +125,7 @@ export interface AdminSessionResponse {
   authenticated: boolean;
   auth_mode: 'supabase';
   auth_configured: boolean;
+  expires_at?: string;
   user?: {
     email: string | null;
     display_name: string | null;

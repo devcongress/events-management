@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import OrganizerSessionPause from './components/OrganizerSessionPause.vue';
 import AppToaster from './components/ui/AppToaster.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
 import { annualConferencePath } from './annual-conference';
@@ -47,8 +48,21 @@ const keyboardInset = ref(0);
 const adminEventTabsShell = ref<HTMLElement | null>(null);
 const adminEventTabsHeight = ref(0);
 const logoSrc = '/brand/dev-con-logo.png';
+const ORGANIZER_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const ORGANIZER_IDLE_WARNING_MS = 2 * 60 * 1000;
+const ORGANIZER_SESSION_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const organizerSessionPauseState = ref<'warning' | 'locked' | null>(null);
+const organizerWarningSeconds = ref(120);
 let keyboardFocusTimer: number | undefined;
 let adminEventTabsResizeObserver: ResizeObserver | undefined;
+let organizerIdleWarningTimer: number | undefined;
+let organizerIdleExpiryTimer: number | undefined;
+let organizerAbsoluteExpiryTimer: number | undefined;
+let organizerWarningTicker: number | undefined;
+let organizerWarningDeadlineMs = 0;
+let organizerLastActivityAt = 0;
+let organizerNextSessionRefreshAt = 0;
+let organizerSessionEnding = false;
 
 const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
@@ -263,6 +277,150 @@ function retryOrganizerAccess() {
   void adminSessionQuery.refetch();
 }
 
+function clearOrganizerIdleTimers() {
+  window.clearTimeout(organizerIdleWarningTimer);
+  window.clearTimeout(organizerIdleExpiryTimer);
+  window.clearInterval(organizerWarningTicker);
+  organizerIdleWarningTimer = undefined;
+  organizerIdleExpiryTimer = undefined;
+  organizerWarningTicker = undefined;
+}
+
+function clearOrganizerSessionTimers() {
+  clearOrganizerIdleTimers();
+  window.clearTimeout(organizerAbsoluteExpiryTimer);
+  organizerAbsoluteExpiryTimer = undefined;
+}
+
+function clearOrganizerCachedData() {
+  queryClient.removeQueries({
+    predicate: (query) => query.queryKey[0] !== queryKeys.adminSession[0],
+  });
+  queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
+    authenticated: false,
+    auth_mode: 'supabase',
+    auth_configured: true,
+  });
+}
+
+function clearLocalSupabaseSession() {
+  void import('@/lib/supabase/browser')
+    .then(({ getSupabaseBrowserClient }) => getSupabaseBrowserClient()?.auth.signOut({ scope: 'local' }))
+    .catch(() => undefined);
+}
+
+function lockOrganizerSession() {
+  if (organizerSessionEnding) return;
+  organizerSessionEnding = true;
+  clearOrganizerSessionTimers();
+  clearOrganizerCachedData();
+  window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+  clearLocalSupabaseSession();
+  organizerSessionPauseState.value = 'locked';
+  void fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
+function updateOrganizerWarningCountdown() {
+  organizerWarningSeconds.value = Math.max(0, Math.ceil((organizerWarningDeadlineMs - Date.now()) / 1000));
+}
+
+function showOrganizerIdleWarning() {
+  if (!isOrganizerAuthenticated.value || organizerSessionEnding) return;
+  organizerWarningDeadlineMs = Date.now() + ORGANIZER_IDLE_WARNING_MS;
+  updateOrganizerWarningCountdown();
+  organizerSessionPauseState.value = 'warning';
+  organizerWarningTicker = window.setInterval(updateOrganizerWarningCountdown, 1000);
+}
+
+function scheduleOrganizerIdleExpiry() {
+  clearOrganizerIdleTimers();
+  if (!isOrganizerAuthenticated.value || organizerSessionEnding) return;
+
+  const elapsedMs = Math.max(0, Date.now() - organizerLastActivityAt);
+  const warningDelayMs = Math.max(0, ORGANIZER_IDLE_TIMEOUT_MS - ORGANIZER_IDLE_WARNING_MS - elapsedMs);
+  const expiryDelayMs = Math.max(0, ORGANIZER_IDLE_TIMEOUT_MS - elapsedMs);
+
+  organizerIdleWarningTimer = window.setTimeout(showOrganizerIdleWarning, warningDelayMs);
+  organizerIdleExpiryTimer = window.setTimeout(lockOrganizerSession, expiryDelayMs);
+}
+
+function scheduleOrganizerAbsoluteExpiry(expiresAt: string | undefined) {
+  window.clearTimeout(organizerAbsoluteExpiryTimer);
+  organizerAbsoluteExpiryTimer = undefined;
+  if (!expiresAt || organizerSessionEnding) return;
+
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (!Number.isFinite(expiresAtMs)) return;
+  organizerAbsoluteExpiryTimer = window.setTimeout(lockOrganizerSession, Math.max(0, expiresAtMs - Date.now()));
+}
+
+async function revalidateOrganizerSession() {
+  try {
+    const session = await queryClient.fetchQuery({
+      queryKey: queryKeys.adminSession,
+      queryFn: fetchAdminSession,
+      staleTime: 0,
+    });
+    if (!session.authenticated) lockOrganizerSession();
+  } catch {
+    // A transient network error must not extend the server-side expiry.
+  }
+}
+
+async function staySignedIn() {
+  try {
+    const session = await queryClient.fetchQuery({
+      queryKey: queryKeys.adminSession,
+      queryFn: fetchAdminSession,
+      staleTime: 0,
+    });
+    if (!session.authenticated) {
+      lockOrganizerSession();
+      return;
+    }
+
+    organizerSessionPauseState.value = null;
+    organizerLastActivityAt = Date.now();
+    organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+    scheduleOrganizerIdleExpiry();
+    scheduleOrganizerAbsoluteExpiry(session.expires_at);
+  } catch {
+    lockOrganizerSession();
+  }
+}
+
+function recordOrganizerActivity(forceRefresh = false) {
+  if (!isOrganizerAuthenticated.value || organizerSessionEnding || organizerSessionPauseState.value) return;
+
+  organizerLastActivityAt = Date.now();
+  scheduleOrganizerIdleExpiry();
+  if (forceRefresh || organizerLastActivityAt >= organizerNextSessionRefreshAt) {
+    organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+    void revalidateOrganizerSession();
+  }
+}
+
+function handleOrganizerActivity() {
+  recordOrganizerActivity();
+}
+
+function handleOrganizerVisibilityChange() {
+  if (document.visibilityState === 'visible') recordOrganizerActivity(true);
+}
+
+function signInAfterSessionPause() {
+  organizerSessionPauseState.value = null;
+  organizerSessionEnding = false;
+  void router.replace({
+    path: adminPath('login'),
+    query: { redirect: route.fullPath },
+  });
+}
+
 function returnToOrganizerSignIn() {
   void router.replace({
     path: adminPath('login'),
@@ -381,7 +539,12 @@ async function logout() {
       return;
     }
 
+    clearOrganizerSessionTimers();
+    organizerSessionPauseState.value = null;
     const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+    queryClient.removeQueries({
+      predicate: (query) => query.queryKey[0] !== queryKeys.adminSession[0],
+    });
     queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
       authenticated: false,
       auth_mode: cachedSession?.auth_mode ?? 'supabase',
@@ -424,6 +587,11 @@ onMounted(() => {
   window.visualViewport?.addEventListener('resize', updateKeyboardInset);
   window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
   organizerPhoneMedia?.addEventListener('change', syncPhoneViewport);
+  document.addEventListener('pointerdown', handleOrganizerActivity, { capture: true });
+  document.addEventListener('keydown', handleOrganizerActivity, { capture: true });
+  document.addEventListener('focusin', handleOrganizerActivity, { capture: true });
+  window.addEventListener('scroll', handleOrganizerActivity, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', handleOrganizerVisibilityChange);
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
 });
@@ -447,7 +615,7 @@ watch(
       return;
     }
 
-    if (authenticated === false) {
+    if (authenticated === false && organizerSessionPauseState.value !== 'locked') {
       void router.replace({
         path: adminPath('login'),
         query: { redirect: routeFullPath },
@@ -459,8 +627,25 @@ watch(
   },
 );
 
+watch(() => ({
+  authenticated: isOrganizerAuthenticated.value,
+  expiresAt: adminSessionQuery.data.value?.expires_at,
+}), ({ authenticated, expiresAt }) => {
+  if (!authenticated) {
+    clearOrganizerSessionTimers();
+    if (organizerSessionPauseState.value !== 'locked') organizerSessionEnding = false;
+    return;
+  }
+
+  organizerLastActivityAt = Date.now();
+  organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+  scheduleOrganizerIdleExpiry();
+  scheduleOrganizerAbsoluteExpiry(expiresAt);
+}, { immediate: true });
+
 onUnmounted(() => {
   window.clearTimeout(keyboardFocusTimer);
+  clearOrganizerSessionTimers();
   adminEventTabsResizeObserver?.disconnect();
   document.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
   document.removeEventListener('focusin', syncKeyboardDismissVisibility);
@@ -470,6 +655,11 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
   window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
   organizerPhoneMedia?.removeEventListener('change', syncPhoneViewport);
+  document.removeEventListener('pointerdown', handleOrganizerActivity, { capture: true });
+  document.removeEventListener('keydown', handleOrganizerActivity, { capture: true });
+  document.removeEventListener('focusin', handleOrganizerActivity, { capture: true });
+  window.removeEventListener('scroll', handleOrganizerActivity, { capture: true });
+  document.removeEventListener('visibilitychange', handleOrganizerVisibilityChange);
 });
 </script>
 
@@ -660,6 +850,16 @@ onUnmounted(() => {
     >
       Done
     </button>
+    <Transition name="organizer-session-pause">
+      <OrganizerSessionPause
+        v-if="organizerSessionPauseState"
+        :state="organizerSessionPauseState"
+        :remaining-seconds="organizerWarningSeconds"
+        @stay="staySignedIn"
+        @sign-in="signInAfterSessionPause"
+        @sign-out="logout"
+      />
+    </Transition>
     <AppToaster />
   </div>
 </template>
