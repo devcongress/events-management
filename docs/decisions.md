@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-033: Dual-Bound Organizer Sessions With A Context-Preserving Idle Pause
+
+**Date:** 2026-08-01
+**Status:** Accepted
+**Context:** Organizer sessions were protected by secure, opaque cookies and a 12-hour server expiry, but an open tab could retain previously fetched organizer data and look usable until its next protected request. Organizers need a practical inactivity limit without abruptly losing their working context.
+**Decision:** Keep the existing 12-hour absolute session lifetime and add a server-enforced 30-minute inactivity limit based on the session's authenticated `last_seen_at`. Treat absent or malformed activity timestamps as expired. The client resets its local inactivity clock only for meaningful input, warns at 28 minutes with a two-minute pause layer, revalidates immediately when the tab becomes visible, and refreshes the server session only while the organizer is actively using the workspace. On expiry, clear cached organizer data and local Supabase state, revoke the cookie best-effort, and present a minimal sign-in handoff rather than leaving a protected page visible.
+**Trade-offs:** A user who returns after 30 minutes must sign in again, and a browser with an active Google session may complete that sign-in with little friction. The browser timer is a usability layer rather than a security authority; the Worker still rejects idle sessions independently. Five-minute active refreshes add small authenticated traffic but avoid continuous polling while a tab is idle.
+**Alternatives considered:** Rely only on the 12-hour hard limit (too long for an unattended organizer device), silently redirect at timeout (loses context and feels abrupt), poll continuously (unnecessary traffic), or track mouse movement alone (can keep a session alive without intentional use).
+**Revisit when:** Organization-level policy requires a shorter or configurable idle threshold, long-running forms need draft recovery, WebAuthn re-authentication is introduced for sensitive operations, or the console becomes a shared-device workflow.
+
+---
+
 ## ADR-032: Session-Scoped Navii Avatars And Final Learning-Room Standings
 
 **Date:** 2026-07-31

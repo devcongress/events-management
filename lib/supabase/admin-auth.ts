@@ -8,9 +8,10 @@ import type { Database, Json } from '@/types/supabase';
 
 export const ADMIN_SESSION_COOKIE = 'devcon_admin';
 const HOST_ADMIN_SESSION_COOKIE = '__Host-devcon_admin';
-const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
-// Bump last_seen_at at most once per interval; it is telemetry, not worth a
-// blocking write on every authenticated request.
+export const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
+export const ADMIN_SESSION_IDLE_TIMEOUT_SECONDS = 60 * 30;
+// Bump last_seen_at at most once per interval so normal organizer work does
+// not create a database write for every request.
 const ADMIN_SESSION_LAST_SEEN_THROTTLE_MS = 60_000;
 
 export type AdminRole = 'owner' | 'organizer';
@@ -18,6 +19,7 @@ export type AdminRole = 'owner' | 'organizer';
 export interface AdminSession {
   authenticated: true;
   mode: 'supabase';
+  expires_at: string;
   user_id: string | null;
   membership_id: string | null;
   email: string | null;
@@ -33,6 +35,13 @@ export type AdminSessionResult = AdminSession | AnonymousAdminSession;
 
 type BrowserSafeSupabaseClient = ReturnType<typeof createClient<Database, 'public'>>;
 let browserSafeClient: BrowserSafeSupabaseClient | null = null;
+
+export function isAdminSessionIdle(lastSeenAt: string | null, nowMs = Date.now()): boolean {
+  if (!lastSeenAt) return true;
+  const lastSeenAtMs = new Date(lastSeenAt).getTime();
+  return !Number.isFinite(lastSeenAtMs)
+    || nowMs - lastSeenAtMs >= ADMIN_SESSION_IDLE_TIMEOUT_SECONDS * 1000;
+}
 
 function isProduction(c: Context): boolean {
   return envValue('NODE_ENV', c) === 'production';
@@ -247,6 +256,10 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
     return { authenticated: false };
   }
 
+  if (isAdminSessionIdle(data.last_seen_at)) {
+    return { authenticated: false };
+  }
+
   const lastSeenAtMs = data.last_seen_at ? new Date(data.last_seen_at).getTime() : 0;
   if (Date.now() - lastSeenAtMs > ADMIN_SESSION_LAST_SEEN_THROTTLE_MS) {
     void getSupabaseAdminClient(c)
@@ -259,6 +272,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
   return {
     authenticated: true,
     mode: 'supabase',
+    expires_at: data.expires_at,
     user_id: data.user_id,
     membership_id: data.membership_id,
     email: data.email,

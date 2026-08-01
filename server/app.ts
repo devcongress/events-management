@@ -2110,6 +2110,7 @@ app.get('/api/auth/session', async (c) => {
     authenticated: true,
     auth_mode: session.mode,
     auth_configured: true,
+    expires_at: session.expires_at,
     user: {
       email: session.email,
       display_name: session.display_name,

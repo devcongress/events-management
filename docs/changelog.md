@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-01 — Organizer session safety
+
+- Added a server-enforced 30-minute organizer inactivity limit alongside the existing 12-hour absolute session lifetime.
+- Added a two-minute, context-preserving session pause layer with a single **Stay signed in** action, immediate focus revalidation, and a locked re-entry state.
+- Cleared cached organizer data and local Supabase session state whenever a session ends, so an unattended tab cannot continue showing protected information.
+
 ## 2026-07-31
 
 - Made event location entry mutually exclusive: organizers now choose a verified Ghana venue from an autocomplete dropdown, a Google Maps location, or required online joining details instead of combining unrelated location fields.
