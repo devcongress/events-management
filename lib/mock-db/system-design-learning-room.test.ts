@@ -102,4 +102,33 @@ describe('System Design presentation runs', () => {
       participants[1],
     ]);
   });
+
+  it('atomically reserves one room name when two participants join concurrently', async () => {
+    const { readData } = await import('./index');
+    const {
+      createQuizParticipant,
+      QuizParticipantNicknameTakenError,
+    } = await import('./quiz-participants');
+
+    const joins = await Promise.allSettled([
+      createQuizParticipant({
+        quiz_session_id: 'room-1',
+        user_id: 'user-1',
+        nickname_used: 'Bright Fox',
+      }, { enforceUniqueName: true }),
+      createQuizParticipant({
+        quiz_session_id: 'room-1',
+        user_id: 'user-2',
+        nickname_used: 'BRIGHT FOX',
+      }, { enforceUniqueName: true }),
+    ]);
+
+    expect(joins.filter((join) => join.status === 'fulfilled')).toHaveLength(1);
+    const rejected = joins.find((join) => join.status === 'rejected');
+    expect(rejected).toMatchObject({
+      status: 'rejected',
+      reason: expect.any(QuizParticipantNicknameTakenError),
+    });
+    await expect(readData<QuizParticipant>('quiz-participants')).resolves.toHaveLength(1);
+  });
 });

@@ -1,7 +1,7 @@
 import { getQuestionsBySession } from '@/lib/mock-db/questions';
 import { getQuizParticipantsBySession } from '@/lib/mock-db/quiz-participants';
-import { getQuizSessionById, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
-import { getResponsesByQuestion } from '@/lib/mock-db/responses';
+import { advanceHostedQuizSessionState, getQuizSessionById, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
+import { getHostedQuizStateAnalytics, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import type { Question, QuizSession, QuizStateResponse, Response } from '@/types';
 
 export interface QuizAdvanceResult {
@@ -15,6 +15,9 @@ export interface QuizStateOptions {
 }
 
 export async function advanceQuizSessionState(sessionId: string): Promise<QuizAdvanceResult> {
+  const hostedResult = await advanceHostedQuizSessionState(sessionId);
+  if (hostedResult) return hostedResult;
+
   let session = await getQuizSessionById(sessionId);
   if (!session) return { session: null, advanced: false };
 
@@ -58,10 +61,11 @@ export async function buildQuizStateResponse(
   // Fetch the session-scoped collections in parallel; each read is a full
   // document fetch and this runs on every 1.5s poll per connected client.
   const hasCurrentQuestion = session.current_question_index >= 0;
-  const [questions, participants] = await Promise.all([
+  const [questions, hostedAnalytics] = await Promise.all([
     hasCurrentQuestion ? getQuestionsBySession(sessionId) : Promise.resolve([]),
-    getQuizParticipantsBySession(sessionId),
+    getHostedQuizStateAnalytics(sessionId, userId),
   ]);
+  const participants = hostedAnalytics ? [] : await getQuizParticipantsBySession(sessionId);
 
   let currentQuestion: QuizStateResponse['current_question'] = null;
   let questionStartedAt: string | null = null;
@@ -82,20 +86,22 @@ export async function buildQuizStateResponse(
   let responses: Response[] = [];
 
   if (fullCurrentQuestion) {
-    responses = await getResponsesByQuestion(fullCurrentQuestion.id);
-    answersCount = responses.length;
+    responses = hostedAnalytics
+      ? hostedAnalytics.player_response ? [hostedAnalytics.player_response] : []
+      : await getResponsesByQuestion(fullCurrentQuestion.id);
+    answersCount = hostedAnalytics?.answers_count ?? responses.length;
   }
 
-  const rankedParticipants = [...participants]
-    .sort((left, right) => right.total_score - left.total_score || left.joined_at.localeCompare(right.joined_at));
-  const fullLeaderboard = rankedParticipants.map((participant, index) => ({
-    user_id: participant.user_id,
-    nickname: participant.nickname_used,
-    total_score: participant.total_score,
-    streak_count: participant.current_streak,
-    rank: index + 1,
-    avatar_seed: participant.id,
-  }));
+  const fullLeaderboard = hostedAnalytics?.leaderboard ?? [...participants]
+    .sort((left, right) => right.total_score - left.total_score || left.joined_at.localeCompare(right.joined_at))
+    .map((participant, index) => ({
+      user_id: participant.user_id,
+      nickname: participant.nickname_used,
+      total_score: participant.total_score,
+      streak_count: participant.current_streak,
+      rank: index + 1,
+      avatar_seed: participant.id,
+    }));
   const leaderboard = session.purpose === 'system_design_learning' && !options.includePresenterLeaderboard
     ? []
     : fullLeaderboard.slice(0, 10);
@@ -105,7 +111,7 @@ export async function buildQuizStateResponse(
     || session.question_phase === 'revealing'
     || session.question_phase === 'scoreboard'
   )
-    ? [0, 1, 2, 3].map((optionIndex) => {
+    ? hostedAnalytics?.answer_distribution ?? [0, 1, 2, 3].map((optionIndex) => {
       const count = responses.filter((response) => response.answer_index === optionIndex).length;
       return {
         option_index: optionIndex,
@@ -125,12 +131,13 @@ export async function buildQuizStateResponse(
       || session.question_phase === 'scoreboard';
     if (response && resultIsVisible) {
       const participant = participants.find((candidate) => candidate.user_id === userId);
+      const leaderboardEntry = fullLeaderboard.find((candidate) => candidate.user_id === userId);
 
       playerResult = {
         is_correct: response.is_correct!,
         points_awarded: response.points_awarded,
         correct_index: fullCurrentQuestion.correct_index,
-        streak_count: participant?.current_streak || 0,
+        streak_count: leaderboardEntry?.streak_count ?? participant?.current_streak ?? 0,
       };
     }
   }
@@ -141,7 +148,7 @@ export async function buildQuizStateResponse(
         return entry ? {
           rank: entry.rank,
           nickname: entry.nickname,
-          participant_count: participants.length,
+          participant_count: hostedAnalytics?.participants_count ?? participants.length,
           avatar_seed: entry.avatar_seed!,
         } : undefined;
       })()
@@ -158,7 +165,7 @@ export async function buildQuizStateResponse(
     },
     current_question: currentQuestion,
     question_started_at: questionStartedAt,
-    participants_count: participants.length,
+    participants_count: hostedAnalytics?.participants_count ?? participants.length,
     answers_count: answersCount,
     leaderboard,
     answer_distribution: answerDistribution,

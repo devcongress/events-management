@@ -8,10 +8,6 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const SHARED_DOCUMENT_FILES = new Set([
   'event-attendance-imports',
   'event-checklists',
-  'questions',
-  'quiz-participants',
-  'quiz-sessions',
-  'responses',
   'speakers',
   'talks',
   'users',

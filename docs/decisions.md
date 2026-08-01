@@ -4,6 +4,30 @@
 
 ---
 
+## ADR-035: Database-Owned Quiz Runtime
+
+**Date:** 2026-08-01
+**Status:** Accepted
+**Context:** Hosted quiz sessions, questions, and responses were stored as whole arrays in `app_json_documents`. Every answer submission read multiple arrays, inserted a response, and updated the participant score in separate writes. Worker-local serialization could not prevent two isolates from accepting the same answer, losing a score update, releasing the same next question concurrently, or overwriting unrelated room state. The presenter and every participant also repeatedly downloaded collections so application code could calculate counts and rankings.
+**Decision:** Store hosted `quiz_sessions`, `quiz_questions`, and `quiz_responses` relationally beside `quiz_participants`, while preserving the existing repository functions and local JSON implementation for development. Enforce join-code, question-order, answer, range, and lifecycle invariants with PostgreSQL constraints. Use short, service-role-only database functions for answer acceptance/scoring, presentation reset, question release/reveal, timed advancement, and reorder operations. Return counts, answer distribution, leaderboard ranks, and the requesting player's response through one stable SQL aggregation function. Keep compatibility documents after backfill for a rollback window, but remove these domains from the hosted document writer.
+**Trade-offs:** Deployments must apply two ordered quiz migrations before the new server code. Scoring rules now exist in both SQL and the local fallback and must remain parity-tested. User-profile lifetime points still use the legacy user repository after the participant transaction; room score and leaderboard correctness no longer depend on that secondary update. Direct public Realtime subscriptions remain disabled because participant authorization is device-scoped at the API boundary; the relational schema is ready for a later secured broadcast layer without exposing correct answers.
+**Alternatives considered:** Keep serializing JSON in each Worker (cannot coordinate isolates), add a lock around the document row (retains high-contention whole-array rewrites), move room state to a Durable Object immediately (adds another source of truth and operational surface), expose relational tables directly to anonymous clients (weakens the current authorization boundary), or encode all presentation behavior in triggers (hides explicit user actions and makes failures harder to reason about).
+**Revisit when:** Participant-scoped signed tokens allow secure Realtime subscriptions, user profiles move relationally, scoring rules change, historical runs need retention rather than reset, or concurrent rooms approach the Free Plan's Realtime limits.
+
+---
+
+## ADR-034: Database-Owned System Design Participant Names
+
+**Date:** 2026-08-01
+**Status:** Accepted
+**Context:** System Design aliases and participant-edited names were checked case-insensitively in application code, but hosted participant state lived inside the `app_json_documents` compatibility row. Write serialization existed only inside one Worker isolate, so simultaneous joins or renames handled by different isolates could both accept the same room name or overwrite participant changes.
+**Decision:** Move quiz participant records to a dedicated Supabase `quiz_participants` table while retaining the JSON implementation only as the local-development fallback behind the existing participant repository functions. Store a normalized `nickname_key` for System Design participants and enforce unique `(quiz_session_id, nickname_key)` and `(quiz_session_id, user_id)` constraints in PostgreSQL. Let participant-edited conflicts surface as the existing `409 nickname_taken` response. For generated aliases, treat a unique-constraint violation as normal contention, reload the room names, and retry with another friendly alias. Backfill compatibility records without deleting the source document during the rollback window, and make user-history merges a short database transaction.
+**Trade-offs:** Quiz participants now deploy with a schema migration and can no longer be treated as an arbitrary compatibility array in hosted mode. ADR-035 subsequently moved sessions, questions, and answers to relational storage; users remain on the JSON bridge. PostgreSQL `lower()` provides the durable case-insensitive key after the application has performed NFKC and whitespace normalization.
+**Alternatives considered:** Keep the existing preflight duplicate check (cannot prevent cross-isolate races), serialize the entire JSON document with a database RPC (deepens reliance on the whole-array bridge and still leaves other participant writes awkward), coordinate names in Worker memory or KV (not a transactional source of truth), or migrate the full quiz domain immediately (larger than the identity correctness problem requires).
+**Revisit when:** Quiz sessions and answers move to relational tables, live room coordination adopts a Durable Object, participant history gains a retention policy, or verified attendee identity replaces ephemeral room labels.
+
+---
+
 ## ADR-033: Dual-Bound Organizer Sessions With A Context-Preserving Idle Pause
 
 **Date:** 2026-08-01
@@ -31,10 +55,10 @@
 ## ADR-031: Room-Scoped Participant Identity With Presenter-Only Response Labels
 
 **Date:** 2026-07-31
-**Status:** Accepted; final standing behavior extended by ADR-032.
+**Status:** Accepted; final standing behavior extended by ADR-032 and name persistence extended by ADR-034.
 **Context:** System Design facilitators need a readable post-question response summary without requiring participant accounts. Identity setup belongs to participants during the QR lobby, not to an organizer setting on the saved scenario workspace, and per-person reveal cards do not scale to a full room.
 **Decision:** On join, assign every participant a unique server-generated friendly name and a participant-scoped avatar. Let that participant keep or edit only their room name from their phone while the session is waiting; the avatar cannot be changed. Validate edited names as 1–24 character room labels, reject duplicates case-insensitively, and authorize the public edit with the participant record and originating device ID. Close edits when the facilitator starts the first question. Persist the chosen label on the session participant record. Present question responses only as four aggregate bars containing the option, participant count, and percentage; do not return per-answer respondent identities. Keep the System Design leaderboard out of public attendee state.
-**Trade-offs:** Edited labels can be inaccurate or playful because they are not authenticated. Device ownership is the lightweight authorization boundary for this account-free room, while the shared JSON compatibility model cannot make the session-start and participant-name writes one cross-document transaction. Names and answers remain ephemeral run data and are cleared together when a completed room is reopened.
+**Trade-offs:** Edited labels can be inaccurate or playful because they are not authenticated. Device ownership is the lightweight authorization boundary for this account-free room. ADR-034 later moved participant labels to relational storage for database-enforced uniqueness, while session phase and answers remain compatibility data. Names and answers remain ephemeral run data and are cleared together when a completed room is reopened.
 **Alternatives considered:** Require organizer or attendee accounts (too much friction for QR participation), make the organizer choose a room-wide naming mode (puts participant identity work in the wrong workflow), make names mandatory before joining (slows scanning), keep names permanently generated (less useful for discussion follow-up), allow avatar changes (weakens stable visual recognition), or render every respondent beneath their answer (does not scale and unnecessarily expands identity exposure).
 **Revisit when:** Learning-room runs move to relational or durable realtime persistence, participant-scoped tokens replace device ownership, verified attendance identity is required, or historical participant-level analytics are intentionally introduced with a retention policy.
 

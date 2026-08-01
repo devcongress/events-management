@@ -39,20 +39,24 @@ export function validateParticipantDisplayName(value: unknown): string | null {
   return normalized;
 }
 
+export function participantDisplayNameKey(value: string): string {
+  return value.toLowerCase();
+}
+
 export function generateParticipantAlias(
   existingNames: Iterable<string>,
   randomIndex: (upperBound: number) => number = secureRandomIndex,
 ): string {
-  const taken = new Set(Array.from(existingNames, (name) => name.toLocaleLowerCase()));
+  const taken = new Set(Array.from(existingNames, participantDisplayNameKey));
   const start = normalizeIndex(randomIndex(aliasCount), aliasCount);
 
   for (let offset = 0; offset < aliasCount; offset += 1) {
     const alias = aliasAt((start + offset) % aliasCount);
-    if (!taken.has(alias.toLocaleLowerCase())) return alias;
+    if (!taken.has(participantDisplayNameKey(alias))) return alias;
   }
 
   let suffix = aliasCount + 1;
-  while (taken.has(`curious owl ${suffix}`.toLocaleLowerCase())) suffix += 1;
+  while (taken.has(participantDisplayNameKey(`Curious Owl ${suffix}`))) suffix += 1;
   return `Curious Owl ${suffix}`;
 }
 

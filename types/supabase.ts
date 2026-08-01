@@ -21,6 +21,9 @@ export type AnnualConferenceWorkstream =
   | 'photo_video_livestream'
   | 'feedback_reporting';
 export type AnnualConferenceTaskPriority = 'high' | 'medium' | 'low';
+export type QuizStatus = 'draft' | 'waiting' | 'active' | 'finished';
+export type QuizQuestionPhase = 'answering' | 'revealing' | 'scoreboard';
+export type QuizPurpose = 'quiz' | 'system_design_learning';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -813,6 +816,132 @@ export interface Database {
           },
         ];
       };
+      quiz_sessions: {
+        Row: {
+          id: string;
+          event_id: string;
+          join_code: string;
+          status: QuizStatus;
+          current_question_index: number;
+          question_phase: QuizQuestionPhase | null;
+          started_at: string | null;
+          finished_at: string | null;
+          created_at: string;
+          question_started_at: string | null;
+          phase_started_at: string | null;
+          expires_at: string | null;
+          released_question_ids: string[];
+          purpose: QuizPurpose;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          join_code: string;
+          status?: QuizStatus;
+          current_question_index?: number;
+          question_phase?: QuizQuestionPhase | null;
+          started_at?: string | null;
+          finished_at?: string | null;
+          created_at?: string;
+          question_started_at?: string | null;
+          phase_started_at?: string | null;
+          expires_at?: string | null;
+          released_question_ids?: string[];
+          purpose?: QuizPurpose;
+        };
+        Update: Partial<Database['public']['Tables']['quiz_sessions']['Insert']>;
+        Relationships: [];
+      };
+      quiz_questions: {
+        Row: {
+          id: string;
+          quiz_session_id: string;
+          question_text: string;
+          options: string[];
+          correct_index: number;
+          time_limit_seconds: number;
+          points: number;
+          order_index: number;
+          created_at: string;
+          explanation: string | null;
+          source_url: string | null;
+        };
+        Insert: {
+          id?: string;
+          quiz_session_id: string;
+          question_text: string;
+          options: string[];
+          correct_index: number;
+          time_limit_seconds?: number;
+          points?: number;
+          order_index: number;
+          created_at?: string;
+          explanation?: string | null;
+          source_url?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['quiz_questions']['Insert']>;
+        Relationships: [];
+      };
+      quiz_responses: {
+        Row: {
+          id: string;
+          question_id: string;
+          user_id: string;
+          answer_index: number | null;
+          answered_at: string | null;
+          time_taken_ms: number | null;
+          points_awarded: number;
+          is_correct: boolean | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          question_id: string;
+          user_id: string;
+          answer_index?: number | null;
+          answered_at?: string | null;
+          time_taken_ms?: number | null;
+          points_awarded?: number;
+          is_correct?: boolean | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['quiz_responses']['Insert']>;
+        Relationships: [];
+      };
+      quiz_participants: {
+        Row: {
+          id: string;
+          quiz_session_id: string;
+          user_id: string;
+          nickname_used: string;
+          enforce_unique_name: boolean;
+          nickname_key: string | null;
+          total_score: number;
+          current_streak: number;
+          joined_at: string;
+        };
+        Insert: {
+          id?: string;
+          quiz_session_id: string;
+          user_id: string;
+          nickname_used: string;
+          enforce_unique_name?: boolean;
+          total_score?: number;
+          current_streak?: number;
+          joined_at?: string;
+        };
+        Update: {
+          id?: string;
+          quiz_session_id?: string;
+          user_id?: string;
+          nickname_used?: string;
+          enforce_unique_name?: boolean;
+          total_score?: number;
+          current_streak?: number;
+          joined_at?: string;
+        };
+        Relationships: [];
+      };
       public_rate_limit_buckets: {
         Row: {
           action: string;
@@ -1029,6 +1158,51 @@ export interface Database {
           allowed: boolean;
           retry_after_seconds: number;
         }[];
+      };
+      merge_quiz_participant_users: {
+        Args: {
+          p_target_user_id: string;
+          p_source_user_id: string;
+        };
+        Returns: undefined;
+      };
+      submit_quiz_answer: {
+        Args: {
+          p_session_id: string;
+          p_user_id: string;
+          p_answer_index: number;
+        };
+        Returns: {
+          accepted: boolean;
+          is_correct: boolean;
+          points_awarded: number;
+          correct_index: number;
+          streak_count: number;
+        }[];
+      };
+      prepare_system_design_presentation: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
+      release_system_design_question: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
+      reveal_system_design_question: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
+      get_quiz_state_analytics: {
+        Args: { p_session_id: string; p_user_id?: string | null };
+        Returns: Json;
+      };
+      reorder_quiz_questions: {
+        Args: { p_session_id: string; p_question_ids: string[] };
+        Returns: undefined;
+      };
+      advance_quiz_session_state: {
+        Args: { p_session_id: string };
+        Returns: Json;
       };
       claim_speaker_intake_link: {
         Args: {

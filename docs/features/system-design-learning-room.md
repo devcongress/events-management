@@ -25,7 +25,7 @@ A saved System Design source link also keeps the event's System Design tab avail
 
 Opening a completed room starts a fresh run: old participant labels and responses for that room are cleared, while the saved questions remain unchanged. An already waiting or active run is resumed.
 
-The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected. Joining immediately creates a validated, unique default room name and fixed avatar. The attendee may keep or edit that name before the facilitator starts; no account is created and the organizer has no naming-mode setting.
+The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected. Joining immediately creates a validated, unique default room name and fixed avatar. The attendee may keep or edit that name before the facilitator starts; no account is created and the organizer has no naming-mode setting. PostgreSQL reserves normalized names per room, so simultaneous joins and edits cannot produce labels that differ only by case. Generated-name collisions retry automatically; an edited duplicate remains on the phone with a clear conflict message.
 
 Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During each question, the presenter summary uses four compact vertical columns showing the option, number of people, and percentage. The revealed correct answer is distinguished with the System Design yellow accent; the chart does not render or return an unbounded respondent list.
 
@@ -45,6 +45,10 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 | `src/components/CelebrationConfetti.vue` | Top-five phone celebration with a reduced-motion fallback |
 | `src/system-design-participant-route.ts` | Dedicated public route and QR destination helper |
 | `lib/system-design-participant-identity.ts` | Display-name validation and unique default-name generation |
+| `lib/mock-db/quiz-participants.ts` | Relational hosted participant repository with atomic local fallback |
+| `supabase/migrations/20260801000000_quiz_participants.sql` | Participant backfill and room-scoped uniqueness constraints |
+| `lib/mock-db/quiz-sessions.ts`, `questions.ts`, `responses.ts` | Relational hosted runtime repositories with local JSON fallbacks |
+| `supabase/migrations/20260801010000_relational_quiz_runtime.sql` | Session/question/response backfill, constraints, atomic transitions, scoring, and aggregate state |
 | `lib/mock-db/system-design-learning-room.ts` | Prepares a fresh presentation run without changing the questions |
 | `server/app.ts` | Generation, presentation, join, release, reveal, and answer API routes |
 
@@ -56,6 +60,8 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 - Room-scoped participant identities and responses from the previous run are cleared when a completed room starts again; historical run reporting is not yet retained.
 - Edited display names are labels chosen by attendees, not verified real-world identities.
 - The presenter leaderboard is capped at ten visible participants; attendee phones receive only their own standing.
+- Hosted answer acceptance and scoring are one PostgreSQL transaction. One response per user/question, room phase, deadline, participant membership, score, and streak are checked together even when requests reach different Worker isolates.
+- Presenter reset, release, reveal, and question ordering are database-owned transitions. Aggregate chart and leaderboard data are computed in PostgreSQL; direct anonymous Realtime table access remains disabled until participant-scoped authorization exists.
 - The standalone presenter route is organizer-protected even though it intentionally renders outside the admin shell. Facilitator mutations still require the HTTP-only organizer session.
 
 ## Verification

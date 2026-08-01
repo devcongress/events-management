@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   generateParticipantAlias,
+  participantDisplayNameKey,
   validateParticipantDisplayName,
 } from './system-design-participant-identity';
 
@@ -14,5 +15,9 @@ describe('System Design participant identity', () => {
 
   it('selects a unique friendly alias when a generated name is already taken', () => {
     expect(generateParticipantAlias(['Bold Badger'], () => 0)).toBe('Bold Falcon');
+  });
+
+  it('uses one case-insensitive key for room-level name uniqueness', () => {
+    expect(participantDisplayNameKey('Ama Osei')).toBe(participantDisplayNameKey('AMA OSEI'));
   });
 });

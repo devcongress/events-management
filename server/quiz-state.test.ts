@@ -7,10 +7,13 @@ const getQuestionsBySession = vi.fn();
 const getResponsesByQuestion = vi.fn();
 const getQuizParticipantsBySession = vi.fn();
 const getResponseByQuestionAndUser = vi.fn();
+const advanceHostedQuizSessionState = vi.fn();
+const getHostedQuizStateAnalytics = vi.fn();
 
 vi.mock('@/lib/mock-db/quiz-sessions', () => ({
   getQuizSessionById,
   updateQuizSession,
+  advanceHostedQuizSessionState,
 }));
 
 vi.mock('@/lib/mock-db/questions', () => ({
@@ -20,6 +23,7 @@ vi.mock('@/lib/mock-db/questions', () => ({
 vi.mock('@/lib/mock-db/responses', () => ({
   getResponsesByQuestion,
   getResponseByQuestionAndUser,
+  getHostedQuizStateAnalytics,
 }));
 
 vi.mock('@/lib/mock-db/quiz-participants', () => ({
@@ -84,6 +88,8 @@ beforeEach(() => {
   getResponsesByQuestion.mockResolvedValue([]);
   getQuizParticipantsBySession.mockResolvedValue([participant]);
   getResponseByQuestionAndUser.mockResolvedValue(null);
+  advanceHostedQuizSessionState.mockResolvedValue(null);
+  getHostedQuizStateAnalytics.mockResolvedValue(null);
   updateQuizSession.mockImplementation(async (_id, updates) => ({ ...activeSession, ...updates }));
 });
 

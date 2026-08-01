@@ -104,7 +104,7 @@ The website target still keeps data access behind same-origin Worker routes. Exi
 
 ## Compatibility-Document Inventory
 
-Hosted mode stores these domains as one JSON array per row in `app_json_documents`:
+The compatibility inventory below records domains that were originally stored as one JSON array per row. Rows marked implemented are no longer hosted writers; their documents remain only as backfill and rollback evidence:
 
 | Key | Live records | Target |
 |---|---:|---|
@@ -114,10 +114,10 @@ Hosted mode stores these domains as one JSON array per row in `app_json_document
 | `speakers` | 1 | `people`/`community_profiles` + event/talk relationships |
 | `talks` | 1 | `talks` + speaker/event foreign keys |
 | `speaker-submissions` | 0 | Implemented by `20260728020000_security_hardening.sql` as relational `speaker_submissions` |
-| `questions` | 0 | `quiz_questions` |
-| `quiz-participants` | 0 | `quiz_participants` |
-| `quiz-sessions` | 0 | `quiz_sessions` |
-| `responses` | 0 | `quiz_answers`/score events |
+| `questions` | 0 | Implemented by `20260801010000_relational_quiz_runtime.sql` as relational `quiz_questions` |
+| `quiz-participants` | 0 | Implemented by `20260801000000_quiz_participants.sql` as relational `quiz_participants`; the compatibility row remains only for rollback/backfill evidence |
+| `quiz-sessions` | 0 | Implemented by `20260801010000_relational_quiz_runtime.sql` as relational `quiz_sessions` |
+| `responses` | 0 | Implemented by `20260801010000_relational_quiz_runtime.sql` as relational `quiz_responses` |
 | `users` | 0 | `community_profiles` + identity/merge records |
 
 This bridge is durable but unsafe as a final multi-writer store:
@@ -312,10 +312,10 @@ This wave must complete before removing `EVENTS_MANAGEMENT_ORIGIN`.
 
 ### S6 — Quiz and realtime
 
-- Create quiz sessions, questions, participants, answers, and score records.
-- Enforce unique session codes, order, participant membership, and one answer per participant/question.
-- Add one Durable Object per active room for timer/phase/answer-lock coordination.
-- Checkpoint/finalize durable results into Supabase.
+- Completed: relational quiz sessions, questions, participants, answers, room scores, unique session codes, question order, participant membership, and one answer per participant/question.
+- Completed: atomic PostgreSQL answer/scoring and presenter state transitions, plus database-owned aggregate state.
+- Remaining: add a secured Realtime broadcast boundary when participant-scoped authorization exists; do not expose answer-bearing tables directly to anonymous clients.
+- Reconsider a Durable Object only if measured active-room coordination exceeds the relational transaction model rather than making it a second source of truth preemptively.
 
 ### S7 — Retire compatibility storage
 
