@@ -14,6 +14,13 @@ export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
 export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
 export type LumaAttendanceApprovalStatus = 'approved' | 'pending' | 'declined' | 'unknown';
 export type EventSeriesType = 'monthly' | 'quarterly' | 'special';
+export type EventOwnership = 'devcongress' | 'external';
+export type EventFormat = 'meetup' | 'conference' | 'workshop' | 'hackathon' | 'webinar' | 'other';
+export type EventSubmissionSource = 'internal' | 'public_submission';
+export type EventModerationStatus = 'pending' | 'approved' | 'rejected';
+export type EventPublicationStatus = 'draft' | 'published' | 'archived';
+export type EventLocationType = 'in_person' | 'online' | 'hybrid';
+export type EventSubmissionReviewStatus = 'pending' | 'approved' | 'rejected';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
@@ -51,10 +58,49 @@ export interface Event {
     embed_url: string;
   }[];
   publish_to_website?: boolean;
+  ownership?: EventOwnership;
+  format?: EventFormat;
+  submission_source?: EventSubmissionSource;
+  moderation_status?: EventModerationStatus | null;
+  publication_status?: EventPublicationStatus;
+  timezone?: string;
+  location_type?: EventLocationType;
+  venue_address?: string | null;
+  online_url?: string | null;
+  organizer_name?: string | null;
+  organizer_url?: string | null;
+  source_submission_id?: string | null;
   external_source?: string | null;
   external_id?: string | null;
   external_url?: string | null;
   external_synced_at?: string | null;
+}
+
+export interface EventSubmission {
+  id: string;
+  title: string;
+  summary: string;
+  format: EventFormat;
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  location_type: EventLocationType;
+  venue_name: string | null;
+  venue_address: string | null;
+  online_url: string | null;
+  registration_url: string | null;
+  organizer_name: string;
+  organizer_email: string;
+  organizer_website: string | null;
+  notes: string | null;
+  source_app: 'website';
+  review_status: EventSubmissionReviewStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  approved_event_id: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface EventRegistrationCampaign {
@@ -270,6 +316,32 @@ export interface PublicMeetup {
   published_talks_count: number;
   cfp_url: string | null;
   archive_url: string;
+  updated_at: string;
+}
+
+export interface PublicEvent {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  ownership: EventOwnership;
+  series: EventSeriesType | null;
+  format: EventFormat;
+  source: EventSubmissionSource;
+  moderation_status: EventModerationStatus | null;
+  publication_status: EventPublicationStatus;
+  classification: 'official' | 'community';
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  location_type: EventLocationType;
+  venue_name: string | null;
+  venue_address: string | null;
+  online_url: string | null;
+  registration_url: string | null;
+  organizer_name: string;
+  organizer_website: string | null;
+  cover_url: string | null;
   updated_at: string;
 }
 

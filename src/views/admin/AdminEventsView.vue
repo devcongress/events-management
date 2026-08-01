@@ -346,6 +346,10 @@ function isDraftEvent(event: CommunityEvent): boolean {
   return !event.publish_to_website;
 }
 
+function isCommunityEvent(event: CommunityEvent): boolean {
+  return event.ownership === 'external';
+}
+
 function removalMessage(event: CommunityEvent): string {
   const eventMonth = formatEventMonth(event.event_date);
   return `This permanently removes ${eventMonth}, including its registration list and check-ins.`;
@@ -702,7 +706,15 @@ function goToPage(nextPage: number) {
                             Draft
                           </span>
                         </div>
-                        <div class="event-list-meta">{{ event.name }}</div>
+                        <div class="flex min-w-0 flex-wrap items-center gap-2">
+                          <div class="event-list-meta">{{ event.name }}</div>
+                          <span
+                            v-if="isCommunityEvent(event)"
+                            class="shrink-0 rounded-sm border border-dc-pink bg-dc-pink/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink"
+                          >
+                            Community event
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div class="event-list-date">{{ formatDate(event.event_date) }}</div>

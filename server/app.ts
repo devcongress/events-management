@@ -56,6 +56,7 @@ import {
   CFP_SUBMISSION_TURNSTILE_ACTION,
   EVENT_FEEDBACK_TURNSTILE_ACTION,
   EVENT_REGISTRATION_TURNSTILE_ACTION,
+  EVENT_SUBMISSION_TURNSTILE_ACTION,
   ROUTE_FEEDBACK_TURNSTILE_ACTION,
   VOLUNTEER_INTAKE_TURNSTILE_ACTION,
   validateTurnstileToken,
@@ -78,7 +79,8 @@ import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseAnnualConferenceTask, getSupabaseAnnualConferenceWorkPlan, updateSupabaseAnnualConferenceTask } from '@/lib/supabase/annual-conference-work-plan';
-import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import { approveEventSubmission, createEventSubmission, EventSubmissionStorageError, listEventSubmissions, rejectEventSubmission } from '@/lib/supabase/event-submissions';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import { uploadMeetupMedia, validateMeetupMediaContent, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
@@ -107,12 +109,13 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
   Variables: {
     requestId: string;
+    adminSession: AdminSession | undefined;
   };
 };
 
@@ -188,6 +191,7 @@ for (const publicWritePath of [
   '/api/volunteer-applications',
   '/api/cfp',
   '/api/registration/events/*',
+  '/api/public/event-submissions',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
   '/api/quiz/participants/*',
@@ -275,6 +279,66 @@ const websiteUrlSchema = z.string().trim().max(2048).refine(
   (value) => Boolean(safeWebsiteUrl(value)),
   'Use a valid site path or http(s) URL.',
 );
+const eventSubmissionUrlSchema = z.string().trim().max(2048).refine(
+  (value) => Boolean(safeHttpUrl(value)),
+  'Use a valid http(s) URL.',
+);
+const eventSubmissionOptionalUrlSchema = z.union([eventSubmissionUrlSchema, z.literal('')])
+  .optional()
+  .transform((value) => value || undefined);
+const eventSubmissionDateSchema = z.string().datetime({ offset: true });
+const eventSubmissionSchema = z.object({
+  title: z.string().trim().min(3, 'Enter an event title.').max(160),
+  summary: z.string().trim().min(20, 'Add a short event summary.').max(2000),
+  format: z.enum(['meetup', 'conference', 'workshop', 'hackathon', 'webinar', 'other']),
+  starts_at: eventSubmissionDateSchema,
+  ends_at: eventSubmissionDateSchema,
+  timezone: z.string().trim().min(1).max(80).refine((value) => {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: value }).format();
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'Choose a valid time zone.'),
+  location_type: z.enum(['in_person', 'online', 'hybrid']),
+  venue_name: z.string().trim().max(200).optional(),
+  venue_address: z.string().trim().max(300).optional(),
+  online_url: eventSubmissionOptionalUrlSchema,
+  registration_url: eventSubmissionOptionalUrlSchema,
+  organizer_name: z.string().trim().min(2, 'Enter the organizer name.').max(160),
+  organizer_email: z.string().trim().toLowerCase().email('Enter a valid organizer email.').max(254),
+  organizer_website: eventSubmissionOptionalUrlSchema,
+  notes: z.string().trim().max(1500).optional(),
+  turnstile_action: z.string().trim().max(80),
+  turnstile_token: z.string().trim().max(4096),
+}).strict().superRefine((value, ctx) => {
+  const startsAt = new Date(value.starts_at).getTime();
+  const endsAt = new Date(value.ends_at).getTime();
+  if (startsAt <= Date.now()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['starts_at'], message: 'Choose a future start time.' });
+  }
+  if (endsAt <= startsAt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ends_at'], message: 'End time must be after the start time.' });
+  }
+  if (endsAt - startsAt > 31 * 24 * 60 * 60 * 1000) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ends_at'], message: 'An event cannot span more than 31 days.' });
+  }
+  if ((value.location_type === 'in_person' || value.location_type === 'hybrid') && !value.venue_name) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['venue_name'], message: 'Enter the venue name.' });
+  }
+  if ((value.location_type === 'online' || value.location_type === 'hybrid') && !value.online_url) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['online_url'], message: 'Enter the online event link.' });
+  }
+  if (!value.registration_url && !value.online_url) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['registration_url'], message: 'Add a registration or online event link.' });
+  }
+});
+const eventSubmissionListQuerySchema = z.object({
+  status: z.enum(['pending', 'approved', 'rejected']).optional(),
+}).strict();
+const eventSubmissionApproveSchema = z.object({ publish: z.boolean() }).strict();
+const eventSubmissionRejectSchema = z.object({ reason: z.string().trim().max(1000).optional().default('') }).strict();
 const eventScheduleItemSchema = z.object({
   time: z.string().trim().min(1).max(40),
   title: z.string().trim().min(1).max(200),
@@ -559,7 +623,7 @@ async function auditAdminAction(c: Context, input: {
 }) {
   // requireAdmin already resolved (and cached) the session for this request;
   // re-fetching it here used to cost an extra Supabase round trip per mutation.
-  const session = (c.get('adminSession') as AdminSession | undefined) ?? await getAdminSession(c);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
   if (!session.authenticated) return;
 
   await recordAdminAudit(c, {
@@ -643,6 +707,7 @@ async function requirePublicTurnstile(
     token?: string | null;
     submittedAction?: string | null;
     expectedAction: string;
+    expectedHostname?: string | string[];
   },
 ): Promise<globalThis.Response | null> {
   const token = input.token?.trim() ?? '';
@@ -672,9 +737,16 @@ async function requirePublicTurnstile(
     secretKey,
     remoteIp: publicClientIp(c),
     expectedAction: input.expectedAction,
-    expectedHostname: envValue('TURNSTILE_EXPECTED_HOSTNAME', c),
+    expectedHostname: input.expectedHostname ?? envValue('TURNSTILE_EXPECTED_HOSTNAME', c),
   });
   return result.ok ? null : c.json({ error: result.error }, result.status);
+}
+
+function eventSubmissionTurnstileHostnames(c: Context): string[] {
+  return (envValue('EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES', c) ?? '')
+    .split(',')
+    .map((hostname) => hostname.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function isPublicFeedbackEventRequest(path: string, method: string): boolean {
@@ -703,6 +775,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
   return (method === 'GET' && (
     path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
+    || path === '/api/public/events'
     || path === '/api/public/archive'
     || path.startsWith('/api/public/archive/')
     || path === '/api/public/home'
@@ -712,7 +785,8 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || path === '/api/auth/admin/callback'
     ))
     || (method === 'POST' && (
-      path === '/api/cfp'
+      path === '/api/public/event-submissions'
+      || path === '/api/cfp'
       || path === '/api/feedback'
       || path === '/api/auth/admin/exchange'
       || path === '/api/volunteer-applications'
@@ -732,7 +806,8 @@ function isLogoutPath(path: string): boolean {
 
 app.use('/api/public/*', cors({
   origin: '*',
-  allowMethods: ['GET', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
   maxAge: 86400,
 }));
 
@@ -1267,9 +1342,44 @@ async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
 async function buildPublicMeetups(origin: string, c?: Context) {
   const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
   return events
-    .filter((event) => event.publish_to_website ?? event.status !== 'draft')
+    .filter((event) => event.ownership !== 'external' && (event.publish_to_website ?? event.status !== 'draft'))
     .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), origin))
     .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+}
+
+async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
+  return (await getAllEvents(c))
+    .filter((event) => (
+      event.publication_status === 'published'
+      || (event.publication_status === undefined && event.publish_to_website === true)
+    ))
+    .filter((event) => event.ownership !== 'external' || event.moderation_status === 'approved')
+    .map((event) => ({
+      id: event.id,
+      slug: event.slug ?? event.id,
+      title: event.name,
+      summary: event.description ?? '',
+      ownership: event.ownership ?? 'devcongress',
+      series: event.series_type ?? null,
+      format: event.format ?? 'meetup',
+      source: event.submission_source ?? 'internal',
+      moderation_status: event.moderation_status ?? null,
+      publication_status: event.publication_status ?? 'published',
+      classification: event.ownership === 'external' ? 'community' as const : 'official' as const,
+      starts_at: event.event_date,
+      ends_at: event.end_date ?? event.event_date,
+      timezone: event.timezone ?? 'Africa/Accra',
+      location_type: event.location_type ?? (event.stream_url ? 'online' : 'in_person'),
+      venue_name: event.location?.name ?? null,
+      venue_address: event.venue_address ?? event.location?.label ?? null,
+      online_url: safeHttpUrl(event.online_url ?? event.stream_url),
+      registration_url: safeWebsiteUrl(event.registration_url),
+      organizer_name: event.organizer_name ?? 'DevCongress',
+      organizer_website: safeHttpUrl(event.organizer_url),
+      cover_url: safeWebsiteUrl(event.cover),
+      updated_at: event.updated_at,
+    }))
+    .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
 }
 
 async function publicMeetupsForApi(c: Context): Promise<PublicMeetup[]> {
@@ -3238,6 +3348,81 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
   return c.json(data);
 });
 
+app.get('/api/admin/event-submissions', async (c) => {
+  const parsed = eventSubmissionListQuerySchema.safeParse({ status: c.req.query('status') });
+  if (!parsed.success) return c.json({ error: 'Invalid submission status.' }, 400);
+
+  try {
+    const submissions = await listEventSubmissions(parsed.data.status as EventSubmissionReviewStatus | undefined, c);
+    return c.json({ submissions });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      return c.json({ error: 'Unable to load event submissions.' }, 503);
+    }
+    throw error;
+  }
+});
+
+app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
+  const parsed = eventSubmissionApproveSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'Choose whether to publish the approved event.' }, 400);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
+
+  try {
+    const submission = await approveEventSubmission(
+      c.req.param('submissionId'),
+      session.email,
+      parsed.data.publish,
+      c,
+    );
+    await auditAdminAction(c, {
+      action: parsed.data.publish ? 'event_submission.approve_and_publish' : 'event_submission.approve_as_draft',
+      targetType: 'event_submission',
+      targetId: submission.id,
+      metadata: { approved_event_id: submission.approved_event_id },
+    });
+    return c.json({ submission, event_id: submission.approved_event_id });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      if (error.code === 'not_found') return c.json({ error: error.message }, 404);
+      if (error.code === 'already_rejected') return c.json({ error: error.message }, 409);
+      return c.json({ error: 'Unable to approve event submission.' }, 503);
+    }
+    throw error;
+  }
+});
+
+app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
+  const parsed = eventSubmissionRejectSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: 'Rejection reason is too long.' }, 400);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
+
+  try {
+    const submission = await rejectEventSubmission(
+      c.req.param('submissionId'),
+      session.email,
+      parsed.data.reason,
+      c,
+    );
+    await auditAdminAction(c, {
+      action: 'event_submission.reject',
+      targetType: 'event_submission',
+      targetId: submission.id,
+      metadata: { reason_recorded: Boolean(submission.rejection_reason) },
+    });
+    return c.json({ submission });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      if (error.code === 'not_found') return c.json({ error: error.message }, 404);
+      if (error.code === 'already_approved') return c.json({ error: error.message }, 409);
+      return c.json({ error: 'Unable to reject event submission.' }, 503);
+    }
+    throw error;
+  }
+});
+
 app.get('/api/admin/audit-log', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
   if (adminError) return adminError;
@@ -3377,6 +3562,136 @@ app.get('/api/public/meetups', async (c) => {
       version: 1,
     },
   });
+});
+
+app.get('/api/public/events', async (c) => {
+  setPublicApiCache(c);
+  return c.json({
+    data: await getSupabasePublicEvents(c) ?? await buildPublicEvents(c),
+    meta: {
+      source: 'events-management',
+      version: 1,
+    },
+  });
+});
+
+app.post('/api/public/event-submissions', async (c) => {
+  const parsed = eventSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    const fieldErrors = Object.fromEntries(
+      Object.entries(parsed.error.flatten().fieldErrors)
+        .flatMap(([field, messages]) => messages?.[0] ? [[field, messages[0]]] : []),
+    );
+    return c.json({
+      error: {
+        code: 'validation_failed',
+        message: 'Check the event details and try again.',
+        field_errors: fieldErrors,
+      },
+    }, 400);
+  }
+
+  const expectedHostnames = eventSubmissionTurnstileHostnames(c);
+  if (envValue('NODE_ENV', c) === 'production' && expectedHostnames.length === 0) {
+    console.error(JSON.stringify({
+      event: 'turnstile_configuration_missing',
+      action: EVENT_SUBMISSION_TURNSTILE_ACTION,
+      request_id: c.get('requestId') ?? null,
+    }));
+    return c.json({
+      error: {
+        code: 'verification_unavailable',
+        message: 'Human verification is temporarily unavailable. Please try again later.',
+      },
+    }, 503);
+  }
+
+  const turnstileSecret = envValue('TURNSTILE_SECRET_KEY', c)?.trim();
+  if (!turnstileSecret) {
+    if (envValue('NODE_ENV', c) === 'production' || parsed.data.turnstile_token) {
+      return c.json({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Human verification is temporarily unavailable. Please try again later.',
+        },
+      }, 503);
+    }
+  } else {
+    if (parsed.data.turnstile_action !== EVENT_SUBMISSION_TURNSTILE_ACTION) {
+      return c.json({
+        error: {
+          code: 'verification_failed',
+          message: 'Human verification did not match this form. Please try again.',
+        },
+      }, 400);
+    }
+    const verification = await validateTurnstileToken({
+      token: parsed.data.turnstile_token,
+      secretKey: turnstileSecret,
+      remoteIp: publicClientIp(c),
+      expectedAction: EVENT_SUBMISSION_TURNSTILE_ACTION,
+      expectedHostname: expectedHostnames,
+    });
+    if (!verification.ok) {
+      return c.json({
+        error: {
+          code: verification.status === 503 ? 'verification_unavailable' : 'verification_failed',
+          message: verification.error,
+        },
+      }, verification.status);
+    }
+  }
+
+  for (const limit of [
+    {
+      action: 'event_submission_client',
+      clientKey: publicClientKey(c),
+      maxAttempts: 5,
+      windowSeconds: 60 * 60,
+    },
+    {
+      action: 'event_submission_email',
+      clientKey: parsed.data.organizer_email,
+      maxAttempts: 3,
+      windowSeconds: 24 * 60 * 60,
+    },
+  ]) {
+    const rateLimit = await consumePublicRateLimit(c, limit);
+    if (!rateLimit.allowed) {
+      c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+      return c.json({
+        error: {
+          code: rateLimit.unavailable ? 'submission_unavailable' : 'rate_limited',
+          message: rateLimit.unavailable
+            ? 'Event submissions are temporarily unavailable. Please try again shortly.'
+            : 'Too many event submissions. Please try again later.',
+        },
+      }, rateLimit.unavailable ? 503 : 429);
+    }
+  }
+
+  try {
+    const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
+    const submission = await createEventSubmission(input, c);
+    return c.json({
+      data: {
+        id: submission.id,
+        status: 'pending' as const,
+        submitted_at: submission.created_at,
+      },
+      meta: { version: 1 as const },
+    }, 202);
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      return c.json({
+        error: {
+          code: 'submission_unavailable',
+          message: 'Event submissions are temporarily unavailable. Please try again later.',
+        },
+      }, 503);
+    }
+    throw error;
+  }
 });
 
 app.get('/api/public/archive', async (c) => {

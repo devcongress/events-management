@@ -7,6 +7,7 @@ Feature docs explain user-facing behavior, key files, and follow-up work. Add a 
 | Feature | Status | Document |
 |---|---|---|
 | Event Publishing | Active | [event-publishing.md](event-publishing.md) |
+| Community Event Submissions | Implemented — deployment pending | [community-event-submissions.md](community-event-submissions.md) |
 | Native Registration | Active — free meetups | [native-registration.md](native-registration.md) |
 | Historical Luma Attendance | Legacy import/readout | [luma-attendance.md](luma-attendance.md) |
 | Feedback | Active | [feedback.md](feedback.md) |

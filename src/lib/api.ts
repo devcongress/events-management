@@ -1,5 +1,7 @@
 import type {
   Event,
+  EventSubmission,
+  EventSubmissionReviewStatus,
   EventChecklistItem,
   EventBlast,
   EventRegistration,
@@ -194,6 +196,10 @@ export interface VolunteerApplicationsResponse {
   applications: VolunteerApplication[];
 }
 
+export interface AdminEventSubmissionsResponse {
+  submissions: EventSubmission[];
+}
+
 export interface AnnualConferenceWorkPlanResponse {
   edition: AnnualConferenceEdition;
   tasks: AnnualConferenceTask[];
@@ -265,6 +271,7 @@ export const queryKeys = {
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
   volunteerApplications: ['volunteer-applications'] as const,
+  eventSubmissions: (status: EventSubmissionReviewStatus | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
@@ -338,6 +345,35 @@ export function fetchOverview() {
 
 export function fetchEvents() {
   return fetchJson<Event[]>('/api/events');
+}
+
+export function fetchEventSubmissions(status: EventSubmissionReviewStatus | 'all' = 'all') {
+  const query = status === 'all' ? '' : `?status=${encodeURIComponent(status)}`;
+  return fetchJson<AdminEventSubmissionsResponse>(`/api/admin/event-submissions${query}`, { credentials: 'include' });
+}
+
+export function approveEventSubmission(submissionId: string, publish = true) {
+  return fetchJson<{ submission: EventSubmission; event_id: string }>(
+    `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/approve`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publish }),
+    },
+  );
+}
+
+export function rejectEventSubmission(submissionId: string, reason = '') {
+  return fetchJson<{ submission: EventSubmission }>(
+    `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/reject`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  );
 }
 
 export function createNativeEvent(input: Record<string, unknown>) {

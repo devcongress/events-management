@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-036: Relational External-Event Moderation With Explicit Promotion
+
+**Date:** 2026-08-01
+**Status:** Accepted
+**Context:** The public website needs a low-friction event-proposal form, but a static client cannot safely write canonical events or hold privileged credentials. An older preview conflated approval with event classification and predated the current fail-closed public-write boundary. External listings must keep their real organizer and must not become DevCongress programming merely because the team permits them to appear.
+**Decision:** Store public proposals in a dedicated service-role-only relational `event_submissions` table. Verify the purpose-specific Turnstile action and an explicit `devcongress.org` hostname allowlist before consuming atomic client/email rate limits. Keep proposals separate from canonical events until an authenticated organizer approves them. Promote approval through a transactional, idempotent database function guarded by a unique source-submission key. Model ownership, series, format, source, moderation, and publication independently. Preserve `/api/public/meetups` as the DevCongress-owned compatibility feed and add `/api/public/events` for generic published discovery. Keep the initial review UI to Approve & publish or Reject while requiring an explicit publication choice at the API boundary.
+**Trade-offs:** The website and Worker Turnstile configuration must be deployed together. The first UI does not expose approve-as-draft even though the model supports it. Proposals have no public status endpoint or submitter edit loop. Receipt and decision emails are deferred until they can use a durable delivery ledger rather than unreliable inline best-effort sends.
+**Alternatives considered:** Let Astro write Supabase directly (would expose or overgrant credentials), create canonical draft events before review (mixes untrusted proposals into operations), reuse `series_type` or an official/community classification (conflates independent taxonomy), broaden `/api/public/meetups` (breaks its established semantics), or replay the abandoned preview branch (predates current schema, security, and UI foundations).
+**Revisit when:** A request-changes or submitter-auth workflow is justified, moderation criteria and rejected-record retention are agreed, notifications gain an outbox, or DevCongress begins co-owning external events.
+
+---
+
 ## ADR-035: Database-Owned Quiz Runtime
 
 **Date:** 2026-08-01

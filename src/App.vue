@@ -67,6 +67,7 @@ let organizerSessionEnding = false;
 
 const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
+  { href: adminPath('event-submissions'), label: 'Submissions' },
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
   { href: annualConferencePath(), label: 'Annual Conference' },
