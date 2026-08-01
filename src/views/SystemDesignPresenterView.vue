@@ -26,6 +26,13 @@ const currentQuestion = computed(() => session.value?.questions.find((question) 
 const participantsCount = computed(() => liveState.value?.participants_count ?? session.value?.participantCount ?? 0);
 const releasedCount = computed(() => session.value?.released_question_ids?.length ?? 0);
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
+const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIndex) => (
+  liveState.value?.answer_distribution?.find((result) => result.option_index === optionIndex) ?? {
+    option_index: optionIndex,
+    count: 0,
+    percentage: 0,
+  }
+)));
 
 async function fetchPresenterState() {
   const response = await fetch(`/api/quiz/sessions/${sessionId.value}`);
@@ -48,7 +55,7 @@ async function buildQrCode() {
   qrCodeUrl.value = await toDataURL(playUrl.value, {
     margin: 1,
     width: 320,
-    color: { dark: '#0b0b0d', light: '#f9e15e' },
+    color: { dark: '#111111', light: '#FFFFFF' },
   });
 }
 
@@ -97,119 +104,807 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="min-h-[100svh] bg-[#1C1C1C] text-[#E5E5E5]">
-    <div v-if="loading" class="flex min-h-[100svh] items-center justify-center p-8">
+  <main class="presenter-screen">
+    <div v-if="loading" class="presenter-centred-state">
       <div class="text-center">
-        <div class="motion-spinner mx-auto size-16 rounded-full border-4 border-dc-yellow border-t-transparent" />
-        <p class="mt-5 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-[#A1A1A1]">Preparing presentation</p>
+        <div class="motion-spinner mx-auto size-16 rounded-full border-4 border-dc-pink border-t-transparent" />
+        <p class="presenter-eyebrow mt-5">Preparing presentation</p>
       </div>
     </div>
 
-    <div v-else-if="!session" class="flex min-h-[100svh] items-center justify-center p-8">
-      <section class="w-full max-w-xl rounded-xl border border-white/15 bg-black/20 p-8 text-center">
-        <p class="font-mono text-xs font-semibold uppercase tracking-[0.24em] text-dc-yellow">Presentation unavailable</p>
-        <h1 class="mt-4 text-4xl font-extrabold tracking-tight text-white">This room could not be opened.</h1>
-        <p class="mt-4 text-base leading-7 text-[#A1A1A1]">{{ error }}</p>
+    <div v-else-if="!session" class="presenter-centred-state">
+      <section class="presenter-state-card">
+        <p class="presenter-eyebrow">Presentation unavailable</p>
+        <h1>This room could not be opened.</h1>
+        <p>{{ error }}</p>
       </section>
     </div>
 
-    <section v-else-if="session.status === 'waiting' || session.status === 'draft'" class="quiz-stage-shell flex min-h-[100svh] items-center justify-center rounded-none border-0 p-6 sm:p-10">
-      <div class="relative z-10 w-full max-w-5xl text-center">
-        <p class="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Live learning room</p>
-        <h1 class="mt-5 text-5xl font-extrabold uppercase tracking-tight text-white sm:text-7xl lg:text-8xl">Scan to join</h1>
-        <p class="mx-auto mt-5 max-w-2xl text-lg leading-8 text-[#A1A1A1] sm:text-xl">
-          Everyone receives a name and avatar on their phone. Names can be edited before you start.
-        </p>
-
-        <div class="mx-auto mt-10 grid max-w-4xl gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
-          <div class="rounded-xl border-2 border-dc-yellow bg-dc-yellow px-8 py-8 text-dc-ink shadow-[7px_7px_0_#e8117f] sm:px-12">
-            <p class="font-mono text-sm font-semibold uppercase tracking-[0.22em] text-dc-ink/65">Enter this code</p>
-            <p class="mt-3 font-mono text-6xl font-bold tracking-[0.14em] sm:text-8xl">{{ session.join_code }}</p>
+    <section v-else-if="session.status === 'waiting' || session.status === 'draft'" class="presenter-stage">
+      <div class="presenter-frame presenter-frame--lobby">
+        <header class="presenter-topbar">
+          <div>
+            <p class="presenter-eyebrow">System Design · Live learning room</p>
+            <p class="presenter-topbar-title">DevCongress</p>
           </div>
-          <div v-if="qrCodeUrl" class="flex justify-center rounded-xl border border-white/15 bg-white/[0.05] p-5">
-            <img :src="qrCodeUrl" alt="Join this System Design learning room" class="size-[260px] rounded-lg bg-dc-yellow p-3" />
+          <span class="presenter-room-chip">Room {{ session.join_code }}</span>
+        </header>
+
+        <div class="presenter-lobby-grid">
+          <div class="presenter-lobby-copy">
+            <p class="presenter-kicker">Join from your phone</p>
+            <h1>Scan to join.</h1>
+            <p class="presenter-lede">Everyone receives a name and Navii avatar. Names can be edited before the room starts.</p>
+
+            <div class="presenter-code-card">
+              <p>Or enter this code</p>
+              <strong>{{ session.join_code }}</strong>
+            </div>
+
+            <div class="presenter-lobby-actions">
+              <div class="presenter-joined-count" aria-live="polite">
+                <strong>{{ participantsCount }}</strong>
+                <span>{{ participantsCount === 1 ? 'person joined' : 'people joined' }}</span>
+              </div>
+              <button type="button" class="editorial-action presenter-primary-action motion-press" :disabled="participantsCount === 0 || actionPending" @click="releaseQuestion">
+                {{ actionPending ? 'Starting...' : 'Start first question' }}
+              </button>
+            </div>
+            <p v-if="error" class="presenter-error">{{ error }}</p>
+          </div>
+
+          <div class="presenter-qr-card">
+            <div class="presenter-qr-heading">
+              <span>01</span>
+              <p>Point your camera here</p>
+            </div>
+            <img v-if="qrCodeUrl" :src="qrCodeUrl" alt="Join this System Design learning room" />
+            <p class="presenter-qr-footnote">No account. No leaderboard pressure while answering.</p>
           </div>
         </div>
-
-        <p class="mt-10 text-3xl font-semibold uppercase text-[#A1A1A1] sm:text-4xl">
-          <span class="text-dc-yellow">{{ participantsCount }}</span> {{ participantsCount === 1 ? 'person' : 'people' }} joined
-        </p>
-        <button type="button" class="motion-press mt-9 rounded-lg border-2 border-dc-yellow bg-dc-pink px-10 py-4 font-mono text-xl font-semibold uppercase tracking-wide text-white shadow-[4px_4px_0_#f5e642] disabled:cursor-not-allowed disabled:opacity-40 sm:px-14 sm:py-5 sm:text-2xl" :disabled="participantsCount === 0 || actionPending" @click="releaseQuestion">
-          {{ actionPending ? 'Starting...' : 'Start first question' }}
-        </button>
-        <p v-if="error" class="mx-auto mt-5 max-w-xl rounded-md border border-red-400/50 bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-100">{{ error }}</p>
       </div>
     </section>
 
-    <section v-else-if="session.status === 'finished'" class="quiz-stage-shell flex min-h-[100svh] items-center justify-center rounded-none border-0 p-6 sm:p-10">
-      <div class="relative z-10 w-full max-w-5xl">
-        <p class="font-mono text-xs font-semibold uppercase tracking-[0.28em] text-dc-yellow">Session complete</p>
-        <h1 class="mt-4 text-5xl font-extrabold tracking-tight text-white sm:text-7xl">Final leaderboard</h1>
-        <p class="mt-4 text-lg leading-8 text-[#A1A1A1]">The room’s strongest decisions across all five questions.</p>
+    <section v-else-if="session.status === 'finished'" class="presenter-stage">
+      <div class="presenter-frame">
+        <header class="presenter-topbar">
+          <div>
+            <p class="presenter-eyebrow">System Design · Session complete</p>
+            <p class="presenter-topbar-title">DevCongress</p>
+          </div>
+          <span class="presenter-room-chip">Room {{ session.join_code }}</span>
+        </header>
 
-        <div v-if="liveState?.leaderboard.length" class="mt-8 overflow-hidden rounded-xl border border-white/15 bg-black/25">
-          <div v-for="entry in liveState.leaderboard" :key="entry.user_id" class="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/10 px-4 py-3 last:border-b-0 sm:grid-cols-[4rem_minmax(0,1fr)_auto] sm:px-6 sm:py-4">
-            <span class="font-mono text-2xl font-bold" :class="entry.rank <= 3 ? 'text-dc-yellow' : 'text-[#A1A1A1]'">#{{ entry.rank }}</span>
-            <div class="flex min-w-0 items-center gap-3 sm:gap-4">
-              <NaviiAvatar :seed="entry.avatar_seed ?? entry.user_id" :title="`${entry.nickname} avatar`" :size="entry.rank <= 3 ? 52 : 44" />
-              <span class="truncate text-lg font-bold text-white sm:text-2xl">{{ entry.nickname }}</span>
+        <div class="presenter-finish-heading">
+          <p class="presenter-kicker">The room has decided</p>
+          <h1>Final leaderboard.</h1>
+          <p>The strongest decisions across the complete learning sequence.</p>
+        </div>
+
+        <div v-if="liveState?.leaderboard.length" class="presenter-leaderboard">
+          <div v-for="entry in liveState.leaderboard" :key="entry.user_id" class="presenter-leaderboard-row" :class="{ 'presenter-leaderboard-row--podium': entry.rank <= 3 }">
+            <span class="presenter-rank">#{{ entry.rank }}</span>
+            <div class="presenter-player">
+              <NaviiAvatar :seed="entry.avatar_seed ?? entry.user_id" :title="`${entry.nickname} avatar`" :size="entry.rank <= 3 ? 56 : 46" />
+              <span>{{ entry.nickname }}</span>
             </div>
-            <span class="font-mono text-lg font-semibold text-dc-pink sm:text-2xl">{{ entry.total_score }} pts</span>
+            <span class="presenter-score">{{ entry.total_score }} pts</span>
           </div>
         </div>
-        <p v-else class="mt-8 rounded-xl border border-white/15 bg-black/25 p-8 text-center text-[#A1A1A1]">No answers were submitted in this run.</p>
+        <p v-else class="presenter-empty-state">No answers were submitted in this run.</p>
       </div>
     </section>
 
-    <section v-else class="quiz-stage-shell min-h-[100svh] rounded-none border-0 p-5 sm:p-8 lg:p-10">
-      <div class="relative z-10 mx-auto grid min-h-[calc(100svh-5rem)] max-w-7xl gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div class="flex min-w-0 flex-col rounded-xl border border-white/15 bg-black/20 p-6 sm:p-8">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <span class="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-dc-yellow">Question {{ releasedCount }} of {{ session.questions.length }}</span>
-            <span class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-[#A1A1A1]">Code {{ session.join_code }}</span>
+    <section v-else class="presenter-stage presenter-stage--question">
+      <div class="presenter-frame">
+        <header class="presenter-topbar">
+          <div>
+            <p class="presenter-eyebrow">System Design · Live learning room</p>
+            <p class="presenter-topbar-title">Question {{ releasedCount }} of {{ session.questions.length }}</p>
           </div>
+          <span class="presenter-room-chip">Room {{ session.join_code }}</span>
+        </header>
 
-          <h1 class="mt-8 max-w-5xl text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
-          <div class="mt-8 grid gap-4 sm:grid-cols-2">
-            <div v-for="(option, index) in currentQuestion?.options ?? []" :key="`${index}-${option}`" class="rounded-lg border p-5 text-lg font-semibold leading-7" :class="session.question_phase === 'revealing' && index === currentQuestion?.correct_index ? 'border-dc-yellow bg-dc-yellow text-dc-ink' : 'border-white/15 bg-white/[0.05] text-white'">
-              <span class="mr-2 font-mono" :class="session.question_phase === 'revealing' && index === currentQuestion?.correct_index ? 'text-dc-pink' : 'text-dc-yellow'">{{ ['A', 'B', 'C', 'D'][index] }}.</span>{{ option }}
+        <div class="presenter-question-layout">
+          <article class="presenter-question-panel">
+            <div>
+              <p class="presenter-kicker">Think through the trade-off</p>
+              <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
             </div>
-          </div>
 
-          <div v-if="session.question_phase === 'revealing'" class="mt-7 rounded-lg border border-dc-yellow/50 bg-dc-yellow/10 p-5">
-            <p class="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-dc-yellow">Why this answer</p>
-            <p class="mt-3 text-lg leading-8 text-[#E5E5E5]">{{ currentQuestion?.explanation }}</p>
-          </div>
+            <div class="presenter-options">
+              <div
+                v-for="(option, index) in currentQuestion?.options ?? []"
+                :key="`${index}-${option}`"
+                class="presenter-option"
+                :class="{ 'presenter-option--correct': session.question_phase === 'revealing' && index === currentQuestion?.correct_index }"
+              >
+                <span>{{ ['A', 'B', 'C', 'D'][index] }}</span>
+                <p>{{ option }}</p>
+              </div>
+            </div>
 
-          <div class="mt-auto flex flex-wrap gap-3 pt-8">
-            <button v-if="session.question_phase === 'answering'" type="button" class="editorial-secondary-action" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
-            <button v-else-if="!allQuestionsReleased" type="button" class="editorial-action" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Releasing...' : 'Release next question' }}</button>
-            <button v-else type="button" class="editorial-action" :disabled="actionPending" @click="finishRoom">Finish room</button>
-            <button v-if="!allQuestionsReleased" type="button" class="rounded-md border border-red-400/60 bg-red-950/40 px-5 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-red-100" :disabled="actionPending" @click="finishRoom">End room</button>
-          </div>
-          <p v-if="error" class="mt-4 rounded-md border border-red-400/50 bg-red-950/40 px-4 py-3 text-sm font-semibold text-red-100">{{ error }}</p>
-        </div>
+            <div v-if="session.question_phase === 'revealing'" class="presenter-explanation">
+              <p class="presenter-eyebrow">Why this answer</p>
+              <p>{{ currentQuestion?.explanation }}</p>
+            </div>
 
-        <aside class="rounded-xl border border-white/15 bg-white/[0.04] p-6 sm:p-7">
-          <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Room pulse</p>
-          <p class="mt-3 text-4xl font-extrabold text-white">{{ liveState?.answers_count ?? 0 }} / {{ participantsCount }}</p>
-          <p class="mt-1 text-sm text-[#A1A1A1]">people answered</p>
-          <div class="mt-7 space-y-5">
-            <div v-for="result in liveState?.answer_distribution ?? []" :key="result.option_index">
-              <div class="flex items-end justify-between gap-4">
-                <span class="font-mono text-2xl font-bold text-[#E5E5E5]">{{ ['A', 'B', 'C', 'D'][result.option_index] }}</span>
-                <div class="flex items-baseline gap-2 text-right">
-                  <span class="font-mono text-sm font-semibold text-white">{{ result.count }} {{ result.count === 1 ? 'person' : 'people' }}</span>
-                  <span class="font-mono text-xs font-semibold text-dc-yellow">{{ result.percentage }}%</span>
+            <footer class="presenter-controls">
+              <button v-if="session.question_phase === 'answering'" type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
+              <button v-else-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Releasing...' : 'Release next question' }}</button>
+              <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
+              <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+            </footer>
+            <p v-if="error" class="presenter-error">{{ error }}</p>
+          </article>
+
+          <aside class="presenter-results-panel">
+            <div class="presenter-results-heading">
+              <div>
+                <p class="presenter-eyebrow">Room response</p>
+                <h2>How people answered</h2>
+              </div>
+              <div class="presenter-answer-count">
+                <strong>{{ liveState?.answers_count ?? 0 }}</strong>
+                <span>of {{ participantsCount }}</span>
+              </div>
+            </div>
+
+            <div class="presenter-chart" role="img" :aria-label="`Vertical bar chart of ${liveState?.answers_count ?? 0} answers from ${participantsCount} participants`">
+              <div v-for="result in answerDistribution" :key="result.option_index" class="presenter-chart-column">
+                <div class="presenter-chart-value">
+                  <strong>{{ result.percentage }}%</strong>
+                  <span>{{ result.count }} {{ result.count === 1 ? 'person' : 'people' }}</span>
                 </div>
-              </div>
-              <div class="mt-2 h-3 overflow-hidden rounded-full bg-white/10">
-                <div class="h-full rounded-full bg-dc-pink" :style="{ width: `${result.percentage}%` }" />
+                <div class="presenter-chart-track">
+                  <div
+                    class="presenter-chart-fill"
+                    :class="{ 'presenter-chart-fill--correct': session.question_phase === 'revealing' && result.option_index === currentQuestion?.correct_index }"
+                    :style="{ transform: `scaleY(${result.percentage / 100})` }"
+                  />
+                </div>
+                <span class="presenter-chart-label">{{ ['A', 'B', 'C', 'D'][result.option_index] }}</span>
               </div>
             </div>
-          </div>
-        </aside>
+
+            <p class="presenter-chart-note">
+              {{ session.question_phase === 'revealing' ? 'Answer revealed · use the explanation to discuss the trade-off.' : 'Live aggregate only · participant identities stay private.' }}
+            </p>
+          </aside>
+        </div>
       </div>
     </section>
   </main>
 </template>
+
+<style scoped>
+.presenter-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow: auto;
+  background: #f5f2e8;
+  color: #111111;
+}
+
+.presenter-stage,
+.presenter-centred-state {
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(1rem, 2.5vw, 2.5rem);
+}
+
+.presenter-stage {
+  display: grid;
+  align-items: stretch;
+}
+
+.presenter-centred-state {
+  display: grid;
+  place-items: center;
+}
+
+.presenter-frame {
+  display: flex;
+  width: min(100%, 90rem);
+  min-height: calc(100svh - clamp(2rem, 5vw, 5rem));
+  flex-direction: column;
+  margin: 0 auto;
+}
+
+.presenter-topbar {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 2px solid #111111;
+  padding: 0.75rem 0;
+}
+
+.presenter-eyebrow,
+.presenter-kicker {
+  margin: 0;
+  color: #e8117f;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.65rem, 1vw, 0.78rem);
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.presenter-topbar-title {
+  margin: 0.3rem 0 0;
+  font-size: 1rem;
+  font-weight: var(--font-weight-heading);
+}
+
+.presenter-room-chip {
+  flex: 0 0 auto;
+  border: 2px solid #111111;
+  border-radius: 6px;
+  padding: 0.55rem 0.8rem;
+  background: #f5e642;
+  box-shadow: 2px 2px 0 #111111;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.presenter-lobby-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr);
+  gap: clamp(2rem, 5vw, 5rem);
+  align-items: center;
+  padding: clamp(2rem, 5vw, 5rem) 0;
+}
+
+.presenter-lobby-copy h1,
+.presenter-finish-heading h1,
+.presenter-question-panel h1,
+.presenter-state-card h1 {
+  margin: 0.65rem 0 0;
+  color: #111111;
+  font-size: clamp(3rem, 7vw, 7rem);
+  font-weight: var(--font-weight-display);
+  letter-spacing: -0.055em;
+  line-height: 0.92;
+}
+
+.presenter-lede {
+  max-width: 43rem;
+  margin: 1.5rem 0 0;
+  color: #555555;
+  font-size: clamp(1rem, 1.6vw, 1.35rem);
+  line-height: 1.6;
+}
+
+.presenter-code-card {
+  width: min(100%, 42rem);
+  margin-top: clamp(2rem, 4vw, 3rem);
+  border: 2px solid #111111;
+  border-radius: 12px;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  background: #f5e642;
+  box-shadow: 7px 7px 0 #e8117f;
+}
+
+.presenter-code-card p {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.presenter-code-card strong {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(3.6rem, 8vw, 7rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.presenter-lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  align-items: center;
+  margin-top: 2.5rem;
+}
+
+.presenter-joined-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.presenter-joined-count strong {
+  color: #e8117f;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.presenter-joined-count span {
+  color: #555555;
+  font-weight: var(--font-weight-emphasis);
+}
+
+.presenter-primary-action {
+  min-height: 3.5rem;
+  padding-inline: 1.5rem;
+}
+
+.presenter-qr-card {
+  border: 2px solid #111111;
+  border-radius: 12px;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  background: #ffffff;
+  box-shadow: 5px 5px 0 #111111;
+}
+
+.presenter-qr-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding-bottom: 1rem;
+}
+
+.presenter-qr-heading span {
+  display: grid;
+  width: 2.3rem;
+  height: 2.3rem;
+  place-items: center;
+  border-radius: 6px;
+  background: #e8117f;
+  color: #ffffff;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-label);
+}
+
+.presenter-qr-heading p {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.presenter-qr-card img {
+  display: block;
+  width: min(100%, 22rem);
+  margin: 1.5rem auto;
+  border: 1rem solid #fefce8;
+  border-radius: 8px;
+}
+
+.presenter-qr-footnote {
+  margin: 0;
+  color: #555555;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.presenter-question-layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1.55fr) minmax(24rem, 0.75fr);
+  gap: clamp(1rem, 2vw, 1.75rem);
+  padding-top: clamp(1rem, 2vw, 1.75rem);
+}
+
+.presenter-question-panel,
+.presenter-results-panel,
+.presenter-state-card,
+.presenter-leaderboard,
+.presenter-empty-state {
+  border: 2px solid #111111;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 4px 4px 0 #111111;
+}
+
+.presenter-question-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.presenter-question-panel h1 {
+  max-width: 26ch;
+  font-size: clamp(1.8rem, 3vw, 3.5rem);
+  font-weight: var(--font-weight-emphasis);
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+}
+
+.presenter-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.presenter-option {
+  display: grid;
+  min-height: 5rem;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #e0ddd4;
+  border-radius: 8px;
+  background: #fefce8;
+  transition:
+    background-color 180ms var(--motion-fast),
+    border-color 180ms var(--motion-fast),
+    transform 180ms var(--motion-smooth);
+}
+
+.presenter-option > span {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid #e0ddd4;
+  background: #f5e642;
+  font-family: var(--font-mono), monospace;
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-heading);
+}
+
+.presenter-option p {
+  align-self: center;
+  margin: 0;
+  padding: 1rem;
+  font-size: clamp(0.95rem, 1.3vw, 1.15rem);
+  font-weight: var(--font-weight-emphasis);
+  line-height: 1.45;
+}
+
+.presenter-option--correct {
+  border-color: #111111;
+  background: #f5e642;
+  transform: translateY(-2px);
+}
+
+.presenter-option--correct > span {
+  background: #e8117f;
+  color: #ffffff;
+}
+
+.presenter-explanation {
+  margin-top: 1rem;
+  border: 2px solid #111111;
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  background: #fefce8;
+}
+
+.presenter-explanation > p:last-child {
+  margin: 0.65rem 0 0;
+  color: #555555;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.presenter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
+
+.presenter-end-action {
+  min-height: 2.75rem;
+  border: 0;
+  padding: 0.65rem 0.9rem;
+  color: #b42318;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    color 150ms var(--motion-fast),
+    opacity 150ms var(--motion-fast),
+    transform 100ms var(--motion-fast);
+}
+
+.presenter-results-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: clamp(1.25rem, 2vw, 1.75rem);
+}
+
+.presenter-results-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding-bottom: 1rem;
+}
+
+.presenter-results-heading h2 {
+  margin: 0.4rem 0 0;
+  font-size: 1.2rem;
+  font-weight: var(--font-weight-heading);
+}
+
+.presenter-answer-count {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+}
+
+.presenter-answer-count strong {
+  color: #e8117f;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.presenter-answer-count span {
+  margin-top: 0.25rem;
+  color: #555555;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-label);
+  text-transform: uppercase;
+}
+
+.presenter-chart {
+  display: grid;
+  min-height: 22rem;
+  flex: 1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(0.5rem, 1.2vw, 0.9rem);
+  align-items: end;
+  padding-top: 1.25rem;
+}
+
+.presenter-chart-column {
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  grid-template-rows: auto minmax(9rem, 1fr) auto;
+  gap: 0.65rem;
+}
+
+.presenter-chart-value {
+  min-width: 0;
+  text-align: center;
+}
+
+.presenter-chart-value strong,
+.presenter-chart-value span {
+  display: block;
+}
+
+.presenter-chart-value strong {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+}
+
+.presenter-chart-value span {
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: #555555;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presenter-chart-track {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e0ddd4;
+  border-radius: 8px 8px 4px 4px;
+  background:
+    linear-gradient(to top, rgba(17, 17, 17, 0.055) 1px, transparent 1px),
+    #f5f2e8;
+  background-size: 100% 25%;
+}
+
+.presenter-chart-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px 7px 3px 3px;
+  background: #e8117f;
+  transform-origin: bottom;
+  transition:
+    background-color 180ms var(--motion-fast),
+    transform 220ms var(--motion-smooth);
+}
+
+.presenter-chart-fill--correct {
+  background: #f5e642;
+  box-shadow: inset 0 0 0 2px #111111;
+}
+
+.presenter-chart-label {
+  display: grid;
+  min-height: 2.75rem;
+  place-items: center;
+  border: 2px solid #111111;
+  border-radius: 6px;
+  background: #111111;
+  color: #ffffff;
+  font-family: var(--font-mono), monospace;
+  font-size: 1rem;
+  font-weight: var(--font-weight-heading);
+}
+
+.presenter-chart-note {
+  margin: 1rem 0 0;
+  color: #555555;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.presenter-finish-heading {
+  padding: clamp(2rem, 4vw, 3.5rem) 0 1.75rem;
+}
+
+.presenter-finish-heading h1 {
+  font-size: clamp(3rem, 6vw, 6rem);
+}
+
+.presenter-finish-heading > p:last-child {
+  margin: 1rem 0 0;
+  color: #555555;
+  font-size: 1.1rem;
+}
+
+.presenter-leaderboard {
+  overflow: hidden;
+}
+
+.presenter-leaderboard-row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding: 0.85rem 1.25rem;
+}
+
+.presenter-leaderboard-row:last-child {
+  border-bottom: 0;
+}
+
+.presenter-leaderboard-row--podium {
+  background: #fefce8;
+}
+
+.presenter-rank,
+.presenter-score {
+  font-family: var(--font-mono), monospace;
+  font-weight: var(--font-weight-heading);
+}
+
+.presenter-rank {
+  color: #e8117f;
+  font-size: 1.4rem;
+}
+
+.presenter-player {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1rem;
+}
+
+.presenter-player span {
+  overflow: hidden;
+  font-size: 1.25rem;
+  font-weight: var(--font-weight-heading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presenter-score {
+  color: #555555;
+}
+
+.presenter-empty-state {
+  margin: 2rem 0 0;
+  padding: 3rem;
+  color: #555555;
+  text-align: center;
+}
+
+.presenter-state-card {
+  width: min(100%, 38rem);
+  padding: clamp(2rem, 5vw, 4rem);
+  text-align: center;
+}
+
+.presenter-state-card h1 {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  line-height: 1;
+}
+
+.presenter-state-card > p:last-child {
+  margin: 1.25rem 0 0;
+  color: #555555;
+  line-height: 1.6;
+}
+
+.presenter-error {
+  width: fit-content;
+  margin: 1rem 0 0;
+  border: 1px solid #f3b0aa;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  background: #fff1f0;
+  color: #9f1b12;
+  font-size: 0.85rem;
+  font-weight: var(--font-weight-label);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .presenter-end-action:hover {
+    color: #e8117f;
+  }
+}
+
+@media (max-width: 960px) {
+  .presenter-lobby-grid,
+  .presenter-question-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .presenter-qr-card {
+    width: min(100%, 34rem);
+    margin-inline: auto;
+  }
+
+  .presenter-results-panel {
+    min-height: 34rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .presenter-stage,
+  .presenter-centred-state {
+    padding: 0.8rem;
+  }
+
+  .presenter-topbar {
+    align-items: flex-start;
+  }
+
+  .presenter-room-chip {
+    font-size: 0.62rem;
+  }
+
+  .presenter-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .presenter-leaderboard-row {
+    grid-template-columns: 3rem minmax(0, 1fr);
+  }
+
+  .presenter-score {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presenter-option,
+  .presenter-chart-fill,
+  .presenter-end-action {
+    transition: none;
+  }
+}
+</style>

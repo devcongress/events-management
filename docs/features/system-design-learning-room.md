@@ -27,7 +27,7 @@ Opening a completed room starts a fresh run: old participant labels and response
 
 The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected. Joining immediately creates a validated, unique default room name and fixed avatar. The attendee may keep or edit that name before the facilitator starts; no account is created and the organizer has no naming-mode setting.
 
-Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During each question, the presenter summary uses four compact aggregate bars showing the option, number of people, and percentage. It does not render or return an unbounded respondent list.
+Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During each question, the presenter summary uses four compact vertical columns showing the option, number of people, and percentage. The revealed correct answer is distinguished with the System Design yellow accent; the chart does not render or return an unbounded respondent list.
 
 At completion, the authenticated presenter receives the top-ten final leaderboard. Each attendee request receives only that attendee's own final standing, so their phone can show their avatar, name, and position without exposing the rest of the leaderboard. Confetti runs once for positions one through five and becomes a static celebratory treatment when reduced motion is enabled.
 

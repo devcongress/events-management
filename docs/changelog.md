@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-01 — System Design presenter redesign
+
+- Rebuilt the organizer's shared System Design screen with the current DevCongress cream, paper, ink, pink, and yellow visual system while leaving the participant phone experience unchanged.
+- Replaced the legacy horizontal response meters with a four-column vertical bar chart that shows counts and percentages and distinguishes the correct answer after reveal.
+- Aligned the lobby, question, reveal, completion, loading, and unavailable states around the same editorial typography, compact radii, restrained borders, and accessible reduced-motion behavior.
+
 ## 2026-08-01 — Registration operations polish
 
 - Made uploaded event covers cache-safe by assigning each upload an immutable storage path and versioning existing Supabase cover requests with the event revision; aligned the public registration ticket with the uploader's 16:9 preview.
