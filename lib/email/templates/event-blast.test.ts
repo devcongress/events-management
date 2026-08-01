@@ -5,7 +5,7 @@ describe('event blast email template', () => {
   it('uses the same escaped message in HTML and text output', () => {
     const content = eventBlastEmail({
       subject: 'Venue <update>',
-      body: 'Hi team,\nBring <nothing>.',
+      body: 'Hi,\n\nBring <nothing>.',
       unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
       eventName: 'DevCongress July Meetup',
       eventDate: '2026-07-30T08:30:00.000Z',
@@ -18,7 +18,8 @@ describe('event blast email template', () => {
 
     expect(content.html).toContain('Venue &lt;update&gt;');
     expect(content.html).toContain('Bring &lt;nothing&gt;.');
-    expect(content.html).toContain('Hi team,<br>Bring');
+    expect(content.html).toContain('Hi,<br><br>Bring');
+    expect(content.html.match(/Hi,/g)).toHaveLength(1);
     expect(content.html).toContain('RESEND_UNSUBSCRIBE_URL');
     expect(content.html).toContain('logo-nav%402x.png');
     expect(content.html).toContain('Community update');

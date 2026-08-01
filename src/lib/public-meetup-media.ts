@@ -4,6 +4,18 @@ const YOUTUBE_EMBED_HOSTS = new Set([
   'youtube-nocookie.com',
   'www.youtube-nocookie.com',
 ]);
+const PUBLIC_MEETUP_MEDIA_PATH = '/storage/v1/object/public/meetup-media/';
+
+export function versionPublicMeetupMediaUrl(value: string, revision: string): string {
+  try {
+    const url = new URL(value);
+    if (!url.pathname.includes(PUBLIC_MEETUP_MEDIA_PATH)) return value;
+    url.searchParams.set('v', revision);
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
 
 export function canEmbedPublicMeetupMedia(value: string): boolean {
   try {

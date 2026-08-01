@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canEmbedPublicMeetupMedia } from './public-meetup-media';
+import { canEmbedPublicMeetupMedia, versionPublicMeetupMediaUrl } from './public-meetup-media';
 
 describe('public meetup media embedding', () => {
   it.each([
@@ -21,5 +21,19 @@ describe('public meetup media embedding', () => {
     'not-a-url',
   ])('rejects a non-approved player URL: %s', (url) => {
     expect(canEmbedPublicMeetupMedia(url)).toBe(false);
+  });
+});
+
+describe('public meetup cover versioning', () => {
+  it('adds the event revision to uploaded meetup media', () => {
+    expect(versionPublicMeetupMediaUrl(
+      'https://project.supabase.co/storage/v1/object/public/meetup-media/events/test/cover.webp',
+      '2026-08-01T02:30:00.000Z',
+    )).toContain('v=2026-08-01T02%3A30%3A00.000Z');
+  });
+
+  it('does not rewrite externally hosted covers', () => {
+    const cover = 'https://images.example.com/event-cover.jpg';
+    expect(versionPublicMeetupMediaUrl(cover, 'revision')).toBe(cover);
   });
 });

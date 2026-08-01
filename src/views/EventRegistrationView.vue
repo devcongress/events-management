@@ -12,6 +12,7 @@ import {
   queryKeys,
   submitEventRegistration,
 } from '@/src/lib/api';
+import { versionPublicMeetupMediaUrl } from '@/src/lib/public-meetup-media';
 
 const route = useRoute();
 const eventKey = computed(() => String(route.params.eventKey ?? route.params.eventId ?? ''));
@@ -34,6 +35,11 @@ const registrationQuery = useQuery({
   retry: false,
 });
 const registration = computed(() => registrationQuery.data.value ?? null);
+const registrationCoverSrc = computed(() => {
+  const event = registration.value?.event;
+  if (!event?.cover) return null;
+  return versionPublicMeetupMediaUrl(event.cover, event.updated_at);
+});
 const detailsMapUrl = computed(() => safeGoogleMapsUrl(registration.value?.event.location?.url));
 const canSubmit = computed(() => (
   registration.value?.available === true
@@ -110,11 +116,11 @@ async function submitRegistration() {
       <div v-else class="registration-workspace editorial-panel">
         <section
           class="registration-event-card"
-          :class="{ 'registration-event-card--with-cover': registration.event.cover }"
+          :class="{ 'registration-event-card--with-cover': registrationCoverSrc }"
         >
           <img
-            v-if="registration.event.cover"
-            :src="registration.event.cover"
+            v-if="registrationCoverSrc"
+            :src="registrationCoverSrc"
             :alt="`${registration.event.name} cover`"
             class="registration-cover"
           >
@@ -380,8 +386,7 @@ async function submitRegistration() {
 .registration-cover {
   display: block;
   width: 100%;
-  max-height: min(31svh, 15rem);
-  aspect-ratio: 3 / 1;
+  aspect-ratio: 16 / 9;
   border-bottom: 2px solid #111111;
   object-fit: cover;
 }
@@ -899,8 +904,7 @@ async function submitRegistration() {
   }
 
   .registration-cover {
-    height: min(18svh, 5rem);
-    aspect-ratio: auto;
+    aspect-ratio: 16 / 9;
   }
 
   .registration-event-body {

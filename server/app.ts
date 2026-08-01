@@ -3500,6 +3500,7 @@ app.get('/api/registration/events/:eventId', async (c) => {
       end_date: event.end_date ?? null,
       cover: event.cover ?? null,
       location: event.location ?? null,
+      updated_at: event.updated_at,
     },
     campaign: {
       status: campaign.status,

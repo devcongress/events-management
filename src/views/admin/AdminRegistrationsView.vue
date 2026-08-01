@@ -50,6 +50,9 @@ const registrationQuery = useQuery({
   queryKey: computed(() => queryKeys.eventRegistrations(eventId.value)),
   queryFn: () => fetchEventRegistrations(eventId.value),
   enabled: computed(() => Boolean(eventId.value)),
+  refetchInterval: 15_000,
+  refetchIntervalInBackground: false,
+  refetchOnWindowFocus: true,
 });
 const blastsQuery = useQuery({
   queryKey: computed(() => queryKeys.eventBlasts(eventId.value)),
@@ -83,6 +86,7 @@ const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
 const initialSetupActive = ref(consumeInitialSetupFlag());
 const publicLinkCopied = ref(false);
+const manualRefreshPending = ref(false);
 const devRegistrationRemovalEnabled = import.meta.env.DEV;
 let publicLinkFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -106,6 +110,17 @@ const workspaceTabs: Array<{
   { id: 'blasts', label: 'Blasts' },
 ];
 const data = computed(() => registrationQuery.data.value ?? null);
+const registrationLastUpdatedLabel = computed(() => {
+  const updatedAt = registrationQuery.dataUpdatedAt.value;
+  if (!updatedAt) return 'Not updated yet';
+
+  return `Updated ${new Intl.DateTimeFormat('en-GH', {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'Africa/Accra',
+  }).format(updatedAt)}`;
+});
 const managedInternally = computed(() => data.value?.managed_internally === true);
 const displayedRegistrations = computed(() => data.value?.registrations ?? []);
 const availableInitials = computed(() => registrationInitials(displayedRegistrations.value));
@@ -568,7 +583,23 @@ function openBlastPreview() {
 function openBlastComposer() {
   blastComposerOpen.value = true;
   if (blastSubject.value.trim() || blastBody.value.trim()) return;
-  applyBlastTemplate('update');
+  applyBlastTemplate('reminder');
+}
+
+async function manuallyRefreshRegistration() {
+  if (manualRefreshPending.value) return;
+  manualRefreshPending.value = true;
+  try {
+    const [registrationResult] = await Promise.all([
+      registrationQuery.refetch(),
+      managedInternally.value ? blastsQuery.refetch() : Promise.resolve(),
+    ]);
+    if (registrationResult.isError) {
+      notify.error('Unable to refresh registrations. The last loaded figures are still shown.');
+    }
+  } finally {
+    manualRefreshPending.value = false;
+  }
 }
 
 function applyBlastTemplate(templateId: string) {
@@ -759,7 +790,7 @@ async function retryEmails() {
       </header>
 
       <div v-if="registrationQuery.isPending.value" class="editorial-panel min-h-80 animate-pulse" />
-      <div v-else-if="registrationQuery.isError.value || !data" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+      <div v-else-if="!data" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
         {{ registrationQuery.error.value?.message ?? 'Unable to load registrations.' }}
       </div>
 
@@ -826,12 +857,30 @@ async function retryEmails() {
           >
             <div class="registration-overview-header">
               <h2>Registration overview</h2>
-              <span
-                class="registration-overview-status"
-                :class="`registration-overview-status--${registrationOverview.statusTone}`"
-              >
-                {{ registrationOverview.statusLabel }}
-              </span>
+              <div class="registration-overview-header-actions">
+                <span class="registration-overview-updated">
+                  {{ registrationLastUpdatedLabel }}
+                </span>
+                <button
+                  type="button"
+                  class="registration-overview-refresh motion-press"
+                  :aria-label="`Refresh registrations. ${registrationLastUpdatedLabel}`"
+                  :disabled="manualRefreshPending"
+                  @click="manuallyRefreshRegistration"
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M15.7 6.8A6.25 6.25 0 1 0 16 12" />
+                    <path d="M15.7 3.8v3.4h-3.4" />
+                  </svg>
+                  {{ manualRefreshPending ? 'Refreshing…' : 'Refresh' }}
+                </button>
+                <span
+                  class="registration-overview-status"
+                  :class="`registration-overview-status--${registrationOverview.statusTone}`"
+                >
+                  {{ registrationOverview.statusLabel }}
+                </span>
+              </div>
             </div>
 
             <div class="registration-overview-metrics">
@@ -1519,6 +1568,65 @@ async function retryEmails() {
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+.registration-overview-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+}
+
+.registration-overview-updated {
+  color: #85817a;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.registration-overview-refresh {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d6d2c8;
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  background: #ffffff;
+  color: #111111;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.registration-overview-refresh svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.registration-overview-refresh:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .registration-overview-refresh:not(:disabled):hover {
+    border-color: #111111;
+  }
 }
 
 .registration-overview-status {

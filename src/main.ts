@@ -16,5 +16,11 @@ import { queryClient } from './lib/query';
 import { router } from './router';
 import './styles.css';
 
-createApp(App).use(VueQueryPlugin, { queryClient }).use(router).mount('#app');
-installButtonPressFeedback();
+const app = createApp(App).use(VueQueryPlugin, { queryClient }).use(router);
+
+void router.isReady()
+  .catch(() => undefined)
+  .then(() => {
+    app.mount('#app');
+    installButtonPressFeedback();
+  });
