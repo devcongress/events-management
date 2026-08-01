@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-01 — Database-owned quiz runtime
+
+- Moved hosted quiz sessions, questions, and responses from whole-array compatibility documents into constrained relational Supabase tables, retaining JSON only for local development and rollback evidence.
+- Made answer acceptance, score/streak updates, presenter reset/release/reveal, timed quiz advancement, and question reordering atomic PostgreSQL operations.
+- Moved participant counts, answer counts, answer distribution, leaderboard ranking, and requesting-player response lookup into one database aggregation function.
+- Added relational backfill, foreign keys, unique join codes, one-answer-per-user/question enforcement, question-order constraints, RLS, and service-role-only function access.
+
+## 2026-08-01 — Unique System Design room names
+
+- Moved hosted quiz participant records from the whole-array compatibility document to a dedicated Supabase table while preserving the local JSON development fallback.
+- Added database-enforced room-level uniqueness for normalized System Design names and one participant per user/session, preventing simultaneous Worker requests from accepting duplicate labels.
+- Made generated aliases retry after a database conflict, preserved the existing friendly duplicate-name response for participant edits, and backfilled historical participants without deleting rollback data.
+
 ## 2026-08-01 — System Design presenter redesign
 
 - Rebuilt the organizer's shared System Design screen with the current DevCongress cream, paper, ink, pink, and yellow visual system while leaving the participant phone experience unchanged.

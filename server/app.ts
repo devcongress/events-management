@@ -67,10 +67,10 @@ import { createMockAnnualConferenceTask, getMockAnnualConferenceWorkPlan, update
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
-import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
+import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, mergeQuizParticipantUsers, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
-import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion } from '@/lib/mock-db/responses';
-import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun } from '@/lib/mock-db/system-design-learning-room';
+import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
+import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, releaseNextSystemDesignQuestion, revealSystemDesignQuestion } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
@@ -2017,7 +2017,7 @@ app.get('/api/health/data-sources', async (c) => {
       event_checklists: documentSource,
       quiz_sessions: documentSource,
       quiz_questions: documentSource,
-      quiz_participants: documentSource,
+      quiz_participants: supabaseSource,
       quiz_responses: documentSource,
       quiz_users: documentSource,
     },
@@ -5816,6 +5816,29 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
   const session = await expireQuizSessionIfNeeded(existing, c);
   if (session.status === 'finished') return c.json({ error: 'This live session has ended.' }, 409);
 
+  try {
+    const hostedSession = session.purpose === 'system_design_learning'
+      ? await releaseNextSystemDesignQuestion(session.id)
+      : null;
+    if (hostedSession) {
+      const latestQuestionId = hostedSession.released_question_ids?.at(-1) ?? null;
+      await auditAdminAction(c, {
+        action: 'quiz.question.release', targetType: 'quiz_session', targetId: session.id,
+        metadata: { question_id: latestQuestionId, released_count: hostedSession.released_question_ids?.length ?? 0 },
+      });
+      return c.json(hostedSession);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('all_questions_released')) {
+      return c.json({ error: 'All prepared questions have been released.' }, 409);
+    }
+    if (message.includes('session_finished')) {
+      return c.json({ error: 'This live session has ended.' }, 409);
+    }
+    throw error;
+  }
+
   const questions = await getQuestionsBySession(session.id);
   const releasedQuestionIds = session.released_question_ids ?? [];
   const question = nextUnreleasedLearningQuestion(questions, releasedQuestionIds);
@@ -5845,6 +5868,17 @@ app.post('/api/quiz/sessions/:sessionId/reveal', async (c) => {
   const session = await expireQuizSessionIfNeeded(existing, c);
   if (session.status !== 'active' || session.question_phase !== 'answering') {
     return c.json({ error: 'There is no question ready to reveal.' }, 409);
+  }
+  try {
+    const hostedSession = session.purpose === 'system_design_learning'
+      ? await revealSystemDesignQuestion(session.id)
+      : null;
+    if (hostedSession) return c.json(hostedSession);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('question_not_ready_to_reveal')) {
+      return c.json({ error: 'There is no question ready to reveal.' }, 409);
+    }
+    throw error;
   }
   return c.json(await updateQuizSession(session.id, { question_phase: 'revealing', phase_started_at: new Date().toISOString() }));
 });
@@ -6160,11 +6194,36 @@ app.post('/api/quiz/join', async (c) => {
     user = await createUser({ device_id, nickname: participantNickname });
   }
 
-  const participant = await createQuizParticipant({
-    quiz_session_id: session.id,
-    user_id: user.id,
-    nickname_used: participantNickname,
-  });
+  let participant: QuizParticipant | undefined;
+  if (systemDesignLearningRoom) {
+    const maxAliasAttempts = 8;
+    for (let attempt = 0; attempt < maxAliasAttempts; attempt += 1) {
+      try {
+        participant = await createQuizParticipant({
+          quiz_session_id: session.id,
+          user_id: user.id,
+          nickname_used: participantNickname,
+        }, { enforceUniqueName: true });
+        break;
+      } catch (error) {
+        if (!(error instanceof QuizParticipantNicknameTakenError)) throw error;
+        const latestParticipants = await getQuizParticipantsBySession(session.id);
+        participantNickname = generateParticipantAlias(
+          latestParticipants.map((roomParticipant) => roomParticipant.nickname_used),
+        );
+      }
+    }
+
+  } else {
+    participant = await createQuizParticipant({
+      quiz_session_id: session.id,
+      user_id: user.id,
+      nickname_used: participantNickname,
+    });
+  }
+  if (!participant) {
+    return c.json({ error: 'We could not reserve a unique room name. Please try joining again.' }, 409);
+  }
   await updateUser(user.id, {
     events_participated: user.events_participated + 1,
   });
@@ -6245,6 +6304,30 @@ app.post('/api/quiz/answer', async (c) => {
 
   if (session.question_phase !== 'answering') {
     return c.json({ error: 'Question is not accepting answers' }, 400);
+  }
+
+  try {
+    const atomicResult = await submitQuizAnswerAtomically(session_id, user_id, answer_index);
+    if (atomicResult) {
+      const user = await getUserById(user_id);
+      if (user && !user.merged_into_user_id) {
+        await updateUser(user.id, { total_points: user.total_points + atomicResult.points_awarded });
+      }
+      return c.json(session.purpose === 'system_design_learning'
+        ? { accepted: true }
+        : atomicResult);
+    }
+  } catch (error) {
+    if (error instanceof QuizAnswerConflictError) {
+      const messageByReason = {
+        already_answered: 'Already answered this question',
+        not_accepting: 'Question is not accepting answers',
+        too_late: 'Answer submitted too late',
+        participant_missing: 'Participant not found',
+      } as const;
+      return c.json({ error: messageByReason[error.reason] }, 400);
+    }
+    throw error;
   }
 
   const questions = await getQuestionsBySession(session_id);
@@ -6884,42 +6967,7 @@ async function buildMonthlyLeaderboard(): Promise<(LeaderboardEntry & { events_p
 }
 
 async function mergeParticipantRecords(target: User, source: User) {
-  const participants = await readData<QuizParticipant>('quiz-participants');
-  const participantBySession = new Map<string, QuizParticipant>();
-  const participantIndexesToDelete: number[] = [];
-
-  for (const participant of participants) {
-    if (participant.user_id === target.id) {
-      participantBySession.set(participant.quiz_session_id, participant);
-    }
-  }
-
-  for (let index = 0; index < participants.length; index += 1) {
-    const participant = participants[index];
-    if (participant.user_id !== source.id) {
-      continue;
-    }
-
-    const targetParticipant = participantBySession.get(participant.quiz_session_id);
-
-    if (!targetParticipant) {
-      participant.user_id = target.id;
-      participantBySession.set(participant.quiz_session_id, participant);
-      continue;
-    }
-
-    targetParticipant.total_score += participant.total_score;
-    targetParticipant.current_streak = Math.max(targetParticipant.current_streak, participant.current_streak);
-    participantIndexesToDelete.push(index);
-  }
-
-  if (participantIndexesToDelete.length > 0) {
-    const removeSet = new Set(participantIndexesToDelete);
-    await writeData<QuizParticipant>('quiz-participants', participants.filter((_, index) => !removeSet.has(index)));
-    return;
-  }
-
-  await writeData<QuizParticipant>('quiz-participants', participants);
+  await mergeQuizParticipantUsers(target.id, source.id);
 }
 
 async function mergeResponseRecords(target: User, source: User) {
