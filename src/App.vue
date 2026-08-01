@@ -4,6 +4,7 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import { useRoute, useRouter } from 'vue-router';
 import OrganizerSessionPause from './components/OrganizerSessionPause.vue';
 import AppToaster from './components/ui/AppToaster.vue';
+import AppBootScreen from './components/ui/AppBootScreen.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
 import { annualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
@@ -819,16 +820,11 @@ onUnmounted(() => {
           @secondary="returnToOrganizerSignIn"
         />
 
-        <AdminLoginView
+        <AppBootScreen
           v-else-if="showOrganizerAccessGate"
           class="page-view"
-          managed
-          access-title="Checking access."
-          access-description="We are confirming your organizer session and restoring your destination."
-          action-label="Checking session…"
-          access-note="The protected workspace stays closed until this check succeeds."
-          busy
-          action-disabled
+          title="Opening the workspace."
+          copy="Checking your organizer access and restoring this page."
         />
 
         <RouterView v-else v-slot="{ Component, route }">

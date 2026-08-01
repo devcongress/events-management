@@ -12,6 +12,18 @@ const MEETUP_MEDIA_TYPES = new Map([
 
 export type MeetupMediaPurpose = 'cover' | 'photo';
 
+export function meetupMediaPath(
+  eventSlug: string,
+  purpose: MeetupMediaPurpose,
+  extension: string,
+  fileId: string,
+): string {
+  const safeSlug = slugify(eventSlug) || 'event';
+  return purpose === 'cover'
+    ? `events/${safeSlug}/covers/${fileId}.${extension}`
+    : `events/${safeSlug}/photos/${fileId}.${extension}`;
+}
+
 export function validateMeetupMediaFile(file: File): string | null {
   if (file.size > MEETUP_MEDIA_MAX_BYTES) {
     return 'Image must be 5MB or smaller';
@@ -78,11 +90,8 @@ export async function uploadMeetupMedia(
     throw new Error('Unsupported image type');
   }
 
-  const safeSlug = slugify(eventSlug) || 'event';
   const fileId = crypto.randomUUID();
-  const path = purpose === 'cover'
-    ? `events/${safeSlug}/cover.${extension}`
-    : `events/${safeSlug}/photos/${fileId}.${extension}`;
+  const path = meetupMediaPath(eventSlug, purpose, extension, fileId);
 
   const { error } = await getSupabaseAdminClient(c)
     .storage
@@ -90,7 +99,7 @@ export async function uploadMeetupMedia(
     .upload(path, await file.arrayBuffer(), {
       cacheControl: '31536000',
       contentType: file.type,
-      upsert: purpose === 'cover',
+      upsert: false,
     });
 
   if (error) {

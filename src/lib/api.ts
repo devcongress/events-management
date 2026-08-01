@@ -250,7 +250,7 @@ export type AdminEventRegistrationsResponse =
 export interface PublicEventRegistrationResponse {
   available: boolean;
   unavailable_reason: 'draft' | 'closed' | 'not_open' | 'ended' | null;
-  event: Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'end_date' | 'cover' | 'location'>;
+  event: Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'end_date' | 'cover' | 'location' | 'updated_at'>;
   campaign: Pick<EventRegistrationCampaign, 'status' | 'opens_at' | 'closes_at' | 'waitlist_enabled'>;
 }
 

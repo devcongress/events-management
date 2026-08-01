@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-01 — Registration operations polish
+
+- Made uploaded event covers cache-safe by assigning each upload an immutable storage path and versioning existing Supabase cover requests with the event revision; aligned the public registration ticket with the uploader's 16:9 preview.
+- Added foreground 15-second registration polling, focus refresh, an immediate manual **Refresh** action, and last-updated feedback while preserving loaded figures during a transient refresh failure.
+- Kept the shared branded boot screen visible until the initial route is ready and reused it while protected organizer access resolves, giving hard refreshes one consistent loading state.
+- Removed the renderer-added blast salutation so the organizer's editable greeting appears once, and made **Reminder** the default new-blast template.
+
 ## 2026-08-01 — Organizer session safety
 
 - Added a server-enforced 30-minute organizer inactivity limit alongside the existing 12-hour absolute session lifetime.
