@@ -6,6 +6,7 @@ import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_REGISTRATION_TURNSTILE_ACTION } from '@/lib/turnstile';
+import { registrationFirstName } from '@/src/lib/registration-workspace';
 import {
   fetchPublicEventRegistration,
   queryKeys,
@@ -20,6 +21,7 @@ const form = reactive({ name: '', email: '' });
 const submitting = ref(false);
 const error = ref('');
 const receipt = ref<{ name: string } | null>(null);
+const receiptFirstName = computed(() => registrationFirstName(receipt.value?.name ?? ''));
 const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
 const turnstileToken = ref('');
 const turnstileError = ref('');
@@ -165,7 +167,7 @@ async function submitRegistration() {
             <p class="editorial-eyebrow">request received</p>
             <span class="registration-stub-code" aria-hidden="true">RSVP / CHECK EMAIL</span>
           </div>
-          <h2 class="registration-action-title">Thanks, {{ receipt.name }}.</h2>
+          <h2 class="registration-action-title">Thanks, {{ receiptFirstName }}.</h2>
           <p class="registration-action-copy">
             If this email can be registered, a confirmation or waitlist update will arrive shortly.
           </p>

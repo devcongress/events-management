@@ -6,6 +6,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
+import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
 import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
 import { createNativeEvent, deleteEventById, fetchEvents, queryKeys } from '@/src/lib/api';
 import { createEventFormSchema, toCreateEventApiPayload, toEventSlug } from '@/src/lib/event-form';
@@ -43,7 +44,11 @@ const form = reactive({
   series_type: 'monthly' as EventSeriesSelection,
   slug: '',
   cover: '',
+  location_kind: 'physical' as 'physical' | 'online',
+  physical_location_type: 'name' as 'name' | 'maps',
   location_name: '',
+  location_place_id: '',
+  require_ghana_venue_selection: true,
   location_url: '',
   stream_url: '',
   publish_to_website: false,
@@ -118,6 +123,14 @@ const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((a, b) =>
 const loading = computed(() => eventsQuery.isPending.value);
 const eventsError = computed(() => eventsQuery.error.value?.message ?? null);
 const seriesTypeOptions = EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
+const locationKindOptions = [
+  { value: 'physical', label: 'Physical location' },
+  { value: 'online', label: 'Online event' },
+];
+const physicalLocationTypeOptions = [
+  { value: 'name', label: 'Enter venue name' },
+  { value: 'maps', label: 'Use Google Maps link' },
+];
 const seriesFilterOptions = [
   { value: 'all', label: 'All types' },
   ...EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] })),
@@ -419,15 +432,28 @@ function goToPage(nextPage: number) {
               label="Event type"
               :options="seriesTypeOptions"
             />
-            <div>
-              <label for="event-location" class="editorial-label">Location <span class="text-red-600">*</span></label>
-              <input id="event-location" v-model="form.location_name" class="editorial-input" required placeholder="Fido, Accra">
-            </div>
+            <AppDropdown
+              v-model="form.location_kind"
+              label="Location type"
+              :options="locationKindOptions"
+            />
             <div class="md:col-span-2 -mt-2">
               <p class="text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
             </div>
-            <div>
-              <label for="event-location-url" class="editorial-label">Google Maps link</label>
+            <AppDropdown
+              v-if="form.location_kind === 'physical'"
+              v-model="form.physical_location_type"
+              label="Physical location details"
+              :options="physicalLocationTypeOptions"
+            />
+            <GhanaVenueAutocomplete
+              v-if="form.location_kind === 'physical' && form.physical_location_type === 'name'"
+              v-model="form.location_name"
+              v-model:place-id="form.location_place_id"
+              :disabled="createPending"
+            />
+            <div v-if="form.location_kind === 'physical' && form.physical_location_type === 'maps'">
+              <label for="event-location-url" class="editorial-label">Google Maps link <span class="text-red-600">*</span></label>
               <input
                 id="event-location-url"
                 v-model="form.location_url"
@@ -436,12 +462,13 @@ function goToPage(nextPage: number) {
                 maxlength="2048"
                 inputmode="url"
                 autocomplete="url"
+                required
                 placeholder="https://maps.app.goo.gl/..."
               >
-              <p class="mt-2 text-xs leading-5 text-dc-gray">Optional. Paste the Google Maps share link for the venue in Ghana.</p>
+              <p class="mt-2 text-xs leading-5 text-dc-gray">The public event will link directly to this location instead of showing a separate venue name.</p>
             </div>
-            <div>
-              <label for="event-stream-url" class="editorial-label">Video conference link</label>
+            <div v-if="form.location_kind === 'online'">
+              <label for="event-stream-url" class="editorial-label">Online event link <span class="text-red-600">*</span></label>
               <input
                 id="event-stream-url"
                 v-model="form.stream_url"
@@ -450,9 +477,10 @@ function goToPage(nextPage: number) {
                 maxlength="2048"
                 inputmode="url"
                 autocomplete="url"
+                required
                 placeholder="https://meet.google.com/..."
               >
-              <p class="mt-2 text-xs leading-5 text-dc-gray">Optional for online or hybrid events. Add the link attendees will use to join.</p>
+              <p class="mt-2 text-xs leading-5 text-dc-gray">Add the video conference or streaming link attendees will use to join.</p>
             </div>
             <EventCoverPicker
               v-model="form.cover"

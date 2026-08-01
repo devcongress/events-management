@@ -36,6 +36,10 @@ export interface RegistrationEmailSummary {
 
 type RegistrationEventTiming = Pick<Event, 'status' | 'event_date' | 'end_date'>;
 
+export function registrationFirstName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? '';
+}
+
 export function registrationEventHasEnded(
   event: RegistrationEventTiming,
   nowMs = Date.now(),

@@ -49,6 +49,7 @@ import {
 } from '@/lib/annual-conference-work-plan';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
+import { GooglePlacesSearchError, searchGhanaVenues } from '@/lib/google-places';
 import { canChangeChecklistItemAvailability } from '@/lib/event-checklist-policy';
 import { isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
 import {
@@ -3589,6 +3590,42 @@ app.get('/api/events', async (c) => {
   return c.json(await getAllEvents(c));
 });
 
+app.get('/api/admin/venues/search', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const queryResult = z.string().trim().min(2).max(120).safeParse(c.req.query('q'));
+  if (!queryResult.success) {
+    return c.json({ error: 'Enter at least two characters to search Ghana venues.' }, 400);
+  }
+
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: 'admin_venue_search',
+    clientKey: publicClientIp(c) ?? 'unknown-admin-client',
+    maxAttempts: 60,
+    windowSeconds: 60,
+  }, 'Too many venue searches. Wait a moment and try again.');
+  if (rateLimitError) return rateLimitError;
+
+  const apiKey = envValue('GOOGLE_MAPS_PLACES_API_KEY', c)?.trim();
+  if (!apiKey) {
+    return c.json({ error: 'Venue search is not configured.' }, 503);
+  }
+
+  try {
+    const venues = await searchGhanaVenues({ query: queryResult.data, apiKey });
+    return c.json({ venues });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'ghana_venue_search_failed',
+      provider_status: error instanceof GooglePlacesSearchError ? error.status : null,
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return c.json({ error: 'Venue search is temporarily unavailable.' }, 502);
+  }
+});
+
 app.post('/api/events', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
@@ -3602,6 +3639,11 @@ app.post('/api/events', async (c) => {
     end_date: body.end_date ?? '',
     slug: body.slug ?? '',
     cover: body.cover ?? '',
+    location_kind: body.location_kind
+      ?? (body.stream_url && (body.location?.name ?? body.location?.label) === 'Online' ? 'online' : 'physical'),
+    physical_location_type: body.physical_location_type ?? (body.location?.url ? 'maps' : 'name'),
+    location_place_id: body.location_place_id ?? '',
+    require_ghana_venue_selection: Boolean(body.require_ghana_venue_selection),
     location_name: body.location?.name ?? body.location?.label ?? '',
     location_url: body.location?.url ?? '',
     stream_url: body.stream_url ?? '',
@@ -3616,6 +3658,12 @@ app.post('/api/events', async (c) => {
   }
 
   const payload = toCreateEventApiPayload(parsed.data);
+  // Older API clients can create hybrid events without the organizer form's
+  // explicit location mode. Preserve their validated conference link while
+  // keeping the new organizer workflow mutually exclusive.
+  if (body.location_kind === undefined && body.stream_url) {
+    payload.stream_url = safeHttpUrl(body.stream_url);
+  }
 
   let event: Event | null = null;
   try {

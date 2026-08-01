@@ -48,6 +48,38 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('returns authenticated Google Places suggestions restricted to Ghana', async () => {
+    vi.stubEnv('GOOGLE_MAPS_PLACES_API_KEY', 'server-places-key');
+    const providerFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+      suggestions: [{
+        placePrediction: {
+          placeId: 'ghana-place-1',
+          text: { text: 'Fido, Accra, Ghana' },
+          structuredFormat: {
+            mainText: { text: 'Fido' },
+            secondaryText: { text: 'Accra, Ghana' },
+          },
+        },
+      }],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', providerFetch);
+
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/admin/venues/search?q=Fido');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      venues: [{
+        placeId: 'ghana-place-1',
+        name: 'Fido',
+        address: 'Accra, Ghana',
+        label: 'Fido, Accra, Ghana',
+      }],
+    });
+    const requestBody = JSON.parse(String(providerFetch.mock.calls[0]?.[1]?.body));
+    expect(requestBody).toMatchObject({ includedRegionCodes: ['gh'], regionCode: 'gh' });
+  });
+
   it('keeps a blast in a friendly capacity state when Broadcasts are not configured', async () => {
     const { default: app } = await import('./app');
     const createdResponse = await app.request('http://localhost/api/events', {

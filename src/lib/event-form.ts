@@ -67,7 +67,11 @@ export const createEventFormSchema = z.object({
   end_date: z.string().trim().optional().default(''),
   slug: z.string().trim().optional().default(''),
   cover: z.string().trim().optional().default(''),
-  location_name: z.string().trim().min(1, 'Add the meetup location.'),
+  location_kind: z.enum(['physical', 'online']).default('physical'),
+  physical_location_type: z.enum(['name', 'maps']).default('name'),
+  location_name: z.string().trim().max(200, 'The venue name is too long.').optional().default(''),
+  location_place_id: z.string().trim().max(255, 'The selected venue identifier is too long.').optional().default(''),
+  require_ghana_venue_selection: z.boolean().default(false),
   location_url: z.string().trim().max(2048, 'The Google Maps link is too long.').optional().default(''),
   stream_url: z.string().trim().max(2048, 'The video conference link is too long.').optional().default(''),
   publish_to_website: z.boolean().default(false),
@@ -139,19 +143,44 @@ export const createEventFormSchema = z.object({
     });
   }
 
-  if (value.location_url && !safeGoogleMapsUrl(value.location_url)) {
+  if (value.location_kind === 'physical' && value.physical_location_type === 'name' && !value.location_name) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['location_url'],
-      message: OPTIONAL_MAP_MESSAGE,
+      path: ['location_name'],
+      message: 'Add the venue name.',
     });
   }
 
-  if (value.stream_url && !isFullUrl(value.stream_url)) {
+  if (
+    value.location_kind === 'physical'
+    && value.physical_location_type === 'name'
+    && value.require_ghana_venue_selection
+    && !value.location_place_id
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['location_place_id'],
+      message: 'Select a valid Ghana venue from the suggestions.',
+    });
+  }
+
+  if (
+    value.location_kind === 'physical'
+    && value.physical_location_type === 'maps'
+    && !safeGoogleMapsUrl(value.location_url)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['location_url'],
+      message: value.location_url ? OPTIONAL_MAP_MESSAGE : 'Add the Google Maps link for the venue.',
+    });
+  }
+
+  if (value.location_kind === 'online' && !isFullUrl(value.stream_url)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['stream_url'],
-      message: OPTIONAL_URL_MESSAGE,
+      message: value.stream_url ? OPTIONAL_URL_MESSAGE : 'Add the online event link.',
     });
   }
 });
@@ -160,7 +189,13 @@ export type CreateEventFormInput = z.input<typeof createEventFormSchema>;
 export type CreateEventFormPayload = z.output<typeof createEventFormSchema>;
 
 export function toCreateEventApiPayload(value: CreateEventFormPayload) {
-  const locationLabel = value.location_name.trim();
+  const online = value.location_kind === 'online';
+  const mapsLocation = !online && value.physical_location_type === 'maps';
+  const locationLabel = online
+    ? 'Online'
+    : mapsLocation
+      ? 'Google Maps location'
+      : value.location_name.trim();
 
   return {
     name: value.name,
@@ -170,12 +205,16 @@ export function toCreateEventApiPayload(value: CreateEventFormPayload) {
     end_date: value.end_date ? normalizeEventDateValue(value.end_date) : null,
     slug: emptyToNull(value.slug),
     cover: emptyToNull(value.cover),
+    location_kind: value.location_kind,
+    physical_location_type: value.physical_location_type,
+    location_place_id: value.location_place_id,
+    require_ghana_venue_selection: value.require_ghana_venue_selection,
     location: {
       label: locationLabel,
       name: locationLabel,
-      url: safeGoogleMapsUrl(value.location_url),
+      url: mapsLocation ? safeGoogleMapsUrl(value.location_url) : null,
     },
-    stream_url: emptyToNull(value.stream_url),
+    stream_url: online ? emptyToNull(value.stream_url) : null,
     embed_stream: false,
     publish_to_website: value.publish_to_website,
     registration: {

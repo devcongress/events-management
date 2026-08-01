@@ -49,6 +49,7 @@
   - APIs: `/api/events/[eventId]`, `/api/events/[eventId]/checklist`, `/api/events/[eventId]/speaker-submissions`, `/api/events/[eventId]/registrations`, `/api/registration/events/[eventId]`, `/api/cfp`
   - Mock DB: `lib/mock-db/event-checklists.ts` stores per-event organizer run sheets and status-changing milestones.
 - **Native registration**
+  - `GET /api/admin/venues/search?q=...` proxies authenticated, rate-limited Places API (New) autocomplete and returns a narrow Ghana-only venue DTO without exposing the provider key.
   - `POST /api/events` creates the classified event and one draft registration campaign as one application command; a failed campaign write compensates by removing the new event.
   - Authenticated registration reads return `managed_internally: true` with the private campaign/guest list, or `managed_internally: false` for an existing historical event with no campaign. Unknown events remain `404`, and reads never create campaigns or synthetic attendees.
   - `register_for_event` serializes capacity allocation per campaign in Postgres, rejects duplicate active emails, confirms within capacity, and automatically waitlists overflow. The legacy `auto_confirm` and `waitlist_enabled` columns remain fixed internal compatibility fields and are no longer organizer-controlled. `cancel_registration_and_promote` takes the same campaign lock, cancels the selected registration, promotes the oldest waitlisted guest when a confirmed place opens, and queues the promotion delivery in the same transaction.

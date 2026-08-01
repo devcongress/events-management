@@ -213,6 +213,13 @@ export interface CreateNativeEventResponse {
   registration_campaign: EventRegistrationCampaign;
 }
 
+export interface GhanaVenueSuggestion {
+  placeId: string;
+  name: string;
+  address: string;
+  label: string;
+}
+
 export interface AdminManagedEventRegistrationsResponse {
   managed_internally: true;
   event: Event;
@@ -338,6 +345,14 @@ export function createNativeEvent(input: Record<string, unknown>) {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+}
+
+export function searchGhanaVenues(query: string, signal?: AbortSignal) {
+  const search = new URLSearchParams({ q: query });
+  return fetchJson<{ venues: GhanaVenueSuggestion[] }>(`/api/admin/venues/search?${search}`, {
+    credentials: 'include',
+    signal,
   });
 }
 

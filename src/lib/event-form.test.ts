@@ -82,11 +82,16 @@ describe('event video conference link', () => {
       description: 'A remote community meetup.',
       event_date: '2026-08-20',
       series_type: 'monthly',
-      location_name: 'Online',
+      location_kind: 'online',
       stream_url: '  https://meet.google.com/abc-defg-hij  ',
     });
 
     expect(toCreateEventApiPayload(parsed)).toMatchObject({
+      location_kind: 'online',
+      location: {
+        name: 'Online',
+        url: null,
+      },
       stream_url: 'https://meet.google.com/abc-defg-hij',
       embed_stream: false,
     });
@@ -98,7 +103,7 @@ describe('event video conference link', () => {
       description: 'A remote community meetup.',
       event_date: '2026-08-20',
       series_type: 'monthly',
-      location_name: 'Online',
+      location_kind: 'online',
       stream_url: 'javascript:alert(1)',
     });
 
@@ -107,18 +112,41 @@ describe('event video conference link', () => {
 });
 
 describe('event Ghana map link', () => {
-  it('normalizes a Google Maps share link into the native location', () => {
+  it('requires the organizer venue field to come from a Ghana place suggestion', () => {
+    const typedOnly = createEventFormSchema.safeParse({
+      name: 'DevCongress Accra Meetup',
+      description: 'An in-person community meetup.',
+      event_date: '2026-08-20',
+      series_type: 'monthly',
+      location_name: 'Fido, Accra',
+      require_ghana_venue_selection: true,
+    });
+    expect(typedOnly.success).toBe(false);
+
+    const selected = createEventFormSchema.safeParse({
+      name: 'DevCongress Accra Meetup',
+      description: 'An in-person community meetup.',
+      event_date: '2026-08-20',
+      series_type: 'monthly',
+      location_name: 'Fido, Accra, Ghana',
+      location_place_id: 'ghana-place-1',
+      require_ghana_venue_selection: true,
+    });
+    expect(selected.success).toBe(true);
+  });
+
+  it('uses a Google Maps share link as the physical location without a separate venue name', () => {
     const parsed = createEventFormSchema.parse({
       name: 'DevCongress Accra Meetup',
       description: 'An in-person community meetup.',
       event_date: '2026-08-20',
       series_type: 'monthly',
-      location_name: 'buro., Accra',
+      physical_location_type: 'maps',
       location_url: '  https://maps.app.goo.gl/n8u6C6TgdtW35db67  ',
     });
 
     expect(toCreateEventApiPayload(parsed).location).toMatchObject({
-      name: 'buro., Accra',
+      name: 'Google Maps location',
       url: 'https://maps.app.goo.gl/n8u6C6TgdtW35db67',
     });
   });
@@ -129,10 +157,27 @@ describe('event Ghana map link', () => {
       description: 'An in-person community meetup.',
       event_date: '2026-08-20',
       series_type: 'monthly',
-      location_name: 'Accra',
+      physical_location_type: 'maps',
       location_url: 'https://example.com/venue',
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it('does not save a hidden map link when the organizer chooses a venue name', () => {
+    const parsed = createEventFormSchema.parse({
+      name: 'DevCongress Accra Meetup',
+      description: 'An in-person community meetup.',
+      event_date: '2026-08-20',
+      series_type: 'monthly',
+      location_name: 'Fido, Accra',
+      location_url: 'https://maps.app.goo.gl/n8u6C6TgdtW35db67',
+    });
+
+    expect(toCreateEventApiPayload(parsed).location).toEqual({
+      label: 'Fido, Accra',
+      name: 'Fido, Accra',
+      url: null,
+    });
   });
 });

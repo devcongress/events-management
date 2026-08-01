@@ -15,7 +15,7 @@ Historical events without a native campaign remain readable but are explicitly l
 ## Organizer Flow
 
 1. Open **Events → Create Event**.
-2. Enter the event details, including the actual start/end time and optional Ghana venue Google Maps share link; classify it as monthly, quarterly, special, or **None of these**, optionally add a video conference link for an online or hybrid event, and set the free registration capacity/window.
+2. Enter the event details and choose one location path. Physical events either select a verified Ghana venue from the Google Places dropdown or provide a Google Maps share link; online events provide their joining link. Then classify the event as monthly, quarterly, special, or **None of these** and set the free registration capacity/window.
 3. Submit once to create both the event and a draft registration campaign.
 4. Open the event’s **Registration** tab. Its quiet internal workspace navigation is limited to **Summary**, **Guests**, **Form & capacity**, **Emails**, and **Blasts**.
 5. Use **Summary** for one lifecycle-aware registration story: before the event it pairs confirmed registrations, capacity progress, and places left; during the event it becomes check-in progress and guests still to arrive; after the event it becomes final attendance and no-shows. The empty open-campaign state offers one **Copy registration link** action, while waitlist and cancellation details appear only when they exist.
@@ -98,7 +98,7 @@ Provider acceptance is recorded as `accepted`; it is not proof of inbox delivery
 ## Current Boundaries
 
 - Monthly meetup registration is free.
-- Ghana venues currently use organizer-pasted Google Maps share links; provider-backed place autocomplete and country verification remain a separate enhancement.
+- Venue-name search uses authenticated, server-proxied Google Places (New) predictions restricted to Ghana. It requires the server-only `GOOGLE_MAPS_PLACES_API_KEY`; organizers can alternatively use the explicit Google Maps-link location mode.
 - Online and hybrid events may store an optional HTTP(S) video conference link in the existing event stream field.
 - Paid December 2026 registration, payment-provider webhooks, refunds, and ticket reconciliation are not part of this slice.
 - Historical Luma event metadata and uploaded Luma attendance CSVs remain readable; active Luma event preview/import routes are removed.
