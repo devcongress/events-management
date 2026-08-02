@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-02 — Temporary local Turnstile submissions
+
+- Temporarily allowed real event-submission Turnstile tokens from `localhost` and `127.0.0.1` so the local public website can exercise the deployed moderation and Supabase flow without weakening action checks, token validation, or rate limits.
+
 ## 2026-08-01 — Community event submission and moderation
 
 - Added a strict, Turnstile-protected and distributed-rate-limited public proposal API backed by a service-role-only relational moderation queue.
