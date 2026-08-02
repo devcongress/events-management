@@ -1,3 +1,5 @@
+import { isTestEventTitle, TEST_EVENT_PREFIX } from '@/lib/event-test-mode';
+
 export const EMAIL_SUBJECT_MAX_LENGTH = 160;
 
 export const EMAIL_SENDERS = {
@@ -27,7 +29,12 @@ function subjectText(value: string, fallback: string): string {
 }
 
 function eventSubject(prefix: string, eventName: string, fallback = 'DevCongress event'): string {
-  return subjectText(`${prefix}${subjectText(eventName, fallback)}`, `${prefix}${fallback}`);
+  const normalizedName = subjectText(eventName, fallback);
+  if (isTestEventTitle(normalizedName)) {
+    const unmarkedName = normalizedName.slice(TEST_EVENT_PREFIX.length).trim() || fallback;
+    return subjectText(`${TEST_EVENT_PREFIX} ${prefix}${unmarkedName}`, `${TEST_EVENT_PREFIX} ${prefix}${fallback}`);
+  }
+  return subjectText(`${prefix}${normalizedName}`, `${prefix}${fallback}`);
 }
 
 export const emailSubjects = {

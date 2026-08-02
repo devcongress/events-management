@@ -11,6 +11,7 @@
     "start": "bun run server/index.ts",
     "typecheck": "vue-tsc --noEmit",
     "seed": "tsx data/seed.ts",
+    "cleanup:test-events": "bun run scripts/cleanup-test-event-data.ts",
     "verify:public-api": "tsx scripts/verify-public-meetups-api.ts",
     "test": "vitest run",
     "audit:dependencies": "pnpm audit --audit-level moderate"

@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-039: Variable-Controlled Prefix and Manual Cleanup for Pre-Launch Event Testing
+
+**Date:** 2026-08-02
+**Status:** Accepted as temporary pre-launch practice
+**Context:** DevCongress needs trusted testers to exercise the real hosted event-creation, submission, moderation, publication, and notification paths before opening them publicly. A separate development database and permanent development deployment are not currently affordable, while merging a full test-data lane would add product and schema work that is not required for this short acceptance period.
+**Decision:** Run the acceptance pass against the existing hosted project with the server-only `EVENT_TEST_MODE=true` variable. While enabled, the server prefixes every new public submission and organizer-created event with `[TEST]`; approval retains that stored marker, and event-related email subjects lead with the same marker. Clients cannot select the mode. Provide a local, service-role-only cleanup command that defaults to a read-only preview, discovers promoted events through their submission relationship as well as the fixed prefix, requires the exact `DELETE_TEST_EVENT_DATA` confirmation to execute, deletes canonical events before submissions, and verifies that no matching application records remain. Set the variable to `false` only after cleanup. Preserve the append-only administrator audit ledger and acknowledge that email already accepted by the provider cannot be recalled.
+**Trade-offs:** Test and production records still share one schema and failure domain. The flag affects only newly created data and does not retroactively relabel existing rows. The fixed prefix remains the cleanup selector, so test titles must not be renamed before cleanup and every dry-run row must be reviewed. The REST deletes are ordered and safely repeatable but are not one database transaction. This workflow is acceptable only while public submissions are not generally available.
+**Alternatives considered:** Provision a second Supabase project and development URL (current cost constraint), add permanent test/production scope columns and feeds (safer long-term but larger than the pre-launch need), delete all recently created records by timestamp (could capture legitimate concurrent work), or delete all submissions indiscriminately (unacceptably broad).
+**Revisit when:** The public submission form is opened generally, testing overlaps real submissions, a recurring acceptance environment is needed, or cleanup must be atomic across all related records.
+
+---
+
 ## ADR-038: Durable Community-Submission Decision Notifications
 
 **Date:** 2026-08-02

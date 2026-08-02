@@ -66,6 +66,7 @@ import {
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
+import { eventTestModeEnabled, markTestEventTitle } from '@/lib/event-test-mode';
 import { createMockAnnualConferenceTask, getMockAnnualConferenceWorkPlan, updateMockAnnualConferenceTask } from '@/lib/mock-db/annual-conference-work-plan';
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
@@ -899,22 +900,26 @@ async function createEvent(data: {
   photos?: Event['photos'];
   publish_to_website?: boolean;
 }, c?: Context): Promise<Event> {
-  const event = await createSupabaseCommunityEvent(data, c);
+  const markedData = {
+    ...data,
+    name: markTestEventTitle(data.name, eventTestModeEnabled(envValue('EVENT_TEST_MODE', c))),
+  };
+  const event = await createSupabaseCommunityEvent(markedData, c);
   if (event) return canonicalizeEventSchedule(event);
   return canonicalizeEventSchedule(await createMockEvent({
-    name: data.name,
-    description: data.description,
-    event_date: data.event_date,
-    series_type: data.series_type,
-    end_date: data.end_date ?? undefined,
-    slug: data.slug ?? undefined,
-    cover: data.cover ?? undefined,
-    location: data.location ?? undefined,
-    registration_url: data.registration_url ?? null,
-    stream_url: data.stream_url ?? null,
-    embed_stream: data.embed_stream ?? false,
-    photos: data.photos ?? [],
-    publish_to_website: data.publish_to_website ?? false,
+    name: markedData.name,
+    description: markedData.description,
+    event_date: markedData.event_date,
+    series_type: markedData.series_type,
+    end_date: markedData.end_date ?? undefined,
+    slug: markedData.slug ?? undefined,
+    cover: markedData.cover ?? undefined,
+    location: markedData.location ?? undefined,
+    registration_url: markedData.registration_url ?? null,
+    stream_url: markedData.stream_url ?? null,
+    embed_stream: markedData.embed_stream ?? false,
+    photos: markedData.photos ?? [],
+    publish_to_website: markedData.publish_to_website ?? false,
   }));
 }
 
@@ -3855,7 +3860,10 @@ app.post('/api/public/event-submissions', async (c) => {
 
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
-    const submission = await createEventSubmission(input, c);
+    const submission = await createEventSubmission({
+      ...input,
+      title: markTestEventTitle(input.title, eventTestModeEnabled(envValue('EVENT_TEST_MODE', c))),
+    }, c);
     await dispatchEventSubmissionEmails(c, {
       submissionId: submission.id,
       kinds: ['receipt'],

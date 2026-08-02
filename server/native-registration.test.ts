@@ -48,6 +48,27 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('marks newly created events when the server test-mode variable is enabled', async () => {
+    vi.stubEnv('EVENT_TEST_MODE', 'true');
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Acceptance-test meetup',
+        description: 'A temporary event for exercising the hosted workflow.',
+        event_date: '2099-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      event: { name: '[TEST] Acceptance-test meetup' },
+    });
+  });
+
   it('returns authenticated Google Places suggestions restricted to Ghana', async () => {
     vi.stubEnv('GOOGLE_MAPS_PLACES_API_KEY', 'server-places-key');
     const providerFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({

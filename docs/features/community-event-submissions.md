@@ -60,6 +60,14 @@ External promoted events retain the submitted organizer identity, have no DevCon
 
 Approval updates the public API immediately. The current Astro website is statically built, so its `/events/` page reflects the new listing after the next website build/deployment; the approval email links to the submitted registration/event page when available instead of depending on that refresh.
 
+## Temporary manual acceptance testing
+
+Before opening submissions to the general public, testers may exercise the hosted submission, approval, rejection, publication, and email paths against the existing Supabase project. Set the server-only `EVENT_TEST_MODE=true` Worker variable for the controlled test window. The server then prefixes every newly submitted or directly created event title with `[TEST]`; clients cannot opt out, and approved events inherit the stored marker. Event-related email subjects put `[TEST]` first so recipients cannot mistake them for live communication.
+
+`pnpm cleanup:test-events` is dry-run-only: it lists matching submissions, directly created events, and canonical events promoted from matching submissions. After reviewing every row, `pnpm cleanup:test-events -- --execute --confirm DELETE_TEST_EVENT_DATA` deletes the canonical events first and then their submissions. Submission email-outbox records cascade from the submission delete. The command verifies that no matching records remain.
+
+After the dry run and cleanup report zero matching records, set `EVENT_TEST_MODE=false` before opening the form publicly. Changing the variable affects only new records; it does not relabel or approve existing test data. This is a temporary, controlled pre-launch workflow rather than test/production data isolation. The cleanup uses the Supabase service-role key from local environment configuration and must not run from a browser or CI job. Administrator audit history and email already delivered to testers remain; provider email cannot be recalled. Once the public form is opened, use explicit test-data scoping instead of relying on a title prefix.
+
 ## Deliberate follow-ups
 
 - Verified delivered/bounced state requires a signature-checked Resend webhook; the current system deliberately stops at provider acceptance.

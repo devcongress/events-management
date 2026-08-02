@@ -10,6 +10,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `VITE_FORCE_API_BASE_URL` | No | Yes | Set to `true` only for public-read smoke tests that intentionally bypass the Pages `/api/*` proxy |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional locally, required for server Supabase writes | No | Server-only key for privileged Supabase operations |
 | `APP_DATA_SOURCE` | Yes for organizer access and deployed Worker | No | Data-source mode for server helpers: use `supabase` for every organizer-capable runtime; use `local-json` only for public-only local work |
+| `EVENT_TEST_MODE` | No | No | Temporary pre-launch switch. `true` prefixes every newly created event and public event submission with `[TEST]`; `false` or unset leaves new titles live. Invalid values fail event creation instead of silently creating live data. |
 | `VITE_ADMIN_BASE_PATH` | No | Yes | Organizer route prefix; defaults to `/organizer-console` |
 | `VITE_SHOW_ORGANIZER_LINK` | No | Yes | Public header visibility for the Organizer entry point; set to `false` to hide the button in production |
 | `VITE_TURNSTILE_SITE_KEY` | Required for production public writes | Yes | Browser-safe Cloudflare Turnstile sitekey used by route feedback, event feedback, volunteer, registration, and CFP forms |
@@ -42,6 +43,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Google OAuth client credentials live in the Supabase dashboard provider settings, not in this app repo.
 - Keep `APP_DATA_SOURCE=supabase`, `PUBLIC_APP_URL`, and `PUBLIC_FRONTEND_ORIGIN` in `wrangler.toml` for Cloudflare Worker deploys; dashboard-only Worker variables can be removed by subsequent `wrangler deploy` runs.
 - Native creation is the only active event-creation path. Historical Luma metadata and attendance CSVs remain readable, but the app no longer fetches public Luma event pages.
+- Use `EVENT_TEST_MODE=true` only for a controlled pre-launch test window. Run the documented dry-run and cleanup command before returning it to `false`; switching it off does not modify existing test records.
 - Owners can use `/api/health/data-sources` to compare local and deployed persistence. The server falls back to `local-json` when local/dev runs omit `APP_DATA_SOURCE`, but the committed example selects `supabase` because organizer auth requires it. Matching `supabase.project_ref` values mean Supabase-backed domains are using the same project. Domains reported as `supabase-json` share the `app_json_documents` bridge table; domains reported as `local-json` still read from each runtime's local data files.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
