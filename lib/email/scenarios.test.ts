@@ -25,6 +25,17 @@ describe('email scenario policy', () => {
     expect(EMAIL_SCENARIOS.filter((scenario) => scenario.id.startsWith('community_submission_')).every((scenario) => scenario.status === 'active')).toBe(true);
   });
 
+  it('puts the test marker at the front of event-related subjects', () => {
+    expect(emailSubjects.registrationConfirmed('[TEST] Community workshop'))
+      .toBe('[TEST] You are registered for Community workshop');
+    expect(emailSubjects.communitySubmissionReceipt('[TEST] Community workshop'))
+      .toBe('[TEST] We received your event submission: Community workshop');
+    expect(emailSubjects.communitySubmissionApproved('[TEST] Community workshop'))
+      .toBe('[TEST] Your event is now listed: Community workshop');
+    expect(emailSubjects.communitySubmissionRejected('[TEST] Community workshop'))
+      .toBe('[TEST] Update on your event submission: Community workshop');
+  });
+
   it('normalizes header controls and bounds every generated subject', () => {
     const subject = emailSubjects.communitySubmissionRejected(`Test event\r\nBcc: attacker@example.com ${'x'.repeat(220)}`);
     expect(subject).not.toMatch(/[\r\n]/);

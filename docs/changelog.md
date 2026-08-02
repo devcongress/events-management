@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-02 — Manual event acceptance-test cleanup
+
+- Added a dry-run-first cleanup command for pre-launch event testing, narrowly selecting submissions and events whose titles begin with `[TEST]` and also tracing canonical events promoted from those submissions.
+- Added a server-only `EVENT_TEST_MODE` switch that automatically marks new organizer-created events and public submissions, preserves the marker through approval, and places `[TEST]` first in related transactional email subjects.
+- Required an explicit destructive confirmation, deleted canonical events before submissions, verified that matching records no longer remain, and retained admin audit history and already-delivered provider email.
+- Documented the temporary same-database testing convention and its retirement trigger before general public submissions begin.
+
 ## 2026-08-02 — Durable community submission notifications
 
 - Added transactional receipt, approval, and rejection email outbox records with stable per-submission idempotency keys, provider acceptance/failure state, and safe retries that never repeat a moderation decision.

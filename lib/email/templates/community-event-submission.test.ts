@@ -44,4 +44,15 @@ describe('community event submission email', () => {
     expect(email.html).toContain('&lt;Thanks&gt;');
     expect(email).not.toHaveProperty('internalNote');
   });
+
+  it('keeps test submissions visibly marked in the subject and message', () => {
+    const email = communityEventSubmissionEmail({
+      ...base,
+      kind: 'approved',
+      eventTitle: '[TEST] Systems & Safety',
+    });
+
+    expect(email.subject).toBe('[TEST] Your event is now listed: Systems & Safety');
+    expect(email.text).toContain('[TEST] Systems & Safety');
+  });
 });

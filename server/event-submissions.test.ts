@@ -140,6 +140,21 @@ describe('community event submissions', () => {
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
   });
 
+  it('marks new submissions when the server test-mode variable is enabled', async () => {
+    vi.stubEnv('EVENT_TEST_MODE', 'true');
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(202);
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      title: `[TEST] ${submission.title}`,
+    }), expect.anything());
+  });
+
   it('attempts the durable receipt after accepting the public submission', async () => {
     vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
     vi.stubEnv('EVENT_EMAIL_REPLY_TO', 'hello@devcongress.org');
