@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import { adminPath } from '@/src/admin-routes';
 import {
   approveEventSubmission,
@@ -408,22 +409,24 @@ function emailStatusClass(delivery: EventSubmissionEmailDelivery) {
               <template v-if="selectedSubmission.review_status === 'pending'">
                 <Transition name="submission-review">
                   <div v-if="rejecting" class="mb-4 space-y-4">
-                    <div>
-                      <label for="rejection-category" class="editorial-eyebrow">Reason category</label>
-                      <select id="rejection-category" v-model="rejectionCategory" class="mt-2 min-h-11 w-full rounded-md border-2 border-dc-border bg-white px-3 py-2 text-sm font-semibold text-dc-ink outline-none focus:border-dc-ink">
-                        <option value="" disabled>Choose a reason</option>
-                        <option v-for="option in rejectionOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                      </select>
-                    </div>
+                    <AppDropdown
+                      v-model="rejectionCategory"
+                      label="Reason category"
+                      placeholder="Choose a reason"
+                      :options="rejectionOptions"
+                      density="compact"
+                      required
+                      teleport
+                    />
                     <div>
                       <label for="organizer-message" class="editorial-eyebrow">Message to organizer (optional)</label>
                       <p class="mt-1 text-xs leading-5 text-dc-gray">This message will be included in the rejection email.</p>
-                      <textarea id="organizer-message" v-model="organizerMessage" maxlength="1200" rows="3" class="mt-2 w-full rounded-md border-2 border-dc-border bg-white px-3 py-2 text-sm text-dc-ink outline-none focus:border-dc-ink" placeholder="Add a helpful explanation or next step" />
+                      <textarea id="organizer-message" v-model="organizerMessage" maxlength="1200" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add a helpful explanation or next step" />
                     </div>
                     <div>
                       <label for="internal-note" class="editorial-eyebrow">Internal note (optional)</label>
                       <p class="mt-1 text-xs leading-5 text-dc-gray">Private to DevCongress organizers. Never included in email.</p>
-                      <textarea id="internal-note" v-model="internalNote" maxlength="1000" rows="3" class="mt-2 w-full rounded-md border-2 border-dc-border bg-white px-3 py-2 text-sm text-dc-ink outline-none focus:border-dc-ink" placeholder="Add private review context" />
+                      <textarea id="internal-note" v-model="internalNote" maxlength="1000" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add private review context" />
                     </div>
                     <div v-if="rejectionCategory" class="rounded-md border border-dc-border bg-white p-3">
                       <p class="editorial-eyebrow">Email preview</p>
