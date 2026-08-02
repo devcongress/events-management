@@ -1,3 +1,5 @@
+import { emailSubjects } from '@/lib/email/scenarios';
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -60,7 +62,7 @@ export function monthlyArchiveRequestEmail(input: {
     year: 'numeric',
   }).format(new Date(input.expiresAt));
   const safeExpiryLabel = escapeHtml(expiryLabel);
-  const subject = 'Your DevCongress archive link';
+  const subject = emailSubjects.speakerArchiveRequest(input.eventName);
 
   const html = `<!doctype html>
 <html lang="en">

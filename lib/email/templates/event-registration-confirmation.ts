@@ -1,4 +1,5 @@
 import { safeGoogleMapsUrl } from '@/lib/location-links';
+import { emailSubjects } from '@/lib/email/scenarios';
 import type { EventRegistrationStatus, RegistrationEmailKind } from '@/types';
 
 const EVENT_TIME_ZONE = 'Africa/Accra';
@@ -267,10 +268,10 @@ export function eventRegistrationConfirmationEmail(
   const eventName = textLine(input.eventName, 'DevCongress event');
   const locationName = textLine(input.locationName, 'Location to be announced');
   const subject = promoted
-    ? `A place opened up for ${eventName}`
+    ? emailSubjects.registrationPromoted(eventName)
     : waitlisted
-      ? `You are on the waitlist for ${eventName}`
-      : `You are registered for ${eventName}`;
+      ? emailSubjects.registrationWaitlisted(eventName)
+      : emailSubjects.registrationConfirmed(eventName);
   const heading = promoted
     ? 'You’re off the waitlist.'
     : waitlisted

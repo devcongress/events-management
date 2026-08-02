@@ -21,6 +21,14 @@ export type EventModerationStatus = 'pending' | 'approved' | 'rejected';
 export type EventPublicationStatus = 'draft' | 'published' | 'archived';
 export type EventLocationType = 'in_person' | 'online' | 'hybrid';
 export type EventSubmissionReviewStatus = 'pending' | 'approved' | 'rejected';
+export type EventSubmissionRejectionCategory =
+  | 'calendar_fit'
+  | 'insufficient_information'
+  | 'duplicate'
+  | 'event_passed'
+  | 'other';
+export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected';
+export type EventSubmissionEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
@@ -97,10 +105,23 @@ export interface EventSubmission {
   review_status: EventSubmissionReviewStatus;
   reviewed_by: string | null;
   reviewed_at: string | null;
-  rejection_reason: string | null;
+  rejection_category: EventSubmissionRejectionCategory | null;
+  organizer_message: string | null;
+  internal_note: string | null;
+  email_deliveries: EventSubmissionEmailDelivery[];
   approved_event_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface EventSubmissionEmailDelivery {
+  id: string;
+  kind: EventSubmissionEmailKind;
+  status: EventSubmissionEmailDeliveryStatus;
+  attempts: number;
+  last_error: string | null;
+  last_attempt_at: string | null;
+  accepted_at: string | null;
 }
 
 export interface EventRegistrationCampaign {

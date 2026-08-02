@@ -83,7 +83,6 @@ beforeEach(async () => {
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
   vi.stubEnv('NODE_ENV', 'test');
   vi.stubEnv('RESEND_API_KEY', 're_test');
-  vi.stubEnv('SPEAKER_EMAIL_FROM', 'DevCongress Monthly Speakers <speakers@updates.devcongress.org>');
   vi.stubEnv('SPEAKER_EMAIL_REPLY_TO', 'hello@devcongress.org');
 });
 
@@ -123,9 +122,9 @@ describe('speaker intake email API', () => {
     const resendPayload = JSON.parse(String(resendRequest?.body));
     expect(resendPayload).toEqual([
       expect.objectContaining({
-        from: 'DevCongress Monthly Speakers <speakers@updates.devcongress.org>',
+        from: 'DevCongress Speakers <speakers@updates.devcongress.org>',
         to: ['ama@example.com'],
-        subject: 'Your DevCongress archive link',
+        subject: 'Share your talk resources: DevCongress July Meetup',
         html: expect.stringContaining('/speaker-talks/event-july/'),
       }),
       expect.objectContaining({

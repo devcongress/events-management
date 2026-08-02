@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { emailSubjects } from '@/lib/email/scenarios';
 import { eventBlastEmail } from './templates/event-blast';
 
 const resendBatchResponseSchema = z.object({
@@ -148,8 +149,9 @@ export async function prepareResendBroadcast(input: {
     throw new ResendBroadcastError('The email provider did not accept the guest list.', createResponse.status);
   });
 
+  const subject = emailSubjects.customEventBlast(input.subject);
   const content = eventBlastEmail({
-    subject: input.subject,
+    subject,
     body: input.body,
     unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
     eventName: input.eventName,
@@ -167,7 +169,7 @@ export async function prepareResendBroadcast(input: {
       segment_id: segmentId,
       from: input.from,
       reply_to: input.replyTo,
-      subject: input.subject,
+      subject,
       html: content.html,
       text: content.text,
       send: false,

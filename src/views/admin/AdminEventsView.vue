@@ -32,6 +32,9 @@ import { adminPath } from '@/src/admin-routes';
 const route = useRoute();
 const router = useRouter();
 const queryClient = useQueryClient();
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+});
 const eventsQuery = useQuery({
   queryKey: queryKeys.events,
   queryFn: fetchEvents,
@@ -402,8 +405,8 @@ function goToPage(nextPage: number) {
 </script>
 
 <template>
-  <div class="editorial-page">
-    <div class="editorial-wrap">
+  <div :class="{ 'editorial-page': !props.embedded }">
+    <div :class="{ 'editorial-wrap': !props.embedded }">
       <template v-if="creating">
         <div class="editorial-header flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -575,7 +578,7 @@ function goToPage(nextPage: number) {
         <div class="editorial-header flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p class="editorial-eyebrow">organizer</p>
-            <h1 class="editorial-title">Event Management</h1>
+            <h1 class="editorial-title">Events</h1>
             <p class="editorial-subtitle">Create events, move them through the program lifecycle, and jump into talk, speaker, or quiz operations.</p>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">

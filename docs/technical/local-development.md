@@ -82,7 +82,7 @@ Run `pnpm seed` only when you intentionally want to reset local JSON data.
 
 ### Archive Request email says sending is not configured
 
-Cloudflare Worker secrets are not available to `pnpm dev`. Add `RESEND_API_KEY`, `SPEAKER_EMAIL_FROM`, and `SPEAKER_EMAIL_REPLY_TO` to `.env.local`, then restart Vite. Keep the API key server-only without a `VITE_` prefix, and never commit its value.
+Cloudflare Worker secrets are not available to `pnpm dev`. Add `RESEND_API_KEY` plus the relevant `SPEAKER_EMAIL_REPLY_TO` or `REGISTRATION_EMAIL_REPLY_TO` mailbox to `.env.local`, then restart Vite. Sender identities are code-owned in `lib/email/scenarios.ts`. Keep the API key server-only without a `VITE_` prefix, and never commit its value.
 
 ### Public meetup API shows fallback data
 

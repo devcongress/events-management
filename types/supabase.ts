@@ -10,6 +10,8 @@ export type CommunityEventSubmissionSource = 'internal' | 'public_submission';
 export type CommunityEventModerationStatus = 'pending' | 'approved' | 'rejected';
 export type CommunityEventPublicationStatus = 'draft' | 'published' | 'archived';
 export type CommunityEventLocationType = 'in_person' | 'online' | 'hybrid';
+export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected';
+export type EventSubmissionEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
@@ -462,7 +464,9 @@ export interface Database {
           review_status: CommunityEventModerationStatus;
           reviewed_by: string | null;
           reviewed_at: string | null;
-          rejection_reason: string | null;
+          rejection_category: string | null;
+          organizer_message: string | null;
+          internal_note: string | null;
           approved_event_id: string | null;
           created_at: string;
           updated_at: string;
@@ -489,7 +493,9 @@ export interface Database {
           review_status?: CommunityEventModerationStatus;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
-          rejection_reason?: string | null;
+          rejection_category?: string | null;
+          organizer_message?: string | null;
+          internal_note?: string | null;
           approved_event_id?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -501,6 +507,46 @@ export interface Database {
             columns: ['approved_event_id'];
             isOneToOne: false;
             referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_submission_email_deliveries: {
+        Row: {
+          id: string;
+          submission_id: string;
+          kind: EventSubmissionEmailKind;
+          status: EventSubmissionEmailDeliveryStatus;
+          attempts: number;
+          provider_id: string | null;
+          idempotency_key: string;
+          last_error: string | null;
+          last_attempt_at: string | null;
+          accepted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          submission_id: string;
+          kind: EventSubmissionEmailKind;
+          status?: EventSubmissionEmailDeliveryStatus;
+          attempts?: number;
+          provider_id?: string | null;
+          idempotency_key: string;
+          last_error?: string | null;
+          last_attempt_at?: string | null;
+          accepted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['event_submission_email_deliveries']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'event_submission_email_deliveries_submission_id_fkey';
+            columns: ['submission_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_submissions';
             referencedColumns: ['id'];
           },
         ];
@@ -1279,7 +1325,9 @@ export interface Database {
         Args: {
           p_submission_id: string;
           p_reviewed_by: string;
-          p_reason: string;
+          p_category: string;
+          p_organizer_message: string;
+          p_internal_note: string;
         };
         Returns: Database['public']['Tables']['event_submissions']['Row'];
       };
@@ -1360,6 +1408,8 @@ export interface Database {
       feedback_campaign_status: FeedbackCampaignStatus;
       feedback_question_type: FeedbackQuestionType;
       community_event_status: CommunityEventStatus;
+      event_submission_email_kind: EventSubmissionEmailKind;
+      event_submission_email_delivery_status: EventSubmissionEmailDeliveryStatus;
       event_registration_campaign_status: EventRegistrationCampaignStatus;
       event_registration_status: EventRegistrationStatus;
       registration_email_delivery_status: RegistrationEmailDeliveryStatus;

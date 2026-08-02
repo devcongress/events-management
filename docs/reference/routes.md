@@ -31,7 +31,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/mobile` | Canonical authenticated phone-only Mobile Ops surface. Authenticated phone visits to full organizer routes resolve here; tablets/desktops visiting this route resolve to `/organizer-console/events`. |
 | `/organizer-console/mobile/events/:eventId/check-in` | Dedicated authenticated phone check-in screen for one native event. It omits the global organizer navigation and returns to Mobile Ops through a visible back action; an existing event without a native campaign shows a historical-registration explanation, and tablets/desktops resolve the route to the event’s full Registration tab. |
 | `/organizer-console/events` | Organizer event list |
-| `/organizer-console/event-submissions` | Organizer moderation inbox for pending, approved, and rejected public event proposals |
+| `/organizer-console/events/submissions` | Events-workspace moderation inbox for pending, approved, and rejected public event proposals |
+| `/organizer-console/event-submissions` | Compatibility redirect to the Events-workspace community submissions inbox |
 | `/organizer-console/website-preview/events` | Authenticated, phone-safe preview of the published event collection rendered from the exact `GET /api/public/meetups` consumer payload |
 | `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/public/meetups/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
@@ -85,7 +86,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/public/meetups*` | Read-only website integration API |
 | `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and approved, published external listings |
 | `POST /api/public/event-submissions` | Strict public proposal intake with purpose-specific Turnstile hostname validation and distributed client/email limits |
-| `/api/admin/event-submissions*` | Organizer-only proposal inbox and transactional approve/reject actions |
+| `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, and idempotent failed-email retry |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Owner-only organizer email allowlist management |
 | `/api/admin/audit-log` | Owner-only audit log read API |

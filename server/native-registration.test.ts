@@ -120,7 +120,6 @@ describe('native event registration API', () => {
 
   it('retries a persisted provider draft without creating another blast audience', async () => {
     vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
-    vi.stubEnv('REGISTRATION_EMAIL_FROM', 'DevCongress Events <events@updates.devcongress.org>');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
     let sendAttempts = 0;
     const providerFetch = vi.fn(async (input: RequestInfo | URL) => {
@@ -677,7 +676,6 @@ describe('native event registration API', () => {
 
   it('sends confirmed, waitlist, and automatic promotion emails to the intended guest', async () => {
     vi.stubEnv('RESEND_API_KEY', 're_test');
-    vi.stubEnv('REGISTRATION_EMAIL_FROM', 'DevCongress Events <events@updates.devcongress.org>');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
     const providerFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       data: [{ id: 'email-1' }],

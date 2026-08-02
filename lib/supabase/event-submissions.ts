@@ -3,6 +3,10 @@ import type {
   EventFormat,
   EventLocationType,
   EventSubmission,
+  EventSubmissionEmailDelivery,
+  EventSubmissionEmailDeliveryStatus,
+  EventSubmissionEmailKind,
+  EventSubmissionRejectionCategory,
   EventSubmissionReviewStatus,
 } from '@/types';
 import type { Database } from '@/types/supabase';
@@ -10,6 +14,23 @@ import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
 
 type EventSubmissionRow = Database['public']['Tables']['event_submissions']['Row'];
 type EventSubmissionInsert = Database['public']['Tables']['event_submissions']['Insert'];
+type EventSubmissionEmailDeliveryRow = Database['public']['Tables']['event_submission_email_deliveries']['Row'];
+
+export type PendingEventSubmissionEmail = {
+  delivery_id: string;
+  submission_id: string;
+  idempotency_key: string;
+  attempts: number;
+  kind: EventSubmissionEmailKind;
+  organizer_name: string;
+  organizer_email: string;
+  event_title: string;
+  starts_at: string;
+  timezone: string;
+  registration_url: string | null;
+  rejection_category: EventSubmissionRejectionCategory | null;
+  organizer_message: string | null;
+};
 
 export type CreateEventSubmissionInput = {
   title: string;
@@ -77,7 +98,7 @@ export async function createEventSubmission(
     .single();
 
   if (error || !data) throw new EventSubmissionStorageError('Unable to save event submission.', 'unavailable');
-  return toEventSubmission(data);
+  return toEventSubmission(data, []);
 }
 
 export async function listEventSubmissions(
@@ -92,7 +113,11 @@ export async function listEventSubmissions(
   if (status) query = query.eq('review_status', status);
   const { data, error } = await query;
   if (error) throw new EventSubmissionStorageError('Unable to load event submissions.', 'unavailable');
-  return (data ?? []).map(toEventSubmission);
+  const deliveries = await loadEmailDeliveries((data ?? []).map((submission) => submission.id), c);
+  return (data ?? []).map((submission) => toEventSubmission(
+    submission,
+    deliveries.get(submission.id) ?? [],
+  ));
 }
 
 export async function approveEventSubmission(
@@ -109,24 +134,113 @@ export async function approveEventSubmission(
 
   if (error) throw reviewError(error.message);
   if (!data) throw new EventSubmissionStorageError('Event submission not found.', 'not_found');
-  return toEventSubmission(data);
+  return toEventSubmission(data, []);
 }
 
 export async function rejectEventSubmission(
   id: string,
   reviewerEmail: string,
-  reason: string,
+  input: {
+    category: EventSubmissionRejectionCategory;
+    organizer_message?: string;
+    internal_note?: string;
+  },
   c?: Context,
 ): Promise<EventSubmission> {
   const { data, error } = await requireStorage(c).rpc('reject_event_submission', {
     p_submission_id: id,
     p_reviewed_by: reviewerEmail,
-    p_reason: reason,
+    p_category: input.category,
+    p_organizer_message: input.organizer_message ?? '',
+    p_internal_note: input.internal_note ?? '',
   });
 
   if (error) throw reviewError(error.message);
   if (!data) throw new EventSubmissionStorageError('Event submission not found.', 'not_found');
-  return toEventSubmission(data);
+  return toEventSubmission(data, []);
+}
+
+export async function getPendingEventSubmissionEmails(
+  input: {
+    submissionId?: string;
+    kinds?: EventSubmissionEmailKind[];
+    statuses?: Array<Extract<EventSubmissionEmailDeliveryStatus, 'pending' | 'failed'>>;
+    limit?: number;
+  } = {},
+  c?: Context,
+): Promise<PendingEventSubmissionEmail[]> {
+  const client = requireStorage(c);
+  let deliveriesQuery = client
+    .from('event_submission_email_deliveries')
+    .select('*')
+    .in('kind', input.kinds ?? ['receipt', 'approved', 'rejected'])
+    .in('status', input.statuses ?? ['pending', 'failed'])
+    .order('created_at', { ascending: true })
+    .limit(input.limit ?? 100);
+  if (input.submissionId) deliveriesQuery = deliveriesQuery.eq('submission_id', input.submissionId);
+
+  const { data: deliveries, error: deliveriesError } = await deliveriesQuery;
+  if (deliveriesError) throw new EventSubmissionStorageError('Unable to load submission emails.', 'unavailable');
+  if (!deliveries?.length) return [];
+
+  const { data: submissions, error: submissionsError } = await client
+    .from('event_submissions')
+    .select('*')
+    .in('id', Array.from(new Set(deliveries.map((delivery) => delivery.submission_id))));
+  if (submissionsError) throw new EventSubmissionStorageError('Unable to load submission emails.', 'unavailable');
+
+  const submissionsById = new Map((submissions ?? []).map((submission) => [submission.id, submission]));
+  return deliveries.flatMap((delivery) => {
+    const submission = submissionsById.get(delivery.submission_id);
+    if (!submission) return [];
+    return [{
+      delivery_id: delivery.id,
+      submission_id: submission.id,
+      idempotency_key: delivery.idempotency_key,
+      attempts: delivery.attempts,
+      kind: delivery.kind,
+      organizer_name: submission.organizer_name,
+      organizer_email: submission.organizer_email,
+      event_title: submission.title,
+      starts_at: submission.starts_at,
+      timezone: submission.timezone,
+      registration_url: submission.registration_url ?? submission.online_url,
+      rejection_category: rejectionCategory(submission.rejection_category),
+      organizer_message: submission.organizer_message,
+    }];
+  });
+}
+
+export async function updateEventSubmissionEmailDelivery(
+  deliveryId: string,
+  input: {
+    status: EventSubmissionEmailDeliveryStatus;
+    provider_id?: string | null;
+    last_error?: string | null;
+  },
+  c?: Context,
+): Promise<void> {
+  const client = requireStorage(c);
+  const { data: current, error: currentError } = await client
+    .from('event_submission_email_deliveries')
+    .select('attempts')
+    .eq('id', deliveryId)
+    .single();
+  if (currentError) throw new EventSubmissionStorageError('Unable to update submission email.', 'unavailable');
+
+  const attemptedAt = new Date().toISOString();
+  const { error } = await client
+    .from('event_submission_email_deliveries')
+    .update({
+      status: input.status,
+      provider_id: input.provider_id ?? null,
+      last_error: input.last_error ?? null,
+      attempts: current.attempts + 1,
+      last_attempt_at: attemptedAt,
+      accepted_at: input.status === 'accepted' ? attemptedAt : null,
+    })
+    .eq('id', deliveryId);
+  if (error) throw new EventSubmissionStorageError('Unable to update submission email.', 'unavailable');
 }
 
 function reviewError(message: string): EventSubmissionStorageError {
@@ -142,7 +256,32 @@ function reviewError(message: string): EventSubmissionStorageError {
   return new EventSubmissionStorageError('Unable to review event submission.', 'unavailable');
 }
 
-function toEventSubmission(row: EventSubmissionRow): EventSubmission {
+async function loadEmailDeliveries(
+  submissionIds: string[],
+  c?: Context,
+): Promise<Map<string, EventSubmissionEmailDelivery[]>> {
+  const result = new Map<string, EventSubmissionEmailDelivery[]>();
+  if (submissionIds.length === 0) return result;
+
+  const { data, error } = await requireStorage(c)
+    .from('event_submission_email_deliveries')
+    .select('*')
+    .in('submission_id', submissionIds)
+    .order('created_at', { ascending: true });
+  if (error) throw new EventSubmissionStorageError('Unable to load submission email status.', 'unavailable');
+
+  for (const delivery of data ?? []) {
+    const items = result.get(delivery.submission_id) ?? [];
+    items.push(toEmailDelivery(delivery));
+    result.set(delivery.submission_id, items);
+  }
+  return result;
+}
+
+function toEventSubmission(
+  row: EventSubmissionRow,
+  emailDeliveries: EventSubmissionEmailDelivery[],
+): EventSubmission {
   return {
     id: row.id,
     title: row.title,
@@ -164,9 +303,37 @@ function toEventSubmission(row: EventSubmissionRow): EventSubmission {
     review_status: row.review_status,
     reviewed_by: row.reviewed_by,
     reviewed_at: row.reviewed_at,
-    rejection_reason: row.rejection_reason,
+    rejection_category: rejectionCategory(row.rejection_category),
+    organizer_message: row.organizer_message,
+    internal_note: row.internal_note,
+    email_deliveries: emailDeliveries,
     approved_event_id: row.approved_event_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+function toEmailDelivery(row: EventSubmissionEmailDeliveryRow): EventSubmissionEmailDelivery {
+  return {
+    id: row.id,
+    kind: row.kind,
+    status: row.status,
+    attempts: row.attempts,
+    last_error: row.last_error,
+    last_attempt_at: row.last_attempt_at,
+    accepted_at: row.accepted_at,
+  };
+}
+
+function rejectionCategory(value: string | null): EventSubmissionRejectionCategory | null {
+  if (
+    value === 'calendar_fit'
+    || value === 'insufficient_information'
+    || value === 'duplicate'
+    || value === 'event_passed'
+    || value === 'other'
+  ) {
+    return value;
+  }
+  return null;
 }
