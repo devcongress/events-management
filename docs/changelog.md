@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-02 — Rejection reason dropdown consistency
+
+- Replaced the browser-native rejection-reason select with the shared organizer app dropdown and aligned both rejection text areas with the non-resizable editorial input treatment, retaining the required reason, existing moderation payload, and compact drawer layout.
+
 ## 2026-08-02 — Manual event acceptance-test cleanup
 
 - Added a dry-run-first cleanup command for pre-launch event testing, narrowly selecting submissions and events whose titles begin with `[TEST]` and also tracing canonical events promoted from those submissions.
