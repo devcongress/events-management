@@ -71,7 +71,7 @@ describe('Resend broadcast client', () => {
       locationUrl: 'https://www.google.com/maps/place/Accra',
       eventUrl: 'https://em.devcongress.org/r/july-meetup?view=details',
       calendarDownloadUrl: 'https://em.devcongress.org/api/registration/events/july-meetup/calendar.ics',
-      subject: 'Venue update',
+      subject: 'Venue update\r\nBcc: attacker@example.com',
       body: 'We have moved rooms.',
       from: 'DevCongress <events@updates.devcongress.org>',
       replyTo: 'hello@devcongress.org',
@@ -85,6 +85,8 @@ describe('Resend broadcast client', () => {
       body: expect.stringContaining('"segment_id":"segment-1"'),
     }));
     expect(broadcastCall?.[1]?.body).toContain('"send":false');
+    expect(broadcastCall?.[1]?.body).toContain('"subject":"Venue update Bcc: attacker@example.com"');
+    expect(broadcastCall?.[1]?.body).not.toContain('Venue update\\r\\n');
     expect(broadcastCall?.[1]?.body).toContain('RESEND_UNSUBSCRIBE_URL');
   });
 

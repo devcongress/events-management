@@ -46,6 +46,7 @@ const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
 const AdminMobileCheckInView = () => import('./views/admin/AdminMobileCheckInView.vue');
+const AdminEventsWorkspaceView = () => import('./views/admin/AdminEventsWorkspaceView.vue');
 const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
 const AdminEventSubmissionsView = () => import('./views/admin/AdminEventSubmissionsView.vue');
 const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceOverviewView.vue');
@@ -101,8 +102,15 @@ export const router = createRouter({
       name: ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
       component: AdminMobileCheckInView,
     },
-    { path: adminPath('events'), name: 'admin-events', component: AdminEventsView },
-    { path: adminPath('event-submissions'), name: 'admin-event-submissions', component: AdminEventSubmissionsView },
+    {
+      path: adminPath('events'),
+      component: AdminEventsWorkspaceView,
+      children: [
+        { path: '', name: 'admin-events', component: AdminEventsView, props: { embedded: true } },
+        { path: 'submissions', name: 'admin-event-submissions', component: AdminEventSubmissionsView },
+      ],
+    },
+    { path: adminPath('event-submissions'), redirect: adminPath('events/submissions') },
     {
       path: adminPath('website-preview/events'),
       name: 'admin-public-events-preview',

@@ -20,6 +20,7 @@ import {
   updateEventRegistrationCampaign,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { emailSubjects } from '@/lib/email/scenarios';
 import {
   ALL_REGISTRATION_INITIALS,
   registrationInitials,
@@ -151,19 +152,19 @@ const blastTemplates = computed(() => {
     {
       id: 'update',
       label: 'Event update',
-      subject: `${eventName} — quick update`,
+      subject: emailSubjects.eventUpdate(eventName),
       body: `Hi,\n\nHere’s a quick update about ${eventName}.\n\n[Add your update]\n\nSee you there,\nDevCongress`,
     },
     {
       id: 'reminder',
       label: 'Reminder',
-      subject: `${eventName} — see you soon`,
+      subject: emailSubjects.eventReminder(eventName),
       body: `Hi,\n\nA quick reminder that ${eventName} is happening ${eventDate}.\n\n[Add any final details]\n\nSee you there,\nDevCongress`,
     },
     {
       id: 'venue',
       label: 'Venue change',
-      subject: `${eventName} — venue update`,
+      subject: emailSubjects.eventVenueChange(eventName),
       body: `Hi,\n\nThe venue for ${eventName} has changed.\n\n[Add the new venue and any arrival details]\n\nSee you there,\nDevCongress`,
     },
   ];

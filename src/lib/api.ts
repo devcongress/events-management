@@ -1,6 +1,8 @@
 import type {
   Event,
   EventSubmission,
+  EventSubmissionEmailKind,
+  EventSubmissionRejectionCategory,
   EventSubmissionReviewStatus,
   EventChecklistItem,
   EventBlast,
@@ -364,14 +366,28 @@ export function approveEventSubmission(submissionId: string, publish = true) {
   );
 }
 
-export function rejectEventSubmission(submissionId: string, reason = '') {
+export function rejectEventSubmission(submissionId: string, input: {
+  category: EventSubmissionRejectionCategory;
+  organizer_message?: string;
+  internal_note?: string;
+}) {
   return fetchJson<{ submission: EventSubmission }>(
     `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/reject`,
     {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export function retryEventSubmissionEmail(submissionId: string, kind: EventSubmissionEmailKind) {
+  return fetchJson<{ accepted: true; kind: EventSubmissionEmailKind }>(
+    `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/emails/${encodeURIComponent(kind)}/retry`,
+    {
+      method: 'POST',
+      credentials: 'include',
     },
   );
 }

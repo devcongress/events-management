@@ -11,7 +11,7 @@ describe('monthly archive request email', () => {
       expiresAt: '2026-08-03T12:00:00.000Z',
     });
 
-    expect(result.subject).toBe('Your DevCongress archive link');
+    expect(result.subject).toBe('Share your talk resources: DevCongress <July>');
     expect(result.html).toContain('href="https://em.devcongress.org/speaker-talks/event/token"');
     expect(result.html).toContain('src="https://em.devcongress.org/brand/dev-con-logo.png"');
     expect(result.html).toContain('src="https://em.devcongress.org/brand/speaker-archive-illustration.png"');

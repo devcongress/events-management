@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-08-02 — Durable community submission notifications
+
+- Added transactional receipt, approval, and rejection email outbox records with stable per-submission idempotency keys, provider acceptance/failure state, and safe retries that never repeat a moderation decision.
+- Activated the three community submission subjects under the code-owned **DevCongress Events** sender and added escaped HTML/plain-text templates for each recipient moment.
+- Kept **Approve & publish** as one action while automatically queuing its notification; split rejection into a required reason category, optional organizer-facing message, and private internal note with an inline outgoing-email preview.
+- Added organizer delivery-state visibility and failed-email retry controls, while labeling provider acceptance honestly and deferring delivered/bounced state until verified Resend webhooks exist.
+- Recorded the durable-notification and private-note boundary in ADR-038.
+
+## 2026-08-02 — Code-owned email identity and subject policy
+
+- Standardized outbound mail on two role-based identities: **DevCongress Events** for attendee/event communication and **DevCongress Speakers** for monthly and annual speaker communication.
+- Replaced the meetup-specific speaker display name and vague archive-link subject with `DevCongress Speakers` and `Share your talk resources: {event name}`.
+- Centralized active and planned email scenarios, sender assignments, subject builders, one-line normalization, and length limits in a tested policy registry; sender identities can no longer drift through deployment variables.
+- Recorded the controlled sender/subject change procedure in ADR-037; ADR-038 and the durable-notification slice later activated the community receipt and decision scenarios.
+
+## 2026-08-02 — Events workspace submission inbox
+
+- Moved community event submissions out of the global organizer navigation and into a local Events workspace switcher beside the canonical event collection.
+- Made **Pending** the default review filter, placed its outstanding-proposal counter directly on that control, removed the redundant All filter, and added a polished empty inbox state with reduced-motion-safe transitions.
+- Replaced the always-open split submission view with a compact filtered table and a keyboard-accessible right-side review drawer, preserving queue context while progressively revealing proposal details and actions.
+- Kept the Events workspace switcher mounted between All events and Community submissions, added a transform-only sliding selection indicator, and limited route motion to a short non-overlapping content transition with a reduced-motion fallback.
+- Preserved existing submission bookmarks through a compatibility redirect from `/organizer-console/event-submissions` to `/organizer-console/events/submissions`.
+
 ## 2026-08-02 — Temporary local Turnstile submissions
 
 - Temporarily allowed real event-submission Turnstile tokens from `localhost` and `127.0.0.1` so the local public website can exercise the deployed moderation and Supabase flow without weakening action checks, token validation, or rate limits.
@@ -271,7 +294,7 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 - Reduced the private archive form to three layers: the DevCongress wordmark, a purposeful two-line introduction, and the form itself. Removed the archive eyebrow, display heading, date/expiry metadata, generic meetup copy, duplicate instructions, identity card, speaker name, and visible recipient email; unboxed the form and aligned text fields, dropdowns, radii, borders, and focus treatment so the page reads as one interface.
 - Locked the program-selected talk title as invitation context, removed it from the browser submission, and made the API restore it from the one-time link so request tampering cannot rename the archived session.
 - Removed the mobile shell's organizer-header offset from standalone routes, eliminating the empty `3.65rem` band above public forms that do not render the organizer header.
-- Renamed the transactional sender to `DevCongress Monthly Speakers`, leaving `DevCongress Conference Speakers` as the distinct display identity for future annual-conference outreach.
+- Renamed the transactional sender to `DevCongress Monthly Speakers`, leaving `DevCongress Conference Speakers` as the distinct display identity for future annual-conference outreach. ADR-037 later superseded both programme-specific names with the stable `DevCongress Speakers` identity.
 
 ## 2026-07-27 — Unified Event Archive workflow
 

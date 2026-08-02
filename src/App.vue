@@ -67,7 +67,6 @@ let organizerSessionEnding = false;
 
 const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
-  { href: adminPath('event-submissions'), label: 'Submissions' },
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
   { href: annualConferencePath(), label: 'Annual Conference' },
@@ -246,6 +245,10 @@ function isActive(href: string) {
 function routeViewKey(routeForKey: typeof route) {
   if (routeForKey.name === 'admin-login') {
     return 'admin-login';
+  }
+
+  if (routeForKey.name === 'admin-events' || routeForKey.name === 'admin-event-submissions') {
+    return 'admin-events-workspace';
   }
 
   if (routeForKey.name === 'admin-talks') {

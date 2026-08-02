@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   approve: vi.fn(),
   reject: vi.fn(),
+  pendingEmails: vi.fn(),
+  updateEmail: vi.fn(),
   rateLimit: vi.fn(),
   audit: vi.fn(),
 }));
@@ -17,6 +19,8 @@ vi.mock('@/lib/supabase/event-submissions', async () => {
     listEventSubmissions: mocks.list,
     approveEventSubmission: mocks.approve,
     rejectEventSubmission: mocks.reject,
+    getPendingEventSubmissionEmails: mocks.pendingEmails,
+    updateEventSubmissionEmailDelivery: mocks.updateEmail,
   };
 });
 
@@ -68,7 +72,10 @@ const submission = {
   review_status: 'pending' as const,
   reviewed_by: null,
   reviewed_at: null,
-  rejection_reason: null,
+  rejection_category: null,
+  organizer_message: null,
+  internal_note: null,
+  email_deliveries: [],
   approved_event_id: null,
   created_at: '2099-08-01T10:00:00.000Z',
   updated_at: '2099-08-01T10:00:00.000Z',
@@ -102,6 +109,8 @@ beforeEach(() => {
   mocks.create.mockResolvedValue(submission);
   mocks.list.mockResolvedValue([submission]);
   mocks.rateLimit.mockResolvedValue({ allowed: true });
+  mocks.pendingEmails.mockResolvedValue([]);
+  mocks.updateEmail.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -129,6 +138,46 @@ describe('community event submissions', () => {
     }), expect.anything());
     expect(mocks.create.mock.calls[0]?.[0]).not.toHaveProperty('source_app');
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
+  });
+
+  it('attempts the durable receipt after accepting the public submission', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_EMAIL_REPLY_TO', 'hello@devcongress.org');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      data: [{ id: 'email-receipt-1' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    mocks.pendingEmails.mockResolvedValue([{
+      delivery_id: 'delivery-receipt-1',
+      submission_id: submission.id,
+      idempotency_key: `event-submission-${submission.id}-receipt`,
+      attempts: 0,
+      kind: 'receipt',
+      organizer_name: submission.organizer_name,
+      organizer_email: submission.organizer_email,
+      event_title: submission.title,
+      starts_at: submission.starts_at,
+      timezone: submission.timezone,
+      registration_url: submission.registration_url,
+      rejection_category: null,
+      organizer_message: null,
+    }]);
+
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(202);
+    expect(mocks.pendingEmails).toHaveBeenCalledWith(expect.objectContaining({
+      submissionId: submission.id,
+      kinds: ['receipt'],
+    }), expect.anything());
+    expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-receipt-1', {
+      status: 'accepted',
+      provider_id: 'email-receipt-1',
+    }, expect.anything());
   });
 
   it('returns field-level errors before security providers or persistence are called', async () => {
@@ -191,5 +240,130 @@ describe('community event submissions', () => {
       action: 'event_submission.approve_and_publish',
       target_id: submission.id,
     }));
+  });
+
+  it('queues an approval notice and records provider acceptance without repeating approval', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_EMAIL_REPLY_TO', 'hello@devcongress.org');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      data: [{ id: 'email-approved-1' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    mocks.approve.mockResolvedValue({
+      ...submission,
+      review_status: 'approved',
+      approved_event_id: '20000000-0000-4000-8000-000000000001',
+    });
+    mocks.pendingEmails.mockResolvedValue([{
+      delivery_id: 'delivery-approved-1',
+      submission_id: submission.id,
+      idempotency_key: `event-submission-${submission.id}-approved`,
+      attempts: 0,
+      kind: 'approved',
+      organizer_name: submission.organizer_name,
+      organizer_email: submission.organizer_email,
+      event_title: submission.title,
+      starts_at: submission.starts_at,
+      timezone: submission.timezone,
+      registration_url: submission.registration_url,
+      rejection_category: null,
+      organizer_message: null,
+    }]);
+
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/approve`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publish: true }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.approve).toHaveBeenCalledTimes(1);
+    expect(mocks.pendingEmails).toHaveBeenCalledWith(expect.objectContaining({
+      submissionId: submission.id,
+      kinds: ['approved'],
+    }), expect.anything());
+    expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-approved-1', {
+      status: 'accepted',
+      provider_id: 'email-approved-1',
+    }, expect.anything());
+  });
+
+  it('keeps organizer-facing rejection copy separate from the private note', async () => {
+    mocks.reject.mockResolvedValue({
+      ...submission,
+      review_status: 'rejected',
+      rejection_category: 'calendar_fit',
+      organizer_message: 'This calendar focuses on Ghana technology community events.',
+      internal_note: 'Website could not be verified.',
+    });
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/reject`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'calendar_fit',
+          organizer_message: 'This calendar focuses on Ghana technology community events.',
+          internal_note: 'Website could not be verified.',
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.reject).toHaveBeenCalledWith(submission.id, 'organizer@devcongress.org', {
+      category: 'calendar_fit',
+      organizer_message: 'This calendar focuses on Ghana technology community events.',
+      internal_note: 'Website could not be verified.',
+    }, expect.anything());
+    expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      metadata: {
+        category: 'calendar_fit',
+        organizer_message_provided: true,
+        internal_note_provided: true,
+      },
+    }));
+    expect(JSON.stringify(mocks.audit.mock.calls)).not.toContain('Website could not be verified.');
+  });
+
+  it('retries only the failed email and keeps the moderation decision untouched', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_EMAIL_REPLY_TO', 'hello@devcongress.org');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'quota' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    })));
+    mocks.pendingEmails.mockResolvedValue([{
+      delivery_id: 'delivery-rejected-1',
+      submission_id: submission.id,
+      idempotency_key: `event-submission-${submission.id}-rejected`,
+      attempts: 1,
+      kind: 'rejected',
+      organizer_name: submission.organizer_name,
+      organizer_email: submission.organizer_email,
+      event_title: submission.title,
+      starts_at: submission.starts_at,
+      timezone: submission.timezone,
+      registration_url: submission.registration_url,
+      rejection_category: 'other',
+      organizer_message: null,
+    }]);
+
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/emails/rejected/retry`,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(502);
+    expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-rejected-1', {
+      status: 'failed',
+      last_error: 'Email provider daily quota reached; delivery can be retried.',
+    }, expect.anything());
+    expect(mocks.approve).not.toHaveBeenCalled();
+    expect(mocks.reject).not.toHaveBeenCalled();
   });
 });

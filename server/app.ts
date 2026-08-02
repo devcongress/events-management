@@ -14,10 +14,12 @@ import {
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { prepareResendBroadcast, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError } from '@/lib/email/resend';
+import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import {
   eventRegistrationCalendarFile,
   eventRegistrationConfirmationEmail,
 } from '@/lib/email/templates/event-registration-confirmation';
+import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
 import {
@@ -80,7 +82,15 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfi
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseAnnualConferenceTask, getSupabaseAnnualConferenceWorkPlan, updateSupabaseAnnualConferenceTask } from '@/lib/supabase/annual-conference-work-plan';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
-import { approveEventSubmission, createEventSubmission, EventSubmissionStorageError, listEventSubmissions, rejectEventSubmission } from '@/lib/supabase/event-submissions';
+import {
+  approveEventSubmission,
+  createEventSubmission,
+  EventSubmissionStorageError,
+  getPendingEventSubmissionEmails,
+  listEventSubmissions,
+  rejectEventSubmission,
+  updateEventSubmissionEmailDelivery,
+} from '@/lib/supabase/event-submissions';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import { uploadMeetupMedia, validateMeetupMediaContent, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
@@ -109,7 +119,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -338,7 +348,19 @@ const eventSubmissionListQuerySchema = z.object({
   status: z.enum(['pending', 'approved', 'rejected']).optional(),
 }).strict();
 const eventSubmissionApproveSchema = z.object({ publish: z.boolean() }).strict();
-const eventSubmissionRejectSchema = z.object({ reason: z.string().trim().max(1000).optional().default('') }).strict();
+const eventSubmissionRejectionCategorySchema = z.enum([
+  'calendar_fit',
+  'insufficient_information',
+  'duplicate',
+  'event_passed',
+  'other',
+]);
+const eventSubmissionRejectSchema = z.object({
+  category: eventSubmissionRejectionCategorySchema,
+  organizer_message: z.string().trim().max(1200).optional().default(''),
+  internal_note: z.string().trim().max(1000).optional().default(''),
+}).strict();
+const eventSubmissionEmailKindSchema = z.enum(['receipt', 'approved', 'rejected']);
 const eventScheduleItemSchema = z.object({
   time: z.string().trim().min(1).max(40),
   title: z.string().trim().min(1).max(200),
@@ -1434,9 +1456,9 @@ async function sendPendingRegistrationConfirmationEmails(
   } = {},
 ): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
-  const emailFrom = envValue('REGISTRATION_EMAIL_FROM', c)?.trim();
+  const emailFrom = EMAIL_SENDERS.events.from;
   const emailReplyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
-  if (!resendApiKey || !emailFrom || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return { configured: false, accepted: [], failed: [] };
   }
 
@@ -1508,6 +1530,113 @@ async function sendPendingRegistrationConfirmationEmails(
       accepted: [],
       failed: pending.map((delivery) => delivery.registration_id),
     };
+  }
+}
+
+async function sendPendingEventSubmissionEmails(
+  c: Context,
+  options: {
+    submissionId?: string;
+    kinds?: EventSubmissionEmailKind[];
+    statuses?: Array<'pending' | 'failed'>;
+    limit?: number;
+  } = {},
+): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailReplyTo = (
+    envValue('EVENT_EMAIL_REPLY_TO', c)
+    ?? envValue('REGISTRATION_EMAIL_REPLY_TO', c)
+  )?.trim();
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    return { configured: false, accepted: [], failed: [] };
+  }
+
+  const pending = await getPendingEventSubmissionEmails(options, c);
+  if (pending.length === 0) {
+    return { configured: true, accepted: [], failed: [] };
+  }
+
+  const websiteOrigin = safeHttpUrl(envValue('PUBLIC_WEBSITE_ORIGIN', c) ?? '')
+    ?? 'https://devcongress.org';
+  const communityCalendarUrl = new URL('/events/', websiteOrigin).toString();
+  const submissionUrl = new URL('/events/submit/', websiteOrigin).toString();
+  const emails = pending.map((delivery) => ({
+    from: EMAIL_SENDERS.events.from,
+    to: [delivery.organizer_email],
+    reply_to: emailReplyTo,
+    ...communityEventSubmissionEmail({
+      kind: delivery.kind,
+      organizerName: delivery.organizer_name,
+      eventTitle: delivery.event_title,
+      startsAt: delivery.starts_at,
+      timezone: delivery.timezone,
+      communityCalendarUrl,
+      submissionUrl,
+      registrationUrl: delivery.registration_url,
+      rejectionCategory: delivery.rejection_category,
+      organizerMessage: delivery.organizer_message,
+    }),
+  }));
+  const batchDigest = crypto.createHash('sha256')
+    .update(pending.map((delivery) => delivery.idempotency_key).sort().join(':'))
+    .digest('hex');
+
+  try {
+    const result = await sendResendEmailBatch({
+      apiKey: resendApiKey,
+      idempotencyKey: `event-submission-${batchDigest}`,
+      emails,
+    });
+    await Promise.all(pending.map((delivery, index) => updateEventSubmissionEmailDelivery(
+      delivery.delivery_id,
+      { status: 'accepted', provider_id: result.ids[index] },
+      c,
+    )));
+    return {
+      configured: true,
+      accepted: pending.map((delivery) => delivery.delivery_id),
+      failed: [],
+    };
+  } catch (error) {
+    const message = error instanceof ResendBatchError && error.status === 429
+      ? 'Email provider daily quota reached; delivery can be retried.'
+      : 'Email provider did not accept this delivery; it can be retried.';
+    await Promise.all(pending.map((delivery) => updateEventSubmissionEmailDelivery(
+      delivery.delivery_id,
+      { status: 'failed', last_error: message },
+      c,
+    )));
+    console.warn(JSON.stringify({
+      event: 'event_submission_email_delayed',
+      submission_id: options.submissionId ?? null,
+      email_kind: options.kinds?.length === 1 ? options.kinds[0] : 'batch',
+      recipient_count: pending.length,
+      provider_status: error instanceof ResendBatchError ? error.status : null,
+    }));
+    return {
+      configured: true,
+      accepted: [],
+      failed: pending.map((delivery) => delivery.delivery_id),
+    };
+  }
+}
+
+async function dispatchEventSubmissionEmails(
+  c: Context,
+  options: Parameters<typeof sendPendingEventSubmissionEmails>[1],
+): Promise<void> {
+  const task = sendPendingEventSubmissionEmails(c, options).catch((error) => {
+    console.error(JSON.stringify({
+      event: 'event_submission_email_dispatch_failed',
+      submission_id: options?.submissionId ?? null,
+      error_name: safeErrorName(error),
+    }));
+  });
+
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
   }
 }
 
@@ -3382,6 +3511,14 @@ app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
       targetId: submission.id,
       metadata: { approved_event_id: submission.approved_event_id },
     });
+    if (parsed.data.publish) {
+      await dispatchEventSubmissionEmails(c, {
+        submissionId: submission.id,
+        kinds: ['approved'],
+        statuses: ['pending', 'failed'],
+        limit: 1,
+      });
+    }
     return c.json({ submission, event_id: submission.approved_event_id });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
@@ -3395,7 +3532,7 @@ app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
 
 app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
   const parsed = eventSubmissionRejectSchema.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: 'Rejection reason is too long.' }, 400);
+  if (!parsed.success) return c.json({ error: 'Choose a valid rejection reason and check the message lengths.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
 
@@ -3403,14 +3540,24 @@ app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
     const submission = await rejectEventSubmission(
       c.req.param('submissionId'),
       session.email,
-      parsed.data.reason,
+      parsed.data,
       c,
     );
     await auditAdminAction(c, {
       action: 'event_submission.reject',
       targetType: 'event_submission',
       targetId: submission.id,
-      metadata: { reason_recorded: Boolean(submission.rejection_reason) },
+      metadata: {
+        category: submission.rejection_category,
+        organizer_message_provided: Boolean(submission.organizer_message),
+        internal_note_provided: Boolean(submission.internal_note),
+      },
+    });
+    await dispatchEventSubmissionEmails(c, {
+      submissionId: submission.id,
+      kinds: ['rejected'],
+      statuses: ['pending', 'failed'],
+      limit: 1,
     });
     return c.json({ submission });
   } catch (error) {
@@ -3418,6 +3565,42 @@ app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
       if (error.code === 'not_found') return c.json({ error: error.message }, 404);
       if (error.code === 'already_approved') return c.json({ error: error.message }, 409);
       return c.json({ error: 'Unable to reject event submission.' }, 503);
+    }
+    throw error;
+  }
+});
+
+app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async (c) => {
+  const parsedKind = eventSubmissionEmailKindSchema.safeParse(c.req.param('kind'));
+  if (!parsedKind.success) return c.json({ error: 'Unknown submission email type.' }, 400);
+
+  try {
+    const result = await sendPendingEventSubmissionEmails(c, {
+      submissionId: c.req.param('submissionId'),
+      kinds: [parsedKind.data],
+      statuses: ['pending', 'failed'],
+      limit: 1,
+    });
+    if (!result.configured) {
+      return c.json({ error: 'Community event email delivery is not configured.' }, 503);
+    }
+    if (result.accepted.length === 0 && result.failed.length === 0) {
+      return c.json({ error: 'This email has already been accepted or was not queued.' }, 409);
+    }
+    if (result.failed.length > 0) {
+      return c.json({ error: 'The email provider did not accept this delivery. It remains available to retry.' }, 502);
+    }
+
+    await auditAdminAction(c, {
+      action: 'event_submission.email_retry',
+      targetType: 'event_submission',
+      targetId: c.req.param('submissionId'),
+      metadata: { kind: parsedKind.data },
+    });
+    return c.json({ accepted: true, kind: parsedKind.data });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      return c.json({ error: 'Unable to retry this submission email.' }, 503);
     }
     throw error;
   }
@@ -3673,6 +3856,12 @@ app.post('/api/public/event-submissions', async (c) => {
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
     const submission = await createEventSubmission(input, c);
+    await dispatchEventSubmissionEmails(c, {
+      submissionId: submission.id,
+      kinds: ['receipt'],
+      statuses: ['pending', 'failed'],
+      limit: 1,
+    });
     return c.json({
       data: {
         id: submission.id,
@@ -4134,9 +4323,9 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   }
 
   const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
-  const from = envValue('REGISTRATION_EMAIL_FROM', c)?.trim();
+  const from = EMAIL_SENDERS.events.from;
   const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
-  if (!apiKey || !from || !replyTo || !z.string().email().safeParse(replyTo).success) {
+  if (!apiKey || !replyTo || !z.string().email().safeParse(replyTo).success) {
     const unavailable = await updateEventBlast(blast.id, { status: 'needs_capacity' }, c);
     await auditAdminAction(c, {
       action: 'event.blast.needs_capacity',
@@ -5210,9 +5399,9 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
   if (adminError) return adminError;
 
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
-  const emailFrom = envValue('SPEAKER_EMAIL_FROM', c)?.trim();
+  const emailFrom = EMAIL_SENDERS.speakers.from;
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
-  if (!resendApiKey || !emailFrom || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return c.json({ error: 'Speaker email sending is not configured.' }, 503);
   }
 

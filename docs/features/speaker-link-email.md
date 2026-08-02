@@ -127,7 +127,7 @@ Submitting the private form creates an accepted or materials-received Event Arch
 ### Recommended July email
 
 ```text
-Subject: Your DevCongress archive link
+Subject: Share your talk resources: {event name}
 
 Hi {{ speakerName }},
 
@@ -197,8 +197,7 @@ Recommended sender:
 
 ```text
 Domain: updates.devcongress.org
-Monthly From: DevCongress Monthly Speakers <speakers@updates.devcongress.org>
-Future conference From: DevCongress Conference Speakers <speakers@updates.devcongress.org>
+Speaker From: DevCongress Speakers <speakers@updates.devcongress.org>
 Reply-To: hello@devcongress.org
 ```
 
@@ -228,7 +227,6 @@ RESEND_API_KEY
 Non-secret bindings:
 
 ```text
-SPEAKER_EMAIL_FROM=DevCongress Monthly Speakers <speakers@updates.devcongress.org>
 SPEAKER_EMAIL_REPLY_TO=hello@devcongress.org
 PUBLIC_APP_URL=https://em.devcongress.org
 ```
@@ -239,7 +237,7 @@ Production secret command:
 pnpm exec wrangler secret put RESEND_API_KEY
 ```
 
-The approved sender bindings are committed in `wrangler.toml`. Local values belong in `.env.local`. `RESEND_WEBHOOK_SECRET` is not required until delivery webhooks are implemented.
+The approved sender identity is code-owned in `lib/email/scenarios.ts`; the monitored Reply-To binding remains committed in `wrangler.toml`. Local Reply-To overrides belong in `.env.local`. `RESEND_WEBHOOK_SECRET` is not required until delivery webhooks are implemented.
 
 No separate email Worker is required for July. The existing authenticated Hono Worker can call Resend directly. A queue/second worker becomes useful only when automatic retries, scheduled reminders, or materially higher volume are introduced. Resend has an official [Cloudflare Workers guide](https://resend.com/docs/send-with-cloudflare-workers).
 
