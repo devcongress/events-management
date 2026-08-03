@@ -48,6 +48,34 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('removes an event and reports a repeated removal as not found', async () => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Temporary meetup',
+        description: 'An event that should be removable.',
+        event_date: '2099-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+
+    const deleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'DELETE',
+    });
+    expect(deleteResponse.status).toBe(200);
+    await expect(deleteResponse.json()).resolves.toEqual({ ok: true });
+
+    const repeatedDeleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'DELETE',
+    });
+    expect(repeatedDeleteResponse.status).toBe(404);
+    await expect(repeatedDeleteResponse.json()).resolves.toEqual({ error: 'Event not found' });
+  });
+
   it('marks newly created events when the server test-mode variable is enabled', async () => {
     vi.stubEnv('EVENT_TEST_MODE', 'true');
     const { default: app } = await import('./app');
@@ -282,6 +310,38 @@ describe('native event registration API', () => {
     });
     expect(unsafeMapUpdate.status).toBe(400);
 
+    const registrationPageUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Community Demo Night Updated',
+        description: 'Updated details for registered guests.',
+        event_date: '2026-08-20T18:00:00.000Z',
+        end_date: '2026-08-20T21:00:00.000Z',
+        location: {
+          name: 'Google Maps location',
+          label: 'Google Maps location',
+          url: 'https://maps.app.goo.gl/n8u6C6TgdtW35db67',
+        },
+      }),
+    });
+    expect(registrationPageUpdate.status).toBe(200);
+
+    const updatedPublicForm = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
+    expect(updatedPublicForm.status).toBe(200);
+    await expect(updatedPublicForm.json()).resolves.toMatchObject({
+      event: {
+        name: 'Community Demo Night Updated',
+        description: 'Updated details for registered guests.',
+        event_date: '2026-08-20T18:00:00.000Z',
+        end_date: '2026-08-20T21:00:00.000Z',
+        location: {
+          name: 'Google Maps location',
+          url: 'https://maps.app.goo.gl/n8u6C6TgdtW35db67',
+        },
+      },
+    });
+
     const unsafeScheduleUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -305,7 +365,7 @@ describe('native event registration API', () => {
     expect(massAssignmentUpdate.status).toBe(400);
   });
 
-  it('creates the event and draft campaign together, then confirms and waitlists guests', async () => {
+  it('creates the event with registration open, then confirms and waitlists guests', async () => {
     const { default: app } = await import('./app');
     const createResponse = await app.request('http://localhost/api/events', {
       method: 'POST',
@@ -318,7 +378,7 @@ describe('native event registration API', () => {
         series_type: 'monthly',
         location: { name: 'Fido, Accra', label: 'Fido, Accra', url: null },
         stream_url: 'https://meet.google.com/abc-defg-hij',
-        publish_to_website: false,
+        publish_to_website: true,
         registration: {
           capacity: 1,
           opens_at: null,
@@ -331,9 +391,10 @@ describe('native event registration API', () => {
 
     expect(createResponse.status).toBe(201);
     const created = await createResponse.json() as {
-      event: { id: string; slug: string; registration_url: string; stream_url: string | null };
+      event: { id: string; slug: string; status: string; registration_url: string; stream_url: string | null };
       registration_campaign: {
         status: string;
+        description: string | null;
         capacity: number;
         waitlist_enabled: boolean;
         auto_confirm: boolean;
@@ -341,44 +402,54 @@ describe('native event registration API', () => {
     };
     expect(created.event.registration_url).toBe('http://localhost/r/august-2026-meetup');
     expect(created.event.stream_url).toBe('https://meet.google.com/abc-defg-hij');
+    expect(created.event.status).toBe('upcoming');
     expect(created.registration_campaign).toMatchObject({
-      status: 'draft',
+      status: 'open',
+      description: null,
       capacity: 1,
       waitlist_enabled: true,
       auto_confirm: true,
     });
 
-    const draftPublicResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
-    expect(draftPublicResponse.status).toBe(404);
-    await expect(draftPublicResponse.json()).resolves.toEqual({
-      available: false,
-      error: 'Registration is not available for this event.',
+    const initialPublicResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
+    expect(initialPublicResponse.status).toBe(200);
+    await expect(initialPublicResponse.json()).resolves.toMatchObject({
+      available: true,
+      event: { id: created.event.id },
+      campaign: { status: 'open', description: null, opens_at: null },
     });
 
-    const draftSubmissionResponse = await app.request(
-      `http://localhost/api/registration/events/${created.event.id}`,
+    const introductionUpdateResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
       {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Draft Guest', email: 'draft@example.com' }),
+        body: JSON.stringify({ description: 'Bring your questions and a laptop.' }),
       },
     );
-    expect(draftSubmissionResponse.status).toBe(404);
-    await expect(draftSubmissionResponse.json()).resolves.toEqual({
-      error: 'Registration is not available for this event.',
+    expect(introductionUpdateResponse.status).toBe(200);
+    await expect(introductionUpdateResponse.json()).resolves.toMatchObject({
+      description: 'Bring your questions and a laptop.',
     });
 
-    const draftCalendarResponse = await app.request(
-      `http://localhost/api/registration/events/${created.event.id}/calendar.ics`,
+    const updatedIntroductionResponse = await app.request(
+      `http://localhost/api/registration/events/${created.event.id}`,
     );
-    expect(draftCalendarResponse.status).toBe(404);
-
-    const openResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'open' }),
+    expect(updatedIntroductionResponse.status).toBe(200);
+    await expect(updatedIntroductionResponse.json()).resolves.toMatchObject({
+      event: { description: 'A free community meetup.' },
+      campaign: { description: 'Bring your questions and a laptop.' },
     });
-    expect(openResponse.status).toBe(200);
+
+    const oversizedIntroductionResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: 'x'.repeat(2001) }),
+      },
+    );
+    expect(oversizedIntroductionResponse.status).toBe(400);
 
     const policyOverrideResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations`,

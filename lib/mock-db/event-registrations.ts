@@ -33,6 +33,7 @@ type MockEmailDelivery = {
 export async function createMockRegistrationCampaign(input: {
   event_id: string;
   status?: EventRegistrationCampaignStatus;
+  description?: string | null;
   capacity: number;
   opens_at?: string | null;
   closes_at?: string | null;
@@ -45,6 +46,7 @@ export async function createMockRegistrationCampaign(input: {
     id: generateId(),
     event_id: input.event_id,
     status: input.status ?? 'draft',
+    description: input.description ?? null,
     capacity: input.capacity,
     opens_at: input.opens_at ?? null,
     closes_at: input.closes_at ?? null,

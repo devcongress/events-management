@@ -429,7 +429,7 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     status: publicMeetupStatus(row.starts_at, row.ends_at),
     start: toWebsiteDateTime(row.starts_at),
     end: toWebsiteDateTime(row.ends_at),
-    description: row.description ?? 'A DevCongress community meetup.',
+    description: row.description ?? '',
     cover: safeWebsiteUrl(row.cover_url) ?? '/images/logo.png',
     location: {
       label: row.location_label ?? undefined,

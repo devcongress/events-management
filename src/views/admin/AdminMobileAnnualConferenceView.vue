@@ -562,7 +562,7 @@ function openVolunteerDisplay() {
           <section v-if="phaseManagerOpen && permissions?.can_manage_phases" class="content-card">
             <header class="content-card__header"><div><span>Planning controls</span><h2>Manage phases</h2></div><button type="button" class="primary-button" @click="openPhaseEditor()">Add phase</button></header>
             <form v-if="phaseEditorOpen" class="mobile-form" @submit.prevent="submitPhase">
-              <label><span>Phase name</span><input v-model="phaseForm.name" class="editorial-input" maxlength="80" required></label>
+              <label><span>Phase name</span><input v-model="phaseForm.name" class="editorial-input min-h-[50px]" maxlength="80" required></label>
               <AppDatePicker v-model="phaseForm.starts_on" label="Starts" required />
               <AppDatePicker v-model="phaseForm.ends_on" label="Ends" required />
               <div class="mobile-form__actions"><button type="button" class="secondary-button" @click="closePhaseEditor">Cancel</button><button type="submit" class="primary-button">Save phase</button></div>

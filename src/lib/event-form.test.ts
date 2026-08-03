@@ -55,9 +55,26 @@ describe('event series form payload', () => {
     });
 
     expect(toCreateEventApiPayload(parsed).registration).toMatchObject({
+      status: 'open',
       capacity: 80,
       auto_confirm: true,
       waitlist_enabled: true,
+    });
+  });
+
+  it('keeps a scheduled registration campaign open but gated by its opening time', () => {
+    const parsed = createEventFormSchema.parse({
+      name: 'DevCongress Monthly Meetup',
+      description: 'A free community meetup.',
+      event_date: '2026-08-20T18:00',
+      series_type: 'monthly',
+      location_name: 'Accra',
+      registration_opens_at: '2026-08-10T09:00',
+    });
+
+    expect(toCreateEventApiPayload(parsed).registration).toMatchObject({
+      status: 'open',
+      opens_at: '2026-08-10T09:00',
     });
   });
 

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
 import RegistrationAlphabetFilter from '@/src/components/ui/RegistrationAlphabetFilter.vue';
 import {
   cancelEventRegistration,
@@ -17,8 +18,11 @@ import {
   queryKeys,
   removeEventRegistration,
   retryEventBlast,
+  updateEventById,
   updateEventRegistrationCampaign,
 } from '@/src/lib/api';
+import { adminPath } from '@/src/admin-routes';
+import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { notify } from '@/src/lib/notify';
 import { emailSubjects } from '@/lib/email/scenarios';
 import {
@@ -27,9 +31,6 @@ import {
 } from '@/src/lib/registration-checkin';
 import {
   changedRegistrationSettings,
-  isInitialRegistrationSetupState,
-  REGISTRATION_SETTINGS_FIELDS,
-  REGISTRATION_SETUP_HISTORY_KEY,
   type RegistrationSettingsDraft,
   type RegistrationSettingsField,
 } from '@/src/lib/registration-settings';
@@ -62,10 +63,33 @@ const blastsQuery = useQuery({
 });
 const settings = reactive({
   status: 'draft' as 'draft' | 'open' | 'closed',
+  description: '',
   capacity: 100,
   opens_at: '',
   closes_at: '',
 });
+type RegistrationPageLocationMode = 'venue' | 'maps';
+type RegistrationPageDetailsDraft = {
+  name: string;
+  description: string;
+  event_date: string;
+  end_date: string;
+  location_mode: RegistrationPageLocationMode;
+  location_name: string;
+  location_url: string;
+};
+const pageDetails = reactive<RegistrationPageDetailsDraft>({
+  name: '',
+  description: '',
+  event_date: '',
+  end_date: '',
+  location_mode: 'venue',
+  location_name: '',
+  location_url: '',
+});
+const savedPageDetails = ref<RegistrationPageDetailsDraft | null>(null);
+const pageLocationPlaceId = ref('');
+const pageDetailsSaving = ref(false);
 const activeWorkspaceTab = ref<RegistrationWorkspaceTab>('summary');
 const workspacePanelTransition = ref('registration-panel-forward');
 const search = ref('');
@@ -85,20 +109,19 @@ const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
 const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
-const initialSetupActive = ref(consumeInitialSetupFlag());
 const publicLinkCopied = ref(false);
 const manualRefreshPending = ref(false);
 const devRegistrationRemovalEnabled = import.meta.env.DEV;
 let publicLinkFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-if (initialSetupActive.value) {
-  activeWorkspaceTab.value = 'form';
-}
-
 const statusOptions = [
   { value: 'draft', label: 'Draft' },
   { value: 'open', label: 'Open' },
   { value: 'closed', label: 'Closed' },
+];
+const pageLocationOptions = [
+  { value: 'venue', label: 'Venue name' },
+  { value: 'maps', label: 'Google Maps link' },
 ];
 const workspaceTabs: Array<{
   id: RegistrationWorkspaceTab;
@@ -331,6 +354,7 @@ const canUsePublicRegistrationForm = computed(() => (
 ));
 const currentSettings = computed<RegistrationSettingsDraft>(() => ({
   status: settings.status,
+  description: settings.description,
   capacity: Number(settings.capacity),
   opens_at: settings.opens_at,
   closes_at: settings.closes_at,
@@ -341,23 +365,37 @@ const changedSettingFields = computed<RegistrationSettingsField[]>(() => (
     : []
 ));
 const hasSettingsChanges = computed(() => changedSettingFields.value.length > 0);
+const currentPageDetails = computed<RegistrationPageDetailsDraft>(() => ({ ...pageDetails }));
+const hasPageDetailsChanges = computed(() => (
+  Boolean(savedPageDetails.value)
+  && JSON.stringify(savedPageDetails.value) !== JSON.stringify(currentPageDetails.value)
+));
+const pageDetailsValid = computed(() => Boolean(
+  pageDetails.name.trim()
+  && pageDetails.description.trim()
+  && pageDetails.event_date
+  && (
+    pageDetails.location_mode === 'maps'
+      ? safeGoogleMapsUrl(pageDetails.location_url)
+      : pageDetails.location_name.trim()
+  )
+));
+const canSavePageDetails = computed(() => (
+  hasPageDetailsChanges.value
+  && pageDetailsValid.value
+  && !pageDetailsSaving.value
+));
 const canRequestSettingsSave = computed(() => Boolean(
   savedSettings.value
   && !savePending.value
   && !settingsConfirmationOpen.value
-  && (initialSetupActive.value || hasSettingsChanges.value)
+  && hasSettingsChanges.value
 ));
 const settingsReviewRows = computed(() => {
   const baseline = savedSettings.value;
   if (!baseline) return [];
 
-  const fields = changedSettingFields.value.length > 0
-    ? changedSettingFields.value
-    : initialSetupActive.value
-      ? REGISTRATION_SETTINGS_FIELDS
-      : [];
-
-  return fields.map((field) => ({
+  return changedSettingFields.value.map((field) => ({
     field,
     label: settingLabel(field),
     before: changedSettingFields.value.includes(field)
@@ -366,13 +404,9 @@ const settingsReviewRows = computed(() => {
     after: displaySettingValue(field, currentSettings.value[field]),
   }));
 });
-const settingsConfirmationTitle = computed(() => (
-  hasSettingsChanges.value ? 'Save registration changes?' : 'Confirm registration settings?'
-));
+const settingsConfirmationTitle = computed(() => 'Save registration changes?');
 const settingsConfirmationMessage = computed(() => (
-  hasSettingsChanges.value
-    ? `Review ${changedSettingFields.value.length} change${changedSettingFields.value.length === 1 ? '' : 's'} before updating the campaign.`
-    : 'These are the initial settings created with the event. Confirm them before continuing.'
+  `Review ${changedSettingFields.value.length} change${changedSettingFields.value.length === 1 ? '' : 's'} before updating the campaign.`
 ));
 const guestStatusOptions = computed<Array<{
   value: RegistrationGuestFilter;
@@ -418,12 +452,30 @@ watch(() => data.value?.campaign, (campaign) => {
   if (!campaign) return;
   const snapshot: RegistrationSettingsDraft = {
     status: campaign.status,
+    description: campaign.description ?? '',
     capacity: campaign.capacity,
     opens_at: toLocalDateTime(campaign.opens_at),
     closes_at: toLocalDateTime(campaign.closes_at),
   };
   Object.assign(settings, snapshot);
   savedSettings.value = { ...snapshot };
+}, { immediate: true });
+
+watch(() => data.value?.event, (event) => {
+  if (!event) return;
+  const mapUrl = safeGoogleMapsUrl(event.location?.url);
+  pageLocationPlaceId.value = '';
+  const snapshot: RegistrationPageDetailsDraft = {
+    name: event.name,
+    description: event.description ?? '',
+    event_date: toLocalDateTime(event.event_date),
+    end_date: toLocalDateTime(event.end_date ?? null),
+    location_mode: mapUrl ? 'maps' : 'venue',
+    location_name: mapUrl ? '' : event.location?.label ?? event.location?.name ?? '',
+    location_url: mapUrl ?? '',
+  };
+  Object.assign(pageDetails, snapshot);
+  savedPageDetails.value = { ...snapshot };
 }, { immediate: true });
 
 watch(availableInitials, (initials) => {
@@ -447,17 +499,6 @@ onBeforeUnmount(() => {
   }
 });
 
-function consumeInitialSetupFlag(): boolean {
-  if (typeof window === 'undefined' || !isInitialRegistrationSetupState(window.history.state)) {
-    return false;
-  }
-
-  const nextState = { ...window.history.state };
-  delete nextState[REGISTRATION_SETUP_HISTORY_KEY];
-  window.history.replaceState(nextState, '');
-  return true;
-}
-
 function toLocalDateTime(value: string | null): string {
   if (!value) return '';
   const date = new Date(value);
@@ -479,6 +520,7 @@ function formatDateTime(value: string): string {
 
 function settingLabel(field: RegistrationSettingsField): string {
   if (field === 'status') return 'Status';
+  if (field === 'description') return 'Registration introduction';
   if (field === 'capacity') return 'Capacity';
   if (field === 'opens_at') return 'Opens at';
   return 'Closes at';
@@ -490,6 +532,9 @@ function displaySettingValue(
 ): string {
   if (field === 'status') {
     return String(value).replace(/^./, (letter) => letter.toUpperCase());
+  }
+  if (field === 'description') {
+    return String(value).trim() || 'No introduction';
   }
   if (field === 'opens_at' || field === 'closes_at') {
     return value ? formatDateTime(new Date(String(value)).toISOString()) : 'Not scheduled';
@@ -671,18 +716,54 @@ async function saveSettings() {
   try {
     await updateEventRegistrationCampaign(eventId.value, {
       status: settings.status,
+      description: settings.description.trim() || null,
       capacity: settings.capacity,
       opens_at: toIso(settings.opens_at),
       closes_at: toIso(settings.closes_at),
     });
     await refresh();
     settingsConfirmationOpen.value = false;
-    initialSetupActive.value = false;
     notify.success(settings.status === 'open' ? 'Registration is open.' : 'Registration settings saved.');
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to save registration settings.');
   } finally {
     savePending.value = false;
+  }
+}
+
+async function savePageDetails() {
+  if (!canSavePageDetails.value) return;
+  const mapUrl = pageDetails.location_mode === 'maps'
+    ? safeGoogleMapsUrl(pageDetails.location_url)
+    : null;
+  if (pageDetails.location_mode === 'maps' && !mapUrl) {
+    notify.error('Add a complete HTTPS Google Maps share link.');
+    return;
+  }
+
+  pageDetailsSaving.value = true;
+  try {
+    const locationName = pageDetails.location_mode === 'maps'
+      ? 'Google Maps location'
+      : pageDetails.location_name.trim();
+    await updateEventById(eventId.value, {
+      name: pageDetails.name.trim(),
+      description: pageDetails.description.trim(),
+      event_date: toIso(pageDetails.event_date),
+      end_date: toIso(pageDetails.end_date),
+      location: {
+        name: locationName,
+        label: locationName,
+        url: mapUrl,
+      },
+    });
+    await refresh();
+    await queryClient.invalidateQueries({ queryKey: queryKeys.event(eventId.value) });
+    notify.success('Registration page details updated.');
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to update registration page details.');
+  } finally {
+    pageDetailsSaving.value = false;
   }
 }
 
@@ -1099,8 +1180,8 @@ async function retryEmails() {
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p class="editorial-eyebrow">form & capacity</p>
-                <h2 class="mt-1 text-xl font-bold text-dc-ink">Registration availability</h2>
-                <p class="mt-1 text-sm leading-6 text-dc-gray">Control when the form is public and how many guests receive places.</p>
+                <h2 class="mt-1 text-xl font-bold text-dc-ink">Registration form</h2>
+                <p class="mt-1 text-sm leading-6 text-dc-gray">Update what guests see, then control availability and capacity.</p>
               </div>
               <div v-if="canUsePublicRegistrationForm" class="flex flex-wrap gap-2">
                 <a
@@ -1128,7 +1209,66 @@ async function retryEmails() {
             </div>
           </div>
 
+          <div class="border-b border-dc-border p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="editorial-label">Registration page details</p>
+                <p class="mt-1 text-sm leading-6 text-dc-gray">These details appear on the public registration ticket.</p>
+              </div>
+              <RouterLink
+                :to="adminPath(`events/${eventId}`)"
+                class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4 hover:text-dc-ink"
+              >
+                Manage cover
+              </RouterLink>
+            </div>
+            <form class="mt-4 grid gap-4 md:grid-cols-2" @submit.prevent="savePageDetails">
+              <div class="md:col-span-2">
+                <label for="registration-event-name" class="editorial-label">Event name</label>
+                <input id="registration-event-name" v-model="pageDetails.name" class="editorial-input" maxlength="200" required>
+              </div>
+              <div class="md:col-span-2">
+                <label for="registration-event-description" class="editorial-label">Event About description</label>
+                <textarea id="registration-event-description" v-model="pageDetails.description" class="editorial-input min-h-28 resize-y" maxlength="10000" required />
+                <p class="mt-2 text-xs leading-5 text-dc-gray">Used on the event-details view. The public registration form uses its separate introduction below.</p>
+              </div>
+              <AppDatePicker v-model="pageDetails.event_date" label="Starts at" mode="datetime" required />
+              <AppDatePicker v-model="pageDetails.end_date" label="Ends at" mode="datetime" />
+              <AppDropdown v-model="pageDetails.location_mode" label="Location details" :options="pageLocationOptions" />
+              <GhanaVenueAutocomplete
+                v-if="pageDetails.location_mode === 'venue'"
+                v-model="pageDetails.location_name"
+                v-model:place-id="pageLocationPlaceId"
+                :disabled="pageDetailsSaving"
+              />
+              <div v-else>
+                <label for="registration-event-map" class="editorial-label">Google Maps share link</label>
+                <input id="registration-event-map" v-model="pageDetails.location_url" type="url" class="editorial-input" maxlength="2048" placeholder="https://maps.app.goo.gl/..." required>
+              </div>
+              <div class="flex items-end md:col-start-2">
+                <button type="submit" class="editorial-action min-h-[54px] w-full justify-center disabled:opacity-50" :disabled="!canSavePageDetails">
+                  {{ pageDetailsSaving ? 'SAVING…' : 'SAVE PAGE DETAILS' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-3">
+            <p class="editorial-label">Registration availability</p>
+            <p class="mt-1 text-xs leading-5 text-dc-gray">Control when the form accepts guests and how many places are available.</p>
+          </div>
           <form class="grid gap-4 p-5 md:grid-cols-2 lg:grid-cols-3" @submit.prevent="requestSaveSettings">
+            <div class="md:col-span-2 lg:col-span-3">
+              <label for="campaign-description" class="editorial-label">Registration introduction</label>
+              <textarea
+                id="campaign-description"
+                v-model="settings.description"
+                class="editorial-input min-h-28 resize-y"
+                maxlength="2000"
+                placeholder="Optional message shown above the registration form."
+              />
+              <p class="mt-2 text-xs leading-5 text-dc-gray">Only text saved here appears on the registration form. Leave it blank for no introduction.</p>
+            </div>
             <AppDropdown v-model="settings.status" label="Status" :options="statusOptions" teleport />
             <div>
               <label for="campaign-capacity" class="editorial-label">Capacity</label>
@@ -1400,7 +1540,7 @@ async function retryEmails() {
       :open="settingsConfirmationOpen"
       :title="settingsConfirmationTitle"
       :message="settingsConfirmationMessage"
-      :confirm-label="hasSettingsChanges ? 'Save changes' : 'Confirm settings'"
+      confirm-label="Save changes"
       busy-label="Saving..."
       cancel-label="Keep editing"
       :busy="savePending"

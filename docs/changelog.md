@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-08-03 — Registration opens with event creation
+
+- Made newly created event registration campaigns open immediately by default instead of requiring a second organizer action.
+- Kept optional future opening and closing timestamps authoritative, so scheduled registration remains unavailable until its configured opening time.
+- Updated the event-creation interface to explain the default and distinguish immediate from scheduled opening.
+- Removed the redundant post-creation settings confirmation so **Save settings** enables only after the persisted campaign values actually change.
+- Clarified that the location field expects a complete HTTPS Google Maps share link and render valid saved links directly in the public registration ticket instead of the generic “Google Maps location” text.
+- Added a Registration-workspace editor for the guest-facing event name, description, dates, and venue or Maps link, with independent dirty-state saving and a direct cover-management path.
+- Reused the Ghana-restricted Google Places autocomplete when organizers update a registration page venue instead of falling back to a plain text field.
+- Made organizer event removal proceed even when its optional pre-delete audit-metadata lookup fails, while preserving not-found responses and recording the available audit context.
+- Updated Hono and pinned the patched Undici release used by the local Worker development stack after newly published dependency advisories.
+- Aligned newly published events with the upcoming lifecycle while retaining draft status for unpublished planning shells.
+- Added a blank-by-default registration introduction that is stored separately from event About copy, editable after opening, length-constrained in the API and database, and shown only on the RSVP form.
+- Removed invented public-meetup description fallbacks so public copy always comes from an organizer-owned field.
+
+## 2026-08-03 — Compact date and time picker
+
+- Capped shared calendar popovers at a focused 360px width instead of stretching them to match wide event-form inputs.
+- Reduced calendar spacing and moved datetime controls above the date grid so the time remains immediately visible in constrained viewports.
+- Added positioning coverage for wide trigger controls while preserving responsive viewport clamping.
+
+## 2026-08-03 — Phase editor field alignment
+
+- Bottom-aligned the desktop phase name and date controls, normalized their 50px control height, and retained full-width stacking at smaller breakpoints.
+- Matched the mobile phase-name input height to the shared date-picker controls.
+
 ## 2026-08-03 — Mobile Annual Conference operations
 
 - Added Annual Conference to Mobile Ops with live attention and completion context instead of hiding the workspace from phone organizers.

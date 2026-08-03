@@ -68,4 +68,17 @@ describe('calculateFloatingPosition', () => {
       width: 288,
     });
   });
+
+  it('caps a floating panel independently from a wide anchor', () => {
+    expect(calculateFloatingPosition({
+      anchor: { top: 100, right: 920, bottom: 150, left: 120, width: 800, height: 50 },
+      viewport,
+      panelHeight: 420,
+      preferredWidth: 328,
+      maxWidth: 360,
+    })).toMatchObject({
+      left: 120,
+      width: 360,
+    });
+  });
 });

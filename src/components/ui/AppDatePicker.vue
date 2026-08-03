@@ -315,8 +315,9 @@ function updatePlacement() {
   const position = calculateFloatingPosition({
     anchor: triggerButton.value.getBoundingClientRect(),
     viewport: viewportBounds(),
-    panelHeight: calendarPanel.value?.scrollHeight ?? (props.mode === 'datetime' ? 560 : 470),
+    panelHeight: calendarPanel.value?.scrollHeight ?? (props.mode === 'datetime' ? 430 : 360),
     preferredWidth: props.mode === 'datetime' ? 328 : 304,
+    maxWidth: 360,
   });
   placement.value = position.placement;
   panelStyle.value = {
@@ -511,7 +512,7 @@ watch(open, async (isOpen) => {
           :aria-label="mode === 'datetime' ? 'Choose date and time' : 'Choose date'"
           @keydown="handleCalendarKeydown"
         >
-          <div class="sticky top-0 z-10 border-b border-dc-border bg-dc-paper-warm px-3 py-3">
+          <div class="sticky top-0 z-10 border-b border-dc-border bg-dc-paper-warm px-2.5 py-2">
             <div class="flex items-center justify-between gap-2">
               <button type="button" class="motion-press grid size-8 place-items-center rounded-md border border-dc-ink bg-dc-paper text-dc-ink hover:bg-dc-yellow" aria-label="Previous month" @click="previousMonth">
                 <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
@@ -527,38 +528,12 @@ watch(open, async (isOpen) => {
             </div>
           </div>
 
-          <div class="p-3">
-            <div class="mb-2 grid grid-cols-7 gap-1">
-              <span v-for="weekday in weekdayLabels" :key="weekday" class="grid h-8 place-items-center font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                {{ weekday }}
-              </span>
-            </div>
-
-            <div class="grid grid-cols-7 gap-1">
-              <button
-                v-for="day in calendarDays"
-                :key="toDateValue(day.date)"
-                type="button"
-                class="motion-press relative grid h-10 place-items-center rounded-md border text-sm font-medium outline-none focus-visible:border-dc-pink focus-visible:shadow-[0_0_0_2px_rgba(232,17,127,0.35)]"
-                :data-date="toDateValue(day.date)"
-                :tabindex="isSameDay(day.date, activeDate) ? 0 : -1"
-                :aria-label="dateAriaLabel(day.date)"
-                :aria-pressed="isSameDay(day.date, calendarSelection)"
-                :aria-current="isToday(day.date) ? 'date' : undefined"
-                :class="calendarDayClass(day)"
-                @focus="setActiveDate(day.date)"
-                @click="chooseDate(day.date)"
-              >
-                <span>{{ day.date.getDate() }}</span>
-                <span v-if="isToday(day.date)" class="absolute bottom-1 size-1 rounded-full bg-dc-pink" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div v-if="mode === 'datetime'" class="mt-3 border-t border-dc-border pt-3">
+          <div class="p-2.5">
+            <div v-if="mode === 'datetime'" class="mb-2.5 border-b border-dc-border pb-2.5">
               <div class="flex items-end justify-between gap-3">
                 <div>
                   <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-dc-gray">Time · 24 hour</p>
-                  <p class="mt-1 text-xs text-dc-gray">Enter hour and minute</p>
+                  <p class="mt-0.5 text-xs text-dc-gray">Hour and minute</p>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <label>
@@ -568,7 +543,7 @@ watch(open, async (isOpen) => {
                       type="text"
                       inputmode="numeric"
                       maxlength="2"
-                      class="h-10 w-12 rounded-md border border-dc-border bg-white text-center font-mono text-sm font-semibold text-dc-ink outline-none focus:border-dc-pink focus:shadow-[0_0_0_2px_rgba(232,17,127,0.2)]"
+                      class="h-9 w-11 rounded-md border border-dc-border bg-white text-center font-mono text-sm font-semibold text-dc-ink outline-none focus:border-dc-pink focus:shadow-[0_0_0_2px_rgba(232,17,127,0.2)]"
                       aria-label="Hour, 00 to 23"
                       @input="updateDraftTime($event, 'hour')"
                       @blur="normalizeDraftTime"
@@ -583,7 +558,7 @@ watch(open, async (isOpen) => {
                       type="text"
                       inputmode="numeric"
                       maxlength="2"
-                      class="h-10 w-12 rounded-md border border-dc-border bg-white text-center font-mono text-sm font-semibold text-dc-ink outline-none focus:border-dc-pink focus:shadow-[0_0_0_2px_rgba(232,17,127,0.2)]"
+                      class="h-9 w-11 rounded-md border border-dc-border bg-white text-center font-mono text-sm font-semibold text-dc-ink outline-none focus:border-dc-pink focus:shadow-[0_0_0_2px_rgba(232,17,127,0.2)]"
                       aria-label="Minute, 00 to 59"
                       @input="updateDraftTime($event, 'minute')"
                       @blur="normalizeDraftTime"
@@ -594,7 +569,33 @@ watch(open, async (isOpen) => {
               </div>
             </div>
 
-            <div class="sticky bottom-0 z-10 mt-3 flex items-center justify-between border-t border-dc-border bg-dc-paper pt-3">
+            <div class="mb-1 grid grid-cols-7 gap-0.5">
+              <span v-for="weekday in weekdayLabels" :key="weekday" class="grid h-6 place-items-center font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+                {{ weekday }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-7 gap-0.5">
+              <button
+                v-for="day in calendarDays"
+                :key="toDateValue(day.date)"
+                type="button"
+                class="motion-press relative grid h-8 place-items-center rounded-md border text-sm font-medium outline-none focus-visible:border-dc-pink focus-visible:shadow-[0_0_0_2px_rgba(232,17,127,0.35)]"
+                :data-date="toDateValue(day.date)"
+                :tabindex="isSameDay(day.date, activeDate) ? 0 : -1"
+                :aria-label="dateAriaLabel(day.date)"
+                :aria-pressed="isSameDay(day.date, calendarSelection)"
+                :aria-current="isToday(day.date) ? 'date' : undefined"
+                :class="calendarDayClass(day)"
+                @focus="setActiveDate(day.date)"
+                @click="chooseDate(day.date)"
+              >
+                <span>{{ day.date.getDate() }}</span>
+                <span v-if="isToday(day.date)" class="absolute bottom-0.5 size-1 rounded-full bg-dc-pink" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div class="sticky bottom-0 z-10 mt-2.5 flex items-center justify-between border-t border-dc-border bg-dc-paper pt-2.5">
               <button type="button" class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink" @click="clearDate">
                 Clear
               </button>

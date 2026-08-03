@@ -33,6 +33,7 @@ export async function createSupabaseRegistrationCampaign(
   input: {
     event_id: string;
     status?: EventRegistrationCampaignStatus;
+    description?: string | null;
     capacity: number;
     opens_at?: string | null;
     closes_at?: string | null;
