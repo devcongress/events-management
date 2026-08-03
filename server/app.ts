@@ -40,27 +40,7 @@ import {
   ANNUAL_CONFERENCE_TASK_PRIORITIES,
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAMS,
-  annualConferenceOwnershipNeedsActiveOrganizerLookup,
-  canCreateAnnualConferenceTask,
-  canManageAnnualConferencePlanning,
-  summarizeAnnualConferenceWorkPlan,
-  validateAnnualConferencePhaseDates,
-  validateAnnualConferenceTaskOwnership,
-  validateAnnualConferenceTaskSchedule,
-  type AnnualConferenceEdition,
-  type AnnualConferenceEditionCreateInput,
-  type AnnualConferencePhase,
-  type AnnualConferencePhaseCreateInput,
-  type AnnualConferencePhaseUpdateInput,
-  type AnnualConferenceTask,
-  type AnnualConferenceTaskCreateInput,
-  type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
-import {
-  annualConferenceTasksForMember,
-  canEditAnnualConferenceTask,
-  volunteerCanUpdateAssignedTask,
-} from '@/lib/annual-conference-access';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { GooglePlacesSearchError, searchGhanaVenues } from '@/lib/google-places';
@@ -79,7 +59,6 @@ import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
 import { eventTestModeEnabled, markTestEventTitle } from '@/lib/event-test-mode';
-import { createMockAnnualConferenceEdition, createMockAnnualConferencePhase, createMockAnnualConferenceTask, deleteMockAnnualConferencePhase, getMockAnnualConferenceWorkPlan, listMockAnnualConferenceEditions, reorderMockAnnualConferencePhases, updateMockAnnualConferencePhase, updateMockAnnualConferenceTask } from '@/lib/mock-db/annual-conference-work-plan';
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
@@ -93,7 +72,6 @@ import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
-import { createSupabaseAnnualConferenceEdition, createSupabaseAnnualConferencePhase, createSupabaseAnnualConferenceTask, deleteSupabaseAnnualConferencePhase, getSupabaseAnnualConferenceWorkPlan, listSupabaseAnnualConferenceEditions, reorderSupabaseAnnualConferencePhases, updateSupabaseAnnualConferencePhase, updateSupabaseAnnualConferenceTask } from '@/lib/supabase/annual-conference-work-plan';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import {
   approveEventSubmission,
@@ -126,6 +104,12 @@ import {
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { adminRolesForApiRequest } from '@/server/admin-api-access';
+import { createAnnualConferenceRepository } from '@/server/annual-conference-repository';
+import {
+  AnnualConferenceServiceError,
+  annualConferenceErrorStatus,
+  createAnnualConferenceService,
+} from '@/server/annual-conference-service';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
@@ -168,11 +152,17 @@ app.onError((error, c) => {
 app.use('*', async (c, next) => {
   const requestId = c.req.header('cf-ray') ?? crypto.randomUUID();
   c.set('requestId', requestId);
+  if (c.req.path.startsWith('/api/')) {
+    // API responses are private by default. Purpose-built public read routes
+    // may replace this with an explicit cache policy in their own handlers.
+    c.header('Cache-Control', 'no-store');
+  }
   await next();
 
   c.header('X-Request-ID', requestId);
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
+  c.header('X-Permitted-Cross-Domain-Policies', 'none');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   c.header('Cross-Origin-Opener-Policy', 'same-origin');
@@ -218,6 +208,8 @@ for (const publicWritePath of [
   '/api/public/event-submissions',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
+  '/api/quiz/join',
+  '/api/quiz/answer',
   '/api/quiz/participants/*',
 ]) {
   app.use(publicWritePath, bodyLimit({
@@ -632,6 +624,38 @@ const annualConferencePhaseUpdateSchema = z.object({
 const annualConferencePhaseOrderSchema = z.object({
   phase_ids: z.array(z.string().uuid()).min(1).max(100),
 }).strict();
+const quizJoinSchema = z.object({
+  join_code: z.string().trim().toUpperCase().regex(/^[A-HJ-NP-Z2-9]{6}$/),
+  device_id: z.string().uuid(),
+  nickname: z.string().trim().max(24).optional().default(''),
+  purpose: z.enum(['quiz', 'system_design_learning']).optional(),
+}).strict();
+const quizAnswerSchema = z.object({
+  session_id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  device_id: z.string().uuid(),
+  answer_index: z.number().int().min(0).max(3),
+}).strict();
+const quizSessionUpdateSchema = z.object({
+  status: z.enum(['draft', 'waiting', 'active', 'finished']).optional(),
+  current_question_index: z.number().int().min(-1).max(500).optional(),
+  question_phase: z.enum(['answering', 'revealing', 'scoreboard']).nullable().optional(),
+  started_at: z.string().datetime().nullable().optional(),
+  finished_at: z.string().datetime().nullable().optional(),
+  question_started_at: z.string().datetime().nullable().optional(),
+  phase_started_at: z.string().datetime().nullable().optional(),
+  expires_at: z.string().datetime().nullable().optional(),
+  released_question_ids: z.array(z.string().uuid()).max(500).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'Provide at least one session change.');
+const quizParticipantNameSchema = z.object({
+  device_id: z.string().uuid(),
+  nickname: z.string(),
+}).strict();
+const quizStateQuerySchema = z.object({
+  sessionId: z.string().uuid(),
+  userId: z.string().uuid().optional(),
+  presenter: z.enum(['true', 'false']).optional(),
+}).strict();
 const STOP_WORDS = new Set([
   'about',
   'above',
@@ -701,11 +725,27 @@ async function auditAdminAction(c: Context, input: {
   });
 }
 
+function internalErrorResponse(c: Context, event: string, error: unknown, publicMessage: string) {
+  console.error(JSON.stringify({
+    event,
+    request_id: c.get('requestId') ?? null,
+    method: c.req.method,
+    path: securitySafeRequestPath(c.req.path),
+    error_name: safeErrorName(error),
+  }));
+  return c.json({ error: publicMessage }, 500);
+}
+
+async function quizDeviceOwnsUser(userId: string, deviceId: string): Promise<boolean> {
+  const user = await getUserById(userId);
+  return Boolean(user && user.device_id === deviceId && !user.merged_into_user_id);
+}
+
 function corsOrigin(origin: string | undefined, c: Context): string | undefined {
   if (!origin) return undefined;
 
   const allowedOrigins = configuredFrontendOrigins(c);
-  const localDevelopmentOrigin = envValue('NODE_ENV', c) !== 'production'
+  const localDevelopmentOrigin = envValue('NODE_ENV', c) === 'development'
     && origin.startsWith('http://localhost:');
   if (allowedOrigins.has(origin) || localDevelopmentOrigin) {
     return origin;
@@ -1033,98 +1073,6 @@ async function createEventFeedbackSubmissionStore(
   return createEventFeedbackSubmission(data);
 }
 
-async function getAnnualConferenceWorkPlanStore(
-  year: number,
-  c?: Context,
-): Promise<{ edition: AnnualConferenceEdition; phases: AnnualConferencePhase[]; tasks: AnnualConferenceTask[] } | undefined> {
-  const workPlan = await getSupabaseAnnualConferenceWorkPlan(year, c);
-  if (workPlan !== null) return workPlan;
-  return getMockAnnualConferenceWorkPlan(year);
-}
-
-async function listAnnualConferenceEditionsStore(c?: Context): Promise<AnnualConferenceEdition[]> {
-  const editions = await listSupabaseAnnualConferenceEditions(c);
-  if (editions !== null) return editions;
-  return listMockAnnualConferenceEditions();
-}
-
-async function createAnnualConferenceEditionStore(
-  input: AnnualConferenceEditionCreateInput,
-  taskCreatorEmail: string,
-  c?: Context,
-): Promise<AnnualConferenceEdition> {
-  const edition = await createSupabaseAnnualConferenceEdition(input, taskCreatorEmail, c);
-  if (edition) return edition;
-  return createMockAnnualConferenceEdition(input, taskCreatorEmail);
-}
-
-async function createAnnualConferencePhaseStore(
-  editionId: string,
-  input: AnnualConferencePhaseCreateInput,
-  actorEmail: string,
-  c?: Context,
-): Promise<AnnualConferencePhase> {
-  const phase = await createSupabaseAnnualConferencePhase(editionId, input, actorEmail, c);
-  if (phase) return phase;
-  return createMockAnnualConferencePhase(editionId, input, actorEmail);
-}
-
-async function updateAnnualConferencePhaseStore(
-  editionId: string,
-  phaseId: string,
-  input: AnnualConferencePhaseUpdateInput,
-  actorEmail: string,
-  c?: Context,
-): Promise<AnnualConferencePhase | undefined> {
-  const phase = await updateSupabaseAnnualConferencePhase(editionId, phaseId, input, actorEmail, c);
-  if (phase !== null) return phase;
-  return updateMockAnnualConferencePhase(editionId, phaseId, input, actorEmail);
-}
-
-async function deleteAnnualConferencePhaseStore(
-  editionId: string,
-  phaseId: string,
-  c?: Context,
-): Promise<boolean> {
-  const deleted = await deleteSupabaseAnnualConferencePhase(editionId, phaseId, c);
-  if (deleted !== null) return deleted;
-  return deleteMockAnnualConferencePhase(editionId, phaseId);
-}
-
-async function reorderAnnualConferencePhasesStore(
-  editionId: string,
-  phases: AnnualConferencePhase[],
-  actorEmail: string,
-  c?: Context,
-): Promise<AnnualConferencePhase[]> {
-  const reordered = await reorderSupabaseAnnualConferencePhases(phases, actorEmail, c);
-  if (reordered !== null) return reordered;
-  return reorderMockAnnualConferencePhases(editionId, phases.map((phase) => phase.id), actorEmail);
-}
-
-async function createAnnualConferenceTaskStore(
-  edition: AnnualConferenceEdition,
-  input: AnnualConferenceTaskCreateInput,
-  actorEmail: string,
-  c?: Context,
-): Promise<AnnualConferenceTask> {
-  const task = await createSupabaseAnnualConferenceTask(edition, input, actorEmail, c);
-  if (task) return task;
-  return createMockAnnualConferenceTask(edition, input, actorEmail);
-}
-
-async function updateAnnualConferenceTaskStore(
-  editionId: string,
-  taskId: string,
-  input: AnnualConferenceTaskUpdateInput,
-  actorEmail: string,
-  c?: Context,
-): Promise<AnnualConferenceTask | undefined> {
-  const task = await updateSupabaseAnnualConferenceTask(editionId, taskId, input, actorEmail, c);
-  if (task !== null) return task;
-  return updateMockAnnualConferenceTask(editionId, taskId, input, actorEmail);
-}
-
 async function getActiveOrganizerEmails(c: Context): Promise<string[] | null> {
   try {
     const { data, error } = await getSupabaseAdminClient(c)
@@ -1137,6 +1085,32 @@ async function getActiveOrganizerEmails(c: Context): Promise<string[] | null> {
   } catch {
     return null;
   }
+}
+
+async function annualConferenceServiceForRequest(c: Context) {
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated) {
+    throw new AnnualConferenceServiceError('forbidden', 'Conference access required.');
+  }
+
+  return createAnnualConferenceService({
+    repository: createAnnualConferenceRepository(c),
+    actor: { email: session.email, role: session.role },
+    activeOrganizerEmails: () => getActiveOrganizerEmails(c),
+    audit: (event) => auditAdminAction(c, {
+      action: event.action,
+      targetType: event.targetType,
+      targetId: event.targetId,
+      metadata: event.metadata,
+    }),
+  });
+}
+
+function annualConferenceServiceErrorResponse(c: Context, error: unknown) {
+  if (error instanceof AnnualConferenceServiceError) {
+    return c.json({ error: error.message }, annualConferenceErrorStatus(error));
+  }
+  throw error;
 }
 
 function canonicalizeEventSchedule(event: Event): Event {
@@ -2478,7 +2452,7 @@ app.get('/api/feedback/testers', async (c) => {
     .order('display_name', { ascending: true });
 
   if (error) {
-    return c.json({ error: error.message }, 500);
+    return internalErrorResponse(c, 'feedback_testers_load_failed', error, 'Unable to load feedback testers.');
   }
 
   return c.json(data ?? []);
@@ -3178,7 +3152,8 @@ app.get('/api/admin/volunteer-applications', async (c) => {
 app.get('/api/annual-conference/editions', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
-  return c.json({ editions: await listAnnualConferenceEditionsStore(c) });
+  const service = await annualConferenceServiceForRequest(c);
+  return c.json({ editions: await service.listEditions() });
 });
 
 app.post('/api/annual-conference/editions', async (c) => {
@@ -3187,37 +3162,12 @@ app.post('/api/annual-conference/editions', async (c) => {
   const parsed = annualConferenceEditionCreateSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the edition details.' }, 400);
 
-  const editions = await listAnnualConferenceEditionsStore(c);
-  const latestEdition = editions[0];
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email || !latestEdition
-    || !canManageAnnualConferencePlanning(session.email, latestEdition.task_creator_email)) {
-    return c.json({ error: 'Only the current annual-conference planning owner can create the next edition.' }, 403);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.createEdition(parsed.data), 201);
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-  if (editions.some((edition) => edition.year === parsed.data.year)) {
-    return c.json({ error: `Annual conference ${parsed.data.year} already exists.` }, 409);
-  }
-  if (parsed.data.year <= latestEdition.year) {
-    return c.json({ error: `The next edition year must be after ${latestEdition.year}.` }, 400);
-  }
-
-  const taskCreatorEmail = parsed.data.task_creator_email ?? latestEdition.task_creator_email;
-  if (parsed.data.task_creator_email) {
-    const activeOrganizerEmails = await getActiveOrganizerEmails(c);
-    if (!activeOrganizerEmails) return c.json({ error: 'Unable to verify the selected planning owner.' }, 500);
-    if (!activeOrganizerEmails.map((email) => email.trim().toLowerCase()).includes(taskCreatorEmail)) {
-      return c.json({ error: 'The selected planning owner must be an active organizer.' }, 400);
-    }
-  }
-
-  const edition = await createAnnualConferenceEditionStore(parsed.data, taskCreatorEmail, c);
-  await auditAdminAction(c, {
-    action: 'annual_conference.edition.create',
-    targetType: 'annual_conference_edition',
-    targetId: edition.id,
-    metadata: { year: edition.year, task_creator_email: edition.task_creator_email },
-  });
-  return c.json(edition, 201);
 });
 
 app.get('/api/annual-conference/:year/work-plan', async (c) => {
@@ -3229,37 +3179,12 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
 
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) {
-    return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.getWorkspace(Number(yearParam)));
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-
-  const session = await getAdminSession(c);
-  if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
-
-  const visibleTasks = annualConferenceTasksForMember(workPlan.tasks, session.role, session.email);
-  const volunteerAccess = session.role === 'volunteer';
-  const canEditAllTasks = canCreateAnnualConferenceTask(
-    session.email,
-    workPlan.edition.task_creator_email,
-  );
-  const canCreateTasks = !volunteerAccess
-    && canEditAllTasks;
-
-  return c.json({
-    ...workPlan,
-    tasks: visibleTasks,
-    summary: summarizeAnnualConferenceWorkPlan(visibleTasks),
-    permissions: {
-      can_create_tasks: canCreateTasks,
-      can_manage_phases: canCreateTasks,
-      can_edit_all_tasks: !volunteerAccess && canEditAllTasks,
-      can_edit_assigned_tasks: !volunteerAccess,
-      can_update_assigned_task_status: volunteerAccess,
-      access_scope: volunteerAccess ? 'assigned' : 'all',
-      task_creator_email: workPlan.edition.task_creator_email,
-    },
-  });
 });
 
 app.post('/api/annual-conference/:year/phases', async (c) => {
@@ -3269,23 +3194,12 @@ app.post('/api/annual-conference/:year/phases', async (c) => {
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const parsed = annualConferencePhaseCreateSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase details.' }, 400);
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email
-    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
-    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.createPhase(Number(yearParam), parsed.data), 201);
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-  const dateError = validateAnnualConferencePhaseDates(parsed.data, workPlan.phases);
-  if (dateError) return c.json({ error: dateError }, 400);
-  const phase = await createAnnualConferencePhaseStore(workPlan.edition.id, parsed.data, session.email, c);
-  await auditAdminAction(c, {
-    action: 'annual_conference.phase.create',
-    targetType: 'annual_conference_phase',
-    targetId: phase.id,
-    metadata: { edition_year: Number(yearParam), name: phase.name },
-  });
-  return c.json(phase, 201);
 });
 
 app.put('/api/annual-conference/:year/phases/order', async (c) => {
@@ -3295,28 +3209,12 @@ app.put('/api/annual-conference/:year/phases/order', async (c) => {
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const parsed = annualConferencePhaseOrderSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase order.' }, 400);
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email
-    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
-    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.reorderPhases(Number(yearParam), parsed.data.phase_ids));
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-  const uniqueIds = new Set(parsed.data.phase_ids);
-  if (uniqueIds.size !== workPlan.phases.length
-    || workPlan.phases.some((phase) => !uniqueIds.has(phase.id))) {
-    return c.json({ error: 'Phase order must contain every phase exactly once.' }, 400);
-  }
-  const phaseById = new Map(workPlan.phases.map((phase) => [phase.id, phase]));
-  const ordered = parsed.data.phase_ids.map((id) => phaseById.get(id)!);
-  const phases = await reorderAnnualConferencePhasesStore(workPlan.edition.id, ordered, session.email, c);
-  await auditAdminAction(c, {
-    action: 'annual_conference.phase.reorder',
-    targetType: 'annual_conference_edition',
-    targetId: workPlan.edition.id,
-    metadata: { edition_year: Number(yearParam), phase_ids: parsed.data.phase_ids },
-  });
-  return c.json({ phases });
 });
 
 app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
@@ -3326,39 +3224,12 @@ app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const parsed = annualConferencePhaseUpdateSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase changes.' }, 400);
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email
-    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
-    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.updatePhase(Number(yearParam), c.req.param('phaseId'), parsed.data));
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-  const existing = workPlan.phases.find((phase) => phase.id === c.req.param('phaseId'));
-  if (!existing) return c.json({ error: 'Annual conference phase was not found.' }, 404);
-  const proposed = {
-    starts_on: parsed.data.starts_on ?? existing.starts_on,
-    ends_on: parsed.data.ends_on ?? existing.ends_on,
-  };
-  const dateError = validateAnnualConferencePhaseDates(proposed, workPlan.phases, existing.id);
-  if (dateError) return c.json({ error: dateError }, 400);
-  if (workPlan.tasks.some((task) => task.phase_id === existing.id && task.target_date && task.target_date > proposed.ends_on)) {
-    return c.json({ error: 'Phase end date cannot be earlier than an assigned task target date.' }, 400);
-  }
-  const phase = await updateAnnualConferencePhaseStore(
-    workPlan.edition.id,
-    existing.id,
-    parsed.data,
-    session.email,
-    c,
-  );
-  if (!phase) return c.json({ error: 'Annual conference phase was not found.' }, 404);
-  await auditAdminAction(c, {
-    action: 'annual_conference.phase.update',
-    targetType: 'annual_conference_phase',
-    targetId: phase.id,
-    metadata: { edition_year: Number(yearParam), changed_fields: Object.keys(parsed.data) },
-  });
-  return c.json(phase);
 });
 
 app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
@@ -3366,24 +3237,12 @@ app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email
-    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
-    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.deletePhase(Number(yearParam), c.req.param('phaseId')));
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-  const phase = workPlan.phases.find((item) => item.id === c.req.param('phaseId'));
-  if (!phase) return c.json({ error: 'Annual conference phase was not found.' }, 404);
-  const deleted = await deleteAnnualConferencePhaseStore(workPlan.edition.id, phase.id, c);
-  if (!deleted) return c.json({ error: 'Annual conference phase was not found.' }, 404);
-  await auditAdminAction(c, {
-    action: 'annual_conference.phase.delete',
-    targetType: 'annual_conference_phase',
-    targetId: phase.id,
-    metadata: { edition_year: Number(yearParam), name: phase.name },
-  });
-  return c.json({ deleted: true, tasks_unassigned: workPlan.tasks.filter((task) => task.phase_id === phase.id).length });
 });
 
 app.post('/api/annual-conference/:year/work-plan', async (c) => {
@@ -3400,52 +3259,12 @@ app.post('/api/annual-conference/:year/work-plan', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the task details.' }, 400);
   }
 
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) {
-    return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.createTask(Number(yearParam), parsed.data), 201);
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email
-    || !canCreateAnnualConferenceTask(session.email, workPlan.edition.task_creator_email)) {
-    return c.json({ error: 'Only this edition’s planning owner can add annual conference tasks.' }, 403);
-  }
-
-  const scheduleError = validateAnnualConferenceTaskSchedule(parsed.data, workPlan.phases);
-  if (scheduleError) return c.json({ error: scheduleError }, 400);
-
-  const activeOrganizerEmails = await getActiveOrganizerEmails(c);
-  if (!activeOrganizerEmails) {
-    return c.json({
-      error: 'Unable to verify active organizers before assigning task ownership. Please try again.',
-    }, 500);
-  }
-
-  const ownership = validateAnnualConferenceTaskOwnership(parsed.data, activeOrganizerEmails);
-  if (!ownership.ok) {
-    return c.json({ error: ownership.error }, 400);
-  }
-
-  const task = await createAnnualConferenceTaskStore(
-    workPlan.edition,
-    ownership.value,
-    session.email,
-    c,
-  );
-
-  await auditAdminAction(c, {
-    action: 'annual_conference.task.create',
-    targetType: 'annual_conference_task',
-    targetId: task.id,
-    metadata: {
-      edition_year: Number(yearParam),
-      title: task.title,
-      workstream: task.workstream,
-      accountable_owner: task.accountable_owner,
-    },
-  });
-
-  return c.json(task, 201);
 });
 
 app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
@@ -3462,108 +3281,12 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the task changes.' }, 400);
   }
 
-  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
-  if (!workPlan) {
-    return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+    return c.json(await service.updateTask(Number(yearParam), c.req.param('taskId'), parsed.data));
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
   }
-
-  const existingTask = workPlan.tasks.find((task) => task.id === c.req.param('taskId'));
-  if (!existingTask) {
-    return c.json({ error: 'Annual conference task was not found.' }, 404);
-  }
-
-  const session = await getAdminSession(c);
-  if (!session.authenticated) {
-    return c.json({ error: 'Conference access required.' }, 401);
-  }
-
-  if (session.role === 'volunteer') {
-    if (!volunteerCanUpdateAssignedTask(existingTask, parsed.data, session.email)) {
-      return c.json({ error: 'Volunteers can only update the status of tasks assigned to them.' }, 403);
-    }
-
-    const task = await updateAnnualConferenceTaskStore(
-      workPlan.edition.id,
-      c.req.param('taskId'),
-      { status: parsed.data.status },
-      session.email ?? 'conference-volunteer',
-      c,
-    );
-
-    if (!task) return c.json({ error: 'Annual conference task was not found.' }, 404);
-
-    await auditAdminAction(c, {
-      action: 'annual_conference.task.status_update',
-      targetType: 'annual_conference_task',
-      targetId: task.id,
-      metadata: {
-        edition_year: Number(yearParam),
-        status: task.status,
-      },
-    });
-
-    return c.json({ ...task, internal_note: null });
-  }
-
-  if (!canEditAnnualConferenceTask(
-    existingTask,
-    session.email,
-    workPlan.edition.task_creator_email,
-  )) {
-    return c.json({ error: 'Only the planning owner or a task owner/collaborator can edit this task.' }, 403);
-  }
-
-  let activeOrganizerEmails: string[] = [];
-  if (annualConferenceOwnershipNeedsActiveOrganizerLookup(parsed.data, existingTask)) {
-    const loadedOrganizerEmails = await getActiveOrganizerEmails(c);
-    if (!loadedOrganizerEmails) {
-      return c.json({
-        error: 'Unable to verify active organizers before assigning task ownership. Please try again.',
-      }, 500);
-    }
-    activeOrganizerEmails = loadedOrganizerEmails;
-  }
-
-  const ownership = validateAnnualConferenceTaskOwnership(
-    parsed.data,
-    activeOrganizerEmails,
-    existingTask,
-  );
-  if (!ownership.ok) {
-    return c.json({ error: ownership.error }, 400);
-  }
-
-  const proposedSchedule = {
-    phase_id: 'phase_id' in parsed.data ? parsed.data.phase_id : existingTask.phase_id,
-    target_date: 'target_date' in parsed.data ? parsed.data.target_date : existingTask.target_date,
-  };
-  const scheduleError = validateAnnualConferenceTaskSchedule(proposedSchedule, workPlan.phases);
-  if (scheduleError) return c.json({ error: scheduleError }, 400);
-
-  const task = await updateAnnualConferenceTaskStore(
-    workPlan.edition.id,
-    c.req.param('taskId'),
-    ownership.value,
-    session.email ?? 'local-organizer',
-    c,
-  );
-
-  if (!task) {
-    return c.json({ error: 'Annual conference task was not found.' }, 404);
-  }
-
-  await auditAdminAction(c, {
-    action: 'annual_conference.task.update',
-    targetType: 'annual_conference_task',
-    targetId: task.id,
-    metadata: {
-      edition_year: Number(yearParam),
-      title: task.title,
-      changed_fields: Object.keys(ownership.value),
-    },
-  });
-
-  return c.json(task);
 });
 
 app.get('/api/auth/admin/callback', async (c) => {
@@ -4643,9 +4366,7 @@ app.post('/api/events', async (c) => {
     if (event) {
       await deleteEvent(event.id, c).catch(() => undefined);
     }
-    return c.json({
-      error: error instanceof Error ? error.message : 'Unable to create the event.',
-    }, 500);
+    return internalErrorResponse(c, 'event_create_failed', error, 'Unable to create the event.');
   }
 });
 
@@ -5154,7 +4875,7 @@ app.delete('/api/events/:eventId', async (c) => {
 
     return c.json({ ok: true });
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to remove event' }, 500);
+    return internalErrorResponse(c, 'event_delete_failed', error, 'Unable to remove the event.');
   }
 });
 
@@ -5336,7 +5057,7 @@ app.patch('/api/events/:eventId', async (c) => {
     });
     return c.json(updatedEvent);
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to update event' }, 500);
+    return internalErrorResponse(c, 'event_update_failed', error, 'Unable to update the event.');
   }
 });
 
@@ -6434,7 +6155,7 @@ app.delete('/api/events/:eventId/speakers/:speakerId', async (c) => {
     });
     return c.json({ ok: true });
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to remove speaker' }, 500);
+    return internalErrorResponse(c, 'event_speaker_remove_failed', error, 'Unable to remove the speaker.');
   }
 });
 
@@ -6510,7 +6231,7 @@ app.patch('/api/talks/:talkId', async (c) => {
     }
     return c.json(updatedTalk);
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to update talk' }, 500);
+    return internalErrorResponse(c, 'talk_update_failed', error, 'Unable to update the archive item.');
   }
 });
 
@@ -6706,17 +6427,20 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
 
   try {
     const sessionId = c.req.param('sessionId');
-    const body = await c.req.json();
-    const session = await updateQuizSession(sessionId, body);
+    const parsed = quizSessionUpdateSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues[0]?.message ?? 'Invalid quiz session update.' }, 400);
+    }
+    const session = await updateQuizSession(sessionId, parsed.data);
     await auditAdminAction(c, {
       action: 'quiz.session.update',
       targetType: 'quiz_session',
       targetId: sessionId,
-      metadata: { changed_fields: Object.keys(body).sort(), status: session.status },
+      metadata: { changed_fields: Object.keys(parsed.data).sort(), status: session.status },
     });
     return c.json(session);
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to update session' }, 500);
+    return internalErrorResponse(c, 'quiz_session_update_failed', error, 'Unable to update the quiz session.');
   }
 });
 
@@ -7038,7 +6762,7 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     });
     return c.json(question);
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to update question' }, 500);
+    return internalErrorResponse(c, 'quiz_question_update_failed', error, 'Unable to update the quiz question.');
   }
 });
 
@@ -7058,7 +6782,7 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
     });
     return c.json({ ok: true });
   } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Failed to delete question' }, 500);
+    return internalErrorResponse(c, 'quiz_question_delete_failed', error, 'Unable to remove the quiz question.');
   }
 });
 
@@ -7081,14 +6805,29 @@ app.post('/api/quiz/questions/reorder', async (c) => {
 });
 
 app.post('/api/quiz/join', async (c) => {
-  const body = await c.req.json();
-  const { join_code, device_id, nickname, purpose } = body;
-
-  if (!/^[A-HJ-NP-Z2-9]{6}$/i.test(String(join_code)) || !/^[a-f0-9-]{36}$/i.test(String(device_id))) {
+  const parsed = quizJoinSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
     return c.json({ error: 'A valid join code and device are required' }, 400);
   }
+  const { join_code, device_id, nickname, purpose } = parsed.data;
 
-  const foundSession = await getQuizSessionByCode(String(join_code).toUpperCase());
+  const clientRateLimitError = await enforcePublicRateLimit(c, {
+    action: 'quiz_join_client',
+    clientKey: publicClientKey(c),
+    maxAttempts: 240,
+    windowSeconds: 60,
+  }, 'Too many room joins were attempted from this network. Please wait a moment.');
+  if (clientRateLimitError) return clientRateLimitError;
+
+  const deviceRateLimitError = await enforcePublicRateLimit(c, {
+    action: 'quiz_join_device',
+    clientKey: `${device_id}:${join_code}`,
+    maxAttempts: 12,
+    windowSeconds: 60,
+  }, 'Too many room joins were attempted from this device. Please wait a moment.');
+  if (deviceRateLimitError) return deviceRateLimitError;
+
+  const foundSession = await getQuizSessionByCode(join_code);
   const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
   if (!session) {
     return c.json({ error: 'Invalid join code' }, 404);
@@ -7103,7 +6842,7 @@ app.post('/api/quiz/join', async (c) => {
   }
 
   const systemDesignLearningRoom = session.purpose === 'system_design_learning';
-  const requestedNickname = String(nickname ?? '').trim().slice(0, 20);
+  const requestedNickname = nickname.slice(0, 20);
   if (!systemDesignLearningRoom && !requestedNickname) {
     return c.json({ error: 'Enter a nickname to join this quiz.', code: 'nickname_required' }, 400);
   }
@@ -7182,9 +6921,9 @@ app.post('/api/quiz/join', async (c) => {
 
 app.patch('/api/quiz/participants/:participantId/name', async (c) => {
   const participantId = c.req.param('participantId');
-  const body = await c.req.json();
-  const deviceId = String(body.device_id ?? '');
-  const nickname = validateParticipantDisplayName(body.nickname);
+  const parsed = quizParticipantNameSchema.safeParse(await c.req.json().catch(() => null));
+  const deviceId = parsed.success ? parsed.data.device_id : '';
+  const nickname = parsed.success ? validateParticipantDisplayName(parsed.data.nickname) : null;
 
   if (!/^[a-f0-9-]{36}$/i.test(participantId) || !/^[a-f0-9-]{36}$/i.test(deviceId)) {
     return c.json({ error: 'A valid participant and device are required.' }, 400);
@@ -7231,11 +6970,22 @@ app.patch('/api/quiz/participants/:participantId/name', async (c) => {
 });
 
 app.post('/api/quiz/answer', async (c) => {
-  const body = await c.req.json();
-  const { session_id, user_id, answer_index } = body;
+  const parsed = quizAnswerSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: 'A valid session, participant device, and answer are required' }, 400);
+  }
+  const { session_id, user_id, device_id, answer_index } = parsed.data;
 
-  if (!/^[a-f0-9-]{36}$/i.test(String(session_id)) || !/^[a-f0-9-]{36}$/i.test(String(user_id)) || !Number.isInteger(answer_index) || answer_index < 0 || answer_index > 3) {
-    return c.json({ error: 'session_id, user_id, and answer_index are required' }, 400);
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: 'quiz_answer',
+    clientKey: `${session_id}:${user_id}:${device_id}`,
+    maxAttempts: 12,
+    windowSeconds: 60,
+  }, 'Too many answers were submitted. Please wait a moment.');
+  if (rateLimitError) return rateLimitError;
+
+  if (!await quizDeviceOwnsUser(user_id, device_id)) {
+    return c.json({ error: 'This participant belongs to another device.' }, 403);
   }
 
   const foundSession = await getQuizSessionById(session_id);
@@ -7336,17 +7086,26 @@ app.post('/api/quiz/answer', async (c) => {
 });
 
 app.get('/api/quiz/state', async (c) => {
-  const sessionId = c.req.query('sessionId');
-  const userId = c.req.query('userId');
-  const presenterStateRequested = c.req.query('presenter') === 'true';
-
-  if (!sessionId) {
-    return c.json({ error: 'sessionId is required' }, 400);
+  const parsed = quizStateQuerySchema.safeParse({
+    sessionId: c.req.query('sessionId'),
+    userId: c.req.query('userId'),
+    presenter: c.req.query('presenter'),
+  });
+  if (!parsed.success) {
+    return c.json({ error: 'A valid session and participant device are required.' }, 400);
   }
+  const { sessionId, userId } = parsed.data;
+  const presenterStateRequested = parsed.data.presenter === 'true';
+  const deviceId = z.string().uuid().safeParse(c.req.header('x-quiz-device-id'));
 
   if (presenterStateRequested) {
     const adminError = await requireAdmin(c);
     if (adminError) return adminError;
+  } else if (userId && (
+    !deviceId.success
+    || !await quizDeviceOwnsUser(userId, deviceId.data)
+  )) {
+    return c.json({ error: 'This participant belongs to another device.' }, 403);
   }
 
   const foundSession = await getQuizSessionById(sessionId);

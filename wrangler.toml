@@ -6,6 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 keep_vars = true
 
 [vars]
+NODE_ENV = "production"
 APP_DATA_SOURCE = "supabase"
 PUBLIC_APP_URL = "https://em.devcongress.org"
 PUBLIC_FRONTEND_ORIGIN = "https://em.devcongress.org"

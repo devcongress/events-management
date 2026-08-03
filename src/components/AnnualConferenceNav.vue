@@ -46,6 +46,7 @@ const workPlanQuery = useQuery({
 const organizersQuery = useQuery({
   queryKey: queryKeys.adminOrganizers,
   queryFn: fetchAdminOrganizers,
+  enabled: showEditionForm,
 });
 const editions = computed(() => editionsQuery.data.value?.editions ?? []);
 const currentEdition = computed(() => editions.value.find((edition) => String(edition.year) === year.value));

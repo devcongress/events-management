@@ -89,21 +89,22 @@ export async function getSupabaseAnnualConferenceWorkPlan(
   if (editionResult.error) throw new Error(editionResult.error.message);
   if (!editionResult.data) return undefined;
 
-  const taskResult = await client
-    .from('annual_conference_tasks')
-    .select('*')
-    .eq('edition_id', editionResult.data.id)
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true });
+  const [taskResult, phaseResult] = await Promise.all([
+    client
+      .from('annual_conference_tasks')
+      .select('*')
+      .eq('edition_id', editionResult.data.id)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
+    client
+      .from('annual_conference_phases')
+      .select('*')
+      .eq('edition_id', editionResult.data.id)
+      .order('sort_order', { ascending: true })
+      .order('starts_on', { ascending: true }),
+  ]);
 
   if (taskResult.error) throw new Error(taskResult.error.message);
-
-  const phaseResult = await client
-    .from('annual_conference_phases')
-    .select('*')
-    .eq('edition_id', editionResult.data.id)
-    .order('sort_order', { ascending: true })
-    .order('starts_on', { ascending: true });
   if (phaseResult.error) throw new Error(phaseResult.error.message);
 
   return {

@@ -1,10 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
+  annualConferenceCapabilities,
   annualConferenceTasksForMember,
+  canUpdateAnnualConferenceTask,
   isAnnualConferenceTaskAssignedTo,
+  presentAnnualConferenceWorkspace,
   volunteerCanUpdateAssignedTask,
 } from './annual-conference-access';
-import type { AnnualConferenceTask } from './annual-conference-work-plan';
+import type { AnnualConferenceEdition, AnnualConferenceTask } from './annual-conference-work-plan';
+
+const edition: AnnualConferenceEdition = {
+  id: 'edition-1',
+  year: 2026,
+  name: 'DevCongress Annual Conference',
+  label: 'December 2026',
+  provisional_date: '2026-12-19',
+  date_status: 'provisional',
+  venue_note: null,
+  keynote_note: null,
+  task_creator_email: 'owner@example.com',
+  created_at: '2026-08-03T00:00:00.000Z',
+  updated_at: '2026-08-03T00:00:00.000Z',
+};
 
 function task(overrides: Partial<AnnualConferenceTask> = {}): AnnualConferenceTask {
   return {
@@ -71,5 +88,53 @@ describe('annual conference volunteer access', () => {
       'volunteer@example.com',
     )).toBe(false);
     expect(volunteerCanUpdateAssignedTask(task(), { status: 'done' }, 'someone@example.com')).toBe(false);
+  });
+
+  it('derives client capabilities from the same planning-owner policy', () => {
+    expect(annualConferenceCapabilities({ role: 'owner', email: 'owner@example.com' }, edition)).toMatchObject({
+      can_create_tasks: true,
+      can_manage_phases: true,
+      can_edit_all_tasks: true,
+      access_scope: 'all',
+    });
+    expect(annualConferenceCapabilities({ role: 'volunteer', email: 'volunteer@example.com' }, edition)).toMatchObject({
+      can_create_tasks: false,
+      can_edit_assigned_tasks: false,
+      can_update_assigned_task_status: true,
+      access_scope: 'assigned',
+    });
+  });
+
+  it('uses one task-update decision for organizers and volunteers', () => {
+    expect(canUpdateAnnualConferenceTask(
+      { role: 'organizer', email: 'volunteer@example.com' },
+      edition,
+      task(),
+      { title: 'Updated' },
+    )).toBe(true);
+    expect(canUpdateAnnualConferenceTask(
+      { role: 'volunteer', email: 'volunteer@example.com' },
+      edition,
+      task(),
+      { title: 'Updated' },
+    )).toBe(false);
+    expect(canUpdateAnnualConferenceTask(
+      { role: 'volunteer', email: 'volunteer@example.com' },
+      edition,
+      task(),
+      { status: 'done' },
+    )).toBe(true);
+  });
+
+  it('presents a capability-bearing, redacted workspace for volunteers', () => {
+    const workspace = presentAnnualConferenceWorkspace({
+      edition,
+      phases: [],
+      tasks: [task(), task({ id: 'task-2', accountable_owner: 'someone@example.com' })],
+    }, { role: 'volunteer', email: 'volunteer@example.com' });
+
+    expect(workspace.tasks).toEqual([expect.objectContaining({ id: 'task-1', internal_note: null })]);
+    expect(workspace.summary.total).toBe(1);
+    expect(workspace.permissions.access_scope).toBe('assigned');
   });
 });

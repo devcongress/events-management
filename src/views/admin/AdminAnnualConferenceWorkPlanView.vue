@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useMutation, useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
@@ -9,10 +9,6 @@ import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
-  ANNUAL_CONFERENCE_WORKSTREAMS,
-  defaultAnnualConferencePhaseScope,
-  filterAnnualConferenceTasksByPhase,
-  summarizeAnnualConferenceWorkPlan,
   type AnnualConferenceTask,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
@@ -21,27 +17,20 @@ import { isAnnualConferenceTaskAssignedTo } from '@/lib/annual-conference-access
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import {
   createAnnualConferenceTask,
-  fetchAdminOrganizers,
   fetchAdminSession,
-  fetchAnnualConferenceWorkPlan,
   queryKeys,
-  updateAnnualConferenceTask,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
 
 const route = useRoute();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
-const queryClient = useQueryClient();
+const today = ref(currentAccraDate());
 const LEDGER_PAGE_SIZE = 6;
 const statusFilter = ref<'all' | AnnualConferenceTask['status']>('all');
 const workstreamFilter = ref<'all' | AnnualConferenceTask['workstream']>('all');
 const ownerFilter = ref('all');
-const phaseFilter = ref('all');
 const ledgerPage = ref(1);
-const phaseScopeInitialized = ref(false);
-const showCreateForm = ref(false);
-const selectedTaskId = ref<string | null>(null);
-const editingTaskId = ref<string | null>(null);
 
 type LedgerViewTransition = {
   finished: Promise<void>;
@@ -54,27 +43,33 @@ type LedgerViewTransitionDocument = Document & {
 
 let activeLedgerTransition: LedgerViewTransition | null = null;
 
-const workPlanQuery = useQuery({
-  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
-  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
-});
-const permissions = computed(() => workPlanQuery.data.value?.permissions);
+const {
+  workPlanQuery,
+  organizersQuery,
+  permissions,
+  tasks,
+  phases,
+  projection,
+  phaseScope: phaseFilter,
+  scopedTasks,
+  selectedPhase,
+  selectedTask,
+  selectedTaskId,
+  editingTaskId,
+  showCreateForm,
+  updateTaskMutation: updateMutation,
+  refresh,
+  openTask,
+  editTask,
+  openCreateDrawer,
+  closeTaskDrawer,
+} = useAnnualConferenceWorkspace({ year, today });
 const assignedAccess = computed(() => permissions.value?.access_scope === 'assigned');
 const sessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
 });
 const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
-const organizersQuery = useQuery({
-  queryKey: queryKeys.adminOrganizers,
-  queryFn: fetchAdminOrganizers,
-  enabled: computed(() => permissions.value?.access_scope === 'all'),
-});
-
-const tasks = computed(() => workPlanQuery.data.value?.tasks ?? []);
-const phases = computed(() => workPlanQuery.data.value?.phases ?? []);
-const scopedTasks = computed(() => filterAnnualConferenceTasksByPhase(tasks.value, phaseFilter.value));
-const selectedPhase = computed(() => phases.value.find((phase) => phase.id === phaseFilter.value) ?? null);
 const phaseScopeLabel = computed(() => {
   if (selectedPhase.value) return selectedPhase.value.name;
   if (phaseFilter.value === 'unassigned') return 'No phase';
@@ -87,30 +82,21 @@ const phaseScopeDescription = computed(() => {
   if (phaseFilter.value === 'unassigned') return 'Tasks still waiting for a delivery phase';
   return 'All phases and unclassified tasks';
 });
-const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null);
 const canEditSelectedTask = computed(() => {
   if (!selectedTask.value || assignedAccess.value) return false;
   if (permissions.value?.can_edit_all_tasks) return true;
   return permissions.value?.can_edit_assigned_tasks === true
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
 });
-const summary = computed(() => summarizeAnnualConferenceWorkPlan(scopedTasks.value));
+const summary = computed(() => projection.value.summary);
 const organizerLabels = computed<Record<string, string>>(() => Object.fromEntries(
   (organizersQuery.data.value?.organizers ?? []).map((organizer) => [
     organizer.email.trim().toLowerCase(),
     organizer.display_name?.trim() || organizer.email,
   ]),
 ));
-const owners = computed(() => [...new Set(scopedTasks.value
-  .map((task) => task.accountable_owner)
-  .filter((owner): owner is string => Boolean(owner)))]
-  .sort((a, b) => a.localeCompare(b)));
-const statusCounts = computed(() => ({
-  not_started: scopedTasks.value.filter((task) => task.status === 'not_started').length,
-  in_progress: scopedTasks.value.filter((task) => task.status === 'in_progress').length,
-  blocked: scopedTasks.value.filter((task) => task.status === 'blocked').length,
-  done: scopedTasks.value.filter((task) => task.status === 'done').length,
-}));
+const owners = computed(() => projection.value.owners);
+const statusCounts = computed(() => projection.value.status_counts);
 const ownerFilterOptions = computed(() => [
   { value: 'all', label: 'All owners' },
   { value: 'unassigned', label: 'Unassigned' },
@@ -121,18 +107,10 @@ const phaseFilterOptions = computed(() => [
   { value: 'unassigned', label: 'No phase' },
   { value: 'all', label: 'Entire conference' },
 ]);
-const workstreamSummaries = computed(() => ANNUAL_CONFERENCE_WORKSTREAMS.map((workstream) => {
-  const workstreamTasks = scopedTasks.value.filter((task) => task.workstream === workstream);
-  const done = workstreamTasks.filter((task) => task.status === 'done').length;
-  return {
-    workstream,
-    total: workstreamTasks.length,
-    done,
-    blocked: workstreamTasks.filter((task) => task.status === 'blocked').length,
-    unassigned: workstreamTasks.filter((task) => !task.accountable_owner).length,
-    completionPercent: workstreamTasks.length ? Math.round((done / workstreamTasks.length) * 100) : 0,
-  };
-}).filter((item) => item.total > 0));
+const workstreamSummaries = computed(() => projection.value.workstreams.map((workstream) => ({
+  ...workstream,
+  completionPercent: workstream.completion_percent,
+})));
 const filtersActive = computed(() =>
   statusFilter.value !== 'all'
   || workstreamFilter.value !== 'all'
@@ -157,20 +135,6 @@ const ledgerRangeStart = computed(() => visibleTasks.value.length
   : 0);
 const ledgerRangeEnd = computed(() => Math.min(ledgerPage.value * LEDGER_PAGE_SIZE, visibleTasks.value.length));
 
-watch(phases, (availablePhases) => {
-  const selectedPhaseStillExists = availablePhases.some((phase) => phase.id === phaseFilter.value);
-  if (phaseScopeInitialized.value && (selectedPhaseStillExists || phaseFilter.value === 'all' || phaseFilter.value === 'unassigned')) return;
-  if (!availablePhases.length) return;
-
-  phaseFilter.value = defaultAnnualConferencePhaseScope(availablePhases, currentAccraDate());
-  phaseScopeInitialized.value = true;
-}, { immediate: true });
-
-watch(year, () => {
-  phaseScopeInitialized.value = false;
-  phaseFilter.value = 'all';
-});
-
 watch([phaseFilter, statusFilter, workstreamFilter, ownerFilter], () => {
   ledgerPage.value = 1;
 });
@@ -182,22 +146,11 @@ watch(visibleTasks, () => {
 const createMutation = useMutation({
   mutationFn: (input: AnnualConferenceTaskCreateInput) => createAnnualConferenceTask(year.value, input),
   onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year.value) });
+    await refresh();
     showCreateForm.value = false;
     notify.success('Conference task added.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to add the task.'),
-});
-
-const updateMutation = useMutation({
-  mutationFn: ({ taskId, input }: { taskId: string; input: AnnualConferenceTaskUpdateInput }) =>
-    updateAnnualConferenceTask(year.value, taskId, input),
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year.value) });
-    editingTaskId.value = null;
-    notify.success('Conference task updated.');
-  },
-  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the task.'),
 });
 
 function startEditing(taskId: string) {
@@ -207,15 +160,7 @@ function startEditing(taskId: string) {
     || (permissions.value?.can_edit_assigned_tasks === true
       && isAnnualConferenceTaskAssignedTo(task, currentMemberEmail.value));
   if (!canEditTask) return;
-  showCreateForm.value = false;
-  selectedTaskId.value = taskId;
-  editingTaskId.value = taskId;
-}
-
-function openCreateDrawer() {
-  selectedTaskId.value = null;
-  editingTaskId.value = null;
-  showCreateForm.value = true;
+  editTask(taskId);
 }
 
 function requestCreateDrawer() {
@@ -239,16 +184,7 @@ function toggleTask(taskId: string) {
     closeTaskDrawer();
     return;
   }
-
-  showCreateForm.value = false;
-  editingTaskId.value = null;
-  selectedTaskId.value = taskId;
-}
-
-function closeTaskDrawer() {
-  showCreateForm.value = false;
-  selectedTaskId.value = null;
-  editingTaskId.value = null;
+  openTask(taskId);
 }
 
 function handleUpdate(value: AnnualConferenceTaskUpdateInput) {

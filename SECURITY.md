@@ -40,13 +40,14 @@ Do not include real secrets in public issues, pull requests, or chat logs.
 
 - Organizer APIs deny by default and resolve the current active membership role on every session check.
 - Public writes use strict server schemas, production Turnstile verification, and distributed Supabase rate limits.
+- Public quiz mutations prove ownership with the participant's random device identifier and use distributed abuse limits; browser-supplied user IDs are never sufficient authorization.
 - Public responses must use purpose-built DTOs and must never expose attendee email, attendance history, session tokens, or private workflow records.
 - One-time links and app sessions persist only cryptographic token hashes.
 - New external URLs must be restricted to approved hosts or HTTP(S), depending on their purpose.
 - Uploads require size, extension, MIME, and content-signature validation.
 - Dependency audit, Gitleaks, CodeQL, tests, typecheck, and build are required security gates.
 
-The current full review and rollout checklist are in [docs/security-audit-2026-07-28.md](docs/security-audit-2026-07-28.md).
+The current full review and rollout checklist are in [docs/security-audit-2026-08-03.md](docs/security-audit-2026-08-03.md). The original remediation baseline remains in [docs/security-audit-2026-07-28.md](docs/security-audit-2026-07-28.md).
 
 ## Maintainer Response
 

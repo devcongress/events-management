@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-08-03 — Deployed security verification and staging DAST guardrails
+
+- Added a read-only deployed-security verifier for browser headers, private/public caching, request IDs, authentication denial, and allowed/rejected CORS behavior.
+- Verified the canonical production origin and recorded 24 passing checks plus seven failed assertions across four release/configuration gaps: missing private `no-store`, missing cross-domain-policy headers, narrower Pages CSP, and unexpected credentialed localhost CORS.
+- Aligned the Pages proxy CSP with the app's allowlisted YouTube/Vimeo frames and added `X-Permitted-Cross-Domain-Policies: none` at that outer response layer.
+- Confirmed the deployed app/frontend origins were already canonical, then fixed the actual localhost CORS cause by requiring explicit development mode and declaring `NODE_ENV=production` for the Worker.
+- Deployed Worker version `f3b487a8-3971-4cb2-8bde-a1a3b1cadd30`, preserving all secrets and the intentional community Turnstile host list; production now rejects credentialed localhost CORS and sends private `no-store` plus API cross-domain headers.
+- Added a staging DAST runner that hard-denies every known production hostname, requires exact hostname confirmation, and gates low-impact mutation probes behind a second explicit switch.
+- Documented the isolated staging data/secret requirements and authenticated authorization matrix; no staging scan was run because a safe staging deployment is not currently configured or discoverable with the available Cloudflare permissions.
+
+## 2026-08-03 — OWASP and MITRE security hardening
+
+- Re-audited the current worktree against OWASP Top 10:2025 and mapped credible internet-facing threats, mitigations, detections, and operational gaps to MITRE ATT&CK Enterprise techniques.
+- Required public quiz answer and personal-state requests to prove ownership with the participant's random device identifier, closing user-ID-only answer impersonation.
+- Added strict quiz join, answer, state, rename, and session-update schemas; applied the 64 KiB public body limit and distributed join/answer abuse controls.
+- Preserved the intentional community-submission Turnstile allowance for `localhost` and `127.0.0.1`; the audit records it as a narrowly scoped exception because token, action, and distributed rate-limit checks remain enforced and other forms retain their production hostname boundary.
+- Made API responses non-cacheable by default, added the cross-domain policy header, and replaced underlying 500-level exception text with request-ID-correlated generic responses on audited routes.
+- Verified RLS/service-role boundaries, current dependencies, ignored local credentials, browser-bundle secret exclusion, and reachable Git history; added a deployment verification gate for platform-owned controls.
+
 ## 2026-08-03 — Phase-first work planning
 
 - Made the active delivery phase the primary scope for Work plan and Timeline, defaulting to Phase 1 during its window and allowing organizers to switch to another phase, No phase, or the entire conference.
@@ -10,6 +29,9 @@
 - Teleported the phase and owner dropdown menus outside the merged panel so its rounded overflow boundary cannot clip open options.
 - Removed the Timeline's workstream-progress, delivery-threat, and upcoming-deadline panels, leaving phase summary, runway, and planning gaps as its focused operating view.
 - Replaced the Timeline's planning-gap card lanes with one compact eight-row table showing each task, owner, status, phase, and target date, with missing values highlighted in place, direct editing, and simple pagination.
+- Deferred the organizer-directory request until an authorized planning owner opens the future-edition form, removing an unused authenticated request from normal conference overview loads without changing cached data or form behavior.
+- Moved Annual Conference authorization, presentation/redaction, persistence selection, and edition/phase/task orchestration behind shared policy, repository, and application-service boundaries while preserving the existing HTTP contract.
+- Replaced repeated phase/task summary scans with one indexed read model shared by Work Plan and Timeline, moved their common query/scope/task lifecycle into a testable workspace controller, and fetched independent Supabase phase/task collections concurrently after edition lookup.
 
 ## 2026-08-03 — Initial Phase 1 responsibilities
 

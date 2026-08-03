@@ -20,6 +20,8 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(response.headers.get('x-frame-options')).toBe('DENY');
     expect(response.headers.get('permissions-policy')).toContain('camera=()');
+    expect(response.headers.get('x-permitted-cross-domain-policies')).toBe('none');
+    expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('x-request-id')).toBeTruthy();
   });
 
@@ -50,16 +52,46 @@ describe('HTTP security boundaries', () => {
     expect(rejected.headers.get('access-control-allow-origin')).toBeNull();
   });
 
-  it('rejects oversized public JSON before route processing', async () => {
+  it('fails closed for localhost CORS when NODE_ENV is missing', async () => {
+    vi.stubEnv('PUBLIC_FRONTEND_ORIGIN', 'https://events.example.com');
     const { default: app } = await import('./app');
-    const response = await app.request('http://localhost/api/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'x'.repeat(70 * 1024) }),
+
+    const response = await app.request('https://api.example.com/api/auth/session', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:5173',
+        'Access-Control-Request-Method': 'GET',
+      },
     });
 
-    expect(response.status).toBe(413);
-    await expect(response.json()).resolves.toEqual({ error: 'Request body is too large.' });
+    expect(response.status).toBe(204);
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('rejects oversized public JSON before route processing', async () => {
+    const { default: app } = await import('./app');
+    const responses = await Promise.all([
+      app.request('http://localhost/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'x'.repeat(70 * 1024) }),
+      }),
+      app.request('http://localhost/api/quiz/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ join_code: 'ABC234', device_id: crypto.randomUUID(), padding: 'x'.repeat(70 * 1024) }),
+      }),
+      app.request('http://localhost/api/quiz/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: crypto.randomUUID(), user_id: crypto.randomUUID(), device_id: crypto.randomUUID(), padding: 'x'.repeat(70 * 1024) }),
+      }),
+    ]);
+
+    expect(responses.map((response) => response.status)).toEqual([413, 413, 413]);
+    for (const response of responses) {
+      await expect(response.json()).resolves.toEqual({ error: 'Request body is too large.' });
+    }
   });
 
   it('keeps the complete System Design participant request flow outside organizer auth', async () => {

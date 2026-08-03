@@ -845,10 +845,19 @@ export function validateAnnualConferenceTaskOwnership<
 export function summarizeAnnualConferenceWorkPlan(
   tasks: AnnualConferenceTask[],
 ): AnnualConferenceWorkPlanSummary {
-  const done = tasks.filter((task) => task.status === 'done').length;
-  const inProgress = tasks.filter((task) => task.status === 'in_progress').length;
-  const blocked = tasks.filter((task) => task.status === 'blocked').length;
-  const notStarted = tasks.filter((task) => task.status === 'not_started').length;
+  let done = 0;
+  let inProgress = 0;
+  let blocked = 0;
+  let notStarted = 0;
+  let unassigned = 0;
+
+  for (const task of tasks) {
+    if (task.status === 'done') done += 1;
+    else if (task.status === 'in_progress') inProgress += 1;
+    else if (task.status === 'blocked') blocked += 1;
+    else notStarted += 1;
+    if (!task.accountable_owner) unassigned += 1;
+  }
 
   return {
     total: tasks.length,
@@ -856,7 +865,7 @@ export function summarizeAnnualConferenceWorkPlan(
     in_progress: inProgress,
     blocked,
     not_started: notStarted,
-    unassigned: tasks.filter((task) => !task.accountable_owner).length,
+    unassigned,
     completion_percent: tasks.length === 0 ? 0 : Math.round((done / tasks.length) * 100),
   };
 }
@@ -864,14 +873,14 @@ export function summarizeAnnualConferenceWorkPlan(
 export function annualConferenceWorkstreamCounts(
   tasks: AnnualConferenceTask[],
 ): Record<AnnualConferenceWorkstream, { total: number; done: number }> {
-  return ANNUAL_CONFERENCE_WORKSTREAMS.reduce((result, workstream) => {
-    const workstreamTasks = tasks.filter((task) => task.workstream === workstream);
-    result[workstream] = {
-      total: workstreamTasks.length,
-      done: workstreamTasks.filter((task) => task.status === 'done').length,
-    };
-    return result;
-  }, {} as Record<AnnualConferenceWorkstream, { total: number; done: number }>);
+  const result = Object.fromEntries(
+    ANNUAL_CONFERENCE_WORKSTREAMS.map((workstream) => [workstream, { total: 0, done: 0 }]),
+  ) as Record<AnnualConferenceWorkstream, { total: number; done: number }>;
+  for (const task of tasks) {
+    result[task.workstream].total += 1;
+    if (task.status === 'done') result[task.workstream].done += 1;
+  }
+  return result;
 }
 
 function dateOrdinal(value: string): number {
@@ -888,30 +897,50 @@ export function calculateAnnualConferenceHealth(
   today: string,
 ): AnnualConferenceHealthSnapshot {
   const total = tasks.length;
-  const done = tasks.filter((task) => task.status === 'done').length;
-  const scheduled = tasks.filter((task) => Boolean(task.target_date)).length;
-  const classified = tasks.filter((task) => Boolean(task.phase_id)).length;
-  const assigned = tasks.filter((task) => Boolean(task.accountable_owner)).length;
-  const incomplete = tasks.filter((task) => task.status !== 'done');
-  const blocked = incomplete.filter((task) => task.status === 'blocked').length;
-  const overdue = incomplete.filter((task) => Boolean(task.target_date && task.target_date < today)).length;
+  let done = 0;
+  let scheduled = 0;
+  let classified = 0;
+  let assigned = 0;
+  let blocked = 0;
+  let overdue = 0;
+  let dueSoon = 0;
   const dueSoonLimit = dateOrdinal(today) + 7;
-  const dueSoon = incomplete.filter((task) => {
-    if (!task.target_date || task.target_date < today) return false;
-    return dateOrdinal(task.target_date) <= dueSoonLimit;
-  }).length;
+  const phaseCounts = new Map(phases.map((phase) => [phase.id, { total: 0, done: 0 }]));
+
+  for (const task of tasks) {
+    const isDone = task.status === 'done';
+    if (isDone) done += 1;
+    if (task.target_date) scheduled += 1;
+    if (task.phase_id) classified += 1;
+    if (task.accountable_owner) assigned += 1;
+
+    if (!isDone) {
+      if (task.status === 'blocked') blocked += 1;
+      if (task.target_date && task.target_date < today) overdue += 1;
+      if (task.target_date && task.target_date >= today && dateOrdinal(task.target_date) <= dueSoonLimit) {
+        dueSoon += 1;
+      }
+    }
+
+    if (task.phase_id) {
+      const counts = phaseCounts.get(task.phase_id);
+      if (counts) {
+        counts.total += 1;
+        if (isDone) counts.done += 1;
+      }
+    }
+  }
 
   const phaseHealth = phases.map((phase) => {
-    const phaseTasks = tasks.filter((task) => task.phase_id === phase.id);
-    const phaseDone = phaseTasks.filter((task) => task.status === 'done').length;
+    const counts = phaseCounts.get(phase.id) ?? { total: 0, done: 0 };
     const duration = Math.max(1, dateOrdinal(phase.ends_on) - dateOrdinal(phase.starts_on) + 1);
     const elapsed = Math.min(duration, Math.max(0, dateOrdinal(today) - dateOrdinal(phase.starts_on) + 1));
 
     return {
       phase_id: phase.id,
-      total: phaseTasks.length,
-      done: phaseDone,
-      completion_percent: percent(phaseDone, phaseTasks.length),
+      total: counts.total,
+      done: counts.done,
+      completion_percent: percent(counts.done, counts.total),
       time_elapsed_percent: percent(elapsed, duration),
     };
   });

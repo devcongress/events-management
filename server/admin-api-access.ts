@@ -1,8 +1,9 @@
 import type { AdminRole } from '@/lib/supabase/admin-auth';
+import { annualConferenceRolesForAdmission } from '@/lib/annual-conference-access';
 
-const ORGANIZER_ROLES: AdminRole[] = ['owner', 'organizer'];
+const ORGANIZER_ROLES: AdminRole[] = annualConferenceRolesForAdmission('organizer');
 const OWNER_ROLES: AdminRole[] = ['owner'];
-const CONFERENCE_MEMBER_ROLES: AdminRole[] = ['owner', 'organizer', 'volunteer'];
+const CONFERENCE_MEMBER_ROLES: AdminRole[] = annualConferenceRolesForAdmission('member');
 const ANNUAL_WORK_PLAN_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan$/;
 const ANNUAL_TASK_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+$/;
 const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
