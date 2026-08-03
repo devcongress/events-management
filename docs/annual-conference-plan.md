@@ -71,12 +71,13 @@ The first operational workspace slice is now in place:
 - Overview, Work plan, Timeline, and the 2026 Volunteers workflow are interactive today; future modules remain visible as planned structure rather than empty routes;
 - the former organizer volunteer paths redirect to the new workspace;
 - the existing public form, QR link, campaign ID, submission API, and stored applications are unchanged.
-- each accountable owner or collaborator can edit their assigned tasks; the edition planning owner can edit every task, add tasks, manage phases, and create the next edition;
+- each accountable owner or collaborator can edit their assigned tasks; the edition planning owner and platform owner can edit every task, add tasks, manage phases, and create the next edition;
 - 2026 has fixed **Phase 1** (1–31 August) and **Phase 2** (1 September–19 December); 12 confirmed kickoff tasks are assigned to Phase 1 and the remaining 15 tasks stay in **No phase** until organizers classify them;
 - future editions can define any number of non-overlapping phases, select a planning owner or inherit the previous edition's owner, and reorder, rename, redate, or delete phases without deleting tasks;
 - task target dates remain nullable but are prioritized by the conference-health dashboard; an assigned task's target date cannot exceed its phase end date;
 - owners and organizers can add an authenticated user with the **Volunteer** role from People & Access;
 - volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update only those task statuses;
+- phone organizers receive mobile versions of Overview, Work Plan, Timeline/phase management, Volunteers, edition controls, and task create/edit flows; phone volunteers receive a separate assignment-only Overview and My Tasks interface;
 - volunteer access is enforced at both the organizer router and API boundary; Events, hubs, access management, applicant records, task creation, task reassignment, task-detail editing, and organizer-only internal notes remain unavailable;
 - Work plan and Timeline are phase-scoped by default: they open on the current phase, or the next available phase outside an active window, and recalculate every metric and task section when organizers switch to another phase, **No phase**, or the entire conference;
 - conference health keeps objective completion, elapsed phase time, overdue/blocked pressure, due-soon counts, and planning confidence visible at a glance; planning confidence measures task coverage across dates, phases, and accountable owners;

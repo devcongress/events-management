@@ -1,10 +1,14 @@
 import { adminPath } from './admin-routes';
+import { annualConferencePath, mobileAnnualConferencePath } from './annual-conference';
 
 export const ORGANIZER_PHONE_MAX_WIDTH_PX = 767;
 export const ORGANIZER_PHONE_MEDIA_QUERY = `(max-width: ${ORGANIZER_PHONE_MAX_WIDTH_PX}px)`;
 export const ORGANIZER_PHONE_ROUTE_NAME = 'admin-mobile';
 export const ORGANIZER_PHONE_ROUTE_PATH = adminPath('mobile');
+export const ORGANIZER_PHONE_EVENTS_ROUTE_NAME = 'admin-mobile-events';
+export const ORGANIZER_PHONE_EVENTS_ROUTE_PATH = adminPath('mobile/events');
 export const ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME = 'admin-mobile-check-in';
+export const ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME = 'admin-mobile-annual-conference';
 
 const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
   'admin-login',
@@ -21,6 +25,7 @@ interface OrganizerViewportRouteInput {
   isPhone: boolean;
   routeName: string | symbol | null | undefined;
   eventId?: string | null;
+  conferenceYear?: string | null;
 }
 
 export function organizerPhoneCheckInPath(eventId: string): string {
@@ -28,7 +33,10 @@ export function organizerPhoneCheckInPath(eventId: string): string {
 }
 
 export function isOrganizerPhoneRouteName(routeName: string | symbol | null | undefined): boolean {
-  return routeName === ORGANIZER_PHONE_ROUTE_NAME || routeName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME;
+  return routeName === ORGANIZER_PHONE_ROUTE_NAME
+    || routeName === ORGANIZER_PHONE_EVENTS_ROUTE_NAME
+    || routeName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
+    || routeName === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME;
 }
 
 export function matchesOrganizerPhoneViewport(
@@ -43,6 +51,7 @@ export function organizerViewportRedirect({
   isPhone,
   routeName,
   eventId,
+  conferenceYear,
 }: OrganizerViewportRouteInput): string | null {
   if (!authenticated || !isAdminRoute) return null;
 
@@ -55,11 +64,27 @@ export function organizerViewportRedirect({
       return null;
     }
 
+    if (
+      normalizedRouteName === 'admin-annual-conference'
+      || normalizedRouteName === 'admin-annual-conference-work-plan'
+      || normalizedRouteName === 'admin-annual-conference-timeline'
+    ) {
+      return mobileAnnualConferencePath(conferenceYear ?? undefined);
+    }
+
     return ORGANIZER_PHONE_ROUTE_PATH;
   }
 
   if (normalizedRouteName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME && eventId) {
     return adminPath(`events/${encodeURIComponent(eventId)}/registrations`);
+  }
+
+  if (normalizedRouteName === ORGANIZER_PHONE_EVENTS_ROUTE_NAME) {
+    return adminPath('events');
+  }
+
+  if (normalizedRouteName === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME) {
+    return annualConferencePath('work-plan', conferenceYear ?? undefined);
   }
 
   return normalizedRouteName === ORGANIZER_PHONE_ROUTE_NAME ? adminPath('events') : null;

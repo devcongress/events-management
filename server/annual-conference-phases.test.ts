@@ -3,6 +3,7 @@ import { ANNUAL_CONFERENCE_2026_EDITION, ANNUAL_CONFERENCE_2026_PHASES, ANNUAL_C
 
 const mocks = vi.hoisted(() => ({
   sessionEmail: 'organizer@devcongress.org',
+  sessionRole: 'organizer' as 'owner' | 'organizer',
   createPhase: vi.fn(),
   updateTask: vi.fn(),
   audit: vi.fn(),
@@ -17,7 +18,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
       user_id: 'admin-1',
       email: mocks.sessionEmail,
       display_name: 'Organizer',
-      role: 'organizer' as const,
+      role: mocks.sessionRole,
       session_id: 'session-1',
       expires_at: '2099-01-01T00:00:00.000Z',
     })),
@@ -45,6 +46,7 @@ import app from './app';
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sessionEmail = 'organizer@devcongress.org';
+  mocks.sessionRole = 'organizer';
   mocks.createPhase.mockResolvedValue(ANNUAL_CONFERENCE_2026_PHASES[0]);
 });
 
@@ -58,6 +60,19 @@ describe('annual conference phase API', () => {
 
     expect(response.status).toBe(403);
     expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
+
+  it('allows a platform owner to manage phases without being the edition planning owner', async () => {
+    mocks.sessionRole = 'owner';
+    mocks.sessionEmail = 'platform-owner@devcongress.org';
+    const response = await app.request('/api/annual-conference/2026/phases', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Phase 3', starts_on: '2026-12-20', ends_on: '2026-12-31' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mocks.createPhase).toHaveBeenCalled();
   });
 
   it('rejects overlapping phase dates before persistence', async () => {

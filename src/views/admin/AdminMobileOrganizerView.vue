@@ -1,226 +1,74 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
-import { RouterLink } from 'vue-router';
-import { fetchEvents, queryKeys } from '@/src/lib/api';
-import { organizerPhoneCheckInPath } from '@/src/organizer-viewport';
-import { eventSeriesBadgeLabel } from '@/lib/event-series';
-import type { Event as CommunityEvent, EventStatus } from '@/types';
+import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 
-interface MobileEventAction {
-  label: string;
-  href: string;
-  external?: boolean;
-  primary?: boolean;
-}
-
-interface MobileEventCard {
-  id: string;
-  name: string;
-  dateLabel: string;
-  locationLabel: string | null;
-  statusClass: string;
-  statusLabel: string;
-  seriesLabel: string | null;
-  actions: MobileEventAction[];
-}
-
-const EVENT_DATE_FORMATTER = new Intl.DateTimeFormat('en', {
-  month: 'short',
+const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
+const firstName = computed(() => sessionQuery.data.value?.user?.display_name?.trim().split(/\s+/)[0] ?? 'organizer');
+const greeting = computed(() => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+});
+const todayLabel = new Intl.DateTimeFormat('en-GH', {
+  weekday: 'long',
   day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-});
-const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
-  draft: 'Draft',
-  cfp_open: 'Submissions open',
-  cfp_closed: 'Review',
-  upcoming: 'Upcoming',
-  live: 'Live now',
-  completed: 'Completed',
-};
-const eventsQuery = useQuery({
-  queryKey: queryKeys.events,
-  queryFn: fetchEvents,
-});
-const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((first, second) => (
-  new Date(first.event_date).getTime() - new Date(second.event_date).getTime()
-)));
-const todayStart = computed(() => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today.getTime();
-});
-const liveEvents = computed(() => events.value.filter((event) => event.status === 'live'));
-const upcomingEvents = computed(() => events.value.filter((event) => (
-  event.status !== 'completed'
-  && event.status !== 'live'
-  && new Date(event.event_date).getTime() >= todayStart.value
-)));
-const recentCompletedEvents = computed(() => [...events.value]
-  .filter((event) => event.status === 'completed')
-  .sort((first, second) => new Date(second.event_date).getTime() - new Date(first.event_date).getTime()));
-const priorityEvents = computed(() => {
-  const seen = new Set<string>();
-  const ordered = [...liveEvents.value, ...upcomingEvents.value, ...recentCompletedEvents.value];
-
-  return ordered.filter((event) => {
-    if (seen.has(event.id)) return false;
-    seen.add(event.id);
-    return true;
-  }).slice(0, 3);
-});
-const blockedWorkspaces = [
-  'Event and programme editing',
-  'Attendance and feedback setup',
-  'People, access, and audit tools',
-];
-
-function formatDate(value: string): string {
-  return EVENT_DATE_FORMATTER.format(new Date(value));
-}
-
-function eventStatusLabel(status: EventStatus): string {
-  return EVENT_STATUS_LABELS[status];
-}
-
-function eventStatusClass(status: EventStatus): string {
-  if (status === 'live') return 'mobile-ops-status--live';
-  if (status === 'completed') return 'mobile-ops-status--done';
-  if (status === 'draft') return 'mobile-ops-status--draft';
-  return 'mobile-ops-status--upcoming';
-}
-
-function eventActions(event: CommunityEvent): MobileEventAction[] {
-  const actions: MobileEventAction[] = [];
-
-  if (event.registration_url && event.external_source !== 'luma') {
-    actions.push({
-      label: 'Check in guests',
-      href: organizerPhoneCheckInPath(event.id),
-      primary: true,
-    });
-  }
-
-  if (event.registration_url && event.status !== 'completed') {
-    actions.push({
-      label: 'Open registration',
-      href: event.registration_url,
-      external: true,
-    });
-  }
-
-  if (event.external_url) {
-    actions.push({
-      label: 'Open source event',
-      href: event.external_url,
-      external: true,
-    });
-  }
-
-  return actions.slice(0, 3);
-}
-
-const priorityEventCards = computed<MobileEventCard[]>(() => priorityEvents.value.map((event) => ({
-  id: event.id,
-  name: event.name,
-  dateLabel: formatDate(event.event_date),
-  locationLabel: event.location?.label ?? event.location?.name ?? null,
-  statusClass: eventStatusClass(event.status),
-  statusLabel: eventStatusLabel(event.status),
-  seriesLabel: eventSeriesBadgeLabel(event),
-  actions: eventActions(event),
-})));
+  month: 'long',
+}).format(new Date());
 </script>
 
 <template>
-  <section class="mobile-ops-page">
-    <div class="mobile-ops-wrap">
-      <header class="mobile-ops-hero">
-        <p class="editorial-eyebrow">organizer phone view</p>
-        <h1>Mobile ops</h1>
-        <p>Quick event checks stay available here. Full organizer tools are available on tablet or laptop.</p>
+  <section class="mobile-home-page">
+    <div class="mobile-home-wrap">
+      <header class="mobile-home-intro">
+        <span>{{ todayLabel }}</span>
+        <h1>{{ greeting }}, {{ firstName }}.</h1>
+        <p>Your organizer workspace is ready whenever you need it.</p>
       </header>
 
-      <div v-if="eventsQuery.isPending.value" class="mobile-ops-panel p-4">
-        <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Loading organizer events...</p>
-      </div>
+      <section class="mobile-home-note">
+        <span>From your phone</span>
+        <h2>Keep the work moving.</h2>
+        <p>Use the menu to move between event-day operations and Annual Conference planning.</p>
+      </section>
 
-      <div v-else-if="eventsQuery.error.value" class="mobile-ops-panel mobile-ops-panel--warning p-4">
-        <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Unable to load events</p>
-        <p class="mt-2 text-sm leading-6 text-dc-gray">Try again on a stronger connection, or use the tablet/laptop console.</p>
-      </div>
-
-      <template v-else>
-        <section class="mobile-ops-panel">
-          <div class="mobile-ops-section-header">
-            <div>
-              <p class="editorial-eyebrow">events</p>
-              <h2>Now and next</h2>
-            </div>
-            <span>{{ events.length }}</span>
+      <section class="mobile-home-guide" aria-labelledby="mobile-home-guide-title">
+        <header>
+          <span>Quick guide</span>
+          <h2 id="mobile-home-guide-title">Two focused workspaces</h2>
+        </header>
+        <dl>
+          <div>
+            <dt>Events</dt>
+            <dd>Open event links and check in guests while you are on the move.</dd>
           </div>
-
-          <div v-if="priorityEventCards.length === 0" class="p-4 text-sm leading-6 text-dc-gray">
-            No organizer events are available yet. Create events from a tablet or laptop.
+          <div>
+            <dt>Conference</dt>
+            <dd>Manage tasks, phases, timelines, and volunteer applications.</dd>
           </div>
-
-          <article
-            v-for="event in priorityEventCards"
-            :key="event.id"
-            class="mobile-ops-event"
-          >
-            <div class="mobile-ops-event-top">
-              <span class="mobile-ops-status" :class="event.statusClass">
-                {{ event.statusLabel }}
-              </span>
-              <span v-if="event.seriesLabel" class="mobile-ops-kind">{{ event.seriesLabel }}</span>
-            </div>
-            <h3>{{ event.name }}</h3>
-            <p class="mobile-ops-meta">{{ event.dateLabel }}</p>
-            <p v-if="event.locationLabel" class="mobile-ops-location">
-              {{ event.locationLabel }}
-            </p>
-
-            <div v-if="event.actions.length > 0" class="mobile-ops-actions">
-              <template v-for="action in event.actions" :key="`${event.id}-${action.label}`">
-                <a
-                  v-if="action.external"
-                  :href="action.href"
-                  target="_blank"
-                  rel="noreferrer"
-                  class="mobile-ops-action"
-                  :class="{ 'mobile-ops-action--primary': action.primary }"
-                >
-                  {{ action.label }}
-                </a>
-                <RouterLink
-                  v-else
-                  :to="action.href"
-                  class="mobile-ops-action"
-                  :class="{ 'mobile-ops-action--primary': action.primary }"
-                >
-                  {{ action.label }}
-                </RouterLink>
-              </template>
-            </div>
-          </article>
-        </section>
-
-        <section class="mobile-ops-panel">
-          <div class="mobile-ops-section-header">
-            <div>
-              <p class="editorial-eyebrow">tablet or laptop</p>
-              <h2>Full console</h2>
-            </div>
-          </div>
-          <ul class="mobile-ops-blocked-list">
-            <li v-for="item in blockedWorkspaces" :key="item">
-              {{ item }}
-            </li>
-          </ul>
-        </section>
-      </template>
+        </dl>
+      </section>
     </div>
   </section>
 </template>
+
+<style scoped>
+.mobile-home-page { min-height: 100%; background: #f5f2e8; color: #111; }
+.mobile-home-wrap { display: grid; width: min(100%, 42rem); margin: 0 auto; gap: 1rem; padding: 1.35rem max(1rem, env(safe-area-inset-right)) max(1.35rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
+.mobile-home-intro { padding: 1rem 0 1.25rem; }
+.mobile-home-intro > span, .mobile-home-note > span, .mobile-home-guide header > span, .mobile-home-guide dt { color: #77736b; font-family: var(--font-mono), monospace; font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.mobile-home-intro h1 { margin: .55rem 0 0; max-width: 13ch; font-size: clamp(2.1rem, 10vw, 3rem); font-weight: var(--font-weight-display); letter-spacing: -.04em; line-height: .98; }
+.mobile-home-intro p { margin: .85rem 0 0; max-width: 29rem; color: #5f5b54; font-size: .95rem; font-weight: var(--font-weight-emphasis); line-height: 1.55; }
+.mobile-home-note { overflow: hidden; border: 1px solid #d9d5cc; border-radius: 12px; background: #f5e642; padding: 1.1rem; }
+.mobile-home-note > span { color: #514d43; }
+.mobile-home-note h2 { margin: .55rem 0 0; font-size: 1.35rem; letter-spacing: -.025em; line-height: 1.1; }
+.mobile-home-note p { margin: .65rem 0 0; max-width: 34rem; font-size: .84rem; font-weight: var(--font-weight-emphasis); line-height: 1.5; }
+.mobile-home-guide { overflow: hidden; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; }
+.mobile-home-guide header { padding: 1rem; }
+.mobile-home-guide h2 { margin: .35rem 0 0; font-size: 1.05rem; }
+.mobile-home-guide dl { margin: 0; border-top: 1px solid #e1ddd4; }
+.mobile-home-guide dl > div { padding: .9rem 1rem; }
+.mobile-home-guide dl > div + div { border-top: 1px solid #e1ddd4; }
+.mobile-home-guide dd { margin: .35rem 0 0; color: #5f5b54; font-size: .8rem; font-weight: var(--font-weight-emphasis); line-height: 1.5; }
+</style>

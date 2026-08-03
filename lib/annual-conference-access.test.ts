@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   annualConferenceCapabilities,
   annualConferenceTasksForMember,
+  canCreateAnnualConferenceEdition,
   canUpdateAnnualConferenceTask,
   isAnnualConferenceTaskAssignedTo,
   presentAnnualConferenceWorkspace,
@@ -91,7 +92,7 @@ describe('annual conference volunteer access', () => {
   });
 
   it('derives client capabilities from the same planning-owner policy', () => {
-    expect(annualConferenceCapabilities({ role: 'owner', email: 'owner@example.com' }, edition)).toMatchObject({
+    expect(annualConferenceCapabilities({ role: 'owner', email: 'platform-owner@example.com' }, edition)).toMatchObject({
       can_create_tasks: true,
       can_manage_phases: true,
       can_edit_all_tasks: true,
@@ -106,6 +107,12 @@ describe('annual conference volunteer access', () => {
   });
 
   it('uses one task-update decision for organizers and volunteers', () => {
+    expect(canUpdateAnnualConferenceTask(
+      { role: 'owner', email: 'platform-owner@example.com' },
+      edition,
+      task({ accountable_owner: 'someone@example.com' }),
+      { title: 'Platform owner correction' },
+    )).toBe(true);
     expect(canUpdateAnnualConferenceTask(
       { role: 'organizer', email: 'volunteer@example.com' },
       edition,
@@ -124,6 +131,21 @@ describe('annual conference volunteer access', () => {
       task(),
       { status: 'done' },
     )).toBe(true);
+  });
+
+  it('lets a platform owner create the next edition without replacing its planning owner', () => {
+    expect(canCreateAnnualConferenceEdition(
+      { role: 'owner', email: 'platform-owner@example.com' },
+      edition,
+    )).toBe(true);
+    expect(canCreateAnnualConferenceEdition(
+      { role: 'organizer', email: 'unassigned@example.com' },
+      edition,
+    )).toBe(false);
+    expect(canCreateAnnualConferenceEdition(
+      { role: 'owner', email: null },
+      edition,
+    )).toBe(false);
   });
 
   it('presents a capability-bearing, redacted workspace for volunteers', () => {

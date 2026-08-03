@@ -92,7 +92,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       if (!latestEdition || !canCreateAnnualConferenceEdition(actor, latestEdition)) {
         throw new AnnualConferenceServiceError(
           'forbidden',
-          'Only the current annual-conference planning owner can create the next edition.',
+          'Only a platform owner or the current annual-conference planning owner can create the next edition.',
         );
       }
       if (editions.some((edition) => edition.year === input.year)) {
@@ -129,7 +129,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
     async createPhase(year: number, input: AnnualConferencePhaseCreateInput) {
       const plan = await workspace(year);
       if (!canManageAnnualConferencePhases(actor, plan.edition) || !actor.email) {
-        throw new AnnualConferenceServiceError('forbidden', 'Only this edition’s planning owner can manage phases.');
+        throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const dateError = validateAnnualConferencePhaseDates(input, plan.phases);
       if (dateError) throw new AnnualConferenceServiceError('invalid_input', dateError);
@@ -146,7 +146,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
     async reorderPhases(year: number, phaseIds: string[]) {
       const plan = await workspace(year);
       if (!canManageAnnualConferencePhases(actor, plan.edition) || !actor.email) {
-        throw new AnnualConferenceServiceError('forbidden', 'Only this edition’s planning owner can manage phases.');
+        throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const uniqueIds = new Set(phaseIds);
       if (uniqueIds.size !== plan.phases.length || plan.phases.some((phase) => !uniqueIds.has(phase.id))) {
@@ -170,7 +170,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
     async updatePhase(year: number, phaseId: string, input: AnnualConferencePhaseUpdateInput) {
       const plan = await workspace(year);
       if (!canManageAnnualConferencePhases(actor, plan.edition) || !actor.email) {
-        throw new AnnualConferenceServiceError('forbidden', 'Only this edition’s planning owner can manage phases.');
+        throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const existing = plan.phases.find((phase) => phase.id === phaseId);
       if (!existing) throw new AnnualConferenceServiceError('not_found', 'Annual conference phase was not found.');
@@ -200,7 +200,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
     async deletePhase(year: number, phaseId: string) {
       const plan = await workspace(year);
       if (!canManageAnnualConferencePhases(actor, plan.edition)) {
-        throw new AnnualConferenceServiceError('forbidden', 'Only this edition’s planning owner can manage phases.');
+        throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const phase = plan.phases.find((item) => item.id === phaseId);
       if (!phase) throw new AnnualConferenceServiceError('not_found', 'Annual conference phase was not found.');
@@ -223,7 +223,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       if (!canCreateAnnualConferenceTasks(actor, plan.edition) || !actor.email) {
         throw new AnnualConferenceServiceError(
           'forbidden',
-          'Only this edition’s planning owner can add annual conference tasks.',
+          'Only a platform owner or this edition’s planning owner can add annual conference tasks.',
         );
       }
       const scheduleError = validateAnnualConferenceTaskSchedule(input, plan.phases);
@@ -255,7 +255,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       if (!canUpdateAnnualConferenceTask(actor, plan.edition, existing, input)) {
         const message = actor.role === 'volunteer'
           ? 'Volunteers can only update the status of tasks assigned to them.'
-          : 'Only the planning owner or a task owner/collaborator can edit this task.';
+          : 'Only a platform owner, planning owner, or task owner/collaborator can edit this task.';
         throw new AnnualConferenceServiceError('forbidden', message);
       }
 
