@@ -90,6 +90,8 @@
   - Organizer compatibility redirects: `/organizer-console/volunteers` and `/organizer-console/volunteer-display`
   - Public form: `/volunteer/december-mega-meetup`, intentionally preserved and standalone without organizer navigation or app chrome
   - APIs: `POST /api/volunteer-applications`, `GET /api/admin/volunteer-applications`
+  - Authenticated volunteer access: `admin_memberships.role = volunteer`; the SPA routes volunteers to Annual Conference, the API returns only tasks matched by accountable-owner/collaborator email, and volunteer mutations accept status-only changes on those assigned tasks
+  - Security boundary: non-conference APIs retain the owner/organizer role gate, volunteer-applicant records remain organizer-only, and assigned-task responses redact `internal_note`
   - Storage: `lib/mock-db/volunteer-applications.ts` uses the existing `app_json_documents` Supabase compatibility store under the `volunteer-applications` key when server-side Supabase is enabled, with local JSON fallback for development
   - Abuse controls: mandatory production Turnstile using the `volunteer_intake` action, atomic cross-Worker client limits, and one application per campaign/email
 - **Monthly system design**

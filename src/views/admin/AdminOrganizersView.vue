@@ -8,9 +8,9 @@ import { fetchAdminOrganizers, fetchAdminSession, queryKeys, type OrganizerMembe
 import type { AdminRole } from '@/types/supabase';
 
 const addOrganizerSchema = z.object({
-  email: z.string().trim().email('Enter a valid organizer email.'),
+  email: z.string().trim().email('Enter a valid email.'),
   display_name: z.string().trim().optional(),
-  role: z.enum(['owner', 'organizer']),
+  role: z.enum(['owner', 'organizer', 'volunteer']),
 });
 
 const queryClient = useQueryClient();
@@ -49,11 +49,15 @@ const roleOptions = computed<Array<{ value: AdminRole; label: string }>>(() => {
   if (currentUserRole.value === 'owner') {
     return [
       { value: 'organizer', label: 'Organizer' },
+      { value: 'volunteer', label: 'Volunteer' },
       { value: 'owner', label: 'Owner' },
     ];
   }
 
-  return [{ value: 'organizer', label: 'Organizer' }];
+  return [
+    { value: 'organizer', label: 'Organizer' },
+    { value: 'volunteer', label: 'Volunteer' },
+  ];
 });
 
 watch(currentUserRole, (role) => {
@@ -101,7 +105,7 @@ const addOrganizerMutation = useMutation({
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
   },
   onError: (caught) => {
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to add organizer';
+    actionError.value = caught instanceof Error ? caught.message : 'Unable to add team member';
   },
 });
 
@@ -145,7 +149,7 @@ const disableOrganizerMutation = useMutation({
 
 function submitOrganizer() {
   if (!canAddOrganizer.value) {
-    actionError.value = 'Enter a valid organizer email.';
+    actionError.value = 'Enter a valid email.';
     return;
   }
   actionError.value = '';
@@ -180,7 +184,9 @@ function formatDateTime(value: string | null): string {
 }
 
 function roleLabel(role: AdminRole): string {
-  return role === 'owner' ? 'Owner' : 'Organizer';
+  if (role === 'owner') return 'Owner';
+  if (role === 'volunteer') return 'Volunteer';
+  return 'Organizer';
 }
 </script>
 
@@ -190,9 +196,9 @@ function roleLabel(role: AdminRole): string {
       <div class="grid gap-4 border-b border-dc-ink pb-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
         <div>
           <p class="editorial-eyebrow">admin security</p>
-          <h1 class="editorial-title max-w-4xl">Organizer Access</h1>
+          <h1 class="editorial-title max-w-4xl">People &amp; Access</h1>
           <p class="mt-2 max-w-2xl text-base leading-6 text-dc-gray sm:text-lg">
-            Keep the organizer list tight, current, and easy to trust.
+            Keep organizer and volunteer access tight, current, and easy to trust.
           </p>
 
           <div class="mt-3 flex flex-wrap gap-2">
@@ -216,10 +222,13 @@ function roleLabel(role: AdminRole): string {
           <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-pink">who can do what</p>
           <div class="mt-2 space-y-2 text-sm leading-6 text-dc-gray">
             <p>
-              <span class="font-semibold text-dc-ink">Owners</span> can add owners or organizers, and can disable other owners.
+              <span class="font-semibold text-dc-ink">Owners</span> can add owners, organizers, or volunteers, and can disable other owners.
             </p>
             <p>
-              <span class="font-semibold text-dc-ink">Organizers</span> can add and disable organizers only.
+              <span class="font-semibold text-dc-ink">Organizers</span> can add and disable organizers or volunteers.
+            </p>
+            <p>
+              <span class="font-semibold text-dc-ink">Volunteers</span> see Annual Conference tasks assigned to them.
             </p>
           </div>
         </aside>
@@ -236,7 +245,7 @@ function roleLabel(role: AdminRole): string {
           <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p class="editorial-eyebrow mb-1">add access</p>
-              <h2 class="text-xl font-bold tracking-tight text-dc-ink">Invite a trusted organizer</h2>
+              <h2 class="text-xl font-bold tracking-tight text-dc-ink">Add a team member</h2>
             </div>
             <p class="max-w-md text-sm leading-6 text-dc-gray">
               Add one email at a time so access stays deliberate.
@@ -245,7 +254,7 @@ function roleLabel(role: AdminRole): string {
           <div class="grid gap-3 md:grid-cols-[1.1fr_0.9fr_150px_auto] md:items-end">
           <label>
             <span class="editorial-label">Email</span>
-            <input v-model="form.email" required type="email" class="editorial-input mt-2 font-mono" placeholder="organizer@devcongress.org">
+            <input v-model="form.email" required type="email" class="editorial-input mt-2 font-mono" placeholder="person@devcongress.org">
           </label>
           <label>
             <span class="editorial-label">Display name</span>
@@ -270,7 +279,7 @@ function roleLabel(role: AdminRole): string {
           </div>
 
           <div v-if="organizers.length === 0" class="px-4 py-6 text-sm text-dc-gray">
-            No organizer emails have been added yet.
+            No access emails have been added yet.
           </div>
 
           <div v-else class="divide-y divide-dc-border">

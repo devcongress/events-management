@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
+import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 
 withDefaults(defineProps<{
   title?: string;
@@ -11,11 +14,16 @@ withDefaults(defineProps<{
 });
 
 const route = useRoute();
-const links = [
+const sessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
+const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
+const links = computed(() => [
   { href: annualConferencePath(), label: 'Overview' },
   { href: annualConferencePath('work-plan'), label: 'Work plan' },
-  { href: annualConferencePath('volunteers'), label: 'Volunteers' },
-];
+  ...(!isVolunteer.value ? [{ href: annualConferencePath('volunteers'), label: 'Volunteers' }] : []),
+]);
 
 function isActive(href: string): boolean {
   if (href === annualConferencePath()) {
