@@ -153,6 +153,7 @@
 - **Entry points:**
   - `server/app.ts` exports the fetch-compatible Hono app used by Vite dev server.
   - `server/index.ts` starts Bun in production, serving `/api/*` through Hono and all other paths from `dist/`.
+- **Annual Conference module:** `server/annual-conference-service.ts` owns edition/phase/task use-case sequencing and audit events; `server/annual-conference-repository.ts` selects and normalizes Supabase or mock persistence once per request; `lib/annual-conference-access.ts` is the capability, visibility, redaction, and task-authorization policy; `lib/annual-conference-read-model.ts` produces the shared indexed phase projection; and `src/composables/useAnnualConferenceWorkspace.ts` owns the Work Plan/Timeline query, phase scope, refresh, task selection, and task-update lifecycle.
 - **Current active APIs:**
   - `/api/health` and `/api/health/supabase` (minimal public readiness)
   - owner-only `/api/health/data-sources`, `/api/health/supabase/community-events`, and `/api/health/supabase/storage`

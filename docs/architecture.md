@@ -135,7 +135,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/admin/organizers*` — owner-only organizer email allowlist management
 - `/api/admin/audit-log` — owner-only audit ledger for organizer sign-ins and successful admin mutations
 - `/api/annual-conference/editions` — organizer-only edition list and planning-owner-restricted next-edition creation
-- `/api/annual-conference/[year]/work-plan` — organizer-only annual edition/phase/task reads, edition-owner task creation, and all-organizer task edits
+- `/api/annual-conference/[year]/work-plan` — annual edition/phase/task reads scoped by membership, edition-owner task creation, assignment-scoped organizer edits, and status-only volunteer updates
 - `/api/annual-conference/[year]/phases` — edition planning-owner phase creation, editing, ordering, and deletion
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event

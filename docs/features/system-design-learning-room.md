@@ -59,6 +59,8 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 - Live state uses polling rather than a production realtime channel.
 - Room-scoped participant identities and responses from the previous run are cleared when a completed room starts again; historical run reporting is not yet retained.
 - Edited display names are labels chosen by attendees, not verified real-world identities.
+- Participant-specific state and answer submission require the random device identifier that created the participant; a public participant or user ID alone cannot read personal results or submit an answer.
+- Join and answer payloads use the public 64 KiB limit and distributed rate-limit buckets. The limits are deliberately sized for many attendees sharing one venue network.
 - The presenter leaderboard is capped at ten visible participants; attendee phones receive only their own standing.
 - Hosted answer acceptance and scoring are one PostgreSQL transaction. One response per user/question, room phase, deadline, participant membership, score, and streak are checked together even when requests reach different Worker isolates.
 - Presenter reset, release, reveal, and question ordering are database-owned transitions. Aggregate chart and leaderboard data are computed in PostgreSQL; direct anonymous Realtime table access remains disabled until participant-scoped authorization exists.

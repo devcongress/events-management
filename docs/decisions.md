@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-042: Deep Annual Conference Module Boundaries
+
+**Date:** 2026-08-03
+**Status:** Accepted
+**Context:** Annual Conference behavior had accumulated across Hono route handlers, Supabase/mock sentinel wrappers, access helpers, client route guards, and two large planning views. The seams carried security-sensitive sequencing—membership lookup, assignment policy, schedule validation, redaction, persistence, and audit—and Work Plan and Timeline independently recalculated the same phase-scoped state.
+**Decision:** Treat Annual Conference as one feature module with five explicit boundaries. Hono remains the transport adapter; an application service owns use-case sequencing and stable domain errors; one repository selects Supabase or mock storage once per request; one resource-aware policy derives authorization, visibility, redaction, and response capabilities; one pure indexed read model derives phase-scoped summaries, health, ownership, workstreams, and planning gaps; and one shared Vue workspace controller owns query, phase scope, task selection, refresh, and task mutation lifecycle. Keep all existing URLs and response fields stable. Use explicit service and repository methods instead of a generic command bus or generic CRUD.
+**Trade-offs:** The feature now has more named modules and contracts, but each boundary hides substantial behavior already shared by multiple callers. Mock and Supabase implementations must preserve one repository contract. The shared controller deliberately leaves ledger filters, phase-editor state, animation, and pagination in their owning views to avoid replacing two large components with one god composable. Runtime performance gains are structural: aggregate calculations are linear, independent Supabase phase/task reads overlap, and organizer data remains intent-loaded.
+**Alternatives considered:** Keep route-local orchestration (security and audit behavior stays seam-dependent), create one generic command/event bus (small interface but weaker discoverability), split edition/phase/task into separate repositories (exposes aggregate coordination), move every page concern into one composable (creates another monolith), or introduce CQRS/materialized views now (unsupported by current scale).
+**Revisit when:** Annual editions require server-side pagination or SQL projections, audit writes must be transactionally atomic with mutations, or another conference surface needs capabilities beyond task/phase planning.
+
+---
+
 ## ADR-041: Assignment-Scoped Conference Task Editing
 
 **Date:** 2026-08-03

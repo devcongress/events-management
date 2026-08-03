@@ -45,5 +45,7 @@ This folder keeps the README lightweight. Use this page to find the right level 
 | [Repository Migration Checklist](repository-migration-checklist.md) | Update repo, Cloudflare, Supabase, and OAuth migration tasks |
 | [Migration Parity](migration-parity.md) | Track remaining Next-to-Vue parity work |
 | [Technical Debt](reference/technical-debt.md) | Prioritized debt register for production readiness and contributor issue planning |
+| [Security Audit](security-audit-2026-08-03.md) | Review current OWASP controls, MITRE ATT&CK coverage, findings, and the production verification gate |
+| [Deployed Security Verification](deployed-security-verification-2026-08-03.md) | Review live header/configuration evidence and operate the production verifier or staging-only DAST runner |
 | [Changelog](changelog.md) | Keep feature-level history current |
 | [Feature Docs](features/README.md) | Add or update feature documentation |

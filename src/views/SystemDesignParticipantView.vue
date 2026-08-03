@@ -106,7 +106,13 @@ async function saveName() {
 async function pollState() {
   if (!sessionId.value || !userId.value) return;
 
-  const response = await fetch(`/api/quiz/state?sessionId=${sessionId.value}&userId=${userId.value}`);
+  const stateQuery = new URLSearchParams({
+    sessionId: sessionId.value,
+    userId: userId.value,
+  });
+  const response = await fetch(`/api/quiz/state?${stateQuery.toString()}`, {
+    headers: { 'X-Quiz-Device-ID': getDeviceId() },
+  });
   if (response.ok) {
     const nextState = await response.json() as QuizStateResponse;
     if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
@@ -134,6 +140,7 @@ async function submitAnswer(answerIndex: number) {
     body: JSON.stringify({
       session_id: sessionId.value,
       user_id: userId.value,
+      device_id: getDeviceId(),
       answer_index: answerIndex,
     }),
   });

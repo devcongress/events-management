@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useMutation } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
@@ -10,9 +10,6 @@ import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
-  calculateAnnualConferenceHealth,
-  defaultAnnualConferencePhaseScope,
-  filterAnnualConferenceTasksByPhase,
   type AnnualConferencePhase,
   type AnnualConferencePhaseCreateInput,
   type AnnualConferencePhaseUpdateInput,
@@ -22,27 +19,19 @@ import {
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import {
   deleteAnnualConferencePhase,
-  fetchAdminOrganizers,
-  fetchAnnualConferenceWorkPlan,
-  queryKeys,
   reorderAnnualConferencePhases,
   updateAnnualConferencePhase,
-  updateAnnualConferenceTask,
   createAnnualConferencePhase,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
 
 const route = useRoute();
-const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const phaseManagerOpen = ref(false);
 const editorOpen = ref(false);
 const editingPhaseId = ref<string | null>(null);
 const pendingDelete = ref<AnnualConferencePhase | null>(null);
-const selectedTaskId = ref<string | null>(null);
-const editingTaskId = ref<string | null>(null);
-const phaseScope = ref('all');
-const phaseScopeInitialized = ref(false);
 const gapStatus = ref<'all' | AnnualConferenceTask['status']>('all');
 const GAP_TABLE_PAGE_SIZE = 8;
 const gapPage = ref(1);
@@ -50,21 +39,28 @@ const form = reactive({ name: '', starts_on: '', ends_on: '' });
 
 const today = ref(currentAccraDate());
 let dayRefreshTimer: number | null = null;
-const workPlanQuery = useQuery({
-  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
-  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
+const {
+  workPlanQuery,
+  organizersQuery,
+  phases,
+  tasks,
+  projection,
+  phaseScope,
+  scopedTasks,
+  selectedPhase,
+  selectedTask,
+  selectedTaskId,
+  editingTaskId,
+  updateTaskMutation,
+  refresh,
+  editTask,
+  closeTaskDrawer,
+} = useAnnualConferenceWorkspace({
+  year,
+  today,
   refetchInterval: 30_000,
   refetchOnWindowFocus: true,
 });
-const organizersQuery = useQuery({
-  queryKey: queryKeys.adminOrganizers,
-  queryFn: fetchAdminOrganizers,
-});
-const phases = computed(() => [...(workPlanQuery.data.value?.phases ?? [])]
-  .sort((left, right) => left.sort_order - right.sort_order || left.starts_on.localeCompare(right.starts_on)));
-const tasks = computed(() => workPlanQuery.data.value?.tasks ?? []);
-const scopedTasks = computed(() => filterAnnualConferenceTasksByPhase(tasks.value, phaseScope.value));
-const selectedPhase = computed(() => phases.value.find((phase) => phase.id === phaseScope.value) ?? null);
 const phaseScopeLabel = computed(() => {
   if (selectedPhase.value) return selectedPhase.value.name;
   if (phaseScope.value === 'unassigned') return 'No phase';
@@ -82,14 +78,11 @@ const organizerLabels = computed<Record<string, string>>(() => Object.fromEntrie
   ]),
 ));
 const canManagePhases = computed(() => workPlanQuery.data.value?.permissions.can_manage_phases === true);
-const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null);
-const health = computed(() => calculateAnnualConferenceHealth(scopedTasks.value, phases.value, today.value));
-const unclassifiedCount = computed(() => scopedTasks.value.filter((task) => !task.phase_id).length);
-const undatedCount = computed(() => scopedTasks.value.filter((task) => !task.target_date).length);
-const currentPhase = computed(() => phases.value.find(
-  (phase) => today.value >= phase.starts_on && today.value <= phase.ends_on,
-) ?? null);
-const nextPhase = computed(() => phases.value.find((phase) => phase.starts_on > today.value) ?? null);
+const health = computed(() => projection.value.health);
+const unclassifiedCount = computed(() => projection.value.unclassified_count);
+const undatedCount = computed(() => projection.value.undated_count);
+const currentPhase = computed(() => projection.value.current_phase);
+const nextPhase = computed(() => projection.value.next_phase);
 const activePhase = computed(() => selectedPhase.value ?? currentPhase.value ?? nextPhase.value ?? phases.value.at(-1) ?? null);
 const conferenceDate = computed(() => workPlanQuery.data.value?.edition.provisional_date ?? phases.value.at(-1)?.ends_on ?? null);
 const scopeEndDate = computed(() => selectedPhase.value?.ends_on ?? conferenceDate.value);
@@ -113,13 +106,12 @@ const todayPosition = computed(() => {
   return Math.min(100, Math.max(0, (daysBetween(timelineStart.value, today.value) / total) * 100));
 });
 const filteredGapTasks = computed(() => {
-  return sortedTasks(scopedTasks.value.filter((task) => {
-    if (task.phase_id && task.target_date) return false;
+  return sortedTasks(projection.value.planning_gaps.filter((task) => {
     const matchesStatus = gapStatus.value === 'all' || task.status === gapStatus.value;
     return matchesStatus;
   }));
 });
-const totalPlanningGaps = computed(() => scopedTasks.value.filter((task) => !task.phase_id || !task.target_date).length);
+const totalPlanningGaps = computed(() => projection.value.planning_gaps.length);
 const gapPageCount = computed(() => Math.max(1, Math.ceil(filteredGapTasks.value.length / GAP_TABLE_PAGE_SIZE)));
 const paginatedGapTasks = computed(() => {
   const start = (gapPage.value - 1) * GAP_TABLE_PAGE_SIZE;
@@ -147,20 +139,6 @@ function planningStatusClass(status: AnnualConferenceTask['status']): string {
   if (status === 'in_progress') return 'planning-status--active';
   return 'planning-status--idle';
 }
-
-watch([phases, today], ([availablePhases, currentDate]) => {
-  const selectedPhaseStillExists = availablePhases.some((phase) => phase.id === phaseScope.value);
-  if (phaseScopeInitialized.value && (selectedPhaseStillExists || phaseScope.value === 'all' || phaseScope.value === 'unassigned')) return;
-  if (!availablePhases.length) return;
-
-  phaseScope.value = defaultAnnualConferencePhaseScope(availablePhases, currentDate);
-  phaseScopeInitialized.value = true;
-}, { immediate: true });
-
-watch(year, () => {
-  phaseScopeInitialized.value = false;
-  phaseScope.value = 'all';
-});
 
 watch(gapStatus, resetGapPage);
 watch(phaseScope, () => {
@@ -263,17 +241,11 @@ function setPhaseScope(value: string | number) {
 }
 
 function startFixingTask(task: AnnualConferenceTask) {
-  selectedTaskId.value = task.id;
-  editingTaskId.value = task.id;
+  editTask(task.id);
 }
 
 function taskPhaseName(task: AnnualConferenceTask): string {
   return phases.value.find((phase) => phase.id === task.phase_id)?.name ?? 'No phase';
-}
-
-function closeTaskDrawer() {
-  selectedTaskId.value = null;
-  editingTaskId.value = null;
 }
 
 function resetEditor() {
@@ -302,10 +274,6 @@ function startEdit(phase: AnnualConferencePhase) {
   editorOpen.value = true;
 }
 
-async function refresh() {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year.value) });
-}
-
 const createMutation = useMutation({
   mutationFn: (input: AnnualConferencePhaseCreateInput) => createAnnualConferencePhase(year.value, input),
   onSuccess: async () => { await refresh(); resetEditor(); notify.success('Conference phase added.'); },
@@ -326,13 +294,6 @@ const deleteMutation = useMutation({
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to remove the phase.'),
 });
-const updateTaskMutation = useMutation({
-  mutationFn: ({ taskId, input }: { taskId: string; input: AnnualConferenceTaskUpdateInput }) =>
-    updateAnnualConferenceTask(year.value, taskId, input),
-  onSuccess: async () => { await refresh(); editingTaskId.value = null; notify.success('Conference task updated.'); },
-  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the task.'),
-});
-
 function submitPhase() {
   const input = { name: form.name.trim(), starts_on: form.starts_on, ends_on: form.ends_on };
   if (editingPhaseId.value) updatePhaseMutation.mutate({ phaseId: editingPhaseId.value, input });
