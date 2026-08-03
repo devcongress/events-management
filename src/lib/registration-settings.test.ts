@@ -7,6 +7,7 @@ import {
 
 const baseline: RegistrationSettingsDraft = {
   status: 'draft',
+  description: '',
   capacity: 100,
   opens_at: '2026-07-28T08:11',
   closes_at: '2026-07-29T08:11',

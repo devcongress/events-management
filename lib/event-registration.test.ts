@@ -10,6 +10,7 @@ const campaign: EventRegistrationCampaign = {
   id: 'campaign-1',
   event_id: 'event-1',
   status: 'open',
+  description: null,
   capacity: 2,
   opens_at: null,
   closes_at: null,

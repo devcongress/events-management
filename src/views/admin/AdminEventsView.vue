@@ -56,7 +56,6 @@ const form = reactive({
   stream_url: '',
   publish_to_website: false,
   registration_capacity: 100,
-  registration_opens_at: '',
   registration_closes_at: '',
 });
 const createPending = ref(false);
@@ -266,7 +265,7 @@ async function createEvent() {
       }
     }
     await refreshEventQueries();
-    notify.success('Event and registration draft created.');
+    notify.success('Event created and registration opened.');
     if (coverUploadError) {
       notify.error(`Event created, but its cover was not uploaded: ${coverUploadError}`);
     }
@@ -412,7 +411,7 @@ function goToPage(nextPage: number) {
           <div>
             <p class="editorial-eyebrow">organizer</p>
             <h1 class="editorial-title">Create New Event</h1>
-            <p class="editorial-subtitle">Create the event and its private registration campaign together. Registration stays in draft until you open it.</p>
+            <p class="editorial-subtitle">Create the event and its registration campaign together. Registration opens as soon as the event is created.</p>
           </div>
         </div>
 
@@ -537,9 +536,9 @@ function goToPage(nextPage: number) {
               <div>
                 <p class="editorial-eyebrow">registration</p>
                 <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Free guest list</h2>
-                <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">The campaign is created as a draft. Open it from the Registration tab when the public form is ready.</p>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">The campaign opens when the event is created. You can schedule or pause it later from the Registration workspace.</p>
               </div>
-              <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Draft</span>
+              <span class="rounded-sm border border-dc-green bg-white px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-green">Open on creation</span>
             </div>
           </div>
           <div class="grid gap-5 p-5 md:grid-cols-3">
@@ -547,7 +546,6 @@ function goToPage(nextPage: number) {
               <label for="registration-capacity" class="editorial-label">Capacity</label>
               <input id="registration-capacity" v-model.number="form.registration_capacity" type="number" min="1" max="5000" class="editorial-input" required>
             </div>
-            <AppDatePicker v-model="form.registration_opens_at" label="Opens at" mode="datetime" />
             <AppDatePicker v-model="form.registration_closes_at" label="Closes at" mode="datetime" />
             <div class="rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
               <p class="text-sm font-bold text-dc-ink">Places are automatic</p>

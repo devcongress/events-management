@@ -55,6 +55,7 @@ describe('event series form payload', () => {
     });
 
     expect(toCreateEventApiPayload(parsed).registration).toMatchObject({
+      status: 'open',
       capacity: 80,
       auto_confirm: true,
       waitlist_enabled: true,

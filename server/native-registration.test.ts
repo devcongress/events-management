@@ -305,7 +305,7 @@ describe('native event registration API', () => {
     expect(massAssignmentUpdate.status).toBe(400);
   });
 
-  it('creates the event and draft campaign together, then confirms and waitlists guests', async () => {
+  it('creates the event with registration open, then confirms and waitlists guests', async () => {
     const { default: app } = await import('./app');
     const createResponse = await app.request('http://localhost/api/events', {
       method: 'POST',
@@ -318,10 +318,10 @@ describe('native event registration API', () => {
         series_type: 'monthly',
         location: { name: 'Fido, Accra', label: 'Fido, Accra', url: null },
         stream_url: 'https://meet.google.com/abc-defg-hij',
-        publish_to_website: false,
+        publish_to_website: true,
         registration: {
           capacity: 1,
-          opens_at: null,
+          opens_at: '2026-08-28T10:00:00.000Z',
           closes_at: null,
           waitlist_enabled: false,
           auto_confirm: false,
@@ -331,54 +331,27 @@ describe('native event registration API', () => {
 
     expect(createResponse.status).toBe(201);
     const created = await createResponse.json() as {
-      event: { id: string; slug: string; registration_url: string; stream_url: string | null };
+      event: { id: string; slug: string; status: string; registration_url: string; stream_url: string | null };
       registration_campaign: {
         status: string;
+        description: string | null;
         capacity: number;
+        opens_at: string | null;
         waitlist_enabled: boolean;
         auto_confirm: boolean;
       };
     };
     expect(created.event.registration_url).toBe('http://localhost/r/august-2026-meetup');
+    expect(created.event.status).toBe('upcoming');
     expect(created.event.stream_url).toBe('https://meet.google.com/abc-defg-hij');
     expect(created.registration_campaign).toMatchObject({
-      status: 'draft',
+      status: 'open',
+      description: null,
       capacity: 1,
+      opens_at: null,
       waitlist_enabled: true,
       auto_confirm: true,
     });
-
-    const draftPublicResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
-    expect(draftPublicResponse.status).toBe(404);
-    await expect(draftPublicResponse.json()).resolves.toEqual({
-      available: false,
-      error: 'Registration is not available for this event.',
-    });
-
-    const draftSubmissionResponse = await app.request(
-      `http://localhost/api/registration/events/${created.event.id}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Draft Guest', email: 'draft@example.com' }),
-      },
-    );
-    expect(draftSubmissionResponse.status).toBe(404);
-    await expect(draftSubmissionResponse.json()).resolves.toEqual({
-      error: 'Registration is not available for this event.',
-    });
-
-    const draftCalendarResponse = await app.request(
-      `http://localhost/api/registration/events/${created.event.id}/calendar.ics`,
-    );
-    expect(draftCalendarResponse.status).toBe(404);
-
-    const openResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'open' }),
-    });
-    expect(openResponse.status).toBe(200);
 
     const policyOverrideResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations`,
@@ -394,7 +367,11 @@ describe('native event registration API', () => {
     expect(slugPublicResponse.status).toBe(200);
     await expect(slugPublicResponse.json()).resolves.toMatchObject({
       available: true,
-      event: { id: created.event.id },
+      event: {
+        id: created.event.id,
+        description: 'A free community meetup.',
+      },
+      campaign: { description: null },
     });
 
     const calendarResponse = await app.request(

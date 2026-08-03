@@ -4,6 +4,7 @@ export const REGISTRATION_SETUP_HISTORY_KEY = 'registrationSetup';
 
 export interface RegistrationSettingsDraft {
   status: EventRegistrationCampaignStatus;
+  description: string;
   capacity: number;
   opens_at: string;
   closes_at: string;
@@ -13,6 +14,7 @@ export type RegistrationSettingsField = keyof RegistrationSettingsDraft;
 
 export const REGISTRATION_SETTINGS_FIELDS: RegistrationSettingsField[] = [
   'status',
+  'description',
   'capacity',
   'opens_at',
   'closes_at',

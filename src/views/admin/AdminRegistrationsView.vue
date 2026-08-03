@@ -62,6 +62,7 @@ const blastsQuery = useQuery({
 });
 const settings = reactive({
   status: 'draft' as 'draft' | 'open' | 'closed',
+  description: '',
   capacity: 100,
   opens_at: '',
   closes_at: '',
@@ -331,6 +332,7 @@ const canUsePublicRegistrationForm = computed(() => (
 ));
 const currentSettings = computed<RegistrationSettingsDraft>(() => ({
   status: settings.status,
+  description: settings.description,
   capacity: Number(settings.capacity),
   opens_at: settings.opens_at,
   closes_at: settings.closes_at,
@@ -418,6 +420,7 @@ watch(() => data.value?.campaign, (campaign) => {
   if (!campaign) return;
   const snapshot: RegistrationSettingsDraft = {
     status: campaign.status,
+    description: campaign.description ?? '',
     capacity: campaign.capacity,
     opens_at: toLocalDateTime(campaign.opens_at),
     closes_at: toLocalDateTime(campaign.closes_at),
@@ -479,6 +482,7 @@ function formatDateTime(value: string): string {
 
 function settingLabel(field: RegistrationSettingsField): string {
   if (field === 'status') return 'Status';
+  if (field === 'description') return 'Registration introduction';
   if (field === 'capacity') return 'Capacity';
   if (field === 'opens_at') return 'Opens at';
   return 'Closes at';
@@ -490,6 +494,9 @@ function displaySettingValue(
 ): string {
   if (field === 'status') {
     return String(value).replace(/^./, (letter) => letter.toUpperCase());
+  }
+  if (field === 'description') {
+    return String(value).trim() || 'No introduction';
   }
   if (field === 'opens_at' || field === 'closes_at') {
     return value ? formatDateTime(new Date(String(value)).toISOString()) : 'Not scheduled';
@@ -671,6 +678,7 @@ async function saveSettings() {
   try {
     await updateEventRegistrationCampaign(eventId.value, {
       status: settings.status,
+      description: settings.description.trim() || null,
       capacity: settings.capacity,
       opens_at: toIso(settings.opens_at),
       closes_at: toIso(settings.closes_at),
@@ -1129,6 +1137,17 @@ async function retryEmails() {
           </div>
 
           <form class="grid gap-4 p-5 md:grid-cols-2 lg:grid-cols-3" @submit.prevent="requestSaveSettings">
+            <div class="md:col-span-2 lg:col-span-3">
+              <label for="campaign-description" class="editorial-label">Registration introduction</label>
+              <textarea
+                id="campaign-description"
+                v-model="settings.description"
+                class="editorial-input min-h-28 resize-y"
+                maxlength="2000"
+                placeholder="Optional message shown above the registration form."
+              />
+              <p class="mt-2 text-xs leading-5 text-dc-gray">Only text saved here appears on the registration form. The event About description stays separate.</p>
+            </div>
             <AppDropdown v-model="settings.status" label="Status" :options="statusOptions" teleport />
             <div>
               <label for="campaign-capacity" class="editorial-label">Capacity</label>

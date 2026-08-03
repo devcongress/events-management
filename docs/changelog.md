@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-03 — Registration opens with the event
+
+- Opened native registration campaigns as part of event creation so a newly generated registration link works immediately unless the organizer deliberately schedules a future opening.
+- Separated the optional registration introduction from the event About description, left it blank by default, and made it editable alongside status, capacity, and registration dates after opening.
+- Stopped public meetup adapters from inventing generic descriptions when no description is stored.
+- Updated the creation and registration workspace copy to reflect the immediate-open behavior.
+- Updated Hono and pinned the patched Undici release after newly published advisories began failing the dependency audit gate.
+
 ## 2026-08-03 — Mobile Annual Conference operations
 
 - Added Annual Conference to Mobile Ops with live attention and completion context instead of hiding the workspace from phone organizers.

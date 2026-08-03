@@ -34,6 +34,7 @@ import {
 
 export type RegistrationCampaignInput = {
   status?: EventRegistrationCampaignStatus;
+  description?: string | null;
   capacity: number;
   opens_at?: string | null;
   closes_at?: string | null;

@@ -218,7 +218,8 @@ export function toCreateEventApiPayload(value: CreateEventFormPayload) {
     embed_stream: false,
     publish_to_website: value.publish_to_website,
     registration: {
-      status: 'draft' as const,
+      status: 'open' as const,
+      description: null,
       capacity: value.registration_capacity,
       opens_at: emptyToNull(value.registration_opens_at),
       closes_at: emptyToNull(value.registration_closes_at),

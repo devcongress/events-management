@@ -273,7 +273,7 @@ export interface PublicEventRegistrationResponse {
   available: boolean;
   unavailable_reason: 'draft' | 'closed' | 'not_open' | 'ended' | null;
   event: Pick<Event, 'id' | 'name' | 'description' | 'event_date' | 'end_date' | 'cover' | 'location' | 'updated_at'>;
-  campaign: Pick<EventRegistrationCampaign, 'status' | 'opens_at' | 'closes_at' | 'waitlist_enabled'>;
+  campaign: Pick<EventRegistrationCampaign, 'status' | 'description' | 'opens_at' | 'closes_at' | 'waitlist_enabled'>;
 }
 
 export const queryKeys = {
@@ -555,7 +555,7 @@ export function fetchEventRegistrations(eventId: string) {
 
 export function updateEventRegistrationCampaign(
   eventId: string,
-  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'capacity' | 'opens_at' | 'closes_at'>>,
+  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'description' | 'capacity' | 'opens_at' | 'closes_at'>>,
 ) {
   return fetchJson<EventRegistrationCampaign>(`/api/events/${eventId}/registrations`, {
     method: 'PATCH',

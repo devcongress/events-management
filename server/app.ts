@@ -254,6 +254,7 @@ const eventRegistrationSubmissionSchema = z.object({
 }).strict();
 const eventRegistrationCampaignUpdateSchema = z.object({
   status: z.enum(['draft', 'open', 'closed']).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
   capacity: z.coerce.number().int().min(1).max(5000).optional(),
   opens_at: z.string().datetime().nullable().optional(),
   closes_at: z.string().datetime().nullable().optional(),
@@ -1299,7 +1300,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     status: publicMeetupStatus(event),
     start: toWebsiteDateTime(event.event_date),
     end: endDate,
-    description: event.description ?? 'A DevCongress community meetup for talks, peer learning, and practical developer conversations.',
+    description: event.description ?? '',
     cover: safeWebsiteUrl(coverForEvent(event)) ?? PUBLIC_MEETUP_COVERS[0],
     location: {
       ...location,
@@ -4169,6 +4170,7 @@ app.get('/api/registration/events/:eventId', async (c) => {
     },
     campaign: {
       status: campaign.status,
+      description: campaign.description,
       opens_at: campaign.opens_at,
       closes_at: campaign.closes_at,
       waitlist_enabled: campaign.waitlist_enabled,
@@ -4344,8 +4346,17 @@ app.post('/api/events', async (c) => {
     }, c);
     event = await updateEvent(event.id, {
       registration_url: publicRegistrationUrl(event, c),
+      // Publication and lifecycle must not contradict each other on first load.
+      // An unpublished shell can remain a planning draft; a published event is upcoming.
+      status: payload.publish_to_website ? 'upcoming' : event.status,
     }, c);
-    const registrationCampaign = await createRegistrationCampaign(event.id, payload.registration, c);
+    const registrationCampaign = await createRegistrationCampaign(event.id, {
+      ...payload.registration,
+      // Event creation is also registration publication. A future opens_at
+      // can be configured later, but must not make a newly shared link look broken.
+      status: 'open',
+      opens_at: null,
+    }, c);
 
     await auditAdminAction(c, {
       action: 'event.create_native',

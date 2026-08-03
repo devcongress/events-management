@@ -41,6 +41,11 @@ const registrationCoverSrc = computed(() => {
   return versionPublicMeetupMediaUrl(event.cover, event.updated_at);
 });
 const detailsMapUrl = computed(() => safeGoogleMapsUrl(registration.value?.event.location?.url));
+const displayedDescription = computed(() => (
+  eventDetailsView.value
+    ? registration.value?.event.description
+    : registration.value?.campaign.description
+));
 const canSubmit = computed(() => (
   registration.value?.available === true
   && form.name.trim().length > 0
@@ -127,7 +132,7 @@ async function submitRegistration() {
           <div class="registration-event-body">
             <p class="editorial-eyebrow">free monthly meetup</p>
             <h1 class="registration-event-title">{{ registration.event.name }}</h1>
-            <p v-if="registration.event.description" class="registration-event-description">{{ registration.event.description }}</p>
+            <p v-if="displayedDescription" class="registration-event-description">{{ displayedDescription }}</p>
             <dl class="registration-event-meta">
               <div>
                 <dt>When</dt>

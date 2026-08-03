@@ -1,5 +1,16 @@
 # Architectural Decisions
 
+## ADR-044: Separate Event About Copy from Registration Introduction
+
+**Date:** 2026-08-03
+**Status:** Accepted
+**Why:** The public registration form previously reused the event About description. That made historical, imported, seeded, or otherwise pre-existing event copy appear as if the organizer had authored it specifically for registration, and the registration workspace offered no way to change it. Registration campaigns now own an optional introduction that starts blank and can be edited with the rest of the form settings. Native campaigns also open on event creation so the generated link is immediately usable; scheduling a future opening is an explicit post-creation action.
+**Tradeoffs:** Organizers who want the same copy on both surfaces must intentionally paste it into both fields. Existing campaigns show no registration introduction until one is added, while event-detail links and the public About surface retain the event description.
+**Alternatives considered:** Continue reusing the event description (unclear provenance and no registration-specific editing), copy the event description into every new campaign (still presents unrelated copy by default), or add a full duplicate event editor to Registration (mixes event identity with campaign-owned form copy).
+**Revisit when:** Registration forms support richer custom content or reusable templates that need a broader content model.
+
+---
+
 ## ADR-043: Role-Specific Annual Conference Mobile Workspace
 
 **Date:** 2026-08-03
