@@ -155,7 +155,8 @@ function organizerValue(organizer: OrganizerMembership): string {
 
 function organizerLabel(organizer: OrganizerMembership): string {
   const displayName = organizer.display_name?.trim();
-  return displayName ? `${displayName} · ${organizer.email}` : organizer.email;
+  const identity = displayName ? `${displayName} · ${organizer.email}` : organizer.email;
+  return organizer.role === 'volunteer' ? `${identity} · Volunteer` : identity;
 }
 
 function resetForm() {
@@ -249,7 +250,7 @@ function submitForm() {
           </button>
         </span>
         <span v-else class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
-          Select one active organizer. Exactly one person is accountable.
+          Select one active team member. Exactly one person is accountable.
         </span>
       </div>
 
@@ -265,7 +266,7 @@ function submitForm() {
           menu-class="min-w-80"
         />
         <span class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
-          Select any number of organizers. The accountable owner is kept separate.
+          Select any number of team members. The accountable owner is kept separate.
         </span>
       </div>
 

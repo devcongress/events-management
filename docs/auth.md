@@ -1,11 +1,11 @@
-# Admin Auth
+# Organizer and Volunteer Auth
 
-DevCon-Comm uses Supabase Auth with Google OAuth for organizer access in every environment. Local and hosted runs share the same membership allowlist and app-owned session flow; incomplete configuration fails closed.
+DevCon-Comm uses Supabase Auth with Google OAuth for organizer and annual-conference volunteer access in every environment. Local and hosted runs share the same membership allowlist and app-owned session flow; incomplete configuration fails closed.
 
 ## Production Flow
 
 1. An owner adds an organizer email in `/organizer-console/organizers`.
-2. The email is stored in `public.admin_memberships` with role `owner` or `organizer`.
+2. The email is stored in `public.admin_memberships` with role `owner`, `organizer`, or `volunteer`.
 3. The organizer signs in from `/organizer-console/login`.
 4. The organizer chooses Google sign-in from `/organizer-console/login`.
 5. Supabase handles the Google OAuth redirect and returns to `/api/auth/admin/callback` with an authorization code.
@@ -31,8 +31,11 @@ Sign out revokes the app-owned session and removes its HTTP-only cookie. Secure 
 
 | Role | Access |
 |---|---|
-| `owner` | Full organizer access, can grant owner or organizer access, can disable other owners while keeping at least one active owner, and can review the audit log |
-| `organizer` | Organizer console and admin mutations, including adding or disabling other organizers, but cannot grant or revoke owner access |
+| `owner` | Full organizer access, can grant owner, organizer, or volunteer access, can disable other owners while keeping at least one active owner, and can review the audit log |
+| `organizer` | Organizer console and admin mutations, including adding or disabling organizers and volunteers, but cannot grant or revoke owner access |
+| `volunteer` | Annual Conference overview plus tasks where the volunteer is the accountable owner or a collaborator; may update only those task statuses |
+
+Volunteer sessions are redirected to the active Annual Conference. UI routing and server API policy both deny Events, Attendance, Feedback, organizer management, audit logs, volunteer-applicant records, task creation, and task ownership/detail changes. Assigned-task responses remove organizer-only internal notes.
 
 ## Tables
 

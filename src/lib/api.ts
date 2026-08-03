@@ -208,6 +208,9 @@ export interface AnnualConferenceWorkPlanResponse {
   summary: AnnualConferenceWorkPlanSummary;
   permissions: {
     can_create_tasks: boolean;
+    can_edit_all_tasks: boolean;
+    can_update_assigned_task_status: boolean;
+    access_scope: 'all' | 'assigned';
     task_creator_email: string;
   };
 }

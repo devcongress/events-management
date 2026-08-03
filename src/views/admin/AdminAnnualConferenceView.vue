@@ -18,6 +18,7 @@ const workPlanQuery = useQuery({
 const tasks = computed(() => workPlanQuery.data.value?.tasks ?? []);
 const edition = computed(() => workPlanQuery.data.value?.edition);
 const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
+const assignedAccess = computed(() => workPlanQuery.data.value?.permissions.access_scope === 'assigned');
 
 function formatConferenceDate(value: string | null | undefined): string {
   if (!value) return 'To be confirmed';
@@ -78,6 +79,7 @@ onUnmounted(() => {
           </div>
 
           <div
+            v-if="!assignedAccess"
             ref="factsDisclosure"
             class="conference-notes"
             @keydown.esc.stop.prevent="closeFacts(true)"
@@ -144,7 +146,7 @@ onUnmounted(() => {
           <div class="conference-delivery">
             <div class="conference-delivery__headline">
               <div>
-                <p class="conference-brief__eyebrow">Delivery</p>
+              <p class="conference-brief__eyebrow">{{ assignedAccess ? 'Your work' : 'Delivery' }}</p>
                 <h3>
                   <strong>{{ summary.done }}</strong>
                   <span> / {{ summary.total }} tasks complete</span>
@@ -165,7 +167,10 @@ onUnmounted(() => {
             </div>
 
             <div class="conference-delivery__signals">
-              <span v-if="summary.unassigned > 0" class="conference-delivery__attention">
+              <span v-if="assignedAccess">
+                {{ summary.total }} {{ summary.total === 1 ? 'task assigned to you' : 'tasks assigned to you' }}
+              </span>
+              <span v-else-if="summary.unassigned > 0" class="conference-delivery__attention">
                 {{ summary.unassigned }} need {{ summary.unassigned === 1 ? 'an owner' : 'owners' }}
               </span>
               <span v-else>Every task has an owner</span>
@@ -188,16 +193,16 @@ onUnmounted(() => {
           <div class="conference-brief__volunteer-copy">
             <span class="conference-brief__live-dot" aria-hidden="true" />
             <div>
-              <p class="conference-brief__eyebrow">Volunteer intake</p>
-              <p>Form live and ready to share</p>
+              <p class="conference-brief__eyebrow">{{ assignedAccess ? 'Conference access' : 'Volunteer intake' }}</p>
+              <p>{{ assignedAccess ? 'Only your assigned work is visible' : 'Form live and ready to share' }}</p>
             </div>
           </div>
 
           <RouterLink
-            :to="annualConferencePath('volunteers')"
+            :to="annualConferencePath(assignedAccess ? 'work-plan' : 'volunteers')"
             class="conference-brief__secondary-action motion-press"
           >
-            <span>Open volunteers</span>
+            <span>{{ assignedAccess ? 'Open my tasks' : 'Open volunteers' }}</span>
             <span class="conference-brief__action-arrow" aria-hidden="true">→</span>
           </RouterLink>
         </footer>

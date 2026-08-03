@@ -12,3 +12,8 @@ export function annualConferencePath(path = ''): string {
   const editionPath = `annual-conference/${ACTIVE_ANNUAL_CONFERENCE_EDITION.year}`;
   return adminPath(path ? `${editionPath}/${path.replace(/^\/+/, '')}` : editionPath);
 }
+
+export function volunteerCanAccessOrganizerPath(path: string): boolean {
+  return path === annualConferencePath()
+    || path === annualConferencePath('work-plan');
+}

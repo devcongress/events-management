@@ -14,7 +14,7 @@ export const ADMIN_SESSION_IDLE_TIMEOUT_SECONDS = 60 * 30;
 // not create a database write for every request.
 const ADMIN_SESSION_LAST_SEEN_THROTTLE_MS = 60_000;
 
-export type AdminRole = 'owner' | 'organizer';
+export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 
 export interface AdminSession {
   authenticated: true;
@@ -395,7 +395,7 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
       method: c.req.method,
       path: securitySafeRequestPath(c.req.path),
     }));
-    return c.json({ error: 'Owner access required' }, 403);
+    return c.json({ error: 'This account does not have access to this resource' }, 403);
   }
 
   if (!cached) c.set('adminSession', session);

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-03 — Assigned-work access for Annual Conference volunteers
+
+- Added **Volunteer** to People & Access so owners and organizers can grant conference-only sign-in without organizer-wide privileges.
+- Routed volunteer sessions directly into Annual Conference and limited navigation to the edition overview and work plan.
+- Filtered volunteer work-plan responses to tasks where their email is accountable or collaborating, removed organizer-only internal notes, and added a clear no-assignment state.
+- Allowed volunteers to update only the status of assigned tasks while keeping Events, hubs, access management, applicant records, task creation, reassignment, and task-detail changes server-denied.
+- Added the Supabase role migration plus focused route, API-policy, assignment, redaction, and real Hono authorization tests.
+
 ## 2026-08-02 — Rejection reason dropdown consistency
 
 - Replaced the browser-native rejection-reason select with the shared organizer app dropdown and aligned both rejection text areas with the non-resizable editorial input treatment, retaining the required reason, existing moderation payload, and compact drawer layout.

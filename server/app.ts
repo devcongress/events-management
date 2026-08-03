@@ -49,6 +49,10 @@ import {
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
+import {
+  annualConferenceTasksForMember,
+  volunteerCanUpdateAssignedTask,
+} from '@/lib/annual-conference-access';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { GooglePlacesSearchError, searchGhanaVenues } from '@/lib/google-places';
@@ -113,6 +117,7 @@ import {
 } from '@/lib/system-design-participant-identity';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
+import { adminRolesForApiRequest } from '@/server/admin-api-access';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
@@ -424,7 +429,7 @@ const systemDesignDraftRequestSchema = z.object({
 const addOrganizerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   display_name: z.string().trim().optional(),
-  role: z.enum(['owner', 'organizer']).default('organizer'),
+  role: z.enum(['owner', 'organizer', 'volunteer']).default('organizer'),
 });
 const adminTokenExchangeSchema = z.object({
   access_token: z.string().trim().min(20).max(8192),
@@ -857,7 +862,7 @@ app.use('/api/*', async (c, next) => {
     return;
   }
 
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, adminRolesForApiRequest(c.req.path, c.req.method));
   if (adminError && !(isLogoutPath(c.req.path) && adminError.status === 401)) return adminError;
   await next();
 });
@@ -3075,7 +3080,7 @@ app.get('/api/admin/volunteer-applications', async (c) => {
 });
 
 app.get('/api/annual-conference/:year/work-plan', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
 
   const yearParam = c.req.param('year');
@@ -3089,13 +3094,21 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
   }
 
   const session = await getAdminSession(c);
-  const canCreateTasks = session.authenticated && canCreateAnnualConferenceTask(session.email);
+  if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
+
+  const visibleTasks = annualConferenceTasksForMember(workPlan.tasks, session.role, session.email);
+  const volunteerAccess = session.role === 'volunteer';
+  const canCreateTasks = !volunteerAccess && canCreateAnnualConferenceTask(session.email);
 
   return c.json({
     ...workPlan,
-    summary: summarizeAnnualConferenceWorkPlan(workPlan.tasks),
+    tasks: visibleTasks,
+    summary: summarizeAnnualConferenceWorkPlan(visibleTasks),
     permissions: {
       can_create_tasks: canCreateTasks,
+      can_edit_all_tasks: !volunteerAccess,
+      can_update_assigned_task_status: volunteerAccess,
+      access_scope: volunteerAccess ? 'assigned' : 'all',
       task_creator_email: workPlan.edition.task_creator_email,
     },
   });
@@ -3162,7 +3175,7 @@ app.post('/api/annual-conference/:year/work-plan', async (c) => {
 });
 
 app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
 
   const yearParam = c.req.param('year');
@@ -3187,7 +3200,35 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
 
   const session = await getAdminSession(c);
   if (!session.authenticated) {
-    return c.json({ error: 'Organizer session required.' }, 401);
+    return c.json({ error: 'Conference access required.' }, 401);
+  }
+
+  if (session.role === 'volunteer') {
+    if (!volunteerCanUpdateAssignedTask(existingTask, parsed.data, session.email)) {
+      return c.json({ error: 'Volunteers can only update the status of tasks assigned to them.' }, 403);
+    }
+
+    const task = await updateAnnualConferenceTaskStore(
+      workPlan.edition.id,
+      c.req.param('taskId'),
+      { status: parsed.data.status },
+      session.email ?? 'conference-volunteer',
+      c,
+    );
+
+    if (!task) return c.json({ error: 'Annual conference task was not found.' }, 404);
+
+    await auditAdminAction(c, {
+      action: 'annual_conference.task.status_update',
+      targetType: 'annual_conference_task',
+      targetId: task.id,
+      metadata: {
+        edition_year: Number(yearParam),
+        status: task.status,
+      },
+    });
+
+    return c.json({ ...task, internal_note: null });
   }
 
   let activeOrganizerEmails: string[] = [];
@@ -3333,7 +3374,7 @@ app.post('/api/admin/organizers', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = addOrganizerSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: 'Enter a valid organizer email.' }, 400);
+    return c.json({ error: 'Enter a valid email and role.' }, 400);
   }
   const email = parsed.data.email;
   const displayName = parsed.data.display_name || null;
@@ -3350,7 +3391,7 @@ app.post('/api/admin/organizers', async (c) => {
   }
 
   if (session.role !== 'owner') {
-    if (role !== 'organizer') {
+    if (role === 'owner') {
       return c.json({ error: 'Only owners can grant owner access.' }, 403);
     }
 
@@ -3372,7 +3413,7 @@ app.post('/api/admin/organizers', async (c) => {
     .single();
 
   if (error) {
-    return c.json({ error: 'Unable to save organizer email.' }, 500);
+    return c.json({ error: 'Unable to save access.' }, 500);
   }
 
   if (

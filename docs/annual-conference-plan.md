@@ -71,6 +71,9 @@ The first operational workspace slice is now in place:
 - Overview, Work plan, and Volunteers are interactive today; future modules remain visible as planned structure rather than empty routes;
 - the former organizer volunteer paths redirect to the new workspace;
 - the existing public form, QR link, campaign ID, submission API, and stored applications are unchanged.
+- owners and organizers can add an authenticated user with the **Volunteer** role from People & Access;
+- volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update only those task statuses;
+- volunteer access is enforced at both the organizer router and API boundary; Events, hubs, access management, applicant records, task creation, task reassignment, task-detail editing, and organizer-only internal notes remain unavailable;
 - every authenticated organizer can edit every task, while only `angelateyvi@gmail.com` can add a task;
 - the first named spreadsheet owner is accountable and the remaining names are collaborators; `All`, `TBD`, and blank owners remain unassigned;
 - new owner and collaborator selections use active organizer emails as stable identities, while the UI shows organizer names and preserves unchanged legacy spreadsheet assignments;
@@ -100,6 +103,7 @@ The work plan uses relational `annual_conference_editions` and `annual_conferenc
 - Conference data is scoped to its annual edition so December 2026 work does not appear in monthly-event workflows.
 - A person has one identity but may have different engagements across events: organizer, workstream lead, volunteer, speaker, attendee, or sponsor contact.
 - Access is capability- and edition-scoped. A volunteer or speaker does not gain the full organizer console.
+- The current 2026 access slice represents conference volunteers through a narrow membership role; assignment matching uses the active membership email, and later multi-edition access should replace that shortcut with explicit edition engagements.
 - Regular event operations must remain usable while conference modules are incomplete or being deployed.
 - Public conference data reaches `devcongress.org` only through the approved public API; private work, finance, applications, and internal notes stay in `events-management`.
 - Existing meetup components may be reused, but their data and rules must not be silently shared with the annual workflow.

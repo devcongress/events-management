@@ -5,7 +5,7 @@ import {
   isAdminPath,
   safeInternalAppPath,
 } from './admin-routes';
-import { annualConferencePath } from './annual-conference';
+import { annualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { queryClient } from './lib/query';
 import {
@@ -180,6 +180,10 @@ router.beforeEach(async (to, from) => {
       queryFn: fetchAdminSession,
     }).catch(() => undefined);
 
+    if (cachedSession.user?.role === 'volunteer') {
+      return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+    }
+
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,
       isAdminRoute: isAdminPath(to.path),
@@ -202,6 +206,10 @@ router.beforeEach(async (to, from) => {
       queryFn: fetchAdminSession,
     });
     if (session.authenticated) {
+      if (session.user?.role === 'volunteer') {
+        return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+      }
+
       const viewportRedirect = organizerViewportRedirect({
         authenticated: true,
         isAdminRoute: isAdminPath(to.path),

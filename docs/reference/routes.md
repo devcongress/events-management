@@ -4,7 +4,7 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 
 ## Browser Surface
 
-This deployment is an organizer-only console, with deliberate public exceptions for event registration, event feedback, the monthly Call for Presentations, private archive intake, and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect to the organizer console; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
+This deployment is a protected operations console, with full organizer access and a restricted Annual Conference surface for authenticated volunteers. It also has deliberate public exceptions for event registration, event feedback, the monthly Call for Presentations, private archive intake, and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect into the appropriate protected workspace; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
 
 | Route | Purpose |
 |---|---|
@@ -36,11 +36,11 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/website-preview/events` | Authenticated, phone-safe preview of the published event collection rendered from the exact `GET /api/public/meetups` consumer payload |
 | `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/public/meetups/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
-| `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview |
-| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan with workstream, status, accountable owner, collaborators, dates, dependencies, and notes |
+| `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview; volunteer summaries contain only assigned work |
+| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan for organizers; volunteers receive only tasks where they are accountable or collaborating and may update status only |
 | `/organizer-console/annual-conference/2026/volunteers` | December 2026 volunteer-link sharing and private application review |
 | `/organizer-console/annual-conference/2026/volunteers/display` | Organizer-only TV-safe QR display for the December 2026 volunteer intake form |
-| `/organizer-console/organizers` | Owner-only organizer email allowlist |
+| `/organizer-console/organizers` | People & Access allowlist for owner, organizer, and restricted volunteer roles; volunteers cannot open this route |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
 | `/organizer-console/events/:eventId/registrations` | Four-part registration workspace for capacity summary, public-link/settings, private guest operations, atomic cancellation/promotion, transactional delivery retries, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
@@ -79,7 +79,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/feedback*` | App feedback, event campaigns, and anonymous public event-feedback submission. Session ratings accept 1–5 or `not_attended`; the latter is excluded from averages. |
 | `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by mandatory production Turnstile, atomic per-client limits, and email de-duplication |
 | `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
-| `GET /api/annual-conference/:year/work-plan` | Organizer-only annual edition, task list, summary, and task-creation permission |
+| `GET /api/annual-conference/:year/work-plan` | Organizers receive the annual edition and complete work plan; volunteers receive only assigned tasks with organizer-only internal notes removed |
+| `PATCH /api/annual-conference/:year/work-plan/:taskId` | Organizers may edit an existing task; volunteers may change only the status of a task assigned to them |
 | `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to `angelateyvi@gmail.com` and requires one accountable owner |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId` | Edit an existing task; available to every authenticated organizer |
 | `/api/quiz*` | Separate quiz and System Design learning-room sessions, reviewed questions, protected presenter controls/state, and anonymous join/answer state |

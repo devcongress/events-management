@@ -49,15 +49,17 @@ const workPlanQuery = useQuery({
   queryKey: queryKeys.annualConferenceWorkPlan(year),
   queryFn: () => fetchAnnualConferenceWorkPlan(year),
 });
+const permissions = computed(() => workPlanQuery.data.value?.permissions);
+const assignedAccess = computed(() => permissions.value?.access_scope === 'assigned');
 const organizersQuery = useQuery({
   queryKey: queryKeys.adminOrganizers,
   queryFn: fetchAdminOrganizers,
+  enabled: computed(() => permissions.value?.access_scope === 'all'),
 });
 
 const tasks = computed(() => workPlanQuery.data.value?.tasks ?? []);
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null);
 const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
-const permissions = computed(() => workPlanQuery.data.value?.permissions);
 const organizerLabels = computed<Record<string, string>>(() => Object.fromEntries(
   (organizersQuery.data.value?.organizers ?? []).map((organizer) => [
     organizer.email.trim().toLowerCase(),
@@ -140,6 +142,7 @@ const updateMutation = useMutation({
 });
 
 function startEditing(taskId: string) {
+  if (!permissions.value?.can_edit_all_tasks) return;
   showCreateForm.value = false;
   selectedTaskId.value = taskId;
   editingTaskId.value = taskId;
@@ -311,9 +314,11 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       <AnnualConferenceNav title="Work plan">
         <template #description>
           <p class="mt-1 max-w-4xl text-xs font-medium leading-5 text-dc-gray">
-            See delivery health at a glance, then open only the task that needs attention.
+            {{ assignedAccess
+              ? 'These are the Annual Conference tasks assigned to you. Open a task to review it or update its status.'
+              : 'See delivery health at a glance, then open only the task that needs attention.' }}
             <span
-              v-if="permissions && !permissions.can_create_tasks"
+              v-if="permissions && !permissions.can_create_tasks && !assignedAccess"
               id="annual-task-create-permission"
               class="block sm:ml-1 sm:inline"
             >
@@ -323,6 +328,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
         </template>
         <template #actions>
           <button
+            v-if="!assignedAccess"
             type="button"
             class="motion-press inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border-2 px-4 py-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
             :class="permissions?.can_create_tasks
@@ -517,7 +523,9 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             <div>
               <h2 class="text-lg font-bold text-dc-ink">Task ledger</h2>
               <p class="mt-0.5 text-xs font-medium text-dc-gray">
-                {{ visibleTasks.length }} of {{ tasks.length }} tasks shown. View a task for notes, collaborators, and editing.
+                {{ assignedAccess
+                  ? `${visibleTasks.length} of ${tasks.length} assigned tasks shown. Open a task to review it or update its status.`
+                  : `${visibleTasks.length} of ${tasks.length} tasks shown. View a task for notes, collaborators, and editing.` }}
               </p>
             </div>
             <span class="hidden shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray sm:block">
@@ -540,9 +548,14 @@ function statusClass(status: AnnualConferenceTask['status']): string {
           >
             <div v-if="visibleTasks.length === 0" class="grid min-h-[18rem] place-items-center p-8 text-center">
               <div>
-                <h3 class="text-xl font-bold text-dc-ink">No matching tasks</h3>
-                <p class="mt-2 text-sm font-medium text-dc-gray">Clear or change the filters to see the work plan.</p>
+                <h3 class="text-xl font-bold text-dc-ink">{{ assignedAccess && tasks.length === 0 ? 'No tasks assigned yet' : 'No matching tasks' }}</h3>
+                <p class="mt-2 text-sm font-medium text-dc-gray">
+                  {{ assignedAccess && tasks.length === 0
+                    ? 'An organizer will assign conference work to you here.'
+                    : 'Clear or change the filters to see the work plan.' }}
+                </p>
                 <button
+                  v-if="tasks.length > 0"
                   type="button"
                   class="mt-4 min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
                   @click="clearFilters"
@@ -641,6 +654,8 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"
       :organizer-labels="organizerLabels"
+      :can-edit="permissions?.can_edit_all_tasks === true"
+      :status-only="permissions?.can_update_assigned_task_status === true"
       :submitting="showCreateForm ? createMutation.isPending.value : updateMutation.isPending.value"
       @close="closeTaskDrawer"
       @edit="selectedTask && startEditing(selectedTask.id)"

@@ -14,6 +14,8 @@ const props = defineProps<{
   task: AnnualConferenceTask | null;
   organizerLabels?: Record<string, string>;
   submitting?: boolean;
+  canEdit?: boolean;
+  statusOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -278,9 +280,29 @@ onUnmounted(() => {
 
           <footer
             v-if="mode === 'details' && task"
-            class="flex shrink-0 justify-end border-t-2 border-dc-ink bg-dc-paper px-5 py-4 sm:px-6"
+            class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-dc-ink bg-dc-paper px-5 py-4 sm:px-6"
           >
+            <template v-if="statusOnly">
+              <span class="mr-auto font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
+                Update status
+              </span>
+              <button
+                v-for="(label, status) in ANNUAL_CONFERENCE_STATUS_LABELS"
+                :key="status"
+                type="button"
+                class="motion-press min-h-10 rounded-md border-2 px-3 py-2 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
+                :class="task.status === status
+                  ? statusClass(status)
+                  : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
+                :disabled="submitting || task.status === status"
+                :aria-pressed="task.status === status"
+                @click="emit('submit', { status })"
+              >
+                {{ label }}
+              </button>
+            </template>
             <button
+              v-else-if="canEdit"
               type="button"
               class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white shadow-[2px_2px_0_#111111]"
               @click="emit('edit')"

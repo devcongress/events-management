@@ -70,7 +70,7 @@ const adminBaseLinks: NavLink[] = [
   { href: adminPath('attendance'), label: 'Attendance Hub' },
   { href: adminPath('feedback'), label: 'Feedback Hub' },
   { href: annualConferencePath(), label: 'Annual Conference' },
-  { href: adminPath('organizers'), label: 'Organizers' },
+  { href: adminPath('organizers'), label: 'People & Access' },
 ];
 const ownerAdminLinks: NavLink[] = [
   { href: adminPath('audit-log'), label: 'Audit Log' },
@@ -113,10 +113,15 @@ const showOrganizerAccessSurface = computed(() => (
   showOrganizerAccessError.value || showOrganizerAccessGate.value
 ));
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
+const isConferenceVolunteer = computed(() => adminSessionQuery.data.value?.user?.role === 'volunteer');
 const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
 const showPrimaryNavigation = computed(() => showAppHeader.value && isOrganizerAuthenticated.value);
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
+  if (session?.authenticated && session.user?.role === 'volunteer') {
+    return [{ href: annualConferencePath(), label: 'Annual Conference' }];
+  }
+
   if (session?.authenticated && session.user?.role === 'owner') {
     return [...adminBaseLinks, ...ownerAdminLinks];
   }
@@ -131,6 +136,7 @@ const adminEventId = computed(() => {
 const primaryLinks = computed(() => adminLinks.value);
 const showOrganizerPhoneView = computed(() => (
   isOrganizerAuthenticated.value
+  && !isConferenceVolunteer.value
   && isAdminRoute.value
   && phoneViewport.value
   && isOrganizerPhoneRouteName(route.name)
@@ -147,7 +153,11 @@ const navGroups = computed(() => {
   return [];
 });
 const brandHomeLink = computed(() => (
-  showOrganizerPhoneView.value ? ORGANIZER_PHONE_ROUTE_PATH : adminPath('events')
+  showOrganizerPhoneView.value
+    ? ORGANIZER_PHONE_ROUTE_PATH
+    : isConferenceVolunteer.value
+      ? annualConferencePath()
+      : adminPath('events')
 ));
 const showSignOut = computed(() => isOrganizerAuthenticated.value && !isLoginRoute.value);
 const showHeaderActions = computed(() => showSignOut.value);
@@ -459,6 +469,8 @@ function syncPhoneViewport() {
 }
 
 function syncOrganizerViewportRoute() {
+  if (isConferenceVolunteer.value) return;
+
   const redirect = organizerViewportRedirect({
     authenticated: isOrganizerAuthenticated.value,
     isAdminRoute: isAdminRoute.value,

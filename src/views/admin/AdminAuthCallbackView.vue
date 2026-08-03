@@ -6,6 +6,7 @@ import {
   adminPath,
   safeInternalAppPath,
 } from '@/src/admin-routes';
+import { annualConferencePath } from '@/src/annual-conference';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 import {
@@ -83,7 +84,7 @@ onMounted(async () => {
         return;
       }
 
-      await router.replace(redirectTo.value);
+      await router.replace(session.user?.role === 'volunteer' ? annualConferencePath() : redirectTo.value);
       window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
       return;
     } catch {
@@ -97,7 +98,7 @@ onMounted(async () => {
   try {
     const session = await fetchAdminSession();
     if (session.authenticated) {
-      await router.replace(redirectTo.value);
+      await router.replace(session.user?.role === 'volunteer' ? annualConferencePath() : redirectTo.value);
       return;
     }
   } catch {

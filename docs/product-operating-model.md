@@ -126,10 +126,12 @@ The model must separate:
 - A speaker does not automatically receive organizer access.
 - A volunteer does not automatically receive organizer access.
 - Permissions should be scoped to the event and capability required.
+- An authenticated annual-conference volunteer sees only the active edition overview and tasks where their email is the accountable owner or a collaborator.
+- Volunteers may update the status of their assigned tasks, but cannot change task ownership/details or access organizer-wide operations and private applicant records.
 - Speaker category comes from the event engagement, not permanent labels such as “monthly speaker” or “December speaker.”
 - Session format belongs to the programme item: talk, workshop, panel, and so on.
 
-The existing role union in code is a legacy simplification and must not become the target authorization model.
+The membership role now includes a deliberately narrow `volunteer` option for the active annual edition. Future multi-edition access should move the edition engagement out of this platform-level role instead of broadening it into permanent cross-edition access.
 
 ## 6. Public API Contract
 

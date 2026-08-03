@@ -4,6 +4,18 @@
 
 ---
 
+## ADR-040: Fail-Closed Assigned-Work Access for Annual Conference Volunteers
+
+**Date:** 2026-08-03
+**Status:** Accepted as the first active-edition access slice
+**Context:** DevCongress volunteers need to sign in and work inside the Annual Conference without seeing year-round Events, attendance, feedback, access administration, private applicant records, or unrelated conference work. Existing authentication recognized only owners and organizers, and the global API middleware treated every authenticated membership as a potential organizer boundary.
+**Decision:** Add a narrow `volunteer` membership role to the existing Google OAuth and app-owned session flow. Route that role to the active Annual Conference and allow only the overview and work-plan routes. At the API boundary, keep owner/organizer as the default allowlist and admit volunteers only to annual work-plan reads and individual task patches. Filter reads by normalized membership email matching the task's accountable owner or collaborators, remove `internal_note`, and allow patches only when the request contains exactly one `status` change for an assigned task. Owners and organizers retain full work-plan behavior and can assign active volunteers through the existing ownership controls.
+**Trade-offs:** The first slice represents active-edition volunteer access with a platform membership role because December 2026 is the only live annual workspace. That is simpler and immediately auditable, but it is not the final multi-edition people model. Task assignment depends on stable membership emails, volunteers cannot edit task details, and broader conference modules will require explicit capability rules before they are exposed.
+**Alternatives considered:** Hide organizer navigation only (does not protect APIs), give volunteers organizer access (excessive privilege), expose the whole conference plan read-only (violates assigned-work scope), create a second volunteer app (duplicates auth and conference foundations), or build the complete person/engagement/capability schema before any access (correct long term but larger than the active-edition need).
+**Revisit when:** A second annual edition is active, volunteers need workstream-wide rather than assignment-only access, speaker or sponsor collaborators sign in, task comments/files need separate visibility, or edition engagements can replace the temporary platform-level volunteer role.
+
+---
+
 ## ADR-039: Variable-Controlled Prefix and Manual Cleanup for Pre-Launch Event Testing
 
 **Date:** 2026-08-02
