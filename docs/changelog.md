@@ -1,8 +1,58 @@
 # Changelog
 
+## 2026-08-03 — Phase-first work planning
+
+- Made the active delivery phase the primary scope for Work plan and Timeline, defaulting to Phase 1 during its window and allowing organizers to switch to another phase, No phase, or the entire conference.
+- Recalculated task status, completion, ownership gaps, schedule health, and planning gaps from the selected phase instead of mixing a phase-filtered ledger with conference-wide statistics.
+- Made the timeline runway selectable, changed its countdown to the selected phase end, scoped planning gaps to the selected phase, and preselected the active phase when creating a task from its work plan.
+- Consolidated phase context, completion, status, owner filtering, and filter clearing into one Work Plan control panel and removed the separate task search strip.
+- Replaced the ledger's internal scrolling with six-row pagination so larger phase plans stay bounded without extending the task table down the page.
+- Teleported the phase and owner dropdown menus outside the merged panel so its rounded overflow boundary cannot clip open options.
+- Removed the Timeline's workstream-progress, delivery-threat, and upcoming-deadline panels, leaving phase summary, runway, and planning gaps as its focused operating view.
+- Replaced the Timeline's planning-gap card lanes with one compact eight-row table showing each task, owner, status, phase, and target date, with missing values highlighted in place, direct editing, and simple pagination.
+
+## 2026-08-03 — Initial Phase 1 responsibilities
+
+- Assigned the confirmed keynote, venue, website/registration, sponsorship, graphics, media coverage, and conference-call work to Phase 1 without adding duplicate umbrella tasks.
+- Moved Venue accountability to Elijah, left graphics and call ownership unassigned where requested, and retained the existing specific design, media, and call tasks.
+- Added Volunteer recruitment as a separate unassigned Phase 1 task for finding new volunteers and promoting the volunteer call.
+
+## 2026-08-03 — Conference health layout refinement
+
+- Removed the standalone Phase Health panel and placed delivery threats and upcoming deadlines in its column as two stacked, action-oriented panels beside workstream progress.
+- Removed presentation-only task examples from those panels, limited each to two live tasks, prevented near-term tasks from repeating in later deadlines, and added 30-second plus window-focus work-plan refresh so organizer updates automatically change the visible rows.
+- Made the Accra-local day value refresh every minute and whenever the window regains focus, keeping the conference countdown, Today marker, overdue state, due-soon state, and preview dates current across midnight.
+- Simplified annual-conference owner and collaborator selectors to display organizer names while preserving email-backed values, summarized longer selections as “+N more” without a duplicate count badge, and replaced yellow/black multi-select checks with soft pink selected rows and pink check controls.
+- Kept the collaborator menu within the task drawer's content inset by sizing it to its field instead of forcing it wider toward the left edge.
+- Joined adjacent selected collaborators into a single softly divided selection group, removing the scalloped corners between consecutive rows while retaining rounded outer edges.
+- Consolidated the duplicated annual-conference edition label and selector into one compact header control, moved workspace navigation to a dedicated row, and restyled future-edition creation as a secondary action.
+- Fixed the shared date picker so its teleported calendar opens above task drawers and other application overlays instead of appearing unresponsive behind them.
+- Replaced the long planning-gap repair list with a bounded three-lane exception board for tasks missing both fields, a phase, or a target date; each lane has independent scrolling and pagination, a header-level status filter, direct editing, and organizer display names instead of raw email labels. Removed the search bar and decorative lane labels/colors, and made the empty-board goal explicit.
+- Made planning-gap lane titles self-contained and upgraded each clickable card with status, workstream, ownership, collaborator count, phase, target date, and conditional dependency context, plus restrained hover, focus, movement, and reduced-motion states.
+- Simplified planning-gap cards by removing priority badges, animated left rails, accent hover borders, dependency side borders, and all card movement; hover motion is limited to the **Open task** arrow while keyboard focus remains explicit.
+- Consolidated conference completion, countdown, current phase, planning confidence, overdue, blocked, and due-soon signals into one responsive summary, removing the six duplicate statistic cards and the repeated no-phase count.
+- Tightened the conference summary into a clearer metric, status, progress, facts, and countdown hierarchy, and replaced planning-lane count pills with circular number-only counters.
+- Kept the shared annual-conference navigation spatially fixed when switching between Overview, Work Plan, Timeline, and Volunteers by replacing the whole-page directional movement with a short opacity-only transition.
+- Reserved a stable scrollbar gutter on the desktop application scroll container, preventing route content from changing width when switching between pages with and without vertical overflow.
+- Replaced the oversized volunteer application cards with a compact, horizontally scrollable table for names, email addresses, X handles, Slack names, and sign-up times.
+- Stabilized the pre-JavaScript workspace loading screen with system fonts so webfont loading cannot resize its message, reduced the loading headline's scale and weight, and softened the shared application heading/display weights from 700/800 to 600/700.
+
+## 2026-08-02 — Edition-scoped conference phases and timeline
+
+- Added a dynamic annual-conference edition switcher and planning-owner-controlled future-edition creation, with the next owner selected from active organizers or inherited from the previous edition.
+- Added fixed 2026 Phase 1 and Phase 2 windows, unlimited phases for later editions, safe phase editing/reordering/deletion, and a No phase state that preserves all existing tasks.
+- Added task phase assignment, target-date attention, and server/database validation preventing assigned dates from exceeding phase end dates.
+- Added a conference-health Timeline with overall and workstream completion, planning confidence, phase time-versus-work comparisons, overdue/blocked/due-soon signals, upcoming deadlines, and a proportional phase runway.
+- Kept unclassified and undated work actionable in a fixed-height planning-repair queue with search, status filtering, explicit missing-field labels, direct task editing, and ten-item pagination so planning gaps never lengthen the whole page.
+- Refined the dashboard to a light app-native treatment without dark or yellow feature panels, sorted workstreams by completion percentage, replaced the native status select with the shared dropdown, and added clearly labelled non-persistent example rows to otherwise empty attention and deadline panels.
+
 ## 2026-08-03 — Assigned-work access for Annual Conference volunteers
 
 - Added **Volunteer** to People & Access so owners and organizers can grant conference-only sign-in without organizer-wide privileges.
+- Redesigned People & Access around a compact member directory, a focused side-panel invite form, concise role definitions, name-first rows, and a matching bounded loading skeleton.
+- Added Navii avatars, hid directory emails by default, limited the email reveal control to signed-in owners, and made display names mandatory in both client and server validation.
+- Added an owner-only inline role selector for switching active members between Organizer and Volunteer, with server-side owner enforcement, audit logging, and session revocation after a change.
+- Removed the redundant global Annual Conference navigation tab and organizer-only ownership-gap counter from volunteer views, restricted full task editing to the edition planning owner or the task's accountable owner/collaborators, and replaced the black In progress badge with a restrained teal treatment.
 - Routed volunteer sessions directly into Annual Conference and limited navigation to the edition overview and work plan.
 - Filtered volunteer work-plan responses to tasks where their email is accountable or collaborating, removed organizer-only internal notes, and added a clear no-assignment state.
 - Allowed volunteers to update only the status of assigned tasks while keeping Events, hubs, access management, applicant records, task creation, reassignment, and task-detail changes server-denied.

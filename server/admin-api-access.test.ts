@@ -14,6 +14,11 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/events', 'GET')).toEqual(['owner', 'organizer']);
   });
 
+  it('keeps existing member role changes owner-only', () => {
+    expect(adminRolesForApiRequest('/api/admin/organizers/member-1/role', 'PATCH')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/admin/organizers/member-1/role', 'GET')).toEqual(['owner', 'organizer']);
+  });
+
   it('does not admit similarly prefixed or malformed paths', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/export', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/current/work-plan', 'GET')).not.toContain('volunteer');

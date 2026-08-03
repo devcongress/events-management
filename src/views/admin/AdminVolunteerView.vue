@@ -88,16 +88,32 @@ function openVolunteerDisplay() {
         <div v-if="volunteerQuery.isPending.value" class="p-6 text-dc-gray">Loading applications…</div>
         <div v-else-if="volunteerQuery.isError.value" class="p-6 text-red-800">Unable to load volunteer applications.</div>
         <div v-else-if="applications.length === 0" class="p-6 text-dc-gray">No volunteer applications yet.</div>
-        <div v-else class="divide-y divide-dc-border">
-          <article v-for="application in applications" :key="application.id" class="grid gap-3 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-center">
-            <div>
-              <h3 class="text-lg font-bold tracking-tight text-dc-ink">{{ application.name }}</h3>
-              <a :href="`mailto:${application.email}`" class="font-semibold text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4">{{ application.email }}</a>
-            </div>
-            <p class="font-mono text-sm font-semibold text-dc-gray">X: {{ application.x_handle }}</p>
-            <p class="font-mono text-sm font-semibold text-dc-gray">Slack: {{ application.slack_name }}</p>
-            <time class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ formatDate(application.created_at) }}</time>
-          </article>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full min-w-[52rem] table-fixed border-collapse text-left">
+            <caption class="sr-only">Volunteer applications</caption>
+            <thead class="border-b border-dc-border bg-dc-paper-warm">
+              <tr class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
+                <th scope="col" class="w-[23%] px-5 py-3 sm:px-6">Name</th>
+                <th scope="col" class="w-[27%] px-4 py-3">Email</th>
+                <th scope="col" class="w-[16%] px-4 py-3">X</th>
+                <th scope="col" class="w-[16%] px-4 py-3">Slack</th>
+                <th scope="col" class="w-[18%] px-5 py-3 text-right sm:px-6">Signed up</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-dc-border bg-white">
+              <tr v-for="application in applications" :key="application.id">
+                <th scope="row" class="px-5 py-4 text-sm font-semibold text-dc-ink sm:px-6">{{ application.name }}</th>
+                <td class="px-4 py-4 text-sm">
+                  <a :href="`mailto:${application.email}`" class="font-medium text-dc-pink underline decoration-dc-pink/30 underline-offset-4">{{ application.email }}</a>
+                </td>
+                <td class="px-4 py-4 font-mono text-xs font-semibold text-dc-gray">{{ application.x_handle }}</td>
+                <td class="px-4 py-4 font-mono text-xs font-semibold text-dc-gray">{{ application.slack_name }}</td>
+                <td class="px-5 py-4 text-right sm:px-6">
+                  <time class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ formatDate(application.created_at) }}</time>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
     </div>

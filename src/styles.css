@@ -9,8 +9,8 @@
     --font-weight-body: 400;
     --font-weight-emphasis: 500;
     --font-weight-label: 600;
-    --font-weight-heading: 700;
-    --font-weight-display: 800;
+    --font-weight-heading: 600;
+    --font-weight-display: 700;
     --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --motion-smooth: cubic-bezier(0.16, 1, 0.3, 1);
     --motion-fast: cubic-bezier(0.4, 0, 0.2, 1);
@@ -287,6 +287,7 @@
   .app-main {
     min-height: 0;
     overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -3983,6 +3984,22 @@
   .page-tab-back-leave-active {
     pointer-events: none;
     transition-duration: 190ms;
+  }
+
+  .page-stable-enter-active,
+  .page-stable-leave-active {
+    transition: opacity 160ms var(--motion-smooth);
+    will-change: opacity;
+  }
+
+  .page-stable-leave-active {
+    pointer-events: none;
+    transition-duration: 120ms;
+  }
+
+  .page-stable-enter-from,
+  .page-stable-leave-to {
+    opacity: 0;
   }
 
   .page-enter-from {
@@ -7703,6 +7720,8 @@
     .page-tab-forward-leave-active,
     .page-tab-back-enter-active,
     .page-tab-back-leave-active,
+    .page-stable-enter-active,
+    .page-stable-leave-active,
     .mobile-menu-enter-active,
     .mobile-menu-leave-active,
     .feedback-panel-enter-active,

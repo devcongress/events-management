@@ -16,6 +16,18 @@ export function isAnnualConferenceTaskAssignedTo(
     || task.collaborators.some((collaborator) => normalizedIdentity(collaborator) === identity);
 }
 
+export function canEditAnnualConferenceTask(
+  task: Pick<AnnualConferenceTask, 'accountable_owner' | 'collaborators'>,
+  memberEmail: string | null | undefined,
+  planningOwnerEmail: string | null | undefined,
+): boolean {
+  const memberIdentity = normalizedIdentity(memberEmail);
+  if (!memberIdentity) return false;
+
+  return memberIdentity === normalizedIdentity(planningOwnerEmail)
+    || isAnnualConferenceTaskAssignedTo(task, memberEmail);
+}
+
 export function annualConferenceTasksForMember(
   tasks: AnnualConferenceTask[],
   role: AdminRole,

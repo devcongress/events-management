@@ -20,7 +20,7 @@ const props = defineProps<{
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
-  density?: 'default' | 'compact';
+  density?: 'default' | 'compact' | 'slim';
   menuAlign?: 'left' | 'right';
   menuClass?: string;
   teleport?: boolean;
@@ -49,13 +49,21 @@ const selectedLabel = computed(() => {
   const exactOption = props.options.find((option) => option.value === props.modelValue);
   return exactOption?.label ?? props.placeholder ?? props.options[0]?.label ?? 'Select';
 });
-const triggerClasses = computed(() => props.density === 'compact'
-  ? 'min-h-10 px-3 py-2 text-sm'
-  : 'min-h-[50px] px-4 py-3 text-base');
-const optionClasses = computed(() => props.density === 'compact'
-  ? 'px-2.5 py-2 text-sm'
-  : 'px-3 py-2.5 text-sm');
-const iconClasses = computed(() => props.density === 'compact' ? 'size-5' : 'size-6');
+const triggerClasses = computed(() => {
+  if (props.density === 'slim') return 'min-h-8 px-2.5 py-1.5 text-xs';
+  if (props.density === 'compact') return 'min-h-10 px-3 py-2 text-sm';
+  return 'min-h-[50px] px-4 py-3 text-base';
+});
+const optionClasses = computed(() => props.density === 'slim'
+  ? 'px-2.5 py-1.5 text-xs'
+  : props.density === 'compact'
+    ? 'px-2.5 py-2 text-sm'
+    : 'px-3 py-2.5 text-sm');
+const iconClasses = computed(() => props.density === 'slim'
+  ? 'size-4'
+  : props.density === 'compact'
+    ? 'size-5'
+    : 'size-6');
 
 function choose(value: DropdownValue) {
   const option = props.options.find((item) => item.value === value);

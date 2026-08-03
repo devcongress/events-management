@@ -238,6 +238,53 @@ export interface Database {
         };
         Relationships: [];
       };
+      annual_conference_phases: {
+        Row: {
+          id: string;
+          edition_id: string;
+          name: string;
+          starts_on: string;
+          ends_on: string;
+          sort_order: number;
+          created_by_email: string | null;
+          updated_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          edition_id: string;
+          name: string;
+          starts_on: string;
+          ends_on: string;
+          sort_order?: number;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          edition_id?: string;
+          name?: string;
+          starts_on?: string;
+          ends_on?: string;
+          sort_order?: number;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_phases_edition_id_fkey';
+            columns: ['edition_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       annual_conference_tasks: {
         Row: {
           id: string;
@@ -245,6 +292,7 @@ export interface Database {
           title: string;
           details: string | null;
           internal_note: string | null;
+          phase_id: string | null;
           workstream: AnnualConferenceWorkstream;
           accountable_owner: string | null;
           collaborators: string[];
@@ -267,6 +315,7 @@ export interface Database {
           title: string;
           details?: string | null;
           internal_note?: string | null;
+          phase_id?: string | null;
           workstream: AnnualConferenceWorkstream;
           accountable_owner?: string | null;
           collaborators?: string[];
@@ -289,6 +338,7 @@ export interface Database {
           title?: string;
           details?: string | null;
           internal_note?: string | null;
+          phase_id?: string | null;
           workstream?: AnnualConferenceWorkstream;
           accountable_owner?: string | null;
           collaborators?: string[];
@@ -311,6 +361,13 @@ export interface Database {
             columns: ['edition_id'];
             isOneToOne: false;
             referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'annual_conference_tasks_phase_id_fkey';
+            columns: ['phase_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_phases';
             referencedColumns: ['id'];
           },
         ];

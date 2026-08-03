@@ -4,7 +4,7 @@
 
 **Plan status:** Active planning; Overview and Work plan available
 
-**Last updated:** 2026-07-26
+**Last updated:** 2026-08-03
 
 **Maintainers:** DevCongress organizers; Angela (`angelateyvi@gmail.com`) manages new task creation
 
@@ -64,22 +64,27 @@ Organizer Console
 The first operational workspace slice is now in place:
 
 - the primary organizer navigation exposes **Annual Conference**, not a global Volunteer Hub;
-- `/organizer-console/annual-conference/2026` is the active-edition overview;
+- `/organizer-console/annual-conference/:year` is an edition-scoped overview, with 2026 as the initial edition;
 - the provisional date is **19 December 2026**;
 - Work plan is live at `/organizer-console/annual-conference/2026/work-plan`, seeded once from `DevCongress 2026 — Event Checklist.xlsx`;
 - Volunteers is nested at `/organizer-console/annual-conference/2026/volunteers`;
-- Overview, Work plan, and Volunteers are interactive today; future modules remain visible as planned structure rather than empty routes;
+- Overview, Work plan, Timeline, and the 2026 Volunteers workflow are interactive today; future modules remain visible as planned structure rather than empty routes;
 - the former organizer volunteer paths redirect to the new workspace;
 - the existing public form, QR link, campaign ID, submission API, and stored applications are unchanged.
+- each accountable owner or collaborator can edit their assigned tasks; the edition planning owner can edit every task, add tasks, manage phases, and create the next edition;
+- 2026 has fixed **Phase 1** (1–31 August) and **Phase 2** (1 September–19 December); 12 confirmed kickoff tasks are assigned to Phase 1 and the remaining 15 tasks stay in **No phase** until organizers classify them;
+- future editions can define any number of non-overlapping phases, select a planning owner or inherit the previous edition's owner, and reorder, rename, redate, or delete phases without deleting tasks;
+- task target dates remain nullable but are prioritized by the conference-health dashboard; an assigned task's target date cannot exceed its phase end date;
 - owners and organizers can add an authenticated user with the **Volunteer** role from People & Access;
 - volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update only those task statuses;
 - volunteer access is enforced at both the organizer router and API boundary; Events, hubs, access management, applicant records, task creation, task reassignment, task-detail editing, and organizer-only internal notes remain unavailable;
-- every authenticated organizer can edit every task, while only `angelateyvi@gmail.com` can add a task;
+- Work plan and Timeline are phase-scoped by default: they open on the current phase, or the next available phase outside an active window, and recalculate every metric and task section when organizers switch to another phase, **No phase**, or the entire conference;
+- conference health keeps objective completion, elapsed phase time, overdue/blocked pressure, due-soon counts, and planning confidence visible at a glance; planning confidence measures task coverage across dates, phases, and accountable owners;
 - the first named spreadsheet owner is accountable and the remaining names are collaborators; `All`, `TBD`, and blank owners remain unassigned;
 - new owner and collaborator selections use active organizer emails as stable identities, while the UI shows organizer names and preserves unchanged legacy spreadsheet assignments;
 - finance is deferred to a later restricted module, and reminders are not part of this release.
 
-The work plan uses relational `annual_conference_editions` and `annual_conference_tasks` Supabase tables in production, with a local JSON fallback for development. The one-time seed contains 26 tasks: 24 Not started and 2 Done.
+The work plan uses relational `annual_conference_editions`, `annual_conference_phases`, and `annual_conference_tasks` Supabase tables in production, with a local JSON fallback for development. The initial plan contains the 26 imported checklist tasks plus the new Volunteer recruitment task: 25 Not started and 2 Done.
 
 ### Annual workspace modules
 
@@ -87,6 +92,7 @@ The work plan uses relational `annual_conference_editions` and `annual_conferenc
 | --- | --- | --- |
 | Overview | One operational picture of the active edition | Key decisions, milestones, owners, blockers, readiness, and cross-workstream status |
 | Work plan | Replace the shared spreadsheet | Workstreams, tasks, owners, deadlines, dependencies, priority, status, and activity history |
+| Timeline | Judge delivery health and schedule confidence | Phase completion, time versus work, schedule signals, phase windows, and a paginated planning-gap table whose goal is zero rows |
 | Programme | Build what happens on stage and in rooms | CFP, reviews, keynotes, speakers, talks/workshops/panels/demos, rooms, technical needs, and run of show |
 | Volunteers | Move from interest to useful assignments | Intake, review, roles, teams, shifts, assignments, briefing, and status |
 | Registration | Manage the attendee journey | Registration/ticketing, capacity, attendee communication, check-in, badges, cancellations, and refunds where applicable |
@@ -139,7 +145,7 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 | --- | --- | --- | --- | --- |
 | Exact date or dates | Done | Unassigned | 19 Dec 2026 | 19 December 2026 is the provisional starting point; confirmation remains a later decision |
 | Conference theme | Not started | Unassigned | TBD | Gates keynote outreach, CFP framing, programme, sponsorship deck, and creative |
-| Venue | Not started | Angela | TBD | UPSA and Accra Digital Centre are the current candidates; Elijah and Elvis collaborate |
+| Venue | Not started | Elijah | TBD | UPSA and Accra Digital Centre are the current candidates; Elvis collaborates |
 | Attendance target | Not started | Unassigned | TBD | Needed for capacity, ticketing, catering, badges, swag, connectivity, and budget |
 | Keynote speaker or speakers | Not started | Elijah | TBD | Patrick G. Awuah is preferred; the original shortlist also mentioned the NSMQ quiz mistress |
 | Ticketing approach | In progress | Unassigned | TBD | Paid registration is confirmed for December; choose the payment provider and define payment, refund, reconciliation, and failure ownership after the free monthly flow is proven |

@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import { summarizeAnnualConferenceWorkPlan } from '@/lib/annual-conference-work-plan';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
 import { fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
 
-const year = ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+const route = useRoute();
+const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const factsOpen = ref(false);
 const factsDisclosure = ref<HTMLElement | null>(null);
 const factsTrigger = ref<HTMLButtonElement | null>(null);
 const workPlanQuery = useQuery({
-  queryKey: queryKeys.annualConferenceWorkPlan(year),
-  queryFn: () => fetchAnnualConferenceWorkPlan(year),
+  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
+  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
 });
 
 const tasks = computed(() => workPlanQuery.data.value?.tasks ?? []);
@@ -69,7 +71,7 @@ onUnmounted(() => {
         <header class="conference-brief__masthead">
           <div class="conference-brief__date">
             <div class="conference-brief__edition-meta">
-              <p class="conference-brief__eyebrow">December 2026 edition</p>
+              <p class="conference-brief__eyebrow">{{ edition?.label ?? year }} edition</p>
               <span class="conference-brief__status">
                 <span aria-hidden="true" />
                 Provisional
@@ -181,7 +183,7 @@ onUnmounted(() => {
           </div>
 
           <RouterLink
-            :to="annualConferencePath('work-plan')"
+            :to="annualConferencePath('work-plan', year)"
             class="conference-brief__primary-action motion-press"
           >
             <span>Open work plan</span>
@@ -193,16 +195,16 @@ onUnmounted(() => {
           <div class="conference-brief__volunteer-copy">
             <span class="conference-brief__live-dot" aria-hidden="true" />
             <div>
-              <p class="conference-brief__eyebrow">{{ assignedAccess ? 'Conference access' : 'Volunteer intake' }}</p>
-              <p>{{ assignedAccess ? 'Only your assigned work is visible' : 'Form live and ready to share' }}</p>
+              <p class="conference-brief__eyebrow">{{ assignedAccess ? 'Conference access' : year === '2026' ? 'Volunteer intake' : 'Delivery timeline' }}</p>
+              <p>{{ assignedAccess ? 'Only your assigned work is visible' : year === '2026' ? 'Form live and ready to share' : 'Build phases and assign target dates' }}</p>
             </div>
           </div>
 
           <RouterLink
-            :to="annualConferencePath(assignedAccess ? 'work-plan' : 'volunteers')"
+            :to="annualConferencePath(assignedAccess ? 'work-plan' : year === '2026' ? 'volunteers' : 'timeline', year)"
             class="conference-brief__secondary-action motion-press"
           >
-            <span>{{ assignedAccess ? 'Open my tasks' : 'Open volunteers' }}</span>
+            <span>{{ assignedAccess ? 'Open my tasks' : year === '2026' ? 'Open volunteers' : 'Open timeline' }}</span>
             <span class="conference-brief__action-arrow" aria-hidden="true">→</span>
           </RouterLink>
         </footer>

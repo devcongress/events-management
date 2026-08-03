@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnnualConferenceTask } from '@/lib/annual-conference-work-plan';
+import type { AdminRole } from '@/types/supabase';
 
 const mocks = vi.hoisted(() => ({
   session: {
@@ -8,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     membership_id: 'volunteer-membership',
     email: 'volunteer@example.com',
     display_name: 'Conference Volunteer',
-    role: 'volunteer' as const,
+    role: 'volunteer' as AdminRole,
     expires_at: '2099-01-01T00:00:00.000Z',
   },
   updateTask: vi.fn(),
@@ -20,6 +21,7 @@ const assignedTask: AnnualConferenceTask = {
   title: 'Send speaker invitations',
   details: 'Contact the approved speakers.',
   internal_note: 'Private organizer context.',
+  phase_id: null,
   workstream: 'programme_speakers',
   accountable_owner: 'volunteer@example.com',
   collaborators: [],
@@ -86,10 +88,13 @@ vi.mock('@/lib/supabase/annual-conference-work-plan', () => ({
 
 describe('annual conference volunteer API access', () => {
   beforeEach(() => {
+    mocks.session.email = 'volunteer@example.com';
+    mocks.session.display_name = 'Conference Volunteer';
+    mocks.session.role = 'volunteer';
     mocks.updateTask.mockReset();
     mocks.updateTask.mockImplementation(async (_editionId, _taskId, input) => ({
       ...assignedTask,
-      status: input.status,
+      ...input,
       internal_note: 'Private organizer context.',
     }));
   });
@@ -105,6 +110,7 @@ describe('annual conference volunteer API access', () => {
         access_scope: 'assigned',
         can_create_tasks: false,
         can_edit_all_tasks: false,
+        can_edit_assigned_tasks: false,
         can_update_assigned_task_status: true,
       },
     });
@@ -141,5 +147,56 @@ describe('annual conference volunteer API access', () => {
     expect(taskResponse.status).toBe(403);
     expect(organizerResponse.status).toBe(403);
     expect(mocks.updateTask).not.toHaveBeenCalled();
+  });
+
+  it('rejects an organizer editing a task they do not own or collaborate on', async () => {
+    mocks.session.role = 'organizer';
+    mocks.session.email = 'organizer@example.com';
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-unrelated', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Changed title' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(mocks.updateTask).not.toHaveBeenCalled();
+  });
+
+  it('allows an assigned organizer to edit their task details', async () => {
+    mocks.session.role = 'organizer';
+    mocks.session.email = 'volunteer@example.com';
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-assigned', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Updated speaker invitations' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateTask).toHaveBeenCalledWith(
+      'edition-2026',
+      'task-assigned',
+      expect.objectContaining({ title: 'Updated speaker invitations' }),
+      'volunteer@example.com',
+      expect.anything(),
+    );
+  });
+
+  it('allows the edition planning owner to edit any task', async () => {
+    mocks.session.role = 'owner';
+    mocks.session.email = 'owner@example.com';
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-assigned', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Planning owner update' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateTask).toHaveBeenCalled();
   });
 });

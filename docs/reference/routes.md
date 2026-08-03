@@ -37,7 +37,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/public/meetups/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview; volunteer summaries contain only assigned work |
-| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan for organizers; volunteers receive only tasks where they are accountable or collaborating and may update status only |
+| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; organizers receive complete planning controls while volunteers see assigned tasks and may update status only |
+| `/organizer-console/annual-conference/:year/timeline` | Edition timeline with phase windows, target-dated tasks, No phase classification, and planning-owner phase controls |
 | `/organizer-console/annual-conference/2026/volunteers` | December 2026 volunteer-link sharing and private application review |
 | `/organizer-console/annual-conference/2026/volunteers/display` | Organizer-only TV-safe QR display for the December 2026 volunteer intake form |
 | `/organizer-console/organizers` | People & Access allowlist for owner, organizer, and restricted volunteer roles; volunteers cannot open this route |
@@ -80,9 +81,10 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by mandatory production Turnstile, atomic per-client limits, and email de-duplication |
 | `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
 | `GET /api/annual-conference/:year/work-plan` | Organizers receive the annual edition and complete work plan; volunteers receive only assigned tasks with organizer-only internal notes removed |
+| `GET/POST /api/annual-conference/editions` | List editions or let the latest edition's planning owner create a future edition with an inherited or selected active-organizer owner |
+| `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to the edition planning owner and requires one accountable owner |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId` | Organizers may edit an existing task; volunteers may change only the status of a task assigned to them |
-| `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to `angelateyvi@gmail.com` and requires one accountable owner |
-| `PATCH /api/annual-conference/:year/work-plan/:taskId` | Edit an existing task; available to every authenticated organizer |
+| `POST/PATCH/DELETE /api/annual-conference/:year/phases*` | Planning-owner phase management with non-overlap and task target-date safeguards |
 | `/api/quiz*` | Separate quiz and System Design learning-room sessions, reviewed questions, protected presenter controls/state, and anonymous join/answer state |
 | `/api/public/meetups*` | Read-only website integration API |
 | `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and approved, published external listings |

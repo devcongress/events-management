@@ -20,6 +20,10 @@ import type {
 } from '@/types';
 import type {
   AnnualConferenceEdition,
+  AnnualConferenceEditionCreateInput,
+  AnnualConferencePhase,
+  AnnualConferencePhaseCreateInput,
+  AnnualConferencePhaseUpdateInput,
   AnnualConferenceTask,
   AnnualConferenceTaskCreateInput,
   AnnualConferenceTaskUpdateInput,
@@ -204,15 +208,22 @@ export interface AdminEventSubmissionsResponse {
 
 export interface AnnualConferenceWorkPlanResponse {
   edition: AnnualConferenceEdition;
+  phases: AnnualConferencePhase[];
   tasks: AnnualConferenceTask[];
   summary: AnnualConferenceWorkPlanSummary;
   permissions: {
     can_create_tasks: boolean;
+    can_manage_phases: boolean;
     can_edit_all_tasks: boolean;
+    can_edit_assigned_tasks: boolean;
     can_update_assigned_task_status: boolean;
     access_scope: 'all' | 'assigned';
     task_creator_email: string;
   };
+}
+
+export interface AnnualConferenceEditionsResponse {
+  editions: AnnualConferenceEdition[];
 }
 
 export interface EventChecklistResponse {
@@ -278,6 +289,7 @@ export const queryKeys = {
   volunteerApplications: ['volunteer-applications'] as const,
   eventSubmissions: (status: EventSubmissionReviewStatus | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
+  annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
@@ -309,6 +321,59 @@ export function fetchVolunteerApplications() {
 export function fetchAnnualConferenceWorkPlan(year: string) {
   return fetchJson<AnnualConferenceWorkPlanResponse>(`/api/annual-conference/${year}/work-plan`, {
     credentials: 'include',
+  });
+}
+
+export function fetchAnnualConferenceEditions() {
+  return fetchJson<AnnualConferenceEditionsResponse>('/api/annual-conference/editions', {
+    credentials: 'include',
+  });
+}
+
+export function createAnnualConferenceEdition(input: AnnualConferenceEditionCreateInput) {
+  return fetchJson<AnnualConferenceEdition>('/api/annual-conference/editions', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function createAnnualConferencePhase(year: string, input: AnnualConferencePhaseCreateInput) {
+  return fetchJson<AnnualConferencePhase>(`/api/annual-conference/${year}/phases`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateAnnualConferencePhase(
+  year: string,
+  phaseId: string,
+  input: AnnualConferencePhaseUpdateInput,
+) {
+  return fetchJson<AnnualConferencePhase>(`/api/annual-conference/${year}/phases/${phaseId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteAnnualConferencePhase(year: string, phaseId: string) {
+  return fetchJson<{ deleted: true; tasks_unassigned: number }>(`/api/annual-conference/${year}/phases/${phaseId}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+}
+
+export function reorderAnnualConferencePhases(year: string, phaseIds: string[]) {
+  return fetchJson<{ phases: AnnualConferencePhase[] }>(`/api/annual-conference/${year}/phases/order`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phase_ids: phaseIds }),
   });
 }
 

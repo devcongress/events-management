@@ -42,15 +42,23 @@ import {
   ANNUAL_CONFERENCE_WORKSTREAMS,
   annualConferenceOwnershipNeedsActiveOrganizerLookup,
   canCreateAnnualConferenceTask,
+  canManageAnnualConferencePlanning,
   summarizeAnnualConferenceWorkPlan,
+  validateAnnualConferencePhaseDates,
   validateAnnualConferenceTaskOwnership,
+  validateAnnualConferenceTaskSchedule,
   type AnnualConferenceEdition,
+  type AnnualConferenceEditionCreateInput,
+  type AnnualConferencePhase,
+  type AnnualConferencePhaseCreateInput,
+  type AnnualConferencePhaseUpdateInput,
   type AnnualConferenceTask,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
 import {
   annualConferenceTasksForMember,
+  canEditAnnualConferenceTask,
   volunteerCanUpdateAssignedTask,
 } from '@/lib/annual-conference-access';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
@@ -71,7 +79,7 @@ import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
 import { eventTestModeEnabled, markTestEventTitle } from '@/lib/event-test-mode';
-import { createMockAnnualConferenceTask, getMockAnnualConferenceWorkPlan, updateMockAnnualConferenceTask } from '@/lib/mock-db/annual-conference-work-plan';
+import { createMockAnnualConferenceEdition, createMockAnnualConferencePhase, createMockAnnualConferenceTask, deleteMockAnnualConferencePhase, getMockAnnualConferenceWorkPlan, listMockAnnualConferenceEditions, reorderMockAnnualConferencePhases, updateMockAnnualConferencePhase, updateMockAnnualConferenceTask } from '@/lib/mock-db/annual-conference-work-plan';
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
@@ -85,7 +93,7 @@ import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
-import { createSupabaseAnnualConferenceTask, getSupabaseAnnualConferenceWorkPlan, updateSupabaseAnnualConferenceTask } from '@/lib/supabase/annual-conference-work-plan';
+import { createSupabaseAnnualConferenceEdition, createSupabaseAnnualConferencePhase, createSupabaseAnnualConferenceTask, deleteSupabaseAnnualConferencePhase, getSupabaseAnnualConferenceWorkPlan, listSupabaseAnnualConferenceEditions, reorderSupabaseAnnualConferencePhases, updateSupabaseAnnualConferencePhase, updateSupabaseAnnualConferenceTask } from '@/lib/supabase/annual-conference-work-plan';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import {
   approveEventSubmission,
@@ -428,9 +436,12 @@ const systemDesignDraftRequestSchema = z.object({
 });
 const addOrganizerSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  display_name: z.string().trim().optional(),
+  display_name: z.string().trim().min(1).max(120),
   role: z.enum(['owner', 'organizer', 'volunteer']).default('organizer'),
 });
+const updateOrganizerRoleSchema = z.object({
+  role: z.enum(['organizer', 'volunteer']),
+}).strict();
 const adminTokenExchangeSchema = z.object({
   access_token: z.string().trim().min(20).max(8192),
 }).strict();
@@ -574,6 +585,7 @@ const annualConferenceTaskCreateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160),
   details: z.string().trim().max(2000).nullable().optional(),
   internal_note: z.string().trim().max(2000).nullable().optional(),
+  phase_id: z.string().uuid().nullable().optional(),
   workstream: z.enum(ANNUAL_CONFERENCE_WORKSTREAMS),
   accountable_owner: z.string().trim().min(1, 'An accountable owner is required.').max(120),
   collaborators: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
@@ -586,6 +598,7 @@ const annualConferenceTaskUpdateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160).optional(),
   details: z.string().trim().max(2000).nullable().optional(),
   internal_note: z.string().trim().max(2000).nullable().optional(),
+  phase_id: z.string().uuid().nullable().optional(),
   workstream: z.enum(ANNUAL_CONFERENCE_WORKSTREAMS).optional(),
   accountable_owner: z.string().trim().min(1).max(120).nullable().optional(),
   collaborators: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
@@ -596,6 +609,29 @@ const annualConferenceTaskUpdateSchema = z.object({
 }).strict().refine((value) => Object.keys(value).length > 0, {
   message: 'Provide at least one task change.',
 });
+const annualConferenceEditionCreateSchema = z.object({
+  year: z.number().int().min(2000).max(2200),
+  name: z.string().trim().min(1).max(160),
+  label: z.string().trim().min(1).max(120),
+  provisional_date: z.string().date(),
+  task_creator_email: z.string().trim().toLowerCase().email().nullable().optional(),
+}).strict();
+const annualConferencePhaseCreateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  starts_on: z.string().date(),
+  ends_on: z.string().date(),
+}).strict();
+const annualConferencePhaseUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  starts_on: z.string().date().optional(),
+  ends_on: z.string().date().optional(),
+  sort_order: z.number().int().min(0).optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, {
+  message: 'Provide at least one phase change.',
+});
+const annualConferencePhaseOrderSchema = z.object({
+  phase_ids: z.array(z.string().uuid()).min(1).max(100),
+}).strict();
 const STOP_WORDS = new Set([
   'about',
   'above',
@@ -1000,10 +1036,70 @@ async function createEventFeedbackSubmissionStore(
 async function getAnnualConferenceWorkPlanStore(
   year: number,
   c?: Context,
-): Promise<{ edition: AnnualConferenceEdition; tasks: AnnualConferenceTask[] } | undefined> {
+): Promise<{ edition: AnnualConferenceEdition; phases: AnnualConferencePhase[]; tasks: AnnualConferenceTask[] } | undefined> {
   const workPlan = await getSupabaseAnnualConferenceWorkPlan(year, c);
   if (workPlan !== null) return workPlan;
   return getMockAnnualConferenceWorkPlan(year);
+}
+
+async function listAnnualConferenceEditionsStore(c?: Context): Promise<AnnualConferenceEdition[]> {
+  const editions = await listSupabaseAnnualConferenceEditions(c);
+  if (editions !== null) return editions;
+  return listMockAnnualConferenceEditions();
+}
+
+async function createAnnualConferenceEditionStore(
+  input: AnnualConferenceEditionCreateInput,
+  taskCreatorEmail: string,
+  c?: Context,
+): Promise<AnnualConferenceEdition> {
+  const edition = await createSupabaseAnnualConferenceEdition(input, taskCreatorEmail, c);
+  if (edition) return edition;
+  return createMockAnnualConferenceEdition(input, taskCreatorEmail);
+}
+
+async function createAnnualConferencePhaseStore(
+  editionId: string,
+  input: AnnualConferencePhaseCreateInput,
+  actorEmail: string,
+  c?: Context,
+): Promise<AnnualConferencePhase> {
+  const phase = await createSupabaseAnnualConferencePhase(editionId, input, actorEmail, c);
+  if (phase) return phase;
+  return createMockAnnualConferencePhase(editionId, input, actorEmail);
+}
+
+async function updateAnnualConferencePhaseStore(
+  editionId: string,
+  phaseId: string,
+  input: AnnualConferencePhaseUpdateInput,
+  actorEmail: string,
+  c?: Context,
+): Promise<AnnualConferencePhase | undefined> {
+  const phase = await updateSupabaseAnnualConferencePhase(editionId, phaseId, input, actorEmail, c);
+  if (phase !== null) return phase;
+  return updateMockAnnualConferencePhase(editionId, phaseId, input, actorEmail);
+}
+
+async function deleteAnnualConferencePhaseStore(
+  editionId: string,
+  phaseId: string,
+  c?: Context,
+): Promise<boolean> {
+  const deleted = await deleteSupabaseAnnualConferencePhase(editionId, phaseId, c);
+  if (deleted !== null) return deleted;
+  return deleteMockAnnualConferencePhase(editionId, phaseId);
+}
+
+async function reorderAnnualConferencePhasesStore(
+  editionId: string,
+  phases: AnnualConferencePhase[],
+  actorEmail: string,
+  c?: Context,
+): Promise<AnnualConferencePhase[]> {
+  const reordered = await reorderSupabaseAnnualConferencePhases(phases, actorEmail, c);
+  if (reordered !== null) return reordered;
+  return reorderMockAnnualConferencePhases(editionId, phases.map((phase) => phase.id), actorEmail);
 }
 
 async function createAnnualConferenceTaskStore(
@@ -3079,6 +3175,51 @@ app.get('/api/admin/volunteer-applications', async (c) => {
   return c.json({ applications });
 });
 
+app.get('/api/annual-conference/editions', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  return c.json({ editions: await listAnnualConferenceEditionsStore(c) });
+});
+
+app.post('/api/annual-conference/editions', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const parsed = annualConferenceEditionCreateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the edition details.' }, 400);
+
+  const editions = await listAnnualConferenceEditionsStore(c);
+  const latestEdition = editions[0];
+  const session = await getAdminSession(c);
+  if (!session.authenticated || !session.email || !latestEdition
+    || !canManageAnnualConferencePlanning(session.email, latestEdition.task_creator_email)) {
+    return c.json({ error: 'Only the current annual-conference planning owner can create the next edition.' }, 403);
+  }
+  if (editions.some((edition) => edition.year === parsed.data.year)) {
+    return c.json({ error: `Annual conference ${parsed.data.year} already exists.` }, 409);
+  }
+  if (parsed.data.year <= latestEdition.year) {
+    return c.json({ error: `The next edition year must be after ${latestEdition.year}.` }, 400);
+  }
+
+  const taskCreatorEmail = parsed.data.task_creator_email ?? latestEdition.task_creator_email;
+  if (parsed.data.task_creator_email) {
+    const activeOrganizerEmails = await getActiveOrganizerEmails(c);
+    if (!activeOrganizerEmails) return c.json({ error: 'Unable to verify the selected planning owner.' }, 500);
+    if (!activeOrganizerEmails.map((email) => email.trim().toLowerCase()).includes(taskCreatorEmail)) {
+      return c.json({ error: 'The selected planning owner must be an active organizer.' }, 400);
+    }
+  }
+
+  const edition = await createAnnualConferenceEditionStore(parsed.data, taskCreatorEmail, c);
+  await auditAdminAction(c, {
+    action: 'annual_conference.edition.create',
+    targetType: 'annual_conference_edition',
+    targetId: edition.id,
+    metadata: { year: edition.year, task_creator_email: edition.task_creator_email },
+  });
+  return c.json(edition, 201);
+});
+
 app.get('/api/annual-conference/:year/work-plan', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
@@ -3098,7 +3239,12 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 
   const visibleTasks = annualConferenceTasksForMember(workPlan.tasks, session.role, session.email);
   const volunteerAccess = session.role === 'volunteer';
-  const canCreateTasks = !volunteerAccess && canCreateAnnualConferenceTask(session.email);
+  const canEditAllTasks = canCreateAnnualConferenceTask(
+    session.email,
+    workPlan.edition.task_creator_email,
+  );
+  const canCreateTasks = !volunteerAccess
+    && canEditAllTasks;
 
   return c.json({
     ...workPlan,
@@ -3106,7 +3252,9 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
     summary: summarizeAnnualConferenceWorkPlan(visibleTasks),
     permissions: {
       can_create_tasks: canCreateTasks,
-      can_edit_all_tasks: !volunteerAccess,
+      can_manage_phases: canCreateTasks,
+      can_edit_all_tasks: !volunteerAccess && canEditAllTasks,
+      can_edit_assigned_tasks: !volunteerAccess,
       can_update_assigned_task_status: volunteerAccess,
       access_scope: volunteerAccess ? 'assigned' : 'all',
       task_creator_email: workPlan.edition.task_creator_email,
@@ -3114,16 +3262,133 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
   });
 });
 
+app.post('/api/annual-conference/:year/phases', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const parsed = annualConferencePhaseCreateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase details.' }, 400);
+  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
+  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  const session = await getAdminSession(c);
+  if (!session.authenticated || !session.email
+    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
+    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  }
+  const dateError = validateAnnualConferencePhaseDates(parsed.data, workPlan.phases);
+  if (dateError) return c.json({ error: dateError }, 400);
+  const phase = await createAnnualConferencePhaseStore(workPlan.edition.id, parsed.data, session.email, c);
+  await auditAdminAction(c, {
+    action: 'annual_conference.phase.create',
+    targetType: 'annual_conference_phase',
+    targetId: phase.id,
+    metadata: { edition_year: Number(yearParam), name: phase.name },
+  });
+  return c.json(phase, 201);
+});
+
+app.put('/api/annual-conference/:year/phases/order', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const parsed = annualConferencePhaseOrderSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase order.' }, 400);
+  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
+  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  const session = await getAdminSession(c);
+  if (!session.authenticated || !session.email
+    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
+    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  }
+  const uniqueIds = new Set(parsed.data.phase_ids);
+  if (uniqueIds.size !== workPlan.phases.length
+    || workPlan.phases.some((phase) => !uniqueIds.has(phase.id))) {
+    return c.json({ error: 'Phase order must contain every phase exactly once.' }, 400);
+  }
+  const phaseById = new Map(workPlan.phases.map((phase) => [phase.id, phase]));
+  const ordered = parsed.data.phase_ids.map((id) => phaseById.get(id)!);
+  const phases = await reorderAnnualConferencePhasesStore(workPlan.edition.id, ordered, session.email, c);
+  await auditAdminAction(c, {
+    action: 'annual_conference.phase.reorder',
+    targetType: 'annual_conference_edition',
+    targetId: workPlan.edition.id,
+    metadata: { edition_year: Number(yearParam), phase_ids: parsed.data.phase_ids },
+  });
+  return c.json({ phases });
+});
+
+app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const parsed = annualConferencePhaseUpdateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase changes.' }, 400);
+  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
+  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  const session = await getAdminSession(c);
+  if (!session.authenticated || !session.email
+    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
+    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  }
+  const existing = workPlan.phases.find((phase) => phase.id === c.req.param('phaseId'));
+  if (!existing) return c.json({ error: 'Annual conference phase was not found.' }, 404);
+  const proposed = {
+    starts_on: parsed.data.starts_on ?? existing.starts_on,
+    ends_on: parsed.data.ends_on ?? existing.ends_on,
+  };
+  const dateError = validateAnnualConferencePhaseDates(proposed, workPlan.phases, existing.id);
+  if (dateError) return c.json({ error: dateError }, 400);
+  if (workPlan.tasks.some((task) => task.phase_id === existing.id && task.target_date && task.target_date > proposed.ends_on)) {
+    return c.json({ error: 'Phase end date cannot be earlier than an assigned task target date.' }, 400);
+  }
+  const phase = await updateAnnualConferencePhaseStore(
+    workPlan.edition.id,
+    existing.id,
+    parsed.data,
+    session.email,
+    c,
+  );
+  if (!phase) return c.json({ error: 'Annual conference phase was not found.' }, 404);
+  await auditAdminAction(c, {
+    action: 'annual_conference.phase.update',
+    targetType: 'annual_conference_phase',
+    targetId: phase.id,
+    metadata: { edition_year: Number(yearParam), changed_fields: Object.keys(parsed.data) },
+  });
+  return c.json(phase);
+});
+
+app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const workPlan = await getAnnualConferenceWorkPlanStore(Number(yearParam), c);
+  if (!workPlan) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+  const session = await getAdminSession(c);
+  if (!session.authenticated || !session.email
+    || !canManageAnnualConferencePlanning(session.email, workPlan.edition.task_creator_email)) {
+    return c.json({ error: 'Only this edition’s planning owner can manage phases.' }, 403);
+  }
+  const phase = workPlan.phases.find((item) => item.id === c.req.param('phaseId'));
+  if (!phase) return c.json({ error: 'Annual conference phase was not found.' }, 404);
+  const deleted = await deleteAnnualConferencePhaseStore(workPlan.edition.id, phase.id, c);
+  if (!deleted) return c.json({ error: 'Annual conference phase was not found.' }, 404);
+  await auditAdminAction(c, {
+    action: 'annual_conference.phase.delete',
+    targetType: 'annual_conference_phase',
+    targetId: phase.id,
+    metadata: { edition_year: Number(yearParam), name: phase.name },
+  });
+  return c.json({ deleted: true, tasks_unassigned: workPlan.tasks.filter((task) => task.phase_id === phase.id).length });
+});
+
 app.post('/api/annual-conference/:year/work-plan', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
-
-  const session = await getAdminSession(c);
-  if (!session.authenticated || !session.email || !canCreateAnnualConferenceTask(session.email)) {
-    return c.json({
-      error: 'Only Angela (angelateyvi@gmail.com) can add annual conference tasks. All organizers can edit existing tasks.',
-    }, 403);
-  }
 
   const yearParam = c.req.param('year');
   if (!/^\d{4}$/.test(yearParam)) {
@@ -3139,6 +3404,15 @@ app.post('/api/annual-conference/:year/work-plan', async (c) => {
   if (!workPlan) {
     return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
   }
+
+  const session = await getAdminSession(c);
+  if (!session.authenticated || !session.email
+    || !canCreateAnnualConferenceTask(session.email, workPlan.edition.task_creator_email)) {
+    return c.json({ error: 'Only this edition’s planning owner can add annual conference tasks.' }, 403);
+  }
+
+  const scheduleError = validateAnnualConferenceTaskSchedule(parsed.data, workPlan.phases);
+  if (scheduleError) return c.json({ error: scheduleError }, 400);
 
   const activeOrganizerEmails = await getActiveOrganizerEmails(c);
   if (!activeOrganizerEmails) {
@@ -3231,6 +3505,14 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
     return c.json({ ...task, internal_note: null });
   }
 
+  if (!canEditAnnualConferenceTask(
+    existingTask,
+    session.email,
+    workPlan.edition.task_creator_email,
+  )) {
+    return c.json({ error: 'Only the planning owner or a task owner/collaborator can edit this task.' }, 403);
+  }
+
   let activeOrganizerEmails: string[] = [];
   if (annualConferenceOwnershipNeedsActiveOrganizerLookup(parsed.data, existingTask)) {
     const loadedOrganizerEmails = await getActiveOrganizerEmails(c);
@@ -3250,6 +3532,13 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
   if (!ownership.ok) {
     return c.json({ error: ownership.error }, 400);
   }
+
+  const proposedSchedule = {
+    phase_id: 'phase_id' in parsed.data ? parsed.data.phase_id : existingTask.phase_id,
+    target_date: 'target_date' in parsed.data ? parsed.data.target_date : existingTask.target_date,
+  };
+  const scheduleError = validateAnnualConferenceTaskSchedule(proposedSchedule, workPlan.phases);
+  if (scheduleError) return c.json({ error: scheduleError }, 400);
 
   const task = await updateAnnualConferenceTaskStore(
     workPlan.edition.id,
@@ -3374,10 +3663,10 @@ app.post('/api/admin/organizers', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = addOrganizerSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: 'Enter a valid email and role.' }, 400);
+    return c.json({ error: 'Enter a valid email, display name, and role.' }, 400);
   }
   const email = parsed.data.email;
-  const displayName = parsed.data.display_name || null;
+  const displayName = parsed.data.display_name;
   const role = parsed.data.role;
 
   const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
@@ -3397,6 +3686,31 @@ app.post('/api/admin/organizers', async (c) => {
 
     if (existingMembership?.role === 'owner') {
       return c.json({ error: 'Only owners can update another owner.' }, 403);
+    }
+
+    if (existingMembership && existingMembership.role !== role) {
+      return c.json({ error: 'Only owners can change an existing member role.' }, 403);
+    }
+  }
+
+  if (existingMembership && existingMembership.role !== role) {
+    if (existingMembership.id === session.membership_id) {
+      return c.json({ error: 'You cannot change your own role.' }, 400);
+    }
+
+    if (existingMembership.role === 'owner') {
+      const { count: activeOwnerCount, error: ownerCountError } = await getSupabaseAdminClient(c)
+        .from('admin_memberships')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'owner')
+        .eq('status', 'active');
+
+      if (ownerCountError) {
+        return c.json({ error: 'Unable to verify owner coverage.' }, 500);
+      }
+      if ((activeOwnerCount ?? 0) <= 1) {
+        return c.json({ error: 'At least one active owner must remain.' }, 400);
+      }
     }
   }
 
@@ -3438,6 +3752,81 @@ app.post('/api/admin/organizers', async (c) => {
   });
 
   return c.json(data, 201);
+});
+
+app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Organizer email management requires Supabase auth.' }, 503);
+  }
+
+  const session = await getAdminSession(c);
+  if (!session.authenticated || session.role !== 'owner') {
+    return c.json({ error: 'Only owners can change member roles.' }, 403);
+  }
+
+  const organizerId = c.req.param('organizerId');
+  if (organizerId === session.membership_id) {
+    return c.json({ error: 'You cannot change your own role.' }, 400);
+  }
+
+  const parsed = updateOrganizerRoleSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: 'Choose Organizer or Volunteer.' }, 400);
+  }
+
+  const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .eq('id', organizerId)
+    .maybeSingle();
+
+  if (existingMembershipError) {
+    return c.json({ error: 'Unable to verify organizer access.' }, 500);
+  }
+  if (!existingMembership) {
+    return c.json({ error: 'Organizer was not found.' }, 404);
+  }
+  if (existingMembership.role === 'owner') {
+    return c.json({ error: 'Owner roles cannot be changed from this control.' }, 400);
+  }
+  if (existingMembership.role === parsed.data.role) {
+    return c.json(existingMembership);
+  }
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .update({ role: parsed.data.role })
+    .eq('id', organizerId)
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .maybeSingle();
+
+  if (error) {
+    return c.json({ error: 'Unable to change member role.' }, 500);
+  }
+  if (!data) {
+    return c.json({ error: 'Organizer was not found.' }, 404);
+  }
+
+  try {
+    await revokeAdminSessionsForMembership(c, data.id);
+  } catch {
+    return c.json({ error: 'The role changed, but existing sessions could not be revoked.' }, 500);
+  }
+
+  await recordAdminAudit(c, {
+    actor_user_id: session.user_id,
+    actor_email: session.email,
+    actor_role: session.role,
+    action: 'admin.organizer.role_change',
+    target_type: 'admin_membership',
+    target_id: data.id,
+    metadata: { email: data.email, previous_role: existingMembership.role, role: data.role },
+  });
+
+  return c.json(data);
 });
 
 app.delete('/api/admin/organizers/:organizerId', async (c) => {

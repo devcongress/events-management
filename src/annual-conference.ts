@@ -8,8 +8,8 @@ export const ACTIVE_ANNUAL_CONFERENCE_EDITION = {
 
 export const DECEMBER_2026_VOLUNTEER_PUBLIC_PATH = '/volunteer/december-mega-meetup';
 
-export function annualConferencePath(path = ''): string {
-  const editionPath = `annual-conference/${ACTIVE_ANNUAL_CONFERENCE_EDITION.year}`;
+export function annualConferencePath(path = '', year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year): string {
+  const editionPath = `annual-conference/${year}`;
   return adminPath(path ? `${editionPath}/${path.replace(/^\/+/, '')}` : editionPath);
 }
 

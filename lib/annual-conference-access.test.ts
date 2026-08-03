@@ -13,6 +13,7 @@ function task(overrides: Partial<AnnualConferenceTask> = {}): AnnualConferenceTa
     title: 'Contact conference speakers',
     details: 'Send the approved invitation.',
     internal_note: 'Organizer-only negotiation context.',
+    phase_id: null,
     workstream: 'programme_speakers',
     accountable_owner: 'volunteer@example.com',
     collaborators: [],
