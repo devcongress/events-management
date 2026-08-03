@@ -185,18 +185,36 @@ describe('annual conference volunteer API access', () => {
     );
   });
 
-  it('allows the edition planning owner to edit any task', async () => {
+  it('allows a platform owner to edit any task without being the edition planning owner', async () => {
     mocks.session.role = 'owner';
-    mocks.session.email = 'owner@example.com';
+    mocks.session.email = 'platform-owner@example.com';
     const { default: app } = await import('./app');
 
     const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-assigned', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Planning owner update' }),
+      body: JSON.stringify({ title: 'Platform owner update' }),
     });
 
     expect(response.status).toBe(200);
     expect(mocks.updateTask).toHaveBeenCalled();
+  });
+
+  it('returns full planning capabilities to a platform owner', async () => {
+    mocks.session.role = 'owner';
+    mocks.session.email = 'platform-owner@example.com';
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      permissions: {
+        can_create_tasks: true,
+        can_manage_phases: true,
+        can_edit_all_tasks: true,
+        access_scope: 'all',
+      },
+    });
   });
 });

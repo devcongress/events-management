@@ -19,6 +19,7 @@ const props = defineProps<{
   submitting?: boolean;
   canEdit?: boolean;
   statusOnly?: boolean;
+  readOnlyMessage?: string;
 }>();
 
 const emit = defineEmits<{
@@ -319,6 +320,9 @@ onUnmounted(() => {
             >
               Edit task
             </button>
+            <p v-else class="mr-auto max-w-lg text-xs font-semibold leading-5 text-dc-gray">
+              {{ readOnlyMessage ?? 'Only a platform owner, planning owner, or assigned task owner/collaborator can edit this task.' }}
+            </p>
           </footer>
         </section>
       </div>

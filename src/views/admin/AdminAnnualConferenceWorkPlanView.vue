@@ -171,7 +171,7 @@ function requestCreateDrawer() {
 
   if (!permissions.value.can_create_tasks) {
     notify.info(
-      `Only this edition’s planning owner (${permissions.value.task_creator_email}) can add tasks. All organizers can edit existing tasks.`,
+      `Only a platform owner or this edition’s planning owner (${permissions.value.task_creator_email}) can add tasks. Other organizers can edit assigned tasks.`,
     );
     return;
   }
@@ -345,7 +345,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               id="annual-task-create-permission"
               class="block sm:ml-1 sm:inline"
             >
-              New tasks: planning owner <span class="font-mono font-semibold text-dc-ink">{{ permissions.task_creator_email }}</span>. All organizers can edit.
+              New tasks: platform owner or planning owner <span class="font-mono font-semibold text-dc-ink">{{ permissions.task_creator_email }}</span>. Other organizers edit assigned tasks.
             </span>
           </p>
         </template>
@@ -360,7 +360,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             :aria-disabled="permissions?.can_create_tasks ? undefined : 'true'"
             :aria-describedby="permissions && !permissions.can_create_tasks ? 'annual-task-create-permission' : undefined"
             :title="permissions && !permissions.can_create_tasks
-              ? `Only this edition’s planning owner (${permissions.task_creator_email}) can add tasks.`
+              ? `Only a platform owner or this edition’s planning owner (${permissions.task_creator_email}) can add tasks.`
               : undefined"
             @click="requestCreateDrawer"
           >

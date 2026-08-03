@@ -6,14 +6,16 @@ import OrganizerSessionPause from './components/OrganizerSessionPause.vue';
 import AppToaster from './components/ui/AppToaster.vue';
 import AppBootScreen from './components/ui/AppBootScreen.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
-import { annualConferencePath } from './annual-conference';
+import { annualConferencePath, mobileAnnualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { notify } from './lib/notify';
 import { queryClient } from './lib/query';
 import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from './system-design-participant-route';
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
+  ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENTS_ROUTE_PATH,
   ORGANIZER_PHONE_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_PATH,
   isOrganizerPhoneRouteName,
@@ -83,6 +85,7 @@ const isStandaloneRoute = computed(() => (
   || route.name === 'event-cfp'
   || route.name === 'event-registration-short'
   || route.name === 'event-registration'
+  || route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   || route.name === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
   || route.name === 'admin-feedback-display'
   || route.name === 'admin-public-events-preview'
@@ -147,7 +150,11 @@ const showOrganizerPhoneView = computed(() => (
 ));
 const navGroups = computed(() => {
   if (showOrganizerPhoneView.value) {
-    return [[{ href: ORGANIZER_PHONE_ROUTE_PATH, label: 'Mobile Ops' }]];
+    return [[
+      { href: ORGANIZER_PHONE_ROUTE_PATH, label: 'Home' },
+      { href: ORGANIZER_PHONE_EVENTS_ROUTE_PATH, label: 'Events' },
+      { href: mobileAnnualConferencePath(), label: 'Conference' },
+    ]];
   }
 
   if (isAdminRoute.value) {
@@ -194,10 +201,6 @@ const adminReturnLink = computed(() => {
   return null;
 });
 const activeNavHref = computed(() => {
-  if (showOrganizerPhoneView.value) {
-    return ORGANIZER_PHONE_ROUTE_PATH;
-  }
-
   if (isAdminRoute.value && adminReturnLink.value && adminEventId.value) {
     return adminReturnLink.value.href;
   }

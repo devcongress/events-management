@@ -93,8 +93,9 @@ export function annualConferenceCapabilities(
   edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
 ): AnnualConferenceCapabilities {
   const volunteerAccess = actor.role === 'volunteer';
+  const platformOwner = actor.role === 'owner' && Boolean(normalizedIdentity(actor.email));
   const planningOwner = normalizedIdentity(actor.email) === normalizedIdentity(edition.task_creator_email);
-  const canManagePlanning = !volunteerAccess && planningOwner;
+  const canManagePlanning = platformOwner || (!volunteerAccess && planningOwner);
 
   return {
     can_create_tasks: canManagePlanning,
@@ -131,8 +132,9 @@ export function canCreateAnnualConferenceEdition(
   actor: AnnualConferenceActor,
   latestEdition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
 ): boolean {
-  return actor.role !== 'volunteer'
-    && normalizedIdentity(actor.email) === normalizedIdentity(latestEdition.task_creator_email);
+  return (actor.role === 'owner' && Boolean(normalizedIdentity(actor.email)))
+    || (actor.role === 'organizer'
+      && normalizedIdentity(actor.email) === normalizedIdentity(latestEdition.task_creator_email));
 }
 
 export function canManageAnnualConferencePhases(
@@ -155,6 +157,7 @@ export function canUpdateAnnualConferenceTask(
   task: Pick<AnnualConferenceTask, 'accountable_owner' | 'collaborators'>,
   changes: AnnualConferenceTaskUpdateInput,
 ): boolean {
+  if (actor.role === 'owner') return Boolean(normalizedIdentity(actor.email));
   if (actor.role === 'volunteer') {
     return volunteerCanUpdateAssignedTask(task, changes, actor.email);
   }

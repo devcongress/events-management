@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-03 — Mobile Annual Conference operations
+
+- Added Annual Conference to Mobile Ops with live attention and completion context instead of hiding the workspace from phone organizers.
+- Added a dedicated phone Annual Conference workspace with Overview, filtered Work Plan, Timeline, phase management, planning gaps, Volunteers, edition controls, and full-screen task create/edit flows.
+- Gave volunteers a separate Overview and My Tasks interface while preserving assignment-scoped visibility, internal-note redaction, and status-only permissions.
+- Routed phone visits from desktop Annual Conference pages into Conference Ops and routed tablet/desktop visits back to the full work plan, without loading the desktop planner behind the mobile view.
+- Replaced desktop tables with mobile lists and stacked forms while retaining organizer feature parity; added safe-area-aware fixed navigation, thumb-sized controls, short transform/opacity transitions, and reduced-motion handling.
+- Added a platform-owner override for edition, phase, and task administration; retained assignment-scoped organizers and status-only volunteers, backfilled uniquely matched legacy name assignments to membership emails, and replaced blank read-only task footers with an explicit permission explanation.
+- Split the phone organizer landing experience into a lightweight Home plus dedicated Events and Conference destinations in the mobile menu; event-day actions now live on `/organizer-console/mobile/events` instead of loading on Home.
+
 ## 2026-08-03 — Deployed security verification and staging DAST guardrails
 
 - Added a read-only deployed-security verifier for browser headers, private/public caching, request IDs, authentication denial, and allowed/rejected CORS behavior.

@@ -5,7 +5,7 @@ import {
   isAdminPath,
   safeInternalAppPath,
 } from './admin-routes';
-import { annualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
+import { annualConferencePath, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { queryClient } from './lib/query';
 import {
@@ -16,6 +16,9 @@ import { SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-ro
 import {
   matchesOrganizerPhoneViewport,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENTS_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENTS_ROUTE_PATH,
+  ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerViewportRedirect,
 } from './organizer-viewport';
@@ -45,7 +48,9 @@ const EventView = () => import('./views/EventView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
+const AdminMobileEventsView = () => import('./views/admin/AdminMobileEventsView.vue');
 const AdminMobileCheckInView = () => import('./views/admin/AdminMobileCheckInView.vue');
+const AdminMobileAnnualConferenceView = () => import('./views/admin/AdminMobileAnnualConferenceView.vue');
 const AdminEventsWorkspaceView = () => import('./views/admin/AdminEventsWorkspaceView.vue');
 const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
 const AdminEventSubmissionsView = () => import('./views/admin/AdminEventSubmissionsView.vue');
@@ -98,10 +103,16 @@ export const router = createRouter({
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
     { path: adminPath(), redirect: adminPath('events') },
     { path: ORGANIZER_PHONE_ROUTE_PATH, name: 'admin-mobile', component: AdminMobileOrganizerView },
+    { path: ORGANIZER_PHONE_EVENTS_ROUTE_PATH, name: ORGANIZER_PHONE_EVENTS_ROUTE_NAME, component: AdminMobileEventsView },
     {
       path: adminPath('mobile/events/:eventId/check-in'),
       name: ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
       component: AdminMobileCheckInView,
+    },
+    {
+      path: adminPath('mobile/annual-conference/:year(\\d{4})'),
+      name: ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
+      component: AdminMobileAnnualConferenceView,
     },
     {
       path: adminPath('events'),
@@ -182,18 +193,28 @@ router.beforeEach(async (to, from) => {
       queryFn: fetchAdminSession,
     }).catch(() => undefined);
 
-    if (cachedSession.user?.role === 'volunteer') {
-      return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+    const isPhone = matchesOrganizerPhoneViewport();
+    if (
+      cachedSession.user?.role === 'volunteer'
+      && isPhone
+      && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+    ) {
+      return mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined);
     }
 
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,
       isAdminRoute: isAdminPath(to.path),
-      isPhone: matchesOrganizerPhoneViewport(),
+      isPhone,
       routeName: to.name,
       eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
+      conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
     });
     if (viewportRedirect) return viewportRedirect;
+
+    if (cachedSession.user?.role === 'volunteer') {
+      return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+    }
 
     if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== 'owner') {
       return adminPath('events');
@@ -208,18 +229,28 @@ router.beforeEach(async (to, from) => {
       queryFn: fetchAdminSession,
     });
     if (session.authenticated) {
-      if (session.user?.role === 'volunteer') {
-        return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+      const isPhone = matchesOrganizerPhoneViewport();
+      if (
+        session.user?.role === 'volunteer'
+        && isPhone
+        && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+      ) {
+        return mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined);
       }
 
       const viewportRedirect = organizerViewportRedirect({
         authenticated: true,
         isAdminRoute: isAdminPath(to.path),
-        isPhone: matchesOrganizerPhoneViewport(),
+        isPhone,
         routeName: to.name,
         eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
+        conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
       });
       if (viewportRedirect) return viewportRedirect;
+
+      if (session.user?.role === 'volunteer') {
+        return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+      }
 
       if (ownerOnlyPaths.has(to.path) && session.user?.role !== 'owner') {
         return adminPath('events');
@@ -261,6 +292,7 @@ router.afterEach((to) => {
     || to.name === 'admin-annual-conference-work-plan'
     || to.name === 'admin-annual-conference-timeline'
     || to.name === 'admin-annual-conference-volunteers'
+    || to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {
     document.title = ANNUAL_CONFERENCE_TITLE;
   } else {
