@@ -10,6 +10,7 @@ import {
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAMS,
+  type AnnualConferencePhase,
   type AnnualConferenceTask,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
@@ -27,6 +28,8 @@ type TaskFormValue = Omit<AnnualConferenceTaskCreateInput, 'accountable_owner'> 
 const props = defineProps<{
   mode: 'create' | 'edit';
   task?: AnnualConferenceTask | null;
+  phases: AnnualConferencePhase[];
+  defaultPhaseId?: string | null;
   submitting?: boolean;
 }>();
 
@@ -43,6 +46,7 @@ const form = reactive({
   title: '',
   details: '',
   internal_note: '',
+  phase_id: '',
   workstream: 'programme_speakers' as AnnualConferenceTask['workstream'],
   accountable_owner: '',
   collaborators: [] as string[],
@@ -66,6 +70,11 @@ const priorityOptions = [
     label: priority.charAt(0).toUpperCase() + priority.slice(1),
   })),
 ];
+const phaseOptions = computed(() => [
+  { value: '', label: 'No phase' },
+  ...props.phases.map((phase) => ({ value: phase.id, label: phase.name })),
+]);
+const selectedPhase = computed(() => props.phases.find((phase) => phase.id === form.phase_id) ?? null);
 const activeOrganizers = computed(() => (organizersQuery.data.value?.organizers ?? [])
   .filter((organizer) => organizer.status === 'active')
   .sort((left, right) => organizerLabel(left).localeCompare(organizerLabel(right))));
@@ -79,7 +88,7 @@ const accountableOwnerOptions = computed(() => {
   if (currentOwner && !options.some((option) => option.value === currentOwner)) {
     options.unshift({
       value: currentOwner,
-      label: `${currentOwner} · Current assignment`,
+      label: organizerNameFromValue(currentOwner),
     });
   }
 
@@ -116,7 +125,7 @@ const collaboratorOptions = computed(() => {
     if (!options.some((option) => option.value === collaborator)) {
       options.unshift({
         value: collaborator,
-        label: `${collaborator} · Current collaborator`,
+        label: organizerNameFromValue(collaborator),
         disabled: collaborator === form.accountable_owner,
         note: collaborator === form.accountable_owner ? 'Accountable' : undefined,
       });
@@ -137,10 +146,13 @@ const collaboratorPlaceholder = computed(() => (
 const collaboratorSelectionText = computed(() => {
   if (form.collaborators.length === 0) return '';
 
-  return form.collaborators.map((selectedValue) => {
+  const names = form.collaborators.map((selectedValue) => {
     const organizer = activeOrganizers.value.find((item) => organizerValue(item) === selectedValue);
-    return organizer?.display_name?.trim() || selectedValue;
-  }).join(', ');
+    return organizer?.display_name?.trim() || organizerNameFromValue(selectedValue);
+  });
+
+  if (names.length <= 2) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
 });
 const collaboratorDropdownDisabled = computed(() => (
   props.submitting
@@ -154,9 +166,18 @@ function organizerValue(organizer: OrganizerMembership): string {
 }
 
 function organizerLabel(organizer: OrganizerMembership): string {
-  const displayName = organizer.display_name?.trim();
-  const identity = displayName ? `${displayName} · ${organizer.email}` : organizer.email;
-  return organizer.role === 'volunteer' ? `${identity} · Volunteer` : identity;
+  const name = organizer.display_name?.trim() || organizerNameFromValue(organizer.email);
+  return organizer.role === 'volunteer' ? `${name} · Volunteer` : name;
+}
+
+function organizerNameFromValue(value: string): string {
+  if (!value.includes('@')) return value;
+  const localPart = value.split('@')[0];
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 function resetForm() {
@@ -164,6 +185,7 @@ function resetForm() {
   form.title = task?.title ?? '';
   form.details = task?.details ?? '';
   form.internal_note = task?.internal_note ?? '';
+  form.phase_id = task?.phase_id ?? (props.mode === 'create' ? props.defaultPhaseId ?? '' : '');
   form.workstream = task?.workstream ?? 'programme_speakers';
   form.accountable_owner = task?.accountable_owner ?? '';
   form.collaborators = [...(task?.collaborators ?? [])];
@@ -173,7 +195,11 @@ function resetForm() {
   form.dependency_note = task?.dependency_note ?? '';
 }
 
-watch(() => props.task, resetForm, { immediate: true });
+watch(
+  [() => props.task, () => props.defaultPhaseId, () => props.mode],
+  resetForm,
+  { immediate: true },
+);
 watch(() => form.accountable_owner, (accountableOwner) => {
   if (!accountableOwner) return;
   form.collaborators = form.collaborators.filter((collaborator) => collaborator !== accountableOwner);
@@ -188,6 +214,7 @@ function submitForm() {
     title: form.title.trim(),
     details: optionalText(form.details),
     internal_note: optionalText(form.internal_note),
+    phase_id: form.phase_id || null,
     workstream: form.workstream,
     accountable_owner: optionalText(form.accountable_owner),
     collaborators: [...new Set(form.collaborators)]
@@ -220,6 +247,13 @@ function submitForm() {
         label="Workstream"
         :options="workstreamOptions"
         menu-class="min-w-64"
+      />
+
+      <AppDropdown
+        v-model="form.phase_id"
+        label="Phase"
+        :options="phaseOptions"
+        menu-class="min-w-52"
       />
 
       <AppDropdown
@@ -263,7 +297,6 @@ function submitForm() {
           :selected-text="collaboratorSelectionText"
           :disabled="collaboratorDropdownDisabled"
           menu-align="right"
-          menu-class="min-w-80"
         />
         <span class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
           Select any number of team members. The accountable owner is kept separate.
@@ -277,10 +310,17 @@ function submitForm() {
         menu-class="min-w-40"
       />
 
-      <AppDatePicker
-        v-model="form.target_date"
-        label="Target date"
-      />
+      <div>
+        <AppDatePicker
+          v-model="form.target_date"
+          label="Target date"
+        />
+        <p class="mt-2 text-xs font-semibold leading-5" :class="form.target_date ? 'text-dc-gray' : 'text-dc-pink'">
+          <template v-if="selectedPhase">Must be on or before {{ selectedPhase.ends_on }}.</template>
+          <template v-else-if="form.target_date">Add a phase when this task belongs to a delivery window.</template>
+          <template v-else>Target dates are strongly recommended for timeline planning.</template>
+        </p>
+      </div>
 
       <label class="block lg:col-span-2">
         <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Details</span>

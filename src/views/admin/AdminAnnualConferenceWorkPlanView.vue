@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
+import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
@@ -9,27 +10,35 @@ import {
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAMS,
+  defaultAnnualConferencePhaseScope,
+  filterAnnualConferenceTasksByPhase,
   summarizeAnnualConferenceWorkPlan,
   type AnnualConferenceTask,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
+import { isAnnualConferenceTaskAssignedTo } from '@/lib/annual-conference-access';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import {
   createAnnualConferenceTask,
   fetchAdminOrganizers,
+  fetchAdminSession,
   fetchAnnualConferenceWorkPlan,
   queryKeys,
   updateAnnualConferenceTask,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 
-const year = ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+const route = useRoute();
+const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const queryClient = useQueryClient();
-const search = ref('');
+const LEDGER_PAGE_SIZE = 6;
 const statusFilter = ref<'all' | AnnualConferenceTask['status']>('all');
 const workstreamFilter = ref<'all' | AnnualConferenceTask['workstream']>('all');
 const ownerFilter = ref('all');
+const phaseFilter = ref('all');
+const ledgerPage = ref(1);
+const phaseScopeInitialized = ref(false);
 const showCreateForm = ref(false);
 const selectedTaskId = ref<string | null>(null);
 const editingTaskId = ref<string | null>(null);
@@ -46,11 +55,16 @@ type LedgerViewTransitionDocument = Document & {
 let activeLedgerTransition: LedgerViewTransition | null = null;
 
 const workPlanQuery = useQuery({
-  queryKey: queryKeys.annualConferenceWorkPlan(year),
-  queryFn: () => fetchAnnualConferenceWorkPlan(year),
+  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
+  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
 });
 const permissions = computed(() => workPlanQuery.data.value?.permissions);
 const assignedAccess = computed(() => permissions.value?.access_scope === 'assigned');
+const sessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
+const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
 const organizersQuery = useQuery({
   queryKey: queryKeys.adminOrganizers,
   queryFn: fetchAdminOrganizers,
@@ -58,31 +72,57 @@ const organizersQuery = useQuery({
 });
 
 const tasks = computed(() => workPlanQuery.data.value?.tasks ?? []);
+const phases = computed(() => workPlanQuery.data.value?.phases ?? []);
+const scopedTasks = computed(() => filterAnnualConferenceTasksByPhase(tasks.value, phaseFilter.value));
+const selectedPhase = computed(() => phases.value.find((phase) => phase.id === phaseFilter.value) ?? null);
+const phaseScopeLabel = computed(() => {
+  if (selectedPhase.value) return selectedPhase.value.name;
+  if (phaseFilter.value === 'unassigned') return 'No phase';
+  return 'Entire conference';
+});
+const phaseScopeDescription = computed(() => {
+  if (selectedPhase.value) {
+    return `${formatDate(selectedPhase.value.starts_on)} – ${formatDate(selectedPhase.value.ends_on)}`;
+  }
+  if (phaseFilter.value === 'unassigned') return 'Tasks still waiting for a delivery phase';
+  return 'All phases and unclassified tasks';
+});
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null);
-const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
+const canEditSelectedTask = computed(() => {
+  if (!selectedTask.value || assignedAccess.value) return false;
+  if (permissions.value?.can_edit_all_tasks) return true;
+  return permissions.value?.can_edit_assigned_tasks === true
+    && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
+});
+const summary = computed(() => summarizeAnnualConferenceWorkPlan(scopedTasks.value));
 const organizerLabels = computed<Record<string, string>>(() => Object.fromEntries(
   (organizersQuery.data.value?.organizers ?? []).map((organizer) => [
     organizer.email.trim().toLowerCase(),
     organizer.display_name?.trim() || organizer.email,
   ]),
 ));
-const owners = computed(() => [...new Set(tasks.value
+const owners = computed(() => [...new Set(scopedTasks.value
   .map((task) => task.accountable_owner)
   .filter((owner): owner is string => Boolean(owner)))]
   .sort((a, b) => a.localeCompare(b)));
 const statusCounts = computed(() => ({
-  not_started: tasks.value.filter((task) => task.status === 'not_started').length,
-  in_progress: tasks.value.filter((task) => task.status === 'in_progress').length,
-  blocked: tasks.value.filter((task) => task.status === 'blocked').length,
-  done: tasks.value.filter((task) => task.status === 'done').length,
+  not_started: scopedTasks.value.filter((task) => task.status === 'not_started').length,
+  in_progress: scopedTasks.value.filter((task) => task.status === 'in_progress').length,
+  blocked: scopedTasks.value.filter((task) => task.status === 'blocked').length,
+  done: scopedTasks.value.filter((task) => task.status === 'done').length,
 }));
 const ownerFilterOptions = computed(() => [
   { value: 'all', label: 'All owners' },
   { value: 'unassigned', label: 'Unassigned' },
   ...owners.value.map((owner) => ({ value: owner, label: organizerDisplay(owner) })),
 ]);
+const phaseFilterOptions = computed(() => [
+  ...phases.value.map((phase) => ({ value: phase.id, label: phase.name })),
+  { value: 'unassigned', label: 'No phase' },
+  { value: 'all', label: 'Entire conference' },
+]);
 const workstreamSummaries = computed(() => ANNUAL_CONFERENCE_WORKSTREAMS.map((workstream) => {
-  const workstreamTasks = tasks.value.filter((task) => task.workstream === workstream);
+  const workstreamTasks = scopedTasks.value.filter((task) => task.workstream === workstream);
   const done = workstreamTasks.filter((task) => task.status === 'done').length;
   return {
     workstream,
@@ -92,38 +132,57 @@ const workstreamSummaries = computed(() => ANNUAL_CONFERENCE_WORKSTREAMS.map((wo
     unassigned: workstreamTasks.filter((task) => !task.accountable_owner).length,
     completionPercent: workstreamTasks.length ? Math.round((done / workstreamTasks.length) * 100) : 0,
   };
-}));
+}).filter((item) => item.total > 0));
 const filtersActive = computed(() =>
-  Boolean(search.value.trim())
-  || statusFilter.value !== 'all'
+  statusFilter.value !== 'all'
   || workstreamFilter.value !== 'all'
   || ownerFilter.value !== 'all');
 
 const visibleTasks = computed(() => {
-  const needle = search.value.trim().toLowerCase();
-  return tasks.value.filter((task) => {
-    const matchesSearch = !needle || [
-      task.title,
-      task.details,
-      task.internal_note,
-      task.dependency_note,
-      task.accountable_owner,
-      organizerDisplay(task.accountable_owner),
-      ...task.collaborators,
-      ...task.collaborators.map(organizerDisplay),
-    ].some((value) => value?.toLowerCase().includes(needle));
+  return scopedTasks.value.filter((task) => {
     const matchesStatus = statusFilter.value === 'all' || task.status === statusFilter.value;
     const matchesWorkstream = workstreamFilter.value === 'all' || task.workstream === workstreamFilter.value;
     const matchesOwner = ownerFilter.value === 'all'
       || (ownerFilter.value === 'unassigned' ? !task.accountable_owner : task.accountable_owner === ownerFilter.value);
-    return matchesSearch && matchesStatus && matchesWorkstream && matchesOwner;
+    return matchesStatus && matchesWorkstream && matchesOwner;
   });
+});
+const ledgerPageCount = computed(() => Math.max(1, Math.ceil(visibleTasks.value.length / LEDGER_PAGE_SIZE)));
+const paginatedTasks = computed(() => {
+  const start = (ledgerPage.value - 1) * LEDGER_PAGE_SIZE;
+  return visibleTasks.value.slice(start, start + LEDGER_PAGE_SIZE);
+});
+const ledgerRangeStart = computed(() => visibleTasks.value.length
+  ? (ledgerPage.value - 1) * LEDGER_PAGE_SIZE + 1
+  : 0);
+const ledgerRangeEnd = computed(() => Math.min(ledgerPage.value * LEDGER_PAGE_SIZE, visibleTasks.value.length));
+
+watch(phases, (availablePhases) => {
+  const selectedPhaseStillExists = availablePhases.some((phase) => phase.id === phaseFilter.value);
+  if (phaseScopeInitialized.value && (selectedPhaseStillExists || phaseFilter.value === 'all' || phaseFilter.value === 'unassigned')) return;
+  if (!availablePhases.length) return;
+
+  phaseFilter.value = defaultAnnualConferencePhaseScope(availablePhases, currentAccraDate());
+  phaseScopeInitialized.value = true;
+}, { immediate: true });
+
+watch(year, () => {
+  phaseScopeInitialized.value = false;
+  phaseFilter.value = 'all';
+});
+
+watch([phaseFilter, statusFilter, workstreamFilter, ownerFilter], () => {
+  ledgerPage.value = 1;
+});
+
+watch(visibleTasks, () => {
+  ledgerPage.value = Math.min(ledgerPage.value, ledgerPageCount.value);
 });
 
 const createMutation = useMutation({
-  mutationFn: (input: AnnualConferenceTaskCreateInput) => createAnnualConferenceTask(year, input),
+  mutationFn: (input: AnnualConferenceTaskCreateInput) => createAnnualConferenceTask(year.value, input),
   onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year) });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year.value) });
     showCreateForm.value = false;
     notify.success('Conference task added.');
   },
@@ -132,9 +191,9 @@ const createMutation = useMutation({
 
 const updateMutation = useMutation({
   mutationFn: ({ taskId, input }: { taskId: string; input: AnnualConferenceTaskUpdateInput }) =>
-    updateAnnualConferenceTask(year, taskId, input),
+    updateAnnualConferenceTask(year.value, taskId, input),
   onSuccess: async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year) });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(year.value) });
     editingTaskId.value = null;
     notify.success('Conference task updated.');
   },
@@ -142,7 +201,12 @@ const updateMutation = useMutation({
 });
 
 function startEditing(taskId: string) {
-  if (!permissions.value?.can_edit_all_tasks) return;
+  const task = tasks.value.find((item) => item.id === taskId);
+  if (!task || assignedAccess.value) return;
+  const canEditTask = permissions.value?.can_edit_all_tasks === true
+    || (permissions.value?.can_edit_assigned_tasks === true
+      && isAnnualConferenceTaskAssignedTo(task, currentMemberEmail.value));
+  if (!canEditTask) return;
   showCreateForm.value = false;
   selectedTaskId.value = taskId;
   editingTaskId.value = taskId;
@@ -162,7 +226,7 @@ function requestCreateDrawer() {
 
   if (!permissions.value.can_create_tasks) {
     notify.info(
-      `Only Angela (${permissions.value.task_creator_email}) can add tasks. All organizers can edit existing tasks.`,
+      `Only this edition’s planning owner (${permissions.value.task_creator_email}) can add tasks. All organizers can edit existing tasks.`,
     );
     return;
   }
@@ -234,7 +298,6 @@ function updateLedgerFilters(update: () => void) {
 function clearFilters() {
   if (!filtersActive.value) return;
   updateLedgerFilters(() => {
-    search.value = '';
     statusFilter.value = 'all';
     workstreamFilter.value = 'all';
     ownerFilter.value = 'all';
@@ -251,6 +314,21 @@ function setOwnerFilter(value: string | number) {
   updateLedgerFilters(() => {
     ownerFilter.value = nextOwner;
   });
+}
+
+function setPhaseFilter(value: string | number) {
+  const nextPhase = String(value);
+  if (phaseFilter.value === nextPhase) return;
+  updateLedgerFilters(() => {
+    phaseFilter.value = nextPhase;
+    statusFilter.value = 'all';
+    workstreamFilter.value = 'all';
+    ownerFilter.value = 'all';
+  });
+}
+
+function changeLedgerPage(direction: -1 | 1) {
+  ledgerPage.value = Math.min(ledgerPageCount.value, Math.max(1, ledgerPage.value + direction));
 }
 
 function setStatusFilter(value: 'all' | AnnualConferenceTask['status']) {
@@ -277,6 +355,7 @@ function handleCreate(value: AnnualConferenceTaskUpdateInput) {
     title: value.title,
     details: value.details ?? null,
     internal_note: value.internal_note ?? null,
+    phase_id: value.phase_id ?? null,
     workstream: value.workstream,
     accountable_owner: value.accountable_owner,
     collaborators: value.collaborators ?? [],
@@ -295,6 +374,14 @@ function formatDate(value: string): string {
   }).format(new Date(`${value}T12:00:00`));
 }
 
+function currentAccraDate(): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Accra', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
   return organizerLabels.value[value.trim().toLowerCase()] ?? value;
@@ -303,7 +390,7 @@ function organizerDisplay(value: string | null): string {
 function statusClass(status: AnnualConferenceTask['status']): string {
   if (status === 'done') return 'border-dc-ink bg-dc-yellow text-dc-ink';
   if (status === 'blocked') return 'border-dc-ink bg-dc-pink text-white';
-  if (status === 'in_progress') return 'border-dc-ink bg-dc-ink text-white';
+  if (status === 'in_progress') return 'border-[#0f766e] bg-[#e7f5f2] text-[#0f766e]';
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 </script>
@@ -322,7 +409,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               id="annual-task-create-permission"
               class="block sm:ml-1 sm:inline"
             >
-              New tasks: Angela (<span class="font-mono font-semibold text-dc-ink">{{ permissions.task_creator_email }}</span>). All organizers can edit.
+              New tasks: planning owner <span class="font-mono font-semibold text-dc-ink">{{ permissions.task_creator_email }}</span>. All organizers can edit.
             </span>
           </p>
         </template>
@@ -337,7 +424,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             :aria-disabled="permissions?.can_create_tasks ? undefined : 'true'"
             :aria-describedby="permissions && !permissions.can_create_tasks ? 'annual-task-create-permission' : undefined"
             :title="permissions && !permissions.can_create_tasks
-              ? `Only Angela (${permissions.task_creator_email}) can add tasks.`
+              ? `Only this edition’s planning owner (${permissions.task_creator_email}) can add tasks.`
               : undefined"
             @click="requestCreateDrawer"
           >
@@ -374,69 +461,32 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       </section>
 
       <template v-else>
-        <section aria-label="Work plan status" class="mb-4 rounded-lg border-2 border-dc-ink bg-dc-paper px-3 py-2.5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex min-w-0 items-center gap-2">
-              <span class="hidden shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray sm:block">
-                Status
-              </span>
-              <div
-                class="flex max-w-full items-center gap-1 overflow-x-auto rounded-md border border-dc-border bg-dc-paper-warm p-1"
-                role="group"
-                aria-label="Filter tasks by status"
-              >
-                <button
-                  type="button"
-                  class="min-h-9 shrink-0 rounded border-2 px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
-                  :class="statusFilter === 'all' ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-transparent text-dc-gray hover:bg-dc-paper hover:text-dc-ink'"
-                  :aria-pressed="statusFilter === 'all'"
-                  @click="setStatusFilter('all')"
-                >
-                  All <span class="ml-1 opacity-70">{{ tasks.length }}</span>
-                </button>
-                <button
-                  v-for="status in ANNUAL_CONFERENCE_TASK_STATUSES"
-                  :key="status"
-                  type="button"
-                  class="min-h-9 shrink-0 rounded border-2 px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]"
-                  :class="statusFilter === status ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-transparent text-dc-gray hover:bg-dc-paper hover:text-dc-ink'"
-                  :aria-pressed="statusFilter === status"
-                  @click="setStatusFilter(status)"
-                >
-                  {{ ANNUAL_CONFERENCE_STATUS_LABELS[status] }}
-                  <span class="ml-1 opacity-70">{{ statusCounts[status] }}</span>
-                </button>
+        <section :aria-label="`${phaseScopeLabel} work plan controls`" class="mb-4 overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
+          <div class="flex flex-wrap items-center justify-between gap-4 px-4 py-3.5">
+            <div class="min-w-0">
+              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-pink">Viewing phase</p>
+              <div class="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 class="text-xl font-semibold text-dc-ink">{{ phaseScopeLabel }}</h2>
+                <p class="text-xs font-medium text-dc-gray">{{ phaseScopeDescription }}</p>
               </div>
+              <p class="mt-1 text-xs text-dc-gray">{{ scopedTasks.length }} tasks in this view</p>
             </div>
 
-            <div class="ml-auto flex shrink-0 items-center gap-3">
-              <div class="min-w-[8.5rem]">
+            <div class="flex w-full flex-wrap items-center justify-end gap-3 lg:w-auto">
+              <div class="min-w-[8.5rem] flex-1 sm:flex-none">
                 <div class="flex items-baseline justify-between gap-3">
-                  <p class="text-xs font-medium text-dc-gray">
-                    <span class="text-base font-semibold text-dc-ink">{{ summary.done }}</span>
-                    of {{ summary.total }} done
-                  </p>
-                  <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
-                    {{ summary.completion_percent }}%
-                  </span>
+                  <p class="text-xs font-medium text-dc-gray"><span class="text-base font-semibold text-dc-ink">{{ summary.done }}</span> of {{ summary.total }} done</p>
+                  <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ summary.completion_percent }}%</span>
                 </div>
-                <div
-                  class="mt-1 h-1.5 overflow-hidden rounded-full bg-dc-border"
-                  role="progressbar"
-                  aria-label="Conference task completion"
-                  aria-valuemin="0"
-                  aria-valuemax="100"
-                  :aria-valuenow="summary.completion_percent"
-                >
+                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-dc-border" role="progressbar" :aria-label="`${phaseScopeLabel} task completion`" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="summary.completion_percent">
                   <div class="h-full bg-dc-pink" :style="{ width: `${summary.completion_percent}%` }" />
                 </div>
               </div>
               <button
+                v-if="!assignedAccess"
                 type="button"
-                class="min-h-10 rounded-md border-2 px-3 py-1.5 text-left"
-                :class="ownerFilter === 'unassigned'
-                  ? 'border-dc-ink bg-dc-pink text-white'
-                  : 'border-dc-border bg-dc-paper-warm text-dc-ink hover:border-dc-pink hover:bg-dc-paper'"
+                class="min-h-10 rounded-md border px-3 py-1.5 text-left"
+                :class="ownerFilter === 'unassigned' ? 'border-dc-pink bg-[#fce7f3] text-dc-pink' : 'border-dc-border bg-dc-paper-warm text-dc-ink hover:border-dc-pink'"
                 :disabled="summary.unassigned === 0"
                 :aria-pressed="ownerFilter === 'unassigned'"
                 :aria-label="`Filter to ${summary.unassigned} tasks needing an accountable owner`"
@@ -445,6 +495,30 @@ function statusClass(status: AnnualConferenceTask['status']): string {
                 <span class="block text-sm font-semibold leading-none">{{ summary.unassigned }}</span>
                 <span class="mt-1 block font-mono text-[8px] font-semibold uppercase tracking-[0.08em]">Need owners</span>
               </button>
+              <div class="w-full sm:w-52">
+                <AppDropdown :model-value="phaseFilter" :options="phaseFilterOptions" density="compact" menu-align="right" menu-class="min-w-52" teleport @update:model-value="setPhaseFilter" />
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border bg-dc-paper-warm p-2.5">
+            <div class="flex min-w-0 max-w-full items-center gap-2">
+              <span class="hidden shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray sm:block">Status</span>
+              <div class="flex max-w-full items-center gap-1 overflow-x-auto rounded-md border border-dc-border bg-dc-paper p-1" role="group" aria-label="Filter tasks by status">
+                <button type="button" class="min-h-9 shrink-0 rounded border px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]" :class="statusFilter === 'all' ? 'border-dc-pink bg-[#fce7f3] text-dc-pink' : 'border-transparent text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink'" :aria-pressed="statusFilter === 'all'" @click="setStatusFilter('all')">
+                  All <span class="ml-1 opacity-70">{{ scopedTasks.length }}</span>
+                </button>
+                <button v-for="status in ANNUAL_CONFERENCE_TASK_STATUSES" :key="status" type="button" class="min-h-9 shrink-0 rounded border px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]" :class="statusFilter === status ? 'border-dc-pink bg-[#fce7f3] text-dc-pink' : 'border-transparent text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink'" :aria-pressed="statusFilter === status" @click="setStatusFilter(status)">
+                  {{ ANNUAL_CONFERENCE_STATUS_LABELS[status] }} <span class="ml-1 opacity-70">{{ statusCounts[status] }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
+              <div class="min-w-0 flex-1 sm:w-52 sm:flex-none">
+                <AppDropdown :model-value="ownerFilter" :options="ownerFilterOptions" density="compact" menu-align="right" menu-class="min-w-48" teleport @update:model-value="setOwnerFilter" />
+              </div>
+              <button type="button" class="min-h-10 rounded-md border border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="filtersActive ? 'text-dc-pink hover:border-dc-pink' : 'cursor-default text-dc-gray/50'" :disabled="!filtersActive" @click="clearFilters">Clear</button>
             </div>
           </div>
         </section>
@@ -452,7 +526,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
         <section class="mb-4 overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
           <div class="flex items-center justify-between gap-4 border-b-2 border-dc-ink bg-dc-paper-warm px-3 py-2">
             <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <h2 class="text-sm font-bold text-dc-ink">Workstreams at a glance</h2>
+              <h2 class="text-sm font-semibold text-dc-ink">{{ phaseScopeLabel }} workstreams</h2>
               <p class="text-[11px] font-medium text-dc-gray">Select one to filter the ledger.</p>
             </div>
             <button
@@ -491,31 +565,10 @@ function statusClass(status: AnnualConferenceTask['status']): string {
                 <span v-if="item.unassigned" class="text-dc-pink">{{ item.unassigned }} unassigned</span>
               </span>
             </button>
+            <p v-if="!workstreamSummaries.length" class="px-4 py-6 text-sm text-dc-gray sm:col-span-2 md:col-span-4">
+              No workstreams have tasks in {{ phaseScopeLabel }} yet.
+            </p>
           </div>
-        </section>
-
-        <section class="mb-3 grid gap-2 rounded-lg border-2 border-dc-border bg-dc-paper-warm p-2 md:grid-cols-[minmax(14rem,1fr)_14rem_auto]">
-          <label class="block">
-            <span class="sr-only">Search tasks</span>
-            <input v-model="search" class="editorial-input !min-h-10 !py-2 !text-sm" type="search" placeholder="Search task, owner, or note">
-          </label>
-          <AppDropdown
-            :model-value="ownerFilter"
-            :options="ownerFilterOptions"
-            density="compact"
-            menu-align="right"
-            menu-class="min-w-48"
-            @update:model-value="setOwnerFilter"
-          />
-          <button
-            type="button"
-            class="min-h-10 rounded-md border-2 border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
-            :class="filtersActive ? 'text-dc-pink hover:border-dc-pink' : 'cursor-default text-dc-gray/50'"
-            :disabled="!filtersActive"
-            @click="clearFilters"
-          >
-            Clear
-          </button>
         </section>
 
         <section class="annual-task-ledger overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
@@ -524,8 +577,8 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               <h2 class="text-lg font-bold text-dc-ink">Task ledger</h2>
               <p class="mt-0.5 text-xs font-medium text-dc-gray">
                 {{ assignedAccess
-                  ? `${visibleTasks.length} of ${tasks.length} assigned tasks shown. Open a task to review it or update its status.`
-                  : `${visibleTasks.length} of ${tasks.length} tasks shown. View a task for notes, collaborators, and editing.` }}
+                  ? `${visibleTasks.length} of ${scopedTasks.length} assigned tasks in ${phaseScopeLabel} match the current filters.`
+                  : `${visibleTasks.length} of ${scopedTasks.length} ${phaseScopeLabel} tasks match the current filters.` }}
               </p>
             </div>
             <span class="hidden shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray sm:block">
@@ -541,21 +594,19 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             <span class="sr-only">View details</span>
           </div>
 
-          <div
-            class="annual-task-ledger__scroll max-h-[clamp(18rem,56svh,35rem)] overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
-            tabindex="0"
-            aria-label="Conference tasks"
-          >
+          <div aria-label="Conference tasks">
             <div v-if="visibleTasks.length === 0" class="grid min-h-[18rem] place-items-center p-8 text-center">
               <div>
-                <h3 class="text-xl font-bold text-dc-ink">{{ assignedAccess && tasks.length === 0 ? 'No tasks assigned yet' : 'No matching tasks' }}</h3>
+                <h3 class="text-xl font-semibold text-dc-ink">{{ assignedAccess && tasks.length === 0 ? 'No tasks assigned yet' : scopedTasks.length ? 'No matching tasks' : `No tasks in ${phaseScopeLabel}` }}</h3>
                 <p class="mt-2 text-sm font-medium text-dc-gray">
                   {{ assignedAccess && tasks.length === 0
                     ? 'An organizer will assign conference work to you here.'
-                    : 'Clear or change the filters to see the work plan.' }}
+                    : scopedTasks.length
+                      ? 'Clear or change the filters to see the work plan.'
+                      : 'Switch phases or add the first task for this phase.' }}
                 </p>
                 <button
-                  v-if="tasks.length > 0"
+                  v-if="scopedTasks.length"
                   type="button"
                   class="mt-4 min-h-10 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
                   @click="clearFilters"
@@ -566,7 +617,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             </div>
 
             <article
-              v-for="task in visibleTasks"
+              v-for="task in paginatedTasks"
               v-else
               :key="task.id"
               class="border-b border-dc-border last:border-b-0"
@@ -587,6 +638,9 @@ function statusClass(status: AnnualConferenceTask['status']): string {
                     </span>
                     <span v-if="task.priority" class="shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-pink">
                       {{ task.priority }}
+                    </span>
+                    <span class="shrink-0 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
+                      {{ phases.find((phase) => phase.id === task.phase_id)?.name ?? 'No phase' }}
                     </span>
                   </span>
                   <span class="mt-1 flex items-center gap-2 md:hidden">
@@ -645,6 +699,15 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               </div>
             </article>
           </div>
+
+          <footer v-if="visibleTasks.length" class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border bg-dc-paper-warm px-4 py-2.5">
+            <span class="text-xs font-medium text-dc-gray">Showing {{ ledgerRangeStart }}–{{ ledgerRangeEnd }} of {{ visibleTasks.length }}</span>
+            <div class="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
+              <button type="button" class="motion-press min-h-9 rounded-md border border-dc-border bg-dc-paper px-3 text-dc-ink disabled:cursor-not-allowed disabled:opacity-40" :disabled="ledgerPage === 1" @click="changeLedgerPage(-1)">Previous</button>
+              <span class="min-w-14 text-center">{{ ledgerPage }} of {{ ledgerPageCount }}</span>
+              <button type="button" class="motion-press min-h-9 rounded-md border border-dc-border bg-dc-paper px-3 text-dc-ink disabled:cursor-not-allowed disabled:opacity-40" :disabled="ledgerPage === ledgerPageCount" @click="changeLedgerPage(1)">Next</button>
+            </div>
+          </footer>
         </section>
       </template>
     </div>
@@ -653,8 +716,10 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       :open="showCreateForm || Boolean(selectedTask)"
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"
+      :phases="phases"
+      :default-phase-id="selectedPhase?.id ?? null"
       :organizer-labels="organizerLabels"
-      :can-edit="permissions?.can_edit_all_tasks === true"
+      :can-edit="canEditSelectedTask"
       :status-only="permissions?.can_update_assigned_task_status === true"
       :submitting="showCreateForm ? createMutation.isPending.value : updateMutation.isPending.value"
       @close="closeTaskDrawer"
@@ -669,10 +734,6 @@ function statusClass(status: AnnualConferenceTask['status']): string {
 .annual-task-ledger {
   contain: paint;
   view-transition-name: annual-task-ledger;
-}
-
-.annual-task-ledger__scroll {
-  overflow-anchor: none;
 }
 
 @supports (view-transition-name: annual-task-ledger) {

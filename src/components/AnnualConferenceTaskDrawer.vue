@@ -4,6 +4,7 @@ import AnnualConferenceTaskForm from '@/src/components/AnnualConferenceTaskForm.
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
+  type AnnualConferencePhase,
   type AnnualConferenceTask,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
@@ -12,6 +13,8 @@ const props = defineProps<{
   open: boolean;
   mode: 'details' | 'edit' | 'create';
   task: AnnualConferenceTask | null;
+  phases: AnnualConferencePhase[];
+  defaultPhaseId?: string | null;
   organizerLabels?: Record<string, string>;
   submitting?: boolean;
   canEdit?: boolean;
@@ -35,6 +38,7 @@ const drawerEyebrow = computed(() => {
 const drawerTitle = computed(() => (
   props.mode === 'create' ? 'Add a conference task' : props.task?.title ?? 'Conference task'
 ));
+const taskPhase = computed(() => props.phases.find((phase) => phase.id === props.task?.phase_id) ?? null);
 let previouslyFocused: HTMLElement | null = null;
 let previousBodyOverflow = '';
 let previousDocumentOverflow = '';
@@ -56,7 +60,7 @@ function organizerDisplay(value: string | null): string {
 function statusClass(status: AnnualConferenceTask['status']): string {
   if (status === 'done') return 'border-dc-ink bg-dc-yellow text-dc-ink';
   if (status === 'blocked') return 'border-dc-ink bg-dc-pink text-white';
-  if (status === 'in_progress') return 'border-dc-ink bg-dc-ink text-white';
+  if (status === 'in_progress') return 'border-[#0f766e] bg-[#e7f5f2] text-[#0f766e]';
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 
@@ -191,6 +195,8 @@ onUnmounted(() => {
                 </div>
                 <AnnualConferenceTaskForm
                   mode="create"
+                  :phases="phases"
+                  :default-phase-id="defaultPhaseId"
                   :submitting="submitting"
                   @submit="emit('submit', $event)"
                   @cancel="emit('close')"
@@ -209,6 +215,7 @@ onUnmounted(() => {
                 <AnnualConferenceTaskForm
                   mode="edit"
                   :task="task"
+                  :phases="phases"
                   :submitting="submitting"
                   @submit="emit('submit', $event)"
                   @cancel="emit('cancelEdit')"
@@ -228,6 +235,9 @@ onUnmounted(() => {
                   </span>
                   <span v-if="task.priority" class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-pink">
                     {{ task.priority }} priority
+                  </span>
+                  <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
+                    {{ taskPhase?.name ?? 'No phase' }}
                   </span>
                 </div>
 

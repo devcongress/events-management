@@ -115,11 +115,15 @@ const showOrganizerAccessSurface = computed(() => (
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
 const isConferenceVolunteer = computed(() => adminSessionQuery.data.value?.user?.role === 'volunteer');
 const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
-const showPrimaryNavigation = computed(() => showAppHeader.value && isOrganizerAuthenticated.value);
+const showPrimaryNavigation = computed(() => (
+  showAppHeader.value
+  && isOrganizerAuthenticated.value
+  && !isConferenceVolunteer.value
+));
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
   if (session?.authenticated && session.user?.role === 'volunteer') {
-    return [{ href: annualConferencePath(), label: 'Annual Conference' }];
+    return [];
   }
 
   if (session?.authenticated && session.user?.role === 'owner') {
@@ -216,6 +220,7 @@ const appMainStyle = computed(() => ({
   '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
 }));
 const adminEventSectionOrder = ['', 'registrations', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
+const annualConferenceSectionOrder = ['', 'work-plan', 'timeline', 'volunteers'];
 
 function getAdminEventSection(path: string): { eventId: string; index: number } | null {
   const eventsBase = `${adminPath('events')}/`;
@@ -231,9 +236,35 @@ function getAdminEventSection(path: string): { eventId: string; index: number } 
   return { eventId, index };
 }
 
+function getAnnualConferenceSection(path: string): { year: string; index: number } | null {
+  const conferenceBase = `${adminPath('annual-conference')}/`;
+  if (!path.startsWith(conferenceBase)) return null;
+
+  const [year, section = '', extraSegment] = path.slice(conferenceBase.length).split('/');
+  if (!/^\d{4}$/.test(year) || extraSegment) return null;
+
+  const index = annualConferenceSectionOrder.indexOf(section);
+  if (index === -1) return null;
+
+  return { year, index };
+}
+
 function updateRouteTransition(toPath: string, fromPath?: string) {
   if (!fromPath) {
     routeTransitionName.value = 'page';
+    return;
+  }
+
+  const toConferenceSection = getAnnualConferenceSection(toPath);
+  const fromConferenceSection = getAnnualConferenceSection(fromPath);
+
+  if (
+    toConferenceSection
+    && fromConferenceSection
+    && toConferenceSection.year === fromConferenceSection.year
+    && toConferenceSection.index !== fromConferenceSection.index
+  ) {
+    routeTransitionName.value = 'page-stable';
     return;
   }
 

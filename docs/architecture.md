@@ -108,8 +108,9 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `[adminBase]/events` — event management overview
 - `[adminBase]/website-preview/events` — authenticated preview of the exact public meetup collection contract
 - `[adminBase]/website-preview/events/[slug]` — authenticated website-shaped preview of one public meetup DTO
-- `[adminBase]/annual-conference/2026` — active annual-edition overview
-- `[adminBase]/annual-conference/2026/work-plan` — shared annual-conference task plan
+- `[adminBase]/annual-conference/[year]` — selected annual-edition overview and future-edition creation
+- `[adminBase]/annual-conference/[year]/work-plan` — shared annual-conference task plan with phase assignment
+- `[adminBase]/annual-conference/[year]/timeline` — phase management and target-date timeline
 - `[adminBase]/annual-conference/2026/volunteers` — December volunteer intake operations
 - `[adminBase]/events/new` — create event form
 - `[adminBase]/attendance` — monthly attendance ledger and cross-month insights
@@ -133,7 +134,9 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/auth/session`, `/api/auth/admin/exchange`, `/api/auth/admin/callback`, `/api/auth/logout` — Google OAuth and app-owned organizer session lifecycle
 - `/api/admin/organizers*` — owner-only organizer email allowlist management
 - `/api/admin/audit-log` — owner-only audit ledger for organizer sign-ins and successful admin mutations
-- `/api/annual-conference/[year]/work-plan` — organizer-only annual edition/task reads, named-organizer task creation, and all-organizer task edits
+- `/api/annual-conference/editions` — organizer-only edition list and planning-owner-restricted next-edition creation
+- `/api/annual-conference/[year]/work-plan` — organizer-only annual edition/phase/task reads, edition-owner task creation, and all-organizer task edits
+- `/api/annual-conference/[year]/phases` — edition planning-owner phase creation, editing, ordering, and deletion
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail, status update, and admin-only removal

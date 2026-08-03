@@ -45,6 +45,7 @@ export interface AnnualConferenceTask {
   title: string;
   details: string | null;
   internal_note: string | null;
+  phase_id: string | null;
   workstream: AnnualConferenceWorkstream;
   accountable_owner: string | null;
   collaborators: string[];
@@ -66,6 +67,7 @@ export interface AnnualConferenceTaskCreateInput {
   title: string;
   details?: string | null;
   internal_note?: string | null;
+  phase_id?: string | null;
   workstream: AnnualConferenceWorkstream;
   accountable_owner: string;
   collaborators?: string[];
@@ -81,6 +83,7 @@ export type AnnualConferenceTaskUpdateInput = Partial<
     | 'title'
     | 'details'
     | 'internal_note'
+    | 'phase_id'
     | 'workstream'
     | 'accountable_owner'
     | 'collaborators'
@@ -100,6 +103,67 @@ export interface AnnualConferenceWorkPlanSummary {
   unassigned: number;
   completion_percent: number;
 }
+
+export type AnnualConferenceReadiness =
+  | 'complete'
+  | 'on_track'
+  | 'at_risk'
+  | 'off_track'
+  | 'needs_planning';
+
+export interface AnnualConferencePhaseHealth {
+  phase_id: string;
+  total: number;
+  done: number;
+  completion_percent: number;
+  time_elapsed_percent: number;
+}
+
+export interface AnnualConferenceHealthSnapshot {
+  readiness: AnnualConferenceReadiness;
+  total: number;
+  done: number;
+  completion_percent: number;
+  scheduled: number;
+  classified: number;
+  assigned: number;
+  planning_confidence_percent: number;
+  blocked: number;
+  overdue: number;
+  due_soon: number;
+  phase_health: AnnualConferencePhaseHealth[];
+}
+
+export interface AnnualConferencePhase {
+  id: string;
+  edition_id: string;
+  name: string;
+  starts_on: string;
+  ends_on: string;
+  sort_order: number;
+  created_by_email: string | null;
+  updated_by_email: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AnnualConferenceEditionCreateInput {
+  year: number;
+  name: string;
+  label: string;
+  provisional_date: string;
+  task_creator_email?: string | null;
+}
+
+export interface AnnualConferencePhaseCreateInput {
+  name: string;
+  starts_on: string;
+  ends_on: string;
+}
+
+export type AnnualConferencePhaseUpdateInput = Partial<
+  Pick<AnnualConferencePhase, 'name' | 'starts_on' | 'ends_on' | 'sort_order'>
+>;
 
 type AnnualConferenceTaskOwnershipInput = {
   accountable_owner?: string | null;
@@ -153,7 +217,7 @@ export const ANNUAL_CONFERENCE_2026_EDITION: AnnualConferenceEdition = {
 
 type SeedTask = Omit<
   AnnualConferenceTask,
-  'id' | 'edition_id' | 'source' | 'source_row' | 'sort_order' | 'created_by_email' | 'updated_by_email' | 'completed_at' | 'created_at' | 'updated_at'
+  'id' | 'edition_id' | 'phase_id' | 'source' | 'source_row' | 'sort_order' | 'created_by_email' | 'updated_by_email' | 'completed_at' | 'created_at' | 'updated_at'
 > & {
   source_row: number;
 };
@@ -191,8 +255,8 @@ const seedTasks: SeedTask[] = [
     details: 'Confirm the location, capacity, and breakout rooms.',
     internal_note: 'Current candidates: UPSA or Accra Digital Centre.',
     workstream: 'venue_production_logistics',
-    accountable_owner: 'Angela',
-    collaborators: ['Elijah', 'Elvis'],
+    accountable_owner: 'Elijah',
+    collaborators: ['Elvis'],
     priority: null,
     target_date: null,
     status: 'not_started',
@@ -243,7 +307,7 @@ const seedTasks: SeedTask[] = [
     details: 'Announce volunteer recruitment.',
     internal_note: null,
     workstream: 'volunteers',
-    accountable_owner: 'Elvis',
+    accountable_owner: null,
     collaborators: ['Ernest'],
     priority: null,
     target_date: null,
@@ -308,7 +372,7 @@ const seedTasks: SeedTask[] = [
     details: 'Prepare digital and print versions in the required social and email sizes.',
     internal_note: null,
     workstream: 'creative_marketing',
-    accountable_owner: 'Emmanuel',
+    accountable_owner: null,
     collaborators: [],
     priority: null,
     target_date: null,
@@ -321,7 +385,7 @@ const seedTasks: SeedTask[] = [
     details: 'Design the main stage, photo wall, and other branding elements.',
     internal_note: null,
     workstream: 'creative_marketing',
-    accountable_owner: 'Emmanuel',
+    accountable_owner: null,
     collaborators: [],
     priority: null,
     target_date: null,
@@ -497,13 +561,33 @@ const seedTasks: SeedTask[] = [
     status: 'not_started',
     dependency_note: null,
   },
+  {
+    source_row: 28,
+    title: 'Volunteer recruitment',
+    details: 'Recruit new volunteers and coordinate promotion of the call for volunteers.',
+    internal_note: null,
+    workstream: 'volunteers',
+    accountable_owner: null,
+    collaborators: [],
+    priority: null,
+    target_date: null,
+    status: 'not_started',
+    dependency_note: 'Coordinate with the organizer responsible for conference calls and announcements.',
+  },
 ];
+
+const ANNUAL_CONFERENCE_2026_PHASE_1_SOURCE_ROWS = new Set([
+  4, 5, 6, 8, 13, 14, 15, 16, 17, 19, 20, 28,
+]);
 
 export const ANNUAL_CONFERENCE_2026_SEED_TASKS: AnnualConferenceTask[] = seedTasks.map((task, index) => ({
   ...task,
   id: `20260000-0000-4000-8000-${String(index + 2).padStart(12, '0')}`,
   edition_id: ANNUAL_CONFERENCE_2026_EDITION_ID,
-  source: 'excel_seed',
+  phase_id: ANNUAL_CONFERENCE_2026_PHASE_1_SOURCE_ROWS.has(task.source_row)
+    ? '20260000-0000-4000-8000-000000000101'
+    : null,
+  source: task.source_row === 28 ? 'manual' : 'excel_seed',
   sort_order: index + 1,
   created_by_email: null,
   updated_by_email: null,
@@ -512,8 +596,96 @@ export const ANNUAL_CONFERENCE_2026_SEED_TASKS: AnnualConferenceTask[] = seedTas
   updated_at: SEEDED_AT,
 }));
 
-export function canCreateAnnualConferenceTask(email: string | null | undefined): boolean {
-  return String(email ?? '').trim().toLowerCase() === ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL;
+export const ANNUAL_CONFERENCE_2026_PHASES: AnnualConferencePhase[] = [
+  {
+    id: '20260000-0000-4000-8000-000000000101',
+    edition_id: ANNUAL_CONFERENCE_2026_EDITION_ID,
+    name: 'Phase 1',
+    starts_on: '2026-08-01',
+    ends_on: '2026-08-31',
+    sort_order: 1,
+    created_by_email: ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL,
+    updated_by_email: ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL,
+    created_at: SEEDED_AT,
+    updated_at: SEEDED_AT,
+  },
+  {
+    id: '20260000-0000-4000-8000-000000000102',
+    edition_id: ANNUAL_CONFERENCE_2026_EDITION_ID,
+    name: 'Phase 2',
+    starts_on: '2026-09-01',
+    ends_on: '2026-12-19',
+    sort_order: 2,
+    created_by_email: ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL,
+    updated_by_email: ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL,
+    created_at: SEEDED_AT,
+    updated_at: SEEDED_AT,
+  },
+];
+
+export function canManageAnnualConferencePlanning(
+  email: string | null | undefined,
+  taskCreatorEmail = ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL,
+): boolean {
+  return String(email ?? '').trim().toLowerCase() === taskCreatorEmail.trim().toLowerCase();
+}
+
+export function canCreateAnnualConferenceTask(
+  email: string | null | undefined,
+  taskCreatorEmail = ANNUAL_CONFERENCE_TASK_CREATOR_EMAIL,
+): boolean {
+  return canManageAnnualConferencePlanning(email, taskCreatorEmail);
+}
+
+export function defaultAnnualConferencePhaseScope(
+  phases: AnnualConferencePhase[],
+  today: string,
+): string {
+  const orderedPhases = [...phases].sort(
+    (left, right) => left.sort_order - right.sort_order || left.starts_on.localeCompare(right.starts_on),
+  );
+  const current = orderedPhases.find((phase) => today >= phase.starts_on && today <= phase.ends_on);
+  if (current) return current.id;
+
+  const next = orderedPhases.find((phase) => phase.starts_on > today);
+  return next?.id ?? orderedPhases.at(-1)?.id ?? 'all';
+}
+
+export function filterAnnualConferenceTasksByPhase(
+  tasks: AnnualConferenceTask[],
+  phaseScope: string,
+): AnnualConferenceTask[] {
+  if (phaseScope === 'all') return tasks;
+  if (phaseScope === 'unassigned') return tasks.filter((task) => !task.phase_id);
+  return tasks.filter((task) => task.phase_id === phaseScope);
+}
+
+export function validateAnnualConferencePhaseDates(
+  input: Pick<AnnualConferencePhaseCreateInput, 'starts_on' | 'ends_on'>,
+  phases: AnnualConferencePhase[],
+  phaseId?: string,
+): string | null {
+  if (input.ends_on < input.starts_on) return 'Phase end date cannot be before its start date.';
+
+  const overlaps = phases.some((phase) => (
+    phase.id !== phaseId
+    && input.starts_on <= phase.ends_on
+    && input.ends_on >= phase.starts_on
+  ));
+  return overlaps ? 'Phase dates cannot overlap another phase.' : null;
+}
+
+export function validateAnnualConferenceTaskSchedule(
+  input: Pick<AnnualConferenceTaskCreateInput, 'phase_id' | 'target_date'>,
+  phases: AnnualConferencePhase[],
+): string | null {
+  if (!input.phase_id) return null;
+  const phase = phases.find((item) => item.id === input.phase_id);
+  if (!phase) return 'The selected phase does not belong to this conference edition.';
+  if (input.target_date && input.target_date > phase.ends_on) {
+    return `Target date must be on or before ${phase.ends_on}, the end of ${phase.name}.`;
+  }
+  return null;
 }
 
 function ownershipKey(value: string): string {
@@ -700,4 +872,80 @@ export function annualConferenceWorkstreamCounts(
     };
     return result;
   }, {} as Record<AnnualConferenceWorkstream, { total: number; done: number }>);
+}
+
+function dateOrdinal(value: string): number {
+  return Date.parse(`${value}T12:00:00Z`) / 86_400_000;
+}
+
+function percent(part: number, whole: number): number {
+  return whole === 0 ? 0 : Math.round((part / whole) * 100);
+}
+
+export function calculateAnnualConferenceHealth(
+  tasks: AnnualConferenceTask[],
+  phases: AnnualConferencePhase[],
+  today: string,
+): AnnualConferenceHealthSnapshot {
+  const total = tasks.length;
+  const done = tasks.filter((task) => task.status === 'done').length;
+  const scheduled = tasks.filter((task) => Boolean(task.target_date)).length;
+  const classified = tasks.filter((task) => Boolean(task.phase_id)).length;
+  const assigned = tasks.filter((task) => Boolean(task.accountable_owner)).length;
+  const incomplete = tasks.filter((task) => task.status !== 'done');
+  const blocked = incomplete.filter((task) => task.status === 'blocked').length;
+  const overdue = incomplete.filter((task) => Boolean(task.target_date && task.target_date < today)).length;
+  const dueSoonLimit = dateOrdinal(today) + 7;
+  const dueSoon = incomplete.filter((task) => {
+    if (!task.target_date || task.target_date < today) return false;
+    return dateOrdinal(task.target_date) <= dueSoonLimit;
+  }).length;
+
+  const phaseHealth = phases.map((phase) => {
+    const phaseTasks = tasks.filter((task) => task.phase_id === phase.id);
+    const phaseDone = phaseTasks.filter((task) => task.status === 'done').length;
+    const duration = Math.max(1, dateOrdinal(phase.ends_on) - dateOrdinal(phase.starts_on) + 1);
+    const elapsed = Math.min(duration, Math.max(0, dateOrdinal(today) - dateOrdinal(phase.starts_on) + 1));
+
+    return {
+      phase_id: phase.id,
+      total: phaseTasks.length,
+      done: phaseDone,
+      completion_percent: percent(phaseDone, phaseTasks.length),
+      time_elapsed_percent: percent(elapsed, duration),
+    };
+  });
+
+  const currentPhaseHealth = phaseHealth.find((health) => {
+    const phase = phases.find((item) => item.id === health.phase_id);
+    return Boolean(phase && today >= phase.starts_on && today <= phase.ends_on);
+  });
+  const planningConfidence = total === 0
+    ? 100
+    : percent(scheduled + classified + assigned, total * 3);
+
+  let readiness: AnnualConferenceReadiness = 'on_track';
+  if (total > 0 && done === total) readiness = 'complete';
+  else if (scheduled < total || classified < total) readiness = 'needs_planning';
+  else if (overdue > 0 || blocked > 0) readiness = 'off_track';
+  else if (
+    currentPhaseHealth
+    && currentPhaseHealth.total > 0
+    && currentPhaseHealth.time_elapsed_percent - currentPhaseHealth.completion_percent >= 10
+  ) readiness = 'at_risk';
+
+  return {
+    readiness,
+    total,
+    done,
+    completion_percent: percent(done, total),
+    scheduled,
+    classified,
+    assigned,
+    planning_confidence_percent: planningConfidence,
+    blocked,
+    overdue,
+    due_soon: dueSoon,
+    phase_health: phaseHealth,
+  };
 }

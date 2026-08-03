@@ -1,11 +1,17 @@
 import type { AdminRole } from '@/lib/supabase/admin-auth';
 
 const ORGANIZER_ROLES: AdminRole[] = ['owner', 'organizer'];
+const OWNER_ROLES: AdminRole[] = ['owner'];
 const CONFERENCE_MEMBER_ROLES: AdminRole[] = ['owner', 'organizer', 'volunteer'];
 const ANNUAL_WORK_PLAN_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan$/;
 const ANNUAL_TASK_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+$/;
+const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
 
 export function adminRolesForApiRequest(path: string, method: string): AdminRole[] {
+  if (method === 'PATCH' && MEMBERSHIP_ROLE_PATH.test(path)) {
+    return OWNER_ROLES;
+  }
+
   if (method === 'GET' && ANNUAL_WORK_PLAN_PATH.test(path)) {
     return CONFERENCE_MEMBER_ROLES;
   }

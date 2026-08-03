@@ -46,8 +46,8 @@ export const designSystem = {
     body: 400,
     emphasis: 500,
     label: 600,
-    heading: 700,
-    display: 800,
+    heading: 600,
+    display: 700,
   },
 
   // Common Styles

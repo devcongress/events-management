@@ -80,6 +80,8 @@ Required setup:
 
 Organizer access still depends on `admin_memberships`. A successful Google login does not grant organizer permissions unless the verified email is active in the allowlist.
 
+Only owners can change an existing member between the Organizer and Volunteer roles. The People & Access directory exposes this as an inline role selector only to owners, the API repeats the owner check, and a successful role change revokes the member's existing app sessions so the narrower or broader access takes effect on their next sign-in.
+
 For local development, keep Google OAuth pinned to `http://localhost:5173`. The login screen blocks Google sign-in on other local ports or `127.0.0.1` so Supabase does not fall back to the deployed Site URL.
 
 ## Local Development

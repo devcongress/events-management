@@ -52,6 +52,18 @@ function isSelected(value: DropdownValue): boolean {
   return props.modelValue.includes(value);
 }
 
+function selectedOptionShape(index: number): string {
+  const previousOption = props.options[index - 1];
+  const nextOption = props.options[index + 1];
+  const joinsPrevious = Boolean(previousOption && isSelected(previousOption.value));
+  const joinsNext = Boolean(nextOption && isSelected(nextOption.value));
+
+  if (!joinsPrevious && !joinsNext) return 'rounded';
+  if (!joinsPrevious) return 'rounded-t rounded-b-none';
+  if (!joinsNext) return 'rounded-t-none rounded-b border-t border-dc-pink/10';
+  return 'rounded-none border-t border-dc-pink/10';
+}
+
 function toggleValue(value: DropdownValue) {
   const option = props.options.find((item) => item.value === value);
   if (!option || option.disabled) return;
@@ -137,10 +149,10 @@ watch(open, async (isOpen) => {
     <span v-if="label" :id="`${dropdownId}-label`" class="editorial-label">{{ label }}</span>
     <button
       type="button"
-      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)] disabled:cursor-not-allowed disabled:opacity-50"
+      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(232,17,127,0.14)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         label ? 'mt-2' : '',
-        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]' : 'border-dc-border',
+        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(232,17,127,0.14)]' : 'border-dc-border',
       ]"
       :disabled="disabled"
       :aria-expanded="open"
@@ -150,13 +162,6 @@ watch(open, async (isOpen) => {
       @click.stop="toggleDropdown"
     >
       <span :id="`${dropdownId}-value`" class="min-w-0 flex-1 truncate">{{ triggerText }}</span>
-      <span
-        v-if="selectedCount > 0"
-        class="grid min-w-6 shrink-0 place-items-center rounded-full border border-dc-ink bg-dc-yellow px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none text-dc-ink"
-        aria-hidden="true"
-      >
-        {{ selectedCount }}
-      </span>
       <span
         class="motion-icon grid size-6 shrink-0 place-items-center rounded-full border border-dc-border text-dc-pink"
         :class="open ? 'rotate-180 border-dc-pink' : ''"
@@ -171,7 +176,7 @@ watch(open, async (isOpen) => {
       <div
         v-if="open"
         :id="`${dropdownId}-menu`"
-        class="app-dropdown-menu absolute z-50 w-full min-w-64 overflow-hidden rounded-md border border-dc-border bg-white shadow-[0_18px_36px_rgba(17,17,17,0.14)]"
+        class="app-dropdown-menu absolute z-50 w-full min-w-0 overflow-hidden rounded-md border border-dc-border bg-white shadow-[0_18px_36px_rgba(17,17,17,0.14)]"
         :class="[
           menuAlign === 'right' ? 'left-auto right-0' : 'left-0',
           placement === 'top' ? 'bottom-[calc(100%+0.5rem)]' : 'top-[calc(100%+0.5rem)]',
@@ -184,12 +189,14 @@ watch(open, async (isOpen) => {
           aria-multiselectable="true"
         >
           <button
-            v-for="option in options"
+            v-for="(option, optionIndex) in options"
             :key="`${option.value}`"
             type="button"
-            class="motion-colors flex w-full items-center gap-2.5 rounded px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45"
+            class="motion-colors flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-45"
             :class="[
-              isSelected(option.value) ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink',
+              isSelected(option.value)
+                ? `bg-dc-pink/10 text-dc-ink ${selectedOptionShape(optionIndex)}`
+                : 'rounded text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink',
               option.disabled ? 'hover:bg-transparent hover:text-dc-gray' : '',
             ]"
             :disabled="option.disabled"
@@ -200,7 +207,7 @@ watch(open, async (isOpen) => {
           >
             <span
               class="grid size-5 shrink-0 place-items-center rounded border"
-              :class="isSelected(option.value) ? 'border-dc-ink bg-dc-ink text-white' : 'border-dc-border bg-white'"
+              :class="isSelected(option.value) ? 'border-dc-pink bg-white text-dc-pink' : 'border-dc-border bg-white'"
               aria-hidden="true"
             >
               <svg v-if="isSelected(option.value)" viewBox="0 0 20 20" class="size-3.5" fill="none">
@@ -228,7 +235,7 @@ watch(open, async (isOpen) => {
           </button>
           <button
             type="button"
-            class="motion-press min-h-9 rounded-md border border-dc-ink bg-dc-yellow px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-ink"
+            class="motion-press min-h-9 rounded-md border border-dc-pink bg-dc-pink px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white"
             @click="closeDropdown"
           >
             Done

@@ -55,10 +55,20 @@ describe('typography system', () => {
     expect(styles).toContain('--font-weight-body: 400');
     expect(styles).toContain('--font-weight-emphasis: 500');
     expect(styles).toContain('--font-weight-label: 600');
-    expect(styles).toContain('--font-weight-heading: 700');
-    expect(styles).toContain('--font-weight-display: 800');
+    expect(styles).toContain('--font-weight-heading: 600');
+    expect(styles).toContain('--font-weight-display: 700');
     expect(tailwind).toContain("extrabold: 'var(--font-weight-display)'");
-    expect(designSystem).toContain('display: 800');
+    expect(designSystem).toContain('display: 700');
     expect(entry).not.toContain('@fontsource/inter/latin-900.css');
+  });
+
+  it('keeps the pre-JavaScript boot screen on stable fallback fonts', () => {
+    const boot = readFileSync(join(WORKSPACE_ROOT, 'lib', 'app-boot.ts'), 'utf8');
+
+    expect(boot).toContain('font-family:-apple-system,BlinkMacSystemFont');
+    expect(boot).toContain('.app-boot__title{');
+    expect(boot).toContain('font-weight:600');
+    expect(boot).not.toContain('font-family:Inter');
+    expect(boot).not.toContain('font-family:"IBM Plex Mono"');
   });
 });
