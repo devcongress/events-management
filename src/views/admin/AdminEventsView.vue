@@ -10,7 +10,6 @@ import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.v
 import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
 import { createNativeEvent, deleteEventById, fetchEvents, queryKeys } from '@/src/lib/api';
 import { createEventFormSchema, toCreateEventApiPayload, toEventSlug } from '@/src/lib/event-form';
-import { REGISTRATION_SETUP_HISTORY_KEY } from '@/src/lib/registration-settings';
 import {
   compressionSavingsPercent,
   compressMeetupImageForUpload,
@@ -270,10 +269,7 @@ async function createEvent() {
     if (coverUploadError) {
       notify.error(`Event created, but its cover was not uploaded: ${coverUploadError}`);
     }
-    await router.push({
-      path: adminPath(`events/${result.event.id}/registrations`),
-      state: { [REGISTRATION_SETUP_HISTORY_KEY]: true },
-    });
+    await router.push(adminPath(`events/${result.event.id}/registrations`));
   } catch (error) {
     createError.value = error instanceof Error ? error.message : 'Unable to create the event.';
     notify.error(createError.value);
@@ -412,7 +408,7 @@ function goToPage(nextPage: number) {
           <div>
             <p class="editorial-eyebrow">organizer</p>
             <h1 class="editorial-title">Create New Event</h1>
-            <p class="editorial-subtitle">Create the event and its private registration campaign together. Registration stays in draft until you open it.</p>
+            <p class="editorial-subtitle">Create the event and its registration campaign together. Registration opens immediately unless you schedule it for later.</p>
           </div>
         </div>
 
@@ -460,7 +456,7 @@ function goToPage(nextPage: number) {
               :disabled="createPending"
             />
             <div v-if="form.location_kind === 'physical' && form.physical_location_type === 'maps'">
-              <label for="event-location-url" class="editorial-label">Google Maps link <span class="text-red-600">*</span></label>
+              <label for="event-location-url" class="editorial-label">Google Maps share link <span class="text-red-600">*</span></label>
               <input
                 id="event-location-url"
                 v-model="form.location_url"
@@ -472,7 +468,7 @@ function goToPage(nextPage: number) {
                 required
                 placeholder="https://maps.app.goo.gl/..."
               >
-              <p class="mt-2 text-xs leading-5 text-dc-gray">The public event will link directly to this location instead of showing a separate venue name.</p>
+              <p class="mt-2 text-xs leading-5 text-dc-gray">Paste the full HTTPS share link from Google Maps. Guests will see an “Open in Google Maps” link.</p>
             </div>
             <div v-if="form.location_kind === 'online'">
               <label for="event-stream-url" class="editorial-label">Online event link <span class="text-red-600">*</span></label>
@@ -537,9 +533,9 @@ function goToPage(nextPage: number) {
               <div>
                 <p class="editorial-eyebrow">registration</p>
                 <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Free guest list</h2>
-                <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">The campaign is created as a draft. Open it from the Registration tab when the public form is ready.</p>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Registration opens when the event is created. Add an opening time below only when it should start later.</p>
               </div>
-              <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Draft</span>
+              <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ form.registration_opens_at ? 'Scheduled' : 'Opens on create' }}</span>
             </div>
           </div>
           <div class="grid gap-5 p-5 md:grid-cols-3">

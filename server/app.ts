@@ -254,6 +254,7 @@ const eventRegistrationSubmissionSchema = z.object({
 }).strict();
 const eventRegistrationCampaignUpdateSchema = z.object({
   status: z.enum(['draft', 'open', 'closed']).optional(),
+  description: z.string().trim().max(2000).nullable().optional(),
   capacity: z.coerce.number().int().min(1).max(5000).optional(),
   opens_at: z.string().datetime().nullable().optional(),
   closes_at: z.string().datetime().nullable().optional(),
@@ -1010,10 +1011,13 @@ async function updateEvent(id: string, updates: Partial<Omit<Event, 'id' | 'crea
   return canonicalizeEventSchedule(await updateMockEvent(id, updates));
 }
 
-async function deleteEvent(id: string, c?: Context): Promise<void> {
+async function deleteEvent(id: string, c?: Context): Promise<boolean> {
   const deleted = await deleteSupabaseCommunityEvent(id, c);
-  if (deleted !== null) return;
+  if (deleted !== null) return deleted;
+  const existing = await getMockEventById(id);
+  if (!existing) return false;
   await deleteMockEvent(id);
+  return true;
 }
 
 async function getFeedbackCampaignByEventStore(eventId: string, c?: Context): Promise<FeedbackCampaign | undefined> {
@@ -1299,7 +1303,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     status: publicMeetupStatus(event),
     start: toWebsiteDateTime(event.event_date),
     end: endDate,
-    description: event.description ?? 'A DevCongress community meetup for talks, peer learning, and practical developer conversations.',
+    description: event.description ?? '',
     cover: safeWebsiteUrl(coverForEvent(event)) ?? PUBLIC_MEETUP_COVERS[0],
     location: {
       ...location,
@@ -4169,6 +4173,7 @@ app.get('/api/registration/events/:eventId', async (c) => {
     },
     campaign: {
       status: campaign.status,
+      description: campaign.description,
       opens_at: campaign.opens_at,
       closes_at: campaign.closes_at,
       waitlist_enabled: campaign.waitlist_enabled,
@@ -4344,6 +4349,7 @@ app.post('/api/events', async (c) => {
     }, c);
     event = await updateEvent(event.id, {
       registration_url: publicRegistrationUrl(event, c),
+      status: payload.publish_to_website ? 'upcoming' : event.status,
     }, c);
     const registrationCampaign = await createRegistrationCampaign(event.id, payload.registration, c);
 
@@ -4634,11 +4640,15 @@ app.patch('/api/events/:eventId/registrations', async (c) => {
   if (!updated) {
     return c.json({ error: 'Registration campaign not found.' }, 404);
   }
+  const { description: _description, ...auditedSettings } = parsed.data;
   await auditAdminAction(c, {
     action: 'event.registration_campaign.update',
     targetType: 'event',
     targetId: eventId,
-    metadata: parsed.data,
+    metadata: {
+      ...auditedSettings,
+      registration_introduction_updated: parsed.data.description !== undefined,
+    },
   });
   return c.json(updated);
 });
@@ -4850,25 +4860,35 @@ app.delete('/api/events/:eventId', async (c) => {
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
-  const event = await getEventById(eventId, c);
-
-  if (!event) {
-    return c.json({ error: 'Event not found' }, 404);
-  }
 
   try {
-    await deleteEvent(eventId, c);
+    let event: Event | undefined;
+    try {
+      event = await getEventById(eventId, c);
+    } catch (error) {
+      console.warn(JSON.stringify({
+        event: 'event_delete_metadata_load_failed',
+        request_id: c.get('requestId') ?? null,
+        error_name: safeErrorName(error),
+      }));
+    }
+
+    const deleted = await deleteEvent(eventId, c);
+    if (!deleted) {
+      return c.json({ error: 'Event not found' }, 404);
+    }
+
     await auditAdminAction(c, {
       action: 'event.delete',
       targetType: 'event',
       targetId: eventId,
       metadata: {
-        name: event.name,
-        event_date: event.event_date,
-        status: event.status,
-        external_source: event.external_source ?? null,
-        external_id: event.external_id ?? null,
-        registration_url: event.registration_url ?? null,
+        name: event?.name ?? null,
+        event_date: event?.event_date ?? null,
+        status: event?.status ?? null,
+        external_source: event?.external_source ?? null,
+        external_id: event?.external_id ?? null,
+        registration_url: event?.registration_url ?? null,
         deleted_event_ids: [eventId],
       },
     });

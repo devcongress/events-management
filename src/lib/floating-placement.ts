@@ -29,6 +29,7 @@ interface FloatingPositionOptions {
   viewport: FloatingViewport;
   panelHeight: number;
   preferredWidth?: number;
+  maxWidth?: number;
   align?: 'left' | 'right';
   gap?: number;
   margin?: number;
@@ -43,6 +44,7 @@ export function calculateFloatingPosition({
   viewport,
   panelHeight,
   preferredWidth = 304,
+  maxWidth = Number.POSITIVE_INFINITY,
   align = 'left',
   gap = 8,
   margin = 8,
@@ -50,7 +52,7 @@ export function calculateFloatingPosition({
   const viewportRight = viewport.left + viewport.width;
   const viewportBottom = viewport.top + viewport.height;
   const availableWidth = Math.max(0, viewport.width - margin * 2);
-  const width = Math.min(Math.max(anchor.width, preferredWidth), availableWidth);
+  const width = Math.min(Math.max(anchor.width, preferredWidth), availableWidth, maxWidth);
   const alignedLeft = align === 'right' ? anchor.right - width : anchor.left;
   const left = clamp(
     alignedLeft,

@@ -392,10 +392,10 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
               <button type="button" class="motion-press rounded-md border border-dc-pink bg-dc-pink px-4 py-2 font-mono text-[10px] font-semibold uppercase text-white" @click="startCreate">Add phase</button>
             </header>
             <Transition name="health-panel">
-              <form v-if="editorOpen" class="grid gap-4 border-b border-dc-border bg-dc-paper-warm p-5 lg:grid-cols-3" @submit.prevent="submitPhase">
-                <label><span class="editorial-label">Phase name</span><input v-model="form.name" class="editorial-input mt-2" maxlength="80" required></label>
-                <AppDatePicker v-model="form.starts_on" label="Starts" required />
-                <AppDatePicker v-model="form.ends_on" label="Ends" required />
+              <form v-if="editorOpen" class="grid gap-4 border-b border-dc-border bg-dc-paper-warm p-5 lg:grid-cols-3 lg:items-end" @submit.prevent="submitPhase">
+                <label class="block w-full"><span class="editorial-label">Phase name</span><input v-model="form.name" class="editorial-input mt-2 min-h-[50px]" maxlength="80" required></label>
+                <AppDatePicker v-model="form.starts_on" class="w-full" label="Starts" required />
+                <AppDatePicker v-model="form.ends_on" class="w-full" label="Ends" required />
                 <div class="flex justify-end gap-2 lg:col-span-3">
                   <button type="button" class="motion-press min-h-10 rounded-md border border-dc-ink bg-white px-4 font-mono text-[10px] font-semibold uppercase" @click="resetEditor">Cancel</button>
                   <button type="submit" class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-pink px-4 font-mono text-[10px] font-semibold uppercase text-white" :disabled="createMutation.isPending.value || updatePhaseMutation.isPending.value">Save phase</button>

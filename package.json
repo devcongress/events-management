@@ -26,7 +26,7 @@
     "@usenavii/core": "^0.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "hono": "^4.12.27",
+    "hono": "^4.13.0",
     "pdf-parse": "^2.4.5",
     "qrcode": "^1.5.4",
     "tailwind-merge": "^3.4.0",
@@ -59,6 +59,7 @@
       "@hono/vite-dev-server>@hono/node-server": "2.0.12",
       "@hono/vite-dev-server>minimatch": "10.2.6",
       "brace-expansion": "5.0.9",
+      "undici": "7.29.0",
       "tsx>esbuild": "0.28.1"
     }
   }

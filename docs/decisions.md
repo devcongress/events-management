@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-044: Independent Event Lifecycle and Registration Introduction
+
+**Date:** 2026-08-03
+**Status:** Accepted
+**Context:** Creating a website-published event produced contradictory organizer states: publication was marked published while the event lifecycle remained draft. The public registration ticket also reused the event About description, which made inherited or long-form event copy appear as though the organizer had written it specifically for registration. Registration should open with creation by default, but organizers still need to schedule a future opening time during that same flow.
+**Decision:** When a newly created event is published to the website, set its operational lifecycle to `upcoming`; retain `draft` only for unpublished planning shells. Create the registration campaign as `open`, while preserving an organizer-supplied future `opens_at` so availability remains scheduled until that timestamp. Store an optional, plain-text registration introduction on the registration campaign, separate from the event About description. Show only that introduction on the RSVP form; show the event About description on the read-only event-details view. Default the registration introduction to blank, validate it at 2,000 characters in both API and database boundaries, and keep updates behind the existing organizer-authorized campaign mutation.
+**Trade-offs:** Organizers now manage two intentional pieces of copy, so the workspace must label their destinations clearly. Existing campaigns receive a blank introduction and therefore stop inheriting event About copy on their RSVP form. Published events can no longer remain lifecycle drafts immediately after creation, while unpublished events retain that planning state. Scheduled registration is represented by an open campaign whose availability window has not begun, preserving one campaign lifecycle without pretending the form is currently accepting guests.
+**Alternatives considered:** Continue reusing event About copy (caused unexplained registration text), invent a fallback introduction (attributes unsaved copy to the organizer), remove creation-time scheduling (conflicts with the agreed organizer workflow), or keep published events in draft (continues contradictory status reporting).
+**Revisit when:** Registration needs structured content blocks, event publication and registration require separate approval workflows, or lifecycle state becomes fully derived from publication and timestamps.
+
+---
+
 ## ADR-043: Role-Specific Annual Conference Mobile Workspace
 
 **Date:** 2026-08-03

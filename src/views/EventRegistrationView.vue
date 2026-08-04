@@ -41,6 +41,11 @@ const registrationCoverSrc = computed(() => {
   return versionPublicMeetupMediaUrl(event.cover, event.updated_at);
 });
 const detailsMapUrl = computed(() => safeGoogleMapsUrl(registration.value?.event.location?.url));
+const displayedDescription = computed(() => (
+  eventDetailsView.value
+    ? registration.value?.event.description
+    : registration.value?.campaign.description
+));
 const canSubmit = computed(() => (
   registration.value?.available === true
   && form.name.trim().length > 0
@@ -127,7 +132,7 @@ async function submitRegistration() {
           <div class="registration-event-body">
             <p class="editorial-eyebrow">free monthly meetup</p>
             <h1 class="registration-event-title">{{ registration.event.name }}</h1>
-            <p v-if="registration.event.description" class="registration-event-description">{{ registration.event.description }}</p>
+            <p v-if="displayedDescription" class="registration-event-description">{{ displayedDescription }}</p>
             <dl class="registration-event-meta">
               <div>
                 <dt>When</dt>
@@ -135,7 +140,21 @@ async function submitRegistration() {
               </div>
               <div>
                 <dt>Where</dt>
-                <dd>{{ registration.event.location?.label ?? registration.event.location?.name ?? 'To be announced' }}</dd>
+                <dd>
+                  <a
+                    v-if="detailsMapUrl"
+                    :href="detailsMapUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="registration-location-link"
+                  >
+                    Open in Google Maps
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                  <template v-else>
+                    {{ registration.event.location?.label ?? registration.event.location?.name ?? 'To be announced' }}
+                  </template>
+                </dd>
               </div>
             </dl>
           </div>
@@ -455,6 +474,26 @@ async function submitRegistration() {
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.registration-location-link {
+  color: #c50067;
+  text-decoration: underline;
+  text-decoration-color: #f2dd22;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2rem;
+}
+
+.registration-location-link:focus-visible {
+  border-radius: 0.2rem;
+  outline: 2px solid #111111;
+  outline-offset: 0.2rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .registration-location-link:hover {
+    color: #111111;
+  }
 }
 
 .registration-action-card {
