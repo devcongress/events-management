@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { EVENT_SERIES_SELECTIONS, eventSeriesSelectionToValue } from '@/lib/event-series';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
+import { EVENT_FORMATS } from '@/lib/event-format';
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const LOCAL_DATE_TIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
@@ -63,6 +64,7 @@ export const createEventFormSchema = z.object({
   name: z.string().trim().min(1, 'Add the meetup name.'),
   description: z.string().trim().min(1, 'Add a short description for the meetup.'),
   event_date: z.string().trim().refine(isValidCalendarValue, 'Choose the meetup start date and time.'),
+  format: z.enum(EVENT_FORMATS).default('meetup'),
   series_type: z.enum(EVENT_SERIES_SELECTIONS).default('monthly'),
   end_date: z.string().trim().optional().default(''),
   slug: z.string().trim().optional().default(''),
@@ -74,7 +76,7 @@ export const createEventFormSchema = z.object({
   require_ghana_venue_selection: z.boolean().default(false),
   location_url: z.string().trim().max(2048, 'The Google Maps link is too long.').optional().default(''),
   stream_url: z.string().trim().max(2048, 'The video conference link is too long.').optional().default(''),
-  publish_to_website: z.boolean().default(false),
+  publish_to_website: z.boolean().default(true),
   registration_capacity: z.coerce.number().int().min(1, 'Capacity must be at least 1.').max(5000, 'Capacity cannot exceed 5,000.').default(100),
   registration_opens_at: z.string().trim().optional().default(''),
   registration_closes_at: z.string().trim().optional().default(''),
@@ -201,6 +203,7 @@ export function toCreateEventApiPayload(value: CreateEventFormPayload) {
     name: value.name,
     description: value.description,
     event_date: normalizeEventDateValue(value.event_date),
+    format: value.format,
     series_type: eventSeriesSelectionToValue(value.series_type),
     end_date: value.end_date ? normalizeEventDateValue(value.end_date) : null,
     slug: emptyToNull(value.slug),

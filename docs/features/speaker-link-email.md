@@ -49,7 +49,7 @@ Relevant code:
 
 ### Program-based archive request
 
-**Archive Requests** lets an organizer choose one or more topic/speaker rows from the event's program outline and a link expiry. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Because the July program outline does not store speaker emails, the organizer enters one address for each selected row. The address is used for this one-off request and its identity-locked private link; it is not written back into the program outline or speaker allowlist. The selected program row remains the server-authoritative source of presenter name, talk title, and archive-item kind.
+**Archive Requests** is off by default for every monthly event. An organizer explicitly selects **Enable archive requests** before the composer appears, so no private-link email can be sent by accident. Existing issued links remain visible and manageable while new requests are off. Welcome-address and system-design rows are excluded because they do not use the speaker archive-intake flow. Because the July program outline does not store speaker emails, the organizer enters one address for each selected row. The address is used for this one-off request and its identity-locked private link; it is not written back into the program outline or speaker allowlist. The selected program row remains the server-authoritative source of presenter name, talk title, and archive-item kind.
 
 One submit creates a fresh `archive_backfill` link and sends a personalized email with the private URL behind a branded call-to-action. An already accepted program identity is suppressed; a failed provider attempt is deleted and a retry receives a new token because raw tokens are never recoverable. The email uses the public app's DevCongress wordmark, a near-black responsive body, and a neutral session card with the existing presentation-kit illustration. Yellow stays in image-based brand accents only; no live text is placed on a yellow email surface, so forced dark palettes cannot turn a yellow card into a low-contrast state. The private token stays exclusively in the CTA `href` and plain-text fallback. The session card truncates unusually long titles deterministically while the plain-text fallback retains the complete title. The private form presents that organizer-selected title as locked invitation context and omits it from the browser submission; the API always restores the title from the one-time link. The form collects the remaining topic, optional public resource URL, and concise fixed-height content fields: the abstract or demo summary is capped at 500 characters and the presenter bio at 300, with live counters and matching server validation. Inputs and the topic trigger use a quiet ink focus ring instead of a yellow halo, while the selected topic uses a restrained pink tint and checkmark. It reuses the existing archive path instead of introducing a second archive form.
 
@@ -100,12 +100,13 @@ The conference CFP form and canonical public URL must be live before a Broadcast
 
 In **Archive Requests**:
 
-1. The organizer sees every eligible program speaker in one inline roster, with the speaker name, topic, selection control, and email field kept together instead of hidden in a dropdown.
-2. Selecting a row activates its required email field; `Select all unsent` and `Clear selection` support the one-off bulk workflow.
-3. Successfully sent rows are disabled and labelled `Sent`; the server enforces the same program-item suppression even if a different address is submitted later.
-4. The organizer chooses the link lifetime; seven days remains the default.
-5. `Send email` creates one fresh link per unsent selection and submits one personalized Resend batch.
-6. A successful Resend response produces an `Email sent` or count-aware success toast. Configuration, network, and provider rejections use the same non-blocking error-toast surface instead of a persistent page banner. A rejected request remains retryable, but retry issuance creates a new raw token/link.
+1. The organizer explicitly enables Archive Requests for the event; the server rejects direct creation calls while that per-event workflow remains off.
+2. The organizer sees every eligible program speaker in one inline roster, with the speaker name, topic, selection control, and email field kept together instead of hidden in a dropdown.
+3. Selecting a row activates its required email field; `Select all unsent` and `Clear selection` support the one-off bulk workflow.
+4. Successfully sent rows are disabled and labelled `Sent`; the server enforces the same program-item suppression even if a different address is submitted later.
+5. The organizer chooses the link lifetime; seven days remains the default.
+6. `Send email` creates one fresh link per unsent selection and submits one personalized Resend batch.
+7. A successful Resend response produces an `Email sent` or count-aware success toast. Configuration, network, and provider rejections use the same non-blocking error-toast surface instead of a persistent page banner. A rejected request remains retryable, but retry issuance creates a new raw token/link.
 
 ### Server behavior
 

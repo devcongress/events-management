@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DELETE_CONFIRMATION,
+  PRIVATE_BETA_DELETE_CONFIRMATION,
   isTestEventLabel,
   mergeTestEvents,
   parseCleanupArguments,
@@ -9,14 +10,35 @@ import {
 
 describe('cleanup test event data safeguards', () => {
   it('defaults to a dry run', () => {
-    expect(parseCleanupArguments([])).toEqual({ execute: false, confirmation: null, help: false });
+    expect(parseCleanupArguments([])).toEqual({
+      execute: false,
+      confirmation: null,
+      help: false,
+      scope: 'test-label',
+    });
   });
 
   it('parses the explicit destructive confirmation', () => {
-    expect(parseCleanupArguments(['--execute', '--confirm', DELETE_CONFIRMATION])).toEqual({
+    expect(parseCleanupArguments(['--', '--execute', '--confirm', DELETE_CONFIRMATION])).toEqual({
       execute: true,
       confirmation: DELETE_CONFIRMATION,
       help: false,
+      scope: 'test-label',
+    });
+  });
+
+  it('requires an explicit private-beta scope and confirmation', () => {
+    expect(parseCleanupArguments([
+      '--scope',
+      'private-beta',
+      '--execute',
+      '--confirm',
+      PRIVATE_BETA_DELETE_CONFIRMATION,
+    ])).toEqual({
+      execute: true,
+      confirmation: PRIVATE_BETA_DELETE_CONFIRMATION,
+      help: false,
+      scope: 'private-beta',
     });
   });
 

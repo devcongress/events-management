@@ -45,8 +45,11 @@ describe('event registration policy', () => {
   it('only opens an open campaign inside its configured window', () => {
     expect(registrationAvailability(campaign, Date.parse('2026-07-28T12:00:00Z'))).toEqual({ available: true });
     expect(registrationAvailability({ ...campaign, status: 'draft' })).toEqual({ available: false, reason: 'draft' });
+    expect(registrationAvailability({ ...campaign, status: 'closed' })).toEqual({ available: false, reason: 'closed' });
     expect(registrationAvailability({ ...campaign, opens_at: '2026-07-29T00:00:00Z' }, Date.parse('2026-07-28T12:00:00Z')))
       .toEqual({ available: false, reason: 'not_open' });
+    expect(registrationAvailability({ ...campaign, closes_at: '2026-07-27T00:00:00Z' }, Date.parse('2026-07-28T12:00:00Z')))
+      .toEqual({ available: false, reason: 'ended' });
   });
 
   it('confirms inside capacity and waitlists after capacity', () => {

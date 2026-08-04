@@ -35,8 +35,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events` | Organizer event list |
 | `/organizer-console/events/submissions` | Events-workspace moderation inbox for pending, approved, and rejected public event proposals |
 | `/organizer-console/event-submissions` | Compatibility redirect to the Events-workspace community submissions inbox |
-| `/organizer-console/website-preview/events` | Authenticated, phone-safe preview of the published event collection rendered from the exact `GET /api/public/meetups` consumer payload |
-| `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/public/meetups/:slug`, with a direct link to inspect the JSON |
+| `/organizer-console/website-preview/events` | Authenticated, phone-safe preview of the complete published event collection rendered from `GET /api/admin/events-preview`, including private-beta submissions |
+| `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/admin/events-preview/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview; volunteer summaries contain only assigned work |
 | `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; organizers receive complete planning controls while volunteers see assigned tasks and may update status only |
@@ -89,9 +89,10 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST/PATCH/DELETE /api/annual-conference/:year/phases*` | Planning-owner phase management with non-overlap and task target-date safeguards |
 | `/api/quiz*` | Separate quiz and System Design learning-room sessions, reviewed questions, protected presenter controls/state, and anonymous join/answer state |
 | `/api/public/meetups*` | Read-only website integration API |
-| `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and approved, published external listings |
-| `POST /api/public/event-submissions` | Strict public proposal intake with purpose-specific Turnstile hostname validation and distributed client/email limits |
+| `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and, behind an independent fail-closed discovery gate, approved and published public-submission listings |
+| `POST /api/public/event-submissions` | Runtime-gated public proposal intake with strict schema validation, purpose-specific Turnstile hostname validation, and distributed client/email limits |
 | `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, and idempotent failed-email retry |
+| `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Owner-only organizer email allowlist management |
 | `/api/admin/audit-log` | Owner-only audit log read API |

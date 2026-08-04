@@ -188,6 +188,18 @@ export interface PublicMeetupResponse {
   data: PublicMeetup;
 }
 
+export interface AdminEventPreviewResponse {
+  data: PublicMeetup[];
+  meta: {
+    source: 'events-management-preview';
+    version: 1;
+  };
+}
+
+export interface AdminEventPreviewDetailResponse {
+  data: PublicMeetup;
+}
+
 export interface FeedbackEventStatusResponse {
   available: boolean;
   feedback_window: {
@@ -284,6 +296,8 @@ export const queryKeys = {
   publicHome: ['public-home'] as const,
   publicMeetups: ['public-meetups'] as const,
   publicMeetup: (slug: string) => ['public-meetup', slug] as const,
+  adminEventPreview: ['admin-event-preview'] as const,
+  adminEventPreviewDetail: (slug: string) => ['admin-event-preview', slug] as const,
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
   volunteerApplications: ['volunteer-applications'] as const,
@@ -510,6 +524,20 @@ export function fetchPublicMeetups() {
 export function fetchPublicMeetup(slug: string) {
   return fetchJson<PublicMeetupResponse>(`/api/public/meetups/${encodeURIComponent(slug)}`, {
     cache: 'no-store',
+  });
+}
+
+export function fetchAdminEventPreview() {
+  return fetchJson<AdminEventPreviewResponse>('/api/admin/events-preview', {
+    cache: 'no-store',
+    credentials: 'include',
+  });
+}
+
+export function fetchAdminEventPreviewDetail(slug: string) {
+  return fetchJson<AdminEventPreviewDetailResponse>(`/api/admin/events-preview/${encodeURIComponent(slug)}`, {
+    cache: 'no-store',
+    credentials: 'include',
   });
 }
 

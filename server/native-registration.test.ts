@@ -281,14 +281,31 @@ describe('native event registration API', () => {
         name: 'Community Demo Night',
         description: 'An independent community gathering.',
         event_date: '2026-08-20',
+        format: 'conference',
         series_type: null,
         location: { name: 'Accra', label: 'Accra', url: null },
       }),
     });
 
     expect(createResponse.status).toBe(201);
-    const created = await createResponse.json() as { event: { id: string; series_type: string | null } };
+    const created = await createResponse.json() as { event: { id: string; format: string; series_type: string | null } };
     expect(created.event.series_type).toBeNull();
+    expect(created.event.format).toBe('conference');
+
+    const formatUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: 'hackathon' }),
+    });
+    expect(formatUpdate.status).toBe(200);
+    await expect(formatUpdate.json()).resolves.toMatchObject({ format: 'hackathon' });
+
+    const invalidFormatUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: 'congress' }),
+    });
+    expect(invalidFormatUpdate.status).toBe(400);
 
     const invalidUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'PATCH',
@@ -378,7 +395,6 @@ describe('native event registration API', () => {
         series_type: 'monthly',
         location: { name: 'Fido, Accra', label: 'Fido, Accra', url: null },
         stream_url: 'https://meet.google.com/abc-defg-hij',
-        publish_to_website: true,
         registration: {
           capacity: 1,
           opens_at: null,
@@ -391,7 +407,14 @@ describe('native event registration API', () => {
 
     expect(createResponse.status).toBe(201);
     const created = await createResponse.json() as {
-      event: { id: string; slug: string; status: string; registration_url: string; stream_url: string | null };
+      event: {
+        id: string;
+        slug: string;
+        status: string;
+        publish_to_website: boolean;
+        registration_url: string;
+        stream_url: string | null;
+      };
       registration_campaign: {
         status: string;
         description: string | null;
@@ -403,6 +426,7 @@ describe('native event registration API', () => {
     expect(created.event.registration_url).toBe('http://localhost/r/august-2026-meetup');
     expect(created.event.stream_url).toBe('https://meet.google.com/abc-defg-hij');
     expect(created.event.status).toBe('upcoming');
+    expect(created.event.publish_to_website).toBe(true);
     expect(created.registration_campaign).toMatchObject({
       status: 'open',
       description: null,

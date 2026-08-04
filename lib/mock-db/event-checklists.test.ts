@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Event } from '@/types';
+import { ARCHIVE_REQUESTS_CHECKLIST_LABEL } from '@/lib/event-checklist-policy';
 
 const originalCwd = process.cwd();
 let tempRoot: string;
@@ -38,6 +39,20 @@ afterEach(async () => {
 });
 
 describe('event checklists', () => {
+  it('creates monthly archive requests disabled until organizers opt in', async () => {
+    const { getEventChecklist } = await importChecklistStore();
+    const event = eventFixture({ series_type: 'monthly' });
+
+    const items = await getEventChecklist(event.id, event.status, event);
+    const archiveRequests = items.find((item) => item.label === ARCHIVE_REQUESTS_CHECKLIST_LABEL);
+
+    expect(archiveRequests).toMatchObject({
+      disabled_by: 'System',
+      completed: false,
+    });
+    expect(archiveRequests?.disabled_at).toEqual(expect.any(String));
+  });
+
   it('uses the two-item quarterly checklist for fresh quarterly meetups', async () => {
     const { getEventChecklist } = await importChecklistStore();
     const event = eventFixture({

@@ -31,6 +31,7 @@ const emit = defineEmits<{
 
 const panelRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
+const taskFormId = 'annual-conference-task-form';
 const drawerEyebrow = computed(() => {
   if (props.mode === 'create') return 'New task';
   if (props.mode === 'edit') return 'Editing task';
@@ -195,10 +196,12 @@ onUnmounted(() => {
                   </p>
                 </div>
                 <AnnualConferenceTaskForm
+                  :form-id="taskFormId"
                   mode="create"
                   :phases="phases"
                   :default-phase-id="defaultPhaseId"
                   :submitting="submitting"
+                  :show-actions="false"
                   @submit="emit('submit', $event)"
                   @cancel="emit('close')"
                 />
@@ -214,10 +217,12 @@ onUnmounted(() => {
                   </span>
                 </div>
                 <AnnualConferenceTaskForm
+                  :form-id="taskFormId"
                   mode="edit"
                   :task="task"
                   :phases="phases"
                   :submitting="submitting"
+                  :show-actions="false"
                   @submit="emit('submit', $event)"
                   @cancel="emit('cancelEdit')"
                 />
@@ -290,10 +295,28 @@ onUnmounted(() => {
           </div>
 
           <footer
-            v-if="mode === 'details' && task"
+            v-if="mode === 'create' || mode === 'edit' || task"
             class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-dc-ink bg-dc-paper px-5 py-4 sm:px-6"
           >
-            <template v-if="statusOnly">
+            <template v-if="mode === 'create' || mode === 'edit'">
+              <button
+                type="button"
+                class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-dc-ink"
+                :disabled="submitting"
+                @click="mode === 'create' ? emit('close') : emit('cancelEdit')"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                :form="taskFormId"
+                class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[2px_2px_0_#111111] disabled:cursor-wait disabled:opacity-60"
+                :disabled="submitting"
+              >
+                {{ submitting ? 'Saving…' : mode === 'create' ? 'Add task' : 'Save changes' }}
+              </button>
+            </template>
+            <template v-else-if="task && statusOnly">
               <span class="mr-auto font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
                 Update status
               </span>
@@ -313,14 +336,14 @@ onUnmounted(() => {
               </button>
             </template>
             <button
-              v-else-if="canEdit"
+              v-else-if="task && canEdit"
               type="button"
               class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white shadow-[2px_2px_0_#111111]"
               @click="emit('edit')"
             >
               Edit task
             </button>
-            <p v-else class="mr-auto max-w-lg text-xs font-semibold leading-5 text-dc-gray">
+            <p v-else-if="task" class="mr-auto max-w-lg text-xs font-semibold leading-5 text-dc-gray">
               {{ readOnlyMessage ?? 'Only a platform owner, planning owner, or assigned task owner/collaborator can edit this task.' }}
             </p>
           </footer>

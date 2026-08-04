@@ -105,6 +105,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
   vi.stubEnv('NODE_ENV', 'test');
+  vi.stubEnv('PUBLIC_EVENT_SUBMISSIONS_ENABLED', 'true');
   vi.stubEnv('TURNSTILE_SECRET_KEY', '');
   mocks.create.mockResolvedValue(submission);
   mocks.list.mockResolvedValue([submission]);
@@ -119,6 +120,26 @@ afterEach(() => {
 });
 
 describe('community event submissions', () => {
+  it('fails closed before validation, security providers, or persistence when intake is disabled', async () => {
+    vi.stubEnv('PUBLIC_EVENT_SUBMISSIONS_ENABLED', 'false');
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'submissions_disabled',
+        message: 'Event submissions are not currently accepting new proposals.',
+      },
+    });
+    expect(mocks.rateLimit).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it('accepts a validated proposal as a pending receipt without trusting a source field', async () => {
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/event-submissions', {
@@ -140,7 +161,7 @@ describe('community event submissions', () => {
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
   });
 
-  it('marks new submissions when the server test-mode variable is enabled', async () => {
+  it('keeps public submission titles unchanged when organizer event test mode is enabled', async () => {
     vi.stubEnv('EVENT_TEST_MODE', 'true');
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/event-submissions', {
@@ -151,7 +172,7 @@ describe('community event submissions', () => {
 
     expect(response.status).toBe(202);
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
-      title: `[TEST] ${submission.title}`,
+      title: submission.title,
     }), expect.anything());
   });
 

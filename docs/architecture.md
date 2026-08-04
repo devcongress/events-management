@@ -106,8 +106,8 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - Organizer routes live under `VITE_ADMIN_BASE_PATH` (`/organizer-console` by default) instead of `/admin`
 - `[adminBase]/login` — prototype organizer sign-in
 - `[adminBase]/events` — event management overview
-- `[adminBase]/website-preview/events` — authenticated preview of the exact public meetup collection contract
-- `[adminBase]/website-preview/events/[slug]` — authenticated website-shaped preview of one public meetup DTO
+- `[adminBase]/website-preview/events` — authenticated preview of the complete published event collection, including private-beta submissions
+- `[adminBase]/website-preview/events/[slug]` — authenticated website-shaped preview of one published event DTO
 - `[adminBase]/annual-conference/[year]` — selected annual-edition overview and future-edition creation
 - `[adminBase]/annual-conference/[year]/work-plan` — shared annual-conference task plan with phase assignment
 - `[adminBase]/annual-conference/[year]/timeline` — phase management and target-date timeline

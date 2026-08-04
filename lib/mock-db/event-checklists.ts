@@ -1,5 +1,8 @@
 import { readData, writeData } from './index';
-import { SYSTEM_DESIGN_CHECKLIST_LABEL } from '@/lib/event-checklist-policy';
+import {
+  ARCHIVE_REQUESTS_CHECKLIST_LABEL,
+  SYSTEM_DESIGN_CHECKLIST_LABEL,
+} from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { generateId, now } from '@/lib/utils';
 import type { Event, EventChecklistItem, EventChecklistPhase, EventStatus } from '@/types';
@@ -12,6 +15,7 @@ interface ChecklistTemplateItem {
   label: string;
   description: string;
   status_on_complete: EventStatus | null;
+  disabled_by_default?: boolean;
 }
 
 const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
@@ -50,6 +54,13 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
     label: 'Collect slides and prep quiz',
     description: 'Gather speaker materials and prepare the community quiz.',
     status_on_complete: null,
+  },
+  {
+    phase: 'program',
+    label: ARCHIVE_REQUESTS_CHECKLIST_LABEL,
+    description: 'Enable this only when organizers are ready to send new private archive requests.',
+    status_on_complete: null,
+    disabled_by_default: true,
   },
   {
     phase: 'program',
@@ -165,8 +176,8 @@ function createDefaultChecklist(
     completed: completedCutoff >= index,
     completed_at: completedCutoff >= index ? timestamp : null,
     completed_by: completedCutoff >= index ? 'System' : null,
-    disabled_at: null,
-    disabled_by: null,
+    disabled_at: item.disabled_by_default ? timestamp : null,
+    disabled_by: item.disabled_by_default ? 'System' : null,
     updated_at: timestamp,
   }));
 }
@@ -203,8 +214,8 @@ async function backfillMissingTemplateItems(
       completed,
       completed_at: completed ? timestamp : null,
       completed_by: completed ? 'System' : null,
-      disabled_at: null,
-      disabled_by: null,
+      disabled_at: item.disabled_by_default ? timestamp : null,
+      disabled_by: item.disabled_by_default ? 'System' : null,
       updated_at: timestamp,
     };
   });

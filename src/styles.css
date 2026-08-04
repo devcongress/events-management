@@ -850,6 +850,36 @@
   .lifecycle-stage-card {
     position: relative;
     z-index: 1;
+    flex: 0 0 auto;
+  }
+
+  .lifecycle-stage-card:not(:last-child)::after {
+    position: absolute;
+    top: 50%;
+    right: -1rem;
+    color: #b5afa5;
+    content: '→';
+    font-family: var(--font-mono), monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
+  .lifecycle-track {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 1.5rem;
+    overflow-x: auto;
+    padding: 0.125rem;
+    scrollbar-width: none;
+  }
+
+  .lifecycle-track::-webkit-scrollbar {
+    display: none;
   }
 
   .lifecycle-stage-card:focus-within {
@@ -885,6 +915,30 @@
 
   .lifecycle-stage-trigger:active {
     transform: scale(0.97);
+  }
+
+  .lifecycle-stage-index {
+    display: inline-grid;
+    width: 1.3rem;
+    height: 1.3rem;
+    flex: 0 0 1.3rem;
+    place-items: center;
+    border: 1px solid #e8d37c;
+    border-radius: 999px;
+    background: #fff9dc;
+    color: #e8117f;
+    font-size: 0.64rem;
+    transition:
+      background-color 150ms var(--motion-fast),
+      border-color 150ms var(--motion-fast),
+      color 150ms var(--motion-fast),
+      transform 150ms var(--motion-spring);
+  }
+
+  .lifecycle-stage-trigger:focus-visible .lifecycle-stage-index {
+    border-color: #e8117f;
+    background: #e8117f;
+    color: #ffffff;
   }
 
   .lifecycle-stage-popover {
@@ -4211,6 +4265,19 @@
     color: #111111;
   }
 
+  .archive-request-composer-enter-active,
+  .archive-request-composer-leave-active {
+    transition:
+      opacity 140ms var(--motion-fast),
+      transform 220ms var(--motion-smooth);
+  }
+
+  .archive-request-composer-enter-from,
+  .archive-request-composer-leave-to {
+    opacity: 0;
+    transform: translate3d(0, 0.5rem, 0);
+  }
+
   .talk-workflow-tab:focus-visible {
     outline: 2px solid #eb147e;
     outline-offset: -4px;
@@ -4259,6 +4326,16 @@
   @media (prefers-reduced-motion: reduce) {
     .talk-workflow-tab-indicator {
       transition: none;
+    }
+
+    .archive-request-composer-enter-active,
+    .archive-request-composer-leave-active {
+      transition: none;
+    }
+
+    .archive-request-composer-enter-from,
+    .archive-request-composer-leave-to {
+      transform: none;
     }
   }
 
@@ -6894,6 +6971,13 @@
       transform: translate3d(0, -1px, 0);
     }
 
+    .lifecycle-stage-trigger:hover .lifecycle-stage-index {
+      border-color: #e8117f;
+      background: #e8117f;
+      color: #ffffff;
+      transform: scale(1.04);
+    }
+
     .lifecycle-stage-card:hover .lifecycle-stage-popover {
       opacity: 1;
       pointer-events: auto;
@@ -7784,6 +7868,7 @@
     .feedback-row-move,
     .quiz-answer-tile,
 	    .lifecycle-stage-trigger,
+	    .lifecycle-stage-index,
 	    .lifecycle-stage-popover,
 	    .mobile-ops-action,
 	    .mobile-checkin-back,

@@ -22,6 +22,7 @@ import {
   updateEventRegistrationCampaign,
 } from '@/src/lib/api';
 import { adminPath } from '@/src/admin-routes';
+import { registrationAvailability } from '@/lib/event-registration';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { notify } from '@/src/lib/notify';
 import { emailSubjects } from '@/lib/email/scenarios';
@@ -90,6 +91,7 @@ const pageDetails = reactive<RegistrationPageDetailsDraft>({
 const savedPageDetails = ref<RegistrationPageDetailsDraft | null>(null);
 const pageLocationPlaceId = ref('');
 const pageDetailsSaving = ref(false);
+const pageDetailsExpanded = ref(false);
 const activeWorkspaceTab = ref<RegistrationWorkspaceTab>('summary');
 const workspacePanelTransition = ref('registration-panel-forward');
 const search = ref('');
@@ -111,6 +113,8 @@ const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
 const publicLinkCopied = ref(false);
 const manualRefreshPending = ref(false);
+const reopenRegistrationConfirmationOpen = ref(false);
+const reopenRegistrationPending = ref(false);
 const devRegistrationRemovalEnabled = import.meta.env.DEV;
 let publicLinkFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -126,12 +130,13 @@ const pageLocationOptions = [
 const workspaceTabs: Array<{
   id: RegistrationWorkspaceTab;
   label: string;
+  icon: 'summary' | 'guests' | 'form' | 'emails' | 'blasts';
 }> = [
-  { id: 'summary', label: 'Summary' },
-  { id: 'guests', label: 'Guests' },
-  { id: 'form', label: 'Form & capacity' },
-  { id: 'emails', label: 'Emails' },
-  { id: 'blasts', label: 'Blasts' },
+  { id: 'summary', label: 'Summary', icon: 'summary' },
+  { id: 'guests', label: 'Guests', icon: 'guests' },
+  { id: 'form', label: 'Form & capacity', icon: 'form' },
+  { id: 'emails', label: 'Emails', icon: 'emails' },
+  { id: 'blasts', label: 'Blasts', icon: 'blasts' },
 ];
 const data = computed(() => registrationQuery.data.value ?? null);
 const registrationLastUpdatedLabel = computed(() => {
@@ -204,10 +209,25 @@ const registrationOverviewPhase = computed<RegistrationOverviewPhase>(() => {
     ? 'live'
     : 'before';
 });
+const registrationAvailabilityState = computed(() => {
+  const campaign = data.value?.campaign;
+  return campaign
+    ? registrationAvailability(campaign)
+    : { available: false as const, reason: 'draft' as const };
+});
+const registrationIsOpen = computed(() => registrationAvailabilityState.value.available);
+const registrationCanReopen = computed(() => {
+  const availability = registrationAvailabilityState.value;
+  return !availability.available
+    && registrationOverviewPhase.value === 'before'
+    && (availability.reason === 'closed' || availability.reason === 'ended');
+});
+const registrationOverviewInactive = computed(() => (
+  registrationOverviewPhase.value === 'before' && !registrationIsOpen.value
+));
 const registrationOverview = computed(() => {
   const summary = workspaceSummary.value;
   const phase = registrationOverviewPhase.value;
-  const campaignStatus = data.value?.campaign?.status ?? 'draft';
 
   if (!summary) {
     return {
@@ -220,8 +240,6 @@ const registrationOverview = computed(() => {
       progressPercent: 0,
       progressLabel: 'Registration capacity filled',
       progressCaption: '0% filled',
-      statusLabel: 'Registration unavailable',
-      statusTone: 'neutral',
     };
   }
 
@@ -241,8 +259,6 @@ const registrationOverview = computed(() => {
       progressPercent,
       progressLabel: 'Final event attendance',
       progressCaption: `${progressPercent}% attendance`,
-      statusLabel: 'Event complete',
-      statusTone: 'neutral',
     };
   }
 
@@ -262,20 +278,12 @@ const registrationOverview = computed(() => {
       progressPercent,
       progressLabel: 'Guest check-in progress',
       progressCaption: `${progressPercent}% arrived`,
-      statusLabel: 'Event in progress',
-      statusTone: 'positive',
     };
   }
 
   const progressPercent = summary.capacity > 0
     ? Math.min(100, Math.round((summary.going / summary.capacity) * 100))
     : 0;
-  const statusLabel = campaignStatus === 'open'
-    ? 'Registration open'
-    : campaignStatus === 'closed'
-      ? 'Registration closed'
-      : 'Registration draft';
-
   return {
     phase,
     primaryValue: summary.going,
@@ -286,12 +294,6 @@ const registrationOverview = computed(() => {
     progressPercent,
     progressLabel: 'Registration capacity filled',
     progressCaption: `${progressPercent}% filled`,
-    statusLabel,
-    statusTone: campaignStatus === 'open'
-      ? 'positive'
-      : campaignStatus === 'draft'
-        ? 'attention'
-        : 'neutral',
   };
 });
 const registrationOverviewDetails = computed(() => {
@@ -328,9 +330,12 @@ const registrationOverviewIsEmpty = computed(() => (
 const registrationOverviewEmptyCopy = computed(() => (
   canUsePublicRegistrationForm.value
     ? 'Share the registration form to start filling this event.'
-    : data.value?.campaign?.status === 'closed'
-      ? 'Registration is closed. Review the form settings before inviting guests.'
-      : 'Finish the form settings and open registration when you are ready to invite guests.'
+    : registrationCanReopen.value
+      ? 'Registration is closed. Reopen it when you are ready to invite guests again.'
+      : registrationAvailabilityState.value.available === false
+        && registrationAvailabilityState.value.reason === 'not_open'
+        ? 'Registration is scheduled to open later. Review form settings to change the schedule.'
+        : 'Finish the form settings and open registration when you are ready to invite guests.'
 ));
 const registrationOverviewActionLabel = computed(() => (
   canUsePublicRegistrationForm.value
@@ -338,6 +343,9 @@ const registrationOverviewActionLabel = computed(() => (
       ? 'Link copied'
       : 'Copy registration link'
     : 'Review form settings'
+));
+const showRegistrationOverviewEmptyAction = computed(() => (
+  canUsePublicRegistrationForm.value || !registrationCanReopen.value
 ));
 const registrationOverviewProgressMax = computed(() => (
   Math.max(1, registrationOverview.value.primaryTotal)
@@ -350,7 +358,7 @@ const registrationOverviewProgressNow = computed(() => (
 ));
 const canUsePublicRegistrationForm = computed(() => (
   Boolean(data.value?.public_url)
-  && data.value?.campaign?.status === 'open'
+  && registrationIsOpen.value
 ));
 const currentSettings = computed<RegistrationSettingsDraft>(() => ({
   status: settings.status,
@@ -648,6 +656,25 @@ async function manuallyRefreshRegistration() {
   }
 }
 
+async function reopenRegistration() {
+  if (!registrationCanReopen.value || reopenRegistrationPending.value) return;
+  reopenRegistrationPending.value = true;
+  try {
+    await updateEventRegistrationCampaign(eventId.value, {
+      status: 'open',
+      opens_at: null,
+      closes_at: null,
+    });
+    await refresh();
+    reopenRegistrationConfirmationOpen.value = false;
+    notify.success('Registration reopened and is accepting guests now.');
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to reopen registration.');
+  } finally {
+    reopenRegistrationPending.value = false;
+  }
+}
+
 function applyBlastTemplate(templateId: string) {
   const template = blastTemplates.value.find((item) => item.id === templateId);
   if (!template) return;
@@ -857,7 +884,7 @@ async function retryEmails() {
 
 <template>
   <div class="editorial-page">
-    <div class="editorial-wrap">
+    <div class="editorial-wrap registration-page-wrap">
       <header class="registration-page-header">
         <h1>{{ data && !managedInternally ? 'Registration history' : 'Registration' }}</h1>
         <p>
@@ -924,7 +951,31 @@ async function retryEmails() {
             :tabindex="activeWorkspaceTab === tab.id ? 0 : -1"
             @click="selectWorkspaceTab(tab.id)"
           >
-            {{ tab.label }}
+            <svg class="registration-workspace-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <template v-if="tab.icon === 'summary'">
+                <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
+                <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
+                <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
+                <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
+              </template>
+              <template v-else-if="tab.icon === 'guests'">
+                <circle cx="7.25" cy="7" r="2.5" />
+                <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
+              </template>
+              <template v-else-if="tab.icon === 'form'">
+                <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
+                <path d="M7 7h6M7 10.25h6M7 13.5h3.5" />
+              </template>
+              <template v-else-if="tab.icon === 'emails'">
+                <rect x="2.75" y="4.25" width="14.5" height="11.5" rx="1.5" />
+                <path d="m3.75 5.5 6.25 5 6.25-5" />
+              </template>
+              <template v-else>
+                <path d="m3 10.75 10.25-5v8.5L3 10.75Z" />
+                <path d="M13.25 8.25h1.25a2.5 2.5 0 0 1 0 5h-1.25M6.25 12.25l.75 4" />
+              </template>
+            </svg>
+            <span>{{ tab.label }}</span>
           </button>
         </div>
 
@@ -936,6 +987,7 @@ async function retryEmails() {
             role="tabpanel"
             aria-labelledby="registration-tab-summary"
             class="registration-overview mt-5"
+            :class="{ 'registration-overview--inactive': registrationOverviewInactive }"
           >
             <div class="registration-overview-header">
               <h2>Registration overview</h2>
@@ -943,25 +995,33 @@ async function retryEmails() {
                 <span class="registration-overview-updated">
                   {{ registrationLastUpdatedLabel }}
                 </span>
-                <button
-                  type="button"
-                  class="registration-overview-refresh motion-press"
-                  :aria-label="`Refresh registrations. ${registrationLastUpdatedLabel}`"
-                  :disabled="manualRefreshPending"
-                  @click="manuallyRefreshRegistration"
-                >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M15.7 6.8A6.25 6.25 0 1 0 16 12" />
-                    <path d="M15.7 3.8v3.4h-3.4" />
-                  </svg>
-                  {{ manualRefreshPending ? 'Refreshing…' : 'Refresh' }}
-                </button>
-                <span
-                  class="registration-overview-status"
-                  :class="`registration-overview-status--${registrationOverview.statusTone}`"
-                >
-                  {{ registrationOverview.statusLabel }}
-                </span>
+                <Transition name="registration-overview-control" mode="out-in">
+                  <button
+                    v-if="registrationIsOpen"
+                    key="refresh"
+                    type="button"
+                    class="registration-overview-refresh motion-press"
+                    :aria-label="`Refresh registrations. ${registrationLastUpdatedLabel}`"
+                    :disabled="manualRefreshPending"
+                    @click="manuallyRefreshRegistration"
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path d="M15.7 6.8A6.25 6.25 0 1 0 16 12" />
+                      <path d="M15.7 3.8v3.4h-3.4" />
+                    </svg>
+                    {{ manualRefreshPending ? 'Refreshing…' : 'Refresh' }}
+                  </button>
+                  <button
+                    v-else-if="registrationCanReopen"
+                    key="reopen"
+                    type="button"
+                    class="registration-overview-refresh registration-overview-reopen motion-press"
+                    :disabled="reopenRegistrationPending"
+                    @click="reopenRegistrationConfirmationOpen = true"
+                  >
+                    {{ reopenRegistrationPending ? 'Reopening…' : 'Reopen registration' }}
+                  </button>
+                </Transition>
               </div>
             </div>
 
@@ -1013,6 +1073,7 @@ async function retryEmails() {
                 <p class="registration-overview-empty-copy">{{ registrationOverviewEmptyCopy }}</p>
               </div>
               <button
+                v-if="showRegistrationOverviewEmptyAction"
                 type="button"
                 class="registration-overview-action motion-press"
                 @click="handleRegistrationOverviewAction"
@@ -1054,36 +1115,40 @@ async function retryEmails() {
           >
           <div class="border-b border-dc-border bg-dc-paper-warm px-4 py-4">
             <div class="flex flex-col gap-4">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div class="w-full max-w-md">
+              <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-4">
+                <div class="w-full max-w-xs xl:shrink-0">
                   <label for="guest-search" class="editorial-label">Search guests</label>
                   <input id="guest-search" v-model="search" type="search" class="editorial-input" placeholder="Name or email">
                 </div>
-                <p class="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+
+                <div class="flex flex-wrap gap-2 xl:shrink-0" aria-label="Guest status filters">
+                  <button
+                    v-for="option in guestStatusOptions"
+                    :key="option.value"
+                    type="button"
+                    class="min-h-11 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                    :class="selectedGuestStatus === option.value
+                      ? 'border-dc-pink bg-dc-pink text-white'
+                      : 'border-dc-border bg-white text-dc-gray'"
+                    :aria-pressed="selectedGuestStatus === option.value"
+                    @click="selectedGuestStatus = option.value"
+                  >
+                    {{ option.label }} · {{ option.count }}
+                  </button>
+                </div>
+
+                <p class="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray xl:ml-auto xl:pb-4">
                   {{ filteredRegistrations.length }} of {{ displayedRegistrations.length }} shown
                 </p>
               </div>
 
-              <div class="flex flex-wrap gap-2" aria-label="Guest status filters">
-                <button
-                  v-for="option in guestStatusOptions"
-                  :key="option.value"
-                  type="button"
-                  class="min-h-11 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-wide"
-                  :class="selectedGuestStatus === option.value
-                    ? 'border-dc-pink bg-dc-pink text-white'
-                    : 'border-dc-border bg-white text-dc-gray'"
-                  :aria-pressed="selectedGuestStatus === option.value"
-                  @click="selectedGuestStatus = option.value"
-                >
-                  {{ option.label }} · {{ option.count }}
-                </button>
-              </div>
-
-              <RegistrationAlphabetFilter
-                v-model="selectedInitial"
-                :initials="availableInitials"
-              />
+              <Transition name="registration-alphabet-control">
+                <RegistrationAlphabetFilter
+                  v-if="displayedRegistrations.length > 0"
+                  v-model="selectedInitial"
+                  :initials="availableInitials"
+                />
+              </Transition>
             </div>
           </div>
 
@@ -1183,75 +1248,92 @@ async function retryEmails() {
                 <h2 class="mt-1 text-xl font-bold text-dc-ink">Registration form</h2>
                 <p class="mt-1 text-sm leading-6 text-dc-gray">Update what guests see, then control availability and capacity.</p>
               </div>
-              <div v-if="canUsePublicRegistrationForm" class="flex flex-wrap gap-2">
-                <a
-                  :href="data?.public_url ?? undefined"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="editorial-secondary-action min-h-11 justify-center px-4"
-                >
-                  OPEN FORM
-                </a>
+              <div class="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  class="editorial-action min-h-11 justify-center px-4"
-                  @click="copyPublicLink"
+                  class="editorial-secondary-action min-h-11 justify-center px-4"
+                  :aria-expanded="pageDetailsExpanded"
+                  aria-controls="registration-page-details"
+                  @click="pageDetailsExpanded = !pageDetailsExpanded"
                 >
-                  <span aria-live="polite">{{ publicLinkCopied ? 'COPIED' : 'COPY FORM' }}</span>
+                  {{ pageDetailsExpanded ? 'HIDE DETAILS' : 'EDIT DETAILS' }}
                 </button>
+                <template v-if="canUsePublicRegistrationForm">
+                  <a
+                    :href="data?.public_url ?? undefined"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="editorial-secondary-action min-h-11 justify-center px-4"
+                  >
+                    OPEN FORM
+                  </a>
+                  <button
+                    type="button"
+                    class="editorial-action min-h-11 justify-center px-4"
+                    @click="copyPublicLink"
+                  >
+                    <span aria-live="polite">{{ publicLinkCopied ? 'COPIED' : 'COPY FORM' }}</span>
+                  </button>
+                </template>
+                <span
+                  v-else
+                  class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray"
+                >
+                  Form link available when open
+                </span>
               </div>
-              <span
-                v-else
-                class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray"
-              >
-                Form link available when open
-              </span>
             </div>
           </div>
 
-          <div class="border-b border-dc-border p-5">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="editorial-label">Registration page details</p>
-                <p class="mt-1 text-sm leading-6 text-dc-gray">These details appear on the public registration ticket.</p>
+          <Transition name="registration-page-details">
+            <div
+              v-if="pageDetailsExpanded"
+              id="registration-page-details"
+              class="border-b border-dc-border p-5"
+            >
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="editorial-label">Registration page details</p>
+                  <p class="mt-1 text-sm leading-6 text-dc-gray">These details appear on the public registration ticket.</p>
+                </div>
+                <RouterLink
+                  :to="{ path: adminPath(`events/${eventId}`), hash: '#event-media' }"
+                  class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4 hover:text-dc-ink"
+                >
+                  Manage cover
+                </RouterLink>
               </div>
-              <RouterLink
-                :to="adminPath(`events/${eventId}`)"
-                class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4 hover:text-dc-ink"
-              >
-                Manage cover
-              </RouterLink>
+              <form class="mt-4 grid gap-4 md:grid-cols-2" @submit.prevent="savePageDetails">
+                <div class="md:col-span-2">
+                  <label for="registration-event-name" class="editorial-label">Event name</label>
+                  <input id="registration-event-name" v-model="pageDetails.name" class="editorial-input" maxlength="200" required>
+                </div>
+                <div class="md:col-span-2">
+                  <label for="registration-event-description" class="editorial-label">Event About description</label>
+                  <textarea id="registration-event-description" v-model="pageDetails.description" class="editorial-input min-h-28 resize-y" maxlength="10000" required />
+                  <p class="mt-2 text-xs leading-5 text-dc-gray">Used on the event-details view. The public registration form uses its separate introduction below.</p>
+                </div>
+                <AppDatePicker v-model="pageDetails.event_date" label="Starts at" mode="datetime" required />
+                <AppDatePicker v-model="pageDetails.end_date" label="Ends at" mode="datetime" />
+                <AppDropdown v-model="pageDetails.location_mode" label="Location details" :options="pageLocationOptions" />
+                <GhanaVenueAutocomplete
+                  v-if="pageDetails.location_mode === 'venue'"
+                  v-model="pageDetails.location_name"
+                  v-model:place-id="pageLocationPlaceId"
+                  :disabled="pageDetailsSaving"
+                />
+                <div v-else>
+                  <label for="registration-event-map" class="editorial-label">Google Maps share link</label>
+                  <input id="registration-event-map" v-model="pageDetails.location_url" type="url" class="editorial-input" maxlength="2048" placeholder="https://maps.app.goo.gl/..." required>
+                </div>
+                <div class="flex items-end md:col-start-2">
+                  <button type="submit" class="editorial-action min-h-[54px] w-full justify-center disabled:opacity-50" :disabled="!canSavePageDetails">
+                    {{ pageDetailsSaving ? 'SAVING…' : 'SAVE PAGE DETAILS' }}
+                  </button>
+                </div>
+              </form>
             </div>
-            <form class="mt-4 grid gap-4 md:grid-cols-2" @submit.prevent="savePageDetails">
-              <div class="md:col-span-2">
-                <label for="registration-event-name" class="editorial-label">Event name</label>
-                <input id="registration-event-name" v-model="pageDetails.name" class="editorial-input" maxlength="200" required>
-              </div>
-              <div class="md:col-span-2">
-                <label for="registration-event-description" class="editorial-label">Event About description</label>
-                <textarea id="registration-event-description" v-model="pageDetails.description" class="editorial-input min-h-28 resize-y" maxlength="10000" required />
-                <p class="mt-2 text-xs leading-5 text-dc-gray">Used on the event-details view. The public registration form uses its separate introduction below.</p>
-              </div>
-              <AppDatePicker v-model="pageDetails.event_date" label="Starts at" mode="datetime" required />
-              <AppDatePicker v-model="pageDetails.end_date" label="Ends at" mode="datetime" />
-              <AppDropdown v-model="pageDetails.location_mode" label="Location details" :options="pageLocationOptions" />
-              <GhanaVenueAutocomplete
-                v-if="pageDetails.location_mode === 'venue'"
-                v-model="pageDetails.location_name"
-                v-model:place-id="pageLocationPlaceId"
-                :disabled="pageDetailsSaving"
-              />
-              <div v-else>
-                <label for="registration-event-map" class="editorial-label">Google Maps share link</label>
-                <input id="registration-event-map" v-model="pageDetails.location_url" type="url" class="editorial-input" maxlength="2048" placeholder="https://maps.app.goo.gl/..." required>
-              </div>
-              <div class="flex items-end md:col-start-2">
-                <button type="submit" class="editorial-action min-h-[54px] w-full justify-center disabled:opacity-50" :disabled="!canSavePageDetails">
-                  {{ pageDetailsSaving ? 'SAVING…' : 'SAVE PAGE DETAILS' }}
-                </button>
-              </div>
-            </form>
-          </div>
+          </Transition>
 
           <div class="border-b border-dc-border bg-dc-paper-warm px-5 py-3">
             <p class="editorial-label">Registration availability</p>
@@ -1537,6 +1619,18 @@ async function retryEmails() {
     />
 
     <ConfirmDialog
+      :open="reopenRegistrationConfirmationOpen"
+      title="Reopen registration?"
+      message="This will accept guests immediately and remove the previous opening and closing schedule."
+      confirm-label="Reopen registration"
+      busy-label="Reopening..."
+      cancel-label="Keep closed"
+      :busy="reopenRegistrationPending"
+      @cancel="reopenRegistrationConfirmationOpen = false"
+      @confirm="reopenRegistration"
+    />
+
+    <ConfirmDialog
       :open="settingsConfirmationOpen"
       :title="settingsConfirmationTitle"
       :message="settingsConfirmationMessage"
@@ -1602,27 +1696,30 @@ async function retryEmails() {
 </template>
 
 <style scoped>
+.registration-page-wrap {
+  padding-top: clamp(1rem, 2vh, 1.5rem);
+  padding-bottom: clamp(1rem, 2vh, 1.5rem);
+}
+
 .registration-page-header {
-  margin-bottom: 2rem;
-  border-bottom: 1px solid #d6d2c8;
-  padding-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .registration-page-header h1 {
   color: #111111;
-  font-size: clamp(2.25rem, 5vw, 3.25rem);
+  font-size: clamp(2.125rem, 3.5vw, 2.75rem);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 0.98;
+  line-height: 1;
 }
 
 .registration-page-header p {
   max-width: 42rem;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   color: #6f6c65;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 500;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .registration-workspace-tabs {
@@ -1640,8 +1737,11 @@ async function retryEmails() {
 
 .registration-workspace-tab {
   position: relative;
-  min-height: 3.25rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.875rem;
   flex: 0 0 auto;
+  gap: 0.45rem;
   padding: 0.125rem 0;
   color: #6f6c65;
   font-size: 0.8125rem;
@@ -1650,6 +1750,16 @@ async function retryEmails() {
   transition:
     color 150ms cubic-bezier(0.4, 0, 0.2, 1),
     transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.registration-workspace-tab-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
 }
 
 .registration-workspace-tab::after {
@@ -1764,35 +1874,21 @@ async function retryEmails() {
   opacity: 0.55;
 }
 
+.registration-overview-reopen {
+  border-color: #e8117f;
+  background: #e8117f;
+  color: #ffffff;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .registration-overview-refresh:not(:disabled):hover {
     border-color: #111111;
   }
-}
 
-.registration-overview-status {
-  display: inline-flex;
-  min-height: 1.875rem;
-  align-items: center;
-  border: 1px solid #d6d2c8;
-  border-radius: 999px;
-  padding: 0.25rem 0.75rem;
-  background: #faf9f5;
-  color: #625f58;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.registration-overview-status--positive {
-  border-color: #a8d9c8;
-  background: #eef9f4;
-  color: #0f7154;
-}
-
-.registration-overview-status--attention {
-  border-color: #e8d37c;
-  background: #fff9dc;
-  color: #785f00;
+  .registration-overview-reopen:not(:disabled):hover {
+    border-color: #c90f6f;
+    background: #c90f6f;
+  }
 }
 
 .registration-overview-metrics {
@@ -1964,6 +2060,12 @@ async function retryEmails() {
   color: #866a00;
 }
 
+.registration-overview--inactive .registration-overview-metrics,
+.registration-overview--inactive .registration-overview-progress-row,
+.registration-overview--inactive .registration-overview-details {
+  opacity: 0.55;
+}
+
 .registration-value-enter-active,
 .registration-value-leave-active {
   transition:
@@ -2002,6 +2104,45 @@ async function retryEmails() {
   transform: translate3d(-0.75rem, 0, 0);
 }
 
+.registration-page-details-enter-active,
+.registration-page-details-leave-active {
+  transition:
+    opacity 160ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-page-details-enter-from,
+.registration-page-details-leave-to {
+  opacity: 0;
+  transform: translate3d(0, -0.5rem, 0);
+}
+
+.registration-overview-control-enter-active,
+.registration-overview-control-leave-active {
+  transition:
+    opacity 140ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-overview-control-enter-from,
+.registration-overview-control-leave-to {
+  opacity: 0;
+  transform: translate3d(0.35rem, 0, 0);
+}
+
+.registration-alphabet-control-enter-active,
+.registration-alphabet-control-leave-active {
+  transition:
+    opacity 140ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-alphabet-control-enter-from,
+.registration-alphabet-control-leave-to {
+  opacity: 0;
+  transform: translate3d(0, -0.35rem, 0);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .registration-workspace-tab:hover {
     color: #111111;
@@ -2014,8 +2155,8 @@ async function retryEmails() {
 
 @media (max-width: 639px) {
   .registration-page-header {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1.125rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0;
   }
 
   .registration-page-header h1 {
@@ -2062,7 +2203,13 @@ async function retryEmails() {
   .registration-panel-forward-enter-active,
   .registration-panel-forward-leave-active,
   .registration-panel-backward-enter-active,
-  .registration-panel-backward-leave-active {
+  .registration-panel-backward-leave-active,
+  .registration-page-details-enter-active,
+  .registration-page-details-leave-active,
+  .registration-overview-control-enter-active,
+  .registration-overview-control-leave-active,
+  .registration-alphabet-control-enter-active,
+  .registration-alphabet-control-leave-active {
     transition: none;
   }
 
@@ -2072,7 +2219,13 @@ async function retryEmails() {
   .registration-panel-forward-enter-from,
   .registration-panel-forward-leave-to,
   .registration-panel-backward-enter-from,
-  .registration-panel-backward-leave-to {
+  .registration-panel-backward-leave-to,
+  .registration-page-details-enter-from,
+  .registration-page-details-leave-to,
+  .registration-overview-control-enter-from,
+  .registration-overview-control-leave-to,
+  .registration-alphabet-control-enter-from,
+  .registration-alphabet-control-leave-to {
     transform: none;
   }
 }

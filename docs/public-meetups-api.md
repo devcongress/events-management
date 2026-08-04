@@ -27,22 +27,22 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 
 Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Public reads are cacheable; the event-submission write is strictly validated, Turnstile-protected, and distributed-rate-limited. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
 
-The compatibility meetup routes return DevCongress-owned events only. Generic public discovery must use `/api/public/events`, which includes an external event only when both moderation is `approved` and publication is `published`. Its version-1 DTO exposes `ownership`, `series`, `format`, `source`, `moderation_status`, `publication_status`, organizer identity, location mode, dates, and public URLs without submitter email, private notes, reviewer identity, or rejected/pending proposals.
+The compatibility meetup routes return DevCongress-owned events only. Generic public discovery must use `/api/public/events`, which includes an external public-submission event only when moderation is `approved`, publication is `published`, and `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true`. Missing, false, or invalid discovery configuration keeps all promoted public submissions out of this feed. Its version-1 DTO exposes `ownership`, `series`, `format`, `source`, `moderation_status`, `publication_status`, organizer identity, location mode, dates, and public URLs without submitter email, private notes, reviewer identity, or rejected/pending proposals.
 
 ## Organizer Consumer Preview
 
 Authenticated organizers can inspect this contract before another service consumes it:
 
-- `/organizer-console/website-preview/events` renders the collection from `GET /api/public/meetups`.
-- `/organizer-console/website-preview/events/:slug` renders one event from `GET /api/public/meetups/:slug`.
-- **View JSON** opens the exact public endpoint in a separate tab.
+- `/organizer-console/website-preview/events` renders the collection from organizer-only `GET /api/admin/events-preview`.
+- `/organizer-console/website-preview/events/:slug` renders one event from organizer-only `GET /api/admin/events-preview/:slug`.
+- **View JSON** opens the exact authenticated preview endpoint in a separate tab.
 - **Back to Event Management** returns to the private event workspace.
 
-The preview deliberately uses the public DTO rather than `/api/events`, so it
-shows only records that a consumer can receive. It does not publish a draft or
-create a second public API. The preview is an integration aid shaped after the
-current Astro meetup pages; the consuming Astro website remains responsible for
-its final templates and data adapter.
+The preview deliberately uses the website-shaped DTO rather than `/api/events`.
+It includes published private-beta submissions so organizers can inspect them,
+but it does not publish a draft or create a second unauthenticated API. The
+consuming Astro website remains responsible for its final templates and data
+adapter and continues to read the narrower public feed.
 
 Public `/api/public/*` endpoints:
 

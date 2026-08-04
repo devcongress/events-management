@@ -4,6 +4,9 @@ import { isTestEventTitle, TEST_EVENT_PREFIX } from '../lib/event-test-mode';
 import type { Database } from '../types/supabase';
 
 export const DELETE_CONFIRMATION = 'DELETE_TEST_EVENT_DATA';
+export const PRIVATE_BETA_DELETE_CONFIRMATION = 'DELETE_PRIVATE_BETA_EVENT_DATA';
+
+type CleanupScope = 'test-label' | 'private-beta';
 
 type AppSupabaseClient = SupabaseClient<Database, 'public'>;
 
@@ -21,6 +24,7 @@ type CleanupArguments = {
   execute: boolean;
   confirmation: string | null;
   help: boolean;
+  scope: CleanupScope;
 };
 
 type CleanupCandidates = {
@@ -32,9 +36,12 @@ export function parseCleanupArguments(args: string[]): CleanupArguments {
   let execute = false;
   let confirmation: string | null = null;
   let help = false;
+  let scope: CleanupScope = 'test-label';
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
+
+    if (argument === '--') continue;
 
     if (argument === '--execute') {
       execute = true;
@@ -52,10 +59,20 @@ export function parseCleanupArguments(args: string[]): CleanupArguments {
       continue;
     }
 
+    if (argument === '--scope') {
+      const value = args[index + 1];
+      if (value !== 'test-label' && value !== 'private-beta') {
+        throw new Error('--scope must be either test-label or private-beta.');
+      }
+      scope = value;
+      index += 1;
+      continue;
+    }
+
     throw new Error(`Unknown argument: ${argument}`);
   }
 
-  return { execute, confirmation, help };
+  return { execute, confirmation, help, scope };
 }
 
 export function isTestEventLabel(value: string): boolean {
@@ -70,14 +87,22 @@ export function mergeTestEvents(...groups: TestEvent[][]): TestEvent[] {
 function printHelp() {
   console.log(`Cleanup manually-created acceptance-test event data.
 
-Before testing, deploy with EVENT_TEST_MODE=true. The server will prefix every
-new submission and directly-created event title with ${TEST_EVENT_PREFIX}.
+The default scope removes legacy records whose titles begin with ${TEST_EVENT_PREFIX}.
+
+Private-beta scope reviews every public submission and its promoted event. Use
+it only before public launch, while all public submissions belong to the closed
+beta window:
+
+  pnpm cleanup:private-beta-events
 
 Dry run (default):
   pnpm cleanup:test-events
 
 Delete the displayed records:
   pnpm cleanup:test-events -- --execute --confirm ${DELETE_CONFIRMATION}
+
+Delete every private-beta public submission and promoted event:
+  pnpm cleanup:private-beta-events -- --execute --confirm ${PRIVATE_BETA_DELETE_CONFIRMATION}
 
 Required environment variables:
   VITE_SUPABASE_URL
@@ -114,12 +139,17 @@ function createAdminClient(): { client: AppSupabaseClient; projectHost: string }
   };
 }
 
-async function loadCandidates(client: AppSupabaseClient): Promise<CleanupCandidates> {
-  const submissionsResult = await client
+async function loadCandidates(client: AppSupabaseClient, scope: CleanupScope): Promise<CleanupCandidates> {
+  let submissionsQuery = client
     .from('event_submissions')
     .select('id,title,review_status,approved_event_id,created_at')
-    .ilike('title', `${TEST_EVENT_PREFIX}%`)
     .order('created_at', { ascending: true });
+
+  if (scope === 'test-label') {
+    submissionsQuery = submissionsQuery.ilike('title', `${TEST_EVENT_PREFIX}%`);
+  }
+
+  const submissionsResult = await submissionsQuery;
 
   if (submissionsResult.error) {
     throw new Error(`Unable to load test submissions: ${submissionsResult.error.message}`);
@@ -131,14 +161,18 @@ async function loadCandidates(client: AppSupabaseClient): Promise<CleanupCandida
     .map((submission) => submission.approved_event_id)
     .filter((id): id is string => Boolean(id));
 
-  const prefixedEventsResult = await client
-    .from('community_events')
-    .select('id,name,publication_status,publish_to_website,source_submission_id,created_at')
-    .ilike('name', `${TEST_EVENT_PREFIX}%`)
-    .order('created_at', { ascending: true });
+  let prefixedEvents: TestEvent[] = [];
+  if (scope === 'test-label') {
+    const prefixedEventsResult = await client
+      .from('community_events')
+      .select('id,name,publication_status,publish_to_website,source_submission_id,created_at')
+      .ilike('name', `${TEST_EVENT_PREFIX}%`)
+      .order('created_at', { ascending: true });
 
-  if (prefixedEventsResult.error) {
-    throw new Error(`Unable to load test events: ${prefixedEventsResult.error.message}`);
+    if (prefixedEventsResult.error) {
+      throw new Error(`Unable to load test events: ${prefixedEventsResult.error.message}`);
+    }
+    prefixedEvents = prefixedEventsResult.data as TestEvent[];
   }
 
   let linkedEvents: TestEvent[] = [];
@@ -161,13 +195,15 @@ async function loadCandidates(client: AppSupabaseClient): Promise<CleanupCandida
 
   return {
     submissions,
-    events: mergeTestEvents(prefixedEventsResult.data as TestEvent[], linkedEvents),
+    events: mergeTestEvents(prefixedEvents, linkedEvents),
   };
 }
 
-function printCandidates(projectHost: string, candidates: CleanupCandidates) {
+function printCandidates(projectHost: string, candidates: CleanupCandidates, scope: CleanupScope) {
   console.log(`\nSupabase project: ${projectHost}`);
-  console.log(`Selection rule: titles beginning with ${TEST_EVENT_PREFIX}\n`);
+  console.log(scope === 'private-beta'
+    ? 'Selection rule: every public event submission and its promoted canonical event\n'
+    : `Selection rule: titles beginning with ${TEST_EVENT_PREFIX}\n`);
 
   console.log(`Submissions (${candidates.submissions.length})`);
   if (candidates.submissions.length > 0) {
@@ -214,8 +250,12 @@ async function run() {
     return;
   }
 
-  if (args.execute && args.confirmation !== DELETE_CONFIRMATION) {
-    throw new Error(`Deletion requires --confirm ${DELETE_CONFIRMATION}`);
+  const requiredConfirmation = args.scope === 'private-beta'
+    ? PRIVATE_BETA_DELETE_CONFIRMATION
+    : DELETE_CONFIRMATION;
+
+  if (args.execute && args.confirmation !== requiredConfirmation) {
+    throw new Error(`Deletion requires --confirm ${requiredConfirmation}`);
   }
 
   if (!args.execute && args.confirmation !== null) {
@@ -223,8 +263,8 @@ async function run() {
   }
 
   const { client, projectHost } = createAdminClient();
-  const candidates = await loadCandidates(client);
-  printCandidates(projectHost, candidates);
+  const candidates = await loadCandidates(client, args.scope);
+  printCandidates(projectHost, candidates, args.scope);
 
   if (candidates.events.length === 0 && candidates.submissions.length === 0) {
     console.log('\nNothing to clean up.');
@@ -233,13 +273,16 @@ async function run() {
 
   if (!args.execute) {
     console.log(`\nDry run only. Review every row above, then run:\n`);
-    console.log(`pnpm cleanup:test-events -- --execute --confirm ${DELETE_CONFIRMATION}`);
+    const command = args.scope === 'private-beta'
+      ? `pnpm cleanup:private-beta-events -- --execute --confirm ${PRIVATE_BETA_DELETE_CONFIRMATION}`
+      : `pnpm cleanup:test-events -- --execute --confirm ${DELETE_CONFIRMATION}`;
+    console.log(command);
     return;
   }
 
   const deletedEvents = await deleteByIds(client, 'community_events', candidates.events.map((event) => event.id));
   const deletedSubmissions = await deleteByIds(client, 'event_submissions', candidates.submissions.map((submission) => submission.id));
-  const remaining = await loadCandidates(client);
+  const remaining = await loadCandidates(client, args.scope);
 
   if (remaining.events.length > 0 || remaining.submissions.length > 0) {
     throw new Error(

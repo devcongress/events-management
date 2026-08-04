@@ -75,6 +75,20 @@ function requestSpeakerEmails(app: { request: (input: string, init?: RequestInit
   ));
 }
 
+async function enableArchiveRequestsForTest(app: { request: (input: string, init?: RequestInit) => Response | Promise<Response> }) {
+  const checklistResponse = await app.request(`http://localhost/api/events/${event.id}/checklist`);
+  const checklist = await checklistResponse.json() as { items: Array<{ id: string; label: string }> };
+  const archiveRequests = checklist.items.find((item) => item.label === 'Request archive materials');
+  expect(archiveRequests).toBeDefined();
+
+  const enableResponse = await app.request(`http://localhost/api/events/${event.id}/checklist/${archiveRequests!.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ disabled: false }),
+  });
+  expect(enableResponse.status).toBe(200);
+}
+
 beforeEach(async () => {
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'devcon-speaker-email-'));
   process.chdir(tempRoot);
@@ -94,6 +108,30 @@ afterEach(async () => {
 });
 
 describe('speaker intake email API', () => {
+  it('rejects new archive requests until an organizer enables the workflow', async () => {
+    const resendFetch = vi.fn();
+    vi.stubGlobal('fetch', resendFetch);
+    const { app, links } = await importEmailModules();
+
+    const emailResponse = await requestSpeakerEmails(app, {
+      recipients: [{ program_item_index: 0, speaker_email: 'ama@example.com' }],
+      expires_in_days: 7,
+    });
+    expect(emailResponse.status).toBe(409);
+    await expect(emailResponse.json()).resolves.toEqual({
+      error: 'Archive requests are disabled for this event. Enable archive requests before creating a new request.',
+    });
+
+    const linkResponse = await app.request(`http://localhost/api/events/${event.id}/speaker-intake-links`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(linkResponse.status).toBe(409);
+    expect(resendFetch).not.toHaveBeenCalled();
+    await expect(links.getSpeakerIntakeLinksByEvent(event.id)).resolves.toEqual([]);
+  });
+
   it('sends organizer-provided recipient emails once and records the accepted state', async () => {
     const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       data: [{ id: 'resend-ama' }, { id: 'resend-kojo' }],
@@ -103,6 +141,7 @@ describe('speaker intake email API', () => {
     }));
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
+    await enableArchiveRequestsForTest(app);
 
     const firstResponse = await requestSpeakerEmails(app, {
       recipients: [
@@ -132,7 +171,9 @@ describe('speaker intake email API', () => {
         html: expect.stringContaining('/speaker-talks/event-july/'),
       }),
     ]);
-    await expect(links.getSpeakerIntakeLinksByEvent(event.id)).resolves.toEqual([
+    const savedLinks = await links.getSpeakerIntakeLinksByEvent(event.id);
+    expect(savedLinks).toHaveLength(2);
+    expect(savedLinks).toEqual(expect.arrayContaining([
       expect.objectContaining({
         speaker_email: 'kojo@example.com',
         talk_title: 'A useful product demo',
@@ -145,7 +186,7 @@ describe('speaker intake email API', () => {
         email_status: 'accepted',
         email_provider_id: 'resend-ama',
       }),
-    ]);
+    ]));
 
     const duplicateResponse = await requestSpeakerEmails(app, {
       recipients: [
@@ -174,6 +215,7 @@ describe('speaker intake email API', () => {
       }));
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
+    await enableArchiveRequestsForTest(app);
     const send = () => requestSpeakerEmails(app, {
       recipients: [{ program_item_index: 0, speaker_email: 'ama@example.com' }],
       expires_in_days: 7,
@@ -205,6 +247,7 @@ describe('speaker intake email API', () => {
     const resendFetch = vi.fn();
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
+    await enableArchiveRequestsForTest(app);
 
     const response = await requestSpeakerEmails(app, {
       recipients: [{ program_item_index: 0, speaker_email: 'not-an-email' }],

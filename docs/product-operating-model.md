@@ -32,7 +32,7 @@ The goal is to help the team operate events, preserve institutional knowledge, a
 | Surface | Responsibility |
 | --- | --- |
 | `events-management` | Private operations, workflows, moderation, access control, durable event data, and the read-only public integration API |
-| `devcongress.org` | The public website, public event discovery, and future public event-submission entry point |
+| `devcongress.org` | The public website, public event discovery, and gated public event-submission entry point |
 | Supabase | Durable relational system of record for dynamic product data |
 | Cloudflare | Application hosting, routing, and edge protection |
 

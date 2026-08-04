@@ -1,5 +1,41 @@
 # Architectural Decisions
 
+## ADR-047: Gate Public-Submission Discovery Independently
+
+**Date:** 2026-08-04
+**Status:** Accepted for private beta
+**Context:** Private-beta testers must exercise the real external submission, moderation, promotion, and email path against the production EMS and Supabase project. Approving a beta submission creates a published canonical event, but devcongress.org must not list it while beta testing is in progress. Organizers still need to inspect the promoted record in the EMS website-shaped preview, and submitter-facing titles and email should not carry test-only decoration.
+**Decision:** Keep public-submission intake and public discovery as independent fail-closed Worker controls. `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true` accepts proposals. Only an explicit `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true` allows canonical events whose source is `public_submission` into unauthenticated `GET /api/public/events`; missing, false, or invalid values exclude every such event. The organizer-authenticated, non-cacheable `/api/admin/events-preview*` contract includes them regardless of the public discovery gate. Public submissions retain the submitted title and do not use `EVENT_TEST_MODE`; that switch remains limited to direct organizer event rehearsals.
+**Trade-offs:** Beta and production records still share one database and are distinguished operationally by the controlled launch window plus `public_submission` source. Enabling discovery before deleting beta submissions would expose every approved beta record, so reviewed cleanup and zero-row verification are mandatory before launch. No schema migration or test text leaks into public-facing titles and emails.
+**Alternatives considered:** Keep a `[TEST]` title marker (visible product noise and brittle data classification), rely on the website not rebuilding (unsafe and non-deterministic), filter only while `EVENT_TEST_MODE=true` (conflates organizer rehearsal with public launch), or add a permanent environment/scope column now (stronger long-term model but larger than the temporary beta need).
+**Revisit when:** Private beta ends, real public submissions coexist with acceptance testing, or recurring staged submissions justify an explicit environment or visibility scope in the database.
+
+---
+
+## ADR-046: Separate Website Discovery and EMS Intake Gates
+
+**Date:** 2026-08-04
+**Status:** Accepted
+**Context:** The Astro website is statically built, so its repository variable can remove or expose the submission route only at build time. The EMS public submission endpoint remains independently addressable and would continue accepting correctly formed requests even when the website form is hidden.
+**Decision:** Keep the website's build-time discovery gate and add a separate server-only `PUBLIC_EVENT_SUBMISSIONS_ENABLED` runtime gate to the EMS Worker. Require an explicit case-insensitive `true`; missing, false, or invalid values fail closed before request validation, Turnstile, rate limiting, email, or persistence. Enable both gates for the private beta and disable either one as an immediate launch safety switch.
+**Trade-offs:** Operators must keep two non-secret variables aligned during beta and launch. In return, the website controls discoverability while EMS retains an immediate server-side kill switch that does not require rebuilding the static site.
+**Alternatives considered:** Rely only on the hidden website route (leaves the API callable), compile the switch into the Worker (requires a deployment to close intake), or remove the endpoint between tests (creates unnecessary code churn and deployment risk).
+**Revisit when:** Submission access is managed by a dedicated release-control service or authenticated invite system.
+
+---
+
+## ADR-045: Native Event Creation Publishes by Default
+
+**Date:** 2026-08-04
+**Status:** Accepted
+**Context:** The native create-event form exposed a “Publish event shell now” checkbox. Its default created a draft record while still opening registration, which made a normal event creation feel like two conflicting states and asked organizers to understand an internal “shell” concept.
+**Decision:** The organizer creation flow always creates a published event in the `upcoming` lifecycle and an open registration campaign. Remove the publication checkbox from the form. Treat a future registration opening time as the sole normal creation-time exception: the event remains public while its registration form is scheduled. Preserve the API's explicit `publish_to_website: false` value only for a deliberate non-UI planning-shell integration.
+**Trade-offs:** Organizers no longer create private drafts through the normal interface. This removes an unnecessary choice and ensures the public listing, event lifecycle, and registration link agree from the first successful create. Exceptional draft creation remains an intentional integration action rather than an everyday organizer control.
+**Alternatives considered:** Keep and rename the checkbox (still asks for an unnecessary decision), default the checkbox to checked (the draft path remains easy to trigger accidentally), or use registration status as publication state (mixes independent public visibility and registration timing concerns).
+**Revisit when:** The product adds an explicit multi-step event-planning workflow with a real review gate before public publication.
+
+---
+
 ## ADR-044: Independent Event Lifecycle and Registration Introduction
 
 **Date:** 2026-08-03
@@ -77,7 +113,7 @@
 ## ADR-039: Variable-Controlled Prefix and Manual Cleanup for Pre-Launch Event Testing
 
 **Date:** 2026-08-02
-**Status:** Accepted as temporary pre-launch practice
+**Status:** Superseded for public-submission beta by ADR-047; retained for direct organizer event rehearsals
 **Context:** DevCongress needs trusted testers to exercise the real hosted event-creation, submission, moderation, publication, and notification paths before opening them publicly. A separate development database and permanent development deployment are not currently affordable, while merging a full test-data lane would add product and schema work that is not required for this short acceptance period.
 **Decision:** Run the acceptance pass against the existing hosted project with the server-only `EVENT_TEST_MODE=true` variable. While enabled, the server prefixes every new public submission and organizer-created event with `[TEST]`; approval retains that stored marker, and event-related email subjects lead with the same marker. Clients cannot select the mode. Provide a local, service-role-only cleanup command that defaults to a read-only preview, discovers promoted events through their submission relationship as well as the fixed prefix, requires the exact `DELETE_TEST_EVENT_DATA` confirmation to execute, deletes canonical events before submissions, and verifies that no matching application records remain. Set the variable to `false` only after cleanup. Preserve the append-only administrator audit ledger and acknowledge that email already accepted by the provider cannot be recalled.
 **Trade-offs:** Test and production records still share one schema and failure domain. The flag affects only newly created data and does not retroactively relabel existing rows. The fixed prefix remains the cleanup selector, so test titles must not be renamed before cleanup and every dry-run row must be reviewed. The REST deletes are ordered and safely repeatable but are not one database transaction. This workflow is acceptable only while public submissions are not generally available.

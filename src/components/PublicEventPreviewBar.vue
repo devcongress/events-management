@@ -19,7 +19,7 @@ defineProps<{
             {{ detail ? 'Public event detail' : 'Public events collection' }}
           </p>
           <p class="public-preview-bar__description">
-            Website-shaped preview of the data another service receives.
+            Internal website-shaped preview, including private-beta events.
           </p>
         </div>
       </div>

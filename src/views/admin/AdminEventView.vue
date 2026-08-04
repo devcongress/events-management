@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { useQueryClient } from '@tanstack/vue-query';
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { canonicalizeSystemDesignSchedule, hasSystemDesignTitleMarker } from '@/lib/system-design';
-import { canChangeChecklistItemAvailability, isSystemDesignChecklistItem, SYSTEM_DESIGN_CHECKLIST_LABEL } from '@/lib/event-checklist-policy';
+import {
+  canChangeChecklistItemAvailability,
+  isArchiveRequestsChecklistItem,
+  isSystemDesignChecklistItem,
+  SYSTEM_DESIGN_CHECKLIST_LABEL,
+} from '@/lib/event-checklist-policy';
 import { resolveEventStatus } from '@/lib/event-status';
+import { EVENT_FORMAT_LABELS, EVENT_FORMATS } from '@/lib/event-format';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
 import {
@@ -25,7 +31,7 @@ import {
   validateMeetupImageFile,
 } from '@/src/lib/meetup-media-client';
 import { notify } from '@/src/lib/notify';
-import type { Event as CommunityEvent, EventChecklistItem, EventChecklistPhase, EventStatus, PublicMeetupScheduleItem } from '@/types';
+import type { Event as CommunityEvent, EventChecklistItem, EventChecklistPhase, EventFormat, EventStatus, PublicMeetupScheduleItem } from '@/types';
 
 const route = useRoute();
 const queryClient = useQueryClient();
@@ -56,6 +62,9 @@ let outlineDraftSequence = 0;
 const outlineDrafts = ref<OutlineDraftItem[]>([]);
 const outlineBulkText = ref('');
 const seriesTypeDraft = ref<EventSeriesSelection>('monthly');
+const savedSeriesType = ref<EventSeriesSelection>('monthly');
+const eventFormatDraft = ref<EventFormat>('meetup');
+const savedEventFormat = ref<EventFormat>('meetup');
 const seriesTypeSaving = ref(false);
 const seriesTypeError = ref<string | null>(null);
 const photoSaving = ref(false);
@@ -206,7 +215,13 @@ const checklistByPhase = computed(() => checklistPhaseOrder
   .filter((group) => group.items.length > 0));
 const currentEventId = computed(() => String(route.params.eventId));
 const eventSeriesTypeOptions = EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
+const eventFormatOptions = EVENT_FORMATS.map((value) => ({ value, label: EVENT_FORMAT_LABELS[value] }));
 const selectedSeriesTypeHelp = computed(() => EVENT_SERIES_HELP_TEXT[seriesTypeDraft.value]);
+const eventProfileHasChanges = computed(() => (
+  seriesTypeDraft.value !== savedSeriesType.value
+  || eventFormatDraft.value !== savedEventFormat.value
+));
+const canSaveEventProfile = computed(() => eventProfileHasChanges.value && !seriesTypeSaving.value);
 const rawEventSchedule = computed(() => event.value?.schedule ?? []);
 const isQuarterlyEvent = computed(currentEventIsQuarterly);
 const eventSharedLinks = computed(() => rawEventSchedule.value.flatMap((item) => item.shared_links ?? []));
@@ -341,7 +356,12 @@ function parseBulkOutline() {
 
 function syncSeriesTypeDraft() {
   if (!event.value) return;
-  seriesTypeDraft.value = eventSeriesValueToSelection(resolveEventSeriesType(event.value));
+  const seriesType = eventSeriesValueToSelection(resolveEventSeriesType(event.value));
+  seriesTypeDraft.value = seriesType;
+  savedSeriesType.value = seriesType;
+  const format = event.value.format ?? 'meetup';
+  eventFormatDraft.value = format;
+  savedEventFormat.value = format;
 }
 
 async function fetchOverview() {
@@ -363,6 +383,22 @@ async function fetchOverview() {
     checklist.value = payload.items ?? [];
   }
   loading.value = false;
+  await scrollToRequestedSection();
+}
+
+async function scrollToRequestedSection() {
+  if (route.hash !== '#event-media') return;
+
+  await nextTick();
+  window.requestAnimationFrame(() => {
+    const mediaSection = document.getElementById('event-media');
+    if (!mediaSection) return;
+
+    mediaSection.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    });
+  });
 }
 
 function publishStatusForEvent(currentEvent: CommunityEvent): EventStatus {
@@ -795,14 +831,8 @@ async function saveOutline() {
   }
 }
 
-async function saveSeriesType() {
-  if (!event.value || seriesTypeSaving.value) return;
-
-  const currentSeriesType = eventSeriesValueToSelection(resolveEventSeriesType(event.value));
-  if (seriesTypeDraft.value === currentSeriesType) {
-    seriesTypeError.value = null;
-    return;
-  }
+async function saveEventProfile() {
+  if (!event.value || !canSaveEventProfile.value) return;
 
   seriesTypeSaving.value = true;
   seriesTypeError.value = null;
@@ -811,20 +841,23 @@ async function saveSeriesType() {
     const response = await fetch(`/api/events/${route.params.eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ series_type: eventSeriesSelectionToValue(seriesTypeDraft.value) }),
+      body: JSON.stringify({
+        series_type: eventSeriesSelectionToValue(seriesTypeDraft.value),
+        format: eventFormatDraft.value,
+      }),
     });
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error ?? 'Failed to update the event series type');
+      throw new Error(payload.error ?? 'Failed to update the event profile');
     }
 
     event.value = await response.json();
     syncSeriesTypeDraft();
     await invalidateEventQueries();
-    notify.success('Event series updated');
+    notify.success('Event profile updated');
   } catch (error) {
-    seriesTypeError.value = error instanceof Error ? error.message : 'Failed to update the event series type';
+    seriesTypeError.value = error instanceof Error ? error.message : 'Failed to update the event profile';
     notify.error(seriesTypeError.value);
   } finally {
     seriesTypeSaving.value = false;
@@ -866,11 +899,13 @@ function canDisableChecklistItem(item: EventChecklistItem): boolean {
 
 function checklistAvailabilityActionLabel(item: EventChecklistItem): string {
   if (checklistDisablingId.value === item.id) return 'Saving';
+  if (isArchiveRequestsChecklistItem(item)) return item.disabled_at ? 'Enable archive requests' : 'Disable archive requests';
   if (!isSystemDesignChecklistItem(item)) return item.disabled_at ? 'Enable' : 'Disable';
   return item.disabled_at ? 'Include this month' : 'Not this month';
 }
 
 function checklistDisabledCopy(item: EventChecklistItem): string {
+  if (isArchiveRequestsChecklistItem(item)) return 'Archive requests are off for this event';
   return isSystemDesignChecklistItem(item)
     ? 'No system design session this month'
     : 'Disabled for this event';
@@ -1076,7 +1111,7 @@ onMounted(fetchOverview);
               </span>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
-            <div class="mt-5 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div class="rounded-lg border border-dc-border bg-dc-paper p-4">
                 <div class="event-overview-copy-header">
                   <div class="min-w-0">
@@ -1132,27 +1167,41 @@ onMounted(fetchOverview);
               </div>
 
               <aside class="rounded-lg border border-dc-border bg-dc-paper p-4">
-                <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Event profile</p>
-                <h2 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Series type</h2>
+                <div class="event-overview-copy-header">
+                  <div class="min-w-0">
+                    <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink">Event profile</p>
+                    <h2 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Classification</h2>
+                  </div>
+                </div>
                 <p class="mt-2 text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
-                <div class="mt-4 space-y-3">
+                <div class="mt-4 border-t border-dc-border pt-4">
+                  <AppDropdown
+                    v-model="eventFormatDraft"
+                    label="Event format"
+                    :options="eventFormatOptions"
+                    :disabled="seriesTypeSaving"
+                    required
+                  />
                   <AppDropdown
                     v-model="seriesTypeDraft"
-                    label="Series type"
+                    class="mt-3"
+                    label="DevCongress series"
                     :options="eventSeriesTypeOptions"
                     :disabled="seriesTypeSaving"
                   />
-                  <button
-                    type="button"
-                    class="editorial-action w-full justify-center"
-                    :disabled="seriesTypeSaving"
-                    @click="saveSeriesType"
-                  >
-                    {{ seriesTypeSaving ? 'SAVING...' : 'SAVE SERIES TYPE' }}
-                  </button>
+                  <div class="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      class="editorial-action min-h-10 px-4 py-2 text-[11px]"
+                      :disabled="!canSaveEventProfile"
+                      @click="saveEventProfile"
+                    >
+                      {{ seriesTypeSaving ? 'SAVING...' : 'SAVE PROFILE' }}
+                    </button>
+                  </div>
                   <p v-if="seriesTypeError" class="event-overview-copy-error">{{ seriesTypeError }}</p>
-	                </div>
-	              </aside>
+                </div>
+              </aside>
 
 		              <section v-if="isQuarterlyEvent" class="event-outline-panel xl:col-span-2">
 		                <div class="event-outline-header">
@@ -1501,7 +1550,7 @@ onMounted(fetchOverview);
           </div>
         </section>
 
-        <section class="event-media-panel">
+        <section id="event-media" class="event-media-panel scroll-mt-6">
           <div class="event-media-header">
             <div class="min-w-0">
               <p class="editorial-eyebrow">event media</p>
@@ -1528,7 +1577,7 @@ onMounted(fetchOverview);
                   :disabled="Boolean(mediaUploadPurpose)"
                   @change="handleMediaUpload($event, 'cover')"
                 >
-                {{ mediaUploadPurpose === 'cover' ? 'Uploading...' : 'Upload cover' }}
+                {{ mediaUploadPurpose === 'cover' ? 'Uploading...' : event.cover ? 'Re-upload cover' : 'Upload cover' }}
               </label>
             </div>
             <div class="event-media-upload-card">

@@ -17,10 +17,12 @@ export async function createEvent(
   data: Omit<Event, 'id' | 'created_at' | 'updated_at' | 'status'>
 ): Promise<Event> {
   const events = await readData<Event>(FILE);
+  const publishToWebsite = data.publish_to_website ?? true;
   const newEvent: Event = {
     ...data,
     id: generateId(),
-    status: 'draft',
+    publish_to_website: publishToWebsite,
+    status: publishToWebsite ? 'upcoming' : 'draft',
     created_at: now(),
     updated_at: now(),
   };

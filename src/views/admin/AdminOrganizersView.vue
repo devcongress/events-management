@@ -4,6 +4,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { z } from 'zod';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import OrganizerRoleBadge from '@/src/components/OrganizerRoleBadge.vue';
 import AdminOrganizersPageSkeleton from '@/src/components/ui/page-skeletons/AdminOrganizersPageSkeleton.vue';
 import { fetchAdminOrganizers, fetchAdminSession, queryKeys, type OrganizerMembership, type OrganizerMembershipsResponse } from '@/src/lib/api';
 import type { AdminRole } from '@/types/supabase';
@@ -397,7 +398,7 @@ function toggleEmailVisibility() {
                       teleport
                       @update:model-value="changeOrganizerRole(organizer, $event)"
                     />
-                    <span v-else>{{ roleLabel(organizer.role) }}</span>
+                    <OrganizerRoleBadge v-else :role="organizer.role" />
                   </td>
                   <td class="px-3 py-3 text-xs text-dc-gray">{{ formatDateTime(organizer.last_login_at) }}</td>
                   <td class="px-3 py-3">
@@ -453,15 +454,24 @@ function toggleEmailVisibility() {
           </div>
           <dl class="divide-y divide-dc-border">
             <div class="px-4 py-3">
-              <dt class="text-xs font-semibold text-dc-ink">Owner</dt>
+              <dt class="flex items-center justify-between gap-3 text-xs font-semibold text-dc-ink">
+                <span>Owner</span>
+                <OrganizerRoleBadge role="owner" icon-only />
+              </dt>
               <dd class="mt-1 text-xs leading-5 text-dc-gray">Full access, including owners and access management.</dd>
             </div>
             <div class="px-4 py-3">
-              <dt class="text-xs font-semibold text-dc-ink">Organizer</dt>
+              <dt class="flex items-center justify-between gap-3 text-xs font-semibold text-dc-ink">
+                <span>Organizer</span>
+                <OrganizerRoleBadge role="organizer" icon-only />
+              </dt>
               <dd class="mt-1 text-xs leading-5 text-dc-gray">Runs events and manages organizers or volunteers.</dd>
             </div>
             <div class="px-4 py-3">
-              <dt class="text-xs font-semibold text-dc-ink">Volunteer</dt>
+              <dt class="flex items-center justify-between gap-3 text-xs font-semibold text-dc-ink">
+                <span>Volunteer</span>
+                <OrganizerRoleBadge role="volunteer" icon-only />
+              </dt>
               <dd class="mt-1 text-xs leading-5 text-dc-gray">Sees only Annual Conference tasks assigned to them.</dd>
             </div>
           </dl>
