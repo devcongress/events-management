@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-04 — Bodyless API request reliability
+
+- Scoped API request-size parsing to payload methods (`POST`, `PUT`, and `PATCH`) so bodyless `DELETE` requests no longer reconstruct an empty local adapter stream before their route handlers run; existing size limits remain in force for every payload-bearing API write.
+
 ## 2026-08-04 — Community event submission launch boundary
 
 - Added an independent, fail-closed EMS runtime switch for the public proposal endpoint so hiding the Astro form cannot leave a directly callable write path open.
