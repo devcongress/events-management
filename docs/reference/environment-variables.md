@@ -9,6 +9,11 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `VITE_API_BASE_URL` | No | Yes | Optional Worker origin used only when `VITE_FORCE_API_BASE_URL=true`; the Pages `_worker.js` proxy is preferred for organizer auth |
 | `VITE_FORCE_API_BASE_URL` | No | Yes | Set to `true` only for public-read smoke tests that intentionally bypass the Pages `/api/*` proxy |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional locally, required for server Supabase writes | No | Server-only key for privileged Supabase operations |
+| `SUPABASE_DB_URL` | Required only for backups | No | Percent-encoded Session Pooler PostgreSQL URL used by `pnpm backup:supabase`; keep only in `.env.backup.local` or a secret store |
+| `SUPABASE_BACKUP_DIR` | Required only for backups | No | Absolute private destination outside the repository for encrypted backup archives |
+| `SUPABASE_BACKUP_AGE_RECIPIENT` | Required only for backups | No | Public `age` recipient used to encrypt backup archives; the corresponding identity must remain outside the repository |
+| `SUPABASE_BACKUP_BUCKETS` | No | No | Comma-separated Storage buckets included in backups; defaults to `meetup-media` |
+| `SUPABASE_BACKUP_STORAGE_CONCURRENCY` | No | No | Storage download concurrency from 1 through 16; defaults to 4 |
 | `APP_DATA_SOURCE` | Yes for organizer access and deployed Worker | No | Data-source mode for server helpers: use `supabase` for every organizer-capable runtime; use `local-json` only for public-only local work |
 | `EVENT_TEST_MODE` | No | No | Temporary organizer-event rehearsal switch. `true` prefixes newly created organizer events with `[TEST]`; public submissions keep their submitted title. Invalid values fail organizer event creation instead of silently creating live data. |
 | `PUBLIC_EVENT_SUBMISSIONS_ENABLED` | Required to accept public event proposals | No | Server-side launch gate for `POST /api/public/event-submissions`. Only an explicit `true` accepts submissions; missing, false, or invalid values return a stable unavailable response before validation, Turnstile, rate limits, email, or persistence. |

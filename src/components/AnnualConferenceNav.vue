@@ -4,7 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
-import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
+import {
+  ACTIVE_ANNUAL_CONFERENCE_EDITION,
+  annualConferenceEditionsForNavigation,
+  annualConferencePath,
+} from '@/src/annual-conference';
 import {
   createAnnualConferenceEdition,
   fetchAdminOrganizers,
@@ -35,9 +39,18 @@ const editionForm = reactive({
   provisional_date: '',
   task_creator_email: '',
 });
+const sessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
+const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
 const editionsQuery = useQuery({
   queryKey: queryKeys.annualConferenceEditions,
   queryFn: fetchAnnualConferenceEditions,
+  enabled: computed(() => (
+    sessionQuery.data.value?.authenticated === true
+    && !isVolunteer.value
+  )),
 });
 const workPlanQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
@@ -48,17 +61,16 @@ const organizersQuery = useQuery({
   queryFn: fetchAdminOrganizers,
   enabled: showEditionForm,
 });
-const editions = computed(() => editionsQuery.data.value?.editions ?? []);
+const editions = computed(() => annualConferenceEditionsForNavigation(
+  sessionQuery.data.value?.user?.role,
+  editionsQuery.data.value?.editions ?? [],
+  workPlanQuery.data.value?.edition,
+));
 const currentEdition = computed(() => editions.value.find((edition) => String(edition.year) === year.value));
 const canCreateEdition = computed(() => (
   workPlanQuery.data.value?.permissions.can_create_tasks === true
   && editions.value[0]?.year === currentEdition.value?.year
 ));
-const sessionQuery = useQuery({
-  queryKey: queryKeys.adminSession,
-  queryFn: fetchAdminSession,
-});
-const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
 const links = computed(() => [
   { href: annualConferencePath('', year.value), label: 'Overview' },
   { href: annualConferencePath('work-plan', year.value), label: 'Work plan' },
@@ -136,6 +148,7 @@ function isActive(href: string): boolean {
           <AppDropdown
             :model-value="year"
             :options="editionOptions"
+            :disabled="isVolunteer"
             density="compact"
             menu-class="min-w-48"
             @update:model-value="changeEdition"

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-04 — Current Annual Conference for unassigned volunteers
+
+- Kept volunteers on the current Accra-year Annual Conference by default instead of relying on a permanently hard-coded edition year.
+- Populated the volunteer edition control from the authorized work-plan response and locked edition switching, so a volunteer with no assigned tasks sees the current edition label instead of an empty **Select** control.
+- Avoided the organizer-only edition-list request in volunteer sessions while preserving the existing assignment-scoped task visibility and status-only permissions.
+- Admitted Volunteers to the exact authenticated logout route while retaining the existing request-origin validation, so sign-out now revokes their app session locally and in production.
+
+## 2026-08-04 — Encrypted Supabase backup tooling
+
+- Added a fail-closed backup command for database roles, schema, data, migration history, and Supabase Storage objects, packaged with a SHA-256 manifest and encrypted using an external `age` recipient.
+- Added preflight validation, repository-local destination protection, plaintext cleanup, focused safeguards tests, and an operational restore and retention runbook.
+
 ## 2026-08-04 — Bodyless API request reliability
 
 - Scoped API request-size parsing to payload methods (`POST`, `PUT`, and `PATCH`) so bodyless `DELETE` requests no longer reconstruct an empty local adapter stream before their route handlers run; existing size limits remain in force for every payload-bearing API write.

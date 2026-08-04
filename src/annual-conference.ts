@@ -1,8 +1,18 @@
 import { adminPath } from './admin-routes';
+import type { AnnualConferenceEdition } from '@/lib/annual-conference-work-plan';
+
+export function currentAnnualConferenceYear(date = new Date()): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Accra',
+    year: 'numeric',
+  }).format(date);
+}
+
+const currentYear = currentAnnualConferenceYear();
 
 export const ACTIVE_ANNUAL_CONFERENCE_EDITION = {
-  year: '2026',
-  label: 'December 2026',
+  year: currentYear,
+  label: `December ${currentYear}`,
   name: 'DevCongress Annual Conference',
 } as const;
 
@@ -15,6 +25,15 @@ export function mobileAnnualConferencePath(year: string = ACTIVE_ANNUAL_CONFEREN
 export function annualConferencePath(path = '', year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year): string {
   const editionPath = `annual-conference/${year}`;
   return adminPath(path ? `${editionPath}/${path.replace(/^\/+/, '')}` : editionPath);
+}
+
+export function annualConferenceEditionsForNavigation(
+  role: 'owner' | 'organizer' | 'volunteer' | undefined,
+  editions: AnnualConferenceEdition[],
+  currentEdition?: AnnualConferenceEdition,
+): AnnualConferenceEdition[] {
+  if (role !== 'volunteer') return editions;
+  return currentEdition ? [currentEdition] : [];
 }
 
 export function volunteerCanAccessOrganizerPath(path: string): boolean {
