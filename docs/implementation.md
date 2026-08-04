@@ -28,7 +28,6 @@
 | `src/views/NotFoundView.vue` | Branded fallback for unknown Vue routes |
 | `src/views/admin/*` | Active admin event/talk/speaker/quiz management views |
 | `lib/luma-attendance.ts` | Luma guest CSV normalization and organizer attendance metrics |
-| `lib/luma/events.ts` | Server-only Luma calendar event listing and import mapping |
 | `server/quiz-state.ts` | Quiz state read model and explicit phase-advance command helper |
 | `lib/supabase/browser.ts` / `server.ts` | Typed Supabase clients for browser-safe anon access and server-only service-role access |
 | `lib/supabase/community-events.ts` | Supabase-backed community event repository and public meetup DTO mapper |

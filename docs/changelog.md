@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-04 — Removed obsolete Luma page importer
+
+- Removed the unreachable public Luma page scraper and its isolated test after confirming no production code imports it.
+- Eliminated its hand-written HTML entity decoder, closing the double-unescaping CodeQL alert at the source instead of preserving dead functionality already replaced by native event creation.
+
 ## 2026-08-04 — Current Annual Conference for unassigned volunteers
 
 - Kept volunteers on the current Accra-year Annual Conference by default instead of relying on a permanently hard-coded edition year.
