@@ -201,11 +201,19 @@ app.use('*', async (c, next) => {
 const API_BODY_MAX_BYTES = 7 * 1024 * 1024;
 const PUBLIC_JSON_BODY_MAX_BYTES = 64 * 1024;
 const bodyTooLarge = (c: Context) => c.json({ error: 'Request body is too large.' }, 413);
+const PAYLOAD_REQUEST_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
-app.use('/api/*', bodyLimit({
-  maxSize: API_BODY_MAX_BYTES,
-  onError: bodyTooLarge,
-}));
+function bodyLimitForPayloadMethods(maxSize: number) {
+  const limit = bodyLimit({ maxSize, onError: bodyTooLarge });
+  return (c: Context, next: () => Promise<void>) => {
+    // Every DELETE handler is bodyless. Skipping the limiter for bodyless
+    // methods avoids reconstructing an empty adapter stream in local Hono.
+    if (!PAYLOAD_REQUEST_METHODS.has(c.req.method)) return next();
+    return limit(c, next);
+  };
+}
+
+app.use('/api/*', bodyLimitForPayloadMethods(API_BODY_MAX_BYTES));
 
 for (const publicWritePath of [
   '/api/feedback',
@@ -220,10 +228,7 @@ for (const publicWritePath of [
   '/api/quiz/answer',
   '/api/quiz/participants/*',
 ]) {
-  app.use(publicWritePath, bodyLimit({
-    maxSize: PUBLIC_JSON_BODY_MAX_BYTES,
-    onError: bodyTooLarge,
-  }));
+  app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
 
 const PUBLIC_MEETUP_COVERS = [
