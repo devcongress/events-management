@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ARCHIVE_REQUESTS_CHECKLIST_LABEL,
   canChangeChecklistItemAvailability,
+  isArchiveRequestsDisabledForEvent,
+  isArchiveRequestsChecklistItem,
   isSystemDesignChecklistItem,
   isSystemDesignDisabledForEvent,
   isSystemDesignWorkspaceDisabled,
@@ -34,6 +37,17 @@ describe('event checklist feature policy', () => {
     expect(isSystemDesignWorkspaceDisabled(disabledChecklist, false)).toBe(true);
   });
 
+  it('keeps archive requests off until their per-event item is explicitly enabled', () => {
+    expect(isArchiveRequestsChecklistItem({ label: ARCHIVE_REQUESTS_CHECKLIST_LABEL })).toBe(true);
+    expect(isArchiveRequestsDisabledForEvent([])).toBe(true);
+    expect(isArchiveRequestsDisabledForEvent([
+      { label: ARCHIVE_REQUESTS_CHECKLIST_LABEL, disabled_at: '2026-08-04T09:00:00.000Z' },
+    ])).toBe(true);
+    expect(isArchiveRequestsDisabledForEvent([
+      { label: ARCHIVE_REQUESTS_CHECKLIST_LABEL, disabled_at: null },
+    ])).toBe(false);
+  });
+
   it('keeps the monthly system design choice editable after event publication', () => {
     expect(canChangeChecklistItemAvailability({
       label: SYSTEM_DESIGN_CHECKLIST_LABEL,
@@ -51,5 +65,10 @@ describe('event checklist feature policy', () => {
       label: SYSTEM_DESIGN_CHECKLIST_LABEL,
       completed: true,
     }, true)).toBe(false);
+    expect(canChangeChecklistItemAvailability({
+      label: ARCHIVE_REQUESTS_CHECKLIST_LABEL,
+      completed: true,
+      disabled_at: '2026-08-04T09:00:00.000Z',
+    }, true)).toBe(true);
   });
 });

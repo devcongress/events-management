@@ -31,6 +31,8 @@ const props = defineProps<{
   phases: AnnualConferencePhase[];
   defaultPhaseId?: string | null;
   submitting?: boolean;
+  formId?: string;
+  showActions?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -228,7 +230,7 @@ function submitForm() {
 </script>
 
 <template>
-  <form class="grid gap-5" @submit.prevent="submitForm">
+  <form :id="formId" class="grid gap-5" @submit.prevent="submitForm">
     <div class="grid gap-5 lg:grid-cols-2">
       <label class="block lg:col-span-2">
         <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Task</span>
@@ -353,7 +355,7 @@ function submitForm() {
       </label>
     </div>
 
-    <div class="flex flex-wrap justify-end gap-3 border-t-2 border-dc-border pt-4">
+    <div v-if="showActions !== false" class="flex flex-wrap justify-end gap-3 border-t-2 border-dc-border pt-4">
       <button
         type="button"
         class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-dc-ink"

@@ -5,13 +5,13 @@ import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import PublicEventPreviewBar from '@/src/components/PublicEventPreviewBar.vue';
 import EventsPageSkeleton from '@/src/components/ui/page-skeletons/EventsPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
-import { fetchPublicMeetups, queryKeys } from '@/src/lib/api';
+import { fetchAdminEventPreview, queryKeys } from '@/src/lib/api';
 import type { PublicMeetup, PublicMeetupStatus } from '@/types';
 
 const queryClient = useQueryClient();
 const meetupsQuery = useQuery({
-  queryKey: queryKeys.publicMeetups,
-  queryFn: fetchPublicMeetups,
+  queryKey: queryKeys.adminEventPreview,
+  queryFn: fetchAdminEventPreview,
 });
 const meetups = computed<PublicMeetup[]>(() => meetupsQuery.data.value?.data ?? []);
 const loading = computed(() => meetupsQuery.isPending.value);
@@ -54,11 +54,11 @@ function eventPreviewAction(status: PublicMeetupStatus): string {
 
 function handlePublicMeetupRefresh(event: StorageEvent) {
   if (event.key !== 'dc-public-meetups-refresh') return;
-  void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.adminEventPreview });
 }
 
 function handlePublicMeetupRefreshSignal() {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.adminEventPreview });
 }
 
 onMounted(() => {
@@ -75,15 +75,15 @@ onUnmounted(() => {
 <template>
   <div class="editorial-page">
     <PublicEventPreviewBar
-      endpoint="/api/public/meetups"
+      endpoint="/api/admin/events-preview"
       :event-count="sortedMeetups.length"
     />
 
     <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
       <CommunityMasthead
-        eyebrow="meetups"
+        eyebrow="events"
         title="Where we show up"
-        :description="loading ? 'Loading the community calendar.' : `${sortedMeetups.length} meetup${sortedMeetups.length !== 1 ? 's' : ''}, ${totalPublishedTalks} published talk${totalPublishedTalks !== 1 ? 's' : ''}, and the next rooms we are gathering in.`"
+        :description="loading ? 'Loading the community calendar.' : `${sortedMeetups.length} event${sortedMeetups.length !== 1 ? 's' : ''}, ${totalPublishedTalks} published talk${totalPublishedTalks !== 1 ? 's' : ''}, and the next rooms we are gathering in.`"
       />
 
       <EventsPageSkeleton v-if="loading" />
@@ -93,8 +93,8 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="sortedMeetups.length === 0" class="editorial-panel p-10">
-        <h2 class="text-2xl font-bold tracking-tight text-dc-ink">No meetups yet</h2>
-        <p class="mt-2 text-dc-gray">Published community meetups will appear here.</p>
+        <h2 class="text-2xl font-bold tracking-tight text-dc-ink">No events yet</h2>
+        <p class="mt-2 text-dc-gray">Published events will appear here, including private-beta submissions.</p>
       </div>
 
       <div v-else class="grid gap-5 md:grid-cols-2">

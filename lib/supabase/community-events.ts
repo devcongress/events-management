@@ -5,6 +5,7 @@ import type { CommunityEventSeriesType, CommunityEventStatus, Database, Json } f
 import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
+import { isEventFormat } from '@/lib/event-format';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
@@ -21,6 +22,7 @@ export type CreateCommunityEventInput = {
   name: string;
   description: string | null;
   event_date: string;
+  format?: Event['format'];
   series_type?: Event['series_type'];
   end_date?: string | null;
   slug?: string | null;
@@ -122,14 +124,16 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
   const startsAt = new Date(input.event_date);
   const endsAt = input.end_date ? new Date(input.end_date) : defaultEndDate(startsAt);
   const location = input.location ?? DEFAULT_LOCATION;
+  const publishToWebsite = input.publish_to_website ?? true;
   const baseInsert: CommunityEventInsert = {
     slug: input.slug?.trim() || uniqueSlug(slugify(input.name)),
     name: input.name,
     description: input.description,
     series_type: input.series_type === undefined ? inferEventSeriesType(input.name) : input.series_type,
+    event_format: input.format ?? 'meetup',
     starts_at: startsAt.toISOString(),
     ends_at: endsAt.toISOString(),
-    status: 'draft',
+    status: publishToWebsite ? 'upcoming' : 'draft',
     cover_url: input.cover || DEFAULT_COVER,
     location_label: location.label ?? location.name ?? DEFAULT_LOCATION.label,
     location_name: location.name ?? DEFAULT_LOCATION.name,
@@ -137,8 +141,8 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
     registration_url: input.registration_url ?? null,
     stream_url: input.stream_url ?? null,
     embed_stream: input.embed_stream ?? false,
-    publish_to_website: input.publish_to_website ?? false,
-    publication_status: input.publish_to_website ? 'published' : 'draft',
+    publish_to_website: publishToWebsite,
+    publication_status: publishToWebsite ? 'published' : 'draft',
   };
   const insertWithExternal: CommunityEventInsert = {
     ...baseInsert,
@@ -209,6 +213,7 @@ export async function updateSupabaseCommunityEvent(
   if ('series_type' in input) {
     update.series_type = isEventSeriesType(input.series_type) ? input.series_type as CommunityEventSeriesType : null;
   }
+  if ('format' in input && isEventFormat(input.format)) update.event_format = input.format;
   if (typeof input.event_date === 'string') update.starts_at = new Date(input.event_date).toISOString();
   if (typeof input.end_date === 'string') update.ends_at = new Date(input.end_date).toISOString();
   if (typeof input.status === 'string') update.status = input.status as CommunityEventStatus;
@@ -342,6 +347,25 @@ export async function getSupabasePublicEvents(c?: Context): Promise<PublicEvent[
   return data
     .filter((row) => row.event_ownership === 'devcongress' || row.moderation_status === 'approved')
     .map(toPublicEvent);
+}
+
+export async function getSupabasePublicEventPreviewMeetups(
+  origin: string,
+  c?: Context,
+): Promise<PublicMeetup[] | null> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('community_events')
+    .select('*')
+    .eq('publish_to_website', true)
+    .eq('publication_status', 'published')
+    .order('starts_at', { ascending: false });
+
+  if (error) throw new Error('Unable to load event preview');
+  return data
+    .filter((row) => row.event_ownership === 'devcongress' || row.moderation_status === 'approved')
+    .map((row) => toPublicMeetup(row, origin));
 }
 
 function toEvent(row: CommunityEventRow): Event {

@@ -23,7 +23,7 @@ A proposal is not an event. It becomes a canonical external event only when an o
 - optional notes from the submitter;
 - Turnstile action and token.
 
-The server forces `source_app = website`, rejects unknown fields, validates location-dependent requirements, verifies the `event_submission` Turnstile action against the dedicated public-site hostname allowlist, then consumes distributed client and email rate limits. Production fails closed if any security dependency or relational storage is unavailable.
+The server first requires the runtime launch gate `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true`. Missing, false, or invalid values reject the request before validation, Turnstile, rate limits, email, or persistence. When enabled, the server forces `source_app = website`, rejects unknown fields, validates location-dependent requirements, verifies the `event_submission` Turnstile action against the dedicated public-site hostname allowlist, then consumes distributed client and email rate limits. Production fails closed if any security dependency or relational storage is unavailable.
 
 Accepted proposals receive only an opaque receipt id and pending status. There is no public status lookup, and pending/rejected records never enter a public feed. The intake transaction also queues a receipt email; provider failure does not roll back the saved proposal.
 
@@ -52,21 +52,25 @@ Canonical events keep these dimensions independent:
 - moderation: pending, approved, or rejected when applicable;
 - publication: draft, published, or archived.
 
+The organizer create and Event Profile editors expose **Event format** separately from **DevCongress series**. Existing and omitted values remain `meetup`; `conference` is the one canonical stored value and is displayed as **Conference / congress**.
+
 External promoted events retain the submitted organizer identity, have no DevCongress series, and are explicitly marked approved. Being listed does not make DevCongress the owner or organizer.
 
 ## Public discovery
 
-`GET /api/public/events` is the additive generic-events feed. It returns published DevCongress events and approved, published external events. `GET /api/public/meetups` remains the compatibility feed for DevCongress-owned meetups only.
+`GET /api/public/events` is the additive generic-events feed. It returns published DevCongress events and, only when `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true`, approved and published events promoted from public submissions. During private beta the variable remains false, so those events stay out of devcongress.org without changing their titles. `GET /api/public/meetups` remains the compatibility feed for DevCongress-owned meetups only.
+
+Authenticated organizers can inspect the complete published collection, including private-beta submissions, through `/organizer-console/website-preview/events`. That preview reads the private, non-cacheable `/api/admin/events-preview` contract and never changes the public visibility of a record.
 
 Approval updates the public API immediately. The current Astro website is statically built, so its `/events/` page reflects the new listing after the next website build/deployment; the approval email links to the submitted registration/event page when available instead of depending on that refresh.
 
 ## Temporary manual acceptance testing
 
-Before opening submissions to the general public, testers may exercise the hosted submission, approval, rejection, publication, and email paths against the existing Supabase project. Set the server-only `EVENT_TEST_MODE=true` Worker variable for the controlled test window. The server then prefixes every newly submitted or directly created event title with `[TEST]`; clients cannot opt out, and approved events inherit the stored marker. Event-related email subjects put `[TEST]` first so recipients cannot mistake them for live communication.
+Before opening submissions to the general public, testers may exercise the hosted submission, approval, rejection, publication, and email paths against the existing Supabase project. Keep `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=false` throughout the controlled test window. Public submissions retain their normal titles and email subjects; approved records remain visible in the authenticated EMS preview but every `public_submission` event is excluded from `GET /api/public/events`.
 
-`pnpm cleanup:test-events` is dry-run-only: it lists matching submissions, directly created events, and canonical events promoted from matching submissions. After reviewing every row, `pnpm cleanup:test-events -- --execute --confirm DELETE_TEST_EVENT_DATA` deletes the canonical events first and then their submissions. Submission email-outbox records cascade from the submission delete. The command verifies that no matching records remain.
+Before public launch, run `pnpm cleanup:private-beta-events` for a dry-run inventory of every public submission and its promoted canonical event. This deliberately broad scope is safe only while the form is still in closed beta and every public submission belongs to that window. After reviewing every row, `pnpm cleanup:private-beta-events -- --execute --confirm DELETE_PRIVATE_BETA_EVENT_DATA` deletes canonical events first and submissions second, then verifies that no matching rows remain. Submission email-outbox records cascade from submission deletion; administrator audit history and email already accepted by the provider remain.
 
-After the dry run and cleanup report zero matching records, set `EVENT_TEST_MODE=false` before opening the form publicly. Changing the variable affects only new records; it does not relabel or approve existing test data. This is a temporary, controlled pre-launch workflow rather than test/production data isolation. The cleanup uses the Supabase service-role key from local environment configuration and must not run from a browser or CI job. Administrator audit history and email already delivered to testers remain; provider email cannot be recalled. Once the public form is opened, use explicit test-data scoping instead of relying on a title prefix.
+Only after cleanup reports zero beta submissions and promoted events should `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED` become `true`. This is a temporary, controlled pre-launch workflow rather than permanent test/production data isolation. Once the public form is launched, use explicit test-data scoping if acceptance testing must coexist with real submissions.
 
 ## Deliberate follow-ups
 

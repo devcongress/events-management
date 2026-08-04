@@ -24,8 +24,10 @@ import {
   resolveEventSeriesType,
   type EventSeriesSelection,
 } from '@/lib/event-series';
+import { safeGoogleMapsUrl } from '@/lib/location-links';
+import { EVENT_FORMAT_LABELS, EVENT_FORMATS } from '@/lib/event-format';
 import { notify } from '@/src/lib/notify';
-import type { Event as CommunityEvent, EventStatus } from '@/types';
+import type { Event as CommunityEvent, EventFormat, EventStatus } from '@/types';
 import { adminPath } from '@/src/admin-routes';
 
 const route = useRoute();
@@ -42,6 +44,7 @@ const form = reactive({
   name: '',
   description: '',
   event_date: '',
+  format: 'meetup' as EventFormat,
   end_date: '',
   series_type: 'monthly' as EventSeriesSelection,
   slug: '',
@@ -53,7 +56,6 @@ const form = reactive({
   require_ghana_venue_selection: true,
   location_url: '',
   stream_url: '',
-  publish_to_website: false,
   registration_capacity: 100,
   registration_opens_at: '',
   registration_closes_at: '',
@@ -125,6 +127,7 @@ const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((a, b) =>
 const loading = computed(() => eventsQuery.isPending.value);
 const eventsError = computed(() => eventsQuery.error.value?.message ?? null);
 const seriesTypeOptions = EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] }));
+const eventFormatOptions = EVENT_FORMATS.map((value) => ({ value, label: EVENT_FORMAT_LABELS[value] }));
 const locationKindOptions = [
   { value: 'physical', label: 'Physical location' },
   { value: 'online', label: 'Online event' },
@@ -165,6 +168,17 @@ const createButtonLabel = computed(() => {
   if (createProgress.value === 'creating') return 'CREATING…';
   return 'CREATE EVENT + REGISTRATION';
 });
+const usingGoogleMapsLocation = computed(() => (
+  form.location_kind === 'physical' && form.physical_location_type === 'maps'
+));
+const googleMapsLocationUrl = computed(() => safeGoogleMapsUrl(form.location_url));
+const googleMapsLinkInvalid = computed(() => (
+  usingGoogleMapsLocation.value && !googleMapsLocationUrl.value
+));
+const showGoogleMapsLinkFeedback = computed(() => (
+  usingGoogleMapsLocation.value && form.location_url.trim().length > 0
+));
+const createDisabled = computed(() => createPending.value || googleMapsLinkInvalid.value);
 
 function broadcastPublicMeetupsRefresh() {
   if (typeof window === 'undefined') return;
@@ -265,7 +279,7 @@ async function createEvent() {
       }
     }
     await refreshEventQueries();
-    notify.success('Event and registration draft created.');
+    notify.success('Event and registration are ready.');
     if (coverUploadError) {
       notify.error(`Event created, but its cover was not uploaded: ${coverUploadError}`);
     }
@@ -431,8 +445,14 @@ function goToPage(nextPage: number) {
             <AppDatePicker v-model="form.event_date" label="Starts at" mode="datetime" required />
             <AppDatePicker v-model="form.end_date" label="Ends at" mode="datetime" />
             <AppDropdown
+              v-model="form.format"
+              label="Event format"
+              :options="eventFormatOptions"
+              required
+            />
+            <AppDropdown
               v-model="form.series_type"
-              label="Event type"
+              label="DevCongress series"
               :options="seriesTypeOptions"
             />
             <AppDropdown
@@ -462,13 +482,30 @@ function goToPage(nextPage: number) {
                 v-model="form.location_url"
                 type="url"
                 class="editorial-input"
+                :class="showGoogleMapsLinkFeedback
+                  ? googleMapsLocationUrl
+                    ? 'border-emerald-600 focus:border-emerald-600 focus:ring-emerald-600'
+                    : 'border-red-600 focus:border-red-600 focus:ring-red-600'
+                  : ''"
                 maxlength="2048"
                 inputmode="url"
                 autocomplete="url"
                 required
+                :aria-invalid="googleMapsLinkInvalid || undefined"
+                aria-describedby="event-location-url-help"
                 placeholder="https://maps.app.goo.gl/..."
               >
-              <p class="mt-2 text-xs leading-5 text-dc-gray">Paste the full HTTPS share link from Google Maps. Guests will see an “Open in Google Maps” link.</p>
+              <p id="event-location-url-help" class="mt-2 text-xs leading-5 text-dc-gray">Paste the full HTTPS share link from Google Maps. Guests will see an “Open in Google Maps” link.</p>
+              <p
+                v-if="showGoogleMapsLinkFeedback"
+                class="mt-1 text-xs font-semibold leading-5"
+                :class="googleMapsLocationUrl ? 'text-emerald-700' : 'text-red-700'"
+                aria-live="polite"
+              >
+                {{ googleMapsLocationUrl
+                  ? 'Google Maps link recognised.'
+                  : 'Use a full HTTPS Google Maps share link to create this event.' }}
+              </p>
             </div>
             <div v-if="form.location_kind === 'online'">
               <label for="event-stream-url" class="editorial-label">Online event link <span class="text-red-600">*</span></label>
@@ -517,13 +554,6 @@ function goToPage(nextPage: number) {
                 </button>
               </div>
             </div>
-            <label class="flex items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-4 py-3">
-              <input v-model="form.publish_to_website" type="checkbox" class="size-4 accent-dc-pink">
-              <div>
-                <span class="block text-sm font-bold text-dc-ink">Publish event shell now</span>
-                <span class="block text-xs leading-5 text-dc-gray">Leave off to finish setup before it appears publicly.</span>
-              </div>
-            </label>
           </div>
         </section>
 
@@ -563,7 +593,7 @@ function goToPage(nextPage: number) {
         <div v-if="createError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">{{ createError }}</div>
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <RouterLink :to="adminPath('events')" class="inline-flex min-h-12 items-center justify-center rounded-md border-2 border-dc-ink bg-white px-5 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink">Cancel</RouterLink>
-          <button type="submit" class="editorial-action min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60" :disabled="createPending">
+          <button type="submit" class="editorial-action min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60" :disabled="createDisabled">
             {{ createButtonLabel }}
           </button>
         </div>
@@ -597,9 +627,10 @@ function goToPage(nextPage: number) {
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div class="shrink-0">
                 <p class="editorial-eyebrow">lifecycle</p>
-                <h2 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Event status</h2>
+                <h2 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Event lifecycle</h2>
+                <p class="mt-1 text-xs font-medium text-dc-gray">From draft to completed.</p>
               </div>
-              <ol class="flex min-w-0 flex-wrap gap-2">
+              <ol class="lifecycle-track" aria-label="Event lifecycle stages from draft to completed">
                 <li
                   v-for="(stage, index) in lifecycleStages"
                   :key="stage.status"
@@ -610,7 +641,7 @@ function goToPage(nextPage: number) {
                     class="lifecycle-stage-trigger"
                     :aria-describedby="`lifecycle-stage-${stage.status}`"
                   >
-                    <span class="text-dc-pink">{{ index + 1 }}</span>
+                    <span class="lifecycle-stage-index">{{ index + 1 }}</span>
                     <span class="text-dc-ink">{{ stage.label }}</span>
                   </button>
                   <div

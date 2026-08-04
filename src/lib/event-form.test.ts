@@ -16,6 +16,34 @@ describe('toEventSlug', () => {
 });
 
 describe('event series form payload', () => {
+  it('defaults organizer-created events to the meetup format', () => {
+    const parsed = createEventFormSchema.parse({
+      name: 'DevCongress Monthly Meetup',
+      description: 'A free community meetup.',
+      event_date: '2026-08-20T18:00',
+      series_type: 'monthly',
+      location_name: 'Accra',
+    });
+
+    expect(toCreateEventApiPayload(parsed).format).toBe('meetup');
+  });
+
+  it('keeps event format independent from the DevCongress series', () => {
+    const parsed = createEventFormSchema.parse({
+      name: 'DevCongress Systems Workshop',
+      description: 'A practical systems workshop.',
+      event_date: '2026-08-20T18:00',
+      format: 'workshop',
+      series_type: 'special',
+      location_name: 'Accra',
+    });
+
+    expect(toCreateEventApiPayload(parsed)).toMatchObject({
+      format: 'workshop',
+      series_type: 'special',
+    });
+  });
+
   it('stores None of these as no series instead of Special', () => {
     const parsed = createEventFormSchema.parse({
       name: 'Community Demo Night',
@@ -54,11 +82,14 @@ describe('event series form payload', () => {
       registration_capacity: 80,
     });
 
-    expect(toCreateEventApiPayload(parsed).registration).toMatchObject({
-      status: 'open',
-      capacity: 80,
-      auto_confirm: true,
-      waitlist_enabled: true,
+    expect(toCreateEventApiPayload(parsed)).toMatchObject({
+      publish_to_website: true,
+      registration: {
+        status: 'open',
+        capacity: 80,
+        auto_confirm: true,
+        waitlist_enabled: true,
+      },
     });
   });
 

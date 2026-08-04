@@ -7,9 +7,13 @@ import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
+import {
+  isArchiveRequestsChecklistItem,
+  isArchiveRequestsDisabledForEvent,
+} from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { archiveRequestProgramItems, sameArchiveProgramItemIdentity } from '@/lib/speaker-archive-email';
-import type { ArchiveItemKind, Event, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
@@ -40,8 +44,10 @@ const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
 const speakerIntakeLinks = ref<AdminSpeakerIntakeLink[]>([]);
+const checklistItems = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
 const creatingSpeakerLink = ref(false);
+const enablingArchiveRequests = ref(false);
 const deletingSpeakerLinkId = ref<string | null>(null);
 const decidingSubmissionId = ref<string | null>(null);
 const updatingCfp = ref(false);
@@ -111,6 +117,11 @@ const missingSelectedSpeakerLinkCount = computed(() => selectedSpeakerPendingSub
   return !link || link.status !== 'active' || !link.token;
 }).length);
 const activeArchiveBackfillLinkCount = computed(() => archiveBackfillLinks.value.filter((link) => link.status === 'active').length);
+const archiveRequestsChecklistItem = computed(() => (
+  checklistItems.value.find(isArchiveRequestsChecklistItem) ?? null
+));
+const archiveRequestsDisabled = computed(() => isArchiveRequestsDisabledForEvent(checklistItems.value));
+const archiveRequestsEnabled = computed(() => !archiveRequestsDisabled.value);
 const talkSections: { id: TalkSection; label: string }[] = [
   { id: 'cfp', label: 'CFP' },
   { id: 'proposals', label: 'Proposals' },
@@ -186,7 +197,8 @@ const allSelectableBackfillProgramItemsSelected = computed(() => (
   && selectableBackfillProgramItems.value.every((item) => backfillProgramItemValues.value.includes(item.value))
 ));
 const canSendBackfillEmails = computed(() => (
-  selectedBackfillProgramItems.value.length > 0
+  archiveRequestsEnabled.value
+  && selectedBackfillProgramItems.value.length > 0
   && selectedBackfillEmailIssueCount.value === 0
   && selectedBackfillProgramItems.value.every((item) => !item.sent)
 ));
@@ -263,6 +275,14 @@ async function fetchSpeakerIntakeLinks() {
   }
 }
 
+async function fetchArchiveRequestAvailability() {
+  const response = await fetch(`/api/events/${route.params.eventId}/checklist`, { cache: 'no-store' });
+  if (!response.ok) return;
+
+  const data = await response.json();
+  checklistItems.value = data.items ?? [];
+}
+
 function rememberIssuedSpeakerLink(payload: { link?: AdminSpeakerIntakeLink | null; token?: string | null }) {
   if (!payload.link || !payload.token) return;
 
@@ -287,6 +307,7 @@ async function fetchPageData() {
     fetchTalks(),
     fetchSpeakerSubmissions(),
     fetchSpeakerIntakeLinks(),
+    fetchArchiveRequestAvailability(),
   ]);
   loading.value = false;
 }
@@ -349,7 +370,7 @@ async function refreshSpeakerSubmissions() {
 }
 
 async function sendSpeakerIntakeEmails() {
-  if (!canSendBackfillEmails.value) return;
+  if (!archiveRequestsEnabled.value || !canSendBackfillEmails.value) return;
 
   creatingSpeakerLink.value = true;
   error.value = null;
@@ -388,6 +409,31 @@ async function sendSpeakerIntakeEmails() {
     notify.error('Could not send the archive request email. Check your connection and try again.');
   } finally {
     creatingSpeakerLink.value = false;
+  }
+}
+
+async function enableArchiveRequests() {
+  const item = archiveRequestsChecklistItem.value;
+  if (!item || !archiveRequestsDisabled.value || enablingArchiveRequests.value) return;
+
+  enablingArchiveRequests.value = true;
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}/checklist/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled: false }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error ?? 'Could not enable archive requests.');
+    }
+
+    checklistItems.value = data.items ?? checklistItems.value;
+    notify.success('Archive requests enabled. You can now create private request links.');
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Could not enable archive requests.');
+  } finally {
+    enablingArchiveRequests.value = false;
   }
 }
 
@@ -899,7 +945,24 @@ onUnmounted(() => {
 
         <section v-if="activeTalkSection === 'backfill'" class="ops-panel mb-8 p-5">
           <div class="mb-6">
-            <form @submit.prevent="sendSpeakerIntakeEmails">
+            <Transition name="archive-request-composer" mode="out-in">
+              <section v-if="!archiveRequestsEnabled" key="disabled" class="rounded-md border border-dc-border bg-dc-paper-warm p-5">
+                <p class="ops-label">archive requests</p>
+                <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Archive requests are off</h3>
+                <p class="mt-2 max-w-2xl text-sm leading-6 text-dc-gray">
+                  Enable this only when you are ready to invite speakers to add materials to this event archive. Existing request links remain available below.
+                </p>
+                <button
+                  type="button"
+                  class="editorial-action mt-4 min-h-11 px-4 disabled:opacity-50"
+                  :disabled="!archiveRequestsChecklistItem || enablingArchiveRequests"
+                  @click="enableArchiveRequests"
+                >
+                  {{ enablingArchiveRequests ? 'ENABLING…' : 'ENABLE ARCHIVE REQUESTS' }}
+                </button>
+              </section>
+
+              <form v-else key="enabled" @submit.prevent="sendSpeakerIntakeEmails">
               <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p class="ops-label">new request</p>
@@ -1035,7 +1098,8 @@ onUnmounted(() => {
                   </button>
                 </div>
               </div>
-            </form>
+              </form>
+            </Transition>
           </div>
 
           <section class="border-t border-dc-border pt-5">

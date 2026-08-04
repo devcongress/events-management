@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-08-04 — Community event submission launch boundary
+
+- Added an independent, fail-closed EMS runtime switch for the public proposal endpoint so hiding the Astro form cannot leave a directly callable write path open.
+- Added event format to organizer event creation and Event Profile editing, kept it independent from the DevCongress series, and retained `meetup` as the compatibility default.
+- Standardized `conference` as the stored taxonomy value while displaying it as **Conference / congress**.
+- Added a fail-closed discovery switch that keeps every promoted public submission out of the unauthenticated events feed during private beta while retaining normal titles, emails, and authenticated EMS preview access.
+- Added a dry-run-first private-beta cleanup scope that deletes promoted events before their submissions and requires a separate explicit destructive confirmation.
+
+## 2026-08-04 — Organizer role clarity
+
+- Replaced redundant role-label chips in the People & Access reference with compact semantic icons, while keeping text badges in the organizer table and signed-in desktop header where they identify a person’s current access.
+
+## 2026-08-04 — Focused registration editing
+
+- Made the Event Profile series-type control visually match the adjacent About editor and enabled its compact save action only after the selected series type differs from the persisted value.
+- Matched the About page and Event Profile panel heights within their shared Overview row, removing the visual gap beneath shorter About copy.
+- Routed **Manage cover** from Registration directly to the loaded Overview Media section and renamed the cover action to **Re-upload cover** whenever a cover already exists.
+- Condensed the Registration workspace header into a compact event context and tab rail, removing the redundant divider and excess vertical space before the active workspace.
+- Matched Registration’s top page spacing to the compact Event Overview rhythm instead of the generic, oversized workspace padding.
+- Added quiet semantic icons to the Registration workspace tabs so Summary, Guests, Form & capacity, Emails, and Blasts scan more quickly without replacing their text labels.
+- Made the Events lifecycle explicitly read as a path from draft to completed, with connected stage markers and restrained hover/focus feedback for each stage's existing guidance.
+- Collapsed guest-facing registration-page details by default behind an explicit **Edit details** control, while keeping **Open form**, **Copy form**, availability, capacity, timing, and the public link immediately visible.
+- Added immediate Google Maps share-link recognition to event creation and disabled **Create event + registration** until a physical Maps location is a supported HTTPS Google Maps URL.
+- Removed the redundant Registration open pill from the registration overview, limited manual refresh to campaigns that are actually accepting guests, and added a confirmed immediate-reopen action for closed or expired campaigns.
+- Hid the Guests first-letter filter until at least one registration exists, removing the inert **All** control from the empty state while preserving a short, reduced-motion-safe entrance when guests first arrive.
+- Made Archive Requests an explicit per-event opt-in: every monthly event starts with private archive requests off, the Archive workspace offers one clear enable action, existing links remain manageable, and both link-creation APIs reject new requests until enabled.
+
+## 2026-08-04 — Default native event publication
+
+- Removed the confusing “Publish event shell now” choice from native event creation: normal organizer-created events now publish as upcoming and open registration immediately unless a future registration opening time is supplied.
+
+## 2026-08-04 — Fixed Annual Conference task-drawer actions
+
+- Kept task create and edit actions in the drawer’s fixed footer, so Cancel and Save remain available while long forms scroll independently.
+- Prevented non-teleported dropdown menus from inheriting a taller neighbouring grid item’s height, keeping each menu close to its selector.
+- Consolidated desktop guest search, status filters, and result count into one registration-toolbar row while retaining a compact stacked layout on smaller screens.
+
 ## 2026-08-03 — Registration opens with event creation
 
 - Made newly created event registration campaigns open immediately by default instead of requiring a second organizer action.

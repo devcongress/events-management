@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import PublicEventPreviewBar from '@/src/components/PublicEventPreviewBar.vue';
 import { adminPath } from '@/src/admin-routes';
-import { fetchPublicMeetup, queryKeys } from '@/src/lib/api';
+import { fetchAdminEventPreviewDetail, queryKeys } from '@/src/lib/api';
 import { canEmbedPublicMeetupMedia } from '@/src/lib/public-meetup-media';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import type { PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker } from '@/types';
@@ -21,15 +21,15 @@ const PUBLIC_TALK_SUMMARY_WORDS = 38;
 const meetupSlug = computed(() => String(route.params.slug ?? ''));
 const backLink = computed(() => ({
   to: adminPath('website-preview/events'),
-  label: 'All meetups',
+  label: 'All events',
 }));
 const publicEndpoint = computed(() => (
-  `/api/public/meetups/${encodeURIComponent(meetupSlug.value)}`
+  `/api/admin/events-preview/${encodeURIComponent(meetupSlug.value)}`
 ));
 const meetupQuery = useQuery({
-  queryKey: computed(() => queryKeys.publicMeetup(meetupSlug.value)),
+  queryKey: computed(() => queryKeys.adminEventPreviewDetail(meetupSlug.value)),
   queryFn: async () => {
-    const payload = await fetchPublicMeetup(meetupSlug.value);
+    const payload = await fetchAdminEventPreviewDetail(meetupSlug.value);
     return payload.data;
   },
   enabled: computed(() => Boolean(meetupSlug.value)),
@@ -200,10 +200,10 @@ function startMeetupPhotoRotation() {
 }
 
 function refreshMeetupQueries() {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.adminEventPreview });
 
   if (meetupSlug.value) {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetup(meetupSlug.value) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.adminEventPreviewDetail(meetupSlug.value) });
   }
 }
 
@@ -255,9 +255,9 @@ const meetupPrimaryAction = computed(() => (meetup.value ? primaryAction(meetup.
 
     <div v-else-if="error || !meetup" class="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center px-4 py-12 text-center sm:px-6 lg:px-8">
       <div>
-        <p class="editorial-eyebrow">meetup</p>
-        <h1 class="mt-3 text-4xl font-extrabold tracking-tight text-dc-ink">Meetup not found</h1>
-        <p class="mt-3 text-sm leading-6 text-dc-gray">{{ error ?? 'This meetup could not be loaded.' }}</p>
+        <p class="editorial-eyebrow">event</p>
+        <h1 class="mt-3 text-4xl font-extrabold tracking-tight text-dc-ink">Event not found</h1>
+        <p class="mt-3 text-sm leading-6 text-dc-gray">{{ error ?? 'This event could not be loaded.' }}</p>
         <RouterLink :to="backLink.to" class="editorial-secondary-action mt-6 inline-flex">Back to Events</RouterLink>
       </div>
     </div>

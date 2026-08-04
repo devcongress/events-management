@@ -41,6 +41,7 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 | `pnpm dev` | Start Vite and same-origin Hono API |
 | `pnpm seed` | Reset JSON mock data |
 | `pnpm cleanup:test-events` | Preview hosted submissions and events marked with `[TEST]`; deletion requires the documented explicit confirmation |
+| `pnpm cleanup:private-beta-events` | Preview every closed-beta public submission and promoted event; use only before public launch and require the documented private-beta confirmation to delete |
 | `pnpm typecheck` | Run `vue-tsc --noEmit` |
 | `pnpm build` | Typecheck and build production assets |
 | `pnpm start` | Serve `dist/` and `/api/*` with Bun |

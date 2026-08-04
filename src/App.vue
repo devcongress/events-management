@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import OrganizerSessionPause from './components/OrganizerSessionPause.vue';
+import OrganizerRoleBadge from './components/OrganizerRoleBadge.vue';
 import AppToaster from './components/ui/AppToaster.vue';
 import AppBootScreen from './components/ui/AppBootScreen.vue';
 import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
@@ -117,6 +118,7 @@ const showOrganizerAccessSurface = computed(() => (
 ));
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
 const isConferenceVolunteer = computed(() => adminSessionQuery.data.value?.user?.role === 'volunteer');
+const currentOrganizerRole = computed(() => adminSessionQuery.data.value?.user?.role ?? null);
 const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
 const showPrimaryNavigation = computed(() => (
   showAppHeader.value
@@ -733,6 +735,11 @@ onUnmounted(() => {
         </RouterLink>
 
         <div v-if="showHeaderActions" class="app-header-actions flex items-center justify-end gap-3 lg:order-3">
+          <OrganizerRoleBadge
+            v-if="currentOrganizerRole"
+            :role="currentOrganizerRole"
+            class="hidden sm:inline-flex"
+          />
           <span class="hidden h-8 w-px rounded-full bg-dc-ink/30 sm:block" />
           <button
             v-if="showSignOut"

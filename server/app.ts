@@ -43,8 +43,16 @@ import {
 } from '@/lib/annual-conference-work-plan';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
+import {
+  publicEventSubmissionsEnabled,
+  publicEventSubmissionsPublicDiscoveryEnabled,
+} from '@/lib/public-event-submissions';
+import { EVENT_FORMATS } from '@/lib/event-format';
 import { GooglePlacesSearchError, searchGhanaVenues } from '@/lib/google-places';
-import { canChangeChecklistItemAvailability } from '@/lib/event-checklist-policy';
+import {
+  canChangeChecklistItemAvailability,
+  isArchiveRequestsDisabledForEvent,
+} from '@/lib/event-checklist-policy';
 import { isEventSeriesType, resolveEventSeriesType } from '@/lib/event-series';
 import {
   CFP_SUBMISSION_TURNSTILE_ACTION,
@@ -72,7 +80,7 @@ import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
-import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEventPreviewMeetups, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import {
   approveEventSubmission,
   createEventSubmission,
@@ -396,6 +404,7 @@ const eventUpdateSchema = z.object({
   event_date: eventDateSchema.optional(),
   end_date: eventDateSchema.nullable().optional(),
   series_type: z.enum(['monthly', 'quarterly', 'special']).nullable().optional(),
+  format: z.enum(EVENT_FORMATS).optional(),
   status: z.enum(['draft', 'cfp_open', 'cfp_closed', 'upcoming', 'live', 'completed']).optional(),
   slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80).nullable().optional(),
   cover: websiteUrlSchema.nullable().optional(),
@@ -971,6 +980,7 @@ async function createEvent(data: {
   name: string;
   description: string | null;
   event_date: string;
+  format?: Event['format'];
   series_type?: EventSeriesType | null;
   end_date?: string | null;
   slug?: string | null;
@@ -992,6 +1002,7 @@ async function createEvent(data: {
     name: markedData.name,
     description: markedData.description,
     event_date: markedData.event_date,
+    format: markedData.format ?? 'meetup',
     series_type: markedData.series_type,
     end_date: markedData.end_date ?? undefined,
     slug: markedData.slug ?? undefined,
@@ -1001,7 +1012,7 @@ async function createEvent(data: {
     stream_url: markedData.stream_url ?? null,
     embed_stream: markedData.embed_stream ?? false,
     photos: markedData.photos ?? [],
-    publish_to_website: markedData.publish_to_website ?? false,
+    publish_to_website: markedData.publish_to_website ?? true,
   }));
 }
 
@@ -1486,6 +1497,32 @@ async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
       updated_at: event.updated_at,
     }))
     .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
+}
+
+async function publicEventPreviewMeetups(c: Context): Promise<PublicMeetup[]> {
+  const supabasePreview = await getSupabasePublicEventPreviewMeetups(publicAppOrigin(c), c);
+  if (supabasePreview) return supabasePreview;
+
+  const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
+  return events
+    .filter((event) => (
+      event.publication_status === 'published'
+      || (event.publication_status === undefined && event.publish_to_website === true)
+    ))
+    .filter((event) => event.ownership !== 'external' || event.moderation_status === 'approved')
+    .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), publicAppOrigin(c)))
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+}
+
+async function publicEventsForApi(c: Context): Promise<PublicEvent[]> {
+  const events = await getSupabasePublicEvents(c) ?? await buildPublicEvents(c);
+  if (publicEventSubmissionsPublicDiscoveryEnabled(
+    envValue('PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED', c),
+  )) {
+    return events;
+  }
+
+  return events.filter((event) => event.source !== 'public_submission');
 }
 
 async function publicMeetupsForApi(c: Context): Promise<PublicMeetup[]> {
@@ -2226,8 +2263,9 @@ function buildFeedbackInsights(
 }
 
 function checklistProgress(items: EventChecklistItem[]) {
-  const completed = items.filter((item) => item.completed).length;
-  const total = items.length;
+  const activeItems = items.filter((item) => !item.disabled_at);
+  const completed = activeItems.filter((item) => item.completed).length;
+  const total = activeItems.length;
 
   return {
     completed,
@@ -3912,7 +3950,7 @@ app.get('/api/public/meetups', async (c) => {
 app.get('/api/public/events', async (c) => {
   setPublicApiCache(c);
   return c.json({
-    data: await getSupabasePublicEvents(c) ?? await buildPublicEvents(c),
+    data: await publicEventsForApi(c),
     meta: {
       source: 'events-management',
       version: 1,
@@ -3920,7 +3958,40 @@ app.get('/api/public/events', async (c) => {
   });
 });
 
+app.get('/api/admin/events-preview', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  return c.json({
+    data: await publicEventPreviewMeetups(c),
+    meta: {
+      source: 'events-management-preview',
+      version: 1,
+    },
+  });
+});
+
+app.get('/api/admin/events-preview/:slug', async (c) => {
+  c.header('Cache-Control', 'private, no-store');
+  const slug = c.req.param('slug');
+  const event = (await publicEventPreviewMeetups(c))
+    .find((item) => item.slug === slug || item.id === slug);
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  return c.json({ data: event });
+});
+
 app.post('/api/public/event-submissions', async (c) => {
+  if (!publicEventSubmissionsEnabled(envValue('PUBLIC_EVENT_SUBMISSIONS_ENABLED', c))) {
+    return c.json({
+      error: {
+        code: 'submissions_disabled',
+        message: 'Event submissions are not currently accepting new proposals.',
+      },
+    }, 503);
+  }
+
   const parsed = eventSubmissionSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     const fieldErrors = Object.fromEntries(
@@ -4017,10 +4088,7 @@ app.post('/api/public/event-submissions', async (c) => {
 
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
-    const submission = await createEventSubmission({
-      ...input,
-      title: markTestEventTitle(input.title, eventTestModeEnabled(envValue('EVENT_TEST_MODE', c))),
-    }, c);
+    const submission = await createEventSubmission(input, c);
     await dispatchEventSubmissionEmails(c, {
       submissionId: submission.id,
       kinds: ['receipt'],
@@ -4308,6 +4376,7 @@ app.post('/api/events', async (c) => {
     name: body.name,
     description: body.description,
     event_date: body.event_date,
+    format: body.format,
     series_type: body.series_type === null ? 'none' : body.series_type,
     end_date: body.end_date ?? '',
     slug: body.slug ?? '',
@@ -4320,7 +4389,7 @@ app.post('/api/events', async (c) => {
     location_name: body.location?.name ?? body.location?.label ?? '',
     location_url: body.location?.url ?? '',
     stream_url: body.stream_url ?? '',
-    publish_to_website: Boolean(body.publish_to_website),
+    publish_to_website: body.publish_to_website ?? true,
     registration_capacity: body.registration?.capacity ?? 100,
     registration_opens_at: body.registration?.opens_at ?? '',
     registration_closes_at: body.registration?.closes_at ?? '',
@@ -4361,6 +4430,7 @@ app.post('/api/events', async (c) => {
         name: event.name,
         status: event.status,
         event_date: event.event_date,
+        format: event.format ?? 'meetup',
         series_type: event.series_type,
         registration_campaign_id: registrationCampaign.id,
         registration_capacity: registrationCampaign.capacity,
@@ -5519,6 +5589,12 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
+  if (isArchiveRequestsDisabledForEvent(await getEventChecklist(eventId, event.status, event))) {
+    return c.json({
+      error: 'Archive requests are disabled for this event. Enable archive requests before creating a new request.',
+    }, 409);
+  }
+
   const body = await c.req.json().catch(() => ({}));
   const parsed = speakerIntakeLinkRequestSchema.safeParse(body);
 
@@ -5577,17 +5653,23 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  if (isArchiveRequestsDisabledForEvent(await getEventChecklist(eventId, event.status, event))) {
+    return c.json({
+      error: 'Archive requests are disabled for this event. Enable archive requests before creating a new request.',
+    }, 409);
+  }
+
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailFrom = EMAIL_SENDERS.speakers.from;
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return c.json({ error: 'Speaker email sending is not configured.' }, 503);
-  }
-
-  const eventId = c.req.param('eventId');
-  const event = await getEventById(eventId, c);
-  if (!event) {
-    return c.json({ error: 'Event not found' }, 404);
   }
 
   const body = await c.req.json().catch(() => ({}));

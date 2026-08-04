@@ -227,7 +227,7 @@ watch(open, async (isOpen) => {
 </script>
 
 <template>
-  <div ref="root" class="relative block" :class="open ? 'z-[80]' : 'z-auto'">
+  <div ref="root" class="relative block self-start" :class="open ? 'z-[80]' : 'z-auto'">
     <span v-if="label" :id="`${dropdownId}-label`" class="editorial-label">{{ label }}</span>
     <button
       type="button"
