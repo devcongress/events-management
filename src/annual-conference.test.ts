@@ -1,5 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { annualConferencePath, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
+import type { AnnualConferenceEdition } from '@/lib/annual-conference-work-plan';
+import {
+  annualConferenceEditionsForNavigation,
+  annualConferencePath,
+  currentAnnualConferenceYear,
+  mobileAnnualConferencePath,
+  volunteerCanAccessOrganizerPath,
+} from './annual-conference';
+
+const edition = (year: number): AnnualConferenceEdition => ({
+  id: `edition-${year}`,
+  year,
+  name: 'DevCongress Annual Conference',
+  label: `December ${year}`,
+  provisional_date: `${year}-12-19`,
+  date_status: 'provisional',
+  venue_note: null,
+  keynote_note: null,
+  task_creator_email: 'owner@example.com',
+  created_at: `${year}-01-01T00:00:00.000Z`,
+  updated_at: `${year}-01-01T00:00:00.000Z`,
+});
 
 describe('volunteer organizer routes', () => {
   it('allows only the conference overview and assigned work plan', () => {
@@ -9,5 +30,17 @@ describe('volunteer organizer routes', () => {
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers'))).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/organizers')).toBe(false);
+  });
+
+  it('uses the current Accra year for the default conference route', () => {
+    expect(currentAnnualConferenceYear(new Date('2027-01-01T00:30:00.000Z'))).toBe('2027');
+  });
+
+  it('keeps volunteers on their current workspace edition even with no assigned tasks', () => {
+    const currentEdition = edition(2026);
+
+    expect(annualConferenceEditionsForNavigation('volunteer', [], currentEdition)).toEqual([currentEdition]);
+    expect(annualConferenceEditionsForNavigation('organizer', [edition(2027), currentEdition], currentEdition))
+      .toHaveLength(2);
   });
 });

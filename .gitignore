@@ -46,6 +46,11 @@ next-env.d.ts
 # uploaded files
 /public/uploads/
 
+# database backup artifacts must stay outside the repository
+/backups/
+/.backups/
+*.tar.gz.age
+
 # local agent/indexer/security scan artifacts
 /.codebase-indexer/
 /.sentinel/

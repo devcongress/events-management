@@ -7,8 +7,13 @@ const CONFERENCE_MEMBER_ROLES: AdminRole[] = annualConferenceRolesForAdmission('
 const ANNUAL_WORK_PLAN_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan$/;
 const ANNUAL_TASK_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+$/;
 const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
+const LOGOUT_PATH = '/api/auth/logout';
 
 export function adminRolesForApiRequest(path: string, method: string): AdminRole[] {
+  if (method === 'POST' && path === LOGOUT_PATH) {
+    return CONFERENCE_MEMBER_ROLES;
+  }
+
   if (method === 'PATCH' && MEMBERSHIP_ROLE_PATH.test(path)) {
     return OWNER_ROLES;
   }

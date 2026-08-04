@@ -13,6 +13,8 @@
     "seed": "tsx data/seed.ts",
     "cleanup:test-events": "bun run scripts/cleanup-test-event-data.ts",
     "cleanup:private-beta-events": "bun run scripts/cleanup-test-event-data.ts --scope private-beta",
+    "backup:supabase": "node --import tsx scripts/backup-supabase.ts",
+    "backup:supabase:check": "node --import tsx scripts/backup-supabase.ts --preflight",
     "verify:public-api": "tsx scripts/verify-public-meetups-api.ts",
     "verify:deployed-security": "node --import tsx scripts/security/verify-deployed-security.ts",
     "dast:staging": "node --import tsx scripts/security/run-staging-dast.ts",
