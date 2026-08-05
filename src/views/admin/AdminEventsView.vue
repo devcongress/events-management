@@ -9,7 +9,13 @@ import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
 import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
 import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
 import { createNativeEvent, deleteEventById, fetchEvents, queryKeys } from '@/src/lib/api';
-import { createEventFormSchema, toCreateEventApiPayload, toEventSlug } from '@/src/lib/event-form';
+import {
+  createEventFormSchema,
+  eventEndDateError,
+  syncEventEndDate,
+  toCreateEventApiPayload,
+  toEventSlug,
+} from '@/src/lib/event-form';
 import {
   compressionSavingsPercent,
   compressMeetupImageForUpload,
@@ -178,7 +184,10 @@ const googleMapsLinkInvalid = computed(() => (
 const showGoogleMapsLinkFeedback = computed(() => (
   usingGoogleMapsLocation.value && form.location_url.trim().length > 0
 ));
-const createDisabled = computed(() => createPending.value || googleMapsLinkInvalid.value);
+const endDateError = computed(() => eventEndDateError(form.event_date, form.end_date));
+const createDisabled = computed(() => (
+  createPending.value || googleMapsLinkInvalid.value || Boolean(endDateError.value)
+));
 
 function broadcastPublicMeetupsRefresh() {
   if (typeof window === 'undefined') return;
@@ -211,6 +220,10 @@ watch(generatedSlug, (nextSlug) => {
     slugWasEdited.value = false;
     form.slug = nextSlug;
   }
+});
+
+watch(() => form.event_date, (nextStart, previousStart) => {
+  form.end_date = syncEventEndDate(previousStart, nextStart, form.end_date);
 });
 
 function handleSlugInput(event: Event) {
@@ -443,26 +456,31 @@ function goToPage(nextPage: number) {
               <textarea id="event-description" v-model="form.description" class="editorial-input min-h-32 resize-none" required placeholder="What the meetup is about and who should attend." />
             </div>
             <AppDatePicker v-model="form.event_date" label="Starts at" mode="datetime" required />
-            <AppDatePicker v-model="form.end_date" label="Ends at" mode="datetime" />
+            <AppDatePicker
+              v-model="form.end_date"
+              label="Ends at"
+              mode="datetime"
+              :error="endDateError ?? undefined"
+            />
             <AppDropdown
               v-model="form.format"
               label="Event format"
               :options="eventFormatOptions"
               required
             />
-            <AppDropdown
-              v-model="form.series_type"
-              label="DevCongress series"
-              :options="seriesTypeOptions"
-            />
+            <div class="min-w-0">
+              <AppDropdown
+                v-model="form.series_type"
+                label="DevCongress series"
+                :options="seriesTypeOptions"
+              />
+              <p class="mt-2 text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
+            </div>
             <AppDropdown
               v-model="form.location_kind"
               label="Location type"
               :options="locationKindOptions"
             />
-            <div class="md:col-span-2 -mt-2">
-              <p class="text-sm leading-6 text-dc-gray">{{ selectedSeriesTypeHelp }}</p>
-            </div>
             <AppDropdown
               v-if="form.location_kind === 'physical'"
               v-model="form.physical_location_type"

@@ -9,6 +9,7 @@ const OPTIONAL_URL_MESSAGE = 'Enter a full URL that starts with http:// or https
 const OPTIONAL_COVER_MESSAGE = 'Use a full URL or a site-local path that starts with /.';
 const OPTIONAL_MAP_MESSAGE = 'Add an HTTPS Google Maps link for the Ghana venue.';
 const OPTIONAL_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
@@ -34,6 +35,44 @@ function normalizeEventDateValue(value: string): string {
   return LOCAL_DATE_TIME_PATTERN.test(value)
     ? new Date(`${value}:00.000Z`).toISOString()
     : value;
+}
+
+function eventDateTimestamp(value: string): number | null {
+  if (!isValidCalendarValue(value)) return null;
+  const timestamp = new Date(normalizeEventDateValue(value)).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function toLocalDateTimeValue(timestamp: number): string {
+  return new Date(timestamp).toISOString().slice(0, 16);
+}
+
+export function syncEventEndDate(previousStart: string, nextStart: string, currentEnd: string): string {
+  const nextStartTimestamp = eventDateTimestamp(nextStart);
+  if (nextStartTimestamp === null) return currentEnd;
+
+  const previousStartTimestamp = eventDateTimestamp(previousStart);
+  const currentEndTimestamp = eventDateTimestamp(currentEnd);
+  const currentDuration = previousStartTimestamp !== null && currentEndTimestamp !== null
+    ? currentEndTimestamp - previousStartTimestamp
+    : DEFAULT_EVENT_DURATION_MS;
+  const duration = currentDuration > 0 ? currentDuration : DEFAULT_EVENT_DURATION_MS;
+
+  return toLocalDateTimeValue(nextStartTimestamp + duration);
+}
+
+export function eventEndDateError(start: string, end: string): string | null {
+  if (!end.trim()) return null;
+
+  const endTimestamp = eventDateTimestamp(end);
+  if (endTimestamp === null) return 'Choose a valid end date and time.';
+
+  const startTimestamp = eventDateTimestamp(start);
+  if (startTimestamp !== null && endTimestamp <= startTimestamp) {
+    return 'End date must be after the event start.';
+  }
+
+  return null;
 }
 
 function isFullUrl(value: string): boolean {
@@ -81,23 +120,12 @@ export const createEventFormSchema = z.object({
   registration_opens_at: z.string().trim().optional().default(''),
   registration_closes_at: z.string().trim().optional().default(''),
 }).superRefine((value, ctx) => {
-  if (value.end_date && !isValidCalendarValue(value.end_date)) {
+  const endDateError = eventEndDateError(value.event_date, value.end_date);
+  if (endDateError) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['end_date'],
-      message: 'Choose a valid end date and time.',
-    });
-  }
-
-  if (
-    value.end_date
-    && new Date(normalizeEventDateValue(value.end_date)).getTime()
-      < new Date(normalizeEventDateValue(value.event_date)).getTime()
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['end_date'],
-      message: 'End date cannot be before the meetup date.',
+      message: endDateError,
     });
   }
 
