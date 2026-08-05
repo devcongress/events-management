@@ -39,11 +39,11 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/admin/events-preview/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview; volunteer summaries contain only assigned work |
-| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; organizers receive complete planning controls while volunteers see assigned tasks and may update status only |
-| `/organizer-console/annual-conference/:year/timeline` | Edition timeline with phase windows, target-dated tasks, No phase classification, and planning-owner phase controls |
-| `/organizer-console/annual-conference/2026/volunteers` | December 2026 volunteer-link sharing and private application review |
-| `/organizer-console/annual-conference/2026/volunteers/display` | Organizer-only TV-safe QR display for the December 2026 volunteer intake form |
-| `/organizer-console/organizers` | People & Access allowlist for owner, organizer, and restricted volunteer roles; volunteers cannot open this route |
+| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; volunteers default to assigned tasks and status-only updates, with edition-scoped full-view or management delegation available |
+| `/organizer-console/annual-conference/:year/timeline` | Capability-gated edition timeline with phase windows, target-dated tasks, No phase classification, and separately delegated phase controls |
+| `/organizer-console/annual-conference/:year/volunteers` | Capability-derived volunteer team, intake sharing, and private application review sections |
+| `/organizer-console/annual-conference/:year/volunteers/display` | TV-safe QR display requiring the edition's volunteer-intake sharing responsibility |
+| `/organizer-console/organizers` | People & Access allowlist plus Owner-only, edition-scoped Conference responsibilities; volunteers cannot open this route |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
 | `/organizer-console/events/:eventId/registrations` | Four-part registration workspace for capacity summary, public-link/settings, private guest operations, atomic cancellation/promotion, transactional delivery retries, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
@@ -82,11 +82,15 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/feedback*` | App feedback, event campaigns, and anonymous public event-feedback submission. Session ratings accept 1–5 or `not_attended`; the latter is excluded from averages. |
 | `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by mandatory production Turnstile, atomic per-client limits, and email de-duplication |
 | `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
-| `GET /api/annual-conference/:year/work-plan` | Organizers receive the annual edition and complete work plan; volunteers receive only assigned tasks with organizer-only internal notes removed |
+| `GET /api/annual-conference/:year/work-plan` | Returns the edition plan and effective capability list; volunteers default to assigned tasks with internal notes removed, while explicit full-view or management grants expand the projection |
 | `GET/POST /api/annual-conference/editions` | List editions or let the latest edition's planning owner create a future edition with an inherited or selected active-organizer owner |
-| `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to the edition planning owner and requires one accountable owner |
-| `PATCH /api/annual-conference/:year/work-plan/:taskId` | Organizers may edit an existing task; volunteers may change only the status of a task assigned to them |
-| `POST/PATCH/DELETE /api/annual-conference/:year/phases*` | Planning-owner phase management with non-overlap and task target-date safeguards |
+| `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to platform/planning owners or a member with delegated work-plan management, and requires one accountable owner |
+| `PATCH /api/annual-conference/:year/work-plan/:taskId` | Assigned organizers may edit their tasks; volunteers default to assigned status-only changes, while delegated work-plan managers may edit every task |
+| `POST/PATCH/DELETE /api/annual-conference/:year/phases*` | Capability-gated phase management with non-overlap and task target-date safeguards |
+| `GET/PATCH /api/annual-conference/:year/access-grants*` | Owner-only responsibility matrix and audited per-member grant/revocation |
+| `GET /api/annual-conference/:year/team` | Active volunteer names only; requires volunteer-team viewing and excludes applicant contact details |
+| `GET /api/annual-conference/:year/task-members` | Active task assignees for organizers or delegated work-plan managers |
+| `GET /api/annual-conference/:year/volunteer-applications` | Private applicant records requiring the separate application-review capability |
 | `/api/quiz*` | Separate quiz and System Design learning-room sessions, reviewed questions, protected presenter controls/state, and anonymous join/answer state |
 | `/api/public/meetups*` | Read-only website integration API |
 | `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and, behind an independent fail-closed discovery gate, approved and published public-submission listings |
@@ -94,7 +98,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, and idempotent failed-email retry |
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
-| `/api/admin/organizers*` | Owner-only organizer email allowlist management |
+| `/api/admin/organizers*` | Organizer email allowlist management; re-enable and permanent removal endpoints are Owner-only, and permanent removal requires a disabled membership |
 | `/api/admin/audit-log` | Owner-only audit log read API |
 | `/api/health` and `/api/health/supabase` | Minimal public readiness checks without internal error detail |
 | `/api/health/data-sources`, `/api/health/supabase/community-events`, `/api/health/supabase/storage` | Owner-only persistence and storage diagnostics |

@@ -67,8 +67,8 @@ async function submitApplication() {
     <section class="volunteer-intake-shell" aria-labelledby="volunteer-intake-title">
       <div class="volunteer-intake-intro">
         <p class="editorial-eyebrow">December Mega Meetup</p>
-        <h1 id="volunteer-intake-title">Volunteer for DevCongress.</h1>
-        <p>Leave your details and we will contact you about helping make the meetup happen.</p>
+        <h1 id="volunteer-intake-title">Volunteer for the conference.</h1>
+        <p>Bring your energy, practical skills, or simply a willingness to help. We will be in touch with the next step.</p>
       </div>
 
       <section v-if="submitted" class="volunteer-intake-receipt" aria-live="polite">
@@ -78,6 +78,11 @@ async function submitApplication() {
       </section>
 
       <form v-else class="volunteer-intake-form" @submit.prevent="submitApplication">
+        <header class="volunteer-intake-form-header">
+          <p class="editorial-eyebrow">Your details</p>
+          <p>Four quick details so we can reach you when the team is ready.</p>
+        </header>
+
         <div class="volunteer-intake-fields">
           <label>
             <span>Name</span>
@@ -108,7 +113,7 @@ async function submitApplication() {
         <p v-if="error || turnstileError" class="volunteer-intake-error" role="alert">{{ error || turnstileError }}</p>
 
         <button class="volunteer-intake-submit motion-press" type="submit" :disabled="!canSubmit || submitting">
-          {{ submitting ? 'Sending…' : 'Volunteer for the meetup' }}
+          {{ submitting ? 'Sending…' : 'Volunteer for the conference' }}
         </button>
       </form>
     </section>

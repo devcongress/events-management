@@ -8,8 +8,10 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/auth/logout', 'POST')).toContain('volunteer');
   });
 
-  it('keeps conference task creation and organizer APIs organizer-only', () => {
-    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan', 'POST')).not.toContain('volunteer');
+  it('admits conference members to capability-gated conference operations only', () => {
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan', 'POST')).toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/phases', 'POST')).toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/volunteer-applications', 'GET')).toContain('volunteer');
     expect(adminRolesForApiRequest('/api/admin/organizers', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/admin/volunteer-applications', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/events', 'GET')).toEqual(['owner', 'organizer']);
@@ -18,6 +20,8 @@ describe('admin API role policy', () => {
   it('keeps existing member role changes owner-only', () => {
     expect(adminRolesForApiRequest('/api/admin/organizers/member-1/role', 'PATCH')).toEqual(['owner']);
     expect(adminRolesForApiRequest('/api/admin/organizers/member-1/role', 'GET')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/admin/organizers/member-1/enable', 'POST')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/admin/organizers/member-1/permanent', 'DELETE')).toEqual(['owner']);
   });
 
   it('does not admit similarly prefixed or malformed paths', () => {

@@ -67,8 +67,8 @@ describe('annual conference volunteer access', () => {
 
     const visible = annualConferenceTasksForMember(
       [assigned, unrelated],
-      'volunteer',
-      'volunteer@example.com',
+      { role: 'volunteer', email: 'volunteer@example.com' },
+      [],
     );
 
     expect(visible).toHaveLength(1);
@@ -77,7 +77,22 @@ describe('annual conference volunteer access', () => {
 
   it('does not filter organizer work plans', () => {
     const tasks = [task(), task({ id: 'task-2' })];
-    expect(annualConferenceTasksForMember(tasks, 'organizer', 'organizer@example.com')).toBe(tasks);
+    expect(annualConferenceTasksForMember(
+      tasks,
+      { role: 'organizer', email: 'organizer@example.com' },
+      ['work_plan.view_all'],
+    )).toEqual(tasks);
+  });
+
+  it('shows delegated volunteers the full plan while keeping internal notes private', () => {
+    const tasks = [task(), task({ id: 'task-2', accountable_owner: 'someone@example.com' })];
+    const visible = annualConferenceTasksForMember(
+      tasks,
+      { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.view_all'] },
+      ['work_plan.view_all'],
+    );
+    expect(visible).toHaveLength(2);
+    expect(visible.every((item) => item.internal_note === null)).toBe(true);
   });
 
   it('lets volunteers change only status on tasks assigned to them', () => {
@@ -102,6 +117,11 @@ describe('annual conference volunteer access', () => {
       can_create_tasks: false,
       can_edit_assigned_tasks: false,
       can_update_assigned_task_status: true,
+      access_scope: 'assigned',
+    });
+    expect(annualConferenceCapabilities({ role: 'volunteer', email: edition.task_creator_email }, edition)).toMatchObject({
+      can_create_tasks: false,
+      can_manage_phases: false,
       access_scope: 'assigned',
     });
   });
@@ -130,6 +150,12 @@ describe('annual conference volunteer access', () => {
       edition,
       task(),
       { status: 'done' },
+    )).toBe(true);
+    expect(canUpdateAnnualConferenceTask(
+      { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.manage'] },
+      edition,
+      task({ accountable_owner: 'someone@example.com' }),
+      { title: 'Delegated manager update' },
     )).toBe(true);
   });
 

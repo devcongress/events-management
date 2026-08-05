@@ -18,6 +18,10 @@ import {
   queryKeys,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import {
+  hasAnyAnnualConferenceCapability,
+  VOLUNTEER_SECTION_CAPABILITIES,
+} from '@/lib/annual-conference-capabilities';
 
 withDefaults(defineProps<{
   title?: string;
@@ -71,11 +75,23 @@ const canCreateEdition = computed(() => (
   workPlanQuery.data.value?.permissions.can_create_tasks === true
   && editions.value[0]?.year === currentEdition.value?.year
 ));
+const capabilities = computed(() => workPlanQuery.data.value?.permissions.capabilities ?? []);
+const canViewTimeline = computed(() => hasAnyAnnualConferenceCapability(
+  capabilities.value,
+  ['timeline.view', 'phases.manage'],
+));
+const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualConferenceCapability(
+  capabilities.value,
+  VOLUNTEER_SECTION_CAPABILITIES,
+));
 const links = computed(() => [
   { href: annualConferencePath('', year.value), label: 'Overview' },
-  { href: annualConferencePath('work-plan', year.value), label: 'Work plan' },
-  ...(!isVolunteer.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline' }] : []),
-  ...(!isVolunteer.value && year.value === '2026' ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers' }] : []),
+  {
+    href: annualConferencePath('work-plan', year.value),
+    label: isVolunteer.value && workPlanQuery.data.value?.permissions.access_scope === 'assigned' ? 'My tasks' : 'Work plan',
+  },
+  ...(canViewTimeline.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline' }] : []),
+  ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers' }] : []),
 ]);
 const editionOptions = computed(() => editions.value.map((edition) => ({
   value: String(edition.year),
@@ -84,7 +100,7 @@ const editionOptions = computed(() => editions.value.map((edition) => ({
 const planningOwnerOptions = computed(() => [
   { value: '', label: `Inherit ${currentEdition.value?.task_creator_email ?? 'current planning owner'}` },
   ...(organizersQuery.data.value?.organizers ?? [])
-    .filter((organizer) => organizer.status === 'active')
+    .filter((organizer) => organizer.status === 'active' && organizer.role !== 'volunteer')
     .map((organizer) => ({
       value: organizer.email,
       label: organizer.display_name ? `${organizer.display_name} · ${organizer.email}` : organizer.email,

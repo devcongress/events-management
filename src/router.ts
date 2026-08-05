@@ -5,8 +5,18 @@ import {
   isAdminPath,
   safeInternalAppPath,
 } from './admin-routes';
-import { annualConferencePath, mobileAnnualConferencePath, volunteerCanAccessOrganizerPath } from './annual-conference';
-import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
+import {
+  ACTIVE_ANNUAL_CONFERENCE_EDITION,
+  annualConferencePath,
+  mobileAnnualConferencePath,
+  volunteerCanAccessOrganizerPath,
+} from './annual-conference';
+import {
+  fetchAdminSession,
+  fetchAnnualConferenceWorkPlan,
+  queryKeys,
+  type AdminSessionResponse,
+} from './lib/api';
 import { queryClient } from './lib/query';
 import {
   SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME,
@@ -140,8 +150,8 @@ export const router = createRouter({
     { path: adminPath('annual-conference/:year(\\d{4})'), name: 'admin-annual-conference', component: AdminAnnualConferenceView },
     { path: adminPath('annual-conference/:year(\\d{4})/work-plan'), name: 'admin-annual-conference-work-plan', component: AdminAnnualConferenceWorkPlanView },
     { path: adminPath('annual-conference/:year(\\d{4})/timeline'), name: 'admin-annual-conference-timeline', component: AdminAnnualConferenceTimelineView },
-    { path: annualConferencePath('volunteers'), name: 'admin-annual-conference-volunteers', component: AdminVolunteerView },
-    { path: annualConferencePath('volunteers/display'), name: 'admin-annual-conference-volunteer-display', component: AdminVolunteerDisplayView },
+    { path: adminPath('annual-conference/:year(\\d{4})/volunteers'), name: 'admin-annual-conference-volunteers', component: AdminVolunteerView },
+    { path: adminPath('annual-conference/:year(\\d{4})/volunteers/display'), name: 'admin-annual-conference-volunteer-display', component: AdminVolunteerDisplayView },
     { path: adminPath('volunteers'), redirect: annualConferencePath('volunteers') },
     { path: adminPath('volunteer-display'), redirect: annualConferencePath('volunteers/display') },
     { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
@@ -163,6 +173,19 @@ export const router = createRouter({
     { path: '/:pathMatch(.*)*', redirect: adminPath('events') },
   ],
 });
+
+async function volunteerCanOpenRoute(path: string, yearParam: unknown): Promise<boolean> {
+  const year = typeof yearParam === 'string' ? yearParam : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+  try {
+    const workspace = await queryClient.fetchQuery({
+      queryKey: queryKeys.annualConferenceWorkPlan(year),
+      queryFn: () => fetchAnnualConferenceWorkPlan(year),
+    });
+    return volunteerCanAccessOrganizerPath(path, workspace.permissions.capabilities);
+  } catch {
+    return volunteerCanAccessOrganizerPath(path);
+  }
+}
 
 router.beforeEach(async (to, from) => {
   const oauthCode = typeof to.query.code === 'string' ? to.query.code : '';
@@ -198,6 +221,7 @@ router.beforeEach(async (to, from) => {
       cachedSession.user?.role === 'volunteer'
       && isPhone
       && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+      && to.name !== 'admin-annual-conference-volunteer-display'
     ) {
       return mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined);
     }
@@ -213,7 +237,7 @@ router.beforeEach(async (to, from) => {
     if (viewportRedirect) return viewportRedirect;
 
     if (cachedSession.user?.role === 'volunteer') {
-      return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+      return await volunteerCanOpenRoute(to.path, to.params.year) ? true : annualConferencePath();
     }
 
     if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== 'owner') {
@@ -234,6 +258,7 @@ router.beforeEach(async (to, from) => {
         session.user?.role === 'volunteer'
         && isPhone
         && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+        && to.name !== 'admin-annual-conference-volunteer-display'
       ) {
         return mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined);
       }
@@ -249,7 +274,7 @@ router.beforeEach(async (to, from) => {
       if (viewportRedirect) return viewportRedirect;
 
       if (session.user?.role === 'volunteer') {
-        return volunteerCanAccessOrganizerPath(to.path) ? true : annualConferencePath();
+        return await volunteerCanOpenRoute(to.path, to.params.year) ? true : annualConferencePath();
       }
 
       if (ownerOnlyPaths.has(to.path) && session.user?.role !== 'owner') {

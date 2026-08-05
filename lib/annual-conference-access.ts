@@ -6,10 +6,16 @@ import {
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
 import type { AdminRole } from '@/types/supabase';
+import {
+  effectiveAnnualConferenceCapabilities,
+  hasAnnualConferenceCapability,
+  type AnnualConferenceCapability,
+} from '@/lib/annual-conference-capabilities';
 
 export interface AnnualConferenceActor {
   email: string | null;
   role: AdminRole;
+  granted_capabilities?: AnnualConferenceCapability[];
 }
 
 export interface AnnualConferenceCapabilities {
@@ -20,6 +26,7 @@ export interface AnnualConferenceCapabilities {
   can_update_assigned_task_status: boolean;
   access_scope: 'all' | 'assigned';
   task_creator_email: string;
+  capabilities: AnnualConferenceCapability[];
 }
 
 export interface AnnualConferenceWorkspace {
@@ -65,17 +72,20 @@ export function canEditAnnualConferenceTask(
 
 export function annualConferenceTasksForMember(
   tasks: AnnualConferenceTask[],
-  role: AdminRole,
-  email: string | null | undefined,
+  actor: AnnualConferenceActor,
+  capabilities: readonly AnnualConferenceCapability[],
 ): AnnualConferenceTask[] {
-  if (role !== 'volunteer') return tasks;
+  const canViewAll = actor.role !== 'volunteer'
+    || hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')
+    || hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
+    || hasAnnualConferenceCapability(capabilities, 'timeline.view')
+    || hasAnnualConferenceCapability(capabilities, 'phases.manage');
+  const canViewInternalNotes = actor.role !== 'volunteer'
+    || hasAnnualConferenceCapability(capabilities, 'work_plan.manage');
 
   return tasks
-    .filter((task) => isAnnualConferenceTaskAssignedTo(task, email))
-    .map((task) => ({
-      ...task,
-      internal_note: null,
-    }));
+    .filter((task) => canViewAll || isAnnualConferenceTaskAssignedTo(task, actor.email))
+    .map((task) => canViewInternalNotes ? task : { ...task, internal_note: null });
 }
 
 export function volunteerCanUpdateAssignedTask(
@@ -92,19 +102,27 @@ export function annualConferenceCapabilities(
   actor: AnnualConferenceActor,
   edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
 ): AnnualConferenceCapabilities {
-  const volunteerAccess = actor.role === 'volunteer';
-  const platformOwner = actor.role === 'owner' && Boolean(normalizedIdentity(actor.email));
   const planningOwner = normalizedIdentity(actor.email) === normalizedIdentity(edition.task_creator_email);
-  const canManagePlanning = platformOwner || (!volunteerAccess && planningOwner);
+  const capabilities = effectiveAnnualConferenceCapabilities({
+    role: actor.role,
+    grants: actor.granted_capabilities,
+    isPlanningOwner: actor.role !== 'volunteer' && planningOwner,
+  });
+  const canManageTasks = hasAnnualConferenceCapability(capabilities, 'work_plan.manage');
+  const canViewAll = hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')
+    || canManageTasks
+    || hasAnnualConferenceCapability(capabilities, 'timeline.view')
+    || hasAnnualConferenceCapability(capabilities, 'phases.manage');
 
   return {
-    can_create_tasks: canManagePlanning,
-    can_manage_phases: canManagePlanning,
-    can_edit_all_tasks: canManagePlanning,
-    can_edit_assigned_tasks: !volunteerAccess,
-    can_update_assigned_task_status: volunteerAccess,
-    access_scope: volunteerAccess ? 'assigned' : 'all',
+    can_create_tasks: canManageTasks,
+    can_manage_phases: hasAnnualConferenceCapability(capabilities, 'phases.manage'),
+    can_edit_all_tasks: canManageTasks,
+    can_edit_assigned_tasks: actor.role !== 'volunteer',
+    can_update_assigned_task_status: actor.role === 'volunteer' && !canManageTasks,
+    access_scope: canViewAll ? 'all' : 'assigned',
     task_creator_email: edition.task_creator_email,
+    capabilities,
   };
 }
 
@@ -112,19 +130,23 @@ export function presentAnnualConferenceTask(
   task: AnnualConferenceTask,
   actor: AnnualConferenceActor,
 ): AnnualConferenceTask {
-  return actor.role === 'volunteer' ? { ...task, internal_note: null } : task;
+  const capabilities = effectiveAnnualConferenceCapabilities({ role: actor.role, grants: actor.granted_capabilities });
+  return actor.role === 'volunteer' && !hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
+    ? { ...task, internal_note: null }
+    : task;
 }
 
 export function presentAnnualConferenceWorkspace(
   workspace: AnnualConferenceWorkspace,
   actor: AnnualConferenceActor,
 ) {
-  const tasks = annualConferenceTasksForMember(workspace.tasks, actor.role, actor.email);
+  const permissions = annualConferenceCapabilities(actor, workspace.edition);
+  const tasks = annualConferenceTasksForMember(workspace.tasks, actor, permissions.capabilities);
   return {
     ...workspace,
     tasks,
     summary: summarizeAnnualConferenceWorkPlan(tasks),
-    permissions: annualConferenceCapabilities(actor, workspace.edition),
+    permissions,
   };
 }
 
@@ -157,7 +179,8 @@ export function canUpdateAnnualConferenceTask(
   task: Pick<AnnualConferenceTask, 'accountable_owner' | 'collaborators'>,
   changes: AnnualConferenceTaskUpdateInput,
 ): boolean {
-  if (actor.role === 'owner') return Boolean(normalizedIdentity(actor.email));
+  const capabilities = annualConferenceCapabilities(actor, edition);
+  if (capabilities.can_edit_all_tasks) return Boolean(normalizedIdentity(actor.email));
   if (actor.role === 'volunteer') {
     return volunteerCanUpdateAssignedTask(task, changes, actor.email);
   }

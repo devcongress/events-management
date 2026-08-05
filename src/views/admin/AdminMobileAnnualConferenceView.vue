@@ -37,6 +37,7 @@ import {
   deleteAnnualConferencePhase,
   fetchAdminSession,
   fetchAnnualConferenceEditions,
+  fetchAnnualConferenceVolunteerTeam,
   fetchVolunteerApplications,
   queryKeys,
   reorderAnnualConferencePhases,
@@ -44,6 +45,11 @@ import {
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import { ORGANIZER_PHONE_ROUTE_PATH } from '@/src/organizer-viewport';
+import {
+  hasAnyAnnualConferenceCapability,
+  hasAnnualConferenceCapability,
+  VOLUNTEER_SECTION_CAPABILITIES,
+} from '@/lib/annual-conference-capabilities';
 
 type MobileConferenceTab = 'overview' | 'tasks' | 'timeline' | 'volunteers';
 type TaskStatusFilter = 'all' | AnnualConferenceTaskStatus;
@@ -95,22 +101,34 @@ const {
   today,
   refetchInterval: 30_000,
   refetchOnWindowFocus: true,
-  loadOrganizers: true,
 });
 
 const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
 const editionsQuery = useQuery({ queryKey: queryKeys.annualConferenceEditions, queryFn: fetchAnnualConferenceEditions });
 const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
+const capabilities = computed(() => permissions.value?.capabilities ?? []);
+const assignedAccess = computed(() => permissions.value?.access_scope === 'assigned');
+const canViewTimeline = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['timeline.view', 'phases.manage']));
+const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualConferenceCapability(capabilities.value, VOLUNTEER_SECTION_CAPABILITIES));
+const canViewVolunteerTeam = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.view_team'));
+const canShareVolunteerIntake = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.share_intake'));
+const canReviewVolunteerApplications = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.review_applications'));
+const volunteerTeamQuery = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceVolunteerTeam(year.value)),
+  queryFn: () => fetchAnnualConferenceVolunteerTeam(year.value),
+  enabled: computed(() => canViewVolunteerTeam.value && activeTab.value === 'volunteers'),
+});
 const volunteerQuery = useQuery({
-  queryKey: queryKeys.volunteerApplications,
-  queryFn: fetchVolunteerApplications,
-  enabled: computed(() => !isVolunteer.value && year.value === '2026' && activeTab.value === 'volunteers'),
+  queryKey: computed(() => queryKeys.volunteerApplications(year.value)),
+  queryFn: () => fetchVolunteerApplications(year.value),
+  enabled: computed(() => canReviewVolunteerApplications.value && year.value === '2026' && activeTab.value === 'volunteers'),
 });
 const edition = computed(() => workPlanQuery.data.value?.edition);
 const editions = computed(() => editionsQuery.data.value?.editions ?? []);
 const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
 const health = computed(() => calculateAnnualConferenceHealth(tasks.value, phases.value, today.value));
 const applications = computed(() => volunteerQuery.data.value?.applications ?? []);
+const volunteerTeam = computed(() => volunteerTeamQuery.data.value?.members ?? []);
 const organizerLabels = computed(() => Object.fromEntries(
   (organizersQuery.data.value?.organizers ?? []).map((organizer) => [
     organizer.email.trim().toLowerCase(),
@@ -127,17 +145,12 @@ const phaseRows = computed(() => phases.value.map((phase) => {
   return { ...phase, total: phaseTasks.length, done, completion: phaseTasks.length ? Math.round((done / phaseTasks.length) * 100) : 0 };
 }));
 const planningGaps = computed(() => sortedTasks(tasks.value.filter((task) => !task.phase_id || !task.target_date)));
-const availableTabs = computed<Array<{ id: MobileConferenceTab; label: string }>>(() => isVolunteer.value
-  ? [
-      { id: 'overview', label: 'Overview' },
-      { id: 'tasks', label: 'My tasks' },
-    ]
-  : [
-      { id: 'overview', label: 'Overview' },
-      { id: 'tasks', label: 'Work plan' },
-      { id: 'timeline', label: 'Timeline' },
-      ...(year.value === '2026' ? [{ id: 'volunteers' as const, label: 'Volunteers' }] : []),
-    ]);
+const availableTabs = computed<Array<{ id: MobileConferenceTab; label: string }>>(() => [
+  { id: 'overview', label: 'Overview' },
+  { id: 'tasks', label: assignedAccess.value ? 'My tasks' : 'Work plan' },
+  ...(canViewTimeline.value ? [{ id: 'timeline' as const, label: 'Timeline' }] : []),
+  ...(canViewVolunteers.value ? [{ id: 'volunteers' as const, label: 'Volunteers' }] : []),
+]);
 const editionOptions = computed(() => editions.value.map((item) => ({ value: String(item.year), label: item.label })));
 const currentEdition = computed(() => editions.value.find((item) => String(item.year) === year.value));
 const canCreateEdition = computed(() => permissions.value?.can_create_tasks === true && editions.value[0]?.year === currentEdition.value?.year);
@@ -186,7 +199,7 @@ const filtersActive = computed(() => Boolean(search.value.trim())
   || workstreamFilter.value !== 'all'
   || ownerFilter.value !== 'all');
 const canEditSelectedTask = computed(() => {
-  if (!selectedTask.value || isVolunteer.value) return false;
+  if (!selectedTask.value) return false;
   if (permissions.value?.can_edit_all_tasks) return true;
   return permissions.value?.can_edit_assigned_tasks === true
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
@@ -467,14 +480,14 @@ function openVolunteerDisplay() {
       <Transition v-else name="conference-view" mode="out-in">
         <section v-if="activeTab === 'overview'" key="overview" class="conference-view">
           <header class="page-intro">
-            <span>{{ isVolunteer ? 'Your conference work' : `${year} edition` }}</span>
+            <span>{{ assignedAccess ? 'Your conference work' : `${year} edition` }}</span>
             <h1>{{ conferenceDate ? formatDate(conferenceDate, true) : 'Conference date to be confirmed' }}</h1>
-            <p>{{ isVolunteer ? 'See the work assigned to you and keep its status current.' : 'Conference delivery, planning notes, and the work that needs attention.' }}</p>
+            <p>{{ assignedAccess ? 'See the work assigned to you and keep its status current.' : 'Conference delivery, planning notes, and the work that needs attention.' }}</p>
           </header>
 
           <section class="overview-progress" aria-labelledby="mobile-progress-title">
             <div>
-              <span>{{ isVolunteer ? 'My progress' : 'Delivery progress' }}</span>
+              <span>{{ assignedAccess ? 'My progress' : 'Delivery progress' }}</span>
               <h2 id="mobile-progress-title">{{ summary.done }} of {{ summary.total }} complete</h2>
             </div>
             <strong>{{ summary.completion_percent }}%</strong>
@@ -485,13 +498,13 @@ function openVolunteerDisplay() {
 
           <div class="signal-grid" aria-label="Conference operating summary">
             <button type="button" @click="statusFilter = 'blocked'; selectTab('tasks')"><span>Blocked</span><strong>{{ summary.blocked }}</strong></button>
-            <div v-if="isVolunteer"><span>In progress</span><strong>{{ summary.in_progress }}</strong></div>
+            <div v-if="assignedAccess"><span>In progress</span><strong>{{ summary.in_progress }}</strong></div>
             <button v-else type="button" @click="ownerFilter = 'unassigned'; selectTab('tasks')"><span>Unassigned</span><strong>{{ summary.unassigned }}</strong></button>
             <div><span>Overdue</span><strong>{{ health.overdue }}</strong></div>
-            <div><span>{{ isVolunteer ? 'Completed' : 'Days to go' }}</span><strong>{{ isVolunteer ? summary.done : daysToConference === null ? '—' : Math.max(0, daysToConference) }}</strong></div>
+            <div><span>{{ assignedAccess ? 'Completed' : 'Days to go' }}</span><strong>{{ assignedAccess ? summary.done : daysToConference === null ? '—' : Math.max(0, daysToConference) }}</strong></div>
           </div>
 
-          <section v-if="!isVolunteer" class="content-card">
+          <section v-if="!assignedAccess" class="content-card">
             <header class="content-card__header"><div><span>Planning notes</span><h2>Edition details</h2></div></header>
             <dl class="detail-list">
               <div><dt>Venue</dt><dd>{{ edition?.venue_note ?? 'UPSA or Accra Digital Centre under consideration.' }}</dd></div>
@@ -502,15 +515,15 @@ function openVolunteerDisplay() {
           </section>
 
           <button type="button" class="wide-action" @click="selectTab('tasks')">
-            <span><small>{{ isVolunteer ? 'Assigned work' : 'Work plan' }}</small><strong>{{ isVolunteer ? 'Open my tasks' : 'Manage conference tasks' }}</strong></span>
+            <span><small>{{ assignedAccess ? 'Assigned work' : 'Work plan' }}</small><strong>{{ assignedAccess ? 'Open my tasks' : 'Manage conference tasks' }}</strong></span>
             <span aria-hidden="true">→</span>
           </button>
         </section>
 
         <section v-else-if="activeTab === 'tasks'" key="tasks" class="conference-view">
           <header class="page-intro page-intro--with-action">
-            <div><span>{{ isVolunteer ? 'Assigned work' : 'Work plan' }}</span><h1>{{ isVolunteer ? 'My tasks' : 'Conference tasks' }}</h1><p>{{ filteredTasks.length }} of {{ tasks.length }} shown</p></div>
-            <button v-if="!isVolunteer" type="button" class="primary-button" :aria-disabled="!permissions?.can_create_tasks" @click="requestCreateTask">Add task</button>
+            <div><span>{{ assignedAccess ? 'Assigned work' : 'Work plan' }}</span><h1>{{ assignedAccess ? 'My tasks' : 'Conference tasks' }}</h1><p>{{ filteredTasks.length }} of {{ tasks.length }} shown</p></div>
+            <button v-if="permissions?.can_create_tasks" type="button" class="primary-button" @click="requestCreateTask">Add task</button>
           </header>
 
           <label class="search-field">
@@ -519,7 +532,7 @@ function openVolunteerDisplay() {
             <input v-model="search" type="search" placeholder="Search tasks">
           </label>
 
-          <div v-if="!isVolunteer" class="filter-grid">
+          <div v-if="!assignedAccess" class="filter-grid">
             <AppDropdown v-model="phaseFilterValue" label="Phase" :options="phaseOptions" density="compact" />
             <AppDropdown
               :model-value="statusFilter"
@@ -603,13 +616,26 @@ function openVolunteerDisplay() {
         </section>
 
         <section v-else key="volunteers" class="conference-view">
-          <header class="page-intro"><span>People</span><h1>Volunteers</h1><p>Share the public form and review applications.</p></header>
-          <div class="volunteer-actions">
+          <header class="page-intro"><span>People</span><h1>Volunteers</h1><p>Your assigned volunteer responsibilities for this edition.</p></header>
+          <div v-if="canShareVolunteerIntake" class="volunteer-actions">
             <button type="button" class="primary-button" @click="openVolunteerDisplay">Show QR</button>
             <button type="button" class="secondary-button" @click="copyVolunteerLink">{{ copiedVolunteerLink ? 'Copied' : 'Copy link' }}</button>
             <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button">Open form</a>
           </div>
-          <section class="content-card">
+          <section v-if="canViewVolunteerTeam" class="content-card">
+            <header class="content-card__header"><div><span>Team</span><h2>{{ volunteerTeam.length }} active {{ volunteerTeam.length === 1 ? 'volunteer' : 'volunteers' }}</h2></div></header>
+            <p v-if="volunteerTeamQuery.isPending.value" class="empty-state empty-state--plain">Loading volunteer team…</p>
+            <p v-else-if="volunteerTeamQuery.isError.value" class="empty-state">Unable to load the volunteer team.</p>
+            <p v-else-if="volunteerTeam.length === 0" class="empty-state empty-state--plain">No active volunteers have been added yet.</p>
+            <div v-else class="application-list">
+              <div v-for="member in volunteerTeam" :key="member.id" class="application-row">
+                <span class="application-avatar" aria-hidden="true">{{ applicationInitials(member.display_name) }}</span>
+                <strong>{{ member.display_name }}</strong>
+                <span>Volunteer</span>
+              </div>
+            </div>
+          </section>
+          <section v-if="canReviewVolunteerApplications" class="content-card">
             <header class="content-card__header"><div><span>Applications</span><h2>{{ applications.length }} {{ applications.length === 1 ? 'application' : 'applications' }}</h2></div></header>
             <p v-if="volunteerQuery.isPending.value" class="empty-state empty-state--plain">Loading applications…</p>
             <p v-else-if="volunteerQuery.isError.value" class="empty-state">Unable to load applications.</p>

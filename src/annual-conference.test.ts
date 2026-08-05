@@ -28,6 +28,10 @@ describe('volunteer organizer routes', () => {
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('work-plan'))).toBe(true);
     expect(volunteerCanAccessOrganizerPath(mobileAnnualConferencePath())).toBe(true);
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers'))).toBe(false);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('timeline'), ['timeline.view'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers'), ['volunteers.view_team'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.review_applications'])).toBe(false);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.share_intake'])).toBe(true);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/organizers')).toBe(false);
   });

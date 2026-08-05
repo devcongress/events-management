@@ -18,6 +18,14 @@ export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventBlastStatus = 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 export type AdminMembershipStatus = 'active' | 'disabled';
+export type AnnualConferenceCapability =
+  | 'work_plan.view_all'
+  | 'work_plan.manage'
+  | 'timeline.view'
+  | 'phases.manage'
+  | 'volunteers.view_team'
+  | 'volunteers.share_intake'
+  | 'volunteers.review_applications';
 export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =
   | 'programme_speakers'
@@ -237,6 +245,48 @@ export interface Database {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      annual_conference_access_grants: {
+        Row: {
+          id: string;
+          edition_id: string;
+          membership_id: string;
+          capability: AnnualConferenceCapability;
+          granted_by_membership_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          edition_id: string;
+          membership_id: string;
+          capability: AnnualConferenceCapability;
+          granted_by_membership_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          edition_id?: string;
+          membership_id?: string;
+          capability?: AnnualConferenceCapability;
+          granted_by_membership_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_access_grants_edition_id_fkey';
+            columns: ['edition_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'annual_conference_access_grants_membership_id_fkey';
+            columns: ['membership_id'];
+            isOneToOne: false;
+            referencedRelation: 'admin_memberships';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       annual_conference_phases: {
         Row: {

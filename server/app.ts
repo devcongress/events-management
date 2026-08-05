@@ -41,6 +41,12 @@ import {
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAMS,
 } from '@/lib/annual-conference-work-plan';
+import {
+  ANNUAL_CONFERENCE_CAPABILITIES,
+  effectiveAnnualConferenceCapabilities,
+  hasAnnualConferenceCapability,
+  type AnnualConferenceCapability,
+} from '@/lib/annual-conference-capabilities';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import {
@@ -79,6 +85,13 @@ import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmission
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import {
+  clearAnnualConferenceAccessGrantsForMembership,
+  getAnnualConferenceAccessGrants,
+  listAnnualConferenceAccessMembers,
+  listAnnualConferenceVolunteerTeam,
+  setAnnualConferenceAccessGrant,
+} from '@/lib/supabase/annual-conference-access-grants';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEventPreviewMeetups, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import {
@@ -448,6 +461,10 @@ const addOrganizerSchema = z.object({
 });
 const updateOrganizerRoleSchema = z.object({
   role: z.enum(['organizer', 'volunteer']),
+}).strict();
+const annualConferenceAccessGrantSchema = z.object({
+  capability: z.enum(ANNUAL_CONFERENCE_CAPABILITIES),
+  enabled: z.boolean(),
 }).strict();
 const adminTokenExchangeSchema = z.object({
   access_token: z.string().trim().min(20).max(8192),
@@ -1107,6 +1124,20 @@ async function getActiveOrganizerEmails(c: Context): Promise<string[] | null> {
   }
 }
 
+async function getActivePlanningOwnerEmails(c: Context): Promise<string[] | null> {
+  try {
+    const { data, error } = await getSupabaseAdminClient(c)
+      .from('admin_memberships')
+      .select('email')
+      .eq('status', 'active')
+      .neq('role', 'volunteer');
+    if (error) return null;
+    return (data ?? []).map((membership) => membership.email);
+  } catch {
+    return null;
+  }
+}
+
 async function annualConferenceServiceForRequest(c: Context) {
   const session = c.get('adminSession') ?? await getAdminSession(c);
   if (!session.authenticated) {
@@ -1116,7 +1147,9 @@ async function annualConferenceServiceForRequest(c: Context) {
   return createAnnualConferenceService({
     repository: createAnnualConferenceRepository(c),
     actor: { email: session.email, role: session.role },
+    accessGrants: (editionId) => getAnnualConferenceAccessGrants(editionId, session.membership_id, c),
     activeOrganizerEmails: () => getActiveOrganizerEmails(c),
+    activePlanningOwnerEmails: () => getActivePlanningOwnerEmails(c),
     audit: (event) => auditAdminAction(c, {
       action: event.action,
       targetType: event.targetType,
@@ -1124,6 +1157,45 @@ async function annualConferenceServiceForRequest(c: Context) {
       metadata: event.metadata,
     }),
   });
+}
+
+async function annualConferenceCapabilitiesForRequest(c: Context, year: number): Promise<{
+  capabilities: AnnualConferenceCapability[];
+  editionId: string;
+} | undefined> {
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated) return undefined;
+  const editionResult = await getSupabaseAdminClient(c)
+    .from('annual_conference_editions')
+    .select('id, task_creator_email')
+    .eq('year', year)
+    .maybeSingle();
+  if (editionResult.error) throw new Error(editionResult.error.message);
+  if (!editionResult.data) return undefined;
+  const grants = await getAnnualConferenceAccessGrants(editionResult.data.id, session.membership_id, c);
+  return {
+    editionId: editionResult.data.id,
+    capabilities: effectiveAnnualConferenceCapabilities({
+      role: session.role,
+      grants,
+      isPlanningOwner: Boolean(session.email)
+        && session.role !== 'volunteer'
+        && session.email?.trim().toLowerCase() === editionResult.data.task_creator_email.trim().toLowerCase(),
+    }),
+  };
+}
+
+async function requireAnnualConferenceCapability(
+  c: Context,
+  year: number,
+  capability: AnnualConferenceCapability,
+): Promise<globalThis.Response | null> {
+  const access = await annualConferenceCapabilitiesForRequest(c, year);
+  if (!access) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
+  if (!hasAnnualConferenceCapability(access.capabilities, capability)) {
+    return c.json({ error: 'This account has not been assigned that conference responsibility.' }, 403);
+  }
+  return null;
 }
 
 function annualConferenceServiceErrorResponse(c: Context, error: unknown) {
@@ -3196,6 +3268,122 @@ app.get('/api/admin/volunteer-applications', async (c) => {
   return c.json({ applications });
 });
 
+app.get('/api/annual-conference/:year/team', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const year = Number(yearParam);
+  const capabilityError = await requireAnnualConferenceCapability(c, year, 'volunteers.view_team');
+  if (capabilityError) return capabilityError;
+  try {
+    const team = await listAnnualConferenceVolunteerTeam(year, c);
+    return c.json({
+      members: team.map(({ email: _email, ...member }) => member),
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'annual_conference_team_read_failed', error, 'Unable to load the volunteer team.');
+  }
+});
+
+app.get('/api/annual-conference/:year/task-members', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  if (adminError) return adminError;
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  if (session.role === 'volunteer') {
+    const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'work_plan.manage');
+    if (capabilityError) return capabilityError;
+  }
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .eq('status', 'active')
+    .order('display_name', { ascending: true });
+  if (error) return internalErrorResponse(c, 'annual_conference_task_members_read_failed', error, 'Unable to load conference members.');
+  return c.json({ organizers: data ?? [], auth_mode: 'supabase' });
+});
+
+app.get('/api/annual-conference/:year/volunteer-applications', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'volunteers.review_applications');
+  if (capabilityError) return capabilityError;
+  const year = Number(yearParam);
+  const [applications, team] = await Promise.all([
+    year === 2026 ? getVolunteerApplications() : Promise.resolve([]),
+    listAnnualConferenceVolunteerTeam(year, c),
+  ]);
+  const activeVolunteerByEmail = new Map(team.map((member) => [member.email.trim().toLowerCase(), member.id]));
+  return c.json({
+    applications: applications.map((application) => {
+      const membershipId = activeVolunteerByEmail.get(application.email.trim().toLowerCase()) ?? null;
+      return {
+        ...application,
+        membership_id: membershipId,
+        status: membershipId ? 'active' : 'applicant',
+      };
+    }),
+  });
+});
+
+app.get('/api/annual-conference/:year/access-grants', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  try {
+    const access = await listAnnualConferenceAccessMembers(Number(yearParam), c);
+    if (!access) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+    return c.json(access);
+  } catch (error) {
+    return internalErrorResponse(c, 'annual_conference_access_read_failed', error, 'Unable to load conference responsibilities.');
+  }
+});
+
+app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || !session.membership_id) return c.json({ error: 'Owner session required.' }, 401);
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const membershipId = z.string().uuid().safeParse(c.req.param('membershipId'));
+  if (!membershipId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
+  const parsed = annualConferenceAccessGrantSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'Choose a supported conference responsibility.' }, 400);
+
+  try {
+    const result = await setAnnualConferenceAccessGrant({
+      year: Number(yearParam),
+      membershipId: membershipId.data,
+      capability: parsed.data.capability,
+      enabled: parsed.data.enabled,
+      grantedByMembershipId: session.membership_id,
+    }, c);
+    if (!result) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+    if (result === 'not_found') return c.json({ error: 'Member was not found.' }, 404);
+    if (result === 'inactive') return c.json({ error: 'Responsibilities can only be assigned to active members.' }, 400);
+    if (result === 'not_volunteer') return c.json({ error: 'Conference responsibilities can only be delegated to Volunteers.' }, 400);
+
+    await auditAdminAction(c, {
+      action: parsed.data.enabled
+        ? 'annual_conference.access_grant.add'
+        : 'annual_conference.access_grant.remove',
+      targetType: 'admin_membership',
+      targetId: membershipId.data,
+      metadata: { edition_year: Number(yearParam), capability: parsed.data.capability },
+    });
+    return c.json({ capability: parsed.data.capability, enabled: parsed.data.enabled });
+  } catch (error) {
+    return internalErrorResponse(c, 'annual_conference_access_update_failed', error, 'Unable to update conference responsibilities.');
+  }
+});
+
 app.get('/api/annual-conference/editions', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
@@ -3235,7 +3423,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 });
 
 app.post('/api/annual-conference/:year/phases', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
@@ -3250,7 +3438,7 @@ app.post('/api/annual-conference/:year/phases', async (c) => {
 });
 
 app.put('/api/annual-conference/:year/phases/order', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
@@ -3265,7 +3453,7 @@ app.put('/api/annual-conference/:year/phases/order', async (c) => {
 });
 
 app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
@@ -3280,7 +3468,7 @@ app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
 });
 
 app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
@@ -3293,7 +3481,7 @@ app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
 });
 
 app.post('/api/annual-conference/:year/work-plan', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
   if (adminError) return adminError;
 
   const yearParam = c.req.param('year');
@@ -3505,9 +3693,10 @@ app.post('/api/admin/organizers', async (c) => {
     && (existingMembership.role !== data.role || existingMembership.status !== data.status)
   ) {
     try {
+      await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
       await revokeAdminSessionsForMembership(c, data.id);
     } catch {
-      return c.json({ error: 'Organizer access changed, but existing sessions could not be revoked.' }, 500);
+      return c.json({ error: 'Organizer access changed, but previous permissions could not be fully cleared.' }, 500);
     }
   }
 
@@ -3581,9 +3770,10 @@ app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
   }
 
   try {
+    await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
     await revokeAdminSessionsForMembership(c, data.id);
   } catch {
-    return c.json({ error: 'The role changed, but existing sessions could not be revoked.' }, 500);
+    return c.json({ error: 'The role changed, but previous permissions could not be fully cleared.' }, 500);
   }
 
   await recordAdminAudit(c, {
@@ -3665,9 +3855,10 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
     return c.json({ error: 'Organizer was not found.' }, 404);
   }
   try {
+    await clearAnnualConferenceAccessGrantsForMembership(data.id, c);
     await revokeAdminSessionsForMembership(c, data.id);
   } catch {
-    return c.json({ error: 'Organizer access was disabled, but existing sessions could not be revoked.' }, 500);
+    return c.json({ error: 'Organizer access was disabled, but previous permissions could not be fully cleared.' }, 500);
   }
   await recordAdminAudit(c, {
     actor_user_id: session.user_id,
@@ -3680,6 +3871,113 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
   });
 
   return c.json(data);
+});
+
+app.post('/api/admin/organizers/:organizerId/enable', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Organizer email management requires Supabase auth.' }, 503);
+  }
+
+  const session = await getAdminSession(c);
+  if (!session.authenticated || session.role !== 'owner') {
+    return c.json({ error: 'Only owners can re-enable member access.' }, 403);
+  }
+
+  const organizerId = z.string().uuid().safeParse(c.req.param('organizerId'));
+  if (!organizerId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
+  if (organizerId.data === session.membership_id) {
+    return c.json({ error: 'Your membership is already active.' }, 400);
+  }
+
+  const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .eq('id', organizerId.data)
+    .maybeSingle();
+  if (existingMembershipError) return c.json({ error: 'Unable to verify member access.' }, 500);
+  if (!existingMembership) return c.json({ error: 'Member was not found.' }, 404);
+  if (existingMembership.status === 'active') return c.json(existingMembership);
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .update({ status: 'active' })
+    .eq('id', organizerId.data)
+    .select('id, email, display_name, role, status, last_login_at, created_at')
+    .maybeSingle();
+  if (error) return c.json({ error: 'Unable to re-enable member access.' }, 500);
+  if (!data) return c.json({ error: 'Member was not found.' }, 404);
+
+  await recordAdminAudit(c, {
+    actor_user_id: session.user_id,
+    actor_email: session.email,
+    actor_role: session.role,
+    action: 'admin.organizer.enable',
+    target_type: 'admin_membership',
+    target_id: data.id,
+    metadata: { email: data.email, role: data.role },
+  });
+
+  return c.json(data);
+});
+
+app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  if (!isSupabaseAdminAuthConfigured(c)) {
+    return c.json({ error: 'Organizer email management requires Supabase auth.' }, 503);
+  }
+
+  const session = await getAdminSession(c);
+  if (!session.authenticated || session.role !== 'owner') {
+    return c.json({ error: 'Only owners can permanently remove member access.' }, 403);
+  }
+
+  const organizerId = z.string().uuid().safeParse(c.req.param('organizerId'));
+  if (!organizerId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
+  if (organizerId.data === session.membership_id) {
+    return c.json({ error: 'You cannot permanently remove your own membership.' }, 400);
+  }
+
+  const { data: existingMembership, error: existingMembershipError } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .select('id, email, display_name, role, status')
+    .eq('id', organizerId.data)
+    .maybeSingle();
+  if (existingMembershipError) return c.json({ error: 'Unable to verify member access.' }, 500);
+  if (!existingMembership) return c.json({ error: 'Member was not found.' }, 404);
+  if (existingMembership.status !== 'disabled') {
+    return c.json({ error: 'Disable this member before removing them permanently.' }, 400);
+  }
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('admin_memberships')
+    .delete()
+    .eq('id', organizerId.data)
+    .select('id')
+    .maybeSingle();
+  if (error) return c.json({ error: 'Unable to permanently remove member access.' }, 500);
+  if (!data) return c.json({ error: 'Member was not found.' }, 404);
+
+  await recordAdminAudit(c, {
+    actor_user_id: session.user_id,
+    actor_email: session.email,
+    actor_role: session.role,
+    action: 'admin.organizer.remove',
+    target_type: 'admin_membership',
+    target_id: existingMembership.id,
+    metadata: {
+      email: existingMembership.email,
+      display_name: existingMembership.display_name,
+      role: existingMembership.role,
+      previous_status: existingMembership.status,
+    },
+  });
+
+  return c.json({ removed: true, id: existingMembership.id });
 });
 
 app.get('/api/admin/event-submissions', async (c) => {

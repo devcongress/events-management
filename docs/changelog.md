@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-05 — Volunteer intake and display refinement
+
+- Refined the standalone volunteer intake into a calmer, more legible two-column sign-up flow with a concise **Your details** introduction, consistent field hierarchy, touch-friendly controls, and clearer conference-focused language.
+- Kept the existing four-field submission contract and Turnstile verification intact while improving focus, error, disabled, and submit states.
+- Reworked the protected QR display into a quiet, room-facing invitation with event context, a single clear scan action, and responsive QR-first composition for both presentation screens and phones.
+
+## 2026-08-05 — Edition-scoped conference responsibility delegation
+
+- Added an explicit Owner-only **Delegation → Conference responsibilities** section to People & Access, with member selection plus edition-scoped Work Plan, Timeline, phase, volunteer-team, intake-sharing, and application-review grants.
+- Limited delegation targets to active Volunteers in both the interface and API, keeping Organizer and Owner access governed exclusively by their roles.
+- Added Owner-only re-enable and confirmed permanent-removal actions for disabled memberships; permanent removal requires prior disablement, deletes sessions and delegation grants, and preserves historical audit/task records.
+- Consolidated the Volunteer team and applications into one deduplicated directory with clear Active and Applicant states, while keeping applicant contact details behind the separate application-review responsibility.
+- Tightened the directory into a compact operational table with segmented counts, status pills, single-line dates, and one clear **Added directly** state instead of repeated empty application fields.
+- Redesigned the Volunteer QR display as a minimal room-facing invitation with a single scan action, a high-contrast QR stage, concise event context, mobile-safe stacking, and a reduced-motion-safe QR reveal.
+- Presented responsibility delegation in an accessible side drawer with focus trapping, Escape and backdrop dismissal, trigger-focus restoration, page scroll locking, and reduced-motion-safe transitions.
+- Kept Volunteers assigned-task-only by default, including internal-note redaction and status-only updates, while allowing explicit edition grants to reveal the matching desktop routes and mobile tabs.
+- Split volunteer operations into separately authorized team, intake-sharing, and applicant-review responsibilities so access to the Volunteers tab does not automatically reveal applicant email addresses or social handles.
+- Enforced every grant at the API boundary, audited grant and removal actions, cleared grants on membership role/status changes, and added RLS-protected relational persistence.
+- Centralized the capability catalogue and effective-access resolver so navigation, response shaping, task/phase mutations, and volunteer APIs use the same policy.
+- Corrected the People & Access setup order so the responsibility queries cannot evaluate the signed-in role before its computed state exists, and added component-mount regression coverage.
+
 ## 2026-08-05 — Event creation field behavior
 
 - Kept the DevCongress-series guidance inside its own field so the location type and online event link share one desktop row while retaining the mobile stack.
