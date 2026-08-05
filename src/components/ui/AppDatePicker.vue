@@ -11,11 +11,13 @@ const props = withDefaults(defineProps<{
   placeholder?: string;
   required?: boolean;
   mode?: 'date' | 'datetime';
+  error?: string;
 }>(), {
   label: '',
   placeholder: '',
   required: false,
   mode: 'date',
+  error: '',
 });
 
 const emit = defineEmits<{
@@ -480,12 +482,18 @@ watch(open, async (isOpen) => {
       class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
       :class="[
         label ? 'mt-2' : '',
-        open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]' : 'border-dc-border',
+        open
+          ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]'
+          : error
+            ? 'border-red-500'
+            : 'border-dc-border',
       ]"
       :aria-expanded="open"
       :aria-controls="`${datePickerId}-calendar`"
       :aria-labelledby="label ? `${datePickerId}-label ${datePickerId}-value` : `${datePickerId}-value`"
       :aria-required="required ? 'true' : undefined"
+      :aria-invalid="error ? 'true' : undefined"
+      :aria-describedby="error ? `${datePickerId}-error` : undefined"
       aria-haspopup="dialog"
       @click.stop="togglePicker"
     >
@@ -498,6 +506,9 @@ watch(open, async (isOpen) => {
         </svg>
       </span>
     </button>
+    <p v-if="error" :id="`${datePickerId}-error`" class="mt-2 text-xs font-semibold leading-5 text-red-700" role="alert">
+      {{ error }}
+    </p>
 
     <Teleport to="body">
       <Transition name="dropdown-menu">

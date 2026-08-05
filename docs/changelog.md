@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-05 — Event creation field behavior
+
+- Kept the DevCongress-series guidance inside its own field so the location type and online event link share one desktop row while retaining the mobile stack.
+- Kept event start and end times synchronized by defaulting new events to two hours and preserving their duration when the start changes.
+- Added immediate, accessible end-time feedback and prevented submission when the end is not after the start.
+
 ## 2026-08-04 — Removed obsolete Luma page importer
 
 - Removed the unreachable public Luma page scraper and its isolated test after confirming no production code imports it.

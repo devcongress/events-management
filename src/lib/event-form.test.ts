@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createEventFormSchema, toCreateEventApiPayload, toEventSlug } from './event-form';
+import {
+  createEventFormSchema,
+  eventEndDateError,
+  syncEventEndDate,
+  toCreateEventApiPayload,
+  toEventSlug,
+} from './event-form';
 
 describe('toEventSlug', () => {
   it('turns an event name into a lowercase website slug', () => {
@@ -120,6 +126,47 @@ describe('event series form payload', () => {
     });
 
     expect(result.success).toBe(false);
+  });
+
+  it('rejects an end time equal to the event start', () => {
+    const result = createEventFormSchema.safeParse({
+      name: 'Community Demo Night',
+      description: 'An independent community gathering.',
+      event_date: '2026-08-20T18:00',
+      end_date: '2026-08-20T18:00',
+      series_type: 'none',
+      location_name: 'Accra',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe('End date must be after the event start.');
+  });
+});
+
+describe('event date synchronization', () => {
+  it('defaults the end time to two hours after the first selected start', () => {
+    expect(syncEventEndDate('', '2026-08-20T18:00', '')).toBe('2026-08-20T20:00');
+  });
+
+  it('preserves the event duration when the start changes', () => {
+    expect(syncEventEndDate(
+      '2026-08-20T18:00',
+      '2026-08-21T09:30',
+      '2026-08-20T21:00',
+    )).toBe('2026-08-21T12:30');
+  });
+
+  it('uses the default duration when the current date range is invalid', () => {
+    expect(syncEventEndDate(
+      '2026-08-20T18:00',
+      '2026-08-21T09:30',
+      '2026-08-20T17:00',
+    )).toBe('2026-08-21T11:30');
+  });
+
+  it('reports a manually edited end time that is not after the start', () => {
+    expect(eventEndDateError('2026-08-20T18:00', '2026-08-20T17:59'))
+      .toBe('End date must be after the event start.');
   });
 });
 
