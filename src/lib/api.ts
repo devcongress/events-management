@@ -31,6 +31,7 @@ import type {
 } from '@/lib/annual-conference-work-plan';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
+import type { AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 
 export interface OverviewRegular {
   key: string;
@@ -211,7 +212,32 @@ export interface FeedbackEventStatusResponse {
 }
 
 export interface VolunteerApplicationsResponse {
-  applications: VolunteerApplication[];
+  applications: Array<VolunteerApplication & {
+    membership_id: string | null;
+    status: 'active' | 'applicant';
+  }>;
+}
+
+export interface AnnualConferenceVolunteerTeamResponse {
+  members: Array<{
+    id: string;
+    display_name: string;
+    role: 'volunteer';
+  }>;
+}
+
+export interface AnnualConferenceAccessMember {
+  id: string;
+  display_name: string | null;
+  role: AdminRole;
+  status: AdminMembershipStatus;
+  capabilities: AnnualConferenceCapability[];
+  inherited_capabilities: AnnualConferenceCapability[];
+}
+
+export interface AnnualConferenceAccessResponse {
+  edition_id: string;
+  members: AnnualConferenceAccessMember[];
 }
 
 export interface AdminEventSubmissionsResponse {
@@ -231,6 +257,7 @@ export interface AnnualConferenceWorkPlanResponse {
     can_update_assigned_task_status: boolean;
     access_scope: 'all' | 'assigned';
     task_creator_email: string;
+    capabilities: AnnualConferenceCapability[];
   };
 }
 
@@ -300,7 +327,9 @@ export const queryKeys = {
   adminEventPreviewDetail: (slug: string) => ['admin-event-preview', slug] as const,
   feedbackMonths: ['feedback-months'] as const,
   routeFeedbackInbox: ['route-feedback-inbox'] as const,
-  volunteerApplications: ['volunteer-applications'] as const,
+  volunteerApplications: (year: string) => ['volunteer-applications', year] as const,
+  annualConferenceVolunteerTeam: (year: string) => ['annual-conference-volunteer-team', year] as const,
+  annualConferenceAccess: (year: string) => ['annual-conference-access', year] as const,
   eventSubmissions: (status: EventSubmissionReviewStatus | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceEditions: ['annual-conference-editions'] as const,
@@ -328,8 +357,45 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
   return payload as T;
 }
 
-export function fetchVolunteerApplications() {
-  return fetchJson<VolunteerApplicationsResponse>('/api/admin/volunteer-applications');
+export function fetchVolunteerApplications(year: string) {
+  return fetchJson<VolunteerApplicationsResponse>(`/api/annual-conference/${year}/volunteer-applications`, {
+    credentials: 'include',
+  });
+}
+
+export function fetchAnnualConferenceVolunteerTeam(year: string) {
+  return fetchJson<AnnualConferenceVolunteerTeamResponse>(`/api/annual-conference/${year}/team`, {
+    credentials: 'include',
+  });
+}
+
+export function fetchAnnualConferenceTaskMembers(year: string) {
+  return fetchJson<OrganizerMembershipsResponse>(`/api/annual-conference/${year}/task-members`, {
+    credentials: 'include',
+  });
+}
+
+export function fetchAnnualConferenceAccess(year: string) {
+  return fetchJson<AnnualConferenceAccessResponse>(`/api/annual-conference/${year}/access-grants`, {
+    credentials: 'include',
+  });
+}
+
+export function updateAnnualConferenceAccessGrant(
+  year: string,
+  membershipId: string,
+  capability: AnnualConferenceCapability,
+  enabled: boolean,
+) {
+  return fetchJson<{ capability: AnnualConferenceCapability; enabled: boolean }>(
+    `/api/annual-conference/${year}/access-grants/${membershipId}`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ capability, enabled }),
+    },
+  );
 }
 
 export function fetchAnnualConferenceWorkPlan(year: string) {

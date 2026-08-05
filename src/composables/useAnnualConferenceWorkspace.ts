@@ -3,7 +3,7 @@ import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
 import { createAnnualConferenceReadModel } from '@/lib/annual-conference-read-model';
 import { defaultAnnualConferencePhaseScope, type AnnualConferenceTaskUpdateInput } from '@/lib/annual-conference-work-plan';
 import {
-  fetchAdminOrganizers,
+  fetchAnnualConferenceTaskMembers,
   fetchAnnualConferenceWorkPlan,
   queryKeys,
   type AnnualConferenceWorkPlanResponse,
@@ -23,14 +23,14 @@ export interface AnnualConferenceWorkspaceOptions {
 
 export interface AnnualConferenceWorkspaceApi {
   getWorkspace(year: string): Promise<AnnualConferenceWorkPlanResponse>;
-  getOrganizers(): Promise<OrganizerMembershipsResponse>;
+  getOrganizers(year: string): Promise<OrganizerMembershipsResponse>;
   updateTask(year: string, taskId: string, input: AnnualConferenceTaskUpdateInput): Promise<unknown>;
 }
 
 export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceOptions) {
   const api = options.api ?? {
     getWorkspace: fetchAnnualConferenceWorkPlan,
-    getOrganizers: fetchAdminOrganizers,
+    getOrganizers: fetchAnnualConferenceTaskMembers,
     updateTask: updateAnnualConferenceTask,
   };
   const queryClient = useQueryClient();
@@ -48,9 +48,12 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
   });
   const organizersQuery = useQuery({
     queryKey: queryKeys.adminOrganizers,
-    queryFn: api.getOrganizers,
+    queryFn: () => api.getOrganizers(options.year.value),
     enabled: options.loadOrganizers
-      ?? computed(() => workPlanQuery.data.value?.permissions.access_scope === 'all'),
+      ?? computed(() => Boolean(
+        workPlanQuery.data.value?.permissions.can_edit_all_tasks
+        || workPlanQuery.data.value?.permissions.can_edit_assigned_tasks,
+      )),
   });
   const readModel = computed(() => createAnnualConferenceReadModel({
     phases: workPlanQuery.data.value?.phases ?? [],

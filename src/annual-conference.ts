@@ -1,5 +1,10 @@
 import { adminPath } from './admin-routes';
 import type { AnnualConferenceEdition } from '@/lib/annual-conference-work-plan';
+import {
+  hasAnyAnnualConferenceCapability,
+  type AnnualConferenceCapability,
+  VOLUNTEER_SECTION_CAPABILITIES,
+} from '@/lib/annual-conference-capabilities';
 
 export function currentAnnualConferenceYear(date = new Date()): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -36,8 +41,17 @@ export function annualConferenceEditionsForNavigation(
   return currentEdition ? [currentEdition] : [];
 }
 
-export function volunteerCanAccessOrganizerPath(path: string): boolean {
+export function volunteerCanAccessOrganizerPath(
+  path: string,
+  capabilities: readonly AnnualConferenceCapability[] = [],
+): boolean {
   return path === annualConferencePath()
     || path === annualConferencePath('work-plan')
-    || /^\/organizer-console\/mobile\/annual-conference\/\d{4}$/.test(path);
+    || /^\/organizer-console\/mobile\/annual-conference\/\d{4}$/.test(path)
+    || (/^\/organizer-console\/annual-conference\/\d{4}\/timeline$/.test(path)
+      && hasAnyAnnualConferenceCapability(capabilities, ['timeline.view', 'phases.manage']))
+    || (/^\/organizer-console\/annual-conference\/\d{4}\/volunteers$/.test(path)
+      && hasAnyAnnualConferenceCapability(capabilities, VOLUNTEER_SECTION_CAPABILITIES))
+    || (/^\/organizer-console\/annual-conference\/\d{4}\/volunteers\/display$/.test(path)
+      && hasAnyAnnualConferenceCapability(capabilities, ['volunteers.share_intake']));
 }

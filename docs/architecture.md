@@ -137,6 +137,8 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/annual-conference/editions` — organizer-only edition list and planning-owner-restricted next-edition creation
 - `/api/annual-conference/[year]/work-plan` — annual edition/phase/task reads scoped by membership, edition-owner task creation, assignment-scoped organizer edits, and status-only volunteer updates
 - `/api/annual-conference/[year]/phases` — edition planning-owner phase creation, editing, ordering, and deletion
+- `/api/annual-conference/[year]/access-grants` — owner-only edition responsibility directory and per-member grant mutation
+- `/api/annual-conference/[year]/team`, `/task-members`, `/volunteer-applications` — capability-gated team, task-assignee, and private applicant projections
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event
 - `/api/events/[eventId]` — event detail, status update, and admin-only removal

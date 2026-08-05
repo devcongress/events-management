@@ -31,11 +31,15 @@ Sign out revokes the app-owned session and removes its HTTP-only cookie. Secure 
 
 | Role | Access |
 |---|---|
-| `owner` | Full organizer access, can grant owner, organizer, or volunteer access, can disable other owners while keeping at least one active owner, and can review the audit log |
+| `owner` | Full organizer access, can grant owner, organizer, or volunteer access, can disable other owners while keeping at least one active owner, can re-enable or permanently remove disabled memberships, and can review the audit log |
 | `organizer` | Organizer console and admin mutations, including adding or disabling organizers and volunteers, but cannot grant or revoke owner access |
-| `volunteer` | Annual Conference overview plus tasks where the volunteer is the accountable owner or a collaborator; may update only those task statuses |
+| `volunteer` | Annual Conference overview plus tasks where the volunteer is the accountable owner or a collaborator; may update only those task statuses unless an Owner grants additional responsibilities for that edition |
 
-Volunteer sessions are redirected to the active Annual Conference. UI routing and server API policy both deny Events, Attendance, Feedback, organizer management, audit logs, volunteer-applicant records, task creation, and task ownership/detail changes. Assigned-task responses remove organizer-only internal notes.
+Volunteer sessions are redirected to the active Annual Conference. With no additional grants, UI routing and server API policy deny Events, Attendance, Feedback, organizer management, audit logs, volunteer-applicant records, task creation, and task ownership/detail changes. Assigned-task responses remove organizer-only internal notes.
+
+Owners manage additive, edition-scoped Annual Conference responsibilities for active Volunteers from **People & Access → Delegation**. The code-owned catalogue separates full work-plan viewing, work-plan management, timeline viewing, phase management, volunteer-team viewing, intake sharing, and application review. Applicant review is the only volunteer-section responsibility that exposes applicant email addresses and social handles. Organizers and Owners cannot receive delegation grants because their access is governed by role. Changing or disabling a membership clears its explicit conference grants before its sessions are revoked.
+
+Disabled memberships remain visible to Owners with two explicit choices: re-enable the existing membership or permanently remove it after confirmation. Permanent removal is limited to already-disabled memberships, deletes their app sessions and conference grants through database cascades, and retains historical audit records and task attribution.
 
 ## Tables
 
@@ -44,6 +48,7 @@ Volunteer sessions are redirected to the active Annual Conference. UI routing an
 | `admin_memberships` | Organizer email allowlist, role, status, and last login |
 | `admin_sessions` | Hashed app session tokens and expiry metadata |
 | `admin_audit_log` | Security-sensitive admin actions with actor, target, request path, IP, user-agent, and compact metadata |
+| `annual_conference_access_grants` | Additive member capabilities scoped to one Annual Conference edition, with granting-owner provenance |
 
 ## Audit Log
 
@@ -100,5 +105,6 @@ There is no shared-password fallback. When Supabase organizer auth is incomplete
 - Audit log review requires `owner` role.
 - Every authenticated request joins the current membership role/status instead of trusting the login-time snapshot.
 - Changing a membership role or status revokes its active sessions in both the application command and a database trigger.
+- Annual Conference grants are resolved from the database for each protected request, so removing a responsibility does not depend on a cached browser role.
 - OAuth failure states are mapped from allowlisted status categories rather than displaying provider or server response bodies, and external, protocol-relative, or backslash-based redirect targets are rejected.
 - The Supabase service-role key is used only on the server and must never use a `VITE_` prefix.

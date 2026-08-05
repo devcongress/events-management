@@ -33,37 +33,27 @@ onMounted(async () => {
       </div>
 
       <template v-else>
-        <header class="feedback-display-header">
-          <p class="editorial-eyebrow">Volunteer drive</p>
-          <h1>DevCongress December Mega Meetup</h1>
-          <p class="feedback-display-lead">Scan the QR code to volunteer.</p>
-        </header>
+        <main class="volunteer-display-layout">
+          <section class="volunteer-display-intro" aria-labelledby="volunteer-display-title">
+            <p class="volunteer-display-context">DevCongress <span aria-hidden="true">/</span> December Mega Meetup <span aria-hidden="true">/</span> 2026</p>
+            <h1 id="volunteer-display-title">Volunteer for December.</h1>
+            <p class="volunteer-display-lead">A few good hands make the day feel effortless.</p>
+            <p class="volunteer-display-support">Scan the code to tell us how you’d like to help. We’ll be in touch with the next step.</p>
+          </section>
 
-        <div class="feedback-display-card">
-          <div class="feedback-display-grid">
-            <div class="feedback-display-qr-wrap">
-              <img v-if="qrCodeUrl" :src="qrCodeUrl" alt="QR code for the DevCongress December Mega Meetup volunteer form" class="feedback-display-qr">
-              <p class="feedback-display-qr-caption">Camera open. Point at the code.</p>
-            </div>
-            <div class="feedback-display-copy">
-              <p class="feedback-display-kicker">Volunteer intake</p>
-              <div class="feedback-display-story">
-                <h2>Help make the meetup happen.</h2>
-                <p>Leave your name, email, X handle, and Slack name. We will reach out with the next steps.</p>
-              </div>
-              <dl class="feedback-display-meta">
-                <div>
-                  <dt>Event</dt>
-                  <dd>December Mega Meetup</dd>
-                </div>
-                <div>
-                  <dt>Sign-up</dt>
-                  <dd>Volunteer form</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-        </div>
+          <section class="volunteer-display-qr-stage" aria-label="Volunteer sign-up QR code">
+            <p class="volunteer-display-qr-label"><span aria-hidden="true"></span> Volunteer sign-up</p>
+            <Transition v-if="qrCodeUrl" name="volunteer-display-qr">
+              <img
+                :src="qrCodeUrl"
+                alt="QR code for the DevCongress December Mega Meetup volunteer form"
+                class="volunteer-display-qr"
+              >
+            </Transition>
+            <div v-if="!qrCodeUrl" class="volunteer-display-qr-loading" aria-live="polite">Preparing your sign-up code…</div>
+            <p class="volunteer-display-qr-caption">Open camera, scan code</p>
+          </section>
+        </main>
       </template>
     </div>
   </div>

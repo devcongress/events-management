@@ -89,7 +89,8 @@
   - Initial data: 26-row Excel seed plus the manual Volunteer recruitment task in `lib/annual-conference-work-plan.ts`; confirmed Phase 1 responsibility updates override the original sheet; 19 December 2026 is provisional, the first named owner is accountable, remaining names collaborate, and `All`, `TBD`, or blank owners are unassigned
   - Task contract: exactly `Not started`, `In progress`, `Blocked`, and `Done`; no reminders; finance remains a later restricted module
   - Organizer compatibility redirects: `/organizer-console/volunteers` and `/organizer-console/volunteer-display`
-  - Public form: `/volunteer/december-mega-meetup`, intentionally preserved and standalone without organizer navigation or app chrome
+  - Public form: `/volunteer/december-mega-meetup`, intentionally preserved and standalone without organizer navigation or app chrome. It uses a compact two-column field grid with a dedicated **Your details** introduction, touch-friendly controls, and the unchanged mandatory Turnstile verification before submission.
+  - Volunteer display: `/organizer-console/annual-conference/:year/volunteers/display` is a protected, TV-safe quiet invitation with concise event context, a high-contrast QR focal point, and a responsive QR-first stack for smaller screens.
   - APIs: `POST /api/volunteer-applications`, `GET /api/admin/volunteer-applications`
   - Authenticated volunteer access: `admin_memberships.role = volunteer`; the SPA routes volunteers to Annual Conference without rendering the redundant global navigation tab, the API returns only tasks matched by accountable-owner/collaborator email, and volunteer mutations accept status-only changes on those assigned tasks
   - Security boundary: non-conference APIs retain the owner/organizer role gate, volunteer-applicant records remain organizer-only, and assigned-task responses redact `internal_note`

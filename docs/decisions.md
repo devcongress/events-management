@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-048: Additive Edition-Scoped Conference Responsibilities
+
+**Date:** 2026-08-05
+**Status:** Accepted
+**Context:** The Volunteer role intentionally starts with assigned Annual Conference tasks only, but delivery leads need to hand specific sections—such as Timeline, phase management, volunteer-team visibility, intake sharing, or application review—to individual people without promoting them to a broader Organizer role. Applicant records contain contact details, so exposing one Volunteers tab as a single permission would also over-share personal information.
+**Decision:** Keep roles as safe defaults and add a code-owned catalogue of additive capabilities stored per Annual Conference edition and membership. Owners manage explicit grants from People & Access. Resolve effective capabilities from role defaults, planning ownership, and edition grants at the server on each protected request; return the same list to desktop and mobile clients for navigation. Keep volunteer-team viewing, intake sharing, and applicant review separate, with applicant PII available only to the review capability. Clear explicit grants when a membership role or status changes, audit every grant/revocation, and keep the new table behind RLS with service-role-only access.
+**Trade-offs:** The system gains a small capability vocabulary and another relational lookup on conference requests. Grants are additive only, so Owners cannot subtract role defaults; this avoids contradictory deny rules and preserves current organizer behavior. The catalogue is intentionally limited to Annual Conference rather than becoming an app-wide ACL framework. Volunteer applications remain tied to the 2026 campaign until ADR-016's relational-workflow revisit is completed.
+**Alternatives considered:** Add more roles for each responsibility combination (role explosion), expose sections based only on hidden UI tabs (bypassable), promote temporary leads to Organizer (excess privilege), store arbitrary permission strings (unsafe and difficult to audit), or build a generic plugin/ACL framework (premature for one bounded module).
+**Revisit when:** Another product area needs individual delegation, deny rules become a real requirement, multi-edition volunteer campaigns replace the 2026 intake store, or capability lookup volume justifies a request-local batch/cache strategy.
+
+---
+
 ## ADR-047: Gate Public-Submission Discovery Independently
 
 **Date:** 2026-08-04
