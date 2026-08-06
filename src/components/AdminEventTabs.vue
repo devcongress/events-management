@@ -63,7 +63,7 @@ const systemDesignDisabled = computed(() => isSystemDesignWorkspaceDisabled(
 const fullTabs = computed<AdminEventTab[]>(() => [
   { href: '', label: 'Overview' },
   { href: 'registrations', label: 'Registration' },
-  { href: 'talks', label: 'Archive' },
+  { href: 'talks', label: 'Talks' },
   { href: 'quiz', label: 'Quiz', disabled: true, disabledReason: 'Quiz is unavailable for this event.' },
   {
     href: 'system-design',

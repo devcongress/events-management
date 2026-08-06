@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-06 — Clarified talks navigation labels
+
+- Renamed the event-level Archive tab to **Talks**.
+- Renamed the proposal review tab to **Talks review** and the confirmed-talks tab to **Talks Archive**.
+
+## 2026-08-06 — Kept the CFP introduction on one desktop line
+
+- Removed the overly narrow width cap from the CFP description so it stays one line on wider screens while remaining responsive on phones.
+
+## 2026-08-06 — Added a simple CFP introduction
+
+- Added a concise description below the event details to clarify what speakers can share through the Call for Presentations form.
+
+## 2026-08-06 — Simplified the Call for Presentations form
+
+- Removed the event-description card from the public speaker proposal form so the page moves directly from the event heading into the proposal fields.
+
+## 2026-08-06 — Centered CFP verification and submission actions
+
+- Placed the Cloudflare Turnstile check and **Submit proposal** action in one centered responsive row on wider screens.
+- Kept the controls stacked and centered on narrow screens so the proposal form remains usable on phones.
+
 ## 2026-08-06 — Aligned monthly finance drawer fields
 
 - Kept the monthly expense form in consistent two-column pairs for Category/Status and Amount/Date.
