@@ -306,7 +306,7 @@ async function submitRegistration() {
 
 .registration-shell {
   display: grid;
-  width: min(100%, 70rem);
+  width: min(100%, 78rem);
   height: auto;
   max-height: 100%;
   min-height: 0;
@@ -375,7 +375,7 @@ async function submitRegistration() {
   position: relative;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(0, 1.08fr) minmax(20rem, 0.92fr);
+  grid-template-columns: minmax(0, 1.22fr) minmax(22rem, 0.78fr);
   gap: 0;
   align-items: stretch;
   overflow: hidden;
@@ -417,6 +417,7 @@ async function submitRegistration() {
 
 .registration-event-body {
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
 }
@@ -428,16 +429,17 @@ async function submitRegistration() {
 }
 
 .registration-event-title {
-  display: -webkit-box;
+  display: block;
   margin-top: 0.65rem;
-  overflow: hidden;
+  max-width: 100%;
+  overflow: visible;
   color: #111111;
-  font-size: clamp(2rem, 4vw, 3.75rem);
+  font-size: clamp(2rem, 4vw, 4.25rem);
   font-weight: var(--font-weight-heading);
   letter-spacing: -0.035em;
-  line-height: 1;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  line-height: 0.96;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .registration-event-description {
@@ -456,7 +458,6 @@ async function submitRegistration() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
   margin-top: auto;
-  border-top: 1px solid #dedad1;
   padding-top: 1rem;
 }
 
@@ -826,11 +827,16 @@ async function submitRegistration() {
   }
 
   .registration-event-title {
+    display: -webkit-box;
     margin-top: 0.65rem;
+    overflow: hidden;
     font-size: clamp(1.55rem, 7vw, 1.9rem);
     font-weight: var(--font-weight-heading);
     letter-spacing: -0.025em;
     line-height: 1.08;
+    overflow-wrap: normal;
+    text-wrap: initial;
+    -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }
 
@@ -955,8 +961,11 @@ async function submitRegistration() {
   }
 
   .registration-event-title {
+    display: -webkit-box;
+    overflow: hidden;
     margin-top: 0.35rem;
     font-size: clamp(1.45rem, 4vw, 2rem);
+    -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }
 

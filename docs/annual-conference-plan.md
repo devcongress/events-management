@@ -83,7 +83,7 @@ The first operational workspace slice is now in place:
 - conference health keeps objective completion, elapsed phase time, overdue/blocked pressure, due-soon counts, and planning confidence visible at a glance; planning confidence measures task coverage across dates, phases, and accountable owners;
 - the first named spreadsheet owner is accountable and the remaining names are collaborators; `All`, `TBD`, and blank owners remain unassigned;
 - new owner and collaborator selections use active organizer emails as stable identities, while the UI shows organizer names and preserves unchanged legacy spreadsheet assignments;
-- finance is deferred to a later restricted module, and reminders are not part of this release.
+- finance is now a restricted GHS module with Owner-managed ledger entry and named Organizer read access; reminders are not part of this release.
 
 The work plan uses relational `annual_conference_editions`, `annual_conference_phases`, and `annual_conference_tasks` Supabase tables in production, with a local JSON fallback for development. The initial plan contains the 26 imported checklist tasks plus the new Volunteer recruitment task: 25 Not started and 2 Done.
 
@@ -150,7 +150,7 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 | Attendance target | Not started | Unassigned | TBD | Needed for capacity, ticketing, catering, badges, swag, connectivity, and budget |
 | Keynote speaker or speakers | Not started | Elijah | TBD | Patrick G. Awuah is preferred; the original shortlist also mentioned the NSMQ quiz mistress |
 | Ticketing approach | In progress | Unassigned | TBD | Paid registration is confirmed for December; choose the payment provider and define payment, refund, reconciliation, and failure ownership after the free monthly flow is proven |
-| Overall conference budget | Not started | Unassigned | TBD | Deferred to the later restricted finance module |
+| Overall conference budget | In progress | Owner | 2026-08-05 | Maintained in the private GHS Finance workspace with planned, committed, paid, remaining, and income totals |
 
 ## Programme and Speakers
 
@@ -236,26 +236,26 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 
 ## Budget and Expenses
 
-Expenses are part of the confirmed annual-conference scope. The workflow and permissions are not designed yet.
+Expenses are part of the confirmed annual-conference scope. The first implementation is a private, GHS-denominated ledger and dashboard. Owners can enter budget lines, expenses, and income; named Organizers can be granted read-only finance visibility for an edition.
 
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
-| Budget baseline | Not started | Unassigned | TBD | Set expected income, planned spend by category, contingency, and total ceiling |
-| Expense categories | Not started | Unassigned | TBD | Start with venue, catering, AV/connectivity, creative/printing, media, badges, signage, swag, transport, speaker support, and contingency |
-| Expense request and approval policy | Not started | Unassigned | TBD | Deferred to the later restricted finance module; define who can request, approve, reject, amend, and view financial records |
-| Purchases and supplier commitments | Not started | Unassigned | TBD | Track vendor, quote, approved amount, order/contract, due date, owner, and payment status |
+| Budget baseline | In progress | Owner | 2026-08-05 | GHS budget lines, committed spend, paid spend, remaining budget, and category variance are visible in the private Finance workspace |
+| Expense categories | In progress | Owner | 2026-08-05 | Initial categories cover venue, catering, AV/connectivity, creative/printing, media, badges, signage, swag, transport, speaker support, contingency, and other |
+| Expense request and approval policy | Not started | Unassigned | TBD | The first slice records explicit draft, committed, paid, expected, received, and cancelled states; approval and reimbursement policy remains next |
+| Purchases and supplier commitments | In progress | Owner | 2026-08-05 | Owner-managed expense records capture vendor/source, amount, date, category, status, and notes |
 | Receipts and supporting documents | Not started | Unassigned | TBD | Define required evidence, secure storage, retention, and who can access it |
 | Reimbursements | Not started | Unassigned | TBD | Track claimant, purpose, approved amount, paid amount, payment method, status, and payment date |
-| Actual versus budget | Not started | Unassigned | TBD | Report committed, spent, remaining, and variance by category and for the whole edition |
-| Sponsorship income | Not started | Unassigned | TBD | Track pledged, invoiced, received, restricted/earmarked, outstanding, and reconciled amounts separately from expenses |
+| Actual versus budget | In progress | Owner | 2026-08-05 | Dashboard reports planned, committed, paid, unpaid committed, remaining, and category variance |
+| Sponsorship income | In progress | Owner | 2026-08-05 | Income records can be tracked as expected or received without mixing them into expense totals |
 
 ### Finance Safety Boundaries
 
 - Financial details are private and never part of the public event API.
 - Financial access must be more restrictive than general organizer access.
 - The app must preserve who requested, approved, changed, and marked a financial record paid.
-- Money values require an explicit currency; the default currency has not yet been decided.
-- Receipts and contracts need private storage, access control, and retention rules.
+- The current edition finance currency is explicitly GHS (Ghana cedis); mixed-currency support is not included in this first slice.
+- Receipts and contracts still need private storage, access control, and retention rules before attachments are added.
 - Budget, committed cost, actual payment, reimbursement, and sponsor income are different records and must not be collapsed into one number.
 
 ## Current Application Coverage

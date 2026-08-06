@@ -84,6 +84,10 @@ const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualCo
   capabilities.value,
   VOLUNTEER_SECTION_CAPABILITIES,
 ));
+const canViewFinance = computed(() => hasAnyAnnualConferenceCapability(
+  capabilities.value,
+  ['finance.view'],
+));
 const links = computed(() => [
   { href: annualConferencePath('', year.value), label: 'Overview' },
   {
@@ -92,6 +96,7 @@ const links = computed(() => [
   },
   ...(canViewTimeline.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline' }] : []),
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers' }] : []),
+  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance' }] : []),
 ]);
 const editionOptions = computed(() => editions.value.map((edition) => ({
   value: String(edition.year),

@@ -2,12 +2,14 @@
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import RegistrationAlphabetFilter from '@/src/components/ui/RegistrationAlphabetFilter.vue';
 import {
   checkInEventRegistration,
   fetchEventById,
   fetchEventRegistrations,
   queryKeys,
+  undoCheckInEventRegistration,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import {
@@ -32,6 +34,7 @@ const eventId = computed(() => String(route.params.eventId ?? ''));
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
 const actionRegistrationId = ref<string | null>(null);
+const pendingCheckInUndo = ref<EventRegistration | null>(null);
 
 const eventQuery = useQuery({
   queryKey: computed(() => queryKeys.event(eventId.value)),
@@ -84,6 +87,23 @@ async function checkInGuest(registration: EventRegistration) {
     notify.success(`${registration.name} checked in.`);
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to check in this guest.');
+  } finally {
+    actionRegistrationId.value = null;
+  }
+}
+
+async function undoCheckInGuest() {
+  const registration = pendingCheckInUndo.value;
+  if (!eventId.value || !registration || actionRegistrationId.value) return;
+  actionRegistrationId.value = registration.id;
+
+  try {
+    await undoCheckInEventRegistration(eventId.value, registration.id);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.eventRegistrations(eventId.value) });
+    pendingCheckInUndo.value = null;
+    notify.success(`${registration.name}'s check-in was undone.`);
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to undo this check-in.');
   } finally {
     actionRegistrationId.value = null;
   }
@@ -231,10 +251,31 @@ watch(availableInitials, (initials) => {
               >
                 {{ actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
               </button>
+              <button
+                v-else-if="registration.status === 'confirmed' && registration.checked_in_at"
+                type="button"
+                class="mobile-ops-guest-checkin mobile-ops-guest-checkin--undo"
+                :disabled="Boolean(actionRegistrationId)"
+                @click="pendingCheckInUndo = registration"
+              >
+                {{ actionRegistrationId === registration.id ? 'Undoing…' : 'Undo check-in' }}
+              </button>
             </li>
           </ul>
         </template>
       </section>
     </div>
+
+    <ConfirmDialog
+      :open="Boolean(pendingCheckInUndo)"
+      title="Undo check-in?"
+      :message="pendingCheckInUndo ? `Remove the check-in record for ${pendingCheckInUndo.name}? Their registration will remain active.` : ''"
+      confirm-label="Undo check-in"
+      busy-label="Undoing..."
+      cancel-label="Keep check-in"
+      :busy="Boolean(actionRegistrationId)"
+      @cancel="pendingCheckInUndo = null"
+      @confirm="undoCheckInGuest"
+    />
   </section>
 </template>

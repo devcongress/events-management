@@ -13,7 +13,8 @@ create table public.annual_conference_access_grants (
       'phases.manage',
       'volunteers.view_team',
       'volunteers.share_intake',
-      'volunteers.review_applications'
+      'volunteers.review_applications',
+      'finance.view'
     )
   ),
   constraint annual_conference_access_grants_unique unique (edition_id, membership_id, capability)

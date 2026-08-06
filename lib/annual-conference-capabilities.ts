@@ -8,13 +8,14 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
   'volunteers.view_team',
   'volunteers.share_intake',
   'volunteers.review_applications',
+  'finance.view',
 ] as const;
 
 export type AnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[number];
 
 export interface AnnualConferenceCapabilityDefinition {
   value: AnnualConferenceCapability;
-  section: 'Work plan' | 'Timeline' | 'Volunteers';
+  section: 'Work plan' | 'Timeline' | 'Volunteers' | 'Finance';
   label: string;
   description: string;
 }
@@ -62,6 +63,12 @@ export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConference
     label: 'Review volunteer applications',
     description: 'See applicant names, email addresses, and social handles.',
   },
+  {
+    value: 'finance.view',
+    section: 'Finance',
+    label: 'View the finance workspace',
+    description: 'See the private GHS budget, expenses, income, and financial summary for this edition.',
+  },
 ] as const;
 
 const ORGANIZER_DEFAULT_CAPABILITIES: readonly AnnualConferenceCapability[] = [
@@ -89,7 +96,10 @@ export function effectiveAnnualConferenceCapabilities(input: {
   isPlanningOwner?: boolean;
 }): AnnualConferenceCapability[] {
   const capabilities = new Set<AnnualConferenceCapability>(annualConferenceRoleCapabilities(input.role));
-  for (const capability of input.grants ?? []) capabilities.add(capability);
+  for (const capability of input.grants ?? []) {
+    if (capability === 'finance.view' && input.role === 'volunteer') continue;
+    capabilities.add(capability);
+  }
   if (input.isPlanningOwner) {
     capabilities.add('work_plan.manage');
     capabilities.add('phases.manage');
@@ -116,3 +126,11 @@ export const VOLUNTEER_SECTION_CAPABILITIES: readonly AnnualConferenceCapability
   'volunteers.share_intake',
   'volunteers.review_applications',
 ];
+
+export function canDelegateAnnualConferenceCapability(
+  capability: AnnualConferenceCapability,
+  role: AdminRole,
+): boolean {
+  if (capability === 'finance.view') return role === 'organizer';
+  return role === 'volunteer';
+}

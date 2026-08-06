@@ -1,5 +1,98 @@
 # Changelog
 
+## 2026-08-06 — Aligned monthly finance drawer fields
+
+- Kept the monthly expense form in consistent two-column pairs for Category/Status and Amount/Date.
+- Matched the Date picker’s field height and border weight to the Amount input while preserving the stacked mobile layout.
+
+## 2026-08-06 — Added a shared monthly finance category catalog
+
+- Kept monthly meetup categories independent from the Annual Conference finance taxonomy.
+- Added a shared monthly category catalog so a category created for one meetup can be reused in every other monthly meetup.
+- Added secure Owner/Organizer category creation with validation, persistence, audit coverage, and legacy-category preservation.
+
+## 2026-08-06 — Removed the registration title divider
+
+- Removed the horizontal divider between the public event title and its `When / Where` details while preserving the existing metadata spacing and responsive layout.
+
+## 2026-08-06 — Restricted test guest removal to Owners
+
+- Hid the local-only **Remove test guest** control from Organizers and Volunteers.
+- Restricted the delete route at the server authorization boundary to Owner sessions while retaining the development/test runtime gate.
+- Added authorization coverage so non-Owners cannot permanently delete registrations or linked delivery/check-in data.
+
+## 2026-08-06 — Gave desktop registration titles room to breathe
+
+- Widened the desktop event-information side of the registration split and kept the RSVP panel as the focused action column.
+- Let meetup titles wrap naturally on desktop instead of clipping them with a line clamp; mobile keeps a compact two-line limit for scanability.
+- Added safe long-word wrapping so unusually long event names cannot push the registration page sideways.
+
+## 2026-08-06 — Truncated long event preview labels
+
+- Kept preview-card event names on one line with an ellipsis while preserving the full value in the underlying event and a hover title.
+- Applied the same constrained, one-line treatment to long venue labels so preview cards stay within their layout instead of widening or overflowing.
+- Matched the public website’s event and meetup list cards to the same title and venue behavior.
+
+## 2026-08-06 — Added mistaken-check-in undo and hardened registration cancellation
+
+- Added a confirmed-guest **Undo check-in** action to the desktop guest list and phone check-in screen; it removes only the check-in record and leaves the registration active.
+- Protected the undo mutation at the Owner/Organizer API boundary and added an independent audit action plus local/Supabase persistence coverage.
+- Moved cancellation auditing before promotion-email follow-up and kept a persisted cancellation successful when that non-critical follow-up path is temporarily unavailable.
+
+## 2026-08-06 — Added on-site registration QR display
+
+- Added a protected QR display that opens the existing public registration form for walk-in guests without creating a second registration flow.
+- Added **Show QR code** to the registration overview and **Show registration QR** to the phone Events workspace, with a direct-form and copy-link fallback.
+- Kept the public form’s existing validation, capacity, waitlist, duplicate-email, and confirmation behavior unchanged.
+
+## 2026-08-06 — Made monthly finance editable by Owners and Organizers
+
+- Monthly finance is now available to every Owner and Organizer across all monthly meetups.
+- Both Owners and Organizers can add monthly expenses; Volunteers remain excluded.
+- Removed the redundant named-viewer selector and its access-grant persistence/API layer; Volunteers remain excluded at the route and server boundaries.
+
+## 2026-08-06 — Removed test decoration from real organizer events
+
+- Organizer-created events now retain their real names even when the legacy test-mode variable is present.
+- Existing `[TEST]` records remain identifiable for the cleanup workflow; public-submission discovery continues to use its independent source and launch gates.
+
+## 2026-08-06 — Added monthly meetup actual-expense finance
+
+- Added an Owner/Organizer Finance tab for monthly meetup events with a dedicated GHS ledger for actual expenses incurred during that meetup.
+- Kept budget lines out of the monthly workflow; the summary shows actual spend, paid, unpaid, cancelled, and category totals instead.
+- Added a right-side Add expense drawer using the shared compact date picker, protected API routes, audit events, Supabase persistence, and a local JSON fallback.
+
+## 2026-08-06 — Matched Finance header action buttons
+
+- Aligned the Add budget line and Add record actions to the same height, width rhythm, border treatment, focus state, and press behavior while retaining their secondary/primary visual hierarchy.
+
+## 2026-08-06 — Moved Finance owner actions into a drawer
+
+- Replaced the always-visible budget and financial-record forms with compact header actions that open the relevant form in a right-side Owner action drawer.
+- Preserved focus restoration, Escape/backdrop dismissal, background interaction locking, reduced-motion handling, and the existing mutation contracts.
+
+## 2026-08-06 — Fixed Finance notes field sizing
+
+- Disabled manual resizing on the Finance notes field so the form keeps a stable layout.
+
+## 2026-08-06 — Finance date field uses the shared app picker
+
+- Replaced the Finance form’s native browser date input with the shared compact app-centric date picker, so finance now gets the same capped calendar popover, `DD/MM/YYYY` display, and keyboard behavior as the rest of the organizer console.
+
+## 2026-08-06 — Compact app-centric date picker
+
+- Reworked the shared calendar popover into a quieter, compact app surface capped at 344px instead of letting wide form fields dictate its size.
+- Switched the calendar to Monday-first weeks, numeric `DD/MM/YYYY` field values, lighter navigation chrome, and tighter day/footer controls to match the supplied reference while preserving keyboard navigation and viewport-aware placement.
+
+## 2026-08-05 — Added restricted Annual Conference finance workspace
+
+- Added an edition-scoped GHS Finance workspace with separate budget lines, expense records, income records, and dashboard totals for planned, committed, paid, remaining, unpaid committed, and received income.
+- Added relational Supabase finance tables with service-role-only access, RLS enabled, explicit GHS currency constraints, integer minor-unit amounts, and a local JSON adapter for development.
+- Added Owner-only finance record creation with explicit expense/income states and audit events, while keeping financial data out of public event responses.
+- Added the finance.view capability so Owners can grant read-only finance visibility to selected active Organizers per conference edition; Volunteers remain ineligible.
+- Added a protected Annual Conference Finance route, navigation link, People & Access controls, empty states, category variance table, and recent-record ledger.
+- Deferred receipts, reimbursements, approval thresholds, payment-provider integrations, reconciliation, and multi-currency support to a later finance workflow slice.
+
 ## 2026-08-05 — Volunteer intake and display refinement
 
 - Refined the standalone volunteer intake into a calmer, more legible two-column sign-up flow with a concise **Your details** introduction, consistent field hierarchy, touch-friendly controls, and clearer conference-focused language.
@@ -208,7 +301,7 @@
 ## 2026-08-02 — Manual event acceptance-test cleanup
 
 - Added a dry-run-first cleanup command for pre-launch event testing, narrowly selecting submissions and events whose titles begin with `[TEST]` and also tracing canonical events promoted from those submissions.
-- Added a server-only `EVENT_TEST_MODE` switch that automatically marks new organizer-created events and public submissions, preserves the marker through approval, and places `[TEST]` first in related transactional email subjects.
+- Added a server-only `EVENT_TEST_MODE` switch for the former pre-launch workflow that marked organizer-created events and public submissions, preserved the marker through approval, and placed `[TEST]` first in related transactional email subjects.
 - Required an explicit destructive confirmation, deleted canonical events before submissions, verified that matching records no longer remain, and retained admin audit history and already-delivered provider email.
 - Documented the temporary same-database testing convention and its retirement trigger before general public submissions begin.
 

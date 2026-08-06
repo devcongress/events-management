@@ -122,11 +122,16 @@ onUnmounted(() => {
           <div class="flex flex-1 flex-col gap-3 p-5 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
               <time :datetime="meetup.start">{{ formatDate(meetup.start) }}</time>
-              <span class="text-dc-pink">{{ meetup.location.label ?? meetup.location.name }}</span>
+              <span
+                class="community-meetup-card-location text-dc-pink"
+                :title="meetup.location.label ?? meetup.location.name"
+              >
+                {{ meetup.location.label ?? meetup.location.name }}
+              </span>
             </div>
 
             <h2 class="community-meetup-card-title text-2xl font-bold leading-tight tracking-tight text-dc-ink sm:text-3xl">
-              <RouterLink :to="eventPreviewPath(meetup)" class="hover:text-dc-pink">
+              <RouterLink :to="eventPreviewPath(meetup)" class="hover:text-dc-pink" :title="meetup.name">
                 {{ meetup.name }}
               </RouterLink>
             </h2>

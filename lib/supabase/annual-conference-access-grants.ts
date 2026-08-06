@@ -2,7 +2,10 @@ import type { Context } from 'hono';
 import type { AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import type { AdminRole, Database } from '@/types/supabase';
-import { effectiveAnnualConferenceCapabilities } from '@/lib/annual-conference-capabilities';
+import {
+  canDelegateAnnualConferenceCapability,
+  effectiveAnnualConferenceCapabilities,
+} from '@/lib/annual-conference-capabilities';
 
 type GrantInsert = Database['public']['Tables']['annual_conference_access_grants']['Insert'];
 
@@ -101,7 +104,7 @@ export async function setAnnualConferenceAccessGrant(input: {
   capability: AnnualConferenceCapability;
   enabled: boolean;
   grantedByMembershipId: string;
-}, c?: Context): Promise<'updated' | 'not_found' | 'inactive' | 'not_volunteer' | undefined> {
+}, c?: Context): Promise<'updated' | 'not_found' | 'inactive' | 'not_eligible' | undefined> {
   if (!isSupabaseRuntimeEnabled(c)) return undefined;
   const editionId = await editionIdForYear(input.year, c);
   if (!editionId) return undefined;
@@ -115,7 +118,9 @@ export async function setAnnualConferenceAccessGrant(input: {
   if (membershipResult.error) throw new Error(membershipResult.error.message);
   if (!membershipResult.data) return 'not_found';
   if (membershipResult.data.status !== 'active') return 'inactive';
-  if (membershipResult.data.role !== 'volunteer') return 'not_volunteer';
+  if (!canDelegateAnnualConferenceCapability(input.capability, membershipResult.data.role)) {
+    return 'not_eligible';
+  }
 
   if (input.enabled) {
     const row: GrantInsert = {

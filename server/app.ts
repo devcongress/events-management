@@ -31,6 +31,7 @@ import {
   getPendingRegistrationEmails,
   getRegistrationCampaign,
   registerForEvent,
+  undoCheckInRegistration,
   updateRegistrationCampaign,
   updateRegistrationEmailDelivery,
 } from '@/lib/event-registration-store';
@@ -41,6 +42,18 @@ import {
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAMS,
 } from '@/lib/annual-conference-work-plan';
+import {
+  ANNUAL_CONFERENCE_FINANCE_CATEGORIES,
+  ANNUAL_CONFERENCE_FINANCE_ENTRY_KINDS,
+  ANNUAL_CONFERENCE_FINANCE_EXPENSE_STATUSES,
+  ANNUAL_CONFERENCE_FINANCE_INCOME_STATUSES,
+  type AnnualConferenceFinanceEntryInput,
+} from '@/lib/annual-conference-finance';
+import {
+  MONTHLY_MEETUP_FINANCE_EXPENSE_STATUSES,
+  type MonthlyMeetupFinanceCategoryInput,
+  type MonthlyMeetupFinanceExpenseInput,
+} from '@/lib/monthly-meetup-finance';
 import {
   ANNUAL_CONFERENCE_CAPABILITIES,
   effectiveAnnualConferenceCapabilities,
@@ -72,7 +85,6 @@ import {
 import { attendanceMonthForEvent, buildAttendanceInsights, buildAttendanceLedger, buildAttendanceSummary, getAttendanceImports, getLatestAttendanceImport, removeAttendanceImport, replaceAttendanceImportFromCsv } from '@/lib/mock-db/attendance';
 import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistItem } from '@/lib/mock-db/event-checklists';
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
-import { eventTestModeEnabled, markTestEventTitle } from '@/lib/event-test-mode';
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
@@ -126,11 +138,23 @@ import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { adminRolesForApiRequest } from '@/server/admin-api-access';
 import { createAnnualConferenceRepository } from '@/server/annual-conference-repository';
+import { createAnnualConferenceFinanceRepository } from '@/server/annual-conference-finance-repository';
 import {
   AnnualConferenceServiceError,
   annualConferenceErrorStatus,
   createAnnualConferenceService,
 } from '@/server/annual-conference-service';
+import {
+  AnnualConferenceFinanceServiceError,
+  annualConferenceFinanceErrorStatus,
+  createAnnualConferenceFinanceService,
+} from '@/server/annual-conference-finance-service';
+import { createMonthlyMeetupFinanceRepository } from '@/server/monthly-meetup-finance-repository';
+import {
+  MonthlyMeetupFinanceServiceError,
+  monthlyMeetupFinanceErrorStatus,
+  createMonthlyMeetupFinanceService,
+} from '@/server/monthly-meetup-finance-service';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
@@ -465,6 +489,49 @@ const updateOrganizerRoleSchema = z.object({
 const annualConferenceAccessGrantSchema = z.object({
   capability: z.enum(ANNUAL_CONFERENCE_CAPABILITIES),
   enabled: z.boolean(),
+}).strict();
+const annualConferenceFinanceBudgetSchema = z.object({
+  category: z.enum(ANNUAL_CONFERENCE_FINANCE_CATEGORIES),
+  label: z.string().trim().min(1, 'Budget label is required.').max(160),
+  amount_minor: z.number().int().min(0).max(9_000_000_000_000),
+}).strict();
+const annualConferenceFinanceEntrySchema = z.object({
+  kind: z.enum(ANNUAL_CONFERENCE_FINANCE_ENTRY_KINDS),
+  category: z.enum(ANNUAL_CONFERENCE_FINANCE_CATEGORIES),
+  description: z.string().trim().min(1, 'Description is required.').max(200),
+  amount_minor: z.number().int().min(1).max(9_000_000_000_000),
+  status: z.enum([
+    ...ANNUAL_CONFERENCE_FINANCE_EXPENSE_STATUSES,
+    ...ANNUAL_CONFERENCE_FINANCE_INCOME_STATUSES,
+  ] as [string, ...string[]]),
+  vendor: z.string().trim().max(160).nullable().optional(),
+  entry_date: z.string().date().nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+}).strict().superRefine((value, context) => {
+  const allowedStatuses = value.kind === 'expense'
+    ? ANNUAL_CONFERENCE_FINANCE_EXPENSE_STATUSES
+    : ANNUAL_CONFERENCE_FINANCE_INCOME_STATUSES;
+  if (!allowedStatuses.includes(value.status as never)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['status'],
+      message: value.kind === 'expense'
+        ? 'Choose a valid expense status.'
+        : 'Choose a valid income status.',
+    });
+  }
+});
+const monthlyMeetupFinanceExpenseSchema = z.object({
+  category: z.string().trim().min(1, 'Category is required.').max(80),
+  description: z.string().trim().min(1, 'Description is required.').max(200),
+  amount_minor: z.number().int().min(1).max(9_000_000_000_000),
+  status: z.enum(MONTHLY_MEETUP_FINANCE_EXPENSE_STATUSES),
+  vendor: z.string().trim().max(160).nullable().optional(),
+  expense_date: z.string().date(),
+  notes: z.string().trim().max(2000).nullable().optional(),
+}).strict();
+const monthlyMeetupFinanceCategorySchema = z.object({
+  name: z.string().trim().min(1, 'Category name is required.').max(80),
 }).strict();
 const adminTokenExchangeSchema = z.object({
   access_token: z.string().trim().min(20).max(8192),
@@ -1014,27 +1081,23 @@ async function createEvent(data: {
   photos?: Event['photos'];
   publish_to_website?: boolean;
 }, c?: Context): Promise<Event> {
-  const markedData = {
-    ...data,
-    name: markTestEventTitle(data.name, eventTestModeEnabled(envValue('EVENT_TEST_MODE', c))),
-  };
-  const event = await createSupabaseCommunityEvent(markedData, c);
+  const event = await createSupabaseCommunityEvent(data, c);
   if (event) return canonicalizeEventSchedule(event);
   return canonicalizeEventSchedule(await createMockEvent({
-    name: markedData.name,
-    description: markedData.description,
-    event_date: markedData.event_date,
-    format: markedData.format ?? 'meetup',
-    series_type: markedData.series_type,
-    end_date: markedData.end_date ?? undefined,
-    slug: markedData.slug ?? undefined,
-    cover: markedData.cover ?? undefined,
-    location: markedData.location ?? undefined,
-    registration_url: markedData.registration_url ?? null,
-    stream_url: markedData.stream_url ?? null,
-    embed_stream: markedData.embed_stream ?? false,
-    photos: markedData.photos ?? [],
-    publish_to_website: markedData.publish_to_website ?? true,
+    name: data.name,
+    description: data.description,
+    event_date: data.event_date,
+    format: data.format ?? 'meetup',
+    series_type: data.series_type,
+    end_date: data.end_date ?? undefined,
+    slug: data.slug ?? undefined,
+    cover: data.cover ?? undefined,
+    location: data.location ?? undefined,
+    registration_url: data.registration_url ?? null,
+    stream_url: data.stream_url ?? null,
+    embed_stream: data.embed_stream ?? false,
+    photos: data.photos ?? [],
+    publish_to_website: data.publish_to_website ?? true,
   }));
 }
 
@@ -1150,6 +1213,45 @@ async function annualConferenceServiceForRequest(c: Context) {
     accessGrants: (editionId) => getAnnualConferenceAccessGrants(editionId, session.membership_id, c),
     activeOrganizerEmails: () => getActiveOrganizerEmails(c),
     activePlanningOwnerEmails: () => getActivePlanningOwnerEmails(c),
+    audit: (event) => auditAdminAction(c, {
+      action: event.action,
+      targetType: event.targetType,
+      targetId: event.targetId,
+      metadata: event.metadata,
+    }),
+  });
+}
+
+async function annualConferenceFinanceServiceForRequest(c: Context) {
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated) {
+    throw new AnnualConferenceFinanceServiceError('forbidden', 'Conference finance access required.');
+  }
+
+  return createAnnualConferenceFinanceService({
+    repository: createAnnualConferenceFinanceRepository(c),
+    actor: { email: session.email, role: session.role },
+    audit: (event) => auditAdminAction(c, {
+      action: event.action,
+      targetType: event.targetType,
+      targetId: event.targetId,
+      metadata: event.metadata,
+    }),
+  });
+}
+
+async function monthlyMeetupFinanceServiceForRequest(c: Context) {
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated) {
+    throw new MonthlyMeetupFinanceServiceError('forbidden', 'Monthly meetup finance access required.');
+  }
+
+  return createMonthlyMeetupFinanceService({
+    repository: createMonthlyMeetupFinanceRepository(c),
+    actor: {
+      email: session.email,
+      role: session.role,
+    },
     audit: (event) => auditAdminAction(c, {
       action: event.action,
       targetType: event.targetType,
@@ -3368,7 +3470,7 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
     if (!result) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
     if (result === 'not_found') return c.json({ error: 'Member was not found.' }, 404);
     if (result === 'inactive') return c.json({ error: 'Responsibilities can only be assigned to active members.' }, 400);
-    if (result === 'not_volunteer') return c.json({ error: 'Conference responsibilities can only be delegated to Volunteers.' }, 400);
+    if (result === 'not_eligible') return c.json({ error: 'This responsibility cannot be delegated to that member role.' }, 400);
 
     await auditAdminAction(c, {
       action: parsed.data.enabled
@@ -3419,6 +3521,73 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
     return c.json(await service.getWorkspace(Number(yearParam)));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
+  }
+});
+
+app.get('/api/annual-conference/:year/finance', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) {
+    return c.json({ error: 'Conference year must use four digits.' }, 400);
+  }
+  const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'finance.view');
+  if (capabilityError) return capabilityError;
+
+  try {
+    const service = await annualConferenceFinanceServiceForRequest(c);
+    return c.json(await service.getFinance(Number(yearParam)));
+  } catch (error) {
+    if (error instanceof AnnualConferenceFinanceServiceError) {
+      return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'annual_conference_finance_read_failed', error, 'Unable to load conference finance.');
+  }
+});
+
+app.post('/api/annual-conference/:year/finance/budgets', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) {
+    return c.json({ error: 'Conference year must use four digits.' }, 400);
+  }
+  const parsed = annualConferenceFinanceBudgetSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the budget details.' }, 400);
+  }
+
+  try {
+    const service = await annualConferenceFinanceServiceForRequest(c);
+    return c.json(await service.createBudgetLine(Number(yearParam), parsed.data), 201);
+  } catch (error) {
+    if (error instanceof AnnualConferenceFinanceServiceError) {
+      return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'annual_conference_finance_budget_create_failed', error, 'Unable to save the budget line.');
+  }
+});
+
+app.post('/api/annual-conference/:year/finance/entries', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) {
+    return c.json({ error: 'Conference year must use four digits.' }, 400);
+  }
+  const parsed = annualConferenceFinanceEntrySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the finance record.' }, 400);
+  }
+
+  try {
+    const service = await annualConferenceFinanceServiceForRequest(c);
+    return c.json(await service.createEntry(Number(yearParam), parsed.data as AnnualConferenceFinanceEntryInput), 201);
+  } catch (error) {
+    if (error instanceof AnnualConferenceFinanceServiceError) {
+      return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'annual_conference_finance_entry_create_failed', error, 'Unable to save the finance record.');
   }
 });
 
@@ -4759,6 +4928,98 @@ app.get('/api/events/:eventId', async (c) => {
   return c.json(event);
 });
 
+app.get('/api/events/:eventId/finance', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found.' }, 404);
+
+  try {
+    const service = await monthlyMeetupFinanceServiceForRequest(c);
+    return c.json(await service.getFinance(event));
+  } catch (error) {
+    if (error instanceof MonthlyMeetupFinanceServiceError) {
+      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'monthly_meetup_finance_read_failed', error, 'Unable to load monthly meetup finance.');
+  }
+});
+
+app.post('/api/events/:eventId/finance/categories', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found.' }, 404);
+
+  const parsed = monthlyMeetupFinanceCategorySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the category name.' }, 400);
+  }
+
+  try {
+    const service = await monthlyMeetupFinanceServiceForRequest(c);
+    return c.json(await service.createCategory(event, parsed.data as MonthlyMeetupFinanceCategoryInput), 201);
+  } catch (error) {
+    if (error instanceof MonthlyMeetupFinanceServiceError) {
+      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'monthly_meetup_finance_category_create_failed', error, 'Unable to save the monthly category.');
+  }
+});
+
+app.post('/api/events/:eventId/finance/expenses', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found.' }, 404);
+
+  const parsed = monthlyMeetupFinanceExpenseSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the expense details.' }, 400);
+  }
+
+  try {
+    const service = await monthlyMeetupFinanceServiceForRequest(c);
+    return c.json(await service.createExpense(event, parsed.data as MonthlyMeetupFinanceExpenseInput), 201);
+  } catch (error) {
+    if (error instanceof MonthlyMeetupFinanceServiceError) {
+      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'monthly_meetup_finance_expense_create_failed', error, 'Unable to save the expense.');
+  }
+});
+
+app.patch('/api/events/:eventId/finance/expenses/:expenseId', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found.' }, 404);
+
+  const parsed = monthlyMeetupFinanceExpenseSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the expense details.' }, 400);
+  }
+
+  try {
+    const service = await monthlyMeetupFinanceServiceForRequest(c);
+    const expense = await service.updateExpense(
+      event,
+      c.req.param('expenseId'),
+      parsed.data as MonthlyMeetupFinanceExpenseInput,
+    );
+    return c.json(expense);
+  } catch (error) {
+    if (error instanceof MonthlyMeetupFinanceServiceError) {
+      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'monthly_meetup_finance_expense_update_failed', error, 'Unable to update the expense.');
+  }
+});
+
 app.get('/api/events/:eventId/registrations', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   if (!event) {
@@ -5055,6 +5316,33 @@ app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c
   return c.json({ checked_in_at: checkedInAt });
 });
 
+app.delete('/api/events/:eventId/registrations/:registrationId/check-in', async (c) => {
+  const eventId = c.req.param('eventId');
+  const registrations = await getEventRegistrations(eventId, c);
+  const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+  if (!registration) {
+    return c.json({ error: 'Guest registration not found.' }, 404);
+  }
+  if (registration.status !== 'confirmed') {
+    return c.json({ error: 'Only confirmed guests can have their check-in undone.' }, 409);
+  }
+  if (!registration.checked_in_at) {
+    return c.json({ error: 'Guest is not checked in.' }, 409);
+  }
+
+  const undone = await undoCheckInRegistration(registration.id, c);
+  if (!undone) {
+    return c.json({ error: 'Guest check-in was not found.' }, 404);
+  }
+  await auditAdminAction(c, {
+    action: 'event.registration.check_in_undo',
+    targetType: 'event_registration',
+    targetId: registration.id,
+    metadata: { event_id: eventId },
+  });
+  return c.json({ ok: true });
+});
+
 app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) => {
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
@@ -5071,13 +5359,6 @@ app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) 
   if (!result.cancelled) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
-  if (result.promotedRegistrationId) {
-    await sendPendingRegistrationConfirmationEmails(event, c, {
-      registrationId: result.promotedRegistrationId,
-      limit: 1,
-      kinds: ['promotion'],
-    });
-  }
   await auditAdminAction(c, {
     action: 'event.registration.cancel',
     targetType: 'event_registration',
@@ -5087,6 +5368,25 @@ app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) 
       promoted_registration_id: result.promotedRegistrationId,
     },
   });
+  if (result.promotedRegistrationId) {
+    try {
+      await sendPendingRegistrationConfirmationEmails(event, c, {
+        registrationId: result.promotedRegistrationId,
+        limit: 1,
+        kinds: ['promotion'],
+      });
+    } catch (error) {
+      // Cancellation and waitlist promotion are already persisted. Keep the
+      // guest action successful and leave the durable delivery queued for a
+      // later retry if the follow-up email path is temporarily unavailable.
+      console.error(JSON.stringify({
+        event: 'registration_promotion_email_followup_failed',
+        event_id: eventId,
+        registration_id: result.promotedRegistrationId,
+        error_name: safeErrorName(error),
+      }));
+    }
+  }
   return c.json({
     ok: true,
     promoted_registration_id: result.promotedRegistrationId,

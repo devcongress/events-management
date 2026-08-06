@@ -2549,9 +2549,20 @@
   }
 
   .community-meetup-card-title {
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .community-meetup-card-location {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    flex: 1 1 auto;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
 	  @media (max-width: 760px) {
@@ -3603,6 +3614,11 @@
     background: #e8117f;
     color: #ffffff;
     box-shadow: 1px 1px 0 #111111;
+  }
+
+  .mobile-ops-guest-checkin--undo {
+    background: #ffffff;
+    color: #111111;
   }
 
   .mobile-ops-checkin-retry:active,

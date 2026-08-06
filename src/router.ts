@@ -40,6 +40,7 @@ import {
 const ORGANIZER_TITLE = 'DevCongress | Organizers';
 const FEEDBACK_TITLE = 'DevCongress | Feedback';
 const FEEDBACK_DISPLAY_TITLE = 'DevCongress | Feedback Display';
+const REGISTRATION_DISPLAY_TITLE = 'DevCongress | Registration Display';
 const SPEAKER_TALK_INTAKE_TITLE = 'DevCongress | Archive Details';
 const CFP_TITLE = 'DevCongress | Call for Presentations';
 const REGISTRATION_TITLE = 'DevCongress | Registration';
@@ -68,9 +69,11 @@ const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceO
 const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
 const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
 const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDisplayView.vue');
+const AdminRegistrationDisplayView = () => import('./views/admin/AdminRegistrationDisplayView.vue');
 const AdminAnnualConferenceView = () => import('./views/admin/AdminAnnualConferenceView.vue');
 const AdminAnnualConferenceWorkPlanView = () => import('./views/admin/AdminAnnualConferenceWorkPlanView.vue');
 const AdminAnnualConferenceTimelineView = () => import('./views/admin/AdminAnnualConferenceTimelineView.vue');
+const AdminAnnualConferenceFinanceView = () => import('./views/admin/AdminAnnualConferenceFinanceView.vue');
 const AdminVolunteerView = () => import('./views/admin/AdminVolunteerView.vue');
 const AdminVolunteerDisplayView = () => import('./views/admin/AdminVolunteerDisplayView.vue');
 const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
@@ -146,10 +149,12 @@ export const router = createRouter({
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
     { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
+    { path: adminPath('registration-display/:eventId'), name: 'admin-registration-display', component: AdminRegistrationDisplayView },
     { path: adminPath('annual-conference'), redirect: annualConferencePath() },
     { path: adminPath('annual-conference/:year(\\d{4})'), name: 'admin-annual-conference', component: AdminAnnualConferenceView },
     { path: adminPath('annual-conference/:year(\\d{4})/work-plan'), name: 'admin-annual-conference-work-plan', component: AdminAnnualConferenceWorkPlanView },
     { path: adminPath('annual-conference/:year(\\d{4})/timeline'), name: 'admin-annual-conference-timeline', component: AdminAnnualConferenceTimelineView },
+    { path: adminPath('annual-conference/:year(\\d{4})/finance'), name: 'admin-annual-conference-finance', component: AdminAnnualConferenceFinanceView },
     { path: adminPath('annual-conference/:year(\\d{4})/volunteers'), name: 'admin-annual-conference-volunteers', component: AdminVolunteerView },
     { path: adminPath('annual-conference/:year(\\d{4})/volunteers/display'), name: 'admin-annual-conference-volunteer-display', component: AdminVolunteerDisplayView },
     { path: adminPath('volunteers'), redirect: annualConferencePath('volunteers') },
@@ -162,6 +167,7 @@ export const router = createRouter({
     { path: adminPath('events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)'), name: 'admin-talks', component: AdminTalksView },
     { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView },
     { path: adminPath('events/:eventId/attendance'), name: 'admin-attendance', component: AdminAttendanceView },
+    { path: adminPath('events/:eventId/finance'), name: 'admin-monthly-meetup-finance', component: () => import('./views/admin/AdminMonthlyMeetupFinanceView.vue') },
     { path: adminPath('events/:eventId/registrations'), name: 'admin-registrations', component: AdminRegistrationsView },
     { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView },
     { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView },
@@ -302,6 +308,8 @@ router.afterEach((to) => {
     document.title = REGISTRATION_TITLE;
   } else if (to.name === 'admin-feedback-display') {
     document.title = FEEDBACK_DISPLAY_TITLE;
+  } else if (to.name === 'admin-registration-display') {
+    document.title = REGISTRATION_DISPLAY_TITLE;
   } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME) {
     document.title = SPEAKER_TALK_INTAKE_TITLE;
   } else if (to.name === 'volunteer-intake') {
@@ -316,6 +324,7 @@ router.afterEach((to) => {
     to.name === 'admin-annual-conference'
     || to.name === 'admin-annual-conference-work-plan'
     || to.name === 'admin-annual-conference-timeline'
+    || to.name === 'admin-annual-conference-finance'
     || to.name === 'admin-annual-conference-volunteers'
     || to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {

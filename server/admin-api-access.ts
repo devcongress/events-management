@@ -11,8 +11,33 @@ const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
 const MEMBERSHIP_ENABLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/enable$/;
 const MEMBERSHIP_PERMANENT_REMOVE_PATH = /^\/api\/admin\/organizers\/[^/]+\/permanent$/;
 const LOGOUT_PATH = '/api/auth/logout';
+const EVENT_REGISTRATION_PERMANENT_REMOVE_PATH = /^\/api\/events\/[^/]+\/registrations\/[^/]+$/;
+const MONTHLY_MEETUP_FINANCE_READ_PATH = /^\/api\/events\/[^/]+\/finance$/;
+const MONTHLY_MEETUP_FINANCE_CATEGORY_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/categories$/;
+const MONTHLY_MEETUP_FINANCE_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/expenses$/;
+const MONTHLY_MEETUP_FINANCE_UPDATE_PATH = /^\/api\/events\/[^/]+\/finance\/expenses\/[^/]+$/;
 
 export function adminRolesForApiRequest(path: string, method: string): AdminRole[] {
+  if (method === 'GET' && MONTHLY_MEETUP_FINANCE_READ_PATH.test(path)) {
+    return ORGANIZER_ROLES;
+  }
+
+  if (method === 'POST' && MONTHLY_MEETUP_FINANCE_CATEGORY_CREATE_PATH.test(path)) {
+    return ORGANIZER_ROLES;
+  }
+
+  if (method === 'POST' && MONTHLY_MEETUP_FINANCE_CREATE_PATH.test(path)) {
+    return ORGANIZER_ROLES;
+  }
+
+  if (method === 'PATCH' && MONTHLY_MEETUP_FINANCE_UPDATE_PATH.test(path)) {
+    return ORGANIZER_ROLES;
+  }
+
+  if (method === 'DELETE' && EVENT_REGISTRATION_PERMANENT_REMOVE_PATH.test(path)) {
+    return OWNER_ROLES;
+  }
+
   if (method === 'POST' && path === LOGOUT_PATH) {
     return CONFERENCE_MEMBER_ROLES;
   }

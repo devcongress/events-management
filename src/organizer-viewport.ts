@@ -14,6 +14,7 @@ const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
   'admin-login',
   'admin-auth-callback',
   'admin-feedback-display',
+  'admin-registration-display',
   'admin-annual-conference-volunteer-display',
   'admin-public-events-preview',
   'admin-public-event-preview',

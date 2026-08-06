@@ -1,5 +1,65 @@
 # Architectural Decisions
 
+## ADR-051: Reuse the Public Registration URL for On-Site QR Entry
+
+Date: 2026-08-06
+Status: Accepted
+
+Context: Guests may arrive at a meetup without registering in advance. Staff need a fast way to direct those guests into the existing phone-friendly registration form, while the event-day organizer tools must remain usable from a phone. Creating a second walk-in form or encoding an attendee/check-in credential in a QR code would split registration behavior and increase privacy and operational risk.
+
+Decision: Add a protected `/organizer-console/registration-display/:eventId` route that generates a local QR code from the event’s existing public registration URL. Expose it from the desktop Registration overview and the authenticated phone Events workspace. Keep the QR payload limited to the public form URL; it contains no guest identity, session, or check-in authority. The display is available only when the event has an internal campaign and the public form is accepting registrations, and it provides a direct-form and copy-link fallback for phones.
+
+Trade-offs: Staff need to open the protected display first, and a guest still submits the same name/email form rather than being silently added. The display depends on the public URL remaining valid, but reusing that URL preserves capacity, waitlist, duplicate-email, confirmation, and audit behavior without a second write path.
+
+Alternatives considered: Add a separate walk-in form (duplicates validation and campaign behavior), let QR codes perform check-in (confuses registration with attendance and exposes a stronger credential), or display a QR only on desktop (fails the phone-at-the-door workflow).
+
+Revisit when: Walk-in registration needs staff-entered records, offline capture, payments, or a kiosk mode with a dedicated device policy.
+
+## ADR-052: Shared Monthly Meetup Category Catalog
+
+Date: 2026-08-06
+Status: Accepted
+
+Context: Monthly meetups have a different operating pattern from the Annual Conference. Reusing the Annual Conference category taxonomy makes the monthly expense form look more rigid than the workflow requires and prevents organizers from naming costs in the language they actually use. A category created in one monthly ledger should remain useful in later months without duplicating it per event.
+
+Decision: Keep Annual Conference categories and monthly meetup categories in separate domains. Add a shared monthly category catalog with validated display names, expose the catalog in every monthly finance response, and let Owners and Organizers add a category from any monthly meetup. Store expense category names against the monthly ledger, preserve categories found in existing expense records during migration, and do not provide category deletion in this slice so historical totals remain readable.
+
+Trade-offs: The catalog adds one relational table and a small creation flow, but avoids a generic cross-product category system and keeps monthly naming flexible. Categories are shared across all monthly meetups, so an overly broad label can affect future forms; the no-delete rule protects history while a later rename workflow can add explicit migration semantics.
+
+Alternatives considered: Reuse Annual Conference categories (wrong domain semantics), keep a fixed monthly enum (cannot adapt to real meetup costs), create categories separately for every event (repetition across months), or allow free-text expense categories without a catalog (poor reuse and weak server validation).
+
+Revisit when: Monthly finance needs category renaming, archival, per-series category scopes, or reporting across multiple currencies.
+
+## ADR-050: Event-Scoped Monthly Meetup Actuals Without a Budget Baseline
+
+Date: 2026-08-06
+Status: Accepted
+
+Context: Monthly meetups happen repeatedly and have an estimated monthly spend, but they do not have a strict budget that organizers need to manage. Reusing the Annual Conference finance model would introduce unnecessary budget and income concepts while making it harder to see what a specific meetup actually cost. Financial records are private operational data and must not be visible to Volunteers or unauthenticated users.
+
+Decision: Add a separate `monthly_meetup_finance_expenses` ledger keyed to `community_events`. Store only GHS integer minor-unit expense records with category, description, paid/unpaid/cancelled state, date, vendor, and notes. Derive monthly actual, paid, unpaid, cancelled, and category totals from the ledger. Expose the workspace only for events resolved as the monthly series and protect both reads and expense mutations with an Owner-or-Organizer boundary. Volunteers and unauthenticated users receive no monthly finance access, and finance is never exposed through general event responses.
+
+Trade-offs: Owners and Organizers can enter monthly expenses, and the rough monthly estimate is intentionally not stored as a budget value. This keeps the monthly workflow honest and small; an optional estimate context can be added without changing the expense record shape.
+
+Alternatives considered: Reuse Annual Conference budgets (adds false budget semantics), put expenses on event tasks (mixes accounting with delivery work), restrict each Organizer behind a separate monthly grant (redundant administration), allow Volunteers to see the ledger (over-shares sensitive data), or hide the route only in the UI (bypassable without server enforcement).
+
+Revisit when: A real approval/reimbursement workflow is needed, or Owners ask for an optional monthly estimate card or a different role boundary.
+
+## ADR-049: Edition-Scoped GHS Finance Visibility and Ledger
+
+Date: 2026-08-05
+Status: Accepted
+
+Context: The Annual Conference needs one place to see planned budget, committed spend, paid spend, remaining budget, and income. General Organizer access is intentionally broad enough for event operations, but financial records must not be visible to every Organizer. The existing Annual Conference capability catalogue and Owner-managed People & Access grants provide the narrowest compatible access boundary.
+
+Decision: Add a private Annual Conference Finance workspace backed by relational budget and ledger tables, with a local JSON adapter for development. Store amounts as integer minor units with an explicit GHS currency constraint. Keep budget lines, expense records, and income records distinct, and derive dashboard totals from their explicit states. Owners receive finance visibility by role and remain the only users who can create the first-slice records. Owners may grant finance.view to selected active Organizers for one edition; Volunteers cannot receive finance access. Finance reads are protected by the capability at the server boundary, are never included in public event responses, and all record creation and access changes use the existing audit log.
+
+Trade-offs: The first slice supports a useful at-a-glance ledger without introducing payment-provider, bank-reconciliation, receipt, reimbursement, approval-threshold, or multi-currency complexity. Named finance viewers can see the complete edition finance view but cannot edit it. Owner-only mutations are intentionally conservative until approval and submitter workflows are defined.
+
+Alternatives considered: Add finance to the general Organizer role (over-shares sensitive records), put amounts on work-plan tasks (collapses planning and accounting semantics), expose finance through UI-only navigation hiding (bypassable), or create a new Finance role for every access combination (role explosion).
+
+Revisit when: Expense submitters need access without dashboard visibility, receipts/contracts are introduced, approvals need separation of duties or thresholds, finance operators need write access, or another event type needs the same capability model.
+
 ## ADR-048: Additive Edition-Scoped Conference Responsibilities
 
 **Date:** 2026-08-05
@@ -17,7 +77,7 @@
 **Date:** 2026-08-04
 **Status:** Accepted for private beta
 **Context:** Private-beta testers must exercise the real external submission, moderation, promotion, and email path against the production EMS and Supabase project. Approving a beta submission creates a published canonical event, but devcongress.org must not list it while beta testing is in progress. Organizers still need to inspect the promoted record in the EMS website-shaped preview, and submitter-facing titles and email should not carry test-only decoration.
-**Decision:** Keep public-submission intake and public discovery as independent fail-closed Worker controls. `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true` accepts proposals. Only an explicit `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true` allows canonical events whose source is `public_submission` into unauthenticated `GET /api/public/events`; missing, false, or invalid values exclude every such event. The organizer-authenticated, non-cacheable `/api/admin/events-preview*` contract includes them regardless of the public discovery gate. Public submissions retain the submitted title and do not use `EVENT_TEST_MODE`; that switch remains limited to direct organizer event rehearsals.
+**Decision:** Keep public-submission intake and public discovery as independent fail-closed Worker controls. `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true` accepts proposals. Only an explicit `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true` allows canonical events whose source is `public_submission` into unauthenticated `GET /api/public/events`; missing, false, or invalid values exclude every such event. The organizer-authenticated, non-cacheable `/api/admin/events-preview*` contract includes them regardless of the public discovery gate. Public submissions retain the submitted title, and internal organizer-created events also retain the name entered by the organizer; the legacy `EVENT_TEST_MODE` marker is no longer applied during event creation.
 **Trade-offs:** Beta and production records still share one database and are distinguished operationally by the controlled launch window plus `public_submission` source. Enabling discovery before deleting beta submissions would expose every approved beta record, so reviewed cleanup and zero-row verification are mandatory before launch. No schema migration or test text leaks into public-facing titles and emails.
 **Alternatives considered:** Keep a `[TEST]` title marker (visible product noise and brittle data classification), rely on the website not rebuilding (unsafe and non-deterministic), filter only while `EVENT_TEST_MODE=true` (conflates organizer rehearsal with public launch), or add a permanent environment/scope column now (stronger long-term model but larger than the temporary beta need).
 **Revisit when:** Private beta ends, real public submissions coexist with acceptance testing, or recurring staged submissions justify an explicit environment or visibility scope in the database.
@@ -125,10 +185,10 @@
 ## ADR-039: Variable-Controlled Prefix and Manual Cleanup for Pre-Launch Event Testing
 
 **Date:** 2026-08-02
-**Status:** Superseded for public-submission beta by ADR-047; retained for direct organizer event rehearsals
+**Status:** Superseded by ADR-047 and the 2026-08-06 real-event naming policy
 **Context:** DevCongress needs trusted testers to exercise the real hosted event-creation, submission, moderation, publication, and notification paths before opening them publicly. A separate development database and permanent development deployment are not currently affordable, while merging a full test-data lane would add product and schema work that is not required for this short acceptance period.
-**Decision:** Run the acceptance pass against the existing hosted project with the server-only `EVENT_TEST_MODE=true` variable. While enabled, the server prefixes every new public submission and organizer-created event with `[TEST]`; approval retains that stored marker, and event-related email subjects lead with the same marker. Clients cannot select the mode. Provide a local, service-role-only cleanup command that defaults to a read-only preview, discovers promoted events through their submission relationship as well as the fixed prefix, requires the exact `DELETE_TEST_EVENT_DATA` confirmation to execute, deletes canonical events before submissions, and verifies that no matching application records remain. Set the variable to `false` only after cleanup. Preserve the append-only administrator audit ledger and acknowledge that email already accepted by the provider cannot be recalled.
-**Trade-offs:** Test and production records still share one schema and failure domain. The flag affects only newly created data and does not retroactively relabel existing rows. The fixed prefix remains the cleanup selector, so test titles must not be renamed before cleanup and every dry-run row must be reviewed. The REST deletes are ordered and safely repeatable but are not one database transaction. This workflow is acceptable only while public submissions are not generally available.
+**Decision:** The former server-only `EVENT_TEST_MODE=true` workflow is retained only for identifying and cleaning legacy `[TEST]` records; it is no longer consulted when creating organizer events or accepting public submissions. Public-submission intake and discovery remain controlled by their independent gates. The local, service-role-only cleanup command remains dry-run-first, discovers promoted events through their submission relationship as well as the fixed prefix, requires the exact `DELETE_TEST_EVENT_DATA` confirmation to execute, deletes canonical events before submissions, and verifies that no matching application records remain. Preserve the append-only administrator audit ledger and acknowledge that email already accepted by the provider cannot be recalled.
+**Trade-offs:** Legacy test and production records still share one schema and failure domain. New organizer events are no longer visually marked, so acceptance-test data must use the public-submission source/gates or an explicitly supplied dummy title and must be reviewed before cleanup. The fixed prefix remains the cleanup selector for legacy rows. The REST deletes are ordered and safely repeatable but are not one database transaction.
 **Alternatives considered:** Provision a second Supabase project and development URL (current cost constraint), add permanent test/production scope columns and feeds (safer long-term but larger than the pre-launch need), delete all recently created records by timestamp (could capture legitimate concurrent work), or delete all submissions indiscriminately (unacceptably broad).
 **Revisit when:** The public submission form is opened generally, testing overlaps real submissions, a recurring acceptance environment is needed, or cleanup must be atomic across all related records.
 
