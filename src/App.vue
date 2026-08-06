@@ -89,6 +89,7 @@ const isStandaloneRoute = computed(() => (
   || route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   || route.name === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
   || route.name === 'admin-feedback-display'
+  || route.name === 'admin-registration-display'
   || route.name === 'admin-public-events-preview'
   || route.name === 'admin-public-event-preview'
   || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME

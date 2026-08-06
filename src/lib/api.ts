@@ -29,9 +29,23 @@ import type {
   AnnualConferenceTaskUpdateInput,
   AnnualConferenceWorkPlanSummary,
 } from '@/lib/annual-conference-work-plan';
+import type {
+  AnnualConferenceFinanceBudgetLine,
+  AnnualConferenceFinanceBudgetLineInput,
+  AnnualConferenceFinanceEntry,
+  AnnualConferenceFinanceEntryInput,
+  AnnualConferenceFinanceSummary,
+} from '@/lib/annual-conference-finance';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
 import type { AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
+import type {
+  MonthlyMeetupFinanceCategory,
+  MonthlyMeetupFinanceCategoryInput,
+  MonthlyMeetupFinanceExpense,
+  MonthlyMeetupFinanceExpenseInput,
+  MonthlyMeetupFinanceSummary,
+} from '@/lib/monthly-meetup-finance';
 
 export interface OverviewRegular {
   key: string;
@@ -139,6 +153,16 @@ export interface AdminSessionResponse {
     email: string | null;
     display_name: string | null;
     role: AdminRole;
+  };
+}
+
+export interface MonthlyMeetupFinanceResponse {
+  event: Pick<Event, 'id' | 'name' | 'event_date' | 'series_type'>;
+  categories: MonthlyMeetupFinanceCategory[];
+  expenses: MonthlyMeetupFinanceExpense[];
+  summary: MonthlyMeetupFinanceSummary;
+  permissions: {
+    can_manage: boolean;
   };
 }
 
@@ -261,6 +285,16 @@ export interface AnnualConferenceWorkPlanResponse {
   };
 }
 
+export interface AnnualConferenceFinanceResponse {
+  edition_id: string;
+  budgets: AnnualConferenceFinanceBudgetLine[];
+  entries: AnnualConferenceFinanceEntry[];
+  summary: AnnualConferenceFinanceSummary;
+  permissions: {
+    can_manage: boolean;
+  };
+}
+
 export interface AnnualConferenceEditionsResponse {
   editions: AnnualConferenceEdition[];
 }
@@ -332,6 +366,8 @@ export const queryKeys = {
   annualConferenceAccess: (year: string) => ['annual-conference-access', year] as const,
   eventSubmissions: (status: EventSubmissionReviewStatus | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
+  annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
+  monthlyMeetupFinance: (eventId: string) => ['monthly-meetup-finance', eventId] as const,
   annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
@@ -401,6 +437,79 @@ export function updateAnnualConferenceAccessGrant(
 export function fetchAnnualConferenceWorkPlan(year: string) {
   return fetchJson<AnnualConferenceWorkPlanResponse>(`/api/annual-conference/${year}/work-plan`, {
     credentials: 'include',
+  });
+}
+
+export function fetchAnnualConferenceFinance(year: string) {
+  return fetchJson<AnnualConferenceFinanceResponse>('/api/annual-conference/' + year + '/finance', {
+    credentials: 'include',
+  });
+}
+
+export function createAnnualConferenceFinanceBudget(
+  year: string,
+  input: AnnualConferenceFinanceBudgetLineInput,
+) {
+  return fetchJson<AnnualConferenceFinanceBudgetLine>('/api/annual-conference/' + year + '/finance/budgets', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function createAnnualConferenceFinanceEntry(
+  year: string,
+  input: AnnualConferenceFinanceEntryInput,
+) {
+  return fetchJson<AnnualConferenceFinanceEntry>('/api/annual-conference/' + year + '/finance/entries', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function fetchMonthlyMeetupFinance(eventId: string) {
+  return fetchJson<MonthlyMeetupFinanceResponse>(`/api/events/${eventId}/finance`, {
+    credentials: 'include',
+  });
+}
+
+export function createMonthlyMeetupFinanceCategory(
+  eventId: string,
+  input: MonthlyMeetupFinanceCategoryInput,
+) {
+  return fetchJson<MonthlyMeetupFinanceCategory>(`/api/events/${eventId}/finance/categories`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function createMonthlyMeetupFinanceExpense(
+  eventId: string,
+  input: MonthlyMeetupFinanceExpenseInput,
+) {
+  return fetchJson<MonthlyMeetupFinanceExpense>(`/api/events/${eventId}/finance/expenses`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateMonthlyMeetupFinanceExpense(
+  eventId: string,
+  expenseId: string,
+  input: MonthlyMeetupFinanceExpenseInput,
+) {
+  return fetchJson<MonthlyMeetupFinanceExpense>(`/api/events/${eventId}/finance/expenses/${expenseId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   });
 }
 
@@ -671,6 +780,13 @@ export function updateEventRegistrationCampaign(
 export function checkInEventRegistration(eventId: string, registrationId: string) {
   return fetchJson<{ checked_in_at: string }>(`/api/events/${eventId}/registrations/${registrationId}/check-in`, {
     method: 'POST',
+    credentials: 'include',
+  });
+}
+
+export function undoCheckInEventRegistration(eventId: string, registrationId: string) {
+  return fetchJson<{ ok: true }>(`/api/events/${eventId}/registrations/${registrationId}/check-in`, {
+    method: 'DELETE',
     credentials: 'include',
   });
 }

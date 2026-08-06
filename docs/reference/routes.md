@@ -32,6 +32,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/mobile/events` | Dedicated authenticated phone Events workspace for the complete organizer event list, source/registration links, and native guest check-in entry points. Tablets/desktops visiting this route resolve to `/organizer-console/events`. |
 | `/organizer-console/mobile/annual-conference/:year` | Dedicated authenticated phone Annual Conference workspace. Organizers receive mobile Overview, Work Plan, Timeline/phase management, Volunteers, edition controls, and task create/edit flows; volunteers receive a separate assignment-scoped Overview and My Tasks surface with status-only updates. Phone visits to Annual Conference routes resolve here; tablets/desktops resolve it to the edition work plan. |
 | `/organizer-console/mobile/events/:eventId/check-in` | Dedicated authenticated phone check-in screen for one native event. It omits the global organizer navigation and returns to Mobile Ops through a visible back action; an existing event without a native campaign shows a historical-registration explanation, and tablets/desktops resolve the route to the event’s full Registration tab. |
+| `/organizer-console/registration-display/:eventId` | Protected phone-safe QR display for an open native registration campaign; guests scan into the public form, and tablets/desktops keep the same display surface |
 | `/organizer-console/events` | Organizer event list |
 | `/organizer-console/events/submissions` | Events-workspace moderation inbox for pending, approved, and rejected public event proposals |
 | `/organizer-console/event-submissions` | Compatibility redirect to the Events-workspace community submissions inbox |
@@ -46,7 +47,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/organizers` | People & Access allowlist plus Owner-only, edition-scoped Conference responsibilities; volunteers cannot open this route |
 | `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
-| `/organizer-console/events/:eventId/registrations` | Four-part registration workspace for capacity summary, public-link/settings, private guest operations, atomic cancellation/promotion, transactional delivery retries, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
+| `/organizer-console/events/:eventId/registrations` | Five-part registration workspace for capacity summary, public-link/settings, private guest operations, atomic cancellation/promotion, transactional delivery retries, on-site registration QR access, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
 | `/organizer-console/events/:eventId/talks` | Compatibility URL that redirects to the Event Archive CFP step |
 | `/organizer-console/events/:eventId/talks/cfp` | CFP status and organizer proposal review controls |
 | `/organizer-console/events/:eventId/talks/proposals` | Talk and product-demo proposal review, organizer selection decisions, and selected-presenter Archive completion links |
@@ -54,6 +55,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/talks/backfill` | Archive Requests: multi-select eligible program speakers, email each person a private title/name/kind-locked form, and track it until used, expired, or removed |
 | `/organizer-console/events/:eventId/speakers` | Compatibility route for the legacy speaker access allowlist; it is not the Event Archive and is no longer shown in event navigation |
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
+| `/organizer-console/events/:eventId/finance` | Owner-only GHS actual-expense ledger for monthly meetups; no budget entry required |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |
 | `/organizer-console/events/:eventId/system-design` | Saved System Design scenario workspace plus five-question generation/review and presentation launch; saved sources keep this available for completed meetups |
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
@@ -70,7 +72,10 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/events*` | Event list, event details, organizer mutations, event removal, media metadata |
 | `GET/POST /api/registration/events/:eventKey` | Public registration status and non-enumerating name/email submission by event slug or ID, protected by strict input validation, production Turnstile, atomic cross-Worker limits, campaign/email uniqueness, and atomic capacity allocation |
 | `GET /api/registration/events/:eventKey/calendar.ics` | Public, attendee-free calendar download used by confirmed registration emails |
-| `/api/events/:eventId/registrations*` | Organizer registration status/window/capacity, private guest list, check-in, cancellation with atomic oldest-waitlisted promotion, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. Monthly place allocation and overflow waitlisting are server policy, not mutable organizer settings. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
+| `/api/events/:eventId/registrations*` | Organizer registration status/window/capacity, private guest list, check-in, Owner/Organizer-only `DELETE .../:registrationId/check-in` undo, cancellation with atomic oldest-waitlisted promotion, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. Monthly place allocation and overflow waitlisting are server policy, not mutable organizer settings. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
+| `GET /api/events/:eventId/finance` | Owner or Organizer access to the monthly meetup actual-expense summary and ledger; Volunteers are rejected and non-monthly events are rejected |
+| `POST /api/events/:eventId/finance/expenses` | Owner-or-Organizer validated GHS expense creation with paid/unpaid/cancelled state and audit logging; Volunteers are rejected |
+| `PATCH /api/events/:eventId/finance/expenses/:expenseId` | Owner-or-Organizer validated GHS expense editing with audit logging; the expense must belong to the monthly meetup and Volunteers are rejected |
 | `POST /api/events/:eventId/registration-emails/process` | Organizer retry for failed transactional receipt, waitlist, or promotion deliveries |
 | `GET /api/admin/venues/search?q=...` | Authenticated, rate-limited Ghana venue autocomplete backed by server-side Google Places (New) |
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |

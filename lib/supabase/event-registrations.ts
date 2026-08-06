@@ -176,6 +176,23 @@ export async function checkInSupabaseRegistration(
   return checkedInAt;
 }
 
+export async function undoCheckInSupabaseRegistration(
+  registrationId: string,
+  c?: Context,
+): Promise<boolean | null> {
+  if (!canUseSupabaseEventRegistrations(c)) return null;
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('event_registration_checkins')
+    .delete()
+    .eq('registration_id', registrationId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}
+
 export async function cancelSupabaseRegistration(
   registrationId: string,
   c?: Context,

@@ -15,6 +15,7 @@ import {
   getMockPendingRegistrationEmails,
   getMockRegistrationCampaign,
   registerMockForEvent,
+  undoCheckInMockRegistration,
   updateMockRegistrationCampaign,
   updateMockRegistrationEmailDelivery,
 } from '@/lib/mock-db/event-registrations';
@@ -27,6 +28,7 @@ import {
   getSupabasePendingRegistrationEmails,
   getSupabaseRegistrationCampaign,
   registerSupabaseForEvent,
+  undoCheckInSupabaseRegistration,
   updateSupabaseRegistrationCampaign,
   updateSupabaseRegistrationEmailDelivery,
   type PendingRegistrationEmail,
@@ -94,6 +96,13 @@ export async function checkInRegistration(
 ): Promise<string | undefined> {
   const checkedInAt = await checkInSupabaseRegistration(registrationId, checkedInByEmail, c);
   return checkedInAt !== null ? checkedInAt : checkInMockRegistration(registrationId);
+}
+
+export async function undoCheckInRegistration(
+  registrationId: string,
+  c?: Context,
+): Promise<boolean> {
+  return await undoCheckInSupabaseRegistration(registrationId, c) ?? undoCheckInMockRegistration(registrationId);
 }
 
 export async function cancelRegistration(

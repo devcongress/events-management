@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/vue-query';
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { eventSeriesBadgeLabel } from '@/lib/event-series';
+import { adminPath } from '@/src/admin-routes';
 import { fetchEvents, queryKeys } from '@/src/lib/api';
 import { organizerPhoneCheckInPath } from '@/src/organizer-viewport';
 import type { Event as CommunityEvent, EventStatus } from '@/types';
@@ -57,6 +58,9 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
   }
   if (event.registration_url && event.status !== 'completed') {
     actions.push({ label: 'Open registration', href: event.registration_url, external: true });
+  }
+  if (event.registration_url && event.external_source !== 'luma' && event.status !== 'completed') {
+    actions.push({ label: 'Show registration QR', href: adminPath(`registration-display/${encodeURIComponent(event.id)}`) });
   }
   if (event.external_url) {
     actions.push({ label: 'Open source event', href: event.external_url, external: true });

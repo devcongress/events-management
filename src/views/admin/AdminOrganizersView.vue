@@ -21,6 +21,7 @@ import {
 import type { AdminRole } from '@/types/supabase';
 import {
   ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS,
+  canDelegateAnnualConferenceCapability,
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
@@ -72,7 +73,6 @@ const accessQuery = useQuery({
   queryFn: () => fetchAnnualConferenceAccess(responsibilityYear.value),
   enabled: computed(() => currentUserRole.value === 'owner' && Boolean(responsibilityMemberId.value)),
 });
-
 const canRevealEmails = computed(() => currentUserRole.value === 'owner');
 const activeOrganizers = computed(() => organizers.value.filter((organizer) => organizer.status === 'active'));
 const ownerCount = computed(() => activeOrganizers.value.filter((organizer) => organizer.role === 'owner').length);
@@ -91,7 +91,7 @@ const responsibilityEditionOptions = computed(() => (editionsQuery.data.value?.e
   label: edition.label,
 })));
 const delegationMemberOptions = computed(() => organizers.value
-  .filter((member) => member.status === 'active' && member.role === 'volunteer')
+  .filter((member) => member.status === 'active' && member.role !== 'owner')
   .map((member) => ({
     value: member.id,
     label: `${memberName(member)} · ${roleLabel(member.role)}`,
@@ -99,10 +99,16 @@ const delegationMemberOptions = computed(() => organizers.value
 const delegationMember = computed(() => organizers.value.find((member) => member.id === delegationMemberId.value) ?? null);
 const responsibilityMember = computed(() => organizers.value.find((member) => member.id === responsibilityMemberId.value) ?? null);
 const responsibilityAccessMember = computed(() => accessQuery.data.value?.members.find((member) => member.id === responsibilityMemberId.value) ?? null);
-const responsibilitySections = computed(() => ['Work plan', 'Timeline', 'Volunteers'].map((section) => ({
-  section,
-  capabilities: ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS.filter((definition) => definition.section === section),
-})));
+const responsibilitySections = computed(() => ['Work plan', 'Timeline', 'Volunteers', 'Finance']
+  .map((section) => ({
+    section,
+    capabilities: ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS
+      .filter((definition) => definition.section === section)
+      .filter((definition) => responsibilityMember.value
+        ? canDelegateAnnualConferenceCapability(definition.value, responsibilityMember.value.role)
+        : true),
+  }))
+  .filter((group) => group.capabilities.length > 0));
 const memberRoleOptions: Array<{ value: AdminRole; label: string }> = [
   { value: 'organizer', label: 'Organizer' },
   { value: 'volunteer', label: 'Volunteer' },
@@ -607,11 +613,11 @@ onUnmounted(() => {
             </button>
           </div>
           <p class="mt-3 border-t border-dc-border pt-3 text-[11px] leading-4 text-dc-gray">
-            Volunteers remain limited to assigned tasks until you grant additional access for an edition.
+            Volunteers remain limited to assigned tasks. Monthly meetup finance is available to Owners and Organizers, and both roles can manage expenses.
           </p>
         </section>
 
-        <section class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-3 xl:row-start-1">
+        <section class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-2 xl:row-start-1">
           <div class="flex items-center justify-between gap-4 border-b border-dc-border px-4 py-3 sm:px-5">
             <div>
               <h2 class="text-lg font-semibold text-dc-ink">Team access</h2>
@@ -708,13 +714,13 @@ onUnmounted(() => {
                         </button>
                       </template>
                       <button
-                        v-if="currentUserRole === 'owner' && organizer.status === 'active' && organizer.role === 'volunteer'"
+                        v-if="currentUserRole === 'owner' && organizer.status === 'active' && organizer.role !== 'owner'"
                         class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink hover:border-dc-pink"
                         type="button"
                         :aria-label="`Delegate Annual Conference responsibilities to ${memberName(organizer)}`"
                         @click="openResponsibilities(organizer, $event)"
                       >
-                        Delegate
+                          Access
                       </button>
                       <button
                         v-if="canDisableOrganizer(organizer)"

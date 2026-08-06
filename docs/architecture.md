@@ -278,7 +278,7 @@ Browser (admin) → PATCH /api/quiz/sessions/[id]
 | `bun` | Production runtime and static/API server |
 | `@tanstack/vue-query` | Active browser query cache and mutation coordination |
 | `vue-router` | Active client routing |
-| `qrcode` | Local QR-code generation for quiz lobby join links |
+| `qrcode` | Local QR-code generation for quiz lobbies, feedback displays, volunteer intake, and on-site registration displays |
 | `tailwindcss` 3 | Utility CSS |
 | `tailwind-merge` | Merge Tailwind class strings without conflicts |
 | `class-variance-authority` | Variant-based component styling |

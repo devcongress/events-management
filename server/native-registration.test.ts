@@ -3,6 +3,10 @@ import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockAdminRole = vi.hoisted(() => ({
+  value: 'owner' as 'owner' | 'organizer' | 'volunteer',
+}));
+
 vi.mock('../lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('../lib/supabase/admin-auth')>('../lib/supabase/admin-auth');
   const session = {
@@ -10,16 +14,25 @@ vi.mock('../lib/supabase/admin-auth', async () => {
     user_id: 'admin-1',
     email: 'organizer@devcongress.org',
     display_name: 'Organizer',
-    role: 'owner' as const,
+    role: mockAdminRole.value,
     session_id: 'session-1',
     expires_at: '2099-01-01T00:00:00.000Z',
   };
 
   return {
     ...actual,
-    getAdminSession: vi.fn(async () => session),
-    requireAdmin: vi.fn(async (c: { set: (key: string, value: unknown) => void }) => {
-      c.set('adminSession', session);
+    getAdminSession: vi.fn(async () => ({ ...session, role: mockAdminRole.value })),
+    requireAdmin: vi.fn(async (
+      c: { set: (key: string, value: unknown) => void },
+      roles: Array<'owner' | 'organizer' | 'volunteer'> = ['owner', 'organizer'],
+    ) => {
+      if (!roles.includes(mockAdminRole.value)) {
+        return new Response(JSON.stringify({ error: 'This account does not have access to this resource' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      c.set('adminSession', { ...session, role: mockAdminRole.value });
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -30,6 +43,7 @@ const originalCwd = process.cwd();
 let tempRoot: string;
 
 beforeEach(async () => {
+  mockAdminRole.value = 'owner';
   tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'devcon-native-registration-'));
   process.chdir(tempRoot);
   await fs.mkdir('data');
@@ -41,6 +55,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  mockAdminRole.value = 'owner';
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   process.chdir(originalCwd);
@@ -76,7 +91,7 @@ describe('native event registration API', () => {
     await expect(repeatedDeleteResponse.json()).resolves.toEqual({ error: 'Event not found' });
   });
 
-  it('marks newly created events when the server test-mode variable is enabled', async () => {
+  it('keeps real organizer-created events unmarked when the legacy test-mode variable is enabled', async () => {
     vi.stubEnv('EVENT_TEST_MODE', 'true');
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/events', {
@@ -93,7 +108,7 @@ describe('native event registration API', () => {
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toMatchObject({
-      event: { name: '[TEST] Acceptance-test meetup' },
+      event: { name: 'Acceptance-test meetup' },
     });
   });
 
@@ -726,6 +741,92 @@ describe('native event registration API', () => {
     expect(registrationsFile).toContainEqual(
       expect.objectContaining({ id: secondRegistration!.id }),
     );
+  });
+
+  it('rejects permanent guest removal for organizers at the API boundary', async () => {
+    mockAdminRole.value = 'organizer';
+    const { default: app } = await import('./app');
+
+    const response = await app.request(
+      'http://localhost/api/events/event-1/registrations/registration-1',
+      { method: 'DELETE' },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: 'This account does not have access to this resource',
+    });
+  });
+
+  it('undoes a mistaken check-in without cancelling the guest registration', async () => {
+    const { default: app } = await import('./app');
+    const createResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Check-in correction meetup',
+        description: 'A local check-in correction test.',
+        event_date: '2026-08-30',
+        slug: 'check-in-correction-meetup',
+        series_type: 'monthly',
+        location: { name: 'Accra', label: 'Accra', url: null },
+      }),
+    });
+    const created = await createResponse.json() as { event: { id: string } };
+
+    await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
+    await app.request(
+      'http://localhost/api/registration/events/check-in-correction-meetup',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Ama Mensah', email: 'ama-correction@example.com' }),
+      },
+    );
+    const registrationsResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
+    );
+    const registrationsPayload = await registrationsResponse.json() as {
+      registrations: Array<{ id: string; status: string; checked_in_at: string | null }>;
+    };
+    const registration = registrationsPayload.registrations[0];
+    expect(registration).toMatchObject({ status: 'confirmed', checked_in_at: null });
+
+    const checkInResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
+      { method: 'POST' },
+    );
+    expect(checkInResponse.status).toBe(200);
+
+    const undoResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
+      { method: 'DELETE' },
+    );
+    expect(undoResponse.status).toBe(200);
+    await expect(undoResponse.json()).resolves.toEqual({ ok: true });
+
+    const afterUndoResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations`,
+    );
+    await expect(afterUndoResponse.json()).resolves.toMatchObject({
+      summary: { total: 1, confirmed: 1, checked_in: 0 },
+      registrations: [expect.objectContaining({
+        id: registration.id,
+        status: 'confirmed',
+        checked_in_at: null,
+      })],
+    });
+
+    const repeatedUndoResponse = await app.request(
+      `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
+      { method: 'DELETE' },
+    );
+    expect(repeatedUndoResponse.status).toBe(409);
+    await expect(repeatedUndoResponse.json()).resolves.toEqual({ error: 'Guest is not checked in.' });
   });
 
   it('rejects an unsafe video conference link before creating the event', async () => {

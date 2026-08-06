@@ -7,7 +7,7 @@ import { adminPath } from '@/src/admin-routes';
 import { isSystemDesignWorkspaceDisabled } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { isSystemDesignSessionItem } from '@/lib/system-design';
-import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
+import { fetchAdminSession, fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 
 const props = defineProps<{
   eventId: string;
@@ -40,7 +40,16 @@ const checklistQuery = useQuery({
   queryFn: () => fetchEventChecklist(props.eventId),
   enabled: Boolean(props.eventId),
 });
+const adminSessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
 const isQuarterlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'quarterly' : false);
+const isMonthlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'monthly' : false);
+const canViewMonthlyFinance = computed(() => {
+  const role = adminSessionQuery.data.value?.user?.role;
+  return role === 'owner' || role === 'organizer';
+});
 const hasSavedSystemDesignSource = computed(() => (
   eventQuery.data.value?.schedule?.some((item) => (
     isSystemDesignSessionItem(item)
@@ -64,6 +73,7 @@ const fullTabs = computed<AdminEventTab[]>(() => [
   },
   { href: 'feedback', label: 'Feedback' },
   { href: 'attendance', label: 'Attendance' },
+  ...(isMonthlyEvent.value && canViewMonthlyFinance.value ? [{ href: 'finance', label: 'Finance' }] : []),
 ]);
 const tabs = computed<AdminEventTab[]>(() => (isQuarterlyEvent.value ? quarterlyTabs : fullTabs.value));
 

@@ -25,7 +25,8 @@ export type AnnualConferenceCapability =
   | 'phases.manage'
   | 'volunteers.view_team'
   | 'volunteers.share_intake'
-  | 'volunteers.review_applications';
+  | 'volunteers.review_applications'
+  | 'finance.view';
 export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =
   | 'programme_speakers'
@@ -284,6 +285,193 @@ export interface Database {
             columns: ['membership_id'];
             isOneToOne: false;
             referencedRelation: 'admin_memberships';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      annual_conference_finance_budgets: {
+        Row: {
+          id: string;
+          edition_id: string;
+          category: string;
+          label: string;
+          amount_minor: number;
+          currency: string;
+          created_by_email: string | null;
+          updated_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          edition_id: string;
+          category: string;
+          label: string;
+          amount_minor: number;
+          currency?: string;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          edition_id?: string;
+          category?: string;
+          label?: string;
+          amount_minor?: number;
+          currency?: string;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_finance_budgets_edition_id_fkey';
+            columns: ['edition_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      annual_conference_finance_entries: {
+        Row: {
+          id: string;
+          edition_id: string;
+          kind: string;
+          category: string;
+          description: string;
+          amount_minor: number;
+          currency: string;
+          status: string;
+          vendor: string | null;
+          entry_date: string | null;
+          notes: string | null;
+          created_by_email: string | null;
+          updated_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          edition_id: string;
+          kind: string;
+          category: string;
+          description: string;
+          amount_minor: number;
+          currency?: string;
+          status: string;
+          vendor?: string | null;
+          entry_date?: string | null;
+          notes?: string | null;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          edition_id?: string;
+          kind?: string;
+          category?: string;
+          description?: string;
+          amount_minor?: number;
+          currency?: string;
+          status?: string;
+          vendor?: string | null;
+          entry_date?: string | null;
+          notes?: string | null;
+          updated_by_email?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_finance_entries_edition_id_fkey';
+            columns: ['edition_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      monthly_meetup_finance_categories: {
+        Row: {
+          id: string;
+          name: string;
+          normalized_name: string;
+          created_by_email: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          normalized_name: string;
+          created_by_email?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          normalized_name?: string;
+          created_by_email?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      monthly_meetup_finance_expenses: {
+        Row: {
+          id: string;
+          event_id: string;
+          category: string;
+          description: string;
+          amount_minor: number;
+          currency: string;
+          status: string;
+          vendor: string | null;
+          expense_date: string;
+          notes: string | null;
+          created_by_email: string | null;
+          updated_by_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          event_id: string;
+          category: string;
+          description: string;
+          amount_minor: number;
+          currency?: string;
+          status: string;
+          vendor?: string | null;
+          expense_date: string;
+          notes?: string | null;
+          created_by_email?: string | null;
+          updated_by_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          event_id?: string;
+          category?: string;
+          description?: string;
+          amount_minor?: number;
+          currency?: string;
+          status?: string;
+          vendor?: string | null;
+          expense_date?: string;
+          notes?: string | null;
+          updated_by_email?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'monthly_meetup_finance_expenses_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'community_events';
             referencedColumns: ['id'];
           },
         ];

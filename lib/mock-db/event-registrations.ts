@@ -189,6 +189,22 @@ export async function checkInMockRegistration(registrationId: string): Promise<s
   });
 }
 
+export async function undoCheckInMockRegistration(registrationId: string): Promise<boolean> {
+  return updateData<EventRegistration, boolean>(REGISTRATIONS_FILE, (registrations) => {
+    const index = registrations.findIndex((registration) => registration.id === registrationId);
+    if (index < 0 || !registrations[index].checked_in_at) {
+      return { data: registrations, result: false };
+    }
+
+    registrations[index] = {
+      ...registrations[index],
+      checked_in_at: null,
+      updated_at: now(),
+    };
+    return { data: registrations, result: true };
+  });
+}
+
 export async function cancelMockRegistration(registrationId: string): Promise<{
   cancelled: boolean;
   promotedRegistrationId: string | null;

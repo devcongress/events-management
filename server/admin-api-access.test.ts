@@ -15,6 +15,19 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/admin/organizers', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/admin/volunteer-applications', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/events', 'GET')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/finance', 'GET')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/finance', 'GET')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/finance', 'GET')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/finance', 'GET')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/finance/categories', 'POST')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/finance/categories', 'POST')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/finance/expenses', 'POST')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/finance/expenses', 'POST')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/finance/expenses/expense-1', 'PATCH')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/finance/expenses/expense-1', 'PATCH')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/check-in', 'POST')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/check-in', 'DELETE')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/check-in', 'DELETE')).not.toContain('volunteer');
   });
 
   it('keeps existing member role changes owner-only', () => {
@@ -22,6 +35,13 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/admin/organizers/member-1/role', 'GET')).toEqual(['owner', 'organizer']);
     expect(adminRolesForApiRequest('/api/admin/organizers/member-1/enable', 'POST')).toEqual(['owner']);
     expect(adminRolesForApiRequest('/api/admin/organizers/member-1/permanent', 'DELETE')).toEqual(['owner']);
+  });
+
+  it('keeps permanent guest removal owner-only', () => {
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1', 'DELETE')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1', 'DELETE')).not.toContain('organizer');
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1', 'DELETE')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1', 'GET')).toEqual(['owner', 'organizer']);
   });
 
   it('does not admit similarly prefixed or malformed paths', () => {

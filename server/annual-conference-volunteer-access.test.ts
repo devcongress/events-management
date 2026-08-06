@@ -305,10 +305,10 @@ describe('annual conference volunteer API access', () => {
     });
   });
 
-  it('rejects responsibility delegation to a non-volunteer member', async () => {
+  it('rejects responsibility delegation to a member role that cannot receive it', async () => {
     mocks.session.role = 'owner';
     mocks.session.email = 'platform-owner@example.com';
-    mocks.setGrant.mockResolvedValue('not_volunteer');
+    mocks.setGrant.mockResolvedValue('not_eligible');
     const { default: app } = await import('./app');
 
     const response = await app.request('http://localhost/api/annual-conference/2026/access-grants/10000000-0000-4000-8000-000000000001', {
@@ -319,7 +319,7 @@ describe('annual conference volunteer API access', () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: 'Conference responsibilities can only be delegated to Volunteers.',
+      error: 'This responsibility cannot be delegated to that member role.',
     });
   });
 

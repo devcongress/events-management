@@ -33,6 +33,7 @@ describe('volunteer organizer routes', () => {
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.review_applications'])).toBe(false);
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('volunteers/display'), ['volunteers.share_intake'])).toBe(true);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events')).toBe(false);
+    expect(volunteerCanAccessOrganizerPath('/organizer-console/events/event-1/finance')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/organizers')).toBe(false);
   });
 

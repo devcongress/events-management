@@ -12,12 +12,14 @@ import {
   cancelEventRegistration,
   checkInEventRegistration,
   createEventBlast,
+  fetchAdminSession,
   fetchEventBlasts,
   fetchEventRegistrations,
   processEventRegistrationEmails,
   queryKeys,
   removeEventRegistration,
   retryEventBlast,
+  undoCheckInEventRegistration,
   updateEventById,
   updateEventRegistrationCampaign,
 } from '@/src/lib/api';
@@ -49,6 +51,10 @@ type RegistrationOverviewPhase = 'before' | 'live' | 'after';
 const route = useRoute();
 const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
+const adminSessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
 const registrationQuery = useQuery({
   queryKey: computed(() => queryKeys.eventRegistrations(eventId.value)),
   queryFn: () => fetchEventRegistrations(eventId.value),
@@ -109,6 +115,7 @@ const blastBody = ref('');
 const blastScheduledFor = ref('');
 const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
+const pendingCheckInUndo = ref<EventRegistration | null>(null);
 const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
 const publicLinkCopied = ref(false);
@@ -116,6 +123,9 @@ const manualRefreshPending = ref(false);
 const reopenRegistrationConfirmationOpen = ref(false);
 const reopenRegistrationPending = ref(false);
 const devRegistrationRemovalEnabled = import.meta.env.DEV;
+const canRemoveTestGuest = computed(() => Boolean(
+  devRegistrationRemovalEnabled && adminSessionQuery.data.value?.user?.role === 'owner',
+));
 let publicLinkFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 const statusOptions = [
@@ -139,6 +149,7 @@ const workspaceTabs: Array<{
   { id: 'blasts', label: 'Blasts', icon: 'blasts' },
 ];
 const data = computed(() => registrationQuery.data.value ?? null);
+const registrationDisplayPath = computed(() => adminPath(`registration-display/${encodeURIComponent(eventId.value)}`));
 const registrationLastUpdatedLabel = computed(() => {
   const updatedAt = registrationQuery.dataUpdatedAt.value;
   if (!updatedAt) return 'Not updated yet';
@@ -827,6 +838,22 @@ async function checkIn(registration: EventRegistration) {
   }
 }
 
+async function confirmCheckInUndo() {
+  const registration = pendingCheckInUndo.value;
+  if (!registration || actionRegistrationId.value) return;
+  actionRegistrationId.value = registration.id;
+  try {
+    await undoCheckInEventRegistration(eventId.value, registration.id);
+    await refresh();
+    pendingCheckInUndo.value = null;
+    notify.success(`${registration.name}'s check-in was undone.`);
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to undo this check-in.');
+  } finally {
+    actionRegistrationId.value = null;
+  }
+}
+
 async function confirmCancellation() {
   const registration = pendingCancellation.value;
   if (!registration || actionRegistrationId.value) return;
@@ -849,7 +876,7 @@ async function confirmCancellation() {
 
 async function confirmRemoval() {
   const registration = pendingRemoval.value;
-  if (!registration || actionRegistrationId.value || !devRegistrationRemovalEnabled) return;
+  if (!registration || actionRegistrationId.value || !canRemoveTestGuest.value) return;
   actionRegistrationId.value = registration.id;
   try {
     await removeEventRegistration(eventId.value, registration.id);
@@ -995,6 +1022,13 @@ async function retryEmails() {
                 <span class="registration-overview-updated">
                   {{ registrationLastUpdatedLabel }}
                 </span>
+                <RouterLink
+                  v-if="canUsePublicRegistrationForm"
+                  :to="registrationDisplayPath"
+                  class="registration-overview-refresh registration-overview-qr-link motion-press"
+                >
+                  Show QR code
+                </RouterLink>
                 <Transition name="registration-overview-control" mode="out-in">
                   <button
                     v-if="registrationIsOpen"
@@ -1211,6 +1245,15 @@ async function retryEmails() {
                   CHECK IN
                 </button>
                 <button
+                  v-if="registration.status === 'confirmed' && registration.checked_in_at"
+                  type="button"
+                  class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50"
+                  :disabled="Boolean(actionRegistrationId)"
+                  @click="pendingCheckInUndo = registration"
+                >
+                  UNDO CHECK-IN
+                </button>
+                <button
                   v-if="registration.status !== 'cancelled'"
                   type="button"
                   class="min-h-11 rounded-md border-2 border-dc-ink bg-white px-4 font-mono text-xs font-semibold uppercase text-dc-ink disabled:opacity-50"
@@ -1220,7 +1263,7 @@ async function retryEmails() {
                   Cancel
                 </button>
                 <button
-                  v-if="devRegistrationRemovalEnabled"
+                  v-if="canRemoveTestGuest"
                   type="button"
                   class="min-h-11 rounded-md border-2 border-red-600 bg-red-50 px-4 font-mono text-xs font-semibold uppercase text-red-700 disabled:opacity-50"
                   :disabled="Boolean(actionRegistrationId)"
@@ -1668,6 +1711,18 @@ async function retryEmails() {
     </ConfirmDialog>
 
     <ConfirmDialog
+      :open="Boolean(pendingCheckInUndo)"
+      title="Undo check-in?"
+      :message="pendingCheckInUndo ? `Remove the check-in record for ${pendingCheckInUndo.name}? Their registration will remain active.` : ''"
+      confirm-label="Undo check-in"
+      busy-label="Undoing..."
+      cancel-label="Keep check-in"
+      :busy="Boolean(actionRegistrationId)"
+      @cancel="pendingCheckInUndo = null"
+      @confirm="confirmCheckInUndo"
+    />
+
+    <ConfirmDialog
       :open="Boolean(pendingCancellation)"
       title="Cancel registration?"
       :message="pendingCancellation ? `Remove ${pendingCancellation.name} from the active guest list?` : ''"
@@ -1681,7 +1736,7 @@ async function retryEmails() {
     />
 
     <ConfirmDialog
-      :open="Boolean(pendingRemoval)"
+      :open="Boolean(pendingRemoval) && canRemoveTestGuest"
       title="Remove test guest?"
       :message="pendingRemoval ? `${pendingRemoval.name} (${pendingRemoval.email}) and their check-in and email-delivery records will be permanently deleted. This cannot be undone.` : ''"
       confirm-label="Remove guest"
@@ -1878,6 +1933,11 @@ async function retryEmails() {
   border-color: #e8117f;
   background: #e8117f;
   color: #ffffff;
+}
+
+.registration-overview-qr-link {
+  border-color: #111111;
+  background: #fff7bf;
 }
 
 @media (hover: hover) and (pointer: fine) {

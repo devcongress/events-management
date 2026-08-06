@@ -11,12 +11,14 @@ const props = withDefaults(defineProps<{
   placeholder?: string;
   required?: boolean;
   mode?: 'date' | 'datetime';
+  density?: 'default' | 'field';
   error?: string;
 }>(), {
   label: '',
   placeholder: '',
   required: false,
   mode: 'date',
+  density: 'default',
   error: '',
 });
 
@@ -80,15 +82,20 @@ const resolvedPlaceholder = computed(() => (
 ));
 const displayValue = computed(() => {
   if (!selectedDate.value) return resolvedPlaceholder.value;
-  const formattedDate = new Intl.DateTimeFormat('en-GB', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(selectedDate.value);
+  const formattedDate = [
+    twoDigits(selectedDate.value.getDate()),
+    twoDigits(selectedDate.value.getMonth() + 1),
+    selectedDate.value.getFullYear(),
+  ].join('/');
   if (props.mode === 'date') return formattedDate;
   const time = selectedTime.value;
   return `${formattedDate} · ${time?.hour ?? '00'}:${time?.minute ?? '00'}`;
 });
+
+const triggerClasses = computed(() => props.density === 'field'
+  ? 'min-h-[50px] border-2 px-4 py-3 text-base'
+  : 'min-h-11 border px-3 py-2.5 text-sm');
+const triggerSpacingClass = computed(() => props.density === 'field' ? 'mt-1.5' : 'mt-2');
 
 const monthCursor = ref<Date>(selectedDate.value ?? new Date());
 const activeDate = ref<Date>(selectedDate.value ?? new Date());
@@ -110,13 +117,13 @@ const monthLabel = computed(() => new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
 }).format(monthCursor.value));
 
-const weekdayLabels = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 const calendarDays = computed(() => {
   const year = monthCursor.value.getFullYear();
   const month = monthCursor.value.getMonth();
   const firstDay = new Date(year, month, 1);
-  const startOffset = firstDay.getDay();
+  const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const daysInPreviousMonth = new Date(year, month, 0).getDate();
 
@@ -317,9 +324,9 @@ function updatePlacement() {
   const position = calculateFloatingPosition({
     anchor: triggerButton.value.getBoundingClientRect(),
     viewport: viewportBounds(),
-    panelHeight: calendarPanel.value?.scrollHeight ?? (props.mode === 'datetime' ? 430 : 360),
-    preferredWidth: props.mode === 'datetime' ? 328 : 304,
-    maxWidth: 360,
+    panelHeight: calendarPanel.value?.scrollHeight ?? (props.mode === 'datetime' ? 410 : 338),
+    preferredWidth: props.mode === 'datetime' ? 336 : 320,
+    maxWidth: 344,
   });
   placement.value = position.placement;
   panelStyle.value = {
@@ -379,8 +386,8 @@ function handleCalendarKeydown(event: KeyboardEvent) {
     ArrowRight: () => moveActiveDate(1),
     ArrowUp: () => moveActiveDate(-7),
     ArrowDown: () => moveActiveDate(7),
-    Home: () => moveActiveDate(-activeDate.value.getDay()),
-    End: () => moveActiveDate(6 - activeDate.value.getDay()),
+    Home: () => moveActiveDate(-((activeDate.value.getDay() + 6) % 7)),
+    End: () => moveActiveDate(6 - ((activeDate.value.getDay() + 6) % 7)),
     PageUp: () => moveActiveMonth(-1),
     PageDown: () => moveActiveMonth(1),
   };
@@ -479,9 +486,10 @@ watch(open, async (isOpen) => {
     <button
       ref="triggerButton"
       type="button"
-      class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
+      class="motion-press flex w-full items-center justify-between gap-3 rounded-md bg-dc-paper text-left font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
       :class="[
-        label ? 'mt-2' : '',
+        triggerClasses,
+        label ? triggerSpacingClass : '',
         open
           ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]'
           : error
@@ -500,8 +508,8 @@ watch(open, async (isOpen) => {
       <span :id="`${datePickerId}-value`" class="min-w-0 truncate" :class="selectedDate ? 'text-dc-ink' : 'font-normal text-dc-gray-light'">
         {{ displayValue }}
       </span>
-      <span class="grid size-6 shrink-0 place-items-center rounded-full border border-dc-border text-dc-pink">
-        <svg viewBox="0 0 20 20" class="size-3.5" fill="none" aria-hidden="true">
+      <span class="grid size-5 shrink-0 place-items-center text-dc-gray">
+        <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
           <path d="M5.5 3.5v2M14.5 3.5v2M4 7.5h12M6 2.75h8a1.75 1.75 0 0 1 1.75 1.75v10.5A1.75 1.75 0 0 1 14 16.75H6A1.75 1.75 0 0 1 4.25 15V4.5A1.75 1.75 0 0 1 6 2.75Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </span>
@@ -516,30 +524,32 @@ watch(open, async (isOpen) => {
           v-if="open"
           ref="calendarPanel"
           :id="`${datePickerId}-calendar`"
-          class="app-dropdown-menu z-[160] overflow-y-auto overscroll-contain rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]"
+          class="app-dropdown-menu z-[160] overflow-y-auto overscroll-contain rounded-md border border-dc-border bg-dc-paper shadow-[0_18px_36px_rgba(17,17,17,0.14)]"
           :data-placement="placement"
           :style="panelStyle"
           role="dialog"
           :aria-label="mode === 'datetime' ? 'Choose date and time' : 'Choose date'"
           @keydown="handleCalendarKeydown"
         >
-          <div class="sticky top-0 z-10 border-b border-dc-border bg-dc-paper-warm px-2.5 py-2">
-            <div class="flex items-center justify-between gap-2">
-              <button type="button" class="motion-press grid size-8 place-items-center rounded-md border border-dc-ink bg-dc-paper text-dc-ink hover:bg-dc-yellow" aria-label="Previous month" @click="previousMonth">
-                <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
-                  <path d="M12.5 4.5 7 10l5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
-              <p class="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-dc-ink">{{ monthLabel }}</p>
-              <button type="button" class="motion-press grid size-8 place-items-center rounded-md border border-dc-ink bg-dc-paper text-dc-ink hover:bg-dc-yellow" aria-label="Next month" @click="nextMonth">
-                <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
-                  <path d="M7.5 4.5 13 10l-5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </button>
+          <div class="sticky top-0 z-10 border-b border-dc-border bg-dc-paper px-3 py-2.5">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold tracking-[-0.01em] text-dc-ink">{{ monthLabel }}</p>
+              <div class="flex items-center gap-1">
+                <button type="button" class="motion-press grid size-7 place-items-center rounded-md text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink" aria-label="Previous month" @click="previousMonth">
+                  <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
+                    <path d="m12.5 4.5-5.5 5.5 5.5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+                <button type="button" class="motion-press grid size-7 place-items-center rounded-md text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink" aria-label="Next month" @click="nextMonth">
+                  <svg viewBox="0 0 20 20" class="size-4" fill="none" aria-hidden="true">
+                    <path d="m7.5 4.5 5.5 5.5-5.5 5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="p-2.5">
+          <div class="p-3">
             <div v-if="mode === 'datetime'" class="mb-2.5 border-b border-dc-border pb-2.5">
               <div class="flex items-end justify-between gap-3">
                 <div>
@@ -580,18 +590,18 @@ watch(open, async (isOpen) => {
               </div>
             </div>
 
-            <div class="mb-1 grid grid-cols-7 gap-0.5">
-              <span v-for="weekday in weekdayLabels" :key="weekday" class="grid h-6 place-items-center font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+            <div class="mb-1 grid grid-cols-7 gap-1">
+              <span v-for="(weekday, index) in weekdayLabels" :key="`${weekday}-${index}`" class="grid h-6 place-items-center font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
                 {{ weekday }}
               </span>
             </div>
 
-            <div class="grid grid-cols-7 gap-0.5">
+            <div class="grid grid-cols-7 gap-1">
               <button
                 v-for="day in calendarDays"
                 :key="toDateValue(day.date)"
                 type="button"
-                class="motion-press relative grid h-8 place-items-center rounded-md border text-sm font-medium outline-none focus-visible:border-dc-pink focus-visible:shadow-[0_0_0_2px_rgba(232,17,127,0.35)]"
+                class="motion-press relative grid h-9 place-items-center rounded-md border text-sm font-medium outline-none focus-visible:border-dc-pink focus-visible:shadow-[0_0_0_2px_rgba(232,17,127,0.35)]"
                 :data-date="toDateValue(day.date)"
                 :tabindex="isSameDay(day.date, activeDate) ? 0 : -1"
                 :aria-label="dateAriaLabel(day.date)"
@@ -606,11 +616,11 @@ watch(open, async (isOpen) => {
               </button>
             </div>
 
-            <div class="sticky bottom-0 z-10 mt-2.5 flex items-center justify-between border-t border-dc-border bg-dc-paper pt-2.5">
-              <button type="button" class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink" @click="clearDate">
+            <div class="sticky bottom-0 z-10 mt-3 flex items-center justify-between border-t border-dc-border bg-dc-paper pt-3">
+              <button type="button" class="motion-press rounded-md px-1 py-1 text-xs font-semibold text-dc-gray hover:bg-dc-paper-warm hover:text-dc-ink" @click="clearDate">
                 Clear
               </button>
-              <button type="button" class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-pink hover:text-dc-ink" @click="chooseToday">
+              <button type="button" class="motion-press rounded-md px-1 py-1 text-xs font-semibold text-dc-pink hover:bg-dc-paper-warm hover:text-dc-ink" @click="chooseToday">
                 {{ mode === 'datetime' ? 'Now' : 'Today' }}
               </button>
               <button

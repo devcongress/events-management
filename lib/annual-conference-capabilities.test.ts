@@ -28,7 +28,14 @@ describe('annual conference capabilities', () => {
     expect(planningOwner).toContain('phases.manage');
 
     const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
-    expect(owner).toHaveLength(7);
+    expect(owner).toHaveLength(8);
+    expect(owner).toContain('finance.view');
+  });
+
+  it('keeps finance private to owners unless an organizer is explicitly granted access', () => {
+    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer' })).not.toContain('finance.view');
+    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', grants: ['finance.view'] })).toContain('finance.view');
+    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['finance.view'] })).not.toContain('finance.view');
   });
 
   it('rejects capabilities outside the code-owned catalogue', () => {
