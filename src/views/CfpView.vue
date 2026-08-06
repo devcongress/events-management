@@ -270,10 +270,9 @@ onMounted(async () => {
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
         </p>
-      </div>
-
-      <div v-if="event.description" class="mb-5 rounded-lg border-2 border-dc-ink bg-dc-paper p-4 shadow-[3px_3px_0_#111111] sm:mb-8 sm:p-6">
-        <p class="text-dc-gray">{{ event.description }}</p>
+        <p class="mt-4 text-base leading-7 text-dc-gray sm:whitespace-nowrap">
+          Share something you've built, learned, or explored with the DevCongress community.
+        </p>
       </div>
 
       <form class="editorial-panel space-y-5 p-4 sm:space-y-6 sm:p-8" @submit.prevent="submitProposal">
@@ -353,17 +352,19 @@ onMounted(async () => {
             :class="{ 'cfp-input-error border-red-700 bg-red-50': bioOverLimit }"
           />
         </div>
-        <TurnstileWidget
-          v-if="turnstileActive"
-          ref="turnstileWidget"
-          :action="CFP_SUBMISSION_TURNSTILE_ACTION"
-          @token-change="turnstileToken = $event"
-          @error="turnstileError = $event ?? ''"
-        />
+        <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <TurnstileWidget
+            v-if="turnstileActive"
+            ref="turnstileWidget"
+            :action="CFP_SUBMISSION_TURNSTILE_ACTION"
+            @token-change="turnstileToken = $event"
+            @error="turnstileError = $event ?? ''"
+          />
+          <button type="submit" :disabled="!canSubmitProposal" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1">
+            {{ submitting ? 'SUBMITTING...' : 'SUBMIT PROPOSAL' }}
+          </button>
+        </div>
         <p v-if="turnstileError" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
-        <button type="submit" :disabled="!canSubmitProposal" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50">
-          {{ submitting ? 'SUBMITTING...' : 'SUBMIT PROPOSAL' }}
-        </button>
       </form>
     </div>
   </div>

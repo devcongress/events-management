@@ -124,8 +124,8 @@ const archiveRequestsDisabled = computed(() => isArchiveRequestsDisabledForEvent
 const archiveRequestsEnabled = computed(() => !archiveRequestsDisabled.value);
 const talkSections: { id: TalkSection; label: string }[] = [
   { id: 'cfp', label: 'CFP' },
-  { id: 'proposals', label: 'Proposals' },
-  { id: 'program', label: 'Archive' },
+  { id: 'proposals', label: 'Talks review' },
+  { id: 'program', label: 'Talks Archive' },
   { id: 'backfill', label: 'Archive Requests' },
 ];
 const activeTalkSection = computed<TalkSection>(() => {
