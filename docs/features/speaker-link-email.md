@@ -199,7 +199,7 @@ Recommended sender:
 ```text
 Domain: updates.devcongress.org
 Speaker From: DevCongress Speakers <speakers@updates.devcongress.org>
-Reply-To: hello@devcongress.org
+Reply-To: hello@updates.devcongress.org
 ```
 
 Resend recommends a subdomain to isolate sending reputation. In Resend, add `updates.devcongress.org`, then use its Cloudflare Domain Connect flow or add the supplied SPF/MX and DKIM records manually. Manual DKIM records must be DNS-only. Do not replace the root-domain Zoho mail records. Follow the official [Resend Cloudflare DNS guide](https://resend.com/docs/knowledge-base/cloudflare).
@@ -228,7 +228,7 @@ RESEND_API_KEY
 Non-secret bindings:
 
 ```text
-SPEAKER_EMAIL_REPLY_TO=hello@devcongress.org
+SPEAKER_EMAIL_REPLY_TO=hello@updates.devcongress.org
 PUBLIC_APP_URL=https://em.devcongress.org
 ```
 

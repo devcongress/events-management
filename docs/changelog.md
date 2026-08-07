@@ -1,5 +1,14 @@
 # Changelog
 
+2026-08-07 — Unified reply routing and exposed safe provider details
+
+- Pointed speaker, registration, event-blast, and community-submission Reply-To configuration at `updates.devcongress.org`.
+- Preserved the email provider's bounded rejection reason so organizers can see which sender or recipient detail needs correction.
+
+## 2026-08-07 — Preserved email failure reasons on retry
+
+- Returned the classified provider failure from the email retry endpoint so the organizer toast explains the same actionable reason shown in the delivery row instead of only displaying `Request failed: 502`.
+
 ## 2026-08-07 — Events channel announcements
 
 - Added an optional server-only Slack webhook for the `#events` channel.
