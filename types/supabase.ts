@@ -12,6 +12,7 @@ export type CommunityEventPublicationStatus = 'draft' | 'published' | 'archived'
 export type CommunityEventLocationType = 'in_person' | 'online' | 'hybrid';
 export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected';
 export type EventSubmissionEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
+export type EventSubmissionReplySlackStatus = 'pending' | 'sent' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
@@ -839,6 +840,50 @@ export interface Database {
         Relationships: [
           {
             foreignKeyName: 'event_submission_email_deliveries_submission_id_fkey';
+            columns: ['submission_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_submissions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_submission_replies: {
+        Row: {
+          id: string;
+          submission_id: string;
+          webhook_event_id: string;
+          resend_email_id: string;
+          sender_email: string;
+          subject: string;
+          body_text: string;
+          received_at: string;
+          attachments: Json;
+          slack_status: EventSubmissionReplySlackStatus;
+          slack_error: string | null;
+          slack_sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          submission_id: string;
+          webhook_event_id: string;
+          resend_email_id: string;
+          sender_email: string;
+          subject?: string;
+          body_text?: string;
+          received_at: string;
+          attachments?: Json;
+          slack_status?: EventSubmissionReplySlackStatus;
+          slack_error?: string | null;
+          slack_sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['event_submission_replies']['Insert']>;
+        Relationships: [
+          {
+            foreignKeyName: 'event_submission_replies_submission_id_fkey';
             columns: ['submission_id'];
             isOneToOne: false;
             referencedRelation: 'event_submissions';

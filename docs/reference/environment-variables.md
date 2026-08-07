@@ -29,10 +29,14 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 | `RESEND_API_KEY` | Required for transactional registration, community-submission, and speaker email sends | No | Server-only, sending-restricted Resend API key used by registration delivery, community submission receipts and decisions, and the authenticated speaker email batch endpoint. |
 | `RESEND_BROADCASTS_API_KEY` | Required to send or schedule event blasts | No | Separate server-only Resend key restricted to Contacts, Segments, and Broadcasts. The app saves a friendly capacity state when it is missing or the provider rejects the send for plan/quota reasons. |
-| `RESEND_WEBHOOK_SECRET` | Planned feature only | No | Server-only signing secret used to verify Resend delivery webhooks against the raw request body. |
+| `RESEND_WEBHOOK_SECRET` | Planned outbound delivery feature only | No | Reserved server-only signing secret for a future Resend delivery webhook; it is separate from `RESEND_INBOUND_WEBHOOK_SECRET`. |
 | `SPEAKER_EMAIL_REPLY_TO` | Required for Archive Request email sends | No | Monitored DevCongress mailbox that receives replies; production is `hello@devcongress.org`. |
 | `REGISTRATION_EMAIL_REPLY_TO` | Required for registration receipts and event blasts | No | Monitored mailbox for attendee replies; production is `hello@devcongress.org`. |
 | `EVENT_EMAIL_REPLY_TO` | Required for community submission emails | No | Monitored mailbox for public event submitter replies. Falls back to `REGISTRATION_EMAIL_REPLY_TO` during migration. |
+| `EVENT_SUBMISSION_REPLY_DOMAIN` | Required for EMS-routed submission replies | No | Resend receiving subdomain, for example `inbox.devcongress.org`. Use a subdomain so the existing Zoho MX records for `devcongress.org` remain unchanged. |
+| `EVENT_SUBMISSION_REPLY_TOKEN_SECRET` | Required for EMS-routed submission replies | No | Server-only HMAC secret used to create and verify submission-specific Reply-To addresses. Never expose or commit it. |
+| `RESEND_INBOUND_WEBHOOK_SECRET` | Required for EMS-routed submission replies | No | Server-only Resend/Svix webhook signing secret used to verify the raw `email.received` payload before retrieval. |
+| `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` | Optional for submission-reply alerts | No | Server-only Slack incoming webhook URL for the private submission-replies channel. EMS remains the source of truth if Slack is unavailable. |
 | `GOOGLE_MAPS_PLACES_API_KEY` | Required for organizer venue autocomplete | No | Server-only Google Maps Platform key restricted to Places API (New); venue predictions are proxied through the authenticated API and restricted to Ghana. |
 
 ## Rules
@@ -56,7 +60,8 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.
-- Store `RESEND_API_KEY` and `RESEND_BROADCASTS_API_KEY` as separate Cloudflare Worker secrets; never expose either through a `VITE_` variable or commit them. `RESEND_WEBHOOK_SECRET` remains reserved for the future verified delivery-webhook route.
+- Store `RESEND_API_KEY` and `RESEND_BROADCASTS_API_KEY` as separate Cloudflare Worker secrets; never expose either through a `VITE_` variable or commit them. Store `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`, `RESEND_INBOUND_WEBHOOK_SECRET`, and `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` as Worker secrets too.
 - Sender identities are code-owned in `lib/email/scenarios.ts`: attendee and event communications use `DevCongress Events <events@updates.devcongress.org>`, while all speaker communications use `DevCongress Speakers <speakers@updates.devcongress.org>`. Changing either identity requires updating the policy registry, its tests, the verified Resend domain, and ADR-037 rather than overriding a deployment variable.
 - Point `SPEAKER_EMAIL_REPLY_TO` and `REGISTRATION_EMAIL_REPLY_TO` at mailboxes the DevCongress team actively monitors. Registration never falls back to the speaker-program identity.
+- Configure Resend receiving and the signed submission Reply-To variables together. If the signed routing pair is absent, community-submission emails retain the existing `EVENT_EMAIL_REPLY_TO` fallback and replies continue to land in that monitored mailbox.
 - Keep `GOOGLE_MAPS_PLACES_API_KEY` server-only, restrict it to Places API (New), and store it in `.env.local` or the Cloudflare Worker secret store. The browser must never receive this key.

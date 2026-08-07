@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import crypto from 'crypto';
+import { eventSubmissionReplyAddress, htmlToPlainText } from '@/lib/email/event-submission-replies';
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -7,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   reject: vi.fn(),
   pendingEmails: vi.fn(),
   updateEmail: vi.fn(),
+  insertReply: vi.fn(),
+  updateReplySlack: vi.fn(),
   rateLimit: vi.fn(),
   audit: vi.fn(),
 }));
@@ -20,6 +24,8 @@ vi.mock('@/lib/supabase/event-submissions', async () => {
     approveEventSubmission: mocks.approve,
     rejectEventSubmission: mocks.reject,
     getPendingEventSubmissionEmails: mocks.pendingEmails,
+    insertEventSubmissionReply: mocks.insertReply,
+    updateEventSubmissionReplySlackStatus: mocks.updateReplySlack,
     updateEventSubmissionEmailDelivery: mocks.updateEmail,
   };
 });
@@ -76,6 +82,7 @@ const submission = {
   organizer_message: null,
   internal_note: null,
   email_deliveries: [],
+  replies: [],
   approved_event_id: null,
   created_at: '2099-08-01T10:00:00.000Z',
   updated_at: '2099-08-01T10:00:00.000Z',
@@ -112,6 +119,19 @@ beforeEach(() => {
   mocks.rateLimit.mockResolvedValue({ allowed: true });
   mocks.pendingEmails.mockResolvedValue([]);
   mocks.updateEmail.mockResolvedValue(undefined);
+  mocks.insertReply.mockResolvedValue({
+    created: true,
+    reply: {
+      id: 'reply-1',
+      sender_email: 'hello@example.com',
+      subject: 'Re: Community systems workshop',
+      body_text: 'Thanks for the update.',
+      received_at: '2099-08-02T10:00:00.000Z',
+      attachments: [],
+      slack_status: 'pending',
+    },
+  });
+  mocks.updateReplySlack.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -214,6 +234,45 @@ describe('community event submissions', () => {
       status: 'accepted',
       provider_id: 'email-receipt-1',
     }, expect.anything());
+  });
+
+  it('uses a signed submission-specific Reply-To when inbound routing is configured', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_DOMAIN', 'inbox.devcongress.org');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      data: [{ id: 'email-receipt-signed-1' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    mocks.pendingEmails.mockResolvedValue([{
+      delivery_id: 'delivery-receipt-signed-1',
+      submission_id: submission.id,
+      idempotency_key: `event-submission-${submission.id}-receipt`,
+      attempts: 0,
+      kind: 'receipt',
+      organizer_name: submission.organizer_name,
+      organizer_email: submission.organizer_email,
+      event_title: submission.title,
+      starts_at: submission.starts_at,
+      timezone: submission.timezone,
+      registration_url: submission.registration_url,
+      rejection_category: null,
+      organizer_message: null,
+    }]);
+
+    const { default: app } = await import('./app');
+    await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    const fetchMock = vi.mocked(fetch);
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(requestBody[0].reply_to).toBe(eventSubmissionReplyAddress({
+      submissionId: submission.id,
+      domain: 'inbox.devcongress.org',
+      secret: 'reply-token-secret',
+    }));
   });
 
   it('returns field-level errors before security providers or persistence are called', async () => {
@@ -401,5 +460,110 @@ describe('community event submissions', () => {
     }, expect.anything());
     expect(mocks.approve).not.toHaveBeenCalled();
     expect(mocks.reject).not.toHaveBeenCalled();
+  });
+
+  it('stores a verified inbound reply and sends one Slack notification', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_DOMAIN', 'inbox.devcongress.org');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret');
+    vi.stubEnv('RESEND_INBOUND_WEBHOOK_SECRET', `whsec_${Buffer.from('webhook-secret').toString('base64')}`);
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/T000/B000/secret');
+    const replyAddress = eventSubmissionReplyAddress({
+      submissionId: submission.id,
+      domain: 'inbox.devcongress.org',
+      secret: 'reply-token-secret',
+    });
+    const payload = JSON.stringify({
+      type: 'email.received',
+      created_at: '2099-08-02T10:00:00.000Z',
+      data: { email_id: 'received-email-1', to: [replyAddress] },
+    });
+    const webhookId = 'msg-evt-1';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signature = crypto.createHmac('sha256', Buffer.from('webhook-secret'))
+      .update(`${webhookId}.${timestamp}.${payload}`)
+      .digest('base64');
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/emails/receiving/')) {
+        return new Response(JSON.stringify({
+          id: 'received-email-1',
+          to: [replyAddress],
+          from: 'hello@example.com',
+          created_at: '2099-08-02T10:00:00.000Z',
+          subject: 'Re: Community systems workshop',
+          text: 'Thanks for the update.',
+          html: null,
+          headers: null,
+          message_id: '<message-1@example.com>',
+          attachments: [],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/webhooks/resend/inbound', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'svix-id': webhookId,
+        'svix-timestamp': timestamp,
+        'svix-signature': `v1,${signature}`,
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(204);
+    expect(mocks.insertReply).toHaveBeenCalledWith(expect.objectContaining({
+      submission_id: submission.id,
+      webhook_event_id: webhookId,
+      resend_email_id: 'received-email-1',
+      body_text: 'Thanks for the update.',
+    }), expect.anything());
+    expect(mocks.updateReplySlack).toHaveBeenCalledWith('reply-1', { status: 'sent' }, expect.anything());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an inbound webhook with an invalid signature before retrieval or storage', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_DOMAIN', 'inbox.devcongress.org');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret');
+    vi.stubEnv('RESEND_INBOUND_WEBHOOK_SECRET', `whsec_${Buffer.from('webhook-secret').toString('base64')}`);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const payload = JSON.stringify({
+      type: 'email.received',
+      data: { email_id: 'received-email-invalid', to: ['submissions+not-a-real-token@inbox.devcongress.org'] },
+    });
+
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/webhooks/resend/inbound', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'svix-id': 'msg-evt-invalid',
+        'svix-timestamp': String(Math.floor(Date.now() / 1000)),
+        'svix-signature': 'v1,not-valid',
+      },
+      body: payload,
+    });
+
+    expect(response.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.insertReply).not.toHaveBeenCalled();
+  });
+});
+
+describe('inbound reply sanitization', () => {
+  it('removes script and style blocks with attributes and decodes entities once', () => {
+    expect(htmlToPlainText(
+      '<style type="text/css">.secret { display: none; }</style >'
+      + '<p>Thanks &amp; &lt;hello&gt;</p>'
+      + '<script type="text/javascript">alert("ignore")</script\n bar>'
+      + '<p>&amp;lt;literal&amp;gt;</p>',
+    )).toBe('Thanks & <hello>\n&lt;literal&gt;');
+    expect(htmlToPlainText('<scrip<script>hidden</script>t>alert(1)</script>')).toBe('');
+    expect(htmlToPlainText('<sty<style>hidden</style>le>.secret {}</style>')).toBe('');
   });
 });

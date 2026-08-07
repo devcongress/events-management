@@ -10,6 +10,23 @@ const resendBatchResponseSchema = z.object({
 
 const resendIdResponseSchema = z.object({ id: z.string().trim().min(1) });
 
+const resendReceivedEmailSchema = z.object({
+  id: z.string().trim().min(1),
+  to: z.array(z.string().trim().min(1)).default([]),
+  from: z.string().trim().min(1).max(320),
+  created_at: z.string().trim().min(1),
+  subject: z.string().max(500).default(''),
+  html: z.string().nullable().default(null),
+  text: z.string().nullable().default(null),
+  headers: z.record(z.string(), z.string()).nullable().default(null),
+  message_id: z.string().nullable().default(null),
+  attachments: z.array(z.object({
+    filename: z.string().trim().min(1).max(255).default('attachment'),
+    content_type: z.string().max(200).nullable().default(null),
+    size: z.number().int().nonnegative().nullable().default(null),
+  })).max(50).default([]),
+});
+
 export type ResendEmail = {
   from: string;
   to: string[];
@@ -232,4 +249,42 @@ export async function sendResendEmailBatch(input: {
   return {
     ids: parsed.data.data.map((email) => email.id),
   };
+}
+
+export type ResendReceivedEmail = z.infer<typeof resendReceivedEmailSchema>;
+
+export class ResendReceivingEmailError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null = null,
+  ) {
+    super(message);
+    this.name = 'ResendReceivingEmailError';
+  }
+}
+
+export async function retrieveResendReceivedEmail(input: {
+  apiKey: string;
+  emailId: string;
+  fetcher?: Fetcher;
+}): Promise<ResendReceivedEmail> {
+  let response: Response;
+  try {
+    response = await (input.fetcher ?? fetch)(
+      `https://api.resend.com/emails/receiving/${encodeURIComponent(input.emailId)}`,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${input.apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+  } catch {
+    throw new ResendReceivingEmailError('The email provider could not be reached.');
+  }
+
+  const parsed = resendReceivedEmailSchema.safeParse(await response.json().catch(() => null));
+  if (!response.ok || !parsed.success) {
+    throw new ResendReceivingEmailError('The received email could not be retrieved.', response.status);
+  }
+  return parsed.data;
 }
