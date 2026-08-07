@@ -1880,7 +1880,7 @@ async function sendPendingEventSubmissionEmails(
     statuses?: Array<'pending' | 'failed'>;
     limit?: number;
   } = {},
-): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
+): Promise<{ configured: boolean; accepted: string[]; failed: string[]; failureMessage?: string }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailReplyTo = (
     envValue('EVENT_EMAIL_REPLY_TO', c)
@@ -1973,6 +1973,7 @@ async function sendPendingEventSubmissionEmails(
       configured: true,
       accepted: [],
       failed: pending.map((delivery) => delivery.delivery_id),
+      failureMessage: message,
     };
   }
 }
@@ -1987,18 +1988,22 @@ function eventSubmissionEmailFailureMessage(error: unknown): string {
   }
 
   if (error.status === 401 || error.status === 403) {
-    return 'Email provider credentials or sender configuration were rejected; delivery can be retried after configuration is fixed.';
+    return appendProviderDetail('Email provider credentials or sender configuration were rejected; delivery can be retried after configuration is fixed.', error);
   }
 
   if (error.status === 400 || error.status === 422) {
-    return 'Email provider rejected the message or recipient details; delivery can be retried after the details are corrected.';
+    return appendProviderDetail('Email provider rejected the message or recipient details; delivery can be retried after the details are corrected.', error);
   }
 
   if (error.status !== null && error.status >= 500) {
     return 'Email provider is temporarily unavailable; delivery can be retried.';
   }
 
-  return 'Email provider did not accept this delivery; it can be retried.';
+  return appendProviderDetail('Email provider did not accept this delivery; it can be retried.', error);
+}
+
+function appendProviderDetail(message: string, error: ResendBatchError): string {
+  return error.providerMessage ? `${message} Provider detail: ${error.providerMessage}` : message;
 }
 
 async function handleResendInboundWebhook(c: Context): Promise<globalThis.Response> {
@@ -4458,7 +4463,7 @@ app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async 
       return c.json({ error: 'This email has already been accepted or was not queued.' }, 409);
     }
     if (result.failed.length > 0) {
-      return c.json({ error: 'The email provider did not accept this delivery. It remains available to retry.' }, 502);
+      return c.json({ error: result.failureMessage ?? 'The email provider did not accept this delivery. It remains available to retry.' }, 502);
     }
 
     await auditAdminAction(c, {

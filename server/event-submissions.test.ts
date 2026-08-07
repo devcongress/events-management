@@ -454,12 +454,55 @@ describe('community event submissions', () => {
     );
 
     expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Email provider daily quota reached; delivery can be retried.',
+    });
     expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-rejected-1', {
       status: 'failed',
       last_error: 'Email provider daily quota reached; delivery can be retried.',
     }, expect.anything());
     expect(mocks.approve).not.toHaveBeenCalled();
     expect(mocks.reject).not.toHaveBeenCalled();
+  });
+
+  it('shows the provider reason when a submission email is rejected', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
+    vi.stubEnv('EVENT_EMAIL_REPLY_TO', 'hello@updates.devcongress.org');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      message: 'The from address is not verified',
+    }), {
+      status: 422,
+      headers: { 'Content-Type': 'application/json' },
+    })));
+    mocks.pendingEmails.mockResolvedValue([{
+      delivery_id: 'delivery-rejected-detail-1',
+      submission_id: submission.id,
+      idempotency_key: `event-submission-${submission.id}-rejected-detail`,
+      attempts: 1,
+      kind: 'rejected',
+      organizer_name: submission.organizer_name,
+      organizer_email: submission.organizer_email,
+      event_title: submission.title,
+      starts_at: submission.starts_at,
+      timezone: submission.timezone,
+      registration_url: submission.registration_url,
+      rejection_category: 'other',
+      organizer_message: null,
+    }]);
+
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/emails/rejected/retry`,
+      { method: 'POST' },
+    );
+
+    const error = 'Email provider rejected the message or recipient details; delivery can be retried after the details are corrected. Provider detail: The from address is not verified';
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error });
+    expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-rejected-detail-1', {
+      status: 'failed',
+      last_error: error,
+    }, expect.anything());
   });
 
   it('stores a verified inbound reply and sends one Slack notification', async () => {

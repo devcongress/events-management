@@ -10,6 +10,10 @@ const resendBatchResponseSchema = z.object({
 
 const resendIdResponseSchema = z.object({ id: z.string().trim().min(1) });
 
+const resendErrorResponseSchema = z.object({
+  message: z.string().trim().min(1).max(500).optional(),
+}).passthrough();
+
 const resendReceivedEmailSchema = z.object({
   id: z.string().trim().min(1),
   to: z.array(z.string().trim().min(1)).default([]),
@@ -42,10 +46,21 @@ export class ResendBatchError extends Error {
   constructor(
     message: string,
     readonly status: number | null = null,
+    readonly providerMessage?: string,
   ) {
     super(message);
     this.name = 'ResendBatchError';
   }
+}
+
+function safeProviderMessage(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) return undefined;
+  return normalized
+    .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/\b(?:re|sk|key)_[A-Za-z0-9_-]+\b/gi, '[redacted]')
+    .slice(0, 240);
 }
 
 export class ResendBroadcastError extends Error {
@@ -238,7 +253,12 @@ export async function sendResendEmailBatch(input: {
   }
 
   if (!response.ok) {
-    throw new ResendBatchError('The email provider did not accept the request.', response.status);
+    const body = resendErrorResponseSchema.safeParse(await response.json().catch(() => null));
+    throw new ResendBatchError(
+      'The email provider did not accept the request.',
+      response.status,
+      body.success ? safeProviderMessage(body.data.message) : undefined,
+    );
   }
 
   const parsed = resendBatchResponseSchema.safeParse(await response.json().catch(() => null));

@@ -13,9 +13,10 @@ PUBLIC_FRONTEND_ORIGIN = "https://em.devcongress.org"
 PUBLIC_WEBSITE_ORIGIN = "https://devcongress.org"
 TURNSTILE_EXPECTED_HOSTNAME = "em.devcongress.org"
 EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES = "devcongress.org,www.devcongress.org,localhost,127.0.0.1"
-SPEAKER_EMAIL_REPLY_TO = "hello@devcongress.org"
-REGISTRATION_EMAIL_REPLY_TO = "hello@devcongress.org"
-EVENT_EMAIL_REPLY_TO = "hello@devcongress.org"
+SPEAKER_EMAIL_REPLY_TO = "hello@updates.devcongress.org"
+REGISTRATION_EMAIL_REPLY_TO = "hello@updates.devcongress.org"
+EVENT_EMAIL_REPLY_TO = "hello@updates.devcongress.org"
+EVENT_SUBMISSION_REPLY_DOMAIN = "updates.devcongress.org"
 
 [observability]
 enabled = true

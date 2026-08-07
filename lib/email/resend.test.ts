@@ -38,17 +38,38 @@ describe('Resend batch client', () => {
     );
   });
 
-  it('returns a safe provider error without exposing the response body', async () => {
+  it('preserves a bounded provider reason without exposing credentials', async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
-      message: 'sensitive provider details',
-    }), { status: 429 }));
+      message: 'The from address is not verified',
+    }), { status: 422 }));
 
     await expect(sendResendEmailBatch({
       apiKey: 're_test',
       idempotencyKey: 'speaker-archive-test',
       emails: [email],
       fetcher,
-    })).rejects.toEqual(new ResendBatchError('The email provider did not accept the request.', 429));
+    })).rejects.toEqual(new ResendBatchError(
+      'The email provider did not accept the request.',
+      422,
+      'The from address is not verified',
+    ));
+  });
+
+  it('redacts bearer and API key-like values from provider reasons', async () => {
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
+      message: 'Use Bearer secret-value or re_live_secret to retry',
+    }), { status: 400 }));
+
+    await expect(sendResendEmailBatch({
+      apiKey: 're_test',
+      idempotencyKey: 'speaker-archive-test',
+      emails: [email],
+      fetcher,
+    })).rejects.toEqual(new ResendBatchError(
+      'The email provider did not accept the request.',
+      400,
+      'Use Bearer [redacted] or [redacted] to retry',
+    ));
   });
 });
 
