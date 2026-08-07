@@ -1956,9 +1956,7 @@ async function sendPendingEventSubmissionEmails(
       failed: [],
     };
   } catch (error) {
-    const message = error instanceof ResendBatchError && error.status === 429
-      ? 'Email provider daily quota reached; delivery can be retried.'
-      : 'Email provider did not accept this delivery; it can be retried.';
+    const message = eventSubmissionEmailFailureMessage(error);
     await Promise.all(pending.map((delivery) => updateEventSubmissionEmailDelivery(
       delivery.delivery_id,
       { status: 'failed', last_error: message },
@@ -1977,6 +1975,30 @@ async function sendPendingEventSubmissionEmails(
       failed: pending.map((delivery) => delivery.delivery_id),
     };
   }
+}
+
+function eventSubmissionEmailFailureMessage(error: unknown): string {
+  if (!(error instanceof ResendBatchError)) {
+    return 'Email provider could not be reached; delivery can be retried.';
+  }
+
+  if (error.status === 429) {
+    return 'Email provider daily quota reached; delivery can be retried.';
+  }
+
+  if (error.status === 401 || error.status === 403) {
+    return 'Email provider credentials or sender configuration were rejected; delivery can be retried after configuration is fixed.';
+  }
+
+  if (error.status === 400 || error.status === 422) {
+    return 'Email provider rejected the message or recipient details; delivery can be retried after the details are corrected.';
+  }
+
+  if (error.status !== null && error.status >= 500) {
+    return 'Email provider is temporarily unavailable; delivery can be retried.';
+  }
+
+  return 'Email provider did not accept this delivery; it can be retried.';
 }
 
 async function handleResendInboundWebhook(c: Context): Promise<globalThis.Response> {
