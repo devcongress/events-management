@@ -15,7 +15,7 @@ import {
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
 import { boundedSlackExcerpt, eventSubmissionReplyAddress, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
-import { sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
+import { sendEventAddedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import {
   eventRegistrationCalendarFile,
@@ -1748,6 +1748,32 @@ function publicEventDetailsUrl(event: Event, c: Context): string {
   const url = new URL(publicRegistrationUrl(event, c));
   url.searchParams.set('view', 'details');
   return url.toString();
+}
+
+async function notifyEventsChannel(event: Event, source: 'organizer' | 'public submission', c: Context): Promise<void> {
+  const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
+  if (!webhookUrl) return;
+
+  try {
+    await sendEventAddedToSlack({
+      webhookUrl,
+      eventName: event.name,
+      eventDate: event.event_date,
+      eventFormat: event.format ?? 'meetup',
+      location: event.location?.name ?? event.location?.label ?? event.online_url ?? 'Location to be announced',
+      source,
+      eventUrl: publicEventDetailsUrl(event, c),
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_added_slack_notification_failed',
+      event_id: event.id,
+      source,
+      error_name: error instanceof SlackWebhookError ? error.name : 'Error',
+      error: error instanceof SlackWebhookError ? error.message : 'Slack notification failed.',
+      request_id: c.get('requestId') ?? null,
+    }));
+  }
 }
 
 function publicRegistrationCalendarUrl(event: Event, c: Context): string {
@@ -4330,6 +4356,10 @@ app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
       metadata: { approved_event_id: submission.approved_event_id },
     });
     if (parsed.data.publish) {
+      if (submission.approved_event_id) {
+        const approvedEvent = await getEventById(submission.approved_event_id, c);
+        if (approvedEvent) await notifyEventsChannel(approvedEvent, 'public submission', c);
+      }
       await dispatchEventSubmissionEmails(c, {
         submissionId: submission.id,
         kinds: ['approved'],
@@ -5054,6 +5084,9 @@ app.post('/api/events', async (c) => {
         registration_capacity: registrationCampaign.capacity,
       },
     });
+    if (event.publish_to_website !== false && event.publication_status !== 'draft') {
+      await notifyEventsChannel(event, 'organizer', c);
+    }
 
     return c.json({ event, registration_campaign: registrationCampaign }, 201);
   } catch (error) {

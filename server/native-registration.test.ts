@@ -63,6 +63,54 @@ afterEach(async () => {
 });
 
 describe('native event registration API', () => {
+  it('announces a published organizer event to the configured events channel', async () => {
+    vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Events channel meetup',
+        description: 'A published organizer event.',
+        event_date: '2099-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+    expect(String(slackFetch.mock.calls[0]?.[0])).toEqual('https://hooks.slack.com/services/test/events');
+    expect(JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+      text: 'New event added: Events channel meetup',
+    });
+  });
+
+  it('does not fail event creation when the events channel is unavailable', async () => {
+    vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Events channel outage test',
+        description: 'The event should still be created.',
+        event_date: '2099-08-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('removes an event and reports a repeated removal as not found', async () => {
     const { default: app } = await import('./app');
     const createdResponse = await app.request('http://localhost/api/events', {

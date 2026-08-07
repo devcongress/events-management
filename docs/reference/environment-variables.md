@@ -37,6 +37,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `EVENT_SUBMISSION_REPLY_TOKEN_SECRET` | Required for EMS-routed submission replies | No | Server-only HMAC secret used to create and verify submission-specific Reply-To addresses. Never expose or commit it. |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Required for EMS-routed submission replies | No | Server-only Resend/Svix webhook signing secret used to verify the raw `email.received` payload before retrieval. |
 | `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` | Optional for submission-reply alerts | No | Server-only Slack incoming webhook URL for the private submission-replies channel. EMS remains the source of truth if Slack is unavailable. |
+| `SLACK_EVENTS_CHANNEL_WEBHOOK_URL` | Optional for event announcements | No | Server-only Slack incoming webhook URL for the `#events` channel. Published organizer-created and approved public-submission events are announced there; Slack remains best-effort. |
 | `GOOGLE_MAPS_PLACES_API_KEY` | Required for organizer venue autocomplete | No | Server-only Google Maps Platform key restricted to Places API (New); venue predictions are proxied through the authenticated API and restricted to Ghana. |
 
 ## Rules
@@ -60,7 +61,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Set `PUBLIC_FRONTEND_ORIGIN` on the Worker whenever the browser directly calls a different origin with `VITE_FORCE_API_BASE_URL=true`, otherwise credentialed API calls will be blocked by CORS.
 - Rotate any real key that appears in git history, logs, screenshots, or public issues.
 - Keep `.env.local` local and use deployment secret stores for hosted environments.
-- Store `RESEND_API_KEY` and `RESEND_BROADCASTS_API_KEY` as separate Cloudflare Worker secrets; never expose either through a `VITE_` variable or commit them. Store `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`, `RESEND_INBOUND_WEBHOOK_SECRET`, and `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` as Worker secrets too.
+- Store `RESEND_API_KEY` and `RESEND_BROADCASTS_API_KEY` as separate Cloudflare Worker secrets; never expose either through a `VITE_` variable or commit them. Store `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`, `RESEND_INBOUND_WEBHOOK_SECRET`, `SLACK_EVENT_SUBMISSION_WEBHOOK_URL`, and `SLACK_EVENTS_CHANNEL_WEBHOOK_URL` as Worker secrets too.
 - Sender identities are code-owned in `lib/email/scenarios.ts`: attendee and event communications use `DevCongress Events <events@updates.devcongress.org>`, while all speaker communications use `DevCongress Speakers <speakers@updates.devcongress.org>`. Changing either identity requires updating the policy registry, its tests, the verified Resend domain, and ADR-037 rather than overriding a deployment variable.
 - Point `SPEAKER_EMAIL_REPLY_TO` and `REGISTRATION_EMAIL_REPLY_TO` at mailboxes the DevCongress team actively monitors. Registration never falls back to the speaker-program identity.
 - Configure Resend receiving and the signed submission Reply-To variables together. If the signed routing pair is absent, community-submission emails retain the existing `EVENT_EMAIL_REPLY_TO` fallback and replies continue to land in that monitored mailbox.
