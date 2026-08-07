@@ -16,6 +16,7 @@ import type {
   EventSubmission,
   EventSubmissionEmailDelivery,
   EventSubmissionEmailKind,
+  EventSubmissionReply,
   EventSubmissionRejectionCategory,
   EventSubmissionReviewStatus,
 } from '@/types';
@@ -196,6 +197,18 @@ function emailStatusLabel(delivery: EventSubmissionEmailDelivery) {
 function emailStatusClass(delivery: EventSubmissionEmailDelivery) {
   if (delivery.status === 'accepted') return 'border-emerald-700 bg-emerald-50 text-emerald-800';
   if (delivery.status === 'failed') return 'border-red-700 bg-red-50 text-red-800';
+  return 'border-amber-700 bg-amber-50 text-amber-900';
+}
+
+function replySlackStatusLabel(reply: EventSubmissionReply) {
+  if (reply.slack_status === 'sent') return 'Slack notified';
+  if (reply.slack_status === 'failed') return 'Slack failed';
+  return 'Slack pending';
+}
+
+function replySlackStatusClass(reply: EventSubmissionReply) {
+  if (reply.slack_status === 'sent') return 'border-emerald-700 bg-emerald-50 text-emerald-800';
+  if (reply.slack_status === 'failed') return 'border-red-700 bg-red-50 text-red-800';
   return 'border-amber-700 bg-amber-50 text-amber-900';
 }
 </script>
@@ -402,6 +415,39 @@ function emailStatusClass(delivery: EventSubmissionEmailDelivery) {
                   </li>
                 </ul>
                 <p class="mt-3 text-xs leading-5 text-dc-gray">Accepted means the email provider accepted the message. Delivery and opens are not tracked yet.</p>
+              </section>
+
+              <section class="mt-6 border-t border-dc-border pt-5" aria-labelledby="submission-replies">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p id="submission-replies" class="editorial-eyebrow">Organizer replies</p>
+                    <p class="mt-1 text-xs leading-5 text-dc-gray">Replies to the decision email are kept with this submission.</p>
+                  </div>
+                  <span v-if="selectedSubmission.replies.length" class="rounded-md border border-dc-ink bg-dc-yellow px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-ink">
+                    {{ selectedSubmission.replies.length }}
+                  </span>
+                </div>
+                <p v-if="selectedSubmission.replies.length === 0" class="mt-3 rounded-md border border-dashed border-dc-border bg-dc-paper-warm px-3 py-3 text-xs leading-5 text-dc-gray">
+                  No replies yet. New replies will appear here automatically.
+                </p>
+                <ul v-else class="mt-3 space-y-3">
+                  <li v-for="reply in selectedSubmission.replies" :key="reply.id" class="rounded-md border border-dc-border bg-white p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="break-all text-sm font-semibold text-dc-ink">{{ reply.sender_email }}</p>
+                        <p class="mt-1 text-xs text-dc-gray">{{ formatDateTime(reply.received_at) }}</p>
+                      </div>
+                      <span class="shrink-0 rounded-md border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide" :class="replySlackStatusClass(reply)">
+                        {{ replySlackStatusLabel(reply) }}
+                      </span>
+                    </div>
+                    <p v-if="reply.subject" class="mt-3 text-sm font-semibold text-dc-ink">{{ reply.subject }}</p>
+                    <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-dc-gray">{{ reply.body_text || '(No message body)' }}</p>
+                    <p v-if="reply.attachments.length" class="mt-3 text-xs font-semibold text-dc-gray">
+                      {{ reply.attachments.length }} attachment{{ reply.attachments.length === 1 ? '' : 's' }} received
+                    </p>
+                  </li>
+                </ul>
               </section>
             </div>
 

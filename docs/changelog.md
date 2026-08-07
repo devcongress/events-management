@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-07 — Routed community-submission replies into EMS and Slack
+
+- Added signed, submission-specific Reply-To addresses for new community-submission emails, preserving the existing mailbox fallback until Resend receiving is configured.
+- Added a signature-checked, idempotent Resend `email.received` webhook that retrieves and stores sanitized organizer replies in Supabase and displays them in the EMS submission drawer.
+- Added optional Slack incoming-webhook notifications with bounded reply excerpts and explicit Slack pending/sent/failed state; EMS remains the source of truth when Slack is unavailable.
+- Added the reply table migration, environment reference, provider setup checklist, and architectural decision record.
+
 ## 2026-08-07 — Fixed the router bootstrap deadlock
 
 - Started the initial Vue Router navigation before awaiting readiness, so local and deployed app loads now mount the organizer login/workspace or the appropriate public shell instead of leaving the static boot screen visible indefinitely.

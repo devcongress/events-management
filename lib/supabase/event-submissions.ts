@@ -6,6 +6,9 @@ import type {
   EventSubmissionEmailDelivery,
   EventSubmissionEmailDeliveryStatus,
   EventSubmissionEmailKind,
+  EventSubmissionReply,
+  EventSubmissionReplyAttachment,
+  EventSubmissionReplySlackStatus,
   EventSubmissionRejectionCategory,
   EventSubmissionReviewStatus,
 } from '@/types';
@@ -15,6 +18,7 @@ import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
 type EventSubmissionRow = Database['public']['Tables']['event_submissions']['Row'];
 type EventSubmissionInsert = Database['public']['Tables']['event_submissions']['Insert'];
 type EventSubmissionEmailDeliveryRow = Database['public']['Tables']['event_submission_email_deliveries']['Row'];
+type EventSubmissionReplyRow = Database['public']['Tables']['event_submission_replies']['Row'];
 
 export type PendingEventSubmissionEmail = {
   delivery_id: string;
@@ -98,7 +102,7 @@ export async function createEventSubmission(
     .single();
 
   if (error || !data) throw new EventSubmissionStorageError('Unable to save event submission.', 'unavailable');
-  return toEventSubmission(data, []);
+  return toEventSubmission(data, [], []);
 }
 
 export async function listEventSubmissions(
@@ -114,9 +118,11 @@ export async function listEventSubmissions(
   const { data, error } = await query;
   if (error) throw new EventSubmissionStorageError('Unable to load event submissions.', 'unavailable');
   const deliveries = await loadEmailDeliveries((data ?? []).map((submission) => submission.id), c);
+  const replies = await loadEventSubmissionReplies((data ?? []).map((submission) => submission.id), c);
   return (data ?? []).map((submission) => toEventSubmission(
     submission,
     deliveries.get(submission.id) ?? [],
+    replies.get(submission.id) ?? [],
   ));
 }
 
@@ -134,7 +140,7 @@ export async function approveEventSubmission(
 
   if (error) throw reviewError(error.message);
   if (!data) throw new EventSubmissionStorageError('Event submission not found.', 'not_found');
-  return toEventSubmission(data, []);
+  return toEventSubmission(data, [], []);
 }
 
 export async function rejectEventSubmission(
@@ -157,7 +163,83 @@ export async function rejectEventSubmission(
 
   if (error) throw reviewError(error.message);
   if (!data) throw new EventSubmissionStorageError('Event submission not found.', 'not_found');
-  return toEventSubmission(data, []);
+  return toEventSubmission(data, [], []);
+}
+
+export type InsertEventSubmissionReplyInput = {
+  submission_id: string;
+  webhook_event_id: string;
+  resend_email_id: string;
+  sender_email: string;
+  subject: string;
+  body_text: string;
+  received_at: string;
+  attachments: EventSubmissionReplyAttachment[];
+};
+
+export async function insertEventSubmissionReply(
+  input: InsertEventSubmissionReplyInput,
+  c?: Context,
+): Promise<{ created: boolean; reply: EventSubmissionReply }> {
+  const client = requireStorage(c);
+  const insert: Database['public']['Tables']['event_submission_replies']['Insert'] = {
+    submission_id: input.submission_id,
+    webhook_event_id: input.webhook_event_id,
+    resend_email_id: input.resend_email_id,
+    sender_email: input.sender_email,
+    subject: input.subject,
+    body_text: input.body_text,
+    received_at: input.received_at,
+    attachments: input.attachments.map((attachment) => ({
+      filename: attachment.filename,
+      content_type: attachment.content_type,
+      size: attachment.size,
+    })),
+  };
+  const { data, error } = await client
+    .from('event_submission_replies')
+    .insert(insert)
+    .select('*')
+    .single();
+
+  if (!error && data) return { created: true, reply: toEventSubmissionReply(data) };
+  if (error?.code !== '23505') {
+    throw new EventSubmissionStorageError('Unable to save submission reply.', 'unavailable');
+  }
+
+  const existingByWebhook = await client
+    .from('event_submission_replies')
+    .select('*')
+    .eq('webhook_event_id', input.webhook_event_id)
+    .maybeSingle();
+  if (existingByWebhook.error) throw new EventSubmissionStorageError('Unable to load submission reply.', 'unavailable');
+  if (existingByWebhook.data) return { created: false, reply: toEventSubmissionReply(existingByWebhook.data) };
+
+  const existingByEmail = await client
+    .from('event_submission_replies')
+    .select('*')
+    .eq('resend_email_id', input.resend_email_id)
+    .maybeSingle();
+  if (existingByEmail.error || !existingByEmail.data) {
+    throw new EventSubmissionStorageError('Unable to resolve duplicate submission reply.', 'unavailable');
+  }
+  return { created: false, reply: toEventSubmissionReply(existingByEmail.data) };
+}
+
+export async function updateEventSubmissionReplySlackStatus(
+  replyId: string,
+  input: { status: EventSubmissionReplySlackStatus; error?: string | null },
+  c?: Context,
+): Promise<void> {
+  const { error } = await requireStorage(c)
+    .from('event_submission_replies')
+    .update({
+      slack_status: input.status,
+      slack_error: input.error ?? null,
+      slack_sent_at: input.status === 'sent' ? new Date().toISOString() : null,
+    })
+    .eq('id', replyId);
+  if (error) throw new EventSubmissionStorageError('Unable to update submission reply status.', 'unavailable');
 }
 
 export async function getPendingEventSubmissionEmails(
@@ -278,9 +360,32 @@ async function loadEmailDeliveries(
   return result;
 }
 
+async function loadEventSubmissionReplies(
+  submissionIds: string[],
+  c?: Context,
+): Promise<Map<string, EventSubmissionReply[]>> {
+  const result = new Map<string, EventSubmissionReply[]>();
+  if (submissionIds.length === 0) return result;
+
+  const { data, error } = await requireStorage(c)
+    .from('event_submission_replies')
+    .select('*')
+    .in('submission_id', submissionIds)
+    .order('received_at', { ascending: true });
+  if (error) throw new EventSubmissionStorageError('Unable to load submission replies.', 'unavailable');
+
+  for (const reply of data ?? []) {
+    const items = result.get(reply.submission_id) ?? [];
+    items.push(toEventSubmissionReply(reply));
+    result.set(reply.submission_id, items);
+  }
+  return result;
+}
+
 function toEventSubmission(
   row: EventSubmissionRow,
   emailDeliveries: EventSubmissionEmailDelivery[],
+  replies: EventSubmissionReply[],
 ): EventSubmission {
   return {
     id: row.id,
@@ -307,9 +412,31 @@ function toEventSubmission(
     organizer_message: row.organizer_message,
     internal_note: row.internal_note,
     email_deliveries: emailDeliveries,
+    replies,
     approved_event_id: row.approved_event_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function toEventSubmissionReply(row: EventSubmissionReplyRow): EventSubmissionReply {
+  const attachments = Array.isArray(row.attachments) ? row.attachments : [];
+  return {
+    id: row.id,
+    sender_email: row.sender_email,
+    subject: row.subject,
+    body_text: row.body_text,
+    received_at: row.received_at,
+    attachments: attachments.flatMap((attachment) => {
+      if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return [];
+      const item = attachment as { filename?: unknown; content_type?: unknown; size?: unknown };
+      return [{
+        filename: typeof item.filename === 'string' && item.filename.trim() ? item.filename : 'attachment',
+        content_type: typeof item.content_type === 'string' ? item.content_type : null,
+        size: typeof item.size === 'number' && Number.isInteger(item.size) && item.size >= 0 ? item.size : null,
+      }];
+    }),
+    slack_status: row.slack_status,
   };
 }
 

@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-054: Signed Inbound Submission Replies With EMS Source of Truth
+
+Date: 2026-08-07
+Status: Accepted
+
+Context: Organizers can reply to a rejected community-submission email, but the old Reply-To mailbox is separate from the EMS review queue. The team wants replies visible in the EMS dashboard and optionally announced in Slack without introducing a paid mail-processing service or exposing a public submission lookup token. The root `devcongress.org` domain already uses Zoho MX records, so changing those records would risk unrelated mail.
+
+Decision: Send new community-submission emails with a signed, submission-specific Reply-To address on a dedicated receiving subdomain such as `inbox.devcongress.org`. Resend receives those messages and calls an unauthenticated webhook at `/api/webhooks/resend/inbound`; the Worker verifies the raw Svix signature, validates the HMAC address token, retrieves the full message through Resend, and stores a sanitized plain-text reply in a service-role-only `event_submission_replies` table. The dashboard reads replies through the existing organizer-authenticated submissions endpoint. A configured Slack incoming webhook receives a bounded excerpt and EMS link as a best-effort notification, with Slack state persisted separately from the reply.
+
+Trade-offs: This adds a Resend receiving subdomain, one webhook, one table, and three server-only secrets, but avoids changing existing Zoho routing and keeps EMS durable if Slack is unavailable. Old emails continue to route to the legacy mailbox and are not retroactively imported. Attachments are metadata-only in the first slice, and outbound delivered/bounced tracking remains separate.
+
+Alternatives considered: Keep all replies in the mailbox (no dashboard context), poll a mailbox directly (more provider coupling and operational burden), use a single public submission token (replay and enumeration risk), or make Slack the source of truth (poor auditability and retention).
+
+Revisit when: Reply attachments need download/storage, outbound delivery webhooks are added, the public website owns the entire submission experience, or a dedicated support inbox replaces the current submission workflow.
+
 ## ADR-053: Separate Public and Organizer Loading Shells
 
 Date: 2026-08-07

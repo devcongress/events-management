@@ -13,7 +13,9 @@ import {
   normalizeEventFeedbackAnswer,
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
-import { prepareResendBroadcast, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError } from '@/lib/email/resend';
+import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
+import { boundedSlackExcerpt, eventSubmissionReplyAddress, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
+import { sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import {
   eventRegistrationCalendarFile,
@@ -111,8 +113,10 @@ import {
   createEventSubmission,
   EventSubmissionStorageError,
   getPendingEventSubmissionEmails,
+  insertEventSubmissionReply,
   listEventSubmissions,
   rejectEventSubmission,
+  updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
@@ -418,6 +422,14 @@ const eventSubmissionRejectSchema = z.object({
   internal_note: z.string().trim().max(1000).optional().default(''),
 }).strict();
 const eventSubmissionEmailKindSchema = z.enum(['receipt', 'approved', 'rejected']);
+const resendInboundWebhookSchema = z.object({
+  type: z.string().trim().min(1),
+  created_at: z.string().trim().min(1).optional(),
+  data: z.object({
+    email_id: z.string().trim().min(1),
+    to: z.array(z.string().trim().min(1)).default([]),
+  }).passthrough(),
+}).passthrough();
 const eventScheduleItemSchema = z.object({
   time: z.string().trim().min(1).max(40),
   title: z.string().trim().min(1).max(200),
@@ -989,6 +1001,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     ))
     || (method === 'POST' && (
       path === '/api/public/event-submissions'
+      || path === '/api/webhooks/resend/inbound'
       || path === '/api/cfp'
       || path === '/api/feedback'
       || path === '/api/auth/admin/exchange'
@@ -1847,7 +1860,16 @@ async function sendPendingEventSubmissionEmails(
     envValue('EVENT_EMAIL_REPLY_TO', c)
     ?? envValue('REGISTRATION_EMAIL_REPLY_TO', c)
   )?.trim();
-  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+  const replyDomain = envValue('EVENT_SUBMISSION_REPLY_DOMAIN', c)?.trim();
+  const replySecret = envValue('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', c)?.trim();
+  const hasReplyRoutingConfig = Boolean(replyDomain || replySecret);
+  const hasSignedReplyRouting = Boolean(replyDomain && replySecret);
+  const hasFallbackReplyTo = Boolean(emailReplyTo && z.string().email().safeParse(emailReplyTo).success);
+  if (
+    !resendApiKey
+    || (hasReplyRoutingConfig && !hasSignedReplyRouting)
+    || (!hasSignedReplyRouting && !hasFallbackReplyTo)
+  ) {
     return { configured: false, accepted: [], failed: [] };
   }
 
@@ -1860,10 +1882,20 @@ async function sendPendingEventSubmissionEmails(
     ?? 'https://devcongress.org';
   const communityCalendarUrl = new URL('/events/', websiteOrigin).toString();
   const submissionUrl = new URL('/events/submit/', websiteOrigin).toString();
-  const emails = pending.map((delivery) => ({
+  const replyToAddresses = pending.map((delivery) => hasSignedReplyRouting
+    ? eventSubmissionReplyAddress({
+      submissionId: delivery.submission_id,
+      domain: replyDomain!,
+      secret: replySecret!,
+    })
+    : emailReplyTo!);
+  if (replyToAddresses.some((replyTo) => !replyTo)) {
+    return { configured: false, accepted: [], failed: [] };
+  }
+  const emails = pending.map((delivery, index) => ({
     from: EMAIL_SENDERS.events.from,
     to: [delivery.organizer_email],
-    reply_to: emailReplyTo,
+    reply_to: replyToAddresses[index]!,
     ...communityEventSubmissionEmail({
       kind: delivery.kind,
       organizerName: delivery.organizer_name,
@@ -1919,6 +1951,101 @@ async function sendPendingEventSubmissionEmails(
       failed: pending.map((delivery) => delivery.delivery_id),
     };
   }
+}
+
+async function handleResendInboundWebhook(c: Context): Promise<globalThis.Response> {
+  const rawBody = await c.req.text();
+  const webhookSecret = envValue('RESEND_INBOUND_WEBHOOK_SECRET', c)?.trim();
+  if (!webhookSecret) return c.json({ error: 'Inbound email webhook is not configured.' }, 503);
+
+  const signatureValid = verifyResendWebhookSignature({
+    rawBody,
+    webhookId: c.req.header('svix-id') ?? null,
+    timestamp: c.req.header('svix-timestamp') ?? null,
+    signatures: c.req.header('svix-signature') ?? null,
+    secret: webhookSecret,
+  });
+  if (!signatureValid) return c.json({ error: 'Invalid webhook signature.' }, 401);
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    return c.json({ error: 'Invalid webhook payload.' }, 400);
+  }
+  const parsedPayload = resendInboundWebhookSchema.safeParse(payload);
+  if (!parsedPayload.success) return c.json({ error: 'Invalid webhook payload.' }, 400);
+  if (parsedPayload.data.type !== 'email.received') return c.body(null, 204);
+
+  const replyDomain = envValue('EVENT_SUBMISSION_REPLY_DOMAIN', c)?.trim();
+  const replySecret = envValue('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', c)?.trim();
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  if (!replyDomain || !replySecret || !resendApiKey) {
+    return c.json({ error: 'Inbound email processing is not configured.' }, 503);
+  }
+
+  const recipient = parsedPayload.data.data.to
+    .map((address) => parseEventSubmissionReplyRecipient(address, replyDomain, replySecret))
+    .find((value) => value !== null);
+  if (!recipient) return c.body(null, 204);
+
+  const receivedEmail = await retrieveResendReceivedEmail({
+    apiKey: resendApiKey,
+    emailId: parsedPayload.data.data.email_id,
+  });
+  const receivedAt = Number.isNaN(new Date(receivedEmail.created_at).getTime())
+    ? new Date().toISOString()
+    : new Date(receivedEmail.created_at).toISOString();
+  const bodyText = (receivedEmail.text?.trim() || (receivedEmail.html ? htmlToPlainText(receivedEmail.html) : '')).slice(0, 100_000);
+  const result = await insertEventSubmissionReply({
+    submission_id: recipient.submissionId,
+    webhook_event_id: c.req.header('svix-id')!,
+    resend_email_id: receivedEmail.id,
+    sender_email: receivedEmail.from,
+    subject: receivedEmail.subject,
+    body_text: bodyText,
+    received_at: receivedAt,
+    attachments: receivedEmail.attachments.slice(0, 20),
+  }, c);
+  if (!result.created) return c.body(null, 204);
+
+  const slackWebhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+  if (!slackWebhookUrl) return c.body(null, 204);
+
+  try {
+    await sendEventSubmissionReplyToSlack({
+      webhookUrl: slackWebhookUrl,
+      eventTitle: receivedEmail.subject || 'Community event submission',
+      senderEmail: receivedEmail.from,
+      subject: receivedEmail.subject,
+      bodyExcerpt: boundedSlackExcerpt(bodyText),
+      receivedAt,
+      dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+    });
+    await updateEventSubmissionReplySlackStatus(result.reply.id, { status: 'sent' }, c);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_submission_reply_slack_notification_failed',
+      request_id: c.get('requestId') ?? null,
+      submission_id: recipient.submissionId,
+      error_name: safeErrorName(error),
+    }));
+    try {
+      await updateEventSubmissionReplySlackStatus(result.reply.id, {
+        status: 'failed',
+        error: error instanceof SlackWebhookError ? error.message : 'Slack notification failed.',
+      }, c);
+    } catch (statusError) {
+      console.warn(JSON.stringify({
+        event: 'event_submission_reply_status_update_failed',
+        request_id: c.get('requestId') ?? null,
+        submission_id: recipient.submissionId,
+        error_name: safeErrorName(statusError),
+      }));
+    }
+  }
+
+  return c.body(null, 204);
 }
 
 async function dispatchEventSubmissionEmails(
@@ -4147,6 +4274,25 @@ app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
   });
 
   return c.json({ removed: true, id: existingMembership.id });
+});
+
+app.post('/api/webhooks/resend/inbound', async (c) => {
+  try {
+    return await handleResendInboundWebhook(c);
+  } catch (error) {
+    if (error instanceof ResendReceivingEmailError) {
+      console.warn(JSON.stringify({
+        event: 'event_submission_reply_provider_unavailable',
+        request_id: c.get('requestId') ?? null,
+        provider_status: error.status,
+      }));
+      return c.json({ error: 'Inbound email could not be processed yet.' }, 502);
+    }
+    if (error instanceof EventSubmissionStorageError) {
+      return c.json({ error: 'Inbound email could not be stored yet.' }, 503);
+    }
+    throw error;
+  }
 });
 
 app.get('/api/admin/event-submissions', async (c) => {

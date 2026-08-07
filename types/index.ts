@@ -109,9 +109,28 @@ export interface EventSubmission {
   organizer_message: string | null;
   internal_note: string | null;
   email_deliveries: EventSubmissionEmailDelivery[];
+  replies: EventSubmissionReply[];
   approved_event_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type EventSubmissionReplySlackStatus = 'pending' | 'sent' | 'failed';
+
+export interface EventSubmissionReplyAttachment {
+  filename: string;
+  content_type: string | null;
+  size: number | null;
+}
+
+export interface EventSubmissionReply {
+  id: string;
+  sender_email: string;
+  subject: string;
+  body_text: string;
+  received_at: string;
+  attachments: EventSubmissionReplyAttachment[];
+  slack_status: EventSubmissionReplySlackStatus;
 }
 
 export interface EventSubmissionEmailDelivery {
