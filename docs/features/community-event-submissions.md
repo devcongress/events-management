@@ -41,7 +41,7 @@ The review drawer groups the proposal summary, schedule, location, submitter, an
 
 ## Organizer replies
 
-When inbound reply routing is configured, each community-submission email receives a signed, submission-specific Reply-To such as `submissions+<submission-id>.<signature>@updates.devcongress.org`. The signature is derived from `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`, so a reply can be matched to the correct proposal without storing a reusable public token. The same verified `updates.devcongress.org` domain is used for speaker, registration, and event-blast Reply-To mailboxes; the existing `devcongress.org` Zoho MX records are not changed.
+When inbound reply routing is configured, each community-submission email receives a signed, submission-specific Reply-To such as `s+<submission-id-without-hyphens>.<signature>@updates.devcongress.org`. The compact token keeps the email local part within the 64-character limit while retaining a 120-bit HMAC signature derived from `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`; a reply can be matched to the correct proposal without storing a reusable public token. The same verified `updates.devcongress.org` domain is used for speaker, registration, and event-blast Reply-To mailboxes; the existing `devcongress.org` Zoho MX records are not changed.
 
 Resend sends an `email.received` webhook to `POST /api/webhooks/resend/inbound`. EMS verifies the raw Svix signature, ignores addresses that do not match a valid submission token, retrieves the message body through Resend, stores a sanitized plain-text copy in `event_submission_replies`, and exposes it in the submission drawer. Webhook delivery is idempotent on both the webhook event id and Resend email id. Attachments are recorded as metadata only in this slice.
 

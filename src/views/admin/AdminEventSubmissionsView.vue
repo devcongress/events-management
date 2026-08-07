@@ -30,6 +30,7 @@ const rejecting = ref(false);
 const rejectionCategory = ref<EventSubmissionRejectionCategory | ''>('');
 const organizerMessage = ref('');
 const internalNote = ref('');
+const retryingEmailKinds = ref<Set<EventSubmissionEmailKind>>(new Set());
 let drawerTrigger: HTMLElement | null = null;
 const rejectionOptions: Array<{ value: EventSubmissionRejectionCategory; label: string }> = [
   { value: 'calendar_fit', label: 'Event does not fit the community calendar' },
@@ -141,7 +142,20 @@ const retryEmailMutation = useMutation({
     await refreshSubmissions();
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to retry this email.'),
+  onMutate: ({ kind }) => setRetryingEmailKind(kind, true),
+  onSettled: (_data, _error, { kind }) => setRetryingEmailKind(kind, false),
 });
+
+function setRetryingEmailKind(kind: EventSubmissionEmailKind, retrying: boolean) {
+  const next = new Set(retryingEmailKinds.value);
+  if (retrying) next.add(kind);
+  else next.delete(kind);
+  retryingEmailKinds.value = next;
+}
+
+function isRetryingEmail(kind: EventSubmissionEmailKind) {
+  return retryingEmailKinds.value.has(kind);
+}
 
 function resetRejectionForm() {
   rejecting.value = false;
@@ -435,10 +449,10 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
                         v-if="delivery.status === 'failed'"
                         type="button"
                         class="submission-retry-button motion-press"
-                        :disabled="retryEmailMutation.isPending.value"
+                        :disabled="isRetryingEmail(delivery.kind)"
                         @click="retryEmailMutation.mutate({ submissionId: selectedSubmission.id, kind: delivery.kind })"
                       >
-                        {{ retryEmailMutation.isPending.value ? 'Retrying…' : 'Retry' }}
+                        {{ isRetryingEmail(delivery.kind) ? 'Retrying…' : 'Retry' }}
                       </button>
                     </div>
                   </li>
