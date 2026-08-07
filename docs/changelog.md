@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-07 — Fixed the router bootstrap deadlock
+
+- Started the initial Vue Router navigation before awaiting readiness, so local and deployed app loads now mount the organizer login/workspace or the appropriate public shell instead of leaving the static boot screen visible indefinitely.
+
 ## 2026-08-07 — Split public and organizer loading shells
 
 - Added a separate `PublicApp` root so registration, CFP, feedback, speaker-intake, volunteer, and System Design participant links do not instantiate the organizer shell or organizer session bootstrap.

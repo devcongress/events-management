@@ -1,6 +1,15 @@
 const WORKER_API_ORIGIN = 'https://events-management.admins-a7d.workers.dev';
 const STALE_ASSET_RELOAD_KEY = 'devcon-stale-asset-reload';
 const APP_BOOT_VARIANT_ATTRIBUTE = 'data-app-boot-variant';
+const APP_BOOT_LABELS = {
+  organizer: 'Opening the DevCongress organizer workspace',
+  registration: 'Loading your registration form',
+  cfp: 'Loading the proposal form',
+  feedback: 'Loading the feedback form',
+  speaker: 'Loading the talk details form',
+  volunteer: 'Loading the volunteer form',
+  'learning-room': 'Joining the learning room',
+};
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -53,10 +62,15 @@ async function withRouteAwareBoot(response, pathname) {
 
   const html = await response.text();
   const variant = publicBootVariant(pathname);
-  const nextHtml = html.replace(
-    new RegExp(`${APP_BOOT_VARIANT_ATTRIBUTE}="[^"]+"`),
-    `${APP_BOOT_VARIANT_ATTRIBUTE}="${variant}"`,
-  );
+  const nextHtml = html
+    .replace(
+      new RegExp(`${APP_BOOT_VARIANT_ATTRIBUTE}="[^"]+"`),
+      `${APP_BOOT_VARIANT_ATTRIBUTE}="${variant}"`,
+    )
+    .replace(
+      /(<section class="app-boot"[^>]*aria-label=")[^"]+("[^>]*>)/,
+      `$1${APP_BOOT_LABELS[variant]}$2`,
+    );
 
   const headers = new Headers(response.headers);
   headers.delete('content-encoding');
