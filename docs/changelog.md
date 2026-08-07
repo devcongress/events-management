@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-07 — Events channel announcements
+
+- Added an optional server-only Slack webhook for the `#events` channel.
+- Published organizer-created events and approved public-submission events now post a compact event card with a link to the public event page.
+- Slack delivery is best-effort: an unavailable webhook is logged without failing or rolling back event publication.
+
 ## 2026-08-07 — Routed community-submission replies into EMS and Slack
 
 - Added signed, submission-specific Reply-To addresses for new community-submission emails, preserving the existing mailbox fallback until Resend receiving is configured.

@@ -9,6 +9,40 @@ function slackText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function slackWebhookUrl(value: string): URL {
+  let webhook: URL;
+  try {
+    webhook = new URL(value.trim());
+  } catch {
+    throw new SlackWebhookError('Slack notification URL is invalid.');
+  }
+  if (webhook.protocol !== 'https:' || webhook.hostname !== 'hooks.slack.com') {
+    throw new SlackWebhookError('Slack notification URL is invalid.');
+  }
+  return webhook;
+}
+
+async function postSlackWebhook(input: {
+  webhookUrl: string;
+  payload: Record<string, unknown>;
+  fetcher?: typeof fetch;
+}): Promise<void> {
+  const webhook = slackWebhookUrl(input.webhookUrl);
+
+  try {
+    const response = await (input.fetcher ?? fetch)(webhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input.payload),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) throw new SlackWebhookError('Slack did not accept the notification.');
+  } catch (error) {
+    if (error instanceof SlackWebhookError) throw error;
+    throw new SlackWebhookError('Slack could not be reached.');
+  }
+}
+
 export async function sendEventSubmissionReplyToSlack(input: {
   webhookUrl: string;
   eventTitle: string;
@@ -19,16 +53,6 @@ export async function sendEventSubmissionReplyToSlack(input: {
   dashboardUrl: string;
   fetcher?: typeof fetch;
 }): Promise<void> {
-  let webhook: URL;
-  try {
-    webhook = new URL(input.webhookUrl.trim());
-  } catch {
-    throw new SlackWebhookError('Slack notification URL is invalid.');
-  }
-  if (webhook.protocol !== 'https:' || webhook.hostname !== 'hooks.slack.com') {
-    throw new SlackWebhookError('Slack notification URL is invalid.');
-  }
-
   const payload = {
     text: `New reply to community submission: ${input.eventTitle}`,
     blocks: [
@@ -62,16 +86,48 @@ export async function sendEventSubmissionReplyToSlack(input: {
     ],
   };
 
-  try {
-    const response = await (input.fetcher ?? fetch)(webhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) throw new SlackWebhookError('Slack did not accept the notification.');
-  } catch (error) {
-    if (error instanceof SlackWebhookError) throw error;
-    throw new SlackWebhookError('Slack could not be reached.');
-  }
+  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
+}
+
+export async function sendEventAddedToSlack(input: {
+  webhookUrl: string;
+  eventName: string;
+  eventDate: string;
+  eventFormat: string;
+  location: string;
+  source: 'organizer' | 'public submission';
+  eventUrl: string;
+  fetcher?: typeof fetch;
+}): Promise<void> {
+  const payload = {
+    text: `New event added: ${input.eventName}`,
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: 'New event added' },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*Event*\n${slackText(input.eventName)}` },
+          { type: 'mrkdwn', text: `*When*\n${slackText(input.eventDate)}` },
+          { type: 'mrkdwn', text: `*Format*\n${slackText(input.eventFormat)}` },
+          { type: 'mrkdwn', text: `*Added via*\n${slackText(input.source)}` },
+          { type: 'mrkdwn', text: `*Where*\n${slackText(input.location)}` },
+        ],
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: { type: 'plain_text', text: 'Open event' },
+            url: input.eventUrl,
+          },
+        ],
+      },
+    ],
+  };
+
+  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
 }
