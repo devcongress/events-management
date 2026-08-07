@@ -16,7 +16,9 @@ import { queryClient } from './lib/query';
 import { router } from './router';
 import './styles.css';
 
-void router.isReady()
+const initialPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+void router.replace(initialPath)
   .catch(() => undefined)
   .then(async () => {
     const currentRoute = router.currentRoute.value;

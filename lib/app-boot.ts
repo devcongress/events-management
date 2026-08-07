@@ -18,6 +18,12 @@ const publicBootLabels: Record<Exclude<AppBootVariant, 'organizer'>, string> = {
   'learning-room': 'Joining the learning room',
 };
 
+const organizerBootLabel = 'Opening the DevCongress organizer workspace';
+
+function appBootAriaLabelForVariant(variant: AppBootVariant): string {
+  return variant === 'organizer' ? organizerBootLabel : publicBootLabels[variant];
+}
+
 export function appBootVariantForPathname(pathname: string): AppBootVariant {
   const path = pathname.split('?')[0].replace(/\/+$/, '') || '/';
 
@@ -170,7 +176,7 @@ export const APP_BOOT_STYLES = String.raw`
 html,body,#app{width:100%;min-height:100%;margin:0}
 .app-boot{box-sizing:border-box;display:flex;min-height:100vh;min-height:100svh;flex-direction:column;overflow:hidden;background:#f5f2e8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",ui-sans-serif,system-ui,sans-serif}
 .app-boot *,.app-boot *::before,.app-boot *::after{box-sizing:border-box}
-.app-boot__organizer{display:grid;width:min(100% - 3rem,80rem);flex:1;align-content:center;margin-inline:auto;padding-block:clamp(3rem,12vh,8rem)}
+.app-boot__organizer{display:none;width:min(100% - 3rem,80rem);flex:1;align-content:center;margin-inline:auto;padding-block:clamp(3rem,12vh,8rem)}
 .app-boot__message{max-width:44rem}
 .app-boot__eyebrow{margin:0 0 .85rem;color:#e8117f;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.65rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
 .app-boot__title{max-width:14ch;margin:0;font-size:clamp(2.25rem,5.5vw,4.75rem);font-weight:600;letter-spacing:-.035em;line-height:.98}
@@ -221,9 +227,7 @@ html,body,#app{width:100%;min-height:100%;margin:0}
 
 export function renderAppBootMarkup(pathname = '/'): string {
   const variant = appBootVariantForPathname(pathname);
-  const ariaLabel = variant === 'organizer'
-    ? 'Opening the DevCongress organizer workspace'
-    : publicBootLabels[variant];
+  const ariaLabel = appBootAriaLabelForVariant(variant);
 
   const publicMarkup = (Object.keys(publicBootSkeletons) as Array<Exclude<AppBootVariant, 'organizer'>>)
     .map((publicVariant) => `
@@ -244,10 +248,15 @@ export function renderAppBootMarkup(pathname = '/'): string {
 
 export function applyAppBootVariant(html: string, pathname: string): string {
   const variant = appBootVariantForPathname(pathname);
-  return html.replace(
-    new RegExp(`${APP_BOOT_VARIANT_ATTRIBUTE}="[^"]+"`),
-    `${APP_BOOT_VARIANT_ATTRIBUTE}="${variant}"`,
-  );
+  return html
+    .replace(
+      new RegExp(`${APP_BOOT_VARIANT_ATTRIBUTE}="[^"]+"`),
+      `${APP_BOOT_VARIANT_ATTRIBUTE}="${variant}"`,
+    )
+    .replace(
+      /(<section class="app-boot"[^>]*aria-label=")[^"]+("[^>]*>)/,
+      `$1${appBootAriaLabelForVariant(variant)}$2`,
+    );
 }
 
 export const APP_BOOT_MARKUP = renderAppBootMarkup('/organizer-console');

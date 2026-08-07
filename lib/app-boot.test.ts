@@ -29,8 +29,9 @@ describe('app boot route variants', () => {
     expect(publicMarkup).toContain('data-app-boot-public="registration"');
     expect(publicMarkup).toContain('data-app-boot-public="cfp"');
 
-    const staticHtml = '<div id="app" data-app-boot-variant="organizer"></div>';
-    expect(applyAppBootVariant(staticHtml, '/feedback/event-id'))
-      .toContain('data-app-boot-variant="feedback"');
+    const staticHtml = '<section class="app-boot" aria-label="Opening the DevCongress organizer workspace" data-app-boot-variant="organizer"></section>';
+    const rewrittenHtml = applyAppBootVariant(staticHtml, '/feedback/event-id');
+    expect(rewrittenHtml).toContain('data-app-boot-variant="feedback"');
+    expect(rewrittenHtml).toContain('aria-label="Loading the feedback form"');
   });
 });
