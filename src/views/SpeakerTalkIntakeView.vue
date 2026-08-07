@@ -6,7 +6,7 @@ import {
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
 import AppDropdown from '@/src/components/AppDropdown.vue';
-import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
+import SpeakerTalkIntakePageSkeleton from '@/src/components/ui/page-skeletons/SpeakerTalkIntakePageSkeleton.vue';
 import type { ArchiveItemKind, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
 type IntakeEvent = Pick<Event, 'id' | 'name' | 'event_date' | 'status'>;
@@ -181,7 +181,7 @@ function applyPrefill(prefill: IntakePrefill) {
 <template>
   <div class="min-h-full bg-dc-cream text-dc-ink">
     <div v-if="loading" class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <CfpPageSkeleton />
+      <SpeakerTalkIntakePageSkeleton />
     </div>
 
     <div v-else-if="unavailableMessage" class="flex min-h-full items-center justify-center p-4">

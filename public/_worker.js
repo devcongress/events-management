@@ -1,5 +1,6 @@
 const WORKER_API_ORIGIN = 'https://events-management.admins-a7d.workers.dev';
 const STALE_ASSET_RELOAD_KEY = 'devcon-stale-asset-reload';
+const APP_BOOT_VARIANT_ATTRIBUTE = 'data-app-boot-variant';
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -28,6 +29,48 @@ function withSecurityHeaders(response) {
   headers.set('X-Permitted-Cross-Domain-Policies', 'none');
 
   return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function publicBootVariant(pathname) {
+  const path = pathname.replace(/\/+$/, '') || '/';
+  if (path.startsWith('/r/')) return 'registration';
+  if (path.startsWith('/register/')) return 'registration';
+  if (path.startsWith('/cfp/')) return 'cfp';
+  if (path.startsWith('/feedback/')) return 'feedback';
+  if (path.startsWith('/speaker-talks/')) return 'speaker';
+  if (path.startsWith('/volunteer/')) return 'volunteer';
+  if (path.startsWith('/learn/system-design/')) return 'learning-room';
+  return 'organizer';
+}
+
+async function withRouteAwareBoot(response, pathname) {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('text/html')) return response;
+
+  const html = await response.text();
+  const variant = publicBootVariant(pathname);
+  const nextHtml = html.replace(
+    new RegExp(`${APP_BOOT_VARIANT_ATTRIBUTE}="[^"]+"`),
+    `${APP_BOOT_VARIANT_ATTRIBUTE}="${variant}"`,
+  );
+
+  const headers = new Headers(response.headers);
+  headers.delete('content-encoding');
+  headers.delete('content-length');
+
+  if (nextHtml === html) {
+    return new Response(html, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+
+  return new Response(nextHtml, {
     status: response.status,
     statusText: response.statusText,
     headers,
@@ -90,11 +133,12 @@ if (!globalThis.sessionStorage?.getItem(key)) {
     }
 
     if (contentType.includes('text/html')) {
-      const headers = new Headers(response.headers);
+      const routeAwareResponse = await withRouteAwareBoot(response, url.pathname);
+      const headers = new Headers(routeAwareResponse.headers);
       headers.set('cache-control', 'no-store');
-      return withSecurityHeaders(new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
+      return withSecurityHeaders(new Response(routeAwareResponse.body, {
+        status: routeAwareResponse.status,
+        statusText: routeAwareResponse.statusText,
         headers,
       }));
     }

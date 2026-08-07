@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
-import { APP_BOOT_MARKUP, APP_BOOT_STYLES } from '@/lib/app-boot';
+import { renderAppBootMarkup, APP_BOOT_STYLES } from '@/lib/app-boot';
 import {
   isEventFeedbackAnswerPresent,
   isEventFeedbackNotAttended,
@@ -7985,7 +7985,7 @@ app.get('*', (c) => {
     <style>${APP_BOOT_STYLES}</style>
   </head>
   <body>
-    <div id="app">${APP_BOOT_MARKUP}</div>
+    <div id="app">${renderAppBootMarkup(pathname)}</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>`);
