@@ -448,11 +448,19 @@
   }
 
   .submission-drawer {
-    @apply relative z-10 flex h-full w-full max-w-[42rem] flex-col border-l border-dc-border bg-dc-paper text-dc-ink shadow-[-18px_0_50px_rgba(17,17,17,0.14)];
+    @apply relative z-10 flex h-full w-full max-w-[42rem] flex-col border-l border-dc-border bg-dc-cream text-dc-ink;
   }
 
   .submission-drawer-header {
-    @apply flex shrink-0 items-start justify-between gap-4 border-b border-dc-border bg-dc-paper-warm px-6 py-5;
+    @apply flex shrink-0 items-start justify-between gap-4 border-b border-dc-border bg-white px-6 py-5;
+  }
+
+  .submission-drawer-meta {
+    @apply flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-dc-gray;
+  }
+
+  .submission-drawer-title {
+    @apply mt-2 text-2xl font-bold leading-tight tracking-tight text-dc-ink;
   }
 
   .submission-drawer-close {
@@ -468,7 +476,165 @@
   }
 
   .submission-drawer-footer {
-    @apply shrink-0 border-t border-dc-border bg-dc-paper-warm px-6 py-5;
+    @apply shrink-0 border-t border-dc-border bg-dc-cream px-6 py-4;
+  }
+
+  .submission-review-heading {
+    @apply flex items-end justify-between gap-4;
+  }
+
+  .submission-section-kicker {
+    @apply mb-1 text-xs font-semibold text-dc-gray;
+  }
+
+  .submission-review-heading h3 {
+    @apply text-xl font-bold tracking-tight text-dc-ink;
+  }
+
+  .submission-status-badge {
+    @apply inline-flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em];
+  }
+
+  .submission-status-dot {
+    @apply size-1.5 rounded-full bg-current;
+  }
+
+  .submission-review-card {
+    @apply mt-4 overflow-hidden rounded-lg border border-dc-border bg-dc-paper;
+  }
+
+  .submission-summary {
+    @apply whitespace-pre-line border-b border-dc-border px-5 py-4 text-[15px] font-medium leading-6 text-dc-ink;
+  }
+
+  .submission-facts {
+    @apply grid sm:grid-cols-2;
+  }
+
+  .submission-fact {
+    @apply min-w-0 border-b border-dc-border px-5 py-4 last:border-b-0 sm:[&:nth-child(2)]:border-r;
+  }
+
+  .submission-fact--wide {
+    @apply sm:col-span-2;
+  }
+
+  .submission-fact dt,
+  .submission-field-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-dc-gray;
+  }
+
+  .submission-fact dd {
+    @apply mt-1.5 break-words text-sm font-semibold leading-5 text-dc-ink;
+  }
+
+  .submission-fact--wide dd:not(.submission-fact-supporting) {
+    @apply flex flex-wrap items-center gap-x-2 gap-y-1;
+  }
+
+  .submission-fact .submission-fact-supporting {
+    @apply mt-1 text-xs font-normal leading-5 text-dc-gray;
+  }
+
+  .submission-fact-separator {
+    @apply text-dc-gray-light;
+  }
+
+  .submission-inline-link {
+    @apply break-all font-medium text-dc-ink underline decoration-dc-border decoration-1 underline-offset-4 hover:decoration-dc-ink;
+  }
+
+  .submission-resource-links {
+    @apply flex flex-wrap gap-2 border-t border-dc-border bg-dc-cream px-5 py-3;
+  }
+
+  .submission-resource-links a {
+    @apply inline-flex min-h-9 items-center gap-2 rounded-md border border-dc-border bg-dc-paper px-3 text-xs font-semibold text-dc-ink outline-none hover:border-dc-ink focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2;
+  }
+
+  .submission-note {
+    @apply mt-4 flex gap-3 rounded-lg border border-dc-border bg-dc-paper-warm px-4 py-4;
+  }
+
+  .submission-note-mark {
+    @apply font-serif text-3xl leading-none text-dc-gray-light;
+  }
+
+  .submission-note h4 {
+    @apply text-xs font-semibold text-dc-ink;
+  }
+
+  .submission-note p {
+    @apply mt-1.5 whitespace-pre-line text-sm leading-6 text-dc-gray;
+  }
+
+  .submission-rejection-summary {
+    @apply mt-4 space-y-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4;
+  }
+
+  .submission-support-section {
+    @apply mt-7 border-t border-dc-border pt-6;
+  }
+
+  .submission-section-heading {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .submission-section-heading h4 {
+    @apply text-sm font-bold text-dc-ink;
+  }
+
+  .submission-section-heading p {
+    @apply mt-1 text-xs leading-5 text-dc-gray;
+  }
+
+  .submission-delivery-list,
+  .submission-reply-list {
+    @apply mt-3 space-y-2;
+  }
+
+  .submission-delivery-row {
+    @apply flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dc-border bg-dc-paper px-4 py-3;
+  }
+
+  .submission-delivery-error {
+    @apply mt-1 max-w-md text-xs leading-5 text-destructive;
+  }
+
+  .submission-compact-badge {
+    @apply shrink-0 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.06em];
+  }
+
+  .submission-retry-button {
+    @apply min-h-8 rounded-md border border-dc-border bg-dc-paper px-2.5 text-[10px] font-semibold text-dc-ink outline-none hover:border-dc-ink disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2;
+  }
+
+  .submission-section-footnote {
+    @apply mt-3 text-xs leading-5 text-dc-gray;
+  }
+
+  .submission-reply-count {
+    @apply grid size-6 shrink-0 place-items-center rounded-full bg-dc-ink text-[10px] font-bold text-white;
+  }
+
+  .submission-replies-empty {
+    @apply mt-3 flex items-center gap-3 rounded-lg border border-dashed border-dc-border bg-dc-paper px-4 py-4 text-dc-gray;
+  }
+
+  .submission-replies-empty svg {
+    @apply size-5 shrink-0;
+  }
+
+  .submission-replies-empty p {
+    @apply text-xs font-semibold text-dc-ink;
+  }
+
+  .submission-replies-empty span {
+    @apply mt-0.5 block text-xs leading-5;
+  }
+
+  .submission-reply-card {
+    @apply rounded-lg border border-dc-border bg-dc-paper p-4;
   }
 
   .submission-count-enter-active,

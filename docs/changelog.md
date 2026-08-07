@@ -6,6 +6,13 @@
 - Published organizer-created events and approved public-submission events now post a compact event card with a link to the public event page.
 - Slack delivery is best-effort: an unavailable webhook is logged without failing or rolling back event publication.
 
+## 2026-08-07 — Refined the community-submission review drawer
+
+- Reorganized proposal details into a calm, responsive review card with a clearer event summary, schedule, location, submitter, and supporting links.
+- Replaced repeated pink section labels with the app's neutral surface, text, border, success, and destructive tokens; destructive styling is confined to actual failure or rejection states.
+- Kept delivery retry, captured replies, rejection context, and the sticky approve/reject workflow intact while making supporting information easier to scan; the decision controls now reuse the app's shared action primitives.
+- Classified receipt and decision-email failures into actionable provider categories so organizers can distinguish quota, configuration, invalid-request, outage, and connectivity problems.
+
 ## 2026-08-07 — Routed community-submission replies into EMS and Slack
 
 - Added signed, submission-specific Reply-To addresses for new community-submission emails, preserving the existing mailbox fallback until Resend receiving is configured.

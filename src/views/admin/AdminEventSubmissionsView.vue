@@ -173,9 +173,9 @@ function formatLabel(value: string) {
 }
 
 function statusClass(status: EventSubmissionReviewStatus) {
-  if (status === 'approved') return 'border-emerald-700 bg-emerald-50 text-emerald-800';
-  if (status === 'rejected') return 'border-red-700 bg-red-50 text-red-800';
-  return 'border-amber-700 bg-amber-50 text-amber-900';
+  if (status === 'approved') return 'border-dc-success bg-dc-success-soft text-dc-success';
+  if (status === 'rejected') return 'border-destructive/40 bg-destructive/5 text-destructive';
+  return 'border-dc-border bg-dc-paper-warm text-dc-ink';
 }
 
 function rejectionCategoryLabel(category: EventSubmissionRejectionCategory | null) {
@@ -195,9 +195,9 @@ function emailStatusLabel(delivery: EventSubmissionEmailDelivery) {
 }
 
 function emailStatusClass(delivery: EventSubmissionEmailDelivery) {
-  if (delivery.status === 'accepted') return 'border-emerald-700 bg-emerald-50 text-emerald-800';
-  if (delivery.status === 'failed') return 'border-red-700 bg-red-50 text-red-800';
-  return 'border-amber-700 bg-amber-50 text-amber-900';
+  if (delivery.status === 'accepted') return 'border-dc-success bg-dc-success-soft text-dc-success';
+  if (delivery.status === 'failed') return 'border-destructive/40 bg-destructive/5 text-destructive';
+  return 'border-dc-border bg-dc-paper-warm text-dc-ink';
 }
 
 function replySlackStatusLabel(reply: EventSubmissionReply) {
@@ -207,9 +207,9 @@ function replySlackStatusLabel(reply: EventSubmissionReply) {
 }
 
 function replySlackStatusClass(reply: EventSubmissionReply) {
-  if (reply.slack_status === 'sent') return 'border-emerald-700 bg-emerald-50 text-emerald-800';
-  if (reply.slack_status === 'failed') return 'border-red-700 bg-red-50 text-red-800';
-  return 'border-amber-700 bg-amber-50 text-amber-900';
+  if (reply.slack_status === 'sent') return 'border-dc-success bg-dc-success-soft text-dc-success';
+  if (reply.slack_status === 'failed') return 'border-destructive/40 bg-destructive/5 text-destructive';
+  return 'border-dc-border bg-dc-paper-warm text-dc-ink';
 }
 </script>
 
@@ -322,8 +322,12 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
           <aside ref="drawerPanel" class="submission-drawer" role="dialog" aria-modal="true" :aria-labelledby="`submission-title-${selectedSubmission.id}`">
             <header class="submission-drawer-header">
               <div class="min-w-0">
-                <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-pink">{{ formatLabel(selectedSubmission.format) }} · {{ formatLabel(selectedSubmission.location_type) }}</p>
-                <h2 :id="`submission-title-${selectedSubmission.id}`" class="mt-2 truncate text-2xl font-bold tracking-tight text-dc-ink">{{ selectedSubmission.title }}</h2>
+                <div class="submission-drawer-meta">
+                  <span>{{ formatLabel(selectedSubmission.format) }}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{{ formatLabel(selectedSubmission.location_type) }}</span>
+                </div>
+                <h2 :id="`submission-title-${selectedSubmission.id}`" class="submission-drawer-title">{{ selectedSubmission.title }}</h2>
               </div>
               <button ref="drawerCloseButton" type="button" class="submission-drawer-close motion-press" aria-label="Close submission details" @click="closeDrawer">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -333,79 +337,104 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
             </header>
 
             <div class="submission-drawer-body">
-              <div class="flex items-center justify-between gap-4">
-                <p class="editorial-eyebrow">Proposal details</p>
-                <span class="rounded-md border px-2.5 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide" :class="statusClass(selectedSubmission.review_status)">
+              <div class="submission-review-heading">
+                <div>
+                  <p class="submission-section-kicker">Review request</p>
+                  <h3>Event proposal</h3>
+                </div>
+                <span class="submission-status-badge" :class="statusClass(selectedSubmission.review_status)">
+                  <span class="submission-status-dot" aria-hidden="true" />
                   {{ selectedSubmission.review_status }}
                 </span>
               </div>
 
-              <p class="mt-5 whitespace-pre-line text-sm font-medium leading-6 text-dc-ink/80">{{ selectedSubmission.summary }}</p>
+              <section class="submission-review-card" aria-labelledby="submission-overview">
+                <h4 id="submission-overview" class="sr-only">Proposal overview</h4>
+                <p class="submission-summary">{{ selectedSubmission.summary }}</p>
 
-              <dl class="mt-6 grid gap-5 border-y border-dc-border py-5 sm:grid-cols-2">
-                <div>
-                  <dt class="editorial-eyebrow">Starts</dt>
-                  <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ formatDateTime(selectedSubmission.starts_at, selectedSubmission.timezone) }}</dd>
-                </div>
-                <div>
-                  <dt class="editorial-eyebrow">Ends</dt>
-                  <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ formatDateTime(selectedSubmission.ends_at, selectedSubmission.timezone) }}</dd>
-                </div>
-                <div>
-                  <dt class="editorial-eyebrow">Venue</dt>
-                  <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ selectedSubmission.venue_name || 'Online' }}</dd>
-                  <dd v-if="selectedSubmission.venue_address" class="mt-1 text-sm text-dc-gray">{{ selectedSubmission.venue_address }}</dd>
-                </div>
-                <div>
-                  <dt class="editorial-eyebrow">Organizer</dt>
-                  <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ selectedSubmission.organizer_name }}</dd>
-                  <dd><a :href="`mailto:${selectedSubmission.organizer_email}`" class="break-all text-sm font-semibold text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4">{{ selectedSubmission.organizer_email }}</a></dd>
-                </div>
-              </dl>
+                <dl class="submission-facts">
+                  <div class="submission-fact submission-fact--wide">
+                    <dt>Schedule</dt>
+                    <dd>
+                      <span>{{ formatDateTime(selectedSubmission.starts_at, selectedSubmission.timezone) }}</span>
+                      <span class="submission-fact-separator" aria-hidden="true">→</span>
+                      <span>{{ formatDateTime(selectedSubmission.ends_at, selectedSubmission.timezone) }}</span>
+                    </dd>
+                    <dd class="submission-fact-supporting">{{ selectedSubmission.timezone }}</dd>
+                  </div>
+                  <div class="submission-fact">
+                    <dt>Location</dt>
+                    <dd>{{ selectedSubmission.venue_name || 'Online' }}</dd>
+                    <dd v-if="selectedSubmission.venue_address" class="submission-fact-supporting">{{ selectedSubmission.venue_address }}</dd>
+                  </div>
+                  <div class="submission-fact">
+                    <dt>Submitted by</dt>
+                    <dd>{{ selectedSubmission.organizer_name }}</dd>
+                    <dd><a :href="`mailto:${selectedSubmission.organizer_email}`" class="submission-inline-link">{{ selectedSubmission.organizer_email }}</a></dd>
+                  </div>
+                </dl>
 
-              <div class="mt-5 flex flex-wrap gap-x-5 gap-y-3 text-sm font-semibold">
-                <a v-if="selectedSubmission.registration_url" :href="selectedSubmission.registration_url" target="_blank" rel="noreferrer" class="text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4">Registration page</a>
-                <a v-if="selectedSubmission.online_url" :href="selectedSubmission.online_url" target="_blank" rel="noreferrer" class="text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4">Online event link</a>
-                <a v-if="selectedSubmission.organizer_website" :href="selectedSubmission.organizer_website" target="_blank" rel="noreferrer" class="text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4">Organizer website</a>
-              </div>
+                <div v-if="selectedSubmission.registration_url || selectedSubmission.online_url || selectedSubmission.organizer_website" class="submission-resource-links" aria-label="Proposal links">
+                  <a v-if="selectedSubmission.registration_url" :href="selectedSubmission.registration_url" target="_blank" rel="noreferrer">
+                    Registration page
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                  <a v-if="selectedSubmission.online_url" :href="selectedSubmission.online_url" target="_blank" rel="noreferrer">
+                    Online event
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                  <a v-if="selectedSubmission.organizer_website" :href="selectedSubmission.organizer_website" target="_blank" rel="noreferrer">
+                    Organizer website
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                </div>
+              </section>
 
-              <div v-if="selectedSubmission.notes" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
-                <p class="editorial-eyebrow">Note from submitter</p>
-                <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.notes }}</p>
-              </div>
-
-              <div v-if="selectedSubmission.review_status === 'rejected'" class="mt-6 space-y-4 rounded-md border border-red-200 bg-red-50/60 p-4">
+              <aside v-if="selectedSubmission.notes" class="submission-note" aria-labelledby="submission-note-heading">
+                <div class="submission-note-mark" aria-hidden="true">“</div>
                 <div>
-                  <p class="editorial-eyebrow">Rejection reason</p>
+                  <h4 id="submission-note-heading">Note from submitter</h4>
+                  <p>{{ selectedSubmission.notes }}</p>
+                </div>
+              </aside>
+
+              <div v-if="selectedSubmission.review_status === 'rejected'" class="submission-rejection-summary">
+                <div>
+                  <p class="submission-field-label">Rejection reason</p>
                   <p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ rejectionCategoryLabel(selectedSubmission.rejection_category) }}</p>
                 </div>
                 <div v-if="selectedSubmission.organizer_message">
-                  <p class="editorial-eyebrow">Message sent to organizer</p>
+                  <p class="submission-field-label">Message sent to organizer</p>
                   <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.organizer_message }}</p>
                 </div>
                 <div v-if="selectedSubmission.internal_note">
-                  <p class="editorial-eyebrow">Internal note · Private</p>
+                  <p class="submission-field-label">Internal note · Private</p>
                   <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.internal_note }}</p>
                 </div>
               </div>
 
-              <section v-if="selectedSubmission.email_deliveries.length" class="mt-6 border-t border-dc-border pt-5" aria-labelledby="submission-email-status">
-                <p id="submission-email-status" class="editorial-eyebrow">Email delivery</p>
-                <ul class="mt-3 space-y-2">
-                  <li v-for="delivery in selectedSubmission.email_deliveries" :key="delivery.id" class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dc-border bg-white px-3 py-3">
-                    <div>
+              <section v-if="selectedSubmission.email_deliveries.length" class="submission-support-section" aria-labelledby="submission-email-status">
+                <div class="submission-section-heading">
+                  <div>
+                    <h4 id="submission-email-status">Email delivery</h4>
+                    <p>Messages sent for this submission.</p>
+                  </div>
+                </div>
+                <ul class="submission-delivery-list">
+                  <li v-for="delivery in selectedSubmission.email_deliveries" :key="delivery.id" class="submission-delivery-row">
+                    <div class="min-w-0">
                       <p class="text-sm font-semibold text-dc-ink">{{ emailKindLabel(delivery.kind) }}</p>
-                      <p v-if="delivery.last_error" class="mt-1 text-xs leading-5 text-red-800">{{ delivery.last_error }}</p>
+                      <p v-if="delivery.last_error" class="submission-delivery-error">{{ delivery.last_error }}</p>
                       <p v-else-if="delivery.accepted_at" class="mt-1 text-xs text-dc-gray">Accepted {{ formatDateTime(delivery.accepted_at) }}</p>
                     </div>
                     <div class="flex items-center gap-2">
-                      <span class="rounded-md border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide" :class="emailStatusClass(delivery)">
+                      <span class="submission-compact-badge" :class="emailStatusClass(delivery)">
                         {{ emailStatusLabel(delivery) }}
                       </span>
                       <button
                         v-if="delivery.status === 'failed'"
                         type="button"
-                        class="motion-press rounded-md border border-dc-ink bg-white px-2.5 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-ink disabled:opacity-50"
+                        class="submission-retry-button motion-press"
                         :disabled="retryEmailMutation.isPending.value"
                         @click="retryEmailMutation.mutate({ submissionId: selectedSubmission.id, kind: delivery.kind })"
                       >
@@ -414,30 +443,36 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
                     </div>
                   </li>
                 </ul>
-                <p class="mt-3 text-xs leading-5 text-dc-gray">Accepted means the email provider accepted the message. Delivery and opens are not tracked yet.</p>
+                <p class="submission-section-footnote">Accepted means the email provider accepted the message. Delivery and opens are not tracked yet.</p>
               </section>
 
-              <section class="mt-6 border-t border-dc-border pt-5" aria-labelledby="submission-replies">
-                <div class="flex items-start justify-between gap-3">
+              <section class="submission-support-section" aria-labelledby="submission-replies">
+                <div class="submission-section-heading">
                   <div>
-                    <p id="submission-replies" class="editorial-eyebrow">Organizer replies</p>
-                    <p class="mt-1 text-xs leading-5 text-dc-gray">Replies to the decision email are kept with this submission.</p>
+                    <h4 id="submission-replies">Organizer replies</h4>
+                    <p>Replies to the decision email are kept with this submission.</p>
                   </div>
-                  <span v-if="selectedSubmission.replies.length" class="rounded-md border border-dc-ink bg-dc-yellow px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-ink">
+                  <span v-if="selectedSubmission.replies.length" class="submission-reply-count" :aria-label="`${selectedSubmission.replies.length} organizer replies`">
                     {{ selectedSubmission.replies.length }}
                   </span>
                 </div>
-                <p v-if="selectedSubmission.replies.length === 0" class="mt-3 rounded-md border border-dashed border-dc-border bg-dc-paper-warm px-3 py-3 text-xs leading-5 text-dc-gray">
-                  No replies yet. New replies will appear here automatically.
-                </p>
-                <ul v-else class="mt-3 space-y-3">
-                  <li v-for="reply in selectedSubmission.replies" :key="reply.id" class="rounded-md border border-dc-border bg-white p-4">
+                <div v-if="selectedSubmission.replies.length === 0" class="submission-replies-empty">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M7 9h10M7 13h6m-7.5 6 1.1-3.3A7.5 7.5 0 1 1 19.5 14a7.5 7.5 0 0 1-10.7 3.7L5.5 19Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  <div>
+                    <p>No replies yet</p>
+                    <span>New replies will appear here automatically.</span>
+                  </div>
+                </div>
+                <ul v-else class="submission-reply-list">
+                  <li v-for="reply in selectedSubmission.replies" :key="reply.id" class="submission-reply-card">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                       <div class="min-w-0">
                         <p class="break-all text-sm font-semibold text-dc-ink">{{ reply.sender_email }}</p>
                         <p class="mt-1 text-xs text-dc-gray">{{ formatDateTime(reply.received_at) }}</p>
                       </div>
-                      <span class="shrink-0 rounded-md border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide" :class="replySlackStatusClass(reply)">
+                      <span class="submission-compact-badge" :class="replySlackStatusClass(reply)">
                         {{ replySlackStatusLabel(reply) }}
                       </span>
                     </div>
@@ -465,17 +500,17 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
                       teleport
                     />
                     <div>
-                      <label for="organizer-message" class="editorial-eyebrow">Message to organizer (optional)</label>
+                      <label for="organizer-message" class="submission-field-label">Message to organizer (optional)</label>
                       <p class="mt-1 text-xs leading-5 text-dc-gray">This message will be included in the rejection email.</p>
                       <textarea id="organizer-message" v-model="organizerMessage" maxlength="1200" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add a helpful explanation or next step" />
                     </div>
                     <div>
-                      <label for="internal-note" class="editorial-eyebrow">Internal note (optional)</label>
+                      <label for="internal-note" class="submission-field-label">Internal note (optional)</label>
                       <p class="mt-1 text-xs leading-5 text-dc-gray">Private to DevCongress organizers. Never included in email.</p>
                       <textarea id="internal-note" v-model="internalNote" maxlength="1000" rows="3" class="editorial-input mt-2 min-h-24 resize-none text-sm" placeholder="Add private review context" />
                     </div>
                     <div v-if="rejectionCategory" class="rounded-md border border-dc-border bg-white p-3">
-                      <p class="editorial-eyebrow">Email preview</p>
+                      <p class="submission-field-label">Email preview</p>
                       <p class="mt-2 text-xs font-semibold text-dc-ink">Update on your event submission: {{ selectedSubmission.title }}</p>
                       <p class="mt-2 text-xs leading-5 text-dc-gray">{{ rejectionCategoryLabel(rejectionCategory) }}</p>
                       <p v-if="organizerMessage" class="mt-2 whitespace-pre-line text-xs leading-5 text-dc-gray">{{ organizerMessage }}</p>
@@ -485,18 +520,18 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
                 <div class="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    class="motion-press min-h-11 flex-1 rounded-md border-2 border-dc-ink bg-dc-pink px-5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50"
+                    class="editorial-action motion-press min-h-11 flex-1 justify-center disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="rejecting || approveMutation.isPending.value || rejectMutation.isPending.value"
                     @click="approveMutation.mutate(selectedSubmission)"
                   >
                     {{ approveMutation.isPending.value ? 'Publishing…' : 'Approve & publish' }}
                   </button>
-                  <button v-if="!rejecting" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-white px-5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-ink" @click="rejecting = true">Reject</button>
+                  <button v-if="!rejecting" type="button" class="editorial-secondary-action motion-press min-h-11" @click="rejecting = true">Reject</button>
                   <template v-else>
                     <button type="button" class="motion-press min-h-11 rounded-md border-2 border-red-800 bg-red-800 px-5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white disabled:cursor-not-allowed disabled:opacity-50" :disabled="!rejectionCategory || rejectMutation.isPending.value" @click="rejectMutation.mutate(selectedSubmission)">
                       {{ rejectMutation.isPending.value ? 'Rejecting…' : 'Reject & notify organizer' }}
                     </button>
-                    <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border bg-white px-5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray" @click="resetRejectionForm">Cancel</button>
+                    <button type="button" class="editorial-secondary-action motion-press min-h-11" @click="resetRejectionForm">Cancel</button>
                   </template>
                 </div>
               </template>
