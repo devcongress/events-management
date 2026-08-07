@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-053: Separate Public and Organizer Loading Shells
+
+Date: 2026-08-07
+Status: Accepted
+
+Context: The Vue application serves a small set of deliberate public exceptions—registration, CFP, feedback, private speaker intake, volunteer intake, and System Design participant links—alongside the protected organizer console. The shared pre-JavaScript boot screen said “Opening the workspace” for every direct URL, and the eager root app also carried organizer-shell concerns into public page loads. That wording and loading boundary are wrong for attendees and external form users.
+
+Decision: Keep one router and one backend contract, but select a public root (`src/PublicApp.vue`) or the protected organizer root after the initial route resolves. Public routes do not instantiate `src/App.vue` or run its organizer-session query; organizer routes continue to use the existing shell and access gate. Route-aware first-paint markup uses dedicated variants for registration, CFP, feedback, speaker intake, volunteer intake, and the learning room. Vite, the Hono fallback, the local Bun server, and the Cloudflare Pages worker all select the same variant, while public views retain their own data-loading skeletons after Vue mounts. Unknown and protected paths fail closed to the organizer boot variant.
+
+Trade-offs: The public route family is represented in both the TypeScript boot helper and the small Pages worker classifier, so adding a new public exception requires updating both. The shared router and API remain in place, which keeps authorization and route contracts stable while avoiding a separate deployment. Public first paint is still a skeleton rather than server-rendered event content; the actual form waits for its existing public API request.
+
+Alternatives considered: Keep one generic neutral loader (smaller change but still loads the organizer root), remove the first-paint loader (blank and more layout shift), or move every public exception to a separate public deployment immediately (cleaner final boundary but larger migration than this fix).
+
+Revisit when: Public registration and intake pages move to the canonical `devcongress.org` website or need server-rendered event content and independent deployment lifecycles.
+
 ## ADR-051: Reuse the Public Registration URL for On-Site QR Entry
 
 Date: 2026-08-06

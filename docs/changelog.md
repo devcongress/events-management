@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-07 — Split public and organizer loading shells
+
+- Added a separate `PublicApp` root so registration, CFP, feedback, speaker-intake, volunteer, and System Design participant links do not instantiate the organizer shell or organizer session bootstrap.
+- Added route-specific first-paint skeletons for each public link family, with the Cloudflare Pages worker, Bun fallback, Hono fallback, and Vite dev shell selecting the same variant before Vue mounts.
+- Replaced the registration blank loading card, speaker-intake CFP-shaped loader, and System Design spinner with page-shaped public skeletons while preserving existing API, route, and authorization behavior.
+
 ## 2026-08-06 — Clarified talks navigation labels
 
 - Renamed the event-level Archive tab to **Talks**.

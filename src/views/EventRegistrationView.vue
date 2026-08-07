@@ -7,6 +7,7 @@ import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_REGISTRATION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { registrationFirstName } from '@/src/lib/registration-workspace';
+import RegistrationPageSkeleton from '@/src/components/ui/page-skeletons/RegistrationPageSkeleton.vue';
 import {
   fetchPublicEventRegistration,
   queryKeys,
@@ -110,7 +111,7 @@ async function submitRegistration() {
         </div>
       </header>
 
-      <div v-if="registrationQuery.isPending.value" class="registration-state-card editorial-panel animate-pulse" aria-label="Loading event registration" />
+      <RegistrationPageSkeleton v-if="registrationQuery.isPending.value" />
 
       <section v-else-if="registrationQuery.isError.value || !registration" class="registration-state-card editorial-panel">
         <p class="editorial-eyebrow">registration unavailable</p>

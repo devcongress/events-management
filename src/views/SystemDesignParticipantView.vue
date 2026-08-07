@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import CelebrationConfetti from '@/src/components/CelebrationConfetti.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import SystemDesignParticipantPageSkeleton from '@/src/components/ui/page-skeletons/SystemDesignParticipantPageSkeleton.vue';
 import { getDeviceId } from '@/src/device';
 import type { QuizStateResponse } from '@/types';
 
@@ -181,12 +182,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section v-else-if="joining || !state" class="flex min-h-screen items-center justify-center p-5">
-      <div class="text-center">
-        <div class="motion-spinner mb-5 inline-block size-16 rounded-full border-4 border-dc-yellow border-t-transparent" />
-        <p class="font-mono text-lg font-semibold uppercase tracking-wide">Joining learning room...</p>
-      </div>
-    </section>
+    <SystemDesignParticipantPageSkeleton v-else-if="joining || !state" />
 
     <section v-else-if="state.session.status === 'waiting' || state.session.status === 'draft'" class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-md text-center">
