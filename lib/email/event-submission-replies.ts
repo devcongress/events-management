@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 
-const REPLY_LOCAL_PREFIX = 'submissions+';
+const REPLY_LOCAL_PREFIX = 's+';
+const LEGACY_REPLY_LOCAL_PREFIX = 'submissions+';
+const REPLY_SIGNATURE_LENGTH = 20;
 const MAX_WEBHOOK_AGE_SECONDS = 5 * 60;
 
 export type ParsedEventSubmissionReplyRecipient = {
@@ -15,8 +17,28 @@ function normalizedDomain(domain: string): string | null {
   return value;
 }
 
-function submissionSignature(submissionId: string, secret: string): string {
+function fullSubmissionSignature(submissionId: string, secret: string): string {
   return crypto.createHmac('sha256', secret).update(submissionId).digest('base64url');
+}
+
+function submissionSignature(submissionId: string, secret: string): string {
+  return fullSubmissionSignature(submissionId, secret).slice(0, REPLY_SIGNATURE_LENGTH);
+}
+
+function compactSubmissionId(submissionId: string): string | null {
+  if (!/^[0-9a-f-]{36}$/i.test(submissionId)) return null;
+  return submissionId.replaceAll('-', '').toLowerCase();
+}
+
+function expandSubmissionId(value: string): string | null {
+  if (!/^[0-9a-f]{32}$/i.test(value)) return null;
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
+}
+
+function signaturesMatch(provided: string, expected: string): boolean {
+  const providedBytes = Buffer.from(provided);
+  const expectedBytes = Buffer.from(expected);
+  return providedBytes.length === expectedBytes.length && crypto.timingSafeEqual(providedBytes, expectedBytes);
 }
 
 export function eventSubmissionReplyAddress(input: {
@@ -26,8 +48,12 @@ export function eventSubmissionReplyAddress(input: {
 }): string | null {
   const domain = normalizedDomain(input.domain);
   const secret = input.secret.trim();
-  if (!domain || !secret || !input.submissionId.trim()) return null;
-  return `${REPLY_LOCAL_PREFIX}${input.submissionId}.${submissionSignature(input.submissionId, secret)}@${domain}`;
+  const submissionId = compactSubmissionId(input.submissionId.trim());
+  if (!domain || !secret || !submissionId) return null;
+
+  // The local part of an email address is limited to 64 characters. This
+  // compact format is 55 characters while retaining a 120-bit HMAC token.
+  return `${REPLY_LOCAL_PREFIX}${submissionId}.${submissionSignature(input.submissionId.trim(), secret)}@${domain}`;
 }
 
 export function parseEventSubmissionReplyRecipient(
@@ -39,9 +65,25 @@ export function parseEventSubmissionReplyRecipient(
   if (!domain || !secret.trim()) return null;
 
   const [localPart, addressDomain, ...unexpected] = address.trim().split('@');
-  if (unexpected.length > 0 || addressDomain?.toLowerCase() !== domain || !localPart.toLowerCase().startsWith(REPLY_LOCAL_PREFIX)) return null;
+  if (unexpected.length > 0 || addressDomain?.toLowerCase() !== domain) return null;
 
-  const encoded = localPart.slice(REPLY_LOCAL_PREFIX.length);
+  if (localPart.toLowerCase().startsWith(REPLY_LOCAL_PREFIX)) {
+    const encoded = localPart.slice(REPLY_LOCAL_PREFIX.length);
+    const separator = encoded.lastIndexOf('.');
+    if (separator <= 0 || separator === encoded.length - 1) return null;
+
+    const submissionId = expandSubmissionId(encoded.slice(0, separator));
+    const signature = encoded.slice(separator + 1);
+    if (!submissionId || !/^[A-Za-z0-9_-]{20}$/.test(signature)) return null;
+    if (!signaturesMatch(signature, submissionSignature(submissionId, secret))) return null;
+
+    return { submissionId, signature };
+  }
+
+  // Keep accepting the original long format for any replies sent before the
+  // compact format was deployed.
+  if (!localPart.toLowerCase().startsWith(LEGACY_REPLY_LOCAL_PREFIX)) return null;
+  const encoded = localPart.slice(LEGACY_REPLY_LOCAL_PREFIX.length);
   const separator = encoded.lastIndexOf('.');
   if (separator <= 0 || separator === encoded.length - 1) return null;
 
@@ -49,10 +91,7 @@ export function parseEventSubmissionReplyRecipient(
   const signature = encoded.slice(separator + 1);
   if (!/^[0-9a-f-]{36}$/.test(submissionId) || !/^[A-Za-z0-9_-]{40,64}$/.test(signature)) return null;
 
-  const expected = submissionSignature(submissionId, secret);
-  const providedBytes = Buffer.from(signature);
-  const expectedBytes = Buffer.from(expected);
-  if (providedBytes.length !== expectedBytes.length || !crypto.timingSafeEqual(providedBytes, expectedBytes)) return null;
+  if (!signaturesMatch(signature, fullSubmissionSignature(submissionId, secret))) return null;
 
   return { submissionId, signature };
 }

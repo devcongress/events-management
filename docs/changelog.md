@@ -1,5 +1,11 @@
 # Changelog
 
+2026-08-07 — Fixed signed submission Reply-To delivery
+
+- Replaced oversized signed Reply-To local parts with a compact 120-bit HMAC format that Resend accepts.
+- Kept compatibility for replies addressed to the prior token format.
+- Made each submission-email retry button show its own retry state instead of marking every failed delivery as retrying.
+
 2026-08-07 — Unified reply routing and exposed safe provider details
 
 - Pointed speaker, registration, event-blast, and community-submission Reply-To configuration at `updates.devcongress.org`.
