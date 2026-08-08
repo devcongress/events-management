@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-08 — Made annual-conference workload visible at a glance
+
+- Removed the standalone Volunteer Intake callout from the Annual Conference Overview.
+- Added a compact, clickable **Completion by assignee** view for Owners and Organizers, grouped by accountable owner and ordered by pending workload with completed-versus-total task progress.
+- Selecting a person opens Work plan filtered to their owner value across the full conference; matching legacy aliases resolve through the active member directory.
+- Kept volunteer sessions assignment-only: they do not fetch or render the team-wide workload summary.
+
 ## 2026-08-08 — Condensed Community submissions rows
 
 - Removed proposal summaries from the review queue so each event occupies a single compact scan row; full proposal context remains in the existing right-side drawer.

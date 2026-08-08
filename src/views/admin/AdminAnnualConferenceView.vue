@@ -10,7 +10,7 @@ import {
   type AnnualConferenceTask,
 } from '@/lib/annual-conference-work-plan';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
-import { fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
+import { fetchAdminOrganizers, fetchAnnualConferenceWorkPlan, queryKeys } from '@/src/lib/api';
 
 const route = useRoute();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
@@ -27,6 +27,75 @@ const edition = computed(() => workPlanQuery.data.value?.edition);
 const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
 const dependencySummary = computed(() => summarizeAnnualConferenceDependencies(tasks.value));
 const assignedAccess = computed(() => workPlanQuery.data.value?.permissions.access_scope === 'assigned');
+const organizersQuery = useQuery({
+  queryKey: queryKeys.adminOrganizers,
+  queryFn: fetchAdminOrganizers,
+  enabled: computed(() => Boolean(workPlanQuery.data.value) && !assignedAccess.value),
+});
+const taskCompletionByPerson = computed(() => {
+  const organizerByIdentity = new Map<string, { email: string; name: string }>();
+  const ambiguousIdentities = new Set<string>();
+  const normalizeIdentity = (value: string) => value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+  const registerIdentity = (identity: string, organizer: { email: string; name: string }) => {
+    const key = normalizeIdentity(identity);
+    if (!key || ambiguousIdentities.has(key)) return;
+    const existing = organizerByIdentity.get(key);
+    if (existing && existing.email !== organizer.email) {
+      organizerByIdentity.delete(key);
+      ambiguousIdentities.add(key);
+      return;
+    }
+    organizerByIdentity.set(key, organizer);
+  };
+
+  for (const member of organizersQuery.data.value?.organizers ?? []) {
+    if (member.status !== 'active') continue;
+    const organizer = {
+      email: member.email.trim().toLowerCase(),
+      name: member.display_name?.trim() || member.email,
+    };
+    registerIdentity(organizer.email, organizer);
+    registerIdentity(organizer.name, organizer);
+    registerIdentity(organizer.email.split('@')[0] ?? '', organizer);
+  }
+
+  const people = new Map<string, {
+    email: string;
+    name: string;
+    filterOwner: string;
+    complete: number;
+    pending: number;
+    total: number;
+  }>();
+
+  for (const task of tasks.value) {
+    if (!task.accountable_owner) continue;
+    const rawOwner = task.accountable_owner.trim();
+    const organizer = organizerByIdentity.get(normalizeIdentity(rawOwner));
+    const email = organizer?.email ?? rawOwner.toLowerCase();
+    const existing = people.get(email) ?? {
+      email,
+      name: organizer?.name ?? rawOwner,
+      filterOwner: rawOwner,
+      complete: 0,
+      pending: 0,
+      total: 0,
+    };
+    existing.total += 1;
+    if (task.status === 'done') existing.complete += 1;
+    else existing.pending += 1;
+    people.set(email, existing);
+  }
+
+  return [...people.values()]
+    .filter((person) => person.pending > 0)
+    .sort((a, b) => (
+      b.pending - a.pending || b.total - a.total || a.name.localeCompare(b.name)
+    ));
+});
 
 function formatConferenceDate(value: string | null | undefined): string {
   if (!value) return 'To be confirmed';
@@ -40,6 +109,10 @@ function formatConferenceDate(value: string | null | undefined): string {
 
 function taskStatusLabel(task: AnnualConferenceTask): string {
   return ANNUAL_CONFERENCE_STATUS_LABELS[task.status];
+}
+
+function personCompletionPercent(person: { complete: number; total: number }): number {
+  return person.total > 0 ? Math.round((person.complete / person.total) * 100) : 0;
 }
 
 function closeFacts(restoreFocus = false) {
@@ -273,23 +346,38 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <footer class="conference-brief__utility">
-          <div class="conference-brief__volunteer-copy">
-            <span class="conference-brief__live-dot" aria-hidden="true" />
+        <section v-if="!assignedAccess" class="conference-workload" aria-labelledby="conference-workload-title">
+          <div class="conference-workload__heading">
             <div>
-              <p class="conference-brief__eyebrow">{{ assignedAccess ? 'Conference access' : year === '2026' ? 'Volunteer intake' : 'Delivery timeline' }}</p>
-              <p>{{ assignedAccess ? 'Only your assigned work is visible' : year === '2026' ? 'Form live and ready to share' : 'Build phases and assign target dates' }}</p>
+              <p class="conference-brief__eyebrow">Team workload</p>
+              <h3 id="conference-workload-title">Completion by assignee</h3>
             </div>
           </div>
 
-          <RouterLink
-            :to="annualConferencePath(assignedAccess ? 'work-plan' : year === '2026' ? 'volunteers' : 'timeline', year)"
-            class="conference-brief__secondary-action motion-press"
-          >
-            <span>{{ assignedAccess ? 'Open my tasks' : year === '2026' ? 'Open volunteers' : 'Open timeline' }}</span>
-            <span class="conference-brief__action-arrow" aria-hidden="true">→</span>
-          </RouterLink>
-        </footer>
+          <div v-if="taskCompletionByPerson.length" class="conference-workload__list" aria-label="Task completion by person">
+            <RouterLink
+              v-for="person in taskCompletionByPerson"
+              :key="person.email"
+              :to="{
+                path: annualConferencePath('work-plan', year),
+                query: { owner: person.filterOwner },
+              }"
+              class="conference-workload__person motion-press"
+              :aria-label="`View ${person.name}'s tasks in the work plan`"
+            >
+              <div class="conference-workload__person-heading">
+                <p>{{ person.name }}</p>
+                <span>{{ person.pending }} pending</span>
+              </div>
+              <div class="conference-workload__meter" role="progressbar" :aria-label="`${person.name} task completion`" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="personCompletionPercent(person)">
+                <span :style="{ transform: `scaleX(${personCompletionPercent(person) / 100})` }" />
+              </div>
+              <p class="conference-workload__detail">{{ person.complete }} of {{ person.total }} complete</p>
+              <span class="conference-workload__open">View tasks <span aria-hidden="true">→</span></span>
+            </RouterLink>
+          </div>
+          <p v-else class="conference-workload__empty">There are no outstanding tasks with an accountable owner.</p>
+        </section>
       </section>
     </div>
   </div>
@@ -299,7 +387,6 @@ onUnmounted(() => {
 .conference-brief {
   position: relative;
   margin-bottom: 2.5rem;
-  border-bottom: 2px solid #111111;
 }
 
 .conference-brief__masthead {
@@ -773,50 +860,131 @@ onUnmounted(() => {
   color: #111111;
 }
 
-.conference-brief__utility {
+.conference-workload {
+  border-top: 1px solid #d9d5cc;
+  padding: clamp(1.35rem, 2.6vw, 2.1rem) 0;
+}
+
+.conference-workload__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.conference-workload__heading h3 {
+  margin: 0.4rem 0 0;
+  color: #111111;
+  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.conference-workload__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.conference-workload__person {
+  display: block;
+  min-width: 0;
+  border: 1px solid #d9d5cc;
+  border-radius: 6px;
+  background: #fffdf6;
+  color: inherit;
+  padding: 0.85rem 0.9rem;
+  text-decoration: none;
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.conference-workload__person-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.conference-workload__person-heading p {
+  min-width: 0;
+  margin: 0;
+  color: #111111;
+  overflow: hidden;
+  font-size: 0.86rem;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conference-workload__person-heading span,
+.conference-workload__detail {
+  margin: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.conference-workload__person-heading span {
+  flex: 0 0 auto;
+  color: #e8117f;
+}
+
+.conference-workload__meter {
+  height: 4px;
+  margin-top: 0.75rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e4e0d7;
+}
+
+.conference-workload__meter span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #111111;
+  transform-origin: left center;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.conference-workload__detail {
+  margin-top: 0.55rem;
+  color: #666666;
+}
+
+.conference-workload__open {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.5rem;
-  border-top: 1px solid #d9d5cc;
-  padding: 1rem 0;
-}
-
-.conference-brief__volunteer-copy {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-}
-
-.conference-brief__volunteer-copy > div > p:last-child {
-  margin: 0.25rem 0 0;
-  color: #444444;
-  font-size: 0.86rem;
-  font-weight: var(--font-weight-emphasis);
-}
-
-.conference-brief__live-dot {
-  width: 0.6rem;
-  height: 0.6rem;
-  flex: 0 0 auto;
-  border: 1px solid #111111;
-  border-radius: 50%;
-  background: #f5e642;
-}
-
-.conference-brief__secondary-action {
-  display: inline-flex;
-  min-height: 2.75rem;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.75rem;
-  border-bottom: 1px solid #a8a49a;
+  margin-top: 0.8rem;
   color: #111111;
   font-family: var(--font-mono), monospace;
-  font-size: 0.62rem;
+  font-size: 0.54rem;
   font-weight: var(--font-weight-label);
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.conference-workload__open span {
+  color: #e8117f;
+  font-size: 0.8rem;
+  line-height: 0;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.conference-workload__empty {
+  margin: 0.9rem 0 0;
+  color: #646464;
+  font-size: 0.86rem;
+  font-weight: var(--font-weight-emphasis);
+  line-height: 1.55;
 }
 
 .conference-brief__action-arrow {
@@ -844,7 +1012,7 @@ onUnmounted(() => {
 
 @media (hover: hover) and (pointer: fine) {
   .conference-notes__trigger:hover,
-  .conference-brief__secondary-action:hover {
+  .conference-dependencies__action:hover {
     color: #111111;
     border-bottom-color: #111111;
   }
@@ -854,7 +1022,16 @@ onUnmounted(() => {
   }
 
   .conference-brief__primary-action:hover .conference-brief__action-arrow,
-  .conference-brief__secondary-action:hover .conference-brief__action-arrow {
+  .conference-dependencies__action:hover .conference-brief__action-arrow {
+    transform: translate3d(3px, 0, 0);
+  }
+
+  .conference-workload__person:hover {
+    border-color: #111111;
+    transform: translate3d(0, -2px, 0);
+  }
+
+  .conference-workload__person:hover .conference-workload__open span {
     transform: translate3d(3px, 0, 0);
   }
 }
@@ -889,10 +1066,9 @@ onUnmounted(() => {
     width: fit-content;
   }
 
-  .conference-brief__utility {
+  .conference-workload__heading {
     align-items: flex-start;
     flex-direction: column;
-    gap: 0.85rem;
   }
 
   .conference-dependencies {
@@ -915,6 +1091,9 @@ onUnmounted(() => {
   .conference-facts-popover-leave-active,
   .conference-notes__chevron,
   .conference-delivery__progress span,
+  .conference-workload__meter span,
+  .conference-workload__person,
+  .conference-workload__open span,
   .conference-brief__action-arrow {
     transition-duration: 1ms;
   }

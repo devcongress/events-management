@@ -31,6 +31,11 @@ const statusFilter = ref<'all' | AnnualConferenceTask['status']>('all');
 const workstreamFilter = ref<'all' | AnnualConferenceTask['workstream']>('all');
 const ownerFilter = ref('all');
 const ledgerPage = ref(1);
+const routeOwnerFilter = computed(() => {
+  const owner = route.query.owner;
+  return typeof owner === 'string' ? owner.trim() : '';
+});
+const routeOwnerFilterApplied = ref(false);
 
 type LedgerViewTransition = {
   finished: Promise<void>;
@@ -142,6 +147,18 @@ watch([phaseFilter, statusFilter, workstreamFilter, ownerFilter], () => {
 watch(visibleTasks, () => {
   ledgerPage.value = Math.min(ledgerPage.value, ledgerPageCount.value);
 });
+
+watch([owners, routeOwnerFilter], () => {
+  if (routeOwnerFilterApplied.value || !routeOwnerFilter.value || owners.value.length === 0) return;
+  const requestedOwner = owners.value.find((owner) => owner === routeOwnerFilter.value);
+  if (!requestedOwner) return;
+
+  updateLedgerFilters(() => {
+    phaseFilter.value = 'all';
+    ownerFilter.value = requestedOwner;
+  });
+  routeOwnerFilterApplied.value = true;
+}, { immediate: true });
 
 const createMutation = useMutation({
   mutationFn: (input: AnnualConferenceTaskCreateInput) => createAnnualConferenceTask(year.value, input),
