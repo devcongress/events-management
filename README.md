@@ -1,7 +1,7 @@
 # DevCongress Community
 
 [![CI](https://github.com/devcongress/events-management/actions/workflows/ci.yml/badge.svg)](https://github.com/devcongress/events-management/actions/workflows/ci.yml)
-[![Status](https://img.shields.io/badge/status-prototype-e8117f?style=flat-square)](docs/README.md)
+[![Status](https://img.shields.io/badge/status-active%20development-e8117f?style=flat-square)](docs/README.md)
 [![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-deployed-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://em.devcongress.org)
 [![Cloudflare Worker](https://img.shields.io/badge/Cloudflare%20Worker-deployed-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://events-management.admins-a7d.workers.dev)
 
@@ -13,21 +13,27 @@
 [![pnpm](https://img.shields.io/badge/pnpm-10-f69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-f5e642?style=flat-square)](LICENSE)
 
-DevCongress Community is an open-source event operations app for running DevCongress meetups. It helps organizers publish events, manage CFP and speaker follow-up, import attendance, collect feedback, and prepare live quiz sessions.
+DevCongress Community is the practical backstage for DevCongress meetups: the place where a good idea becomes an event people can actually find, attend, and remember. It helps organizers publish events, review talks, follow up with speakers, import attendance, collect feedback, and run a live learning room without scattering the work across spreadsheets, inboxes, and “who has the latest link?” messages.
 
-The app is a Vue 3 + Vite frontend served by a Bun/Hono API, with Cloudflare and Supabase support being introduced gradually as the prototype moves toward production use.
+The app is a Vue 3 + Vite frontend with a Hono API. Cloudflare Pages/Workers and Supabase back the deployed path; JSON compatibility storage remains only for domains still being migrated to relational tables.
 
 ---
 
 ## Overview
 
-**Key capabilities:**
+**What it helps a small organizer team keep moving:**
 
-- Public meetup pages, archive pages, CFP entry, and post-event feedback forms
-- Organizer workflows for event publishing, talk review, speaker access, attendance, media, feedback, and quiz setup
-- Luma CSV attendance import with monthly event-window checks and attendance summaries
-- Supabase-backed organizer auth and public data paths where production persistence is already active
-- Cloudflare Pages and Worker deployment path with same-origin `/api/*` routing
+- Give the community a trustworthy home for meetup details, CFPs, archives, and post-event feedback
+- Keep event publishing, talk review, speaker follow-up, attendance, media, feedback, and quiz setup in one organizer workspace
+- Turn Luma CSV exports into monthly attendance signals instead of another abandoned folder of spreadsheets
+- Protect organizer work with Supabase-backed access, short-lived app sessions, and scoped Annual Conference responsibilities
+- Serve the public and organizer experience through Cloudflare Pages/Workers with same-origin `/api/*` routing
+
+### Production posture
+
+The organizer and public-write boundaries are hardened, the forward-only hardening migrations are applied, and the repository checks run in CI. Production MFA, alerting, backup restoration, retention, live RLS verification, and runtime performance measurements are ongoing operational assurance—not unresolved application implementation work.
+
+See the [technical-debt register](docs/reference/technical-debt.md) for evidence, impact, exit criteria, and the distinction between repository work and platform work.
 
 For the full system shape, see [Architecture](docs/architecture.md) and [Implementation Notes](docs/implementation.md).
 
@@ -36,6 +42,8 @@ For the full system shape, see [Architecture](docs/architecture.md) and [Impleme
 ## Quick Start
 
 ### For Contributors
+
+Bring your curiosity; the fastest way to understand the app is to seed it, make an event move through its lifecycle, and follow the data into the organizer workspace.
 
 ```bash
 pnpm install
@@ -83,6 +91,7 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 | [Auth](docs/auth.md) | Supabase-only organizer auth, roles, sessions, and security notes |
 | [Deployment Plan](docs/deployment-cloudflare-supabase.md) | Cloudflare Pages/Workers, Supabase, and production rollout notes |
 | [Public Meetup API](docs/public-meetups-api.md) | Read-only meetup API contract for `devcongress.org` integration |
+| [Technical Debt](docs/reference/technical-debt.md) | Evidence-backed production and architecture debt register |
 
 ### Reference
 

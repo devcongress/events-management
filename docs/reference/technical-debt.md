@@ -11,7 +11,24 @@ This register is intentionally direct. It helps contributors understand what is 
 | P2 | Important maintainability or quality improvement |
 | P3 | Nice-to-have cleanup |
 
-## Current Debt
+## Current Status — 2026-08-08
+
+All identified implementation debt from the current audit has been addressed, and the corresponding forward-only migrations are applied. There are no open repository release blockers in this register.
+
+The items below are deliberately not classified as debt: they are future scale/design choices or normal operating assurance. They should be justified by product growth or production measurements before implementation.
+
+| Area | Current posture | Future trigger |
+|---|---|---|
+| Relational migration | Compatibility documents use compare-and-swap protection. | Migrate a domain when its data volume, reporting, or concurrency requirements exceed the compatibility boundary. |
+| Delivery execution | Public responses persist first; Worker-lifetime delivery and durable retry state cover the current scope. | Add leased scheduled draining when provider volume or interruption evidence justifies a dedicated executor. |
+| Audit architecture | Current audit events cover the implemented organizer workflows. | Introduce a transactional outbox when a regulated workflow or an evidence gap requires atomic audit persistence. |
+| Performance | Feedback reads are batched, attendance overview is summary-only, event data shares cache keys, and polling is serialized. | Tune further only from production payload, latency, query-count, or Worker-CPU measurements. |
+| Platform assurance | Migrations are applied and repository controls are deployed. | Continue normal MFA, alert, backup, retention, and access-review operations. |
+| Architecture | Existing extracted services cover the high-risk boundaries. | Split further only when a domain change demonstrates that the route module is impeding delivery or review. |
+
+## Historical Debt Snapshot
+
+The entries below predate the 2026-08-08 hardening release and are retained for provenance. Where they conflict with the current table, the current table wins.
 
 | Priority | Area | Debt | Evidence | Suggested Direction |
 |---|---|---|---|---|
