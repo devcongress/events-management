@@ -31,7 +31,7 @@ function toEdition(row: EditionRow): AnnualConferenceEdition {
 }
 
 function toTask(row: TaskRow): AnnualConferenceTask {
-  return row;
+  return { ...row, dependency_task_ids: row.dependency_task_ids ?? [] };
 }
 
 function toPhase(row: PhaseRow): AnnualConferencePhase {
@@ -229,7 +229,7 @@ export async function createSupabaseAnnualConferenceTask(
     edition_id: edition.id,
     title: input.title,
     details: input.details ?? null,
-    internal_note: input.internal_note ?? null,
+    internal_note: null,
     phase_id: input.phase_id ?? null,
     workstream: input.workstream,
     accountable_owner: input.accountable_owner,
@@ -237,7 +237,7 @@ export async function createSupabaseAnnualConferenceTask(
     priority: input.priority ?? null,
     target_date: input.target_date ?? null,
     status,
-    dependency_note: input.dependency_note ?? null,
+    dependency_task_ids: input.dependency_task_ids ?? [],
     source: 'manual',
     source_row: null,
     sort_order: (latestOrderResult.data?.sort_order ?? 0) + 1,

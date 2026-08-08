@@ -629,6 +629,7 @@ export interface Database {
           priority: AnnualConferenceTaskPriority | null;
           target_date: string | null;
           status: AnnualConferenceTaskStatus;
+          dependency_task_ids: string[];
           dependency_note: string | null;
           source: 'excel_seed' | 'manual';
           source_row: number | null;
@@ -652,6 +653,7 @@ export interface Database {
           priority?: AnnualConferenceTaskPriority | null;
           target_date?: string | null;
           status?: AnnualConferenceTaskStatus;
+          dependency_task_ids?: string[];
           dependency_note?: string | null;
           source?: 'excel_seed' | 'manual';
           source_row?: number | null;
@@ -675,6 +677,7 @@ export interface Database {
           priority?: AnnualConferenceTaskPriority | null;
           target_date?: string | null;
           status?: AnnualConferenceTaskStatus;
+          dependency_task_ids?: string[];
           dependency_note?: string | null;
           source?: 'excel_seed' | 'manual';
           source_row?: number | null;

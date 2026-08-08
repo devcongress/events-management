@@ -2,6 +2,7 @@ import {
   annualConferenceOwnershipNeedsActiveOrganizerLookup,
   validateAnnualConferencePhaseDates,
   validateAnnualConferenceTaskOwnership,
+  validateAnnualConferenceTaskDependencies,
   validateAnnualConferenceTaskSchedule,
   type AnnualConferenceEditionCreateInput,
   type AnnualConferencePhaseCreateInput,
@@ -251,6 +252,8 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       );
       const ownership = validateAnnualConferenceTaskOwnership(input, emails);
       if (!ownership.ok) throw new AnnualConferenceServiceError('invalid_input', ownership.error);
+      const dependencyError = validateAnnualConferenceTaskDependencies(ownership.value, plan.tasks);
+      if (dependencyError) throw new AnnualConferenceServiceError('invalid_input', dependencyError);
       const task = await repository.createTask(plan.edition, ownership.value, actor.email);
       await dependencies.audit({
         action: 'annual_conference.task.create',
@@ -303,6 +306,8 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       }
       const ownership = validateAnnualConferenceTaskOwnership(input, activeOrganizerEmails, existing);
       if (!ownership.ok) throw new AnnualConferenceServiceError('invalid_input', ownership.error);
+      const dependencyError = validateAnnualConferenceTaskDependencies(ownership.value, plan.tasks, existing.id);
+      if (dependencyError) throw new AnnualConferenceServiceError('invalid_input', dependencyError);
       const proposedSchedule = {
         phase_id: 'phase_id' in input ? input.phase_id : existing.phase_id,
         target_date: 'target_date' in input ? input.target_date : existing.target_date,

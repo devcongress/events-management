@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-08 — Made Annual Conference task dependencies actionable
+
+- Replaced the Annual Conference task form's free-text **Dependency** and **Internal note** fields with explicit **Depends on** prerequisite-task links.
+- Validated every link at the service boundary, rejecting duplicate, self-referential, cross-edition, and circular task chains while preserving legacy note data without guessing its meaning.
+- Added the Overview **Dependency pulse** with a concise status summary, link/waiting/ready totals, and direct prerequisite-to-downstream paths.
+
 ## 2026-08-08 — Removed the duplicate Annual Conference section divider
 
 - Removed the Overview page's redundant black-and-pink masthead divider beneath the Annual Conference navigation.

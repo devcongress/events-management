@@ -702,7 +702,6 @@ const eventFeedbackSubmissionSchema = z.object({
 const annualConferenceTaskCreateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160),
   details: z.string().trim().max(2000).nullable().optional(),
-  internal_note: z.string().trim().max(2000).nullable().optional(),
   phase_id: z.string().uuid().nullable().optional(),
   workstream: z.enum(ANNUAL_CONFERENCE_WORKSTREAMS),
   accountable_owner: z.string().trim().min(1, 'An accountable owner is required.').max(120),
@@ -710,12 +709,11 @@ const annualConferenceTaskCreateSchema = z.object({
   priority: z.enum(ANNUAL_CONFERENCE_TASK_PRIORITIES).nullable().optional(),
   target_date: z.string().date().nullable().optional(),
   status: z.enum(ANNUAL_CONFERENCE_TASK_STATUSES).optional().default('not_started'),
-  dependency_note: z.string().trim().max(2000).nullable().optional(),
+  dependency_task_ids: z.array(z.string().uuid()).max(30).optional().default([]),
 }).strict();
 const annualConferenceTaskUpdateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160).optional(),
   details: z.string().trim().max(2000).nullable().optional(),
-  internal_note: z.string().trim().max(2000).nullable().optional(),
   phase_id: z.string().uuid().nullable().optional(),
   workstream: z.enum(ANNUAL_CONFERENCE_WORKSTREAMS).optional(),
   accountable_owner: z.string().trim().min(1).max(120).nullable().optional(),
@@ -723,7 +721,7 @@ const annualConferenceTaskUpdateSchema = z.object({
   priority: z.enum(ANNUAL_CONFERENCE_TASK_PRIORITIES).nullable().optional(),
   target_date: z.string().date().nullable().optional(),
   status: z.enum(ANNUAL_CONFERENCE_TASK_STATUSES).optional(),
-  dependency_note: z.string().trim().max(2000).nullable().optional(),
+  dependency_task_ids: z.array(z.string().uuid()).max(30).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, {
   message: 'Provide at least one task change.',
 });

@@ -28,7 +28,7 @@ For every row:
 - assign one accountable owner;
 - list everyone else involved as collaborators;
 - add a realistic target date;
-- keep dependencies and the next concrete action visible;
+- link every prerequisite task through **Depends on** rather than describing it in free text; use the Overview dependency pulse to see the current blockers and ready work;
 - link supporting documents when they exist;
 - mark work `Done` only for the active annual edition.
 
@@ -75,6 +75,7 @@ The first operational workspace slice is now in place:
 - 2026 has fixed **Phase 1** (1–31 August) and **Phase 2** (1 September–19 December); 12 confirmed kickoff tasks are assigned to Phase 1 and the remaining 15 tasks stay in **No phase** until organizers classify them;
 - future editions can define any number of non-overlapping phases, select a planning owner or inherit the previous edition's owner, and reorder, rename, redate, or delete phases without deleting tasks;
 - task target dates remain nullable but are prioritized by the conference-health dashboard; an assigned task's target date cannot exceed its phase end date;
+- task dependencies are explicit prerequisite-task links within one edition; the Work Plan blocks self-links and circular chains, and Overview summarizes links, waiting tasks, ready tasks, and the direct blocker paths;
 - owners and organizers can add an authenticated user with the **Volunteer** role from People & Access;
 - volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update only those task statuses;
 - phone organizers receive mobile versions of Overview, Work Plan, Timeline/phase management, Volunteers, edition controls, and task create/edit flows; phone volunteers receive a separate assignment-only Overview and My Tasks interface;

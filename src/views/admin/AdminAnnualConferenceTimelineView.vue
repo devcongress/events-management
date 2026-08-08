@@ -515,6 +515,7 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
       :open="Boolean(selectedTask)"
       :mode="editingTaskId ? 'edit' : 'details'"
       :task="selectedTask"
+      :tasks="tasks"
       :phases="phases"
       :organizer-labels="organizerLabels"
       :submitting="updateTaskMutation.isPending.value"

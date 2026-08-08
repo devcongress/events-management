@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-057: Direct Edition-Scoped Task Dependency Links
+
+Date: 2026-08-08
+Status: Accepted
+
+Context: A free-text dependency note cannot reliably tell the Work Plan which task must finish first, cannot identify circular work, and cannot produce a useful organizer summary. Existing notes may describe context rather than a task relationship, so inferring links from them would be unsafe.
+
+Decision: Store each Annual Conference task's direct prerequisite task IDs in `annual_conference_tasks.dependency_task_ids`. Validate links in the application service against the current edition, reject duplicates and self-links, and detect circular chains before persistence. Keep the raw relationship on the task row so Supabase and the local mock adapter share one atomic contract at the current planning scale. The Work Plan writes the links through **Depends on**; Overview derives the dependency pulse from the same data. Remove the free-text dependency and internal-note inputs without deleting historical note columns or attempting to reinterpret their contents.
+
+Trade-offs: An ID array makes direct prerequisites simple and atomic for the current small per-edition task set, but does not yet support per-edge metadata such as a dependency type, owner, or audit history. Service validation remains necessary because the database cannot express the full directed-cycle rule with a check constraint.
+
+Alternatives considered: Keep a free-text note (not actionable), infer task links from existing notes (ambiguous), add a join table immediately (more schema and adapter complexity before edge metadata is required), or allow UI-only validation (bypassable).
+
+Revisit when: Dependencies need types, dates, per-link ownership, historical edge audit, cross-edition links, or task counts large enough to need SQL graph queries.
+
 ## ADR-056: Immutable Annual-Conference Income History With Source-Linked Revenue
 
 Date: 2026-08-08

@@ -13,6 +13,7 @@ const props = defineProps<{
   open: boolean;
   mode: 'details' | 'edit' | 'create';
   task: AnnualConferenceTask | null;
+  tasks: AnnualConferenceTask[];
   phases: AnnualConferencePhase[];
   defaultPhaseId?: string | null;
   organizerLabels?: Record<string, string>;
@@ -41,6 +42,13 @@ const drawerTitle = computed(() => (
   props.mode === 'create' ? 'Add a conference task' : props.task?.title ?? 'Conference task'
 ));
 const taskPhase = computed(() => props.phases.find((phase) => phase.id === props.task?.phase_id) ?? null);
+const dependencyTasks = computed(() => {
+  if (!props.task) return [];
+  const tasksById = new Map(props.tasks.map((task) => [task.id, task]));
+  return props.task.dependency_task_ids
+    .map((taskId) => tasksById.get(taskId))
+    .filter((task): task is AnnualConferenceTask => Boolean(task));
+});
 let previouslyFocused: HTMLElement | null = null;
 let previousBodyOverflow = '';
 let previousDocumentOverflow = '';
@@ -199,6 +207,7 @@ onUnmounted(() => {
                   :form-id="taskFormId"
                   mode="create"
                   :phases="phases"
+                  :tasks="tasks"
                   :default-phase-id="defaultPhaseId"
                   :submitting="submitting"
                   :show-actions="false"
@@ -221,6 +230,7 @@ onUnmounted(() => {
                   mode="edit"
                   :task="task"
                   :phases="phases"
+                  :tasks="tasks"
                   :submitting="submitting"
                   :show-actions="false"
                   @submit="emit('submit', $event)"
@@ -279,16 +289,15 @@ onUnmounted(() => {
                   </div>
                 </dl>
 
-                <div v-if="task.dependency_note || task.internal_note" class="mt-6 grid gap-5 sm:grid-cols-2">
-                  <section v-if="task.dependency_note" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-                    <h3 class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">Dependency</h3>
-                    <p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ task.dependency_note }}</p>
-                  </section>
-                  <section v-if="task.internal_note" class="rounded-md border border-dc-border bg-dc-paper-warm p-4">
-                    <h3 class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Internal note</h3>
-                    <p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ task.internal_note }}</p>
-                  </section>
-                </div>
+                <section v-if="dependencyTasks.length" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
+                  <h3 class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">Depends on</h3>
+                  <ul class="mt-3 grid gap-2" aria-label="Prerequisite tasks">
+                    <li v-for="dependency in dependencyTasks" :key="dependency.id" class="flex items-center justify-between gap-3 border-t border-dc-border pt-2 first:border-t-0 first:pt-0">
+                      <span class="min-w-0 text-sm font-semibold text-dc-ink">{{ dependency.title }}</span>
+                      <span class="shrink-0 font-mono text-[8px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ ANNUAL_CONFERENCE_STATUS_LABELS[dependency.status] }}</span>
+                    </li>
+                  </ul>
+                </section>
 
               </template>
             </div>

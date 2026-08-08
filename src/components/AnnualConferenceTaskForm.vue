@@ -28,6 +28,7 @@ type TaskFormValue = Omit<AnnualConferenceTaskCreateInput, 'accountable_owner'> 
 const props = defineProps<{
   mode: 'create' | 'edit';
   task?: AnnualConferenceTask | null;
+  tasks: AnnualConferenceTask[];
   phases: AnnualConferencePhase[];
   defaultPhaseId?: string | null;
   submitting?: boolean;
@@ -47,7 +48,6 @@ const organizersQuery = useQuery({
 const form = reactive({
   title: '',
   details: '',
-  internal_note: '',
   phase_id: '',
   workstream: 'programme_speakers' as AnnualConferenceTask['workstream'],
   accountable_owner: '',
@@ -55,7 +55,7 @@ const form = reactive({
   priority: '' as Exclude<AnnualConferenceTask['priority'], null> | '',
   target_date: '',
   status: 'not_started' as AnnualConferenceTask['status'],
-  dependency_note: '',
+  dependency_task_ids: [] as string[],
 });
 const workstreamOptions = ANNUAL_CONFERENCE_WORKSTREAMS.map((workstream) => ({
   value: workstream,
@@ -162,6 +162,23 @@ const collaboratorDropdownDisabled = computed(() => (
   || organizersQuery.isError.value
   || collaboratorOptions.value.every((option) => option.disabled)
 ));
+const dependencyTaskOptions = computed(() => props.tasks
+  .filter((task) => task.id !== props.task?.id)
+  .map((task) => ({
+    value: task.id,
+    label: task.title,
+    note: ANNUAL_CONFERENCE_STATUS_LABELS[task.status],
+  }))
+  .sort((left, right) => left.label.localeCompare(right.label)));
+const dependencySelectionText = computed(() => {
+  if (form.dependency_task_ids.length === 0) return '';
+  const taskById = new Map(props.tasks.map((task) => [task.id, task]));
+  const names = form.dependency_task_ids
+    .map((taskId) => taskById.get(taskId)?.title)
+    .filter((title): title is string => Boolean(title));
+  if (names.length <= 2) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
+});
 
 function organizerValue(organizer: OrganizerMembership): string {
   return organizer.email.trim().toLowerCase();
@@ -186,7 +203,6 @@ function resetForm() {
   const task = props.task;
   form.title = task?.title ?? '';
   form.details = task?.details ?? '';
-  form.internal_note = task?.internal_note ?? '';
   form.phase_id = task?.phase_id ?? (props.mode === 'create' ? props.defaultPhaseId ?? '' : '');
   form.workstream = task?.workstream ?? 'programme_speakers';
   form.accountable_owner = task?.accountable_owner ?? '';
@@ -194,7 +210,7 @@ function resetForm() {
   form.priority = task?.priority ?? '';
   form.target_date = task?.target_date ?? '';
   form.status = task?.status ?? 'not_started';
-  form.dependency_note = task?.dependency_note ?? '';
+  form.dependency_task_ids = [...(task?.dependency_task_ids ?? [])];
 }
 
 watch(
@@ -215,7 +231,6 @@ function submitForm() {
   emit('submit', {
     title: form.title.trim(),
     details: optionalText(form.details),
-    internal_note: optionalText(form.internal_note),
     phase_id: form.phase_id || null,
     workstream: form.workstream,
     accountable_owner: optionalText(form.accountable_owner),
@@ -224,7 +239,8 @@ function submitForm() {
     priority: form.priority || null,
     target_date: form.target_date || null,
     status: form.status,
-    dependency_note: optionalText(form.dependency_note),
+    dependency_task_ids: [...new Set(form.dependency_task_ids)]
+      .filter((taskId) => taskId !== props.task?.id),
   });
 }
 </script>
@@ -334,25 +350,19 @@ function submitForm() {
         />
       </label>
 
-      <label class="block">
-        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Dependency</span>
-        <textarea
-          v-model="form.dependency_note"
-          class="editorial-input mt-2 min-h-20 resize-none"
-          maxlength="2000"
-          placeholder="What must happen first?"
+      <div class="block lg:col-span-2">
+        <AppMultiSelectDropdown
+          v-model="form.dependency_task_ids"
+          label="Depends on"
+          :options="dependencyTaskOptions"
+          :selected-text="dependencySelectionText"
+          :disabled="submitting || dependencyTaskOptions.length === 0"
+          menu-align="right"
         />
-      </label>
-
-      <label class="block">
-        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Internal note</span>
-        <textarea
-          v-model="form.internal_note"
-          class="editorial-input mt-2 min-h-20 resize-none"
-          maxlength="2000"
-          placeholder="Decision, shortlist, or follow-up note."
-        />
-      </label>
+        <span class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
+          Choose the tasks that must be complete before this work can move forward. The Overview will surface the resulting delivery path.
+        </span>
+      </div>
     </div>
 
     <div v-if="showActions !== false" class="flex flex-wrap justify-end gap-3 border-t-2 border-dc-border pt-4">

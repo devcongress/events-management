@@ -52,6 +52,7 @@ export interface AnnualConferenceTask {
   priority: AnnualConferenceTaskPriority | null;
   target_date: string | null;
   status: AnnualConferenceTaskStatus;
+  dependency_task_ids: string[];
   dependency_note: string | null;
   source: 'excel_seed' | 'manual';
   source_row: number | null;
@@ -66,7 +67,6 @@ export interface AnnualConferenceTask {
 export interface AnnualConferenceTaskCreateInput {
   title: string;
   details?: string | null;
-  internal_note?: string | null;
   phase_id?: string | null;
   workstream: AnnualConferenceWorkstream;
   accountable_owner: string;
@@ -74,7 +74,7 @@ export interface AnnualConferenceTaskCreateInput {
   priority?: AnnualConferenceTaskPriority | null;
   target_date?: string | null;
   status?: AnnualConferenceTaskStatus;
-  dependency_note?: string | null;
+  dependency_task_ids?: string[];
 }
 
 export type AnnualConferenceTaskUpdateInput = Partial<
@@ -82,7 +82,6 @@ export type AnnualConferenceTaskUpdateInput = Partial<
     AnnualConferenceTask,
     | 'title'
     | 'details'
-    | 'internal_note'
     | 'phase_id'
     | 'workstream'
     | 'accountable_owner'
@@ -90,7 +89,7 @@ export type AnnualConferenceTaskUpdateInput = Partial<
     | 'priority'
     | 'target_date'
     | 'status'
-    | 'dependency_note'
+    | 'dependency_task_ids'
   >
 >;
 
@@ -102,6 +101,25 @@ export interface AnnualConferenceWorkPlanSummary {
   not_started: number;
   unassigned: number;
   completion_percent: number;
+}
+
+export interface AnnualConferenceDependencyEdge {
+  prerequisite: AnnualConferenceTask;
+  dependent: AnnualConferenceTask;
+}
+
+export interface AnnualConferenceDependencyBlocker {
+  prerequisite: AnnualConferenceTask;
+  dependents: AnnualConferenceTask[];
+}
+
+export interface AnnualConferenceDependencySummary {
+  total_links: number;
+  linked_tasks: number;
+  waiting_tasks: AnnualConferenceTask[];
+  ready_tasks: AnnualConferenceTask[];
+  blockers: AnnualConferenceDependencyBlocker[];
+  edges: AnnualConferenceDependencyEdge[];
 }
 
 export type AnnualConferenceReadiness =
@@ -217,7 +235,7 @@ export const ANNUAL_CONFERENCE_2026_EDITION: AnnualConferenceEdition = {
 
 type SeedTask = Omit<
   AnnualConferenceTask,
-  'id' | 'edition_id' | 'phase_id' | 'source' | 'source_row' | 'sort_order' | 'created_by_email' | 'updated_by_email' | 'completed_at' | 'created_at' | 'updated_at'
+  'id' | 'edition_id' | 'phase_id' | 'source' | 'source_row' | 'sort_order' | 'created_by_email' | 'updated_by_email' | 'completed_at' | 'created_at' | 'updated_at' | 'dependency_task_ids'
 > & {
   source_row: number;
 };
@@ -587,6 +605,7 @@ export const ANNUAL_CONFERENCE_2026_SEED_TASKS: AnnualConferenceTask[] = seedTas
   phase_id: ANNUAL_CONFERENCE_2026_PHASE_1_SOURCE_ROWS.has(task.source_row)
     ? '20260000-0000-4000-8000-000000000101'
     : null,
+  dependency_task_ids: [],
   source: task.source_row === 28 ? 'manual' : 'excel_seed',
   sort_order: index + 1,
   created_by_email: null,
@@ -686,6 +705,106 @@ export function validateAnnualConferenceTaskSchedule(
     return `Target date must be on or before ${phase.ends_on}, the end of ${phase.name}.`;
   }
   return null;
+}
+
+export function validateAnnualConferenceTaskDependencies(
+  input: Pick<AnnualConferenceTaskUpdateInput, 'dependency_task_ids'>,
+  tasks: readonly AnnualConferenceTask[],
+  taskId?: string,
+): string | null {
+  if (!('dependency_task_ids' in input)) return null;
+
+  const dependencyIds = input.dependency_task_ids ?? [];
+  const uniqueIds = new Set(dependencyIds);
+  if (uniqueIds.size !== dependencyIds.length) {
+    return 'Choose each prerequisite task only once.';
+  }
+  if (taskId && uniqueIds.has(taskId)) {
+    return 'A task cannot depend on itself.';
+  }
+
+  const taskIds = new Set(tasks.map((task) => task.id));
+  if ([...uniqueIds].some((dependencyId) => !taskIds.has(dependencyId))) {
+    return 'Every prerequisite must belong to this conference edition.';
+  }
+  if (!taskId) return null;
+
+  const prerequisitesByTaskId = new Map(
+    tasks.map((task) => [
+      task.id,
+      task.id === taskId ? [...uniqueIds] : task.dependency_task_ids,
+    ]),
+  );
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+
+  function reachesCurrentTask(task: string): boolean {
+    if (task === taskId) return true;
+    if (visiting.has(task) || visited.has(task)) return false;
+    visiting.add(task);
+    const reaches = (prerequisitesByTaskId.get(task) ?? []).some(reachesCurrentTask);
+    visiting.delete(task);
+    visited.add(task);
+    return reaches;
+  }
+
+  return [...uniqueIds].some(reachesCurrentTask)
+    ? 'This dependency would create a circular task chain.'
+    : null;
+}
+
+export function summarizeAnnualConferenceDependencies(
+  tasks: readonly AnnualConferenceTask[],
+): AnnualConferenceDependencySummary {
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+  const edges: AnnualConferenceDependencyEdge[] = [];
+  const dependencyIdsByTask = new Map<string, string[]>();
+
+  for (const dependent of tasks) {
+    const dependencyIds = [...new Set(dependent.dependency_task_ids)]
+      .filter((dependencyId) => dependencyId !== dependent.id && tasksById.has(dependencyId));
+    dependencyIdsByTask.set(dependent.id, dependencyIds);
+    for (const dependencyId of dependencyIds) {
+      edges.push({ prerequisite: tasksById.get(dependencyId)!, dependent });
+    }
+  }
+
+  const waitingTasks = tasks.filter((task) => (
+    task.status !== 'done'
+    && (dependencyIdsByTask.get(task.id) ?? []).some((dependencyId) => tasksById.get(dependencyId)?.status !== 'done')
+  ));
+  const readyTasks = tasks.filter((task) => (
+    task.status === 'not_started'
+    && (dependencyIdsByTask.get(task.id) ?? []).length > 0
+    && (dependencyIdsByTask.get(task.id) ?? []).every((dependencyId) => tasksById.get(dependencyId)?.status === 'done')
+  ));
+  const dependentsByPrerequisite = new Map<string, AnnualConferenceTask[]>();
+
+  for (const edge of edges) {
+    if (edge.prerequisite.status === 'done' || edge.dependent.status === 'done') continue;
+    const dependents = dependentsByPrerequisite.get(edge.prerequisite.id) ?? [];
+    dependents.push(edge.dependent);
+    dependentsByPrerequisite.set(edge.prerequisite.id, dependents);
+  }
+
+  const blockers = [...dependentsByPrerequisite.entries()]
+    .map(([prerequisiteId, dependents]) => ({
+      prerequisite: tasksById.get(prerequisiteId)!,
+      dependents: [...dependents].sort((left, right) => left.title.localeCompare(right.title)),
+    }))
+    .sort((left, right) => (
+      right.dependents.length - left.dependents.length
+      || left.prerequisite.title.localeCompare(right.prerequisite.title)
+    ));
+
+  return {
+    total_links: edges.length,
+    linked_tasks: new Set(edges.map((edge) => edge.dependent.id)).size,
+    waiting_tasks: waitingTasks.sort((left, right) => left.title.localeCompare(right.title)),
+    ready_tasks: readyTasks.sort((left, right) => left.title.localeCompare(right.title)),
+    blockers,
+    edges,
+  };
 }
 
 function ownershipKey(value: string): string {
