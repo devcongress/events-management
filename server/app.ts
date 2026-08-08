@@ -605,11 +605,12 @@ const speakerSubmissionCreateSchema = adminCreateTalkSchema
   .omit({ slides_url: true, publish: true })
   .extend({
     event_id: z.string().trim().min(1, 'Event is required'),
-    topic: z.string().trim().min(1, 'Topic is required'),
+    topic: z.string().trim().max(120).optional().default('General'),
     abstract: z.string().trim().min(1, 'Presentation summary is required')
       .refine((value) => countWords(value) <= CFP_ABSTRACT_WORD_LIMIT, `Presentation summary must be ${CFP_ABSTRACT_WORD_LIMIT} words or fewer`),
-    bio: z.string().trim().min(1, 'Presenter bio is required')
-      .refine((value) => countWords(value) <= CFP_BIO_WORD_LIMIT, `Presenter bio must be ${CFP_BIO_WORD_LIMIT} words or fewer`),
+    bio: z.string().trim()
+      .refine((value) => countWords(value) <= CFP_BIO_WORD_LIMIT, `Presenter bio must be ${CFP_BIO_WORD_LIMIT} words or fewer`)
+      .optional().default(''),
     turnstile_action: z.string().trim().max(80).optional(),
     turnstile_token: z.string().trim().max(4096).optional(),
   })
@@ -620,9 +621,15 @@ const speakerSubmissionDecisionSchema = z.object({
   expires_in_days: z.coerce.number().int().min(1).max(31).optional().default(7),
 });
 const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
-const selectedSpeakerSlidesSchema = z.object({
-  slides_url: z.string().trim().min(1, 'Resource URL is required').max(2048)
-    .refine((value) => Boolean(safeHttpUrl(value)), 'Resource URL must use http or https'),
+const selectedSpeakerDetailsSchema = z.object({
+  topic: z.string().trim().max(120).optional(),
+  bio: z.string().trim().max(
+    SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
+    `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
+  ).optional().default(''),
+  slides_url: z.string().trim().max(2048)
+    .refine((value) => !value || Boolean(safeHttpUrl(value)), 'Resource URL must use http or https')
+    .optional().default(''),
 });
 const archiveMaterialFieldSchema = z.enum(['abstract', 'bio', 'slides_url']);
 const archiveMaterialsFollowUpRequestSchema = z.object({
@@ -1007,7 +1014,10 @@ function isPublicFeedbackEventRequest(path: string, method: string): boolean {
 }
 
 function isPublicCfpEventRequest(path: string, method: string): boolean {
-  return method === 'GET' && /^\/api\/cfp\/events\/[^/]+$/.test(path);
+  return method === 'GET' && (
+    /^\/api\/cfp\/events\/[^/]+$/.test(path)
+    || /^\/api\/cfp\/conferences\/\d{4}$/.test(path)
+  );
 }
 
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
@@ -1113,6 +1123,23 @@ async function getEventByRegistrationKey(key: string, c?: Context): Promise<Even
 
   const fallback = (await getAllMockEvents()).find((candidate) => candidate.slug === key);
   return fallback ? canonicalizeEventSchedule(fallback) : getEventById(key, c);
+}
+
+async function getAnnualConferenceEditionByYear(year: number, c?: Context) {
+  const repository = createAnnualConferenceRepository(c);
+  const editions = await repository.listEditions();
+  return editions.find((edition) => edition.year === year);
+}
+
+async function getAnnualConferenceEditionForProgrammeEvent(eventId: string, c?: Context) {
+  const repository = createAnnualConferenceRepository(c);
+  const editions = await repository.listEditions();
+  return editions.find((edition) => edition.conference_event_id === eventId);
+}
+
+async function canOpenSpeakerCallForEvent(event: Event, c?: Context): Promise<boolean> {
+  if (canOpenCfpForEvent(event)) return true;
+  return Boolean(await getAnnualConferenceEditionForProgrammeEvent(event.id, c));
 }
 
 async function createEvent(data: {
@@ -3781,6 +3808,70 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
   }
 });
 
+app.get('/api/annual-conference/:year/speakers', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const year = Number(yearParam);
+  const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.view');
+  if (capabilityError) return capabilityError;
+
+  try {
+    const edition = await getAnnualConferenceEditionByYear(year, c);
+    if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
+    if (!edition.conference_event_id) return c.json({ error: 'Conference speaker workspace is unavailable.' }, 503);
+    const event = await getEventById(edition.conference_event_id, c);
+    if (!event) return c.json({ error: 'Conference speaker workspace is unavailable.' }, 503);
+    const submissions = await getSpeakerSubmissionsByEvent(event.id);
+    const session = c.get('adminSession') ?? await getAdminSession(c);
+    if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
+    const access = await getAnnualConferenceAccessGrants(edition.id, session.membership_id, c);
+    const capabilities = effectiveAnnualConferenceCapabilities({
+      role: session.role,
+      grants: access,
+      isPlanningOwner: session.email?.trim().toLowerCase() === edition.task_creator_email.trim().toLowerCase(),
+    });
+    return c.json({
+      edition: { year: edition.year, label: edition.label, name: edition.name },
+      call: { open: event.status === 'cfp_open', public_path: `/speak/c/${edition.year}` },
+      permissions: { can_manage: hasAnnualConferenceCapability(capabilities, 'speakers.manage') },
+      counts: speakerSubmissionCounts(submissions),
+      submissions: submissions.map(serializeSpeakerSubmission),
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'annual_conference_speakers_read_failed', error, 'Unable to load conference speaker proposals.');
+  }
+});
+
+app.patch('/api/annual-conference/:year/speakers/call', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const parsed = z.object({ open: z.boolean() }).strict().safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'Choose whether the Call for Speakers is open.' }, 400);
+  const year = Number(yearParam);
+  const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+  if (capabilityError) return capabilityError;
+
+  try {
+    const edition = await getAnnualConferenceEditionByYear(year, c);
+    if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
+    if (!edition.conference_event_id) return c.json({ error: 'Conference speaker workspace is unavailable.' }, 503);
+    const event = await updateEvent(edition.conference_event_id, { status: parsed.data.open ? 'cfp_open' : 'cfp_closed' }, c);
+    await auditAdminAction(c, {
+      action: parsed.data.open ? 'annual_conference.speakers.call.open' : 'annual_conference.speakers.call.close',
+      targetType: 'annual_conference_edition',
+      targetId: edition.id,
+      metadata: { edition_year: year, conference_event_id: event.id },
+    });
+    return c.json({ open: event.status === 'cfp_open', public_path: `/speak/c/${year}` });
+  } catch (error) {
+    return internalErrorResponse(c, 'annual_conference_speakers_call_update_failed', error, 'Unable to update the Call for Speakers.');
+  }
+});
+
 app.get('/api/annual-conference/:year/finance', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
   if (adminError) return adminError;
@@ -5058,7 +5149,7 @@ app.get('/api/public/meetups/:slug/talks', async (c) => {
 
 app.get('/api/cfp/events/:eventId', async (c) => {
   c.header('Cache-Control', 'no-store');
-  const event = await getEventById(c.req.param('eventId'), c);
+  const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
   if (!event || event.status !== 'cfp_open' || !canOpenCfpForEvent(event)) {
     return c.json({ error: 'CFP event not found' }, 404);
   }
@@ -5070,6 +5161,29 @@ app.get('/api/cfp/events/:eventId', async (c) => {
     event_date: event.event_date,
     status: event.status,
     series_type: resolveEventSeriesType(event),
+  });
+});
+
+app.get('/api/cfp/conferences/:year', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
+
+  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+  const event = edition?.conference_event_id ? await getEventById(edition.conference_event_id, c) : undefined;
+  if (!edition || !event || event.status !== 'cfp_open') {
+    return c.json({ error: 'CFP event not found' }, 404);
+  }
+
+  return c.json({
+    id: event.id,
+    name: edition.name,
+    description: event.description,
+    event_date: edition.provisional_date ?? event.event_date,
+    status: event.status,
+    series_type: 'special',
+    call_scope: 'annual_conference',
+    edition_year: edition.year,
   });
 });
 
@@ -6453,7 +6567,7 @@ async function createBackfilledTalkForEvent(
 async function createSelectedSpeakerTalkForEvent(
   eventId: string,
   submission: SpeakerSubmission,
-  slidesUrl: string,
+  details: z.infer<typeof selectedSpeakerDetailsSchema>,
   linkKind?: ArchiveItemKind,
 ): Promise<{ talk: Talk; speakerCreated: boolean }> {
   return createBackfilledTalkForEvent(eventId, {
@@ -6462,10 +6576,10 @@ async function createSelectedSpeakerTalkForEvent(
     speaker_email: submission.speaker_email,
     github_username: submission.github_username ?? '',
     title: submission.title,
-    topic: submission.topic || 'General',
+    topic: details.topic || submission.topic || 'General',
     abstract: submission.abstract ?? '',
-    bio: submission.bio ?? '',
-    slides_url: slidesUrl,
+    bio: details.bio || submission.bio || '',
+    slides_url: details.slides_url,
   });
 }
 
@@ -6527,6 +6641,12 @@ app.get('/api/events/:eventId/speaker-submissions', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
+  const conferenceEdition = await getAnnualConferenceEditionForProgrammeEvent(eventId, c);
+  if (conferenceEdition) {
+    const capabilityError = await requireAnnualConferenceCapability(c, conferenceEdition.year, 'speakers.view');
+    if (capabilityError) return capabilityError;
+  }
+
   const submissions = await getSpeakerSubmissionsByEvent(eventId);
 
   return c.json({
@@ -6551,6 +6671,12 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
 
   if (!existing) {
     return c.json({ error: 'Presentation proposal not found' }, 404);
+  }
+
+  const conferenceEdition = await getAnnualConferenceEditionForProgrammeEvent(existing.event_id, c);
+  if (conferenceEdition) {
+    const capabilityError = await requireAnnualConferenceCapability(c, conferenceEdition.year, 'speakers.manage');
+    if (capabilityError) return capabilityError;
   }
 
   try {
@@ -7159,15 +7285,15 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
         }
         talk = await updateTalk(followUpTalk!.id, updates);
       } else if (selectedSpeakerLink) {
-        const parsed = selectedSpeakerSlidesSchema.safeParse(body);
+        const parsed = selectedSpeakerDetailsSchema.safeParse(body);
         if (!parsed.success) {
-          return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the resource link' }, 400);
+          return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presenter details' }, 400);
         }
 
         const result = await createSelectedSpeakerTalkForEvent(
           eventId,
           selectedSubmission!,
-          parsed.data.slides_url,
+          parsed.data,
           normalizeArchiveItemKind(activeLink.kind),
         );
         talk = result.talk;
@@ -7622,8 +7748,8 @@ app.post('/api/cfp', async (c) => {
     return c.json({ error: 'CFP is not open for this event' }, 400);
   }
 
-  if (!canOpenCfpForEvent(event)) {
-    return c.json({ error: 'CFP is only available for upcoming monthly events' }, 400);
+  if (!(await canOpenSpeakerCallForEvent(event, c))) {
+    return c.json({ error: 'CFP is unavailable for this event' }, 400);
   }
 
   try {

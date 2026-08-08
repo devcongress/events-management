@@ -23,7 +23,7 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 
-type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'timeline' | 'volunteers' | 'finance';
+type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'timeline' | 'volunteers' | 'speakers' | 'finance';
 
 type AnnualConferenceNavLink = {
   href: string;
@@ -94,7 +94,11 @@ const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualCo
 ));
 const canViewFinance = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
-  ['finance.view'],
+ ['finance.view'],
+));
+const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
+  capabilities.value,
+  ['speakers.view', 'speakers.manage'],
 ));
 const links = computed<AnnualConferenceNavLink[]>(() => [
   { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
@@ -105,6 +109,7 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   },
   ...(canViewTimeline.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline', icon: 'timeline' as const }] : []),
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
+  ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
 ]);
 const editionOptions = computed(() => editions.value.map((edition) => ({
@@ -224,6 +229,11 @@ function isActive(href: string): boolean {
             <template v-else-if="link.icon === 'volunteers'">
               <circle cx="7.25" cy="7" r="2.5" />
               <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
+            </template>
+            <template v-else-if="link.icon === 'speakers'">
+              <path d="M4 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75" />
+              <circle cx="8.5" cy="7" r="2.75" />
+              <path d="M13 8.5h3.75M14.9 6.6v3.8" />
             </template>
             <template v-else>
               <path d="M3.5 6.25h13v8.5h-13z" />

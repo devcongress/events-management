@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { adminPath } from '@/src/admin-routes';
 import AdminAttendancePageSkeleton from '@/src/components/ui/page-skeletons/AdminAttendancePageSkeleton.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
 
@@ -342,14 +343,6 @@ function clearAttendanceFilters() {
   selectedAttendanceFilter.value = 'all';
 }
 
-function goToPreviousAttendancePage() {
-  currentPage.value = Math.max(1, currentPage.value - 1);
-}
-
-function goToNextAttendancePage() {
-  currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
-}
-
 watch(searchQuery, (value) => {
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(() => {
@@ -545,34 +538,7 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                   </tbody>
                 </table>
               </div>
-              <div v-if="filteredAttendanceRecords.length > ATTENDANCE_PAGE_SIZE" class="pagination-footer shrink-0">
-                <p class="pagination-summary">
-                  Showing {{ pageStartIndex }}-{{ pageEndIndex }} of {{ filteredAttendanceRecords.length }}
-                </p>
-                <div class="pagination-controls">
-                  <button
-                    type="button"
-                    class="pagination-button"
-                    :disabled="currentPage === 1"
-                    @click="goToPreviousAttendancePage"
-                  >
-                    <span aria-hidden="true">‹</span>
-                    Prev
-                  </button>
-                  <span class="pagination-count" aria-live="polite">
-                    Page {{ currentPage }} of {{ totalPages }}
-                  </span>
-                  <button
-                    type="button"
-                    class="pagination-button"
-                    :disabled="currentPage === totalPages"
-                    @click="goToNextAttendancePage"
-                  >
-                    Next
-                    <span aria-hidden="true">›</span>
-                  </button>
-                </div>
-              </div>
+              <AppPagination v-model:page="currentPage" :page-count="totalPages" :total="filteredAttendanceRecords.length" :range-start="pageStartIndex" :range-end="pageEndIndex" item-label="guests" aria-label="Attendance guest pagination" />
             </section>
           </section>
           </div>

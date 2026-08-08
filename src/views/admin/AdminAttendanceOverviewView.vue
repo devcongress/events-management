@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { adminPath } from '@/src/admin-routes';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAttendanceOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminAttendanceOverviewPageSkeleton.vue';
 import type {
   AttendanceLedgerMonth,
@@ -250,14 +251,6 @@ function primaryUploadEvent(item: AttendanceLedgerMonth): AttendanceLedgerMonthE
     ?? null;
 }
 
-function previousPage() {
-  page.value = Math.max(1, page.value - 1);
-}
-
-function nextPage() {
-  page.value = Math.min(pageCount.value, page.value + 1);
-}
-
 watch([selectedStatus, selectedYear], () => {
   page.value = 1;
 });
@@ -387,34 +380,7 @@ onMounted(fetchAttendanceLedger);
                 </article>
               </div>
 
-              <div class="pagination-footer">
-                <p class="pagination-summary">
-                  Showing {{ pageStart }}-{{ pageEnd }} of {{ filteredLedger.length }} month{{ filteredLedger.length === 1 ? '' : 's' }}
-                </p>
-                <div class="pagination-controls">
-                  <button
-                    type="button"
-                    class="pagination-button"
-                    :disabled="page === 1"
-                    @click="previousPage"
-                  >
-                    <span aria-hidden="true">‹</span>
-                    Prev
-                  </button>
-                  <span class="pagination-count" aria-live="polite">
-                    Page {{ page }} of {{ pageCount }}
-                  </span>
-                  <button
-                    type="button"
-                    class="pagination-button"
-                    :disabled="page === pageCount"
-                    @click="nextPage"
-                  >
-                    Next
-                    <span aria-hidden="true">›</span>
-                  </button>
-                </div>
-              </div>
+              <AppPagination v-model:page="page" :page-count="pageCount" :total="filteredLedger.length" :range-start="pageStart" :range-end="pageEnd" item-label="months" aria-label="Attendance month pagination" />
             </section>
 
             <aside class="ops-panel flex min-w-0 flex-col overflow-hidden lg:h-full">

@@ -4,12 +4,14 @@ This is a contributor-facing route map. The active app is the Vue route surface 
 
 ## Browser Surface
 
-This deployment is a protected operations console, with full organizer access and a restricted Annual Conference surface for authenticated volunteers. It also has deliberate public exceptions for event registration, event feedback, the monthly Call for Presentations, private archive intake, and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect into the appropriate protected workspace; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
+This deployment is a protected operations console, with full organizer access and a restricted Annual Conference surface for authenticated volunteers. It also has deliberate public exceptions for event registration, event feedback, monthly and conference Calls for Speakers, private archive intake, and the December 2026 annual-conference volunteer intake. `/` and former public SPA paths redirect into the appropriate protected workspace; they do not render community pages. Public pages, links, and attendee experiences otherwise belong on `devcongress.org` as they are migrated into the Astro website.
 
 | Route | Purpose |
 |---|---|
 | `/feedback/:eventId` | Standalone anonymous event feedback form. It deliberately renders without the app header, navigation, organizer controls, or attendee identity fields. |
 | `/cfp/:eventId` | Standalone monthly Call for Presentations for talk or product-demo proposals. The organizer Archive workspace generates this URL while CFP is open. |
+| `/speak/m/:eventId` | Short monthly Call for Speakers URL. It accepts either the event UUID or its slug and remains separate from Annual Conference submissions. |
+| `/speak/c/:year` | Short Annual Conference Call for Speakers URL. It resolves only that edition's private programme event and never exposes it in public event feeds. |
 | `/r/:eventSlug` | Canonical short free-event registration link by name and email. It deliberately has no attendee account, QR code, confirmation code, or organizer navigation. |
 | `/register/:eventId` | Backward-compatible free-event registration link retained for previously shared UUID URLs. |
 | `/speaker-talks/:eventId/:token` | Standalone private Archive completion form opened by selected-proposal and manual Archive Request links. The token locks the presenter identity, event, and archive-item kind. |
@@ -42,6 +44,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview; volunteer summaries contain only assigned work |
 | `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; volunteers default to assigned tasks and status-only updates, with edition-scoped full-view or management delegation available |
 | `/organizer-console/annual-conference/:year/timeline` | Capability-gated edition timeline with phase windows, target-dated tasks, No phase classification, and separately delegated phase controls |
+| `/organizer-console/annual-conference/:year/speakers` | Separate conference proposal queue, Call for Speakers open/close control, and selected-presenter follow-up initiation; unavailable to volunteers |
 | `/organizer-console/annual-conference/:year/volunteers` | Capability-derived volunteer team, intake sharing, and private application review sections |
 | `/organizer-console/annual-conference/:year/volunteers/display` | TV-safe QR display requiring the edition's volunteer-intake sharing responsibility |
 | `/organizer-console/organizers` | People & Access allowlist plus Owner-only, edition-scoped Conference responsibilities; volunteers cannot open this route |
@@ -88,6 +91,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by mandatory production Turnstile, atomic per-client limits, and email de-duplication |
 | `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
 | `GET /api/annual-conference/:year/work-plan` | Returns the edition plan and effective capability list; volunteers default to assigned tasks with internal notes removed, while explicit full-view or management grants expand the projection |
+| `GET /api/annual-conference/:year/speakers` | Returns only the edition's conference proposal queue and Call for Speakers state; requires conference-speaker access |
+| `PATCH /api/annual-conference/:year/speakers/call` | Opens or closes the edition's public Call for Speakers; requires conference-speaker management access and records an audit event |
 | `GET/POST /api/annual-conference/editions` | List editions or let the latest edition's planning owner create a future edition with an inherited or selected active-organizer owner |
 | `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to platform/planning owners or a member with delegated work-plan management, and requires one accountable owner |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId` | Assigned organizers may edit their tasks; volunteers default to assigned status-only changes, while delegated work-plan managers may edit every task |

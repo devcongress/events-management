@@ -20,3 +20,29 @@
 - `20260808150000_archive_materials_follow_up.sql` adds `talk_id`, `requested_fields`, shape validation, and an active-link lookup index to the private link table.
 - Owner issuance persists pending delivery before Resend, records provider acceptance or failure, and audits successful sends.
 - Completion keeps a published Talk published, updates only the selected fields, and consumes the link after the record update.
+
+---
+
+# Notes: Separate Calls for Speakers
+
+## Confirmed current behaviour
+
+- The public monthly form is `src/views/CfpView.vue`, posts to `/api/cfp`, and is strictly limited to upcoming monthly Events.
+- It currently requires name, email, presentation type, title, topic, summary, and bio. The server stores proposals through the mock speaker-submission adapter.
+- Selected monthly proposals already have secure private completion links; archive-material follow-up can request bio, summary, and/or slides without creating a duplicate Talk.
+- The Annual Conference has speaker-planning tasks but no public CFP form, campaign, proposal store, or review inbox.
+- Public pages ultimately belong to `devcongress.org`; EMS owns private organizer operations and write APIs.
+
+## Proposed shape
+
+- Add a relational speaker-call campaign and proposal store, with an exclusive Event-or-edition parent constraint and indexed parent/status reads.
+- Add canonical short routes for monthly and conference calls while retaining `/cfp/:eventId` as a compatible monthly alias.
+- Add campaign-scoped Turnstile, public rate limits, duplicate resistance, organizer authorization, audit events, and RLS/service-role-only persistence.
+- Reuse the selected-speaker and materials follow-up workflows after acceptance.
+
+## Material architecture boundary
+
+- `speaker_submissions`, `speaker_intake_links`, and `Talk` are all event-bound through `event_id`.
+- Annual Conference editions are currently independent of `community_events`.
+- Recommended model: add a private, one-to-one `conference_event_id` relationship from each edition to an internal Event with `series_type = special` and `format = conference`. The Annual Conference Speakers UI remains edition-scoped, but it uses that event only as durable programme identity.
+- Alternative: a separate conference proposal/selection/archive schema. This would duplicate the existing lifecycle and create a second implementation to maintain.

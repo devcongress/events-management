@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import LeaderboardPageSkeleton from '@/src/components/ui/page-skeletons/LeaderboardPageSkeleton.vue';
 
 interface LeaderboardEntry {
@@ -93,11 +94,6 @@ async function setMode(mode: LeaderboardMode) {
   leaderboardMode.value = mode;
   page.value = 1;
   await fetchData();
-}
-
-function goToPage(nextPage: number) {
-  page.value = Math.min(pageCount.value, Math.max(1, nextPage));
-  requestAnimationFrame(updateModeSwitcherScope);
 }
 
 function updateModeSwitcherScope() {
@@ -288,32 +284,7 @@ onUnmounted(() => {
             <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">The leaderboard will open when live quiz scoring is ready for community events.</p>
           </div>
 
-          <div v-else class="pagination-footer border-t-2 border-dc-ink bg-dc-paper-warm">
-            <p class="pagination-summary">
-              Showing {{ pageStart }}-{{ pageEnd }} of {{ visibleLeaderboard.length }}
-            </p>
-            <div class="pagination-controls">
-              <button
-                class="pagination-button"
-                :disabled="page === 1"
-                @click="goToPage(page - 1)"
-              >
-                <span aria-hidden="true">‹</span>
-                Prev
-              </button>
-              <span class="pagination-count" aria-live="polite">
-                Page {{ page }} of {{ pageCount }}
-              </span>
-              <button
-                class="pagination-button"
-                :disabled="page === pageCount"
-                @click="goToPage(page + 1)"
-              >
-                Next
-                <span aria-hidden="true">›</span>
-              </button>
-            </div>
-          </div>
+          <AppPagination v-else v-model:page="page" :page-count="pageCount" :total="visibleLeaderboard.length" :range-start="pageStart" :range-end="pageEnd" item-label="scores" aria-label="Leaderboard pagination" />
           </div>
         </template>
       </section>
