@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
@@ -422,9 +423,6 @@ async function openEventNextStep(event: CommunityEvent) {
   await router.push(statusActionPath(event));
 }
 
-function goToPage(nextPage: number) {
-  page.value = Math.min(pageCount.value, Math.max(1, nextPage));
-}
 </script>
 
 <template>
@@ -797,32 +795,7 @@ function goToPage(nextPage: number) {
               </div>
             </div>
           </div>
-          <div class="pagination-footer">
-            <p class="pagination-summary">
-              Showing {{ pageStart }}-{{ pageEnd }} of {{ filteredEvents.length }}
-            </p>
-            <div class="pagination-controls">
-              <button
-                class="pagination-button"
-                :disabled="page === 1"
-                @click="goToPage(page - 1)"
-              >
-                <span aria-hidden="true">‹</span>
-                Prev
-              </button>
-              <span class="pagination-count" aria-live="polite">
-                Page {{ page }} of {{ pageCount }}
-              </span>
-              <button
-                class="pagination-button"
-                :disabled="page === pageCount"
-                @click="goToPage(page + 1)"
-              >
-                Next
-                <span aria-hidden="true">›</span>
-              </button>
-            </div>
-          </div>
+          <AppPagination v-model:page="page" :page-count="pageCount" :total="filteredEvents.length" :range-start="pageStart" :range-end="pageEnd" item-label="events" aria-label="Event list pagination" />
         </div>
         </template>
       </template>

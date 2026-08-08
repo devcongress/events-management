@@ -27,6 +27,8 @@ export type AnnualConferenceCapability =
   | 'volunteers.view_team'
   | 'volunteers.share_intake'
   | 'volunteers.review_applications'
+  | 'speakers.view'
+  | 'speakers.manage'
   | 'finance.view';
 export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =
@@ -250,6 +252,7 @@ export interface Database {
       annual_conference_editions: {
         Row: {
           id: string;
+          conference_event_id: string;
           year: number;
           name: string;
           label: string;
@@ -263,6 +266,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          conference_event_id?: string;
           year: number;
           name: string;
           label: string;
@@ -276,6 +280,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          conference_event_id?: string;
           year?: number;
           name?: string;
           label?: string;

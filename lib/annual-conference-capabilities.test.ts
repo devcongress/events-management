@@ -28,7 +28,7 @@ describe('annual conference capabilities', () => {
     expect(planningOwner).toContain('phases.manage');
 
     const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
-    expect(owner).toHaveLength(8);
+    expect(owner).toHaveLength(10);
     expect(owner).toContain('finance.view');
   });
 

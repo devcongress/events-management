@@ -1379,6 +1379,24 @@
     @apply inline-flex min-h-9 items-center border-x border-dc-border px-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink;
   }
 
+  .app-pagination {
+    @apply grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-dc-border bg-dc-paper px-5 py-4;
+  }
+
+  .app-pagination__button {
+    @apply inline-flex min-h-10 items-center gap-1 rounded-md border border-dc-border bg-dc-paper-warm px-4 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-ink transition-[background-color,border-color,color,transform] duration-150 disabled:cursor-not-allowed disabled:opacity-35;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .app-pagination__button:not(:disabled):hover {
+      @apply border-dc-ink bg-dc-yellow;
+    }
+  }
+
+  .app-pagination__count {
+    @apply justify-self-center font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray;
+  }
+
   .event-tabs-wrap {
     padding-top: clamp(1rem, 2vh, 1.5rem);
   }

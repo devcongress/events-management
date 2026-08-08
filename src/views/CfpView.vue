@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import AppDropdown from '@/src/components/AppDropdown.vue';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
-import { resolveEventSeriesType } from '@/lib/event-series';
 import type { ArchiveItemKind, Event } from '@/types';
 
 const route = useRoute();
@@ -21,40 +19,13 @@ const turnstileToken = ref('');
 const turnstileError = ref('');
 const turnstileActive = turnstileEnabled();
 const ABSTRACT_WORD_LIMIT = 120;
-const BIO_WORD_LIMIT = 80;
-const CUSTOM_TOPIC_VALUE = '__custom_topic__';
-const popularTopics = [
-  'Frontend Engineering',
-  'Backend Engineering',
-  'Cloud Infrastructure',
-  'DevOps',
-  'AI/ML',
-  'Data Engineering',
-  'Security',
-  'Open Source',
-  'Product Engineering',
-  'Career Growth',
-];
-const topicPickerValue = ref<string>('');
-const customTopic = ref('');
-const topicOptions = [
-  { value: '', label: 'Choose a topic' },
-  ...popularTopics.map((topic) => ({ value: topic, label: topic })),
-  { value: CUSTOM_TOPIC_VALUE, label: 'Add another topic' },
-];
-const archiveKindOptions: { value: ArchiveItemKind; label: string }[] = [
-  { value: 'talk', label: 'Talk' },
-  { value: 'product_demo', label: 'Product demo' },
-];
 
 const form = reactive({
   kind: 'talk' as ArchiveItemKind,
   speaker_name: '',
   speaker_email: '',
   title: '',
-  topic: '',
   abstract: '',
-  bio: '',
 });
 
 function wordCount(value: string): number {
@@ -62,64 +33,33 @@ function wordCount(value: string): number {
 }
 
 const abstractWordCount = computed(() => wordCount(form.abstract));
-const bioWordCount = computed(() => wordCount(form.bio));
 const abstractOverLimit = computed(() => abstractWordCount.value > ABSTRACT_WORD_LIMIT);
-const bioOverLimit = computed(() => bioWordCount.value > BIO_WORD_LIMIT);
 const speakerEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.speaker_email.trim()));
 const requiredFieldsComplete = computed(() => Boolean(
   form.speaker_name.trim()
   && speakerEmailValid.value
   && form.title.trim()
-  && form.topic.trim()
-  && form.abstract.trim()
-  && form.bio.trim(),
+  && form.abstract.trim(),
 ));
-const eventIsMonthly = computed(() => (
-  event.value ? resolveEventSeriesType(event.value) === 'monthly' : false
-));
-const eventIsUpcoming = computed(() => {
-  if (!event.value?.event_date) return false;
-  const eventDateMs = new Date(event.value.event_date).getTime();
-  return Number.isFinite(eventDateMs) && eventDateMs > Date.now();
-});
-const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status === 'cfp_open' && eventIsMonthly.value && eventIsUpcoming.value));
+const isConferenceCall = computed(() => route.name === 'conference-cfp');
+const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status === 'cfp_open'));
 const canSubmitProposal = computed(() => (
   cfpIsAvailable.value
   && (!turnstileActive || turnstileToken.value.length > 0)
   && !submitting.value
 ));
 const cfpClosedTitle = computed(() => {
-  if (!eventIsMonthly.value || !eventIsUpcoming.value) return 'Presentation proposals are unavailable';
   return event.value?.status === 'cfp_closed' ? 'Presentation proposals are closed' : 'Presentation proposals are not open yet';
 });
 const cfpClosedMessage = computed(() => {
-  if (!eventIsMonthly.value) {
-    return 'This CFP form is only available for monthly meetups.';
-  }
-
-  if (!eventIsUpcoming.value) {
-    return 'This event date has passed, so the CFP form is no longer available.';
-  }
-
   if (event.value?.status === 'cfp_closed') {
     return 'Organizers have paused new talk and product-demo proposals for this event. Thanks for checking in; keep an eye on future DevCongress calls for presentations.';
   }
 
   return 'This public CFP link is valid, but organizers have not opened submissions for this event yet.';
 });
-const usingCustomTopic = computed(() => topicPickerValue.value === CUSTOM_TOPIC_VALUE);
 const archiveItemLabel = computed(() => form.kind === 'product_demo' ? 'Product demo' : 'Talk');
 const archiveSummaryLabel = computed(() => form.kind === 'product_demo' ? 'Demo summary' : 'Abstract');
-
-watch(topicPickerValue, (value) => {
-  form.topic = value === CUSTOM_TOPIC_VALUE ? customTopic.value.trim() : value;
-});
-
-watch(customTopic, (value) => {
-  if (usingCustomTopic.value) {
-    form.topic = value.trim();
-  }
-});
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
@@ -130,15 +70,11 @@ async function submitProposal() {
 
   error.value = null;
   if (!requiredFieldsComplete.value) {
-    error.value = form.topic.trim()
-      ? 'Complete every required field before submitting.'
-      : 'Choose a topic before submitting.';
+    error.value = 'Complete every required field before submitting.';
     return;
   }
-  if (abstractOverLimit.value || bioOverLimit.value) {
-    error.value = abstractOverLimit.value
-      ? `Keep the presentation summary to ${ABSTRACT_WORD_LIMIT} words or fewer.`
-      : `Keep the presenter bio to ${BIO_WORD_LIMIT} words or fewer.`;
+  if (abstractOverLimit.value) {
+    error.value = `Keep the presentation summary to ${ABSTRACT_WORD_LIMIT} words or fewer.`;
     return;
   }
 
@@ -148,14 +84,12 @@ async function submitProposal() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event_id: route.params.eventId,
+        event_id: event.value?.id,
         kind: form.kind,
         speaker_name: form.speaker_name.trim(),
         speaker_email: form.speaker_email.trim(),
         title: form.title.trim(),
-        topic: form.topic.trim(),
         abstract: form.abstract.trim(),
-        bio: form.bio.trim(),
         turnstile_action: turnstileActive ? CFP_SUBMISSION_TURNSTILE_ACTION : undefined,
         turnstile_token: turnstileActive ? turnstileToken.value : undefined,
       }),
@@ -180,7 +114,9 @@ async function submitProposal() {
 
 onMounted(async () => {
   try {
-    const response = await fetch(`/api/cfp/events/${route.params.eventId}`);
+    const response = await fetch(isConferenceCall.value
+      ? `/api/cfp/conferences/${route.params.year}`
+      : `/api/cfp/events/${route.params.eventId}`);
     if (response.ok) {
       event.value = await response.json();
     } else {
@@ -215,7 +151,7 @@ onMounted(async () => {
     <div v-else-if="!cfpIsAvailable" class="flex min-h-screen items-center justify-center p-4">
       <div class="w-full max-w-2xl overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[4px_4px_0_#111111]">
         <div class="border-b-2 border-dc-ink bg-dc-paper-warm px-6 py-4 sm:px-8">
-          <p class="editorial-eyebrow">Call for Presentations</p>
+          <p class="editorial-eyebrow">Call for Speakers</p>
           <h1 class="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-dc-ink sm:text-5xl">{{ cfpClosedTitle }}</h1>
         </div>
         <div class="p-6 sm:p-8">
@@ -265,7 +201,7 @@ onMounted(async () => {
 
     <div v-else class="mx-auto max-w-3xl px-4 py-5 sm:py-12">
       <div class="editorial-header">
-        <p class="editorial-eyebrow">Call for Presentations</p>
+        <p class="editorial-eyebrow">Call for Speakers</p>
         <h1 class="editorial-title">Propose a {{ archiveItemLabel }}</h1>
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
@@ -293,33 +229,14 @@ onMounted(async () => {
             />
           </label>
         </div>
-        <div class="grid gap-4 sm:grid-cols-[minmax(10rem,0.65fr)_minmax(0,1.35fr)]">
-          <AppDropdown
-            v-model="form.kind"
-            label="Presentation type"
-            :options="archiveKindOptions"
-          />
-          <label class="block">
-            <span class="editorial-label">{{ archiveItemLabel }} Title <span class="text-red-600">*</span></span>
-            <input v-model="form.title" required :placeholder="form.kind === 'product_demo' ? 'Show what your product does' : 'Building Scalable APIs with GraphQL'" class="editorial-input" />
-          </label>
-        </div>
-        <div>
-          <div class="block">
-            <AppDropdown
-              v-model="topicPickerValue"
-              label="Topic *"
-              :options="topicOptions"
-              required
-              menu-class="cfp-topic-menu"
-            />
-            <label v-if="usingCustomTopic" class="mt-3 block">
-              <span class="editorial-label">Custom topic <span class="text-red-600">*</span></span>
-              <input v-model="customTopic" required placeholder="e.g. Technical Writing" class="editorial-input font-mono" />
-            </label>
-            <span class="mt-2 block text-sm font-medium text-dc-gray">Pick a popular topic or type your own.</span>
-          </div>
-        </div>
+        <label class="block">
+          <span class="editorial-label">{{ archiveItemLabel }} Title <span class="text-red-600">*</span></span>
+          <input v-model="form.title" required :placeholder="form.kind === 'product_demo' ? 'Show what your product does' : 'Building Scalable APIs with GraphQL'" class="editorial-input" />
+        </label>
+        <label class="flex cursor-pointer items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-sm font-medium text-dc-gray">
+          <input v-model="form.kind" type="checkbox" true-value="product_demo" false-value="talk" class="h-4 w-4 accent-dc-pink" />
+          This is a product demo
+        </label>
         <div>
           <div class="mb-2 flex items-end justify-between gap-4">
             <label for="cfp-abstract" class="editorial-label">{{ archiveSummaryLabel }} <span class="text-red-600">*</span></label>
@@ -334,22 +251,6 @@ onMounted(async () => {
             rows="5"
             class="editorial-input resize-none font-mono"
             :class="{ 'cfp-input-error border-red-700 bg-red-50': abstractOverLimit }"
-          />
-        </div>
-        <div>
-          <div class="mb-2 flex items-end justify-between gap-4">
-            <label for="cfp-bio" class="editorial-label">Presenter Bio <span class="text-red-600">*</span></label>
-            <span class="font-mono text-xs font-semibold uppercase tracking-wide" :class="bioOverLimit ? 'text-red-700' : 'text-dc-gray'">
-              {{ bioWordCount }}/{{ BIO_WORD_LIMIT }} words
-            </span>
-          </div>
-          <textarea
-            id="cfp-bio"
-            v-model="form.bio"
-            required
-            rows="3"
-            class="editorial-input resize-none font-mono"
-            :class="{ 'cfp-input-error border-red-700 bg-red-50': bioOverLimit }"
           />
         </div>
         <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">

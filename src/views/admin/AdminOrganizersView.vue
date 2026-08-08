@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { z } from 'zod';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
 import OrganizerRoleBadge from '@/src/components/OrganizerRoleBadge.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
@@ -733,30 +734,7 @@ onUnmounted(() => {
             </table>
           </div>
 
-          <div v-if="organizers.length > organizersPerPage" class="pagination-footer">
-            <p class="pagination-summary">
-              Showing {{ organizerPageStart + 1 }}-{{ organizerPageEnd }} of {{ organizers.length }}
-            </p>
-            <div class="pagination-controls" aria-label="Organizer allowlist pagination">
-              <button
-                type="button"
-                class="pagination-button"
-                :disabled="organizerPage === 1"
-                @click="organizerPage -= 1"
-              >
-                Previous
-              </button>
-              <span class="pagination-count" aria-live="polite">Page {{ organizerPage }} / {{ organizerPageCount }}</span>
-              <button
-                type="button"
-                class="pagination-button"
-                :disabled="organizerPage === organizerPageCount"
-                @click="organizerPage += 1"
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <AppPagination v-model:page="organizerPage" :page-count="organizerPageCount" :total="organizers.length" :range-start="organizerPageStart + 1" :range-end="organizerPageEnd" item-label="members" aria-label="Organizer allowlist pagination" />
         </section>
 
       </div>

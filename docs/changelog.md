@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-08-08 — Shared pagination across organizer workspaces
+
+- Added one accessible Previous / Page / Next pagination component, with a quiet full-width footer and automatic hiding when a result fits on one page.
+- Replaced the divergent pagination controls in events, attendance, People & Access, audit activity and email delivery, annual-conference work planning and timeline gaps, and the public leaderboard.
+- Added the same bounded queue to conference speaker proposals so a larger Call for Speakers stays easy to review without changing the existing status filters.
+
+## 2026-08-09 — Refined the Annual Conference speaker review queue
+
+- Replaced large proposal cards and status tiles with one compact directory table: its Review queue header has a live Pending-button counter, default Pending view, and clear Approved and Rejected filters; rows use compact status icons for faster scanning.
+- Made table rows open a focused right-side proposal drawer, where authorized organizers review the full submission and approve or reject it.
+- Removed the browser-only sample queue and all fabricated speaker proposals, so the workspace renders only persisted conference submissions.
+
+## 2026-08-08 — Separated monthly and Annual Conference Calls for Speakers
+
+- Added short public Call for Speakers routes for monthly events and Annual Conference editions, with one concise first-submission form.
+- Kept monthly proposals in each Event's Talks review and added an Annual Conference Speakers workspace so the queues never mix.
+- Reused the existing selected-speaker secure follow-up lifecycle through a private programme Event per conference edition; it is excluded from public event feeds.
+- Added organizer-only conference speaker capabilities, Call open/close controls, proposal selection, and audited state changes.
+- Added forward-only migration `20260808180000_annual_conference_speaker_calls.sql` for the edition-to-programme relationship and speaker-query index.
+
 ## 2026-08-08 — Made annual-conference workload visible at a glance
 
 - Removed the standalone Volunteer Intake callout from the Annual Conference Overview.
