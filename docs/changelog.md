@@ -6,6 +6,11 @@
 - Published organizer-created events and approved public-submission events now post a compact event card with a link to the public event page.
 - Slack delivery is best-effort: an unavailable webhook is logged without failing or rolling back event publication.
 
+## 2026-08-07 — Routed new submissions into the review channel
+
+- New public event submissions now post a bounded review card to the same private Slack channel used for submission replies.
+- Slack delivery remains best-effort and does not change the existing `202 Accepted` intake behavior.
+
 ## 2026-08-07 — Routed community-submission replies into EMS and Slack
 
 - Added signed, submission-specific Reply-To addresses for new community-submission emails, preserving the existing mailbox fallback until Resend receiving is configured.

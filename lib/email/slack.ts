@@ -89,6 +89,51 @@ export async function sendEventSubmissionReplyToSlack(input: {
   await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
 }
 
+export async function sendEventSubmissionReceivedToSlack(input: {
+  webhookUrl: string;
+  eventTitle: string;
+  summary: string;
+  organizerName: string;
+  organizerEmail: string;
+  startsAt: string;
+  format: string;
+  location: string;
+  dashboardUrl: string;
+  fetcher?: typeof fetch;
+}): Promise<void> {
+  const payload = {
+    text: `New event submission: ${input.eventTitle}`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: 'New event submission' } },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*Event*\n${slackText(input.eventTitle)}` },
+          { type: 'mrkdwn', text: `*Organizer*\n${slackText(input.organizerName)}` },
+          { type: 'mrkdwn', text: `*Email*\n${slackText(input.organizerEmail)}` },
+          { type: 'mrkdwn', text: `*When*\n${slackText(input.startsAt)}` },
+          { type: 'mrkdwn', text: `*Format*\n${slackText(input.format)}` },
+          { type: 'mrkdwn', text: `*Where*\n${slackText(input.location)}` },
+        ],
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*Summary*\n${slackText(input.summary) || '(no summary)'}` },
+      },
+      {
+        type: 'actions',
+        elements: [{
+          type: 'button',
+          text: { type: 'plain_text', text: 'Review in EMS' },
+          url: input.dashboardUrl,
+        }],
+      },
+    ],
+  };
+
+  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
+}
+
 export async function sendEventAddedToSlack(input: {
   webhookUrl: string;
   eventName: string;

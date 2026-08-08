@@ -181,6 +181,42 @@ describe('community event submissions', () => {
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
   });
 
+  it('notifies the submission channel after saving a validated proposal', async () => {
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(202);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+    expect(String(slackFetch.mock.calls[0]?.[0])).toBe('https://hooks.slack.com/services/test/submissions');
+    expect(JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+      text: 'New event submission: Community systems workshop',
+    });
+  });
+
+  it('does not fail submission intake when the submission channel is unavailable', async () => {
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(202);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps public submission titles unchanged when organizer event test mode is enabled', async () => {
     vi.stubEnv('EVENT_TEST_MODE', 'true');
     const { default: app } = await import('./app');

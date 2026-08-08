@@ -45,7 +45,7 @@ When inbound reply routing is configured, each community-submission email receiv
 
 Resend sends an `email.received` webhook to `POST /api/webhooks/resend/inbound`. EMS verifies the raw Svix signature, ignores addresses that do not match a valid submission token, retrieves the message body through Resend, stores a sanitized plain-text copy in `event_submission_replies`, and exposes it in the submission drawer. Webhook delivery is idempotent on both the webhook event id and Resend email id. Attachments are recorded as metadata only in this slice.
 
-If `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` is configured, a bounded reply excerpt and a link to the EMS submissions inbox are sent to the configured Slack channel. Slack failure marks the reply as **Slack failed** but does not discard the EMS reply; the dashboard remains the source of truth.
+If `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` is configured for the private submission channel, every saved public submission posts a bounded submission summary and a link to the EMS submissions inbox. Replies to submission emails post there too. Slack failure never rejects intake or discards the EMS record; the dashboard remains the source of truth.
 
 ### Provider setup checklist
 
@@ -54,7 +54,7 @@ These steps require deployment/provider access and are intentionally not perform
 1. Create a Resend receiving domain or subdomain, preferably `inbox.devcongress.org`, and add the MX records Resend provides to DNS. Do not replace the existing root `devcongress.org` Zoho MX records.
 2. Create a Resend webhook subscribed to `email.received`, pointing to `https://em.devcongress.org/api/webhooks/resend/inbound`. Add its `whsec_...` signing secret as `RESEND_INBOUND_WEBHOOK_SECRET`.
 3. Generate a strong random secret and add it as `EVENT_SUBMISSION_REPLY_TOKEN_SECRET`; add `EVENT_SUBMISSION_REPLY_DOMAIN` with the receiving subdomain.
-4. Create a Slack incoming webhook for the private submission-replies channel and add its URL as `SLACK_EVENT_SUBMISSION_WEBHOOK_URL`.
+4. Create a Slack incoming webhook for the private submission/review channel and add its URL as `SLACK_EVENT_SUBMISSION_WEBHOOK_URL`.
 5. Apply `20260807120000_event_submission_replies.sql` to the production Supabase project and deploy the Worker with the new variables/secrets.
 
 Emails sent before signed routing is enabled still point at the old `EVENT_EMAIL_REPLY_TO` mailbox; their replies are not retroactively captured by EMS. Local webhook testing needs a publicly reachable HTTPS URL or a Resend webhook tunnel.

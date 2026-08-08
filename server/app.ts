@@ -15,7 +15,7 @@ import {
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
 import { boundedSlackExcerpt, eventSubmissionReplyAddress, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
-import { sendEventAddedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
+import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import {
   eventRegistrationCalendarFile,
@@ -166,7 +166,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -1772,6 +1772,32 @@ async function notifyEventsChannel(event: Event, source: 'organizer' | 'public s
       error_name: error instanceof SlackWebhookError ? error.name : 'Error',
       error: error instanceof SlackWebhookError ? error.message : 'Slack notification failed.',
       request_id: c.get('requestId') ?? null,
+    }));
+  }
+}
+
+async function notifyEventSubmissionChannel(submission: EventSubmission, c: Context): Promise<void> {
+  const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+  if (!webhookUrl) return;
+
+  try {
+    await sendEventSubmissionReceivedToSlack({
+      webhookUrl,
+      eventTitle: submission.title,
+      summary: boundedSlackExcerpt(submission.summary),
+      organizerName: submission.organizer_name,
+      organizerEmail: submission.organizer_email,
+      startsAt: submission.starts_at,
+      format: submission.format,
+      location: submission.venue_name ?? submission.online_url ?? 'Location to be announced',
+      dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_submission_slack_notification_failed',
+      request_id: c.get('requestId') ?? null,
+      submission_id: submission.id,
+      error_name: safeErrorName(error),
     }));
   }
 }
@@ -4737,6 +4763,7 @@ app.post('/api/public/event-submissions', async (c) => {
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
     const submission = await createEventSubmission(input, c);
+    await notifyEventSubmissionChannel(submission, c);
     await dispatchEventSubmissionEmails(c, {
       submissionId: submission.id,
       kinds: ['receipt'],

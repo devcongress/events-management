@@ -36,7 +36,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `EVENT_SUBMISSION_REPLY_DOMAIN` | Required for EMS-routed submission replies | No | Resend receiving subdomain, for example `inbox.devcongress.org`. Use a subdomain so the existing Zoho MX records for `devcongress.org` remain unchanged. |
 | `EVENT_SUBMISSION_REPLY_TOKEN_SECRET` | Required for EMS-routed submission replies | No | Server-only HMAC secret used to create and verify submission-specific Reply-To addresses. Never expose or commit it. |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Required for EMS-routed submission replies | No | Server-only Resend/Svix webhook signing secret used to verify the raw `email.received` payload before retrieval. |
-| `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` | Optional for submission-reply alerts | No | Server-only Slack incoming webhook URL for the private submission-replies channel. EMS remains the source of truth if Slack is unavailable. |
+| `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` | Optional for submission alerts | No | Server-only Slack incoming webhook URL for the private submission/review channel. New submissions and email replies are posted there; EMS remains the source of truth if Slack is unavailable. |
 | `SLACK_EVENTS_CHANNEL_WEBHOOK_URL` | Optional for event announcements | No | Server-only Slack incoming webhook URL for the `#events` channel. Published organizer-created and approved public-submission events are announced there; Slack remains best-effort. |
 | `GOOGLE_MAPS_PLACES_API_KEY` | Required for organizer venue autocomplete | No | Server-only Google Maps Platform key restricted to Places API (New); venue predictions are proxied through the authenticated API and restricted to Ghana. |
 
