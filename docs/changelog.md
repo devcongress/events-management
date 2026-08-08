@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-08 — Refreshed production posture and technical-debt documentation
+
+- Updated the README to describe the deployed Cloudflare/Supabase path accurately while keeping compatibility-storage and operations limits explicit.
+- Reframed the active technical-debt register around evidence, impact, exit criteria, and ownership between repository and platform operations; retained the previous register as historical provenance.
+- Corrected the migration status: both hardening migrations are applied, and future scale/observability work is documented as optional evolution rather than open implementation debt.
+
 ## 2026-08-08 — Hardened concurrent Conference and shared-data writes
 
 - Added a forward-only integrity migration: receipt recording is idempotent, active-owner and membership/grant eligibility rules are enforced in PostgreSQL, and task dependency / phase scheduling validation serializes concurrent edits.
