@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-08 — Made failed submission-reply Slack alerts actionable
+
+- Preserved Slack's bounded HTTP rejection detail with each captured organizer reply instead of showing an unexplained **Slack failed** state.
+- Added an Organizer-only **Retry Slack** action for one saved reply; retries are audited and do not reprocess the inbound email.
+- Kept Slack best-effort: a failed retry preserves the EMS reply and its latest safe failure reason.
+- Updated the reply count badge to the app pink token with white text.
+- Made new organizer replies the primary reading surface and moved cleaned quoted originals into an optional **Original email** disclosure.
+
 2026-08-07 — Fixed signed submission Reply-To delivery
 
 - Replaced oversized signed Reply-To local parts with a compact 120-bit HMAC format that Resend accepts.
@@ -27,6 +35,11 @@
 - Replaced repeated pink section labels with the app's neutral surface, text, border, success, and destructive tokens; destructive styling is confined to actual failure or rejection states.
 - Kept delivery retry, captured replies, rejection context, and the sticky approve/reject workflow intact while making supporting information easier to scan; the decision controls now reuse the app's shared action primitives.
 - Classified receipt and decision-email failures into actionable provider categories so organizers can distinguish quota, configuration, invalid-request, outage, and connectivity problems.
+
+## 2026-08-07 — Routed new submissions into the review channel
+
+- New public event submissions now post a bounded review card to the same private Slack channel used for submission replies.
+- Slack delivery remains best-effort and does not change the existing `202 Accepted` intake behavior.
 
 ## 2026-08-07 — Routed community-submission replies into EMS and Slack
 

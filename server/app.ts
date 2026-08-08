@@ -15,7 +15,7 @@ import {
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
 import { boundedSlackExcerpt, eventSubmissionReplyAddress, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
-import { sendEventAddedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
+import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import {
   eventRegistrationCalendarFile,
@@ -112,6 +112,7 @@ import {
   approveEventSubmission,
   createEventSubmission,
   EventSubmissionStorageError,
+  getEventSubmissionReply,
   getPendingEventSubmissionEmails,
   insertEventSubmissionReply,
   listEventSubmissions,
@@ -166,7 +167,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -422,6 +423,7 @@ const eventSubmissionRejectSchema = z.object({
   internal_note: z.string().trim().max(1000).optional().default(''),
 }).strict();
 const eventSubmissionEmailKindSchema = z.enum(['receipt', 'approved', 'rejected']);
+const eventSubmissionIdSchema = z.string().uuid();
 const resendInboundWebhookSchema = z.object({
   type: z.string().trim().min(1),
   created_at: z.string().trim().min(1).optional(),
@@ -1772,6 +1774,32 @@ async function notifyEventsChannel(event: Event, source: 'organizer' | 'public s
       error_name: error instanceof SlackWebhookError ? error.name : 'Error',
       error: error instanceof SlackWebhookError ? error.message : 'Slack notification failed.',
       request_id: c.get('requestId') ?? null,
+    }));
+  }
+}
+
+async function notifyEventSubmissionChannel(submission: EventSubmission, c: Context): Promise<void> {
+  const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+  if (!webhookUrl) return;
+
+  try {
+    await sendEventSubmissionReceivedToSlack({
+      webhookUrl,
+      eventTitle: submission.title,
+      summary: boundedSlackExcerpt(submission.summary),
+      organizerName: submission.organizer_name,
+      organizerEmail: submission.organizer_email,
+      startsAt: submission.starts_at,
+      format: submission.format,
+      location: submission.venue_name ?? submission.online_url ?? 'Location to be announced',
+      dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_submission_slack_notification_failed',
+      request_id: c.get('requestId') ?? null,
+      submission_id: submission.id,
+      error_name: safeErrorName(error),
     }));
   }
 }
@@ -4481,6 +4509,60 @@ app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async 
   }
 });
 
+app.post('/api/admin/event-submissions/:submissionId/replies/:replyId/slack/retry', async (c) => {
+  const submissionId = eventSubmissionIdSchema.safeParse(c.req.param('submissionId'));
+  const replyId = eventSubmissionIdSchema.safeParse(c.req.param('replyId'));
+  if (!submissionId.success || !replyId.success) {
+    return c.json({ error: 'Invalid submission reply.' }, 400);
+  }
+
+  try {
+    const reply = await getEventSubmissionReply(submissionId.data, replyId.data, c);
+    const slackWebhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+    if (!slackWebhookUrl) {
+      const error = 'Slack notifications are not configured.';
+      await updateEventSubmissionReplySlackStatus(reply.id, { status: 'failed', error }, c);
+      return c.json({ error }, 503);
+    }
+
+    try {
+      await sendEventSubmissionReplyToSlack({
+        webhookUrl: slackWebhookUrl,
+        eventTitle: reply.subject || 'Community event submission',
+        senderEmail: reply.sender_email,
+        subject: reply.subject,
+        bodyExcerpt: boundedSlackExcerpt(reply.body_text),
+        receivedAt: reply.received_at,
+        dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+      });
+      await updateEventSubmissionReplySlackStatus(reply.id, { status: 'sent' }, c);
+      await auditAdminAction(c, {
+        action: 'event_submission.reply_slack_retry',
+        targetType: 'event_submission',
+        targetId: submissionId.data,
+        metadata: { reply_id: reply.id, outcome: 'sent' },
+      });
+      return c.json({ sent: true });
+    } catch (error) {
+      const message = error instanceof SlackWebhookError ? error.message : 'Slack notification failed.';
+      await updateEventSubmissionReplySlackStatus(reply.id, { status: 'failed', error: message }, c);
+      await auditAdminAction(c, {
+        action: 'event_submission.reply_slack_retry',
+        targetType: 'event_submission',
+        targetId: submissionId.data,
+        metadata: { reply_id: reply.id, outcome: 'failed' },
+      });
+      return c.json({ error: message }, 502);
+    }
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      if (error.code === 'not_found') return c.json({ error: error.message }, 404);
+      return c.json({ error: 'Unable to retry this Slack notification.' }, 503);
+    }
+    throw error;
+  }
+});
+
 app.get('/api/admin/audit-log', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
   if (adminError) return adminError;
@@ -4764,6 +4846,7 @@ app.post('/api/public/event-submissions', async (c) => {
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
     const submission = await createEventSubmission(input, c);
+    await notifyEventSubmissionChannel(submission, c);
     await dispatchEventSubmissionEmails(c, {
       submissionId: submission.id,
       kinds: ['receipt'],

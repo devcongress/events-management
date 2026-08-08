@@ -649,6 +649,16 @@ export function retryEventSubmissionEmail(submissionId: string, kind: EventSubmi
   );
 }
 
+export function retryEventSubmissionReplySlackAlert(submissionId: string, replyId: string) {
+  return fetchJson<{ sent: true }>(
+    `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/replies/${encodeURIComponent(replyId)}/slack/retry`,
+    {
+      method: 'POST',
+      credentials: 'include',
+    },
+  );
+}
+
 export function createNativeEvent(input: Record<string, unknown>) {
   return fetchJson<CreateNativeEventResponse>('/api/events', {
     method: 'POST',

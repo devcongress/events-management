@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   pendingEmails: vi.fn(),
   updateEmail: vi.fn(),
   insertReply: vi.fn(),
+  getReply: vi.fn(),
   updateReplySlack: vi.fn(),
   rateLimit: vi.fn(),
   audit: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('@/lib/supabase/event-submissions', async () => {
     rejectEventSubmission: mocks.reject,
     getPendingEventSubmissionEmails: mocks.pendingEmails,
     insertEventSubmissionReply: mocks.insertReply,
+    getEventSubmissionReply: mocks.getReply,
     updateEventSubmissionReplySlackStatus: mocks.updateReplySlack,
     updateEventSubmissionEmailDelivery: mocks.updateEmail,
   };
@@ -129,7 +131,18 @@ beforeEach(() => {
       received_at: '2099-08-02T10:00:00.000Z',
       attachments: [],
       slack_status: 'pending',
+      slack_error: null,
     },
+  });
+  mocks.getReply.mockResolvedValue({
+    id: '20000000-0000-4000-8000-000000000001',
+    sender_email: 'hello@example.com',
+    subject: 'Re: Community systems workshop',
+    body_text: 'Thanks for the update.',
+    received_at: '2099-08-02T10:00:00.000Z',
+    attachments: [],
+    slack_status: 'failed',
+    slack_error: 'Slack rejected the notification (HTTP 403): invalid_token.',
   });
   mocks.updateReplySlack.mockResolvedValue(undefined);
 });
@@ -179,6 +192,42 @@ describe('community event submissions', () => {
     }), expect.anything());
     expect(mocks.create.mock.calls[0]?.[0]).not.toHaveProperty('source_app');
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
+  });
+
+  it('notifies the submission channel after saving a validated proposal', async () => {
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(202);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+    expect(String(slackFetch.mock.calls[0]?.[0])).toBe('https://hooks.slack.com/services/test/submissions');
+    expect(JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+      text: 'New event submission: Community systems workshop',
+    });
+  });
+
+  it('does not fail submission intake when the submission channel is unavailable', async () => {
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('unavailable', { status: 503 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validPayload()),
+    });
+
+    expect(response.status).toBe(202);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
   });
 
   it('keeps public submission titles unchanged when organizer event test mode is enabled', async () => {
@@ -566,6 +615,45 @@ describe('community event submissions', () => {
     }), expect.anything());
     expect(mocks.updateReplySlack).toHaveBeenCalledWith('reply-1', { status: 'sent' }, expect.anything());
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed Slack reply notification and stores the provider reason when Slack rejects it', async () => {
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/T000/B000/secret');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('invalid_token', { status: 403 })));
+
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/replies/20000000-0000-4000-8000-000000000001/slack/retry`,
+      { method: 'POST' },
+    );
+
+    const error = 'Slack rejected the notification (HTTP 403): invalid_token.';
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error });
+    expect(mocks.getReply).toHaveBeenCalledWith(submission.id, '20000000-0000-4000-8000-000000000001', expect.anything());
+    expect(mocks.updateReplySlack).toHaveBeenCalledWith('20000000-0000-4000-8000-000000000001', {
+      status: 'failed',
+      error,
+    }, expect.anything());
+    expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: 'event_submission.reply_slack_retry',
+      metadata: { reply_id: '20000000-0000-4000-8000-000000000001', outcome: 'failed' },
+    }));
+  });
+
+  it('marks a retried Slack reply notification as sent after Slack accepts it', async () => {
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/T000/B000/secret');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('ok', { status: 200 })));
+
+    const { default: app } = await import('./app');
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/replies/20000000-0000-4000-8000-000000000001/slack/retry`,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ sent: true });
+    expect(mocks.updateReplySlack).toHaveBeenCalledWith('20000000-0000-4000-8000-000000000001', { status: 'sent' }, expect.anything());
   });
 
   it('rejects an inbound webhook with an invalid signature before retrieval or storage', async () => {

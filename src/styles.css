@@ -614,7 +614,36 @@
   }
 
   .submission-reply-count {
-    @apply grid size-6 shrink-0 place-items-center rounded-full bg-dc-ink text-[10px] font-bold text-white;
+    @apply grid size-6 shrink-0 place-items-center rounded-full bg-dc-pink text-[10px] font-bold text-white;
+  }
+
+  .submission-reply-original {
+    @apply rounded-md border border-dc-border bg-dc-paper;
+  }
+
+  .submission-reply-original-trigger {
+    @apply flex w-full cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray outline-none focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2;
+  }
+
+  .submission-reply-original-trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  .submission-reply-original-state {
+    @apply text-dc-pink;
+  }
+
+  .submission-reply-original-hide,
+  .submission-reply-original[open] .submission-reply-original-show {
+    display: none;
+  }
+
+  .submission-reply-original[open] .submission-reply-original-hide {
+    display: inline;
+  }
+
+  .submission-reply-original-content {
+    @apply border-t border-dc-border px-3 py-3 text-sm leading-6 text-dc-gray;
   }
 
   .submission-replies-empty {
