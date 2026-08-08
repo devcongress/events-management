@@ -242,12 +242,12 @@ Expenses are part of the confirmed annual-conference scope. The first implementa
 | --- | --- | --- | --- | --- |
 | Budget baseline | In progress | Owner | 2026-08-05 | GHS budget lines, committed spend, paid spend, remaining budget, and category variance are visible in the private Finance workspace |
 | Expense categories | In progress | Owner | 2026-08-05 | Initial categories cover venue, catering, AV/connectivity, creative/printing, media, badges, signage, swag, transport, speaker support, contingency, and other |
-| Expense request and approval policy | Not started | Unassigned | TBD | The first slice records explicit draft, committed, paid, expected, received, and cancelled states; approval and reimbursement policy remains next |
+| Expense request and approval policy | Not started | Unassigned | TBD | The first slice records explicit draft, committed, paid, expected, partly received, received, and cancelled states; approval and reimbursement policy remains next |
 | Purchases and supplier commitments | In progress | Owner | 2026-08-05 | Owner-managed expense records capture vendor/source, amount, date, category, status, and notes |
 | Receipts and supporting documents | Not started | Unassigned | TBD | Define required evidence, secure storage, retention, and who can access it |
 | Reimbursements | Not started | Unassigned | TBD | Track claimant, purpose, approved amount, paid amount, payment method, status, and payment date |
 | Actual versus budget | In progress | Owner | 2026-08-05 | Dashboard reports planned, committed, paid, unpaid committed, remaining, and category variance |
-| Sponsorship income | In progress | Owner | 2026-08-05 | Income records can be tracked as expected or received without mixing them into expense totals |
+| Sponsorship income | In progress | Owner | 2026-08-08 | Manual commitments retain their original promise, revisions, partial receipts, and outstanding GHS balance; a sponsor pipeline is still needed before source-linked sponsorship rows are automatic |
 
 ### Finance Safety Boundaries
 
@@ -257,6 +257,7 @@ Expenses are part of the confirmed annual-conference scope. The first implementa
 - The current edition finance currency is explicitly GHS (Ghana cedis); mixed-currency support is not included in this first slice.
 - Receipts and contracts still need private storage, access control, and retention rules before attachments are added.
 - Budget, committed cost, actual payment, reimbursement, and sponsor income are different records and must not be collapsed into one number.
+- Ticket and sponsor modules must own their payment/reconciliation facts; Finance receives source-linked rollups and must not permit manual edits to those derived records.
 
 ## Current Application Coverage
 

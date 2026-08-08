@@ -35,6 +35,15 @@ Community submissions live inside the Events workspace at `/organizer-console/ev
 - reject it with a required reason category selected through the organizer app dropdown, optional organizer-facing message, and optional private internal note;
 - open the canonical event after approval.
 
+Before making a pending-submission decision, the review drawer presents the same four criteria to every Organizer:
+
+1. **Community fit** — the event is relevant to Ghana's technology community.
+2. **Event clarity** — its date, location or online link, and registration path are ready to publish.
+3. **Credibility** — the organizer and the supplied details can be verified.
+4. **Calendar value** — it is not a duplicate, already past, or an avoidable major clash.
+
+All four should be true before approval. A reviewer should use the existing rejection category and organizer message to explain a decline clearly; the internal note remains private to organizers.
+
 Approval and rejection are transactional, idempotent Supabase functions. A source-submission unique constraint prevents repeated approval requests from creating duplicate canonical events. Each decision queues one durable email in the same transaction. **Approve & publish** needs no extra confirmation; it publishes the canonical external event and queues the approval notice. **Reject & notify organizer** shows the outgoing reason/message separately from the internal note. Review actions are written to the admin audit ledger without submitter contact data or note/message content.
 
 The review drawer groups the proposal summary, schedule, location, submitter, and supporting links into one neutral review card. Submitter notes, email operations, and replies are visually secondary so organizers can scan the event facts before making a decision; the shared organizer action primitives provide the primary and secondary decision treatments, while semantic colors are limited to actual status. The drawer shows receipt and decision delivery state as **Queued**, **Accepted**, or **Failed**, with actionable failure copy for quota/rate limits, sender or credential configuration, invalid message details, provider outages, and connectivity failures. When Resend supplies a safe provider reason, it is included after the category so the missing sender or recipient detail is visible. Retry responses preserve that same reason in the organizer toast instead of collapsing it to a generic HTTP status. Accepted means Resend accepted the message, not that it reached the inbox. A failed notification can be retried without re-running approval/rejection or creating another event.

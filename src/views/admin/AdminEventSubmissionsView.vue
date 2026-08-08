@@ -559,6 +559,33 @@ function replyPresentation(reply: EventSubmissionReply) {
 
             <footer class="submission-drawer-footer">
               <template v-if="selectedSubmission.review_status === 'pending'">
+                <section class="submission-decision-checklist" aria-labelledby="submission-decision-checklist-title">
+                  <div class="submission-decision-checklist-heading">
+                    <div>
+                      <p class="submission-section-kicker">Before you decide</p>
+                      <h4 id="submission-decision-checklist-title">Check these four things</h4>
+                    </div>
+                    <p>All four should be true before approval.</p>
+                  </div>
+                  <ol class="submission-decision-checklist-items">
+                    <li>
+                      <span aria-hidden="true">1</span>
+                      <div><strong>Community fit</strong><p>Relevant to Ghana's technology community.</p></div>
+                    </li>
+                    <li>
+                      <span aria-hidden="true">2</span>
+                      <div><strong>Event clarity</strong><p>Date, place or link, and registration are ready.</p></div>
+                    </li>
+                    <li>
+                      <span aria-hidden="true">3</span>
+                      <div><strong>Credibility</strong><p>The organizer and event details can be verified.</p></div>
+                    </li>
+                    <li>
+                      <span aria-hidden="true">4</span>
+                      <div><strong>Calendar value</strong><p>Not a duplicate, past, or avoidable major clash.</p></div>
+                    </li>
+                  </ol>
+                </section>
                 <Transition name="submission-review">
                   <div v-if="rejecting" class="mb-4 space-y-4">
                     <AppDropdown

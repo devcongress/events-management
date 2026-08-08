@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-056: Immutable Annual-Conference Income History With Source-Linked Revenue
+
+Date: 2026-08-08
+Status: Accepted
+
+Context: An annual-conference income promise can be reduced, withdrawn, or paid in several instalments. Replacing the expected amount on the visible ledger loses the original commitment and makes the at-a-glance finance totals unreliable. Ticketing and sponsorship will later produce their own payment facts, so manually re-entering their revenue in Finance would create duplicate or conflicting balances.
+
+Decision: Keep one GHS finance entry per income commitment, retain its original amount, and append amendment/cancellation and receipt records. Derive outstanding expected income from the current commitment minus recorded receipts; derive received income only from money actually recorded. Owner-only APIs validate the action and reason, audit it, and call transactional Supabase functions that lock the row before changing it. Continue using the existing edition-scoped `finance.view` capability for Organizer visibility; only Owners mutate finance. Add a source marker for `manual`, `sponsor`, and `ticket`; Finance creates and manages manual rows only, while future ticket/sponsor modules own and publish their source-linked values.
+
+Trade-offs: The ledger adds two tables and three mutation paths, but preserves financial history and permits partial payments. Existing direct “received” income rows remain readable as fully received legacy records without invented receipt rows. The source marker is an integration seam, not a completed ticketing or sponsorship system.
+
+Alternatives considered: Overwrite `amount_minor` with no history (loses the promise), record reductions as unrelated negative income entries (misstates revenue and is hard to audit), make every receipt a standalone income entry (loses the connection to the commitment), or let Finance manually edit ticket/sponsor rollups (duplicates source-of-truth accounting).
+
+Revisit when: Paid ticketing, sponsor contracts, refunds, settlement/reconciliation, or an approval/reimbursement workflow is introduced.
+
 ## ADR-055: Best-Effort Slack Announcements for Published Events
 
 Date: 2026-08-07

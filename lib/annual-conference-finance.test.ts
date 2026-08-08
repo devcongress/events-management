@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ANNUAL_CONFERENCE_FINANCE_CURRENCY,
+  hydrateAnnualConferenceFinanceEntries,
   summarizeAnnualConferenceFinance,
   type AnnualConferenceFinanceBudgetLine,
   type AnnualConferenceFinanceEntry,
@@ -37,6 +38,11 @@ const entry = (overrides: Partial<AnnualConferenceFinanceEntry> = {}): AnnualCon
   created_at: '2026-08-05T00:00:00.000Z',
   updated_at: '2026-08-05T00:00:00.000Z',
   ...overrides,
+  original_amount_minor: overrides.original_amount_minor ?? 25_000,
+  source_type: overrides.source_type ?? 'manual',
+  source_reference: overrides.source_reference ?? null,
+  received_amount_minor: overrides.received_amount_minor ?? 0,
+  outstanding_amount_minor: overrides.outstanding_amount_minor ?? 0,
 });
 
 describe('annual conference finance summary', () => {
@@ -46,8 +52,8 @@ describe('annual conference finance summary', () => {
       [
         entry(),
         entry({ id: 'entry-2', amount_minor: 10_000, status: 'paid' }),
-        entry({ id: 'entry-3', kind: 'income', category: 'other', amount_minor: 80_000, status: 'expected' }),
-        entry({ id: 'entry-4', kind: 'income', category: 'other', amount_minor: 50_000, status: 'received' }),
+        entry({ id: 'entry-3', kind: 'income', category: 'other', amount_minor: 80_000, status: 'expected', outstanding_amount_minor: 80_000 }),
+        entry({ id: 'entry-4', kind: 'income', category: 'other', amount_minor: 50_000, status: 'received', received_amount_minor: 50_000 }),
       ],
     );
 
@@ -74,5 +80,39 @@ describe('annual conference finance summary', () => {
     );
 
     expect(summary.remaining_minor).toBe(-5_000);
+  });
+
+  it('keeps a revised income expectation, partial receipts, and the remaining amount distinct', () => {
+    const income = entry({
+      id: 'income-1',
+      kind: 'income',
+      category: 'other',
+      amount_minor: 75_000,
+      original_amount_minor: 100_000,
+      status: 'partially_received',
+    });
+    const [hydratedIncome] = hydrateAnnualConferenceFinanceEntries([income], [{
+      id: 'receipt-1',
+      entry_id: income.id,
+      amount_minor: 30_000,
+      received_date: '2026-08-08',
+      payment_reference: 'MOMO-123',
+      notes: null,
+      created_by_email: 'owner@example.com',
+      created_at: '2026-08-08T00:00:00.000Z',
+    }]);
+    const summary = summarizeAnnualConferenceFinance([], [hydratedIncome]);
+
+    expect(hydratedIncome).toMatchObject({
+      original_amount_minor: 100_000,
+      amount_minor: 75_000,
+      received_amount_minor: 30_000,
+      outstanding_amount_minor: 45_000,
+    });
+    expect(summary).toMatchObject({
+      income_expected_minor: 45_000,
+      income_received_minor: 30_000,
+      net_cash_minor: 30_000,
+    });
   });
 });

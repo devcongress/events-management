@@ -2,18 +2,27 @@ import type { Context } from 'hono';
 import {
   createMockAnnualConferenceFinanceBudget,
   createMockAnnualConferenceFinanceEntry,
+  amendMockAnnualConferenceFinanceIncomeExpectation,
+  cancelMockAnnualConferenceFinanceIncomeExpectation,
   getMockAnnualConferenceFinance,
+  recordMockAnnualConferenceFinanceIncomeReceipt,
 } from '@/lib/mock-db/annual-conference-finance';
 import {
+  amendSupabaseAnnualConferenceFinanceIncomeExpectation,
+  cancelSupabaseAnnualConferenceFinanceIncomeExpectation,
   createSupabaseAnnualConferenceFinanceBudget,
   createSupabaseAnnualConferenceFinanceEntry,
   getSupabaseAnnualConferenceFinance,
+  recordSupabaseAnnualConferenceFinanceIncomeReceipt,
 } from '@/lib/supabase/annual-conference-finance';
 import type {
   AnnualConferenceFinanceBudgetLine,
   AnnualConferenceFinanceBudgetLineInput,
   AnnualConferenceFinanceEntry,
   AnnualConferenceFinanceEntryInput,
+  AnnualConferenceFinanceIncomeCancellationInput,
+  AnnualConferenceFinanceIncomeExpectationAmendmentInput,
+  AnnualConferenceFinanceIncomeReceiptInput,
   AnnualConferenceFinanceSnapshot,
 } from '@/lib/annual-conference-finance';
 
@@ -27,6 +36,21 @@ export interface AnnualConferenceFinanceRepository {
   createEntry(
     editionId: string,
     input: AnnualConferenceFinanceEntryInput,
+    actorEmail: string,
+  ): Promise<AnnualConferenceFinanceEntry>;
+  amendIncomeExpectation(
+    entryId: string,
+    input: AnnualConferenceFinanceIncomeExpectationAmendmentInput,
+    actorEmail: string,
+  ): Promise<AnnualConferenceFinanceEntry>;
+  recordIncomeReceipt(
+    entryId: string,
+    input: AnnualConferenceFinanceIncomeReceiptInput,
+    actorEmail: string,
+  ): Promise<AnnualConferenceFinanceEntry>;
+  cancelIncomeExpectation(
+    entryId: string,
+    input: AnnualConferenceFinanceIncomeCancellationInput,
     actorEmail: string,
   ): Promise<AnnualConferenceFinanceEntry>;
 }
@@ -66,6 +90,33 @@ export function createAnnualConferenceFinanceRepository(c?: Context): AnnualConf
         return entry;
       }
       return createMockAnnualConferenceFinanceEntry(editionId, input, actorEmail);
+    },
+
+    async amendIncomeExpectation(entryId, input, actorEmail) {
+      if (selectedBackend() === 'supabase') {
+        const entry = await amendSupabaseAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail, c);
+        if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+        return entry;
+      }
+      return amendMockAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail);
+    },
+
+    async recordIncomeReceipt(entryId, input, actorEmail) {
+      if (selectedBackend() === 'supabase') {
+        const entry = await recordSupabaseAnnualConferenceFinanceIncomeReceipt(entryId, input, actorEmail, c);
+        if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+        return entry;
+      }
+      return recordMockAnnualConferenceFinanceIncomeReceipt(entryId, input, actorEmail);
+    },
+
+    async cancelIncomeExpectation(entryId, input, actorEmail) {
+      if (selectedBackend() === 'supabase') {
+        const entry = await cancelSupabaseAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail, c);
+        if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+        return entry;
+      }
+      return cancelMockAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail);
     },
   };
 }

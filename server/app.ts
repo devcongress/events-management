@@ -535,6 +535,19 @@ const annualConferenceFinanceEntrySchema = z.object({
     });
   }
 });
+const annualConferenceFinanceIncomeExpectationAmendmentSchema = z.object({
+  amount_minor: z.number().int().min(1).max(9_000_000_000_000),
+  reason: z.string().trim().min(1, 'Explain why the expected amount changed.').max(500),
+}).strict();
+const annualConferenceFinanceIncomeReceiptSchema = z.object({
+  amount_minor: z.number().int().min(1).max(9_000_000_000_000),
+  received_date: z.string().date(),
+  payment_reference: z.string().trim().max(160).nullable().optional(),
+  notes: z.string().trim().max(500).nullable().optional(),
+}).strict();
+const annualConferenceFinanceIncomeCancellationSchema = z.object({
+  reason: z.string().trim().min(1, 'Explain why this expectation is no longer expected.').max(500),
+}).strict();
 const monthlyMeetupFinanceExpenseSchema = z.object({
   category: z.string().trim().min(1, 'Category is required.').max(80),
   description: z.string().trim().min(1, 'Description is required.').max(200),
@@ -3796,6 +3809,69 @@ app.post('/api/annual-conference/:year/finance/entries', async (c) => {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
     return internalErrorResponse(c, 'annual_conference_finance_entry_create_failed', error, 'Unable to save the finance record.');
+  }
+});
+
+app.patch('/api/annual-conference/:year/finance/entries/:entryId/expected', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const entryId = z.string().uuid().safeParse(c.req.param('entryId'));
+  if (!entryId.success) return c.json({ error: 'Finance record identifier is invalid.' }, 400);
+  const parsed = annualConferenceFinanceIncomeExpectationAmendmentSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the revised expected amount.' }, 400);
+
+  try {
+    const service = await annualConferenceFinanceServiceForRequest(c);
+    return c.json(await service.amendIncomeExpectation(Number(yearParam), entryId.data, parsed.data));
+  } catch (error) {
+    if (error instanceof AnnualConferenceFinanceServiceError) {
+      return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'annual_conference_finance_income_amend_failed', error, 'Unable to amend the expected income.');
+  }
+});
+
+app.post('/api/annual-conference/:year/finance/entries/:entryId/receipts', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const entryId = z.string().uuid().safeParse(c.req.param('entryId'));
+  if (!entryId.success) return c.json({ error: 'Finance record identifier is invalid.' }, 400);
+  const parsed = annualConferenceFinanceIncomeReceiptSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the payment receipt.' }, 400);
+
+  try {
+    const service = await annualConferenceFinanceServiceForRequest(c);
+    return c.json(await service.recordIncomeReceipt(Number(yearParam), entryId.data, parsed.data), 201);
+  } catch (error) {
+    if (error instanceof AnnualConferenceFinanceServiceError) {
+      return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'annual_conference_finance_income_receipt_create_failed', error, 'Unable to record the payment receipt.');
+  }
+});
+
+app.post('/api/annual-conference/:year/finance/entries/:entryId/cancel', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const entryId = z.string().uuid().safeParse(c.req.param('entryId'));
+  if (!entryId.success) return c.json({ error: 'Finance record identifier is invalid.' }, 400);
+  const parsed = annualConferenceFinanceIncomeCancellationSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Explain why this expectation is no longer expected.' }, 400);
+
+  try {
+    const service = await annualConferenceFinanceServiceForRequest(c);
+    return c.json(await service.cancelIncomeExpectation(Number(yearParam), entryId.data, parsed.data));
+  } catch (error) {
+    if (error instanceof AnnualConferenceFinanceServiceError) {
+      return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
+    }
+    return internalErrorResponse(c, 'annual_conference_finance_income_cancel_failed', error, 'Unable to cancel the expected income.');
   }
 });
 

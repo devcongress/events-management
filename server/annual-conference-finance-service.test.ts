@@ -9,11 +9,36 @@ const snapshot: AnnualConferenceFinanceSnapshot = {
   edition_id: 'edition-1',
   budgets: [],
   entries: [],
+  income_amendments: [],
+  income_receipts: [],
 };
 
-function service(role: 'owner' | 'organizer') {
+const incomeEntry = {
+  id: 'income-1',
+  edition_id: 'edition-1',
+  kind: 'income' as const,
+  category: 'other' as const,
+  description: 'Community sponsor support',
+  amount_minor: 100_000,
+  original_amount_minor: 100_000,
+  currency: ANNUAL_CONFERENCE_FINANCE_CURRENCY,
+  status: 'expected' as const,
+  source_type: 'manual' as const,
+  source_reference: null,
+  received_amount_minor: 0,
+  outstanding_amount_minor: 100_000,
+  vendor: 'Example sponsor',
+  entry_date: '2026-08-08',
+  notes: null,
+  created_by_email: 'owner@example.com',
+  updated_by_email: 'owner@example.com',
+  created_at: '2026-08-08T00:00:00.000Z',
+  updated_at: '2026-08-08T00:00:00.000Z',
+};
+
+function service(role: 'owner' | 'organizer', financeSnapshot = snapshot) {
   const repository = {
-    getFinance: vi.fn(async () => snapshot),
+    getFinance: vi.fn(async () => financeSnapshot),
     createBudgetLine: vi.fn(async () => ({
       id: 'budget-1',
       edition_id: 'edition-1',
@@ -33,8 +58,13 @@ function service(role: 'owner' | 'organizer') {
       category: 'venue' as const,
       description: 'Venue deposit',
       amount_minor: 25_000,
+      original_amount_minor: 25_000,
       currency: ANNUAL_CONFERENCE_FINANCE_CURRENCY,
       status: 'committed' as const,
+      source_type: 'manual' as const,
+      source_reference: null,
+      received_amount_minor: 0,
+      outstanding_amount_minor: 0,
       vendor: null,
       entry_date: null,
       notes: null,
@@ -43,6 +73,9 @@ function service(role: 'owner' | 'organizer') {
       created_at: '2026-08-05T00:00:00.000Z',
       updated_at: '2026-08-05T00:00:00.000Z',
     })),
+    amendIncomeExpectation: vi.fn(async () => ({ ...incomeEntry, amount_minor: 75_000, outstanding_amount_minor: 75_000 })),
+    recordIncomeReceipt: vi.fn(async () => ({ ...incomeEntry, status: 'partially_received' as const, received_amount_minor: 25_000, outstanding_amount_minor: 75_000 })),
+    cancelIncomeExpectation: vi.fn(async () => ({ ...incomeEntry, status: 'cancelled' as const, outstanding_amount_minor: 0 })),
   };
   const audit = vi.fn(async () => undefined);
   const finance = createAnnualConferenceFinanceService({
@@ -92,5 +125,34 @@ describe('Annual Conference finance service', () => {
       amount_minor: 25_000,
       status: 'committed',
     })).rejects.toMatchObject({ code: 'forbidden' });
+
+    await expect(finance.recordIncomeReceipt(2026, 'entry-1', {
+      amount_minor: 10_000,
+      received_date: '2026-08-08',
+    })).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('audits owner changes to a manual income expectation', async () => {
+    const { finance, repository, audit } = service('owner', { ...snapshot, entries: [incomeEntry] });
+
+    await finance.amendIncomeExpectation(2026, incomeEntry.id, {
+      amount_minor: 75_000,
+      reason: 'Sponsor reduced its commitment.',
+    });
+    await finance.recordIncomeReceipt(2026, incomeEntry.id, {
+      amount_minor: 25_000,
+      received_date: '2026-08-08',
+      payment_reference: 'MOMO-123',
+    });
+
+    expect(repository.amendIncomeExpectation).toHaveBeenCalledWith(incomeEntry.id, expect.objectContaining({ amount_minor: 75_000 }), 'owner@example.com');
+    expect(repository.recordIncomeReceipt).toHaveBeenCalledWith(incomeEntry.id, expect.objectContaining({ amount_minor: 25_000 }), 'owner@example.com');
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'annual_conference.finance.income_expectation_amend' }));
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'annual_conference.finance.income_receipt_create' }));
+
+    await expect(finance.recordIncomeReceipt(2026, incomeEntry.id, {
+      amount_minor: 100_001,
+      received_date: '2026-08-08',
+    })).rejects.toMatchObject({ code: 'invalid' });
   });
 });

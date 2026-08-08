@@ -344,8 +344,11 @@ export interface Database {
           category: string;
           description: string;
           amount_minor: number;
+          original_amount_minor: number;
           currency: string;
           status: string;
+          source_type: string;
+          source_reference: string | null;
           vendor: string | null;
           entry_date: string | null;
           notes: string | null;
@@ -361,8 +364,11 @@ export interface Database {
           category: string;
           description: string;
           amount_minor: number;
+          original_amount_minor: number;
           currency?: string;
           status: string;
+          source_type?: string;
+          source_reference?: string | null;
           vendor?: string | null;
           entry_date?: string | null;
           notes?: string | null;
@@ -378,8 +384,11 @@ export interface Database {
           category?: string;
           description?: string;
           amount_minor?: number;
+          original_amount_minor?: number;
           currency?: string;
           status?: string;
+          source_type?: string;
+          source_reference?: string | null;
           vendor?: string | null;
           entry_date?: string | null;
           notes?: string | null;
@@ -392,6 +401,88 @@ export interface Database {
             columns: ['edition_id'];
             isOneToOne: false;
             referencedRelation: 'annual_conference_editions';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      annual_conference_finance_income_amendments: {
+        Row: {
+          id: string;
+          entry_id: string;
+          previous_amount_minor: number;
+          next_amount_minor: number;
+          action: string;
+          reason: string;
+          created_by_email: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entry_id: string;
+          previous_amount_minor: number;
+          next_amount_minor: number;
+          action?: string;
+          reason: string;
+          created_by_email?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          entry_id?: string;
+          previous_amount_minor?: number;
+          next_amount_minor?: number;
+          action?: string;
+          reason?: string;
+          created_by_email?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_finance_income_amendments_entry_id_fkey';
+            columns: ['entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_finance_entries';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      annual_conference_finance_income_receipts: {
+        Row: {
+          id: string;
+          entry_id: string;
+          amount_minor: number;
+          received_date: string;
+          payment_reference: string | null;
+          notes: string | null;
+          created_by_email: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          entry_id: string;
+          amount_minor: number;
+          received_date: string;
+          payment_reference?: string | null;
+          notes?: string | null;
+          created_by_email?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          entry_id?: string;
+          amount_minor?: number;
+          received_date?: string;
+          payment_reference?: string | null;
+          notes?: string | null;
+          created_by_email?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_finance_income_receipts_entry_id_fkey';
+            columns: ['entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_finance_entries';
             referencedColumns: ['id'];
           },
         ];
@@ -1743,6 +1834,34 @@ export interface Database {
           p_claim_id: string;
         };
         Returns: boolean;
+      };
+      amend_annual_conference_income_expectation: {
+        Args: {
+          p_entry_id: string;
+          p_next_amount_minor: number;
+          p_reason: string;
+          p_actor_email: string;
+        };
+        Returns: Database['public']['Tables']['annual_conference_finance_entries']['Row'];
+      };
+      record_annual_conference_income_receipt: {
+        Args: {
+          p_entry_id: string;
+          p_amount_minor: number;
+          p_received_date: string;
+          p_payment_reference: string | null;
+          p_notes: string | null;
+          p_actor_email: string;
+        };
+        Returns: Database['public']['Tables']['annual_conference_finance_entries']['Row'];
+      };
+      cancel_annual_conference_income_expectation: {
+        Args: {
+          p_entry_id: string;
+          p_reason: string;
+          p_actor_email: string;
+        };
+        Returns: Database['public']['Tables']['annual_conference_finance_entries']['Row'];
       };
     };
     Enums: {

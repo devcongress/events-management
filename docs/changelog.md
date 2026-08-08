@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-08 — Made Annual Conference income commitments auditable
+
+- Kept the existing edition-specific **Finance** access toggle in People & Access as the Owner-controlled, Organizer-view-only finance boundary.
+- Added a manual-income lifecycle: Owners can amend a GHS expectation with a reason, record partial receipts, or cancel an unpaid expectation with a reason.
+- Preserved the original commitment, revision/cancellation history, receipts, received total, and outstanding balance instead of overwriting expected income.
+- Reserved source-linked finance records for future ticketing and sponsorship integrations, keeping derived revenue read-only in Finance to prevent double counting.
+
+## 2026-08-08 — Standardized community-event review criteria
+
+- Added a compact, four-point **Before you decide** checklist above pending-submission actions so every reviewer considers community fit, event clarity, credibility, and calendar value before approving or rejecting a listing.
+
 ## 2026-08-08 — Made failed submission-reply Slack alerts actionable
 
 - Preserved Slack's bounded HTTP rejection detail with each captured organizer reply instead of showing an unexplained **Slack failed** state.
