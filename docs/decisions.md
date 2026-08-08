@@ -1,5 +1,21 @@
 # Architectural Decisions
 
+## ADR-059: Separate Speaker Calls Through a Private Conference Programme Event
+
+Date: 2026-08-08
+Status: Accepted
+
+Context: Monthly event proposals, selected-presenter links, and archive records are already reliably scoped by `event_id`. Building a separate Annual Conference submission stack would duplicate review decisions, private-link security, and archive handoff. Putting conference proposals into the monthly Events workspace would instead make organisers mix two different programming queues.
+
+Decision: Each Annual Conference edition owns one private, non-published `community_events` programme record. The shared proposal lifecycle uses that event internally, while public conference calls use `/speak/c/:year` and organiser review stays at Annual Conference → Speakers. Monthly calls use `/speak/m/:eventId` and remain in the Event Talks workspace. The initial form keeps only name, email, title, summary, and an optional demo choice; selected presenters provide richer programme and archive details through the existing secure follow-up.
+
+Trade-offs: The Annual Conference domain now has an internal Event association that organiser-facing conference screens must not expose as a monthly event. This small relationship is preferable to duplicate persistence and preserves tested selection/link/audit behavior.
+
+Alternatives considered: A new conference-only submission and link schema (duplicates a secured lifecycle), one combined speaker inbox (loses operational separation), or attaching proposals directly to tasks (does not model a presenter or programme lifecycle).
+
+Revisit when: Annual Conference programme needs multiple independent tracks or calls per edition, campaign-specific questions, panel co-speakers, or review assignments that merit a first-class call/campaign model.
+
+
 ## ADR-058: Audit-Log Email Delivery Health From Provider Observations
 
 Date: 2026-08-08

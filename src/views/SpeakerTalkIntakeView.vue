@@ -98,7 +98,7 @@ function resourceLabel() {
 
 function archiveHeading() {
   if (isSelectedSpeakerLink()) {
-    return isProductDemo() ? 'Add Your Demo Link' : 'Add Your Slides';
+    return 'Complete Your Speaker Details';
   }
 
   if (isMaterialsFollowUpLink()) return 'Complete Your Archive Details';
@@ -108,7 +108,7 @@ function archiveHeading() {
 
 function archiveDescription() {
   if (isSelectedSpeakerLink()) {
-    return 'Add the public link to complete the DevCongress archive.';
+    return 'Add a short bio and any resource link you have. You can leave the resource link blank if it is not ready yet.';
   }
 
   if (isMaterialsFollowUpLink()) {
@@ -139,7 +139,7 @@ async function submitTalkDetails() {
   submitting.value = true;
   error.value = null;
   const payload = isSelectedSpeakerLink()
-    ? { slides_url: form.slides_url }
+    ? { topic: form.topic, bio: form.bio, slides_url: form.slides_url }
     : isMaterialsFollowUpLink()
       ? Object.fromEntries(requestedFields.value.map((field) => [field, form[field]]))
     : {
@@ -271,9 +271,9 @@ function applyPrefill(prefill: IntakePrefill) {
           <p v-if="form.abstract" class="mt-4 text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
         </div>
 
-        <template v-if="!isSelectedSpeakerLink() && !isMaterialsFollowUpLink()">
+        <template v-if="!isMaterialsFollowUpLink()">
           <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
-            <label class="block">
+            <label v-if="!isSelectedSpeakerLink()" class="block">
               <span class="mb-2 flex items-center justify-between gap-3">
                 <span class="editorial-label !mb-0">{{ archiveItemLabel() }} title</span>
                 <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Locked</span>
@@ -313,7 +313,7 @@ function applyPrefill(prefill: IntakePrefill) {
 
             <label class="block min-w-0">
               <span class="mb-2 flex items-end justify-between gap-3">
-                <span class="editorial-label !mb-0">{{ presenterLabel() }} bio</span>
+                <span class="editorial-label !mb-0">{{ presenterLabel() }} bio<span v-if="isSelectedSpeakerLink()"> *</span></span>
                 <span id="speaker-archive-bio-count" class="font-mono text-[11px] font-semibold tabular-nums text-dc-gray">
                   {{ form.bio.length }} / {{ SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS }}
                   <span class="sr-only">characters</span>
@@ -321,6 +321,7 @@ function applyPrefill(prefill: IntakePrefill) {
               </span>
               <textarea
                 v-model="form.bio"
+                :required="isSelectedSpeakerLink()"
                 rows="4"
                 :maxlength="SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS"
                 aria-describedby="speaker-archive-bio-count"
@@ -349,8 +350,8 @@ function applyPrefill(prefill: IntakePrefill) {
 
         <div v-if="!isMaterialsFollowUpLink() || requestsField('slides_url')" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label class="block min-w-0">
-            <span class="editorial-label">{{ resourceLabel() }}<span v-if="isSelectedSpeakerLink() || isMaterialsFollowUpLink()"> *</span></span>
-            <input v-model="form.slides_url" :required="isSelectedSpeakerLink() || isMaterialsFollowUpLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
+            <span class="editorial-label">{{ resourceLabel() }}<span v-if="isMaterialsFollowUpLink()"> *</span></span>
+            <input v-model="form.slides_url" :required="isMaterialsFollowUpLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
           </label>
 
           <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-56">
@@ -360,9 +361,7 @@ function applyPrefill(prefill: IntakePrefill) {
                 : isMaterialsFollowUpLink()
                   ? 'SEND ARCHIVE DETAILS'
                   : isSelectedSpeakerLink()
-                  ? isProductDemo()
-                    ? 'SEND DEMO LINK'
-                    : 'SEND SLIDES'
+                  ? 'SEND DETAILS'
                   : isProductDemo()
                     ? 'SEND PRODUCT DEMO DETAILS'
                     : 'SEND TALK DETAILS'

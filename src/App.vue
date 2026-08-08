@@ -84,6 +84,8 @@ const isStandaloneRoute = computed(() => (
   route.name === 'event-feedback'
   || route.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME
   || route.name === 'event-cfp'
+  || route.name === 'monthly-cfp'
+  || route.name === 'conference-cfp'
   || route.name === 'event-registration-short'
   || route.name === 'event-registration'
   || route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME

@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
 import { fetchAdminAuditLog, queryKeys, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery } from '@/src/lib/api';
 
@@ -284,14 +285,6 @@ function actorKey(log: AdminAuditLogEntry): string {
   return actorLabel(log).toLowerCase();
 }
 
-function goToPage(nextPage: number) {
-  page.value = Math.min(pageCount.value, Math.max(1, nextPage));
-}
-
-function goToDeliveryPage(nextPage: number) {
-  deliveryPage.value = Math.min(deliveryPageCount.value, Math.max(1, nextPage));
-}
-
 function toggleGroupByActorEmail() {
   groupByActorEmail.value = !groupByActorEmail.value;
 }
@@ -551,34 +544,7 @@ onUnmounted(() => {
               </table>
             </div>
           </template>
-          <div v-if="orderedLogs.length > AUDIT_LOG_PAGE_SIZE" class="pagination-footer shrink-0">
-            <p class="pagination-summary">
-              Showing {{ pageStart }}-{{ pageEnd }} of {{ orderedLogs.length }}
-            </p>
-            <div class="pagination-controls">
-              <button
-                type="button"
-                class="pagination-button"
-                :disabled="page === 1"
-                @click="goToPage(page - 1)"
-              >
-                <span aria-hidden="true">‹</span>
-                Prev
-              </button>
-              <span class="pagination-count" aria-live="polite">
-                Page {{ page }} of {{ pageCount }}
-              </span>
-              <button
-                type="button"
-                class="pagination-button"
-                :disabled="page === pageCount"
-                @click="goToPage(page + 1)"
-              >
-                Next
-                <span aria-hidden="true">›</span>
-              </button>
-            </div>
-          </div>
+          <AppPagination v-model:page="page" :page-count="pageCount" :total="orderedLogs.length" :range-start="pageStart" :range-end="pageEnd" item-label="audit records" aria-label="Audit activity pagination" />
             </section>
           </div>
 
@@ -710,17 +676,7 @@ onUnmounted(() => {
                   </tbody>
                 </table>
               </div>
-              <div v-if="deliveryPageCount > 1" class="audit-log-delivery-history__pagination">
-                <button type="button" class="audit-log-delivery-history__page-button motion-press" :disabled="deliveryPage === 1" @click="goToDeliveryPage(deliveryPage - 1)">
-                  <span aria-hidden="true">‹</span>
-                  Previous
-                </button>
-                <p>Page {{ deliveryPage }} of {{ deliveryPageCount }}</p>
-                <button type="button" class="audit-log-delivery-history__page-button motion-press" :disabled="deliveryPage === deliveryPageCount" @click="goToDeliveryPage(deliveryPage + 1)">
-                  Next
-                  <span aria-hidden="true">›</span>
-                </button>
-              </div>
+              <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="recentEmailDeliveries.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Email delivery pagination" />
             </div>
           </section>
         </Transition>

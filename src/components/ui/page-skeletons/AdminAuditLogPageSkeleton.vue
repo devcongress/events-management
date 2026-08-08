@@ -55,9 +55,10 @@
         </div>
       </div>
 
-      <div class="pagination-footer shrink-0">
-        <div class="skeleton-line h-3 w-40" />
-        <div class="skeleton-button skeleton-button--secondary h-10 w-64" />
+      <div class="app-pagination shrink-0">
+        <div class="skeleton-button skeleton-button--secondary h-10 w-28" />
+        <div class="skeleton-line h-3 w-20 justify-self-center" />
+        <div class="skeleton-button skeleton-button--secondary h-10 w-20 justify-self-end" />
       </div>
     </section>
   </div>
