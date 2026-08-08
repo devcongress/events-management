@@ -217,18 +217,7 @@ onUnmounted(() => {
 .conference-brief {
   position: relative;
   margin-bottom: 2.5rem;
-  border-top: 2px solid #111111;
   border-bottom: 2px solid #111111;
-}
-
-.conference-brief::before {
-  position: absolute;
-  top: -2px;
-  left: 0;
-  width: min(10rem, 28%);
-  height: 4px;
-  background: #e8117f;
-  content: "";
 }
 
 .conference-brief__masthead {

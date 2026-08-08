@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-08 — Removed the duplicate Annual Conference section divider
+
+- Removed the Overview page's redundant black-and-pink masthead divider beneath the Annual Conference navigation.
+- Kept the shared navigation's active tab underline as the single section indicator.
+
 ## 2026-08-08 — Aligned Annual Conference navigation with Registration
 
 - Replaced the boxed Annual Conference section buttons with the Registration workspace's icon-led, underline tab treatment.
