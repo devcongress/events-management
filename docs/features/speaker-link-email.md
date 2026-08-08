@@ -44,8 +44,17 @@ flowchart LR
 
 - **Talks review** now makes the complete proposal explicit: organizers open a right-side **Review proposal** drawer before they can select or decline a presenter. The drawer contains the submitted abstract or demo summary, presenter bio, topic, contact details, and submission time.
 - **Talks Archive** uses the same drawer for every archive state, including published items. It preserves a full internal record of the content submitted through the CFP or completion link, rather than leaving organizers with a title-only row.
-- Archive status changes (accept, publish, exclude, and reminder) live in the archive preview drawer, so an organizer reads the record before taking an irreversible decision.
+- Archive status changes (accept, publish, exclude, and reminder) live in the archive preview drawer, so an organizer reads the record before taking an irreversible decision. An Owner can also unpublish a published item there, returning it to its appropriate internal ready state; Organizers cannot reverse public visibility.
 - The existing public archive remains a separate visibility rule: a published archive item is only returned publicly when its event meets the public completed-archive conditions. The organizer preview is always available to authenticated organizers and does not depend on that public condition.
+
+### Missing-material follow-up
+
+- An Owner can request any currently missing abstract/demo summary, presenter bio, or resource URL from an archive-record preview, including a published record.
+- The Owner selects the missing fields. The app sends one transactional email containing a fresh, private, expiring link bound to that exact existing archive record.
+- The presenter form renders only the requested fields. Its submission updates that record in place and preserves its current status, including `published`; it never creates a duplicate Talk.
+- The link is single-use, token-hashed, event-scoped, and guarded by the existing atomic claim/consume lifecycle. Organizers cannot issue the follow-up, and the public form cannot update unrequested fields.
+- The archive preview shows the latest email outcome, expiry, retryable failure, or completion. A provider failure records a failed delivery and lets an Owner issue a fresh retry link.
+- Applying `20260808150000_archive_materials_follow_up.sql` is required before this workflow is deployed. It is forward-only and extends the existing private-link table without modifying already-applied migrations.
 
 Relevant code:
 

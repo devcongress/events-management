@@ -302,7 +302,28 @@ function replyPresentation(reply: EventSubmissionReply) {
           </nav>
         </div>
 
-        <div v-if="submissionsQuery.isPending.value" class="p-6 text-sm font-medium text-dc-gray">Loading submissions…</div>
+        <div v-if="submissionsQuery.isPending.value" class="submission-table-scroll" aria-busy="true" aria-label="Loading community submissions">
+          <table class="submission-table">
+            <thead>
+              <tr>
+                <th v-for="column in 7" :key="column"><span class="skeleton-line h-3" /></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-dc-border">
+              <tr v-for="row in 4" :key="row">
+                <td>
+                  <div class="skeleton-line h-4 w-3/4" />
+                </td>
+                <td><div class="skeleton-line h-3 w-4/5" /></td>
+                <td><div class="skeleton-line h-3 w-full" /></td>
+                <td><div class="skeleton-line h-3 w-3/4" /></td>
+                <td><div class="skeleton-line h-3 w-full" /></td>
+                <td><div class="skeleton-option size-5" /></td>
+                <td><div class="skeleton-option ml-auto size-4" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div v-else-if="submissionsQuery.isError.value" class="p-6 text-sm font-semibold text-red-800">Unable to load event submissions.</div>
         <div v-else-if="submissions.length === 0" class="submission-empty-state">
           <div class="submission-empty-icon" aria-hidden="true">
@@ -342,15 +363,29 @@ function replyPresentation(reply: EventSubmissionReply) {
               >
                 <td>
                   <span class="submission-table-title">{{ submission.title }}</span>
-                  <span class="submission-table-summary">{{ submission.summary }}</span>
                 </td>
                 <td>{{ submission.organizer_name }}</td>
                 <td class="whitespace-nowrap">{{ formatDateTime(submission.starts_at, submission.timezone) }}</td>
                 <td>{{ formatLabel(submission.format) }}</td>
                 <td>{{ submission.venue_name || formatLabel(submission.location_type) }}</td>
                 <td>
-                  <span class="shrink-0 rounded-md border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-wide" :class="statusClass(submission.review_status)">
-                    {{ submission.review_status }}
+                  <span
+                    class="submission-table-status-icon"
+                    :class="statusClass(submission.review_status)"
+                    role="img"
+                    :aria-label="formatLabel(submission.review_status)"
+                    :title="formatLabel(submission.review_status)"
+                  >
+                    <svg v-if="submission.review_status === 'pending'" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" />
+                      <path d="M12 7.5v5l3 1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <svg v-else-if="submission.review_status === 'approved'" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                    </svg>
                   </span>
                 </td>
                 <td class="submission-table-arrow" aria-hidden="true">→</td>

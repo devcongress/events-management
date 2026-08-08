@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-058: Audit-Log Email Delivery Health From Provider Observations
+
+Date: 2026-08-08
+Status: Accepted
+
+Context: Transactional registration and community-submission email writes are durable and retryable, but an Owner cannot tell from the Audit Log whether Resend capacity is approaching its plan limit or whether recoverable outbox work has accumulated. Recording every accepted email as an audit row would make the security and operations timeline noisy, while treating provider acceptance as proof of inbox delivery would overstate what the system knows.
+
+Decision: Record the most recent Resend daily and monthly quota observations in one service-role-only singleton record after accepted transactional sends. The owner-only Audit Log returns this health record with counts of pending and failed registration/community-submission/speaker-archive delivery rows, plus a bounded, paginated recent-message history from those durable records. Present **Activity** and **Email delivery** as compact icon-led sections. The delivery section holds capacity, outbox recovery, recent provider outcomes, and provider-observation details without competing with the activity timeline. Create a system audit event only when a quota level rises through the defined thresholds. Keep provider acceptance, inbox delivery, bounces, and complaints distinct; outbound delivery webhooks remain the later source for the latter facts.
+
+Trade-offs: The capacity display is only as current as the latest accepted transactional send, and the selected plan limits remain deployment configuration rather than a live billing API. This is intentionally inexpensive and operationally clear on the current Resend plan, but it does not replace delivery telemetry or a scheduled outbox drain.
+
+Alternatives considered: Add a row for every email send (too noisy), poll Resend billing/capacity APIs (extra provider dependency and plan assumptions), add a queue immediately (more infrastructure before the existing retry model is exhausted), or show only failed rows (misses approaching quota exhaustion).
+
+Revisit when: Volume needs scheduled sending/retries, an outbound Resend webhook is enabled, plan limits must be discovered automatically, or email health needs alerts outside the organizer console.
+
 ## ADR-057: Direct Edition-Scoped Task Dependency Links
 
 Date: 2026-08-08

@@ -295,10 +295,6 @@
     overflow: hidden !important;
   }
 
-  .app-main:has(.view-skeleton) {
-    overflow-y: hidden;
-  }
-
   .editorial-header {
     @apply mb-10 border-b border-dc-ink pb-7;
   }
@@ -400,11 +396,11 @@
   }
 
   .submission-table th {
-    @apply border-b border-dc-border bg-dc-paper px-5 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-dc-pink;
+    @apply border-b border-dc-border bg-dc-paper px-5 py-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-dc-pink;
   }
 
   .submission-table td {
-    @apply border-b border-dc-border px-5 py-4 text-sm font-medium text-dc-gray;
+    @apply border-b border-dc-border px-5 py-2.5 text-sm font-medium text-dc-gray;
   }
 
   .submission-table tbody tr {
@@ -422,8 +418,7 @@
     box-shadow: inset 0 0 0 2px #e8117f;
   }
 
-  .submission-table-title,
-  .submission-table-summary {
+  .submission-table-title {
     @apply block max-w-[19rem] truncate;
   }
 
@@ -431,12 +426,16 @@
     @apply font-bold tracking-tight text-dc-ink;
   }
 
-  .submission-table-summary {
-    @apply mt-1 text-xs font-normal text-dc-gray;
+  .submission-table-status-icon {
+    @apply inline-grid size-6 place-items-center rounded-md border;
+  }
+
+  .submission-table-status-icon svg {
+    @apply size-4;
   }
 
   .submission-table-arrow {
-    @apply text-right font-mono text-base font-semibold text-dc-ink;
+    @apply text-right font-mono text-sm font-semibold text-dc-ink;
   }
 
   .submission-drawer-shell {
@@ -2886,7 +2885,7 @@
   }
 
   .skeleton-header {
-    @apply mb-6 flex flex-col gap-4 border-b border-dc-ink pb-5 lg:flex-row lg:items-end lg:justify-between;
+    @apply mb-10 flex flex-col gap-4 border-b border-dc-ink pb-7 lg:flex-row lg:items-end lg:justify-between;
   }
 
   .skeleton-panel,
@@ -4952,10 +4951,13 @@
 
   .talk-preview-card {
     border: 1px solid #dedad1;
-    border-left: 4px solid #e8117f;
     border-radius: 0.5rem;
     background: #ffffff;
     padding: 1.15rem;
+  }
+
+  .talk-preview-card--empty {
+    background: #faf8f2;
   }
 
   .talk-preview-card__abstract {
@@ -4965,6 +4967,14 @@
     font-weight: var(--font-weight-emphasis);
     line-height: 1.68;
     white-space: pre-line;
+  }
+
+  .talk-preview-card__empty {
+    margin-top: 0.55rem;
+    color: #76716a;
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-emphasis);
+    line-height: 1.5;
   }
 
   .talk-preview-section {
@@ -8222,18 +8232,10 @@
       margin-top: 0.9rem !important;
     }
 
-    .view-skeleton {
-      max-height: calc(100svh - 14rem);
-      overflow: hidden;
-    }
-
-    .home-hero--loading .view-skeleton {
-      max-height: calc(100svh - 6.75rem);
-    }
-
-    .view-skeleton .skeleton-card:nth-of-type(n+2),
-    .view-skeleton .skeleton-row:nth-of-type(n+4) {
-      display: none;
+    .skeleton-header {
+      margin-bottom: 1.2rem;
+      padding-bottom: 0.9rem;
+      gap: 0.75rem;
     }
 
     .leaderboard-empty-state {

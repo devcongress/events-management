@@ -67,6 +67,8 @@ If Resend is unavailable or its daily quota is exhausted:
 
 Provider acceptance is recorded as `accepted`; it is not proof of inbox delivery.
 
+Owners also see a compact **Email delivery** workspace in the Audit Log. It separates daily capacity, monthly capacity, and recoverable transactional outbox work with the same icon-led operational treatment used in registration, then shows a five-row, paginated history of registration, community-listing, and speaker-archive delivery records. The capacity values are Resend's most recent accepted-send response and use the configured plan limits; only capacity threshold crossings enter the audit timeline. **Accepted** still means Resend accepted the request, not that the recipient's inbox received it. Delivery, bounce, and complaint truth remains a later outbound-webhook integration.
+
 ## Key Files
 
 | File | Purpose |

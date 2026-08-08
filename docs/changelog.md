@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-08-08 — Condensed Community submissions rows
+
+- Removed proposal summaries from the review queue so each event occupies a single compact scan row; full proposal context remains in the existing right-side drawer.
+- Replaced in-row status text with accessible status icons while keeping each icon's status available on hover and to screen readers; the queue toolbar now contains only its count and filters.
+
+## 2026-08-08 — Added owner-facing email delivery health to the Audit Log
+
+- Added icon-led **Activity** and **Email delivery** Audit Log sections, keeping daily Resend capacity, monthly plan capacity, recoverable outbox work, and a compact, paginated accepted/queued/failed history for registration, community-listing, and speaker-archive messages in one focused delivery view. Delivery rows use a concise date stamp and status icons, with a clear legend above the log.
+- Tightened the Audit Log header so its supporting copy and divider form one compact visual unit before the section tabs.
+- Simplified Activity into concise, selectable rows and moved record IDs, metadata, target details, and request context into an accessible right-side audit drawer.
+- Tightened Activity rows into a compact, single-line scan path and separated the actor role into an icon-led column, leaving email and action as distinct readable columns.
+- Kept the shared Annual Conference workspace navigation visible while desktop users scroll through Overview, Work plan, Timeline, Volunteers, or Finance; mobile keeps its existing horizontal-scroll treatment.
+- Removed the app-wide loading-shell clipping and aligned shared skeleton headers with the loaded editorial layout; the Audit Log skeleton now mirrors its current tabs, filters, and four-column activity table. Replaced the remaining generic loading blocks in Community submissions, Registration, Monthly finance, and System Design with matching route previews.
+- Captured Resend quota headers after accepted transactional sends and added a system audit row only when capacity crosses a warning threshold, avoiding noisy per-email audit entries.
+- Added the private singleton health record and documented the optional quota-limit settings, with an explicit distinction between provider acceptance and future delivery/bounce webhook evidence.
+
+## 2026-08-08 — Added presenter follow-up for missing archive materials
+
+- Owners can select missing abstracts, bios, and resource links in an archive preview and email the presenter a secure one-time update link.
+- The presenter updates the existing archive record only, preserving publication state and preventing duplicate Talks; unrequested fields are rejected server-side.
+- Added durable delivery, retry, expiry, and completion history to the existing private-link model, plus Owner-versus-Organizer and existing-record regression coverage.
+- Added forward-only migration `20260808150000_archive_materials_follow_up.sql` for the target-record binding and requested-field contract.
+
+## 2026-08-08 — Let Owners remove an archive item from public visibility
+
+- Added an **Unpublish** action to the published archive-item preview for Owners only.
+- Restores items with a resource link to **Resource received**, otherwise **Ready to publish**, so they leave public endpoints without being excluded or losing their stored details.
+- Enforced the same rule on the server, recorded unpublishing separately in the audit log, and added Owner-versus-Organizer regression coverage.
+
 ## 2026-08-08 — Refreshed production posture and technical-debt documentation
 
 - Updated the README to describe the deployed Cloudflare/Supabase path accurately while keeping compatibility-storage and operations limits explicit.
@@ -36,6 +65,7 @@
 
 - Moved People & Access validation and update failures into the shared dismissible app toast, so a failed delegation or role update does not take over the page layout.
 - Kept directory-load failures inline because the page content itself may be incomplete in that state.
+- Removed the static Access levels explainer so People & Access stays focused on the team directory and editable access controls.
 
 ## 2026-08-08 — Made Annual Conference income commitments auditable
 

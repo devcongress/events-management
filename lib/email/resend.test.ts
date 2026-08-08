@@ -16,7 +16,11 @@ describe('Resend batch client', () => {
       data: [{ id: 'email-1' }],
     }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-resend-daily-quota': '17',
+        'x-resend-monthly-quota': '419',
+      },
     }));
 
     await expect(sendResendEmailBatch({
@@ -24,7 +28,10 @@ describe('Resend batch client', () => {
       idempotencyKey: 'speaker-archive-test',
       emails: [email],
       fetcher,
-    })).resolves.toEqual({ ids: ['email-1'] });
+    })).resolves.toEqual({
+      ids: ['email-1'],
+      quota: { dailyUsed: 17, monthlyUsed: 419 },
+    });
 
     expect(fetcher).toHaveBeenCalledWith(
       'https://api.resend.com/emails/batch',

@@ -166,7 +166,7 @@ function isActive(href: string): boolean {
 
 <template>
   <section
-    class="mb-6"
+    class="annual-conference-nav-shell mb-6"
     :class="showPageHeading ? 'border-b-2 border-dc-ink pb-5' : ''"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -357,6 +357,15 @@ function isActive(href: string): boolean {
 @media (hover: hover) and (pointer: fine) {
   .annual-conference-nav-link:hover {
     color: #111111;
+  }
+}
+
+@media (min-width: 768px) {
+  .annual-conference-nav-shell {
+    position: sticky;
+    top: 0;
+    z-index: 35;
+    background: #f5f2e8;
   }
 }
 

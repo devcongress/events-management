@@ -4,7 +4,8 @@ export type EventChecklistPhase = 'setup' | 'cfp' | 'program' | 'event_day' | 'p
 export type TalkStatus = 'submitted' | 'accepted' | 'rejected' | 'slides_received' | 'published';
 export type ArchiveItemKind = 'talk' | 'product_demo';
 export type SpeakerSubmissionStatus = 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
-export type SpeakerIntakeLinkPurpose = 'archive_backfill' | 'selected_speaker_confirmation';
+export type SpeakerIntakeLinkPurpose = 'archive_backfill' | 'selected_speaker_confirmation' | 'archive_materials_follow_up';
+export type ArchiveMaterialField = 'abstract' | 'bio' | 'slides_url';
 export type SpeakerIntakeEmailStatus = 'pending' | 'accepted' | 'failed';
 export type QuizStatus = 'draft' | 'waiting' | 'active' | 'finished';
 export type QuestionPhase = 'answering' | 'revealing' | 'scoreboard';
@@ -259,6 +260,8 @@ export interface SpeakerIntakeLink {
   speaker_name?: string | null;
   speaker_email?: string | null;
   talk_title?: string | null;
+  talk_id?: string | null;
+  requested_fields?: ArchiveMaterialField[];
   token?: string | null;
   token_hash: string;
   email_status?: SpeakerIntakeEmailStatus | null;
