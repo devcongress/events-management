@@ -71,6 +71,60 @@ export async function getSupabaseFeedbackCampaignByEvent(eventId: string, c?: Co
   return toFeedbackCampaign(data, await getQuestionsForCampaign(data.id, c));
 }
 
+/**
+ * Read the feedback hub's campaign definitions and submissions in bounded
+ * batches. The monthly overview must not issue one campaign/question/
+ * submission chain per historical event.
+ */
+export async function getSupabaseFeedbackHubData(
+  eventIds: readonly string[],
+  c?: Context,
+): Promise<{ campaigns: FeedbackCampaign[]; submissions: EventFeedbackSubmission[] } | null> {
+  if (!canUseSupabaseFeedbackCampaigns(c)) return null;
+  if (eventIds.length === 0) return { campaigns: [], submissions: [] };
+
+  const client = getSupabaseAdminClient(c);
+  const [{ data: campaignRows, error: campaignError }, { data: submissionRows, error: submissionError }] = await Promise.all([
+    client.from('feedback_campaigns').select('*').in('event_id', [...eventIds]),
+    client.from('feedback_submissions')
+      .select('id, event_id, campaign_id, tester_name, tester_email, structured_answers, page_path, user_agent, response_token_hash, created_at')
+      .in('event_id', [...eventIds])
+      .eq('trigger_source', 'event_feedback_form')
+      .order('created_at', { ascending: false }),
+  ]);
+  if (campaignError) throw new Error(campaignError.message);
+  if (submissionError) throw new Error(submissionError.message);
+
+  const campaignIds = (campaignRows ?? []).map((campaign) => campaign.id);
+  const { data: questionRows, error: questionError } = campaignIds.length === 0
+    ? { data: [], error: null }
+    : await client.from('feedback_questions').select('*').in('campaign_id', campaignIds).order('order_index', { ascending: true });
+  if (questionError) throw new Error(questionError.message);
+
+  const questionsByCampaign = new Map<string, FeedbackQuestionRow[]>();
+  for (const question of questionRows ?? []) {
+    const questions = questionsByCampaign.get(question.campaign_id) ?? [];
+    questions.push(question);
+    questionsByCampaign.set(question.campaign_id, questions);
+  }
+
+  return {
+    campaigns: (campaignRows ?? []).map((campaign) => toFeedbackCampaign(campaign, questionsByCampaign.get(campaign.id) ?? [])),
+    submissions: (submissionRows ?? []).map((row) => ({
+      id: row.id,
+      campaign_id: row.campaign_id ?? '',
+      event_id: row.event_id ?? '',
+      respondent_name: row.tester_name,
+      respondent_email: row.tester_email,
+      answers: Array.isArray(row.structured_answers) ? row.structured_answers as EventFeedbackSubmission['answers'] : [],
+      page_path: row.page_path,
+      user_agent: row.user_agent,
+      response_token_hash: row.response_token_hash,
+      created_at: row.created_at,
+    })),
+  };
+}
+
 export async function createSupabaseFeedbackCampaign(campaign: FeedbackCampaign, c?: Context): Promise<FeedbackCampaign | null> {
   if (!canUseSupabaseFeedbackCampaigns(c)) return null;
 
@@ -125,6 +179,19 @@ export async function updateSupabaseFeedbackCampaign(
 
   const existing = await getSupabaseFeedbackCampaignByEvent(eventId, c);
   if (existing === null || existing === undefined) return existing;
+
+  if (updates.questions) {
+    const { data: response, error: responseError } = await getSupabaseAdminClient(c)
+      .from('feedback_submissions')
+      .select('id')
+      .eq('campaign_id', existing.id)
+      .eq('trigger_source', 'event_feedback_form')
+      .limit(1);
+    if (responseError) throw new Error(responseError.message);
+    if (response.length > 0) {
+      throw new Error('Feedback questions cannot be changed after responses exist. Create a new campaign for a fresh form.');
+    }
+  }
 
   const update: FeedbackCampaignUpdate = {};
   if (typeof updates.title === 'string') update.title = updates.title;

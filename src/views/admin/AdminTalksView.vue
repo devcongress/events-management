@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
+import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 import {
   isArchiveRequestsChecklistItem,
   isArchiveRequestsDisabledForEvent,
@@ -15,6 +17,7 @@ import { archiveRequestProgramItems, sameArchiveProgramItemIdentity } from '@/li
 import type { ArchiveItemKind, Event, EventChecklistItem, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
+const queryClient = useQueryClient();
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
 type AdminSpeakerIntakeLink = {
   id: string;
@@ -267,8 +270,11 @@ async function fetchTalks() {
 }
 
 async function fetchEvent() {
-  const response = await fetch(`/api/events/${route.params.eventId}`);
-  if (response.ok) event.value = await response.json();
+  const eventId = String(route.params.eventId);
+  event.value = await queryClient.fetchQuery({
+    queryKey: queryKeys.event(eventId),
+    queryFn: () => fetchEventById(eventId),
+  });
 }
 
 async function fetchSpeakerSubmissions() {
@@ -291,10 +297,11 @@ async function fetchSpeakerIntakeLinks() {
 }
 
 async function fetchArchiveRequestAvailability() {
-  const response = await fetch(`/api/events/${route.params.eventId}/checklist`, { cache: 'no-store' });
-  if (!response.ok) return;
-
-  const data = await response.json();
+  const eventId = String(route.params.eventId);
+  const data = await queryClient.fetchQuery({
+    queryKey: queryKeys.eventChecklist(eventId),
+    queryFn: () => fetchEventChecklist(eventId),
+  });
   checklistItems.value = data.items ?? [];
 }
 

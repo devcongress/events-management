@@ -2,8 +2,8 @@ import { parseLumaAttendanceCsv, summarizeAttendance } from '@/lib/luma-attendan
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { generateId, now } from '@/lib/utils';
-import type { AttendanceBreakdownItem, AttendanceLedgerMonth, AttendanceLedgerMonthEvent, AttendanceMonthlyInsights, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
-import { readData, writeData } from './index';
+import type { AttendanceBreakdownItem, AttendanceLedgerMonth, AttendanceLedgerMonthEvent, AttendanceMonthlyInsights, AttendanceRepeatAttendee, AttendanceSourceInsight, Event, EventAttendanceImport, EventAttendanceSummary, LumaAttendanceRecord } from '@/types';
+import { readData, updateData } from './index';
 
 const FILE = 'event-attendance-imports';
 
@@ -25,7 +25,6 @@ export async function replaceAttendanceImportFromCsv(
   sourceFilename: string | null,
   attendanceMonth?: string,
 ): Promise<EventAttendanceImport> {
-  const imports = await getAttendanceImports();
   const records = parseLumaAttendanceCsv(eventId, csv);
   const attendanceImport: EventAttendanceImport = {
     id: generateId(),
@@ -37,17 +36,19 @@ export async function replaceAttendanceImportFromCsv(
     records,
   };
 
-  await writeData(FILE, [
-    ...imports.filter((existingImport) => existingImport.event_id !== eventId),
-    attendanceImport,
-  ]);
+  await updateData<EventAttendanceImport, void>(FILE, (imports) => ({
+    data: [...imports.filter((existingImport) => existingImport.event_id !== eventId), attendanceImport],
+    result: undefined,
+  }));
 
   return attendanceImport;
 }
 
 export async function removeAttendanceImport(eventId: string): Promise<void> {
-  const imports = await getAttendanceImports();
-  await writeData(FILE, imports.filter((attendanceImport) => attendanceImport.event_id !== eventId));
+  await updateData<EventAttendanceImport, void>(FILE, (imports) => ({
+    data: imports.filter((attendanceImport) => attendanceImport.event_id !== eventId),
+    result: undefined,
+  }));
 }
 
 export function buildAttendanceSummary(attendanceImport: EventAttendanceImport | null): EventAttendanceSummary {
@@ -225,6 +226,32 @@ function sourceQuality(records: LumaAttendanceRecord[]): AttendanceSourceInsight
     .sort((a, b) => b.checked_in - a.checked_in || b.check_in_rate - a.check_in_rate || a.label.localeCompare(b.label));
 }
 
+function repeatAttendeeProfiles(ledger: AttendanceLedgerMonth[]): AttendanceRepeatAttendee[] {
+  const people = new Map<string, AttendanceRepeatAttendee>();
+  for (const month of ledger) {
+    for (const eventItem of month.events) {
+      for (const record of eventItem.import?.records ?? []) {
+        if (record.approval_status !== 'approved') continue;
+        const email = record.email?.trim().toLowerCase() || null;
+        const key = email || (record.guest_id.startsWith('row-') ? `${eventItem.event.id}:${record.guest_id}` : record.guest_id);
+        const person = people.get(key) ?? { key, name: record.name || record.email || record.guest_id, email, trail: [] };
+        const existing = person.trail.find((mark) => mark.event_id === eventItem.event.id);
+        const outcome = record.checked_in_at ? 'came' : 'missed';
+        if (!existing) {
+          person.trail.push({ event_id: eventItem.event.id, event_name: eventItem.event.name, event_date: eventItem.event.event_date, outcome });
+        } else if (existing.outcome === 'missed' && outcome === 'came') {
+          existing.outcome = 'came';
+        }
+        people.set(key, person);
+      }
+    }
+  }
+  return [...people.values()]
+    .map((person) => ({ ...person, trail: person.trail.sort((a, b) => a.event_date.localeCompare(b.event_date)) }))
+    .filter((person) => person.trail.length > 1)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function buildAttendanceInsights(ledger: AttendanceLedgerMonth[]): AttendanceMonthlyInsights {
   const imported = ledger.filter((item) => item.has_import);
   const checkedInCounts = imported.map((item) => item.summary.checked_in);
@@ -256,6 +283,7 @@ export function buildAttendanceInsights(ledger: AttendanceLedgerMonth[]): Attend
     p80_checked_in: percentile(checkedInCounts, 80),
     repeat_attendees: Array.from(emailCounts.values()).filter((count) => count > 1).length,
     unique_attendees: emailCounts.size,
+    repeat_attendee_profiles: repeatAttendeeProfiles(ledger),
     source_quality: sourceQuality(allRecords),
     best_month: sortedByRate[0] ?? null,
     weakest_month: sortedByRate[sortedByRate.length - 1] ?? null,

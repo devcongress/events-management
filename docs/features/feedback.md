@@ -18,6 +18,7 @@ Feedback is event-scoped: organizers prepare post-event forms and review attende
 - Public event feedback stores a per-event anonymous browser token so the same browser can submit once per event without requiring name or email.
 - Organizers see aggregate response patterns in the app: overall rating distribution, return intent, and per-session scores with missed-session context.
 - Individual submissions are not rendered in the organizer page. Organizers can download one CSV containing every submission, with one response per row and every configured question represented as a column.
+- Once a public response exists, the question set is frozen. Each response retains an immutable snapshot of its question wording, type, required flag, options, and answer so later reporting does not reinterpret historical feedback.
 
 ## Key Files
 
@@ -32,6 +33,7 @@ Feedback is event-scoped: organizers prepare post-event forms and review attende
 | `lib/supabase/feedback-campaigns.ts` | Supabase-backed event feedback campaigns, questions, and submissions |
 | `lib/mock-db/feedback.ts` | Local JSON fallback for event feedback persistence |
 | `supabase/migrations/20260613000000_event_feedback_campaigns.sql` | Event feedback schema |
+| `supabase/migrations/20260808160000_feedback_history_snapshots.sql` | Immutable response-question snapshots and question-set history guard |
 | `server/app.ts` | Feedback API routes |
 
 ## Configuration

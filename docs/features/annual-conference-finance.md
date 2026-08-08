@@ -2,10 +2,11 @@
 
 ## Status
 
-Active for the Annual Conference only. Apply both finance migrations before using the relational production ledger:
+Active for the Annual Conference only. Apply the finance migrations and the forward-only integrity hardening migration before using the relational production ledger:
 
 - `20260805010000_annual_conference_finance.sql`
 - `20260808070000_annual_conference_income_lifecycle.sql`
+- `20260808150000_integrity_hardening.sql`
 
 ## Access
 
@@ -29,7 +30,7 @@ Finance entries carry a source (`manual`, `sponsor`, or `ticket`) and optional s
 
 - `annual_conference_finance_entries` retains current and original expected amounts and a source marker.
 - `annual_conference_finance_income_amendments` records expectation changes and cancellations.
-- `annual_conference_finance_income_receipts` records received payments.
+- `annual_conference_finance_income_receipts` records received payments and an idempotency key, so a retried receipt submission cannot create a second payment.
 - `PATCH /api/annual-conference/:year/finance/entries/:entryId/expected` amends a manual expectation.
 - `POST /api/annual-conference/:year/finance/entries/:entryId/receipts` records a manual-income receipt.
 - `POST /api/annual-conference/:year/finance/entries/:entryId/cancel` cancels an unpaid manual expectation.

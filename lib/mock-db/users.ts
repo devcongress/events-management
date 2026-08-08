@@ -1,4 +1,4 @@
-import { readData, writeData } from './index';
+import { readData, updateData } from './index';
 import { User } from '@/types';
 import { generateId, now } from '@/lib/utils';
 
@@ -26,7 +26,6 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
 export async function createUser(
   data: Partial<Omit<User, 'id' | 'created_at' | 'total_points' | 'events_participated' | 'is_claimed' | 'is_admin' | 'merged_into_user_id'>>
 ): Promise<User> {
-  const users = await readData<User>(FILE);
   const newUser: User = {
     device_id: null,
     nickname: null,
@@ -43,8 +42,7 @@ export async function createUser(
     id: generateId(),
     created_at: now(),
   };
-  users.push(newUser);
-  await writeData(FILE, users);
+  await updateData<User, void>(FILE, (users) => ({ data: [...users, newUser], result: undefined }));
   return newUser;
 }
 
@@ -52,24 +50,16 @@ export async function updateUser(
   id: string,
   updates: Partial<Omit<User, 'id' | 'created_at'>>
 ): Promise<User> {
-  const users = await readData<User>(FILE);
-  const index = users.findIndex(u => u.id === id);
-
-  if (index === -1) {
-    throw new Error(`User ${id} not found`);
-  }
-
-  users[index] = {
-    ...users[index],
-    ...updates,
-  };
-
-  await writeData(FILE, users);
-  return users[index];
+  return updateData<User, User>(FILE, (users) => {
+    const index = users.findIndex(u => u.id === id);
+    if (index === -1) throw new Error(`User ${id} not found`);
+    const user = { ...users[index], ...updates };
+    const next = [...users];
+    next[index] = user;
+    return { data: next, result: user };
+  });
 }
 
 export async function deleteUser(id: string): Promise<void> {
-  const users = await readData<User>(FILE);
-  const filtered = users.filter(u => u.id !== id);
-  await writeData(FILE, filtered);
+  await updateData<User, void>(FILE, (users) => ({ data: users.filter(u => u.id !== id), result: undefined }));
 }

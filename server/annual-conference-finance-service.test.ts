@@ -129,6 +129,7 @@ describe('Annual Conference finance service', () => {
     await expect(finance.recordIncomeReceipt(2026, 'entry-1', {
       amount_minor: 10_000,
       received_date: '2026-08-08',
+      idempotency_key: '00000000-0000-4000-8000-000000000001',
     })).rejects.toMatchObject({ code: 'forbidden' });
   });
 
@@ -143,6 +144,7 @@ describe('Annual Conference finance service', () => {
       amount_minor: 25_000,
       received_date: '2026-08-08',
       payment_reference: 'MOMO-123',
+      idempotency_key: '00000000-0000-4000-8000-000000000002',
     });
 
     expect(repository.amendIncomeExpectation).toHaveBeenCalledWith(incomeEntry.id, expect.objectContaining({ amount_minor: 75_000 }), 'owner@example.com');
@@ -153,6 +155,7 @@ describe('Annual Conference finance service', () => {
     await expect(finance.recordIncomeReceipt(2026, incomeEntry.id, {
       amount_minor: 100_001,
       received_date: '2026-08-08',
+      idempotency_key: '00000000-0000-4000-8000-000000000003',
     })).rejects.toMatchObject({ code: 'invalid' });
   });
 });

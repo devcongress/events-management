@@ -1,4 +1,4 @@
-import { readData, writeData } from './index';
+import { readData, updateData } from './index';
 import {
   ARCHIVE_REQUESTS_CHECKLIST_LABEL,
   SYSTEM_DESIGN_CHECKLIST_LABEL,
@@ -220,9 +220,15 @@ async function backfillMissingTemplateItems(
     };
   });
 
-  await writeData<EventChecklistItem>(FILE, [...allItems, ...missingItems]);
-
-  return normalizeToTemplate([...eventItems, ...missingItems], template);
+  return updateData<EventChecklistItem, EventChecklistItem[]>(FILE, (current) => {
+    const currentEventItems = current.filter((item) => item.event_id === eventId);
+    const labels = new Set(currentEventItems.map((item) => item.label));
+    const additions = missingItems.filter((item) => !labels.has(item.label));
+    return {
+      data: [...current, ...additions],
+      result: normalizeToTemplate([...currentEventItems, ...additions], template),
+    };
+  });
 }
 
 export async function getEventChecklist(
@@ -253,7 +259,15 @@ export async function getEventChecklist(
           updated_at: timestamp,
         };
       });
-      await writeData(FILE, nextItems);
+      await updateData<EventChecklistItem, void>(FILE, (current) => ({
+        data: current.map((item) => {
+          if (item.event_id !== eventId || item.disabled_at) return item;
+          const completed = item.order_index <= completedCutoff;
+          return { ...item, completed, completed_at: completed ? timestamp : null,
+            completed_by: completed ? 'System' : null, updated_at: timestamp };
+        }),
+        result: undefined,
+      }));
       const nextEventItems = nextItems
         .filter((item) => item.event_id === eventId)
         .sort((a, b) => a.order_index - b.order_index);
@@ -265,7 +279,10 @@ export async function getEventChecklist(
   }
 
   const defaults = createDefaultChecklist(eventId, status, event);
-  await writeData(FILE, [...items, ...defaults]);
+  await updateData<EventChecklistItem, void>(FILE, (current) => ({
+    data: current.some((item) => item.event_id === eventId) ? current : [...current, ...defaults],
+    result: undefined,
+  }));
   return defaults;
 }
 
@@ -274,33 +291,18 @@ export async function updateEventChecklistItem(
   itemId: string,
   updates: Pick<EventChecklistItem, 'completed'> & { completed_by?: string | null },
 ): Promise<EventChecklistItem> {
-  const items = await readData<EventChecklistItem>(FILE);
-  let eventItems = items.filter((item) => item.event_id === eventId);
-
-  if (eventItems.length === 0) {
-    eventItems = createDefaultChecklist(eventId);
-    items.push(...eventItems);
-  }
-
-  const index = items.findIndex((item) => item.event_id === eventId && item.id === itemId);
-  if (index === -1) {
-    throw new Error(`Checklist item ${itemId} not found`);
-  }
-  if (items[index].disabled_at) {
-    throw new Error(`Checklist item ${itemId} is disabled`);
-  }
-
-  const timestamp = now();
-  items[index] = {
-    ...items[index],
-    completed: updates.completed,
-    completed_at: updates.completed ? timestamp : null,
-    completed_by: updates.completed ? updates.completed_by ?? 'Organizer' : null,
-    updated_at: timestamp,
-  };
-
-  await writeData(FILE, items);
-  return items[index];
+  return updateData<EventChecklistItem, EventChecklistItem>(FILE, (items) => {
+    const next = [...items];
+    if (!next.some((item) => item.event_id === eventId)) next.push(...createDefaultChecklist(eventId));
+    const index = next.findIndex((item) => item.event_id === eventId && item.id === itemId);
+    if (index === -1) throw new Error(`Checklist item ${itemId} not found`);
+    if (next[index].disabled_at) throw new Error(`Checklist item ${itemId} is disabled`);
+    const timestamp = now();
+    const item = { ...next[index], completed: updates.completed, completed_at: updates.completed ? timestamp : null,
+      completed_by: updates.completed ? updates.completed_by ?? 'Organizer' : null, updated_at: timestamp };
+    next[index] = item;
+    return { data: next, result: item };
+  });
 }
 
 export async function setEventChecklistItemDisabled(
@@ -309,25 +311,14 @@ export async function setEventChecklistItemDisabled(
   disabled: boolean,
   disabledBy = 'Organizer',
 ): Promise<EventChecklistItem> {
-  const items = await readData<EventChecklistItem>(FILE);
-  const index = items.findIndex((item) => item.event_id === eventId && item.id === itemId);
-
-  if (index === -1) {
-    throw new Error(`Checklist item ${itemId} not found`);
-  }
-
-  if (disabled && items[index].completed) {
-    throw new Error('Completed checklist items cannot be disabled');
-  }
-
-  const timestamp = now();
-  items[index] = {
-    ...items[index],
-    disabled_at: disabled ? timestamp : null,
-    disabled_by: disabled ? disabledBy : null,
-    updated_at: timestamp,
-  };
-
-  await writeData(FILE, items);
-  return items[index];
+  return updateData<EventChecklistItem, EventChecklistItem>(FILE, (items) => {
+    const index = items.findIndex((item) => item.event_id === eventId && item.id === itemId);
+    if (index === -1) throw new Error(`Checklist item ${itemId} not found`);
+    if (disabled && items[index].completed) throw new Error('Completed checklist items cannot be disabled');
+    const timestamp = now();
+    const item = { ...items[index], disabled_at: disabled ? timestamp : null,
+      disabled_by: disabled ? disabledBy : null, updated_at: timestamp };
+    const next = [...items]; next[index] = item;
+    return { data: next, result: item };
+  });
 }
