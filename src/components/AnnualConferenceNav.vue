@@ -23,6 +23,14 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 
+type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'timeline' | 'volunteers' | 'finance';
+
+type AnnualConferenceNavLink = {
+  href: string;
+  label: string;
+  icon: AnnualConferenceNavIcon;
+};
+
 withDefaults(defineProps<{
   title?: string;
   description?: string;
@@ -88,15 +96,16 @@ const canViewFinance = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
   ['finance.view'],
 ));
-const links = computed(() => [
-  { href: annualConferencePath('', year.value), label: 'Overview' },
+const links = computed<AnnualConferenceNavLink[]>(() => [
+  { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
   {
     href: annualConferencePath('work-plan', year.value),
     label: isVolunteer.value && workPlanQuery.data.value?.permissions.access_scope === 'assigned' ? 'My tasks' : 'Work plan',
+    icon: 'work-plan',
   },
-  ...(canViewTimeline.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline' }] : []),
-  ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers' }] : []),
-  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance' }] : []),
+  ...(canViewTimeline.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline', icon: 'timeline' as const }] : []),
+  ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
+  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
 ]);
 const editionOptions = computed(() => editions.value.map((edition) => ({
   value: String(edition.year),
@@ -188,17 +197,39 @@ function isActive(href: string): boolean {
         </button>
       </div>
 
-      <nav class="mt-1 flex w-full flex-wrap gap-2 border-t border-dc-border pt-3" aria-label="Annual Conference workspace">
+      <nav class="annual-conference-nav mt-1 w-full" aria-label="Annual Conference workspace">
         <RouterLink
           v-for="link in links"
           :key="link.href"
           :to="link.href"
-          class="motion-press inline-flex min-h-10 items-center justify-center rounded-md border px-4 py-2 font-mono text-[10px] font-semibold uppercase leading-none tracking-[0.14em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/35"
-          :class="isActive(link.href)
-            ? 'border-dc-ink bg-dc-pink text-white shadow-[2px_2px_0_#111111]'
-            : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:bg-dc-paper-warm hover:text-dc-ink'"
+          class="annual-conference-nav-link"
+          :class="{ 'annual-conference-nav-link--active': isActive(link.href) }"
           :aria-current="isActive(link.href) ? 'page' : undefined"
         >
+          <svg class="annual-conference-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <template v-if="link.icon === 'overview'">
+              <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
+              <rect x="11.5" y="3" width="5.5" height="5.5" rx="1" />
+              <rect x="3" y="11.5" width="5.5" height="5.5" rx="1" />
+              <rect x="11.5" y="11.5" width="5.5" height="5.5" rx="1" />
+            </template>
+            <template v-else-if="link.icon === 'work-plan'">
+              <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
+              <path d="m7 7.25 1.25 1.25L10.5 6.25M11.75 7.5h1.5M7 11.25l1.25 1.25 2.25-2.25M11.75 11.5h1.5M7 15.25l1.25 1.25 2.25-2.25M11.75 15.5h1.5" />
+            </template>
+            <template v-else-if="link.icon === 'timeline'">
+              <circle cx="10" cy="10" r="6.5" />
+              <path d="M10 6.5v3.8l2.6 1.6" />
+            </template>
+            <template v-else-if="link.icon === 'volunteers'">
+              <circle cx="7.25" cy="7" r="2.5" />
+              <path d="M2.75 16.25c.45-2.35 2.15-3.75 4.5-3.75s4.05 1.4 4.5 3.75M13.25 4.75a2.25 2.25 0 0 1 0 4.5M14.25 12.75c1.6.3 2.65 1.4 3 3.5" />
+            </template>
+            <template v-else>
+              <path d="M3.5 6.25h13v8.5h-13z" />
+              <path d="M3.5 8.25h13M6.5 12.5h3.25" />
+            </template>
+          </svg>
           {{ link.label }}
         </RouterLink>
       </nav>
@@ -245,3 +276,104 @@ function isActive(href: string): boolean {
     </div>
   </section>
 </template>
+
+<style scoped>
+.annual-conference-nav {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #d6d2c8;
+  padding: 0 0.125rem;
+  scrollbar-width: none;
+}
+
+.annual-conference-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.annual-conference-nav-link {
+  position: relative;
+  display: inline-flex;
+  min-height: 2.875rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.125rem 0;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition:
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.annual-conference-nav-link::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #e8117f;
+  content: '';
+  opacity: 0;
+  transform: scaleX(0.5);
+  transform-origin: center;
+  transition:
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.annual-conference-nav-link--active {
+  color: #111111;
+}
+
+.annual-conference-nav-link--active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.annual-conference-nav-link:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid rgba(232, 17, 127, 0.35);
+  outline-offset: 3px;
+}
+
+.annual-conference-nav-link:active {
+  transform: scale(0.97);
+}
+
+.annual-conference-nav-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .annual-conference-nav-link:hover {
+    color: #111111;
+  }
+}
+
+@media (max-width: 639px) {
+  .annual-conference-nav {
+    gap: 1.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .annual-conference-nav-link,
+  .annual-conference-nav-link::after {
+    transition: none;
+  }
+
+  .annual-conference-nav-link:active {
+    transform: none;
+  }
+}
+</style>

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-08 — Aligned Annual Conference navigation with Registration
+
+- Replaced the boxed Annual Conference section buttons with the Registration workspace's icon-led, underline tab treatment.
+- Preserved capability-aware links and routes while adding a mobile horizontal scroll affordance, focus treatment, and reduced-motion-safe press feedback.
+
 ## 2026-08-08 — Kept People & Access action failures non-blocking
 
 - Moved People & Access validation and update failures into the shared dismissible app toast, so a failed delegation or role update does not take over the page layout.
