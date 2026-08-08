@@ -201,8 +201,40 @@ export interface AdminAuditLogEntry {
   created_at: string;
 }
 
+export type EmailHealthLevel = 'healthy' | 'warning' | 'high' | 'exhausted';
+
+export interface EmailDeliveryHealth {
+  provider: 'resend';
+  daily_quota_used: number | null;
+  daily_quota_limit: number;
+  monthly_quota_used: number | null;
+  monthly_quota_limit: number;
+  daily_level: EmailHealthLevel;
+  monthly_level: EmailHealthLevel;
+  last_provider_response_at: string | null;
+  updated_at: string;
+}
+
+export interface EmailOutboxSummary {
+  pending: number;
+  failed: number;
+}
+
+export interface RecentEmailDelivery {
+  id: string;
+  source: 'registration' | 'community_submission' | 'speaker_archive';
+  label: string;
+  status: 'pending' | 'accepted' | 'failed';
+  attempts: number;
+  occurred_at: string;
+  last_error: string | null;
+}
+
 export interface AdminAuditLogResponse {
   logs: AdminAuditLogEntry[];
+  email_health: EmailDeliveryHealth | null;
+  email_outbox: EmailOutboxSummary | null;
+  recent_email_deliveries: RecentEmailDelivery[] | null;
   auth_mode: 'supabase';
 }
 

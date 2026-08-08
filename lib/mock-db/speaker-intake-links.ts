@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { readData, updateData } from './index';
-import type { ArchiveItemKind, SpeakerIntakeEmailStatus, SpeakerIntakeLink } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, SpeakerIntakeEmailStatus, SpeakerIntakeLink } from '@/types';
 import type { Database } from '@/types/supabase';
 import { generateId, now } from '@/lib/utils';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
@@ -20,6 +20,13 @@ function normalizeSpeakerIntakeLink(link: SpeakerIntakeLink): SpeakerIntakeLink 
     // to validate the token supplied by the presenter.
     token: null,
     kind: normalizeArchiveItemKind(link.kind),
+    purpose: link.purpose === 'selected_speaker_confirmation' || link.purpose === 'archive_materials_follow_up'
+      ? link.purpose
+      : 'archive_backfill',
+    talk_id: link.talk_id ?? null,
+    requested_fields: (link.requested_fields ?? []).filter((field): field is ArchiveMaterialField => (
+      field === 'abstract' || field === 'bio' || field === 'slides_url'
+    )),
     email_status: link.email_status === 'pending' || link.email_status === 'accepted' || link.email_status === 'failed'
       ? link.email_status
       : null,
@@ -35,9 +42,13 @@ function fromSupabaseRow(row: SpeakerIntakeLinkRow): SpeakerIntakeLink {
   return normalizeSpeakerIntakeLink({
     ...row,
     kind: row.kind === 'product_demo' ? 'product_demo' : 'talk',
-    purpose: row.purpose === 'selected_speaker_confirmation'
-      ? 'selected_speaker_confirmation'
+    purpose: row.purpose === 'selected_speaker_confirmation' || row.purpose === 'archive_materials_follow_up'
+      ? row.purpose
       : 'archive_backfill',
+    talk_id: row.talk_id ?? null,
+    requested_fields: (row.requested_fields ?? []).filter((field): field is ArchiveMaterialField => (
+      field === 'abstract' || field === 'bio' || field === 'slides_url'
+    )),
     email_status: row.email_status === 'pending' || row.email_status === 'accepted' || row.email_status === 'failed'
       ? row.email_status
       : null,
@@ -78,6 +89,8 @@ export async function createSpeakerIntakeLink(data: {
   speaker_name?: string | null;
   speaker_email?: string | null;
   talk_title?: string | null;
+  talk_id?: string | null;
+  requested_fields?: ArchiveMaterialField[];
 }): Promise<{ link: SpeakerIntakeLink; token: string }> {
   const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
   const tokenHash = hashSpeakerIntakeToken(token);
@@ -92,6 +105,8 @@ export async function createSpeakerIntakeLink(data: {
     speaker_name: data.speaker_name ?? null,
     speaker_email: data.speaker_email ?? null,
     talk_title: data.talk_title ?? null,
+    talk_id: data.talk_id ?? null,
+    requested_fields: data.requested_fields ?? [],
     token: null,
     token_hash: tokenHash,
     email_status: null,
@@ -120,6 +135,8 @@ export async function createSpeakerIntakeLink(data: {
         speaker_name: link.speaker_name ?? null,
         speaker_email: link.speaker_email ?? null,
         talk_title: link.talk_title ?? null,
+        talk_id: link.talk_id ?? null,
+        requested_fields: link.requested_fields ?? [],
         token_hash: link.token_hash,
         email_status: link.email_status ?? null,
         email_provider_id: link.email_provider_id ?? null,

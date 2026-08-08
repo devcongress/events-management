@@ -185,6 +185,44 @@ export interface Database {
         };
         Relationships: [];
       };
+      email_delivery_health: {
+        Row: {
+          provider: string;
+          daily_quota_used: number | null;
+          daily_quota_limit: number;
+          monthly_quota_used: number | null;
+          monthly_quota_limit: number;
+          daily_level: 'healthy' | 'warning' | 'high' | 'exhausted';
+          monthly_level: 'healthy' | 'warning' | 'high' | 'exhausted';
+          last_provider_response_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider?: string;
+          daily_quota_used?: number | null;
+          daily_quota_limit?: number;
+          monthly_quota_used?: number | null;
+          monthly_quota_limit?: number;
+          daily_level?: 'healthy' | 'warning' | 'high' | 'exhausted';
+          monthly_level?: 'healthy' | 'warning' | 'high' | 'exhausted';
+          last_provider_response_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          provider?: string;
+          daily_quota_used?: number | null;
+          daily_quota_limit?: number;
+          monthly_quota_used?: number | null;
+          monthly_quota_limit?: number;
+          daily_level?: 'healthy' | 'warning' | 'high' | 'exhausted';
+          monthly_level?: 'healthy' | 'warning' | 'high' | 'exhausted';
+          last_provider_response_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       app_json_documents: {
         Row: {
           key: string;
@@ -1642,6 +1680,8 @@ export interface Database {
           speaker_name: string | null;
           speaker_email: string | null;
           talk_title: string | null;
+          talk_id: string | null;
+          requested_fields: string[];
           token_hash: string;
           email_status: string | null;
           email_provider_id: string | null;
@@ -1667,6 +1707,8 @@ export interface Database {
           speaker_name?: string | null;
           speaker_email?: string | null;
           talk_title?: string | null;
+          talk_id?: string | null;
+          requested_fields?: string[];
           token_hash: string;
           email_status?: string | null;
           email_provider_id?: string | null;
@@ -1692,6 +1734,8 @@ export interface Database {
           speaker_name?: string | null;
           speaker_email?: string | null;
           talk_title?: string | null;
+          talk_id?: string | null;
+          requested_fields?: string[];
           token_hash?: string;
           email_status?: string | null;
           email_provider_id?: string | null;

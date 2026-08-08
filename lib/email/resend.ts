@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { emailSubjects } from '@/lib/email/scenarios';
+import { parseResendQuotaUsage, type EmailQuotaUsage } from '@/lib/email/delivery-health';
 import { eventBlastEmail } from './templates/event-blast';
 
 const resendBatchResponseSchema = z.object({
@@ -229,7 +230,7 @@ export async function sendResendEmailBatch(input: {
   idempotencyKey: string;
   emails: ResendEmail[];
   fetcher?: Fetcher;
-}): Promise<{ ids: string[] }> {
+}): Promise<{ ids: string[]; quota: EmailQuotaUsage }> {
   if (input.emails.length < 1 || input.emails.length > 100) {
     throw new ResendBatchError('Email batches must contain between 1 and 100 emails.');
   }
@@ -268,6 +269,10 @@ export async function sendResendEmailBatch(input: {
 
   return {
     ids: parsed.data.data.map((email) => email.id),
+    quota: {
+      dailyUsed: parseResendQuotaUsage(response.headers.get('x-resend-daily-quota')),
+      monthlyUsed: parseResendQuotaUsage(response.headers.get('x-resend-monthly-quota')),
+    },
   };
 }
 

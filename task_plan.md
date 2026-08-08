@@ -1,36 +1,32 @@
-# Task Plan: Integrity, delivery, and performance hardening
+# Task Plan: Archive material follow-up
 
 ## Goal
 
-Implement the repository-controlled recommendations from the combined security, correctness, and performance review without changing already-applied migrations or performing remote deployment actions.
+Let an Owner request missing archive materials from a presenter through a secure, one-time link that updates the existing archive record.
 
 ## Phases
 
-- [x] Phase 1: Confirm scope, current architecture, and safe forward-only migration design.
-- [x] Phase 2: Harden transactional invariants, finance receipt idempotency, and document-write conflict detection.
-- [ ] Phase 3: Harden audit and delivery recovery boundaries plus webhook limits. (Webhook and public delivery latency complete; scheduled outbox recovery and audit atomicity remain.)
-- [ ] Phase 4: Reduce proven attendance, feedback, polling, and duplicate-fetch waste. (Feedback fan-out and polling overlap complete; attendance and workspace deduplication remain.)
-- [ ] Phase 5: Add regression coverage, refresh project docs, verify, and deliver.
+- [x] Phase 1: Confirm current link, archive, email, and owner-role boundaries.
+- [x] Phase 2: Add durable link metadata and delivery support.
+- [x] Phase 3: Build the Owner workflow and presenter update form.
+- [x] Phase 4: Add regression coverage, documentation, and verification.
 
 ## Key Questions
 
-1. Which controls can be completed in code and migrations, versus requiring platform configuration or operational access?
-2. How can compatibility document writes fail safely before incremental relational migrations are complete?
-3. Which performance changes are structurally justified before production cardinality measurements are available?
+1. How can a new form be bound to an existing Talk without permitting a duplicate record?
+2. How can only the requested fields be updated?
+3. How do Owner-only issuance and public one-time completion remain enforced server-side?
 
 ## Decisions Made
 
-- Use forward-only migrations exclusively; already-applied migration files remain unchanged.
-- Treat platform MFA, alerting, retention, and live backup restoration as operational verification items, not assumptions the application code can satisfy.
-- Prioritize transactional integrity and durable recovery before broad server or UI refactors.
-- Use a document version compare-and-swap RPC as the immediate compatibility-store guardrail; a conflict must surface rather than silently overwrite a newer remote document.
-- Preserve the existing delivery tables and build recovery around atomic database claims, rather than introducing a second outbox abstraction.
-- Keep existing phase/task triggers, then add concurrency-safe database enforcement only where the current trigger/read-validate-write model is insufficient.
+- Reuse the existing private-link table and cryptographic claim/consume lifecycle, with a new `archive_materials_follow_up` purpose plus a `talk_id` binding.
+- Preserve the current public route, but give the form a purpose-specific update contract that never creates a Talk.
+- Send one transactional Resend message immediately, record provider acceptance/failure on the link, and show it in the organizer drawer.
 
 ## Errors Encountered
 
-- None.
+- A malformed read-only shell query was rejected before execution; reran it with safe quoting.
 
 ## Status
 
-**Currently in Phase 3** - narrowing webhook exposure and defining the delivery/audit recovery slice.
+**Complete** - ready for the forward-only migration and normal feature-release workflow.

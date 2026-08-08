@@ -1,33 +1,39 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
-import { useQueryClient } from '@tanstack/vue-query';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
-import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
+import { fetchAdminSession, fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 import {
   isArchiveRequestsChecklistItem,
   isArchiveRequestsDisabledForEvent,
 } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { archiveRequestProgramItems, sameArchiveProgramItemIdentity } from '@/lib/speaker-archive-email';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
 const queryClient = useQueryClient();
+const adminSessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
 type AdminSpeakerIntakeLink = {
   id: string;
   event_id: string;
   event_month: string;
-  purpose: 'archive_backfill' | 'selected_speaker_confirmation';
+  purpose: 'archive_backfill' | 'selected_speaker_confirmation' | 'archive_materials_follow_up';
   speaker_submission_id: string | null;
   speaker_name: string | null;
   speaker_email: string | null;
   talk_title: string | null;
+  talk_id: string | null;
+  requested_fields: ArchiveMaterialField[];
   kind?: ArchiveItemKind;
   token: string | null;
   email_status: SpeakerIntakeEmailStatus | null;
@@ -62,6 +68,8 @@ const closeCfpDialogOpen = ref(false);
 const cfpLinkCopied = ref(false);
 const copiedSpeakerLinkId = ref<string | null>(null);
 const updatingTalkId = ref<string | null>(null);
+const sendingMaterialsFollowUp = ref(false);
+const materialsFollowUpFields = ref<ArchiveMaterialField[]>([]);
 const talkPreview = ref<TalkPreview | null>(null);
 const talkPreviewPanel = ref<HTMLElement | null>(null);
 const talkPreviewCloseButton = ref<HTMLButtonElement | null>(null);
@@ -83,6 +91,7 @@ const groupedTalks = computed(() => groups.map((group) => ({
   ...group,
   talks: talks.value.filter((talk) => group.statuses.includes(talk.status)),
 })));
+const canUnpublishArchiveItem = computed(() => adminSessionQuery.data.value?.user?.role === 'owner');
 const submissionGroups: { label: string; statuses: SpeakerSubmissionStatus[] }[] = [
   { label: 'Awaiting organizer decision', statuses: ['submitted'] },
   { label: 'Selected presenters', statuses: ['selected'] },
@@ -102,6 +111,7 @@ const selectedSpeakerPendingSubmissions = computed(() => speakerSubmissions.valu
   submission.status === 'selected' && !submission.selected_talk_id
 )));
 const selectedSpeakerLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'selected_speaker_confirmation'));
+const materialsFollowUpLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'archive_materials_follow_up'));
 // Latest-active link per submission, built once per links change. The template
 // looks this up several times per row; filter+sort per lookup was O(rows x links log links).
 const selectedSpeakerLinkBySubmissionId = computed(() => {
@@ -369,8 +379,69 @@ function linkNeedsReissue(link: AdminSpeakerIntakeLink): boolean {
   return link.purpose === 'archive_backfill' && (!link.speaker_name || !link.speaker_email);
 }
 
+function missingArchiveMaterialFields(talk: Talk): ArchiveMaterialField[] {
+  const missing: ArchiveMaterialField[] = [];
+  if (!talk.abstract?.trim()) missing.push('abstract');
+  if (!talk.bio?.trim()) missing.push('bio');
+  if (!slidesLink(talk)) missing.push('slides_url');
+  return missing;
+}
+
+function archiveMaterialFieldLabel(field: ArchiveMaterialField, talk: Talk): string {
+  if (field === 'abstract') return archiveKindFor(talk) === 'product_demo' ? 'Demo summary' : 'Abstract';
+  if (field === 'bio') return 'Presenter bio';
+  return archiveResourceLabel(talk);
+}
+
+function latestMaterialsFollowUpLink(talkId: string): AdminSpeakerIntakeLink | null {
+  return materialsFollowUpLinks.value
+    .filter((link) => link.talk_id === talkId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0] ?? null;
+}
+
+function materialsFollowUpStatus(talkId: string): string | null {
+  const link = latestMaterialsFollowUpLink(talkId);
+  if (!link) return null;
+  if (link.status === 'used') return `Follow-up completed ${formatDateTime(link.used_at!)}`;
+  if (link.email_status === 'failed') return 'Last follow-up email failed. You can retry.';
+  if (link.status === 'expired') return 'Last follow-up link expired. You can send a new one.';
+  if (link.email_status === 'accepted' && link.email_sent_at) return `Follow-up emailed ${formatDateTime(link.email_sent_at)}`;
+  return 'Follow-up email is being prepared.';
+}
+
+function hasActiveMaterialsFollowUp(talkId: string): boolean {
+  const link = latestMaterialsFollowUpLink(talkId);
+  return Boolean(link && link.status === 'active' && link.email_status !== 'failed');
+}
+
+async function sendMaterialsFollowUp(talk: Talk) {
+  if (!canUnpublishArchiveItem.value || materialsFollowUpFields.value.length === 0) return;
+
+  sendingMaterialsFollowUp.value = true;
+  error.value = null;
+  try {
+    const response = await fetch(`/api/talks/${talk.id}/materials-follow-up`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requested_fields: materialsFollowUpFields.value }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Unable to send the materials follow-up.');
+
+    await fetchSpeakerIntakeLinks();
+    notify.success('Materials follow-up sent to the presenter.');
+  } catch (requestError) {
+    const message = requestError instanceof Error ? requestError.message : 'Unable to send the materials follow-up.';
+    error.value = message;
+    notify.error(message);
+  } finally {
+    sendingMaterialsFollowUp.value = false;
+  }
+}
+
 function openTalkPreview(source: TalkPreview['source'], item: SpeakerSubmission | Talk, triggerEvent?: MouseEvent) {
   talkPreviewTrigger = triggerEvent?.currentTarget instanceof HTMLElement ? triggerEvent.currentTarget : null;
+  materialsFollowUpFields.value = source === 'archive' ? missingArchiveMaterialFields(item as Talk) : [];
   talkPreview.value = { source, item };
   void nextTick(() => talkPreviewCloseButton.value?.focus());
 }
@@ -711,7 +782,16 @@ async function deleteSpeakerIntakeLink(linkId: string) {
 }
 
 function primaryTalkAction(talk: Talk): { label: string; status: TalkStatus } | null {
-  if (talk.status === 'published' || talk.status === 'rejected') {
+  if (talk.status === 'published') {
+    if (!canUnpublishArchiveItem.value) return null;
+
+    return {
+      label: 'Unpublish',
+      status: talk.slides_uploaded_at || slidesLink(talk) ? 'slides_received' : 'accepted',
+    };
+  }
+
+  if (talk.status === 'rejected') {
     return null;
   }
 
@@ -734,6 +814,9 @@ function primaryTalkAction(talk: Talk): { label: string; status: TalkStatus } | 
 function talkStatusMessage(talk: Talk | undefined, status: TalkStatus): string {
   const itemLabel = talk ? archiveKindLabel(talk) : 'Archive item';
   if (status === 'published') return `${itemLabel} published to the public archive.`;
+  if (talk?.status === 'published' && (status === 'accepted' || status === 'slides_received')) {
+    return `${itemLabel} removed from the public archive.`;
+  }
   if (status === 'accepted') return `${itemLabel} is ready for archive review.`;
   if (status === 'rejected') return `${itemLabel} excluded from the archive.`;
   if (status === 'slides_received') return `${archiveResourceLabel(talk ?? { kind: 'talk' })} marked as received.`;
@@ -1455,11 +1538,13 @@ onUnmounted(() => {
             </header>
 
             <div class="talk-preview-drawer__body">
-              <section class="talk-preview-card">
+              <section
+                class="talk-preview-card"
+                :class="{ 'talk-preview-card--empty': !talkPreview.item.abstract }"
+              >
                 <p class="talk-preview-card__kicker">{{ archiveKindFor(talkPreview.item) === 'product_demo' ? 'Demo summary' : 'Abstract' }}</p>
-                <p class="talk-preview-card__abstract">
-                  {{ talkPreview.item.abstract || (archiveKindFor(talkPreview.item) === 'product_demo' ? 'No demo summary was submitted.' : 'No abstract was submitted.') }}
-                </p>
+                <p v-if="talkPreview.item.abstract" class="talk-preview-card__abstract">{{ talkPreview.item.abstract }}</p>
+                <p v-else class="talk-preview-card__empty">Not provided</p>
               </section>
 
               <section class="talk-preview-section" aria-labelledby="talk-preview-presenter">
@@ -1497,6 +1582,41 @@ onUnmounted(() => {
                   </dd>
                 </div>
               </dl>
+
+              <section
+                v-if="previewArchiveItem && (canUnpublishArchiveItem || materialsFollowUpStatus(previewArchiveItem.id))"
+                class="mt-6 border-t border-dc-border pt-5"
+                aria-labelledby="talk-materials-follow-up"
+              >
+                <p id="talk-materials-follow-up" class="talk-preview-section__label">Request missing details</p>
+                <p v-if="canUnpublishArchiveItem && missingArchiveMaterialFields(previewArchiveItem).length > 0" class="mt-2 text-sm leading-6 text-dc-gray">
+                  Send the presenter a one-time link that updates this archive record only.
+                </p>
+                <div v-if="canUnpublishArchiveItem && missingArchiveMaterialFields(previewArchiveItem).length > 0" class="mt-3 flex flex-wrap gap-2">
+                  <label
+                    v-for="field in missingArchiveMaterialFields(previewArchiveItem)"
+                    :key="field"
+                    class="inline-flex cursor-pointer items-center gap-2 rounded-md border border-dc-border bg-dc-paper px-3 py-2 text-sm font-semibold text-dc-ink"
+                  >
+                    <input v-model="materialsFollowUpFields" :value="field" type="checkbox" class="size-4 accent-dc-pink">
+                    {{ archiveMaterialFieldLabel(field, previewArchiveItem) }}
+                  </label>
+                </div>
+                <p v-else-if="canUnpublishArchiveItem" class="mt-2 text-sm leading-6 text-dc-gray">This archive record has all requested presenter details.</p>
+                <p v-if="materialsFollowUpStatus(previewArchiveItem.id)" class="mt-3 text-sm font-semibold text-dc-gray">
+                  {{ materialsFollowUpStatus(previewArchiveItem.id) }}
+                </p>
+                <button
+                  v-if="canUnpublishArchiveItem && missingArchiveMaterialFields(previewArchiveItem).length > 0"
+                  type="button"
+                  :class="actionClass(true)"
+                  :disabled="sendingMaterialsFollowUp || materialsFollowUpFields.length === 0 || hasActiveMaterialsFollowUp(previewArchiveItem.id)"
+                  class="mt-4"
+                  @click="sendMaterialsFollowUp(previewArchiveItem)"
+                >
+                  {{ sendingMaterialsFollowUp ? 'Sending…' : hasActiveMaterialsFollowUp(previewArchiveItem.id) ? 'Follow-up sent' : 'Email presenter' }}
+                </button>
+              </section>
 
               <aside v-if="previewArchiveItem?.status === 'published'" class="talk-preview-published-note">
                 <p>Published archive record</p>

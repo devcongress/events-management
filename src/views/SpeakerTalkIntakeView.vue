@@ -7,7 +7,7 @@ import {
 } from '@/lib/speaker-intake-limits';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import SpeakerTalkIntakePageSkeleton from '@/src/components/ui/page-skeletons/SpeakerTalkIntakePageSkeleton.vue';
-import type { ArchiveItemKind, Event, SpeakerIntakeLinkPurpose } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, Event, SpeakerIntakeLinkPurpose } from '@/types';
 
 type IntakeEvent = Pick<Event, 'id' | 'name' | 'event_date' | 'status'>;
 type IntakePrefill = {
@@ -17,12 +17,14 @@ type IntakePrefill = {
   topic?: string;
   abstract?: string;
   bio?: string;
+  slides_url?: string;
 };
 
 const route = useRoute();
 const event = ref<IntakeEvent | null>(null);
 const linkPurpose = ref<SpeakerIntakeLinkPurpose>('archive_backfill');
 const archiveItemKind = ref<ArchiveItemKind>('talk');
+const requestedFields = ref<ArchiveMaterialField[]>([]);
 const loading = ref(true);
 const submitting = ref(false);
 const submitted = ref(false);
@@ -70,6 +72,14 @@ function isSelectedSpeakerLink() {
   return linkPurpose.value === 'selected_speaker_confirmation';
 }
 
+function isMaterialsFollowUpLink() {
+  return linkPurpose.value === 'archive_materials_follow_up';
+}
+
+function requestsField(field: ArchiveMaterialField) {
+  return requestedFields.value.includes(field);
+}
+
 function isProductDemo() {
   return archiveItemKind.value === 'product_demo';
 }
@@ -91,12 +101,18 @@ function archiveHeading() {
     return isProductDemo() ? 'Add Your Demo Link' : 'Add Your Slides';
   }
 
+  if (isMaterialsFollowUpLink()) return 'Complete Your Archive Details';
+
   return isProductDemo() ? 'Share Product Demo Details' : 'Share Talk Details';
 }
 
 function archiveDescription() {
   if (isSelectedSpeakerLink()) {
     return 'Add the public link to complete the DevCongress archive.';
+  }
+
+  if (isMaterialsFollowUpLink()) {
+    return 'Share the details requested below so we can complete the archive record for your presentation.';
   }
 
   return isProductDemo()
@@ -124,6 +140,8 @@ async function submitTalkDetails() {
   error.value = null;
   const payload = isSelectedSpeakerLink()
     ? { slides_url: form.slides_url }
+    : isMaterialsFollowUpLink()
+      ? Object.fromEntries(requestedFields.value.map((field) => [field, form[field]]))
     : {
       topic: form.topic,
       abstract: form.abstract,
@@ -159,6 +177,11 @@ onMounted(async () => {
       event.value = data.event;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
       archiveItemKind.value = data.link?.kind === 'product_demo' ? 'product_demo' : 'talk';
+      requestedFields.value = Array.isArray(data.link?.requested_fields)
+        ? data.link.requested_fields.filter((field: unknown): field is ArchiveMaterialField => (
+          field === 'abstract' || field === 'bio' || field === 'slides_url'
+        ))
+        : [];
       applyPrefill(data.prefill ?? {});
     } else {
       unavailableMessage.value = data.error || 'This archive form link is no longer available.';
@@ -175,6 +198,7 @@ function applyPrefill(prefill: IntakePrefill) {
   form.topic = prefill.topic || form.topic;
   form.abstract = prefill.abstract || form.abstract;
   form.bio = prefill.bio || form.bio;
+  form.slides_url = prefill.slides_url || form.slides_url;
 }
 </script>
 
@@ -206,6 +230,8 @@ function applyPrefill(prefill: IntakePrefill) {
               ? isProductDemo()
                 ? 'Your demo link has been sent to the organizers. This link is now closed.'
                 : 'Your slides link has been sent to the organizers. This link is now closed.'
+              : isMaterialsFollowUpLink()
+                ? 'Your archive details have been updated. This link is now closed.'
               : isProductDemo()
                 ? 'Your product demo details have been sent to the organizers. This link is now closed.'
                 : 'Your talk details have been sent to the organizers. This link is now closed.'
@@ -236,8 +262,8 @@ function applyPrefill(prefill: IntakePrefill) {
       <form class="speaker-intake-form space-y-6 border-t border-dc-border pt-6" @submit.prevent="submitTalkDetails">
         <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
 
-        <div v-if="isSelectedSpeakerLink()" class="border-l-4 border-dc-yellow pl-4">
-          <p class="editorial-label">Selected {{ archiveItemLabel() }}</p>
+        <div v-if="isSelectedSpeakerLink() || isMaterialsFollowUpLink()" class="border-l-4 border-dc-yellow pl-4">
+          <p class="editorial-label">{{ isMaterialsFollowUpLink() ? 'Archive follow-up' : `Selected ${archiveItemLabel()}` }}</p>
           <h2 class="text-xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
           <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
             {{ form.speaker_name }} <span class="mx-2 text-dc-pink">/</span> {{ form.topic || 'General' }}
@@ -245,7 +271,7 @@ function applyPrefill(prefill: IntakePrefill) {
           <p v-if="form.abstract" class="mt-4 text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
         </div>
 
-        <template v-else>
+        <template v-if="!isSelectedSpeakerLink() && !isMaterialsFollowUpLink()">
           <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
             <label class="block">
               <span class="mb-2 flex items-center justify-between gap-3">
@@ -304,17 +330,36 @@ function applyPrefill(prefill: IntakePrefill) {
           </div>
         </template>
 
-        <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <template v-if="isMaterialsFollowUpLink()">
+          <div v-if="requestsField('abstract')" class="block min-w-0">
+            <span class="mb-2 flex items-end justify-between gap-3">
+              <span class="editorial-label !mb-0">{{ isProductDemo() ? 'Demo summary' : 'Abstract' }} *</span>
+              <span id="speaker-archive-abstract-count" class="font-mono text-[11px] font-semibold tabular-nums text-dc-gray">{{ form.abstract.length }} / {{ SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS }}<span class="sr-only">characters</span></span>
+            </span>
+            <textarea v-model="form.abstract" required rows="4" :maxlength="SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS" aria-describedby="speaker-archive-abstract-count" class="editorial-input h-28 resize-none overflow-y-auto" />
+          </div>
+          <div v-if="requestsField('bio')" class="block min-w-0">
+            <span class="mb-2 flex items-end justify-between gap-3">
+              <span class="editorial-label !mb-0">{{ presenterLabel() }} bio *</span>
+              <span id="speaker-archive-bio-count" class="font-mono text-[11px] font-semibold tabular-nums text-dc-gray">{{ form.bio.length }} / {{ SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS }}<span class="sr-only">characters</span></span>
+            </span>
+            <textarea v-model="form.bio" required rows="4" :maxlength="SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS" aria-describedby="speaker-archive-bio-count" class="editorial-input h-28 resize-none overflow-y-auto" />
+          </div>
+        </template>
+
+        <div v-if="!isMaterialsFollowUpLink() || requestsField('slides_url')" class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label class="block min-w-0">
-            <span class="editorial-label">{{ resourceLabel() }}<span v-if="isSelectedSpeakerLink()"> *</span></span>
-            <input v-model="form.slides_url" :required="isSelectedSpeakerLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
+            <span class="editorial-label">{{ resourceLabel() }}<span v-if="isSelectedSpeakerLink() || isMaterialsFollowUpLink()"> *</span></span>
+            <input v-model="form.slides_url" :required="isSelectedSpeakerLink() || isMaterialsFollowUpLink()" type="url" placeholder="https://..." class="editorial-input font-mono" />
           </label>
 
           <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-56">
             {{
               submitting
                 ? 'SUBMITTING...'
-                : isSelectedSpeakerLink()
+                : isMaterialsFollowUpLink()
+                  ? 'SEND ARCHIVE DETAILS'
+                  : isSelectedSpeakerLink()
                   ? isProductDemo()
                     ? 'SEND DEMO LINK'
                     : 'SEND SLIDES'
@@ -322,6 +367,11 @@ function applyPrefill(prefill: IntakePrefill) {
                     ? 'SEND PRODUCT DEMO DETAILS'
                     : 'SEND TALK DETAILS'
             }}
+          </button>
+        </div>
+        <div v-else class="flex justify-end">
+          <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 lg:min-w-56 lg:w-auto">
+            {{ submitting ? 'SUBMITTING...' : 'SEND ARCHIVE DETAILS' }}
           </button>
         </div>
       </form>

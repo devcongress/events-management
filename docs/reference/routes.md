@@ -104,6 +104,6 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Organizer email allowlist management; re-enable and permanent removal endpoints are Owner-only, and permanent removal requires a disabled membership |
-| `/api/admin/audit-log` | Owner-only audit log read API |
+| `/api/admin/audit-log` | Owner-only audit log read API, including the latest Resend quota observation and transactional outbox recovery summary |
 | `/api/health` and `/api/health/supabase` | Minimal public readiness checks without internal error detail |
 | `/api/health/data-sources`, `/api/health/supabase/community-events`, `/api/health/supabase/storage` | Owner-only persistence and storage diagnostics |

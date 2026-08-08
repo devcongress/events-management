@@ -1,6 +1,6 @@
 <template>
   <div
-    class="mt-4 grid max-h-[42rem] gap-4 overflow-hidden xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start"
+    class="view-skeleton mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start"
     aria-busy="true"
     aria-label="Loading access directory"
   >

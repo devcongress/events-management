@@ -925,7 +925,32 @@ async function retryEmails() {
         </p>
       </header>
 
-      <div v-if="registrationQuery.isPending.value" class="editorial-panel min-h-80 animate-pulse" />
+      <section v-if="registrationQuery.isPending.value" class="registration-loading-skeleton" aria-busy="true" aria-label="Loading registration workspace">
+        <div class="registration-workspace-tabs" aria-hidden="true">
+          <div v-for="tab in 5" :key="tab" class="registration-workspace-tab pointer-events-none">
+            <span class="skeleton-option size-5" />
+            <span class="skeleton-line h-4" :class="tab === 3 ? 'w-28' : 'w-16'" />
+          </div>
+        </div>
+        <div class="registration-overview mt-5">
+          <div class="registration-overview-header">
+            <div class="space-y-3">
+              <div class="skeleton-line h-7 w-56" />
+              <div class="skeleton-line h-4 w-36" />
+            </div>
+            <div class="skeleton-button h-11 w-36" />
+          </div>
+          <div class="grid gap-4 border-t border-dc-border px-5 py-5 sm:grid-cols-2 xl:grid-cols-4">
+            <div v-for="card in 4" :key="card" class="skeleton-stat-card min-h-28" />
+          </div>
+          <div class="border-t border-dc-border px-5 py-5">
+            <div class="skeleton-line h-4 w-44" />
+            <div class="mt-4 space-y-3">
+              <div v-for="row in 3" :key="row" class="skeleton-line h-11" />
+            </div>
+          </div>
+        </div>
+      </section>
       <div v-else-if="!data" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
         {{ registrationQuery.error.value?.message ?? 'Unable to load registrations.' }}
       </div>

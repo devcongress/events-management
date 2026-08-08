@@ -272,9 +272,26 @@ onUnmounted(() => {
         </button>
       </section>
 
-      <section v-else-if="financeQuery.isPending.value" class="editorial-panel p-6" aria-live="polite">
-        <p class="editorial-eyebrow">Monthly meetup finance</p>
-        <p class="mt-3 text-sm text-dc-gray">Loading the expense ledger…</p>
+      <section v-else-if="financeQuery.isPending.value" class="monthly-finance-skeleton" aria-busy="true" aria-label="Loading monthly expense ledger">
+        <header class="mb-5 flex flex-wrap items-end justify-between gap-4 border-b border-dc-border pb-4">
+          <div class="space-y-3">
+            <div class="skeleton-eyebrow" />
+            <div class="skeleton-line h-10 w-72" />
+            <div class="skeleton-line h-4 w-full max-w-2xl" />
+          </div>
+          <div class="flex gap-2">
+            <div class="skeleton-button h-11 w-32" />
+            <div class="skeleton-button h-11 w-36" />
+          </div>
+        </header>
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div v-for="card in 4" :key="card" class="skeleton-stat-card min-h-32" />
+        </div>
+        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <div class="skeleton-table" :style="{ '--skeleton-rows': '3' }" />
+          <div class="skeleton-side-card" />
+        </div>
+        <div class="mt-4 skeleton-table" :style="{ '--skeleton-rows': '4' }" />
       </section>
 
       <template v-else-if="finance && summary">

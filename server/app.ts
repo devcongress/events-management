@@ -14,6 +14,7 @@ import {
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
+import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { boundedSlackExcerpt, eventSubmissionReplyAddress, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
@@ -167,7 +168,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 
 type AppBindings = {
@@ -623,6 +624,25 @@ const selectedSpeakerSlidesSchema = z.object({
   slides_url: z.string().trim().min(1, 'Resource URL is required').max(2048)
     .refine((value) => Boolean(safeHttpUrl(value)), 'Resource URL must use http or https'),
 });
+const archiveMaterialFieldSchema = z.enum(['abstract', 'bio', 'slides_url']);
+const archiveMaterialsFollowUpRequestSchema = z.object({
+  requested_fields: z.array(archiveMaterialFieldSchema).min(1, 'Choose at least one missing detail.').max(3)
+    .refine((fields) => new Set(fields).size === fields.length, 'Choose each detail once.'),
+  expires_in_days: z.coerce.number().int().min(1).max(31).default(7),
+}).strict();
+const archiveMaterialsFollowUpSubmissionSchema = z.object({
+  abstract: z.string().trim().min(1, 'Abstract is required').max(
+    SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
+    `Presentation summary must be ${SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS} characters or fewer`,
+  ).optional(),
+  bio: z.string().trim().min(1, 'Presenter bio is required').max(
+    SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
+    `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
+  ).optional(),
+  slides_url: z.string().trim().min(1, 'Resource URL is required').max(2048)
+    .refine((value) => Boolean(safeHttpUrl(value)), 'Resource URL must use http or https')
+    .optional(),
+}).strict();
 const speakerIntakeLinkRequestSchema = z.object({
   kind: archiveItemKindSchema.optional().default('talk'),
   speaker_name: z.string().trim().min(1, 'Presenter name is required').max(120),
@@ -1884,6 +1904,7 @@ async function sendPendingRegistrationConfirmationEmails(
       idempotencyKey: `registration-${batchDigest}`,
       emails,
     });
+    await recordResendEmailHealth(c, result.quota);
     await Promise.all(pending.map((delivery, index) => updateRegistrationEmailDelivery(delivery.delivery_id, {
       status: 'accepted',
       provider_id: result.ids[index],
@@ -2009,6 +2030,7 @@ async function sendPendingEventSubmissionEmails(
       idempotencyKey: `event-submission-${batchDigest}`,
       emails,
     });
+    await recordResendEmailHealth(c, result.quota);
     await Promise.all(pending.map((delivery, index) => updateEventSubmissionEmailDelivery(
       delivery.delivery_id,
       { status: 'accepted', provider_id: result.ids[index] },
@@ -4692,7 +4714,19 @@ app.get('/api/admin/audit-log', async (c) => {
     return c.json({ error: 'Unable to load audit log.' }, 500);
   }
 
-  return c.json({ logs: data ?? [], auth_mode: 'supabase' });
+  const [emailHealth, emailOutbox, recentEmailDeliveries] = await Promise.all([
+    getEmailDeliveryHealth(c),
+    getEmailOutboxSummary(c),
+    getRecentEmailDeliveries(c),
+  ]);
+
+  return c.json({
+    logs: data ?? [],
+    email_health: emailHealth,
+    email_outbox: emailOutbox,
+    recent_email_deliveries: recentEmailDeliveries,
+    auth_mode: 'supabase',
+  });
 });
 
 function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllEvents>>, imports: Awaited<ReturnType<typeof getAttendanceImports>>) {
@@ -6230,6 +6264,8 @@ function serializeSpeakerIntakeLink(link: Pick<
   | 'speaker_name'
   | 'speaker_email'
   | 'talk_title'
+  | 'talk_id'
+  | 'requested_fields'
   | 'email_status'
   | 'email_provider_id'
   | 'email_sent_at'
@@ -6251,6 +6287,8 @@ function serializeSpeakerIntakeLink(link: Pick<
     speaker_name: link.speaker_name ?? null,
     speaker_email: link.speaker_email ?? null,
     talk_title: link.talk_title ?? null,
+    talk_id: link.talk_id ?? null,
+    requested_fields: link.requested_fields ?? [],
     token: null,
     email_status: link.email_status ?? null,
     email_provider_id: link.email_provider_id ?? null,
@@ -6307,6 +6345,25 @@ function selectedSpeakerIntakeLinkError(
   return valid
     ? null
     : { error: 'This archive completion link is no longer available.', status: 410 };
+}
+
+function archiveMaterialsFollowUpLinkError(
+  link: SpeakerIntakeLink,
+  talk: Talk | undefined,
+  eventId: string,
+): { error: string; status: 410 } | null {
+  if (link.purpose !== 'archive_materials_follow_up') return null;
+  return talk && link.talk_id === talk.id && talk.event_id === eventId
+    ? null
+    : { error: 'This archive update link is no longer available.', status: 410 };
+}
+
+function missingArchiveMaterialFields(talk: Talk): ArchiveMaterialField[] {
+  const missing: ArchiveMaterialField[] = [];
+  if (!talk.abstract?.trim()) missing.push('abstract');
+  if (!talk.bio?.trim()) missing.push('bio');
+  if (!validExternalUrl(talk.slides_url) && !talk.storage_path) missing.push('slides_url');
+  return missing;
 }
 
 async function acquireSpeakerIntakeSubmissionLock(key: string): Promise<() => void> {
@@ -6777,6 +6834,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
         idempotencyKey,
         emails,
       });
+      await recordResendEmailHealth(c, result.quota);
       providerIds = result.ids;
     } catch (error) {
       await updateSpeakerIntakeLinkEmailDeliveries(eventId, pendingSends.map(({ link }) => ({
@@ -6856,6 +6914,118 @@ app.delete('/api/events/:eventId/speaker-intake-links/:linkId', async (c) => {
   }
 });
 
+app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const talk = await getTalkById(c.req.param('talkId'));
+  if (!talk) return c.json({ error: 'Archive item not found' }, 404);
+  if (!talk.speaker_email || !z.string().email().safeParse(talk.speaker_email).success) {
+    return c.json({ error: 'This archive item needs a valid presenter email before a follow-up can be sent.' }, 400);
+  }
+
+  const event = await getEventById(talk.event_id, c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+
+  const parsed = archiveMaterialsFollowUpRequestSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the requested details.' }, 400);
+
+  const missingFields = new Set(missingArchiveMaterialFields(talk));
+  const alreadyPresent = parsed.data.requested_fields.find((field) => !missingFields.has(field));
+  if (alreadyPresent) return c.json({ error: 'Only details that are currently missing can be requested.' }, 409);
+
+  const activeLink = (await getSpeakerIntakeLinksByEvent(talk.event_id)).find((link) => (
+    link.purpose === 'archive_materials_follow_up'
+    && link.talk_id === talk.id
+    && speakerIntakeLinkStatus(link) === 'active'
+    && link.email_status !== 'failed'
+  ));
+  if (activeLink) return c.json({ error: 'An active materials follow-up is already open for this archive item.' }, 409);
+
+  const { link, token } = await createSpeakerIntakeLink({
+    event_id: talk.event_id,
+    event_month: eventMonthKey(event.event_date),
+    expires_at: addDays(new Date(), parsed.data.expires_in_days).toISOString(),
+    kind: normalizeArchiveItemKind(talk.kind),
+    purpose: 'archive_materials_follow_up',
+    speaker_name: talk.speaker_name,
+    speaker_email: talk.speaker_email,
+    talk_title: talk.title,
+    talk_id: talk.id,
+    requested_fields: parsed.data.requested_fields,
+  });
+  const idempotencyKey = `archive-materials-${crypto.createHash('sha256').update(link.id).digest('hex')}`;
+  await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
+    id: link.id,
+    status: 'pending',
+    idempotency_key: idempotencyKey,
+  }]);
+
+  const privateUrl = new URL(
+    `/speaker-talks/${encodeURIComponent(talk.event_id)}/${encodeURIComponent(token)}`,
+    publicAppOrigin(c),
+  ).toString();
+  const content = monthlyArchiveRequestEmail({
+    eventName: event.name,
+    speakerName: talk.speaker_name,
+    talkTitle: talk.title,
+    privateUrl,
+    expiresAt: link.expires_at,
+  });
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
+      id: link.id,
+      status: 'failed',
+      idempotency_key: idempotencyKey,
+      error: 'Speaker email sending is not configured.',
+    }]);
+    return c.json({ error: 'Speaker email sending is not configured. The follow-up was not sent; update email configuration and retry.' }, 503);
+  }
+
+  try {
+    const { ids, quota } = await sendResendEmailBatch({
+      apiKey: resendApiKey,
+      idempotencyKey,
+      emails: [{
+        from: EMAIL_SENDERS.speakers.from,
+        to: [talk.speaker_email],
+        reply_to: emailReplyTo,
+        ...content,
+      }],
+    });
+    await recordResendEmailHealth(c, quota);
+    const [acceptedLink] = await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
+      id: link.id,
+      status: 'accepted',
+      provider_id: ids[0],
+      idempotency_key: idempotencyKey,
+    }]);
+    await auditAdminAction(c, {
+      action: 'talk.materials_follow_up.send',
+      targetType: 'talk',
+      targetId: talk.id,
+      metadata: { event_id: talk.event_id, link_id: link.id, requested_fields: link.requested_fields },
+    });
+    return c.json({ link: serializeSpeakerIntakeLink(acceptedLink) }, 201);
+  } catch (error) {
+    await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
+      id: link.id,
+      status: 'failed',
+      idempotency_key: idempotencyKey,
+      error: 'Resend did not accept this email.',
+    }]);
+    console.warn(JSON.stringify({
+      event: 'archive_materials_follow_up_email_failed',
+      event_id: talk.event_id,
+      talk_id: talk.id,
+      provider_status: error instanceof ResendBatchError ? error.status : null,
+    }));
+    return c.json({ error: 'The email provider did not accept the request. You can retry.' }, 502);
+  }
+});
+
 app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
   const eventId = c.req.param('eventId');
   const token = c.req.param('token');
@@ -6881,6 +7051,14 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
     return c.json({ error: selectedLinkError.error }, selectedLinkError.status);
   }
 
+  const followUpTalk = link!.purpose === 'archive_materials_follow_up' && link!.talk_id
+    ? await getTalkById(link!.talk_id)
+    : undefined;
+  const followUpLinkError = archiveMaterialsFollowUpLinkError(link!, followUpTalk, eventId);
+  if (followUpLinkError) {
+    return c.json({ error: followUpLinkError.error }, followUpLinkError.status);
+  }
+
   return c.json({
     event: {
       id: event.id,
@@ -6891,13 +7069,14 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
     },
     link: serializeSpeakerIntakeLink(link!),
     prefill: {
-      speaker_name: submission?.speaker_name ?? link!.speaker_name ?? '',
-      speaker_email: submission?.speaker_email ?? link!.speaker_email ?? '',
+      speaker_name: followUpTalk?.speaker_name ?? submission?.speaker_name ?? link!.speaker_name ?? '',
+      speaker_email: followUpTalk?.speaker_email ?? submission?.speaker_email ?? link!.speaker_email ?? '',
       github_username: submission?.github_username ?? '',
-      title: submission?.title ?? link!.talk_title ?? '',
-      topic: submission?.topic ?? '',
-      abstract: submission?.abstract ?? '',
-      bio: submission?.bio ?? '',
+      title: followUpTalk?.title ?? submission?.title ?? link!.talk_title ?? '',
+      topic: followUpTalk?.topic ?? submission?.topic ?? '',
+      abstract: followUpTalk?.abstract ?? submission?.abstract ?? '',
+      bio: followUpTalk?.bio ?? submission?.bio ?? '',
+      slides_url: followUpTalk?.slides_url ?? '',
     },
   });
 });
@@ -6940,13 +7119,46 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
       return c.json({ error: selectedLinkError.error }, selectedLinkError.status);
     }
 
+    const followUpTalk = activeLink.purpose === 'archive_materials_follow_up' && activeLink.talk_id
+      ? await getTalkById(activeLink.talk_id)
+      : undefined;
+    const followUpLinkError = archiveMaterialsFollowUpLinkError(activeLink, followUpTalk, eventId);
+    if (followUpLinkError) {
+      return c.json({ error: followUpLinkError.error }, followUpLinkError.status);
+    }
+
     let claimId: string | null = null;
     try {
       const claim = await claimSpeakerIntakeLink(eventId, token);
       claimId = claim.claimId;
       let talk: Talk;
+      let createdTalk = false;
 
-      if (selectedSpeakerLink) {
+      if (activeLink.purpose === 'archive_materials_follow_up') {
+        const parsed = archiveMaterialsFollowUpSubmissionSchema.safeParse(body);
+        if (!parsed.success) {
+          return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the requested archive details' }, 400);
+        }
+
+        const requestedFields = new Set(activeLink.requested_fields ?? []);
+        if (requestedFields.size === 0) return c.json({ error: 'This archive update link is invalid.' }, 410);
+        const suppliedFields = Object.keys(body);
+        const unexpectedField = suppliedFields.find((field) => !requestedFields.has(field as ArchiveMaterialField));
+        if (unexpectedField) return c.json({ error: 'This link can only update the details requested by the organizer.' }, 400);
+        const missingField = [...requestedFields].find((field) => parsed.data[field] === undefined);
+        if (missingField) return c.json({ error: 'Complete every requested detail before submitting.' }, 400);
+
+        const updates: Partial<Talk> = {};
+        if (requestedFields.has('abstract')) updates.abstract = parsed.data.abstract!;
+        if (requestedFields.has('bio')) updates.bio = parsed.data.bio!;
+        if (requestedFields.has('slides_url')) {
+          updates.slides_url = parsed.data.slides_url!;
+          updates.slides_type = 'url';
+          updates.storage_path = null;
+          updates.slides_uploaded_at = now();
+        }
+        talk = await updateTalk(followUpTalk!.id, updates);
+      } else if (selectedSpeakerLink) {
         const parsed = selectedSpeakerSlidesSchema.safeParse(body);
         if (!parsed.success) {
           return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the resource link' }, 400);
@@ -6959,6 +7171,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           normalizeArchiveItemKind(activeLink.kind),
         );
         talk = result.talk;
+        createdTalk = true;
       } else {
         const parsed = speakerBackfillDetailsSchema.safeParse(body);
         if (!parsed.success) {
@@ -6977,12 +7190,13 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           title: activeLink.talk_title,
         });
         talk = result.talk;
+        createdTalk = true;
       }
 
       try {
         await consumeSpeakerIntakeLink(eventId, token, talk.id, claimId);
       } catch (error) {
-        await deleteTalk(talk.id);
+        if (createdTalk) await deleteTalk(talk.id);
         throw error;
       }
       claimId = null;
@@ -7282,6 +7496,7 @@ app.patch('/api/talks/:talkId', async (c) => {
   const updates: Record<string, unknown> = {};
   const talkId = c.req.param('talkId');
   const requestedStatus = typeof body.status === 'string' ? body.status : null;
+  let previousStatus: TalkStatus | null = null;
 
   if (requestedStatus) {
     const adminError = await requireAdmin(c);
@@ -7289,6 +7504,19 @@ app.patch('/api/talks/:talkId', async (c) => {
 
     if (!['accepted', 'rejected', 'slides_received', 'published'].includes(requestedStatus)) {
       return c.json({ error: 'Unsupported talk status' }, 400);
+    }
+
+    const existingTalk = await getTalkById(talkId);
+    if (!existingTalk) return c.json({ error: 'Talk not found' }, 404);
+    previousStatus = existingTalk.status;
+
+    if (existingTalk.status === 'published' && requestedStatus !== 'published') {
+      if (!['accepted', 'slides_received'].includes(requestedStatus)) {
+        return c.json({ error: 'Published archive items can only be restored to a ready state' }, 400);
+      }
+
+      const ownerError = await requireAdmin(c, ['owner']);
+      if (ownerError) return ownerError;
     }
 
     updates.status = requestedStatus;
@@ -7321,7 +7549,9 @@ app.patch('/api/talks/:talkId', async (c) => {
     const updatedTalk = await updateTalk(talkId, updates);
     if (body.status) {
       await auditAdminAction(c, {
-        action: 'talk.status.update',
+        action: previousStatus === 'published' && requestedStatus !== 'published'
+          ? 'talk.status.unpublish'
+          : 'talk.status.update',
         targetType: 'talk',
         targetId: talkId,
         metadata: { status: updatedTalk.status, event_id: updatedTalk.event_id },

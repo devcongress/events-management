@@ -1,16 +1,22 @@
-# Notes: Integrity, delivery, and performance hardening
+# Notes: Archive material follow-up
 
-## Confirmed starting points
+## Confirmed current behavior
 
-- All Annual Conference migrations are already applied; migration application is not part of this task.
-- Annual Conference finance lifecycle RPCs already lock the target entry and enforce receipt totals atomically.
-- Annual Conference phase/task validation exists in database triggers, while dependency graph validation is application-side and not atomic across concurrent edits.
-- Registration and event-submission delivery have durable pending/accepted/failed records, but no scheduled claim/lease recovery executor.
-- Admin audit writes are best effort after mutations and log failures rather than coupling them to mutation success.
-- Existing delivery records are durable but are selected and updated without a claim/lease, so concurrent workers can dispatch the same pending record.
-- Phase overlap and task-date validation already run in PostgreSQL triggers. Dependency graph validation, membership/grant transitions, and compatibility JSON writes remain non-atomic across concurrent requests.
+- `archive_backfill` links create a new Talk and intentionally allow empty abstract, bio, and slides URL fields.
+- `selected_speaker_confirmation` links require only the resource URL and create a new Talk from the selected proposal.
+- The current reminder endpoint records a counter but does not send email.
+- Published Talks are publicly derived from the `published` status, so the follow-up must preserve that status while only updating content fields.
 
-## Scope boundary
+## Follow-up contract
 
-- Implement repository-controlled code, migration, test, and documentation changes.
-- Record platform-only controls such as owner MFA, alerts, retention, deployed commit/schema evidence, and backup restore verification as operational gates.
+- One link belongs to one event and one existing Talk.
+- The link carries an explicit list of requested fields: `abstract`, `bio`, and/or `slides_url`.
+- GET returns only the existing values and requested fields needed for the form.
+- POST validates only requested fields, updates the existing Talk, then consumes the link. A failed consume triggers restoration of the original Talk fields.
+- Owner-only issue/retry APIs send a new single-use link; raw tokens remain unpersisted.
+
+## Implemented evidence
+
+- `20260808150000_archive_materials_follow_up.sql` adds `talk_id`, `requested_fields`, shape validation, and an active-link lookup index to the private link table.
+- Owner issuance persists pending delivery before Resend, records provider acceptance or failure, and audits successful sends.
+- Completion keeps a published Talk published, updates only the selected fields, and consumes the link after the record update.

@@ -759,34 +759,6 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <section class="overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-2 xl:row-start-3" aria-labelledby="access-levels-title">
-          <div class="border-b border-dc-border px-4 py-3">
-            <h2 id="access-levels-title" class="text-sm font-semibold text-dc-ink">Access levels</h2>
-          </div>
-          <dl class="divide-y divide-dc-border">
-            <div class="px-4 py-3">
-              <dt class="flex items-center justify-between gap-3 text-xs font-semibold text-dc-ink">
-                <span>Owner</span>
-                <OrganizerRoleBadge role="owner" icon-only />
-              </dt>
-              <dd class="mt-1 text-xs leading-5 text-dc-gray">Full access, including owners and access management.</dd>
-            </div>
-            <div class="px-4 py-3">
-              <dt class="flex items-center justify-between gap-3 text-xs font-semibold text-dc-ink">
-                <span>Organizer</span>
-                <OrganizerRoleBadge role="organizer" icon-only />
-              </dt>
-              <dd class="mt-1 text-xs leading-5 text-dc-gray">Runs events and manages organizers or volunteers.</dd>
-            </div>
-            <div class="px-4 py-3">
-              <dt class="flex items-center justify-between gap-3 text-xs font-semibold text-dc-ink">
-                <span>Volunteer</span>
-                <OrganizerRoleBadge role="volunteer" icon-only />
-              </dt>
-              <dd class="mt-1 text-xs leading-5 text-dc-gray">Sees only Annual Conference tasks assigned to them.</dd>
-            </div>
-          </dl>
-        </section>
       </div>
 
     </div>

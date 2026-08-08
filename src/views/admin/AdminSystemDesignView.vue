@@ -408,10 +408,28 @@ onMounted(async () => {
         {{ error }}
       </p>
 
-      <section v-if="loading" class="skeleton-panel p-6">
-        <div class="skeleton-line skeleton-line--title" />
-        <div class="skeleton-line mt-4 w-2/3" />
-        <div class="skeleton-line mt-3 w-1/2" />
+      <section v-if="loading" class="grid gap-5" aria-busy="true" aria-label="Loading System Design workspace">
+        <article class="skeleton-panel p-6 sm:p-8">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0 space-y-3">
+              <div class="skeleton-eyebrow" />
+              <div class="skeleton-line h-8 w-72" />
+              <div class="skeleton-line h-4 w-full max-w-3xl" />
+            </div>
+            <div class="flex gap-3">
+              <div class="skeleton-button h-11 w-36" />
+              <div class="skeleton-button skeleton-button--secondary h-11 w-32" />
+            </div>
+          </div>
+        </article>
+        <article class="skeleton-panel p-6 sm:p-8">
+          <div class="skeleton-eyebrow" />
+          <div class="mt-3 skeleton-line h-8 w-3/5" />
+          <div class="mt-5 space-y-3">
+            <div class="skeleton-line h-4" />
+            <div class="skeleton-line h-4 w-4/5" />
+          </div>
+        </article>
       </section>
 
       <section v-else-if="!editing && hasSavedDrafts" class="grid gap-5">
