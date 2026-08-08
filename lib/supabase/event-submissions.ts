@@ -242,6 +242,22 @@ export async function updateEventSubmissionReplySlackStatus(
   if (error) throw new EventSubmissionStorageError('Unable to update submission reply status.', 'unavailable');
 }
 
+export async function getEventSubmissionReply(
+  submissionId: string,
+  replyId: string,
+  c?: Context,
+): Promise<EventSubmissionReply> {
+  const { data, error } = await requireStorage(c)
+    .from('event_submission_replies')
+    .select('*')
+    .eq('id', replyId)
+    .eq('submission_id', submissionId)
+    .maybeSingle();
+  if (error) throw new EventSubmissionStorageError('Unable to load submission reply.', 'unavailable');
+  if (!data) throw new EventSubmissionStorageError('Submission reply not found.', 'not_found');
+  return toEventSubmissionReply(data);
+}
+
 export async function getPendingEventSubmissionEmails(
   input: {
     submissionId?: string;
@@ -437,6 +453,7 @@ function toEventSubmissionReply(row: EventSubmissionReplyRow): EventSubmissionRe
       }];
     }),
     slack_status: row.slack_status,
+    slack_error: row.slack_error,
   };
 }
 

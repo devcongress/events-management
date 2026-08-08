@@ -4,12 +4,14 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import { adminPath } from '@/src/admin-routes';
+import { presentEventSubmissionReply } from '@/lib/email/event-submission-reply-presentation';
 import {
   approveEventSubmission,
   fetchEventSubmissions,
   queryKeys,
   rejectEventSubmission,
   retryEventSubmissionEmail,
+  retryEventSubmissionReplySlackAlert,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import type {
@@ -31,6 +33,7 @@ const rejectionCategory = ref<EventSubmissionRejectionCategory | ''>('');
 const organizerMessage = ref('');
 const internalNote = ref('');
 const retryingEmailKinds = ref<Set<EventSubmissionEmailKind>>(new Set());
+const retryingReplyIds = ref<Set<string>>(new Set());
 let drawerTrigger: HTMLElement | null = null;
 const rejectionOptions: Array<{ value: EventSubmissionRejectionCategory; label: string }> = [
   { value: 'calendar_fit', label: 'Event does not fit the community calendar' },
@@ -146,6 +149,19 @@ const retryEmailMutation = useMutation({
   onSettled: (_data, _error, { kind }) => setRetryingEmailKind(kind, false),
 });
 
+const retryReplySlackMutation = useMutation({
+  mutationFn: ({ submissionId, replyId }: { submissionId: string; replyId: string }) => (
+    retryEventSubmissionReplySlackAlert(submissionId, replyId)
+  ),
+  onSuccess: async () => {
+    notify.success('Slack notification sent.');
+    await refreshSubmissions();
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to retry this Slack notification.'),
+  onMutate: ({ replyId }) => setRetryingReply(replyId, true),
+  onSettled: (_data, _error, { replyId }) => setRetryingReply(replyId, false),
+});
+
 function setRetryingEmailKind(kind: EventSubmissionEmailKind, retrying: boolean) {
   const next = new Set(retryingEmailKinds.value);
   if (retrying) next.add(kind);
@@ -155,6 +171,17 @@ function setRetryingEmailKind(kind: EventSubmissionEmailKind, retrying: boolean)
 
 function isRetryingEmail(kind: EventSubmissionEmailKind) {
   return retryingEmailKinds.value.has(kind);
+}
+
+function setRetryingReply(replyId: string, retrying: boolean) {
+  const next = new Set(retryingReplyIds.value);
+  if (retrying) next.add(replyId);
+  else next.delete(replyId);
+  retryingReplyIds.value = next;
+}
+
+function isRetryingReply(replyId: string) {
+  return retryingReplyIds.value.has(replyId);
 }
 
 function resetRejectionForm() {
@@ -224,6 +251,10 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
   if (reply.slack_status === 'sent') return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (reply.slack_status === 'failed') return 'border-destructive/40 bg-destructive/5 text-destructive';
   return 'border-dc-border bg-dc-paper-warm text-dc-ink';
+}
+
+function replyPresentation(reply: EventSubmissionReply) {
+  return presentEventSubmissionReply(reply.body_text);
 }
 </script>
 
@@ -486,12 +517,38 @@ function replySlackStatusClass(reply: EventSubmissionReply) {
                         <p class="break-all text-sm font-semibold text-dc-ink">{{ reply.sender_email }}</p>
                         <p class="mt-1 text-xs text-dc-gray">{{ formatDateTime(reply.received_at) }}</p>
                       </div>
-                      <span class="submission-compact-badge" :class="replySlackStatusClass(reply)">
-                        {{ replySlackStatusLabel(reply) }}
-                      </span>
+                      <div class="flex items-center gap-2">
+                        <span class="submission-compact-badge" :class="replySlackStatusClass(reply)">
+                          {{ replySlackStatusLabel(reply) }}
+                        </span>
+                        <button
+                          v-if="reply.slack_status === 'failed'"
+                          type="button"
+                          class="submission-retry-button motion-press"
+                          :disabled="isRetryingReply(reply.id)"
+                          @click="retryReplySlackMutation.mutate({ submissionId: selectedSubmission.id, replyId: reply.id })"
+                        >
+                          {{ isRetryingReply(reply.id) ? 'Retrying…' : 'Retry Slack' }}
+                        </button>
+                      </div>
                     </div>
                     <p v-if="reply.subject" class="mt-3 text-sm font-semibold text-dc-ink">{{ reply.subject }}</p>
-                    <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-dc-gray">{{ reply.body_text || '(No message body)' }}</p>
+                    <p v-if="reply.slack_status === 'failed' && reply.slack_error" class="submission-delivery-error mt-2">
+                      {{ reply.slack_error }}
+                    </p>
+                    <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-dc-gray">{{ replyPresentation(reply).message }}</p>
+                    <details v-if="replyPresentation(reply).quotedMessage" class="submission-reply-original mt-4">
+                      <summary class="submission-reply-original-trigger motion-press">
+                        <span>Original email</span>
+                        <span class="submission-reply-original-state" aria-hidden="true">
+                          <span class="submission-reply-original-show">Show</span>
+                          <span class="submission-reply-original-hide">Hide</span>
+                        </span>
+                      </summary>
+                      <div class="submission-reply-original-content">
+                        <p class="whitespace-pre-line break-words">{{ replyPresentation(reply).quotedMessage }}</p>
+                      </div>
+                    </details>
                     <p v-if="reply.attachments.length" class="mt-3 text-xs font-semibold text-dc-gray">
                       {{ reply.attachments.length }} attachment{{ reply.attachments.length === 1 ? '' : 's' }} received
                     </p>

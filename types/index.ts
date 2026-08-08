@@ -131,6 +131,7 @@ export interface EventSubmissionReply {
   received_at: string;
   attachments: EventSubmissionReplyAttachment[];
   slack_status: EventSubmissionReplySlackStatus;
+  slack_error: string | null;
 }
 
 export interface EventSubmissionEmailDelivery {

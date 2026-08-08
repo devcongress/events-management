@@ -1,0 +1,72 @@
+{
+  "$metadata": {
+    "tokenSetOrder": ["global"]
+  },
+  "global": {
+    "color": {
+      "brand": {
+        "yellow": { "$type": "color", "$value": "#F5E642", "$description": "Primary action and highlight color" },
+        "yellow-glow": { "$type": "color", "$value": "#FFF8A8", "$description": "Soft yellow highlight" },
+        "pink": { "$type": "color", "$value": "#E8117F", "$description": "Accent, focus, and primary CTA color" }
+      },
+      "neutral": {
+        "canvas": { "$type": "color", "$value": "#F5F2E8", "$description": "Warm page background" },
+        "paper": { "$type": "color", "$value": "#FFFFFF", "$description": "Primary surface" },
+        "warm": { "$type": "color", "$value": "#FEFCE8", "$description": "Warm secondary surface" },
+        "ink": { "$type": "color", "$value": "#111111", "$description": "Primary text and strong border" },
+        "gray": { "$type": "color", "$value": "#555555", "$description": "Secondary text" },
+        "gray-light": { "$type": "color", "$value": "#888888", "$description": "Placeholder and tertiary text" },
+        "border": { "$type": "color", "$value": "#E0DDD4", "$description": "Subtle surface border" }
+      },
+      "feedback": {
+        "success": { "$type": "color", "$value": "#15803D" },
+        "success-soft": { "$type": "color", "$value": "#EAF7EE" },
+        "info": { "$type": "color", "$value": "#0F766E" },
+        "info-soft": { "$type": "color", "$value": "#E6F7F4" },
+        "danger": { "$type": "color", "$value": "#E21B3C" },
+        "danger-soft": { "$type": "color", "$value": "#FFF0F2" }
+      },
+      "semantic": {
+        "surface-canvas": { "$type": "color", "$value": "{color.neutral.canvas}" },
+        "surface-primary": { "$type": "color", "$value": "{color.neutral.paper}" },
+        "surface-warm": { "$type": "color", "$value": "{color.neutral.warm}" },
+        "text-primary": { "$type": "color", "$value": "{color.neutral.ink}" },
+        "text-secondary": { "$type": "color", "$value": "{color.neutral.gray}" },
+        "text-tertiary": { "$type": "color", "$value": "{color.neutral.gray-light}" },
+        "border-subtle": { "$type": "color", "$value": "{color.neutral.border}" },
+        "border-strong": { "$type": "color", "$value": "{color.neutral.ink}" },
+        "action-primary": { "$type": "color", "$value": "{color.brand.pink}" },
+        "action-secondary": { "$type": "color", "$value": "{color.brand.yellow}" },
+        "focus": { "$type": "color", "$value": "{color.brand.pink}" }
+      }
+    },
+    "font": {
+      "family": { "sans": { "$type": "fontFamily", "$value": "Inter" }, "mono": { "$type": "fontFamily", "$value": "IBM Plex Mono" } },
+      "weight": { "regular": { "$type": "fontWeight", "$value": 400 }, "medium": { "$type": "fontWeight", "$value": 500 }, "semibold": { "$type": "fontWeight", "$value": 600 }, "bold": { "$type": "fontWeight", "$value": 700 } }
+    },
+    "type": {
+      "size": {
+        "xs": { "$type": "dimension", "$value": "10px" }, "sm": { "$type": "dimension", "$value": "12px" }, "body": { "$type": "dimension", "$value": "16px" }, "lg": { "$type": "dimension", "$value": "20px" }, "xl": { "$type": "dimension", "$value": "24px" }, "display-sm": { "$type": "dimension", "$value": "40px" }, "display-md": { "$type": "dimension", "$value": "56px" }, "display-lg": { "$type": "dimension", "$value": "72px" }
+      },
+      "line-height": { "tight": { "$type": "number", "$value": 1.05 }, "body": { "$type": "number", "$value": 1.5 }, "relaxed": { "$type": "number", "$value": 1.65 } },
+      "tracking": { "tight": { "$type": "dimension", "$value": "-0.03em" }, "normal": { "$type": "dimension", "$value": "0em" }, "label": { "$type": "dimension", "$value": "0.12em" }, "eyebrow": { "$type": "dimension", "$value": "0.24em" } }
+    },
+    "space": {
+      "0": { "$type": "dimension", "$value": "0px" }, "1": { "$type": "dimension", "$value": "4px" }, "2": { "$type": "dimension", "$value": "8px" }, "3": { "$type": "dimension", "$value": "12px" }, "4": { "$type": "dimension", "$value": "16px" }, "5": { "$type": "dimension", "$value": "20px" }, "6": { "$type": "dimension", "$value": "24px" }, "8": { "$type": "dimension", "$value": "32px" }, "10": { "$type": "dimension", "$value": "40px" }, "12": { "$type": "dimension", "$value": "48px" }, "16": { "$type": "dimension", "$value": "64px" }, "20": { "$type": "dimension", "$value": "80px" }
+    },
+    "radius": { "none": { "$type": "dimension", "$value": "0px" }, "sm": { "$type": "dimension", "$value": "6px" }, "md": { "$type": "dimension", "$value": "8px" }, "lg": { "$type": "dimension", "$value": "12px" }, "pill": { "$type": "dimension", "$value": "999px" } },
+    "border": { "subtle": { "$type": "dimension", "$value": "1px" }, "strong": { "$type": "dimension", "$value": "2px" }, "heavy": { "$type": "dimension", "$value": "3px" } },
+    "shadow": {
+      "soft": { "$type": "shadow", "$value": { "color": "#11111114", "offsetX": "0px", "offsetY": "1px", "blur": "0px", "spread": "0px" } },
+      "offset-sm": { "$type": "shadow", "$value": { "color": "#111111", "offsetX": "2px", "offsetY": "2px", "blur": "0px", "spread": "0px" } },
+      "offset-md": { "$type": "shadow", "$value": { "color": "#111111", "offsetX": "3px", "offsetY": "3px", "blur": "0px", "spread": "0px" } },
+      "offset-lg": { "$type": "shadow", "$value": { "color": "#111111", "offsetX": "6px", "offsetY": "6px", "blur": "0px", "spread": "0px" } },
+      "float": { "$type": "shadow", "$value": { "color": "#11111124", "offsetX": "0px", "offsetY": "18px", "blur": "42px", "spread": "0px" } }
+    },
+    "motion": {
+      "duration-fast": { "$type": "duration", "$value": "140ms" }, "duration-standard": { "$type": "duration", "$value": "220ms" }, "duration-slow": { "$type": "duration", "$value": "300ms" },
+      "easing-fast": { "$type": "cubicBezier", "$value": [0.4, 0, 0.2, 1] }, "easing-smooth": { "$type": "cubicBezier", "$value": [0.16, 1, 0.3, 1] }, "easing-spring": { "$type": "cubicBezier", "$value": [0.34, 1.56, 0.64, 1] }
+    },
+    "breakpoint": { "sm": { "$type": "dimension", "$value": "640px" }, "md": { "$type": "dimension", "$value": "768px" }, "lg": { "$type": "dimension", "$value": "1024px" }, "xl": { "$type": "dimension", "$value": "1280px" }, "2xl": { "$type": "dimension", "$value": "1400px" } }
+  }
+}
