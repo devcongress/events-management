@@ -17,6 +17,7 @@ const task: AnnualConferenceTask = {
   target_date: '2026-08-20',
   status: 'not_started',
   dependency_note: null,
+  dependency_task_ids: [],
   source: 'manual',
   source_row: null,
   sort_order: 1,
@@ -126,5 +127,19 @@ describe('Annual Conference service boundary', () => {
       ends_on: '2026-09-15',
     })).rejects.toMatchObject({ code: 'invalid_input' } satisfies Partial<AnnualConferenceServiceError>);
     expect(repo.createPhase).not.toHaveBeenCalled();
+  });
+
+  it('rejects task dependencies outside the current conference workspace', async () => {
+    const repo = repository();
+    const service = createAnnualConferenceService({
+      repository: repo,
+      actor: { role: 'owner', email: 'owner@example.com' },
+      activeOrganizerEmails: async () => ['owner@example.com'],
+      audit,
+    });
+
+    await expect(service.updateTask(2026, 'task-1', { dependency_task_ids: ['missing-task'] }))
+      .rejects.toMatchObject({ code: 'invalid_input' } satisfies Partial<AnnualConferenceServiceError>);
+    expect(repo.updateTask).not.toHaveBeenCalled();
   });
 });

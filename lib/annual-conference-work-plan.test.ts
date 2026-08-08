@@ -11,7 +11,9 @@ import {
   canManageAnnualConferencePlanning,
   defaultAnnualConferencePhaseScope,
   filterAnnualConferenceTasksByPhase,
+  summarizeAnnualConferenceDependencies,
   summarizeAnnualConferenceWorkPlan,
+  validateAnnualConferenceTaskDependencies,
   validateAnnualConferenceTaskOwnership,
   validateAnnualConferencePhaseDates,
   validateAnnualConferenceTaskSchedule,
@@ -273,6 +275,50 @@ describe('annual conference work plan', () => {
       not_started: 25,
       unassigned: 15,
       completion_percent: 7,
+    });
+  });
+
+  it('uses explicit prerequisite links and rejects invalid or circular task chains', () => {
+    const [date, theme, venue] = ANNUAL_CONFERENCE_2026_SEED_TASKS.slice(0, 3).map((task) => ({
+      ...task,
+      dependency_task_ids: [],
+    }));
+    const tasks = [
+      { ...date, id: 'date', title: 'Confirm date', status: 'done' as const },
+      { ...theme, id: 'theme', title: 'Confirm theme', dependency_task_ids: ['date'] },
+      { ...venue, id: 'venue', title: 'Confirm venue', dependency_task_ids: ['theme'] },
+    ];
+
+    expect(validateAnnualConferenceTaskDependencies(
+      { dependency_task_ids: ['missing-task'] },
+      tasks,
+      'venue',
+    )).toBe('Every prerequisite must belong to this conference edition.');
+    expect(validateAnnualConferenceTaskDependencies(
+      { dependency_task_ids: ['venue'] },
+      tasks,
+      'venue',
+    )).toBe('A task cannot depend on itself.');
+    expect(validateAnnualConferenceTaskDependencies(
+      { dependency_task_ids: ['date', 'date'] },
+      tasks,
+      'theme',
+    )).toBe('Choose each prerequisite task only once.');
+    expect(validateAnnualConferenceTaskDependencies(
+      { dependency_task_ids: ['venue'] },
+      tasks,
+      'date',
+    )).toBe('This dependency would create a circular task chain.');
+
+    expect(summarizeAnnualConferenceDependencies(tasks)).toMatchObject({
+      total_links: 2,
+      linked_tasks: 2,
+      waiting_tasks: [expect.objectContaining({ id: 'venue' })],
+      ready_tasks: [expect.objectContaining({ id: 'theme' })],
+      blockers: [{
+        prerequisite: expect.objectContaining({ id: 'theme' }),
+        dependents: [expect.objectContaining({ id: 'venue' })],
+      }],
     });
   });
 

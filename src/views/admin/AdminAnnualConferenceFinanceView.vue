@@ -9,14 +9,18 @@ import {
   ANNUAL_CONFERENCE_FINANCE_CATEGORIES,
   ANNUAL_CONFERENCE_FINANCE_CATEGORY_LABELS,
   type AnnualConferenceFinanceCategory,
+  type AnnualConferenceFinanceEntry,
   type AnnualConferenceFinanceEntryKind,
   type AnnualConferenceFinanceEntryStatus,
 } from '@/lib/annual-conference-finance';
 import {
+  amendAnnualConferenceFinanceIncomeExpectation,
+  cancelAnnualConferenceFinanceIncomeExpectation,
   createAnnualConferenceFinanceBudget,
   createAnnualConferenceFinanceEntry,
   fetchAnnualConferenceFinance,
   queryKeys,
+  recordAnnualConferenceFinanceIncomeReceipt,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 
@@ -24,8 +28,11 @@ const route = useRoute();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year));
 const actionError = ref('');
-type FinanceDrawerMode = 'budget' | 'entry';
+type FinanceDrawerMode = 'budget' | 'entry' | 'income';
+type IncomeDrawerStep = 'overview' | 'amend' | 'receipt' | 'cancel';
 const financeDrawerMode = ref<FinanceDrawerMode | null>(null);
+const incomeDrawerStep = ref<IncomeDrawerStep>('overview');
+const selectedIncomeEntry = ref<AnnualConferenceFinanceEntry | null>(null);
 const financeDrawerPanel = ref<HTMLElement | null>(null);
 const financeDrawerCloseButton = ref<HTMLButtonElement | null>(null);
 const pageContent = ref<HTMLElement | null>(null);
@@ -40,6 +47,10 @@ const financeQuery = useQuery({
 const finance = computed(() => financeQuery.data.value);
 const summary = computed(() => finance.value?.summary);
 const canManage = computed(() => finance.value?.permissions.can_manage === true);
+const selectedIncomeAmendments = computed(() => finance.value?.income_amendments
+  .filter((amendment) => amendment.entry_id === selectedIncomeEntry.value?.id) ?? []);
+const selectedIncomeReceipts = computed(() => finance.value?.income_receipts
+  .filter((receipt) => receipt.entry_id === selectedIncomeEntry.value?.id) ?? []);
 const categories = computed(() => ANNUAL_CONFERENCE_FINANCE_CATEGORIES.map((value) => ({
   value,
   label: ANNUAL_CONFERENCE_FINANCE_CATEGORY_LABELS[value],
@@ -61,6 +72,14 @@ const entryForm = reactive({
   entry_date: new Date().toISOString().slice(0, 10),
   notes: '',
 });
+const incomeAmendmentForm = reactive({ amount: '', reason: '' });
+const incomeReceiptForm = reactive({
+  amount: '',
+  received_date: new Date().toISOString().slice(0, 10),
+  payment_reference: '',
+  notes: '',
+});
+const incomeCancellationForm = reactive({ reason: '' });
 
 const budgetMutation = useMutation({
   mutationFn: async () => {
@@ -117,6 +136,74 @@ const entryMutation = useMutation({
   },
 });
 
+const incomeAmendmentMutation = useMutation({
+  mutationFn: async () => {
+    const entry = selectedIncomeEntry.value;
+    const amountMinor = amountToMinor(incomeAmendmentForm.amount);
+    if (!entry) throw new Error('Choose an income expectation first.');
+    if (amountMinor === null) throw new Error('Enter a valid revised GHS amount with up to two decimal places.');
+    if (!incomeAmendmentForm.reason.trim()) throw new Error('Explain why the expected amount changed.');
+    return amendAnnualConferenceFinanceIncomeExpectation(year.value, entry.id, {
+      amount_minor: amountMinor,
+      reason: incomeAmendmentForm.reason.trim(),
+    });
+  },
+  onSuccess: async () => {
+    actionError.value = '';
+    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceFinance(year.value) });
+    notify.success('Expected income updated.');
+    await closeFinanceDrawer();
+  },
+  onError: (error) => {
+    actionError.value = error instanceof Error ? error.message : 'Unable to amend the expected income.';
+  },
+});
+
+const incomeReceiptMutation = useMutation({
+  mutationFn: async () => {
+    const entry = selectedIncomeEntry.value;
+    const amountMinor = amountToMinor(incomeReceiptForm.amount);
+    if (!entry) throw new Error('Choose an income expectation first.');
+    if (amountMinor === null) throw new Error('Enter a valid received GHS amount with up to two decimal places.');
+    if (!incomeReceiptForm.received_date) throw new Error('Choose the date the payment was received.');
+    return recordAnnualConferenceFinanceIncomeReceipt(year.value, entry.id, {
+      amount_minor: amountMinor,
+      received_date: incomeReceiptForm.received_date,
+      payment_reference: incomeReceiptForm.payment_reference.trim() || null,
+      notes: incomeReceiptForm.notes.trim() || null,
+    });
+  },
+  onSuccess: async () => {
+    actionError.value = '';
+    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceFinance(year.value) });
+    notify.success('Payment receipt recorded.');
+    await closeFinanceDrawer();
+  },
+  onError: (error) => {
+    actionError.value = error instanceof Error ? error.message : 'Unable to record the payment receipt.';
+  },
+});
+
+const incomeCancellationMutation = useMutation({
+  mutationFn: async () => {
+    const entry = selectedIncomeEntry.value;
+    if (!entry) throw new Error('Choose an income expectation first.');
+    if (!incomeCancellationForm.reason.trim()) throw new Error('Explain why this expectation is no longer expected.');
+    return cancelAnnualConferenceFinanceIncomeExpectation(year.value, entry.id, {
+      reason: incomeCancellationForm.reason.trim(),
+    });
+  },
+  onSuccess: async () => {
+    actionError.value = '';
+    await queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceFinance(year.value) });
+    notify.success('Expected income cancelled.');
+    await closeFinanceDrawer();
+  },
+  onError: (error) => {
+    actionError.value = error instanceof Error ? error.message : 'Unable to cancel the expected income.';
+  },
+});
+
 const entryStatusOptions = computed(() => entryForm.kind === 'expense'
   ? [
       { value: 'draft', label: 'Draft' },
@@ -157,6 +244,8 @@ function statusLabel(status: AnnualConferenceFinanceEntryStatus): string {
       ? 'Paid'
       : status === 'expected'
         ? 'Expected'
+        : status === 'partially_received'
+          ? 'Partly received'
         : status === 'received'
           ? 'Received'
           : status === 'cancelled'
@@ -164,10 +253,32 @@ function statusLabel(status: AnnualConferenceFinanceEntryStatus): string {
             : 'Draft';
 }
 
-const financeDrawerTitle = computed(() => financeDrawerMode.value === 'budget' ? 'Add budget line' : 'Add financial record');
-const financeDrawerDescription = computed(() => financeDrawerMode.value === 'budget'
-  ? 'Set the amount you expect to spend before commitments arrive.'
-  : 'Record an expense or income item and keep its state explicit.');
+function sourceLabel(entry: AnnualConferenceFinanceEntry): string {
+  if (entry.source_type === 'ticket') return 'Ticketing';
+  if (entry.source_type === 'sponsor') return 'Sponsorship';
+  return 'Manual';
+}
+
+function canManageIncome(entry: AnnualConferenceFinanceEntry): boolean {
+  return canManage.value && entry.kind === 'income' && entry.source_type === 'manual';
+}
+
+const financeDrawerTitle = computed(() => {
+  if (financeDrawerMode.value === 'budget') return 'Add budget line';
+  if (financeDrawerMode.value === 'entry') return 'Add financial record';
+  if (incomeDrawerStep.value === 'amend') return 'Amend expected income';
+  if (incomeDrawerStep.value === 'receipt') return 'Record payment received';
+  if (incomeDrawerStep.value === 'cancel') return 'Cancel expectation';
+  return 'Manage income';
+});
+const financeDrawerDescription = computed(() => {
+  if (financeDrawerMode.value === 'budget') return 'Set the amount you expect to spend before commitments arrive.';
+  if (financeDrawerMode.value === 'entry') return 'Record an expense or income item and keep its state explicit.';
+  if (incomeDrawerStep.value === 'amend') return 'Keep the original promise and record why the expected amount changed.';
+  if (incomeDrawerStep.value === 'receipt') return 'Record money that has actually arrived. Partial payments stay visible.';
+  if (incomeDrawerStep.value === 'cancel') return 'Use this only when no payment has been received and the commitment will not arrive.';
+  return 'Review the commitment, its receipts, and the amount still outstanding.';
+});
 
 function setPageInteractionLocked(locked: boolean) {
   if (typeof document === 'undefined') return;
@@ -187,15 +298,47 @@ async function openFinanceDrawer(mode: FinanceDrawerMode, event: MouseEvent) {
   if (!canManage.value) return;
   actionError.value = '';
   financeDrawerMode.value = mode;
+  incomeDrawerStep.value = 'overview';
+  selectedIncomeEntry.value = null;
   financeDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
   setPageInteractionLocked(true);
   await nextTick();
   financeDrawerCloseButton.value?.focus();
 }
 
+async function openIncomeDrawer(entry: AnnualConferenceFinanceEntry, event: MouseEvent) {
+  if (!canManageIncome(entry)) return;
+  actionError.value = '';
+  selectedIncomeEntry.value = entry;
+  incomeDrawerStep.value = 'overview';
+  incomeAmendmentForm.amount = (entry.amount_minor / 100).toFixed(2);
+  incomeAmendmentForm.reason = '';
+  incomeReceiptForm.amount = '';
+  incomeReceiptForm.received_date = new Date().toISOString().slice(0, 10);
+  incomeReceiptForm.payment_reference = '';
+  incomeReceiptForm.notes = '';
+  incomeCancellationForm.reason = '';
+  financeDrawerMode.value = 'income';
+  financeDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  setPageInteractionLocked(true);
+  await nextTick();
+  financeDrawerCloseButton.value?.focus();
+}
+
+function selectIncomeDrawerStep(step: Exclude<IncomeDrawerStep, 'overview'>) {
+  actionError.value = '';
+  incomeDrawerStep.value = step;
+}
+
+function returnToIncomeOverview() {
+  actionError.value = '';
+  incomeDrawerStep.value = 'overview';
+}
+
 async function closeFinanceDrawer() {
   if (!financeDrawerMode.value) return;
   financeDrawerMode.value = null;
+  selectedIncomeEntry.value = null;
   setPageInteractionLocked(false);
   await nextTick();
   financeDrawerTrigger?.focus();
@@ -375,14 +518,16 @@ onUnmounted(() => {
             No expenses or income records have been added yet.
           </div>
           <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-[48rem] border-collapse text-left">
+            <table class="w-full min-w-[58rem] border-collapse text-left">
               <thead class="bg-dc-paper-warm font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">
                 <tr>
                   <th class="px-5 py-3">Record</th>
                   <th class="px-3 py-3">Category</th>
+                  <th class="px-3 py-3">Source</th>
                   <th class="px-3 py-3">Status</th>
                   <th class="px-3 py-3">Date</th>
                   <th class="px-5 py-3 text-right">Amount</th>
+                  <th v-if="canManage" class="px-5 py-3 text-right"><span class="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-dc-border">
@@ -393,6 +538,11 @@ onUnmounted(() => {
                   </td>
                   <td class="px-3 py-3 text-sm text-dc-gray">{{ categoryLabel(entry.category) }}</td>
                   <td class="px-3 py-3">
+                    <span class="inline-flex rounded-md border border-dc-border bg-dc-paper-warm px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
+                      {{ sourceLabel(entry) }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3">
                     <span class="inline-flex rounded-md border px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]" :class="entry.kind === 'income' ? 'border-dc-success/40 bg-dc-success/10 text-dc-success' : 'border-dc-border bg-dc-paper-warm text-dc-gray'">
                       {{ statusLabel(entry.status) }}
                     </span>
@@ -400,6 +550,19 @@ onUnmounted(() => {
                   <td class="px-3 py-3 text-sm text-dc-gray">{{ entry.entry_date || '—' }}</td>
                   <td class="px-5 py-3 text-right text-sm font-semibold" :class="entry.kind === 'income' ? 'text-dc-success' : 'text-dc-ink'">
                     {{ entry.kind === 'income' ? '+' : '−' }}{{ formatMoney(entry.amount_minor) }}
+                    <p v-if="entry.kind === 'income' && entry.status !== 'cancelled'" class="mt-1 text-[11px] font-medium text-dc-gray">
+                      {{ formatMoney(entry.received_amount_minor) }} received · {{ formatMoney(entry.outstanding_amount_minor) }} outstanding
+                    </p>
+                  </td>
+                  <td v-if="canManage" class="px-5 py-3 text-right">
+                    <button
+                      v-if="canManageIncome(entry)"
+                      type="button"
+                      class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink hover:border-dc-pink hover:text-dc-pink"
+                      @click="openIncomeDrawer(entry, $event)"
+                    >
+                      Manage
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -470,7 +633,7 @@ onUnmounted(() => {
               </button>
             </form>
 
-            <form v-else class="grid gap-4" @submit.prevent="entryMutation.mutate()">
+            <form v-else-if="financeDrawerMode === 'entry'" class="grid gap-4" @submit.prevent="entryMutation.mutate()">
               <div class="grid gap-4 sm:grid-cols-2">
                 <AppDropdown
                   :model-value="entryForm.kind"
@@ -509,6 +672,145 @@ onUnmounted(() => {
                 {{ entryMutation.isPending.value ? 'Saving…' : 'Add record' }}
               </button>
             </form>
+
+            <template v-else-if="selectedIncomeEntry">
+              <div v-if="incomeDrawerStep === 'overview'" class="grid gap-5">
+                <section class="rounded-lg border border-dc-border bg-dc-paper-warm p-4">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <p class="text-sm font-semibold text-dc-ink">{{ selectedIncomeEntry.description }}</p>
+                      <p v-if="selectedIncomeEntry.vendor" class="mt-1 text-xs text-dc-gray">{{ selectedIncomeEntry.vendor }}</p>
+                    </div>
+                    <span class="rounded-md border border-dc-success/40 bg-dc-success/10 px-2 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-success">
+                      {{ statusLabel(selectedIncomeEntry.status) }}
+                    </span>
+                  </div>
+                  <dl class="mt-4 grid grid-cols-3 gap-3 border-t border-dc-border pt-4">
+                    <div>
+                      <dt class="editorial-label">Expected</dt>
+                      <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ formatMoney(selectedIncomeEntry.amount_minor) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="editorial-label">Received</dt>
+                      <dd class="mt-1 text-sm font-semibold text-dc-success">{{ formatMoney(selectedIncomeEntry.received_amount_minor) }}</dd>
+                    </div>
+                    <div>
+                      <dt class="editorial-label">Outstanding</dt>
+                      <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ formatMoney(selectedIncomeEntry.outstanding_amount_minor) }}</dd>
+                    </div>
+                  </dl>
+                  <p v-if="selectedIncomeEntry.original_amount_minor !== selectedIncomeEntry.amount_minor" class="mt-4 text-xs leading-5 text-dc-gray">
+                    Original expectation: {{ formatMoney(selectedIncomeEntry.original_amount_minor) }}.
+                  </p>
+                </section>
+
+                <div v-if="selectedIncomeEntry.status !== 'cancelled'" class="grid gap-2">
+                  <button
+                    v-if="selectedIncomeEntry.outstanding_amount_minor > 0"
+                    type="button"
+                    class="editorial-action motion-press min-h-11 justify-center"
+                    @click="selectIncomeDrawerStep('receipt')"
+                  >
+                    Record payment received
+                  </button>
+                  <button
+                    type="button"
+                    class="motion-press min-h-11 rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 text-sm font-semibold text-dc-ink hover:bg-dc-paper-warm"
+                    @click="selectIncomeDrawerStep('amend')"
+                  >
+                    Amend expectation
+                  </button>
+                  <button
+                    v-if="selectedIncomeEntry.received_amount_minor === 0"
+                    type="button"
+                    class="motion-press min-h-11 rounded-md border border-red-700/50 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:border-red-700"
+                    @click="selectIncomeDrawerStep('cancel')"
+                  >
+                    Cancel expectation
+                  </button>
+                </div>
+
+                <section v-if="selectedIncomeReceipts.length || selectedIncomeAmendments.length" class="border-t border-dc-border pt-5">
+                  <p class="editorial-eyebrow">History</p>
+                  <div class="mt-3 grid gap-2">
+                    <article v-for="receipt in selectedIncomeReceipts" :key="receipt.id" class="rounded-md border border-dc-border px-3 py-3">
+                      <p class="text-xs font-semibold text-dc-ink">Payment received · {{ formatMoney(receipt.amount_minor) }}</p>
+                      <p class="mt-1 text-[11px] text-dc-gray">{{ receipt.received_date }}<span v-if="receipt.payment_reference"> · {{ receipt.payment_reference }}</span></p>
+                      <p v-if="receipt.notes" class="mt-2 text-xs leading-5 text-dc-gray">{{ receipt.notes }}</p>
+                    </article>
+                    <article v-for="amendment in selectedIncomeAmendments" :key="amendment.id" class="rounded-md border border-dc-border px-3 py-3">
+                      <p class="text-xs font-semibold text-dc-ink">
+                        {{ amendment.action === 'cancel' ? 'Expectation cancelled' : `Expectation changed to ${formatMoney(amendment.next_amount_minor)}` }}
+                      </p>
+                      <p class="mt-1 text-xs leading-5 text-dc-gray">{{ amendment.reason }}</p>
+                    </article>
+                  </div>
+                </section>
+              </div>
+
+              <form v-else-if="incomeDrawerStep === 'amend'" class="grid gap-4" @submit.prevent="incomeAmendmentMutation.mutate()">
+                <p class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-xs leading-5 text-dc-gray">
+                  {{ formatMoney(selectedIncomeEntry.received_amount_minor) }} has already been received. The revised expectation cannot be lower than that amount.
+                </p>
+                <label>
+                  <span class="editorial-label">Revised expected amount (GHS)</span>
+                  <input v-model="incomeAmendmentForm.amount" class="editorial-input mt-1.5" inputmode="decimal" placeholder="0.00" required>
+                </label>
+                <label>
+                  <span class="editorial-label">Reason</span>
+                  <textarea v-model="incomeAmendmentForm.reason" class="editorial-input mt-1.5 min-h-24 resize-none" maxlength="500" placeholder="Sponsor reduced the commitment after review" required></textarea>
+                </label>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 text-sm font-semibold text-dc-ink" @click="returnToIncomeOverview">Back</button>
+                  <button class="editorial-action motion-press min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50" :disabled="incomeAmendmentMutation.isPending.value">
+                    {{ incomeAmendmentMutation.isPending.value ? 'Saving…' : 'Save expectation' }}
+                  </button>
+                </div>
+              </form>
+
+              <form v-else-if="incomeDrawerStep === 'receipt'" class="grid gap-4" @submit.prevent="incomeReceiptMutation.mutate()">
+                <p class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-xs leading-5 text-dc-gray">
+                  Outstanding: <strong class="text-dc-ink">{{ formatMoney(selectedIncomeEntry.outstanding_amount_minor) }}</strong>. This can be a partial payment.
+                </p>
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <label>
+                    <span class="editorial-label">Amount received (GHS)</span>
+                    <input v-model="incomeReceiptForm.amount" class="editorial-input mt-1.5" inputmode="decimal" placeholder="0.00" required>
+                  </label>
+                  <AppDatePicker v-model="incomeReceiptForm.received_date" label="Received date" />
+                </div>
+                <label>
+                  <span class="editorial-label">Payment reference</span>
+                  <input v-model="incomeReceiptForm.payment_reference" class="editorial-input mt-1.5" maxlength="160" placeholder="Optional transfer or invoice reference">
+                </label>
+                <label>
+                  <span class="editorial-label">Notes</span>
+                  <textarea v-model="incomeReceiptForm.notes" class="editorial-input mt-1.5 min-h-20 resize-none" maxlength="500" placeholder="Optional context"></textarea>
+                </label>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 text-sm font-semibold text-dc-ink" @click="returnToIncomeOverview">Back</button>
+                  <button class="editorial-action motion-press min-h-11 justify-center disabled:cursor-not-allowed disabled:opacity-50" :disabled="incomeReceiptMutation.isPending.value">
+                    {{ incomeReceiptMutation.isPending.value ? 'Saving…' : 'Record receipt' }}
+                  </button>
+                </div>
+              </form>
+
+              <form v-else class="grid gap-4" @submit.prevent="incomeCancellationMutation.mutate()">
+                <p class="rounded-md border border-red-700/40 bg-red-50 px-3 py-3 text-xs leading-5 text-red-800">
+                  This marks the remaining commitment as no longer expected. It cannot be used once money has been received.
+                </p>
+                <label>
+                  <span class="editorial-label">Reason</span>
+                  <textarea v-model="incomeCancellationForm.reason" class="editorial-input mt-1.5 min-h-24 resize-none" maxlength="500" placeholder="Sponsor withdrew the commitment" required></textarea>
+                </label>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-border bg-dc-paper px-4 py-2 text-sm font-semibold text-dc-ink" @click="returnToIncomeOverview">Back</button>
+                  <button class="motion-press min-h-11 rounded-md border-2 border-red-700 bg-red-700 px-4 py-2 font-mono text-sm font-semibold uppercase tracking-wide text-white disabled:cursor-not-allowed disabled:opacity-50" :disabled="incomeCancellationMutation.isPending.value">
+                    {{ incomeCancellationMutation.isPending.value ? 'Cancelling…' : 'Cancel expectation' }}
+                  </button>
+                </div>
+              </form>
+            </template>
           </div>
         </aside>
       </div>

@@ -345,7 +345,6 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
     createTaskMutation.mutate({
       title: value.title,
       details: value.details ?? null,
-      internal_note: value.internal_note ?? null,
       phase_id: value.phase_id ?? null,
       workstream: value.workstream,
       accountable_owner: value.accountable_owner,
@@ -353,7 +352,7 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
       priority: value.priority ?? null,
       target_date: value.target_date ?? null,
       status: value.status ?? 'not_started',
-      dependency_note: value.dependency_note ?? null,
+      dependency_task_ids: value.dependency_task_ids ?? [],
     });
     return;
   }
@@ -674,6 +673,7 @@ function openVolunteerDisplay() {
       :open="showCreateForm || Boolean(selectedTask)"
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"
+      :tasks="tasks"
       :phases="phases"
       :organizer-labels="organizerLabels"
       :can-edit="canEditSelectedTask"

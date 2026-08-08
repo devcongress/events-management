@@ -34,6 +34,7 @@ const assignedTask: AnnualConferenceTask = {
   target_date: null,
   status: 'not_started',
   dependency_note: null,
+  dependency_task_ids: [],
   source: 'manual',
   source_row: null,
   sort_order: 1,

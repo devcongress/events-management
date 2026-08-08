@@ -28,7 +28,7 @@ For every row:
 - assign one accountable owner;
 - list everyone else involved as collaborators;
 - add a realistic target date;
-- keep dependencies and the next concrete action visible;
+- link every prerequisite task through **Depends on** rather than describing it in free text; use the Overview dependency pulse to see the current blockers and ready work;
 - link supporting documents when they exist;
 - mark work `Done` only for the active annual edition.
 
@@ -75,6 +75,7 @@ The first operational workspace slice is now in place:
 - 2026 has fixed **Phase 1** (1–31 August) and **Phase 2** (1 September–19 December); 12 confirmed kickoff tasks are assigned to Phase 1 and the remaining 15 tasks stay in **No phase** until organizers classify them;
 - future editions can define any number of non-overlapping phases, select a planning owner or inherit the previous edition's owner, and reorder, rename, redate, or delete phases without deleting tasks;
 - task target dates remain nullable but are prioritized by the conference-health dashboard; an assigned task's target date cannot exceed its phase end date;
+- task dependencies are explicit prerequisite-task links within one edition; the Work Plan blocks self-links and circular chains, and Overview summarizes links, waiting tasks, ready tasks, and the direct blocker paths;
 - owners and organizers can add an authenticated user with the **Volunteer** role from People & Access;
 - volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update only those task statuses;
 - phone organizers receive mobile versions of Overview, Work Plan, Timeline/phase management, Volunteers, edition controls, and task create/edit flows; phone volunteers receive a separate assignment-only Overview and My Tasks interface;
@@ -242,12 +243,12 @@ Expenses are part of the confirmed annual-conference scope. The first implementa
 | --- | --- | --- | --- | --- |
 | Budget baseline | In progress | Owner | 2026-08-05 | GHS budget lines, committed spend, paid spend, remaining budget, and category variance are visible in the private Finance workspace |
 | Expense categories | In progress | Owner | 2026-08-05 | Initial categories cover venue, catering, AV/connectivity, creative/printing, media, badges, signage, swag, transport, speaker support, contingency, and other |
-| Expense request and approval policy | Not started | Unassigned | TBD | The first slice records explicit draft, committed, paid, expected, received, and cancelled states; approval and reimbursement policy remains next |
+| Expense request and approval policy | Not started | Unassigned | TBD | The first slice records explicit draft, committed, paid, expected, partly received, received, and cancelled states; approval and reimbursement policy remains next |
 | Purchases and supplier commitments | In progress | Owner | 2026-08-05 | Owner-managed expense records capture vendor/source, amount, date, category, status, and notes |
 | Receipts and supporting documents | Not started | Unassigned | TBD | Define required evidence, secure storage, retention, and who can access it |
 | Reimbursements | Not started | Unassigned | TBD | Track claimant, purpose, approved amount, paid amount, payment method, status, and payment date |
 | Actual versus budget | In progress | Owner | 2026-08-05 | Dashboard reports planned, committed, paid, unpaid committed, remaining, and category variance |
-| Sponsorship income | In progress | Owner | 2026-08-05 | Income records can be tracked as expected or received without mixing them into expense totals |
+| Sponsorship income | In progress | Owner | 2026-08-08 | Manual commitments retain their original promise, revisions, partial receipts, and outstanding GHS balance; a sponsor pipeline is still needed before source-linked sponsorship rows are automatic |
 
 ### Finance Safety Boundaries
 
@@ -257,6 +258,7 @@ Expenses are part of the confirmed annual-conference scope. The first implementa
 - The current edition finance currency is explicitly GHS (Ghana cedis); mixed-currency support is not included in this first slice.
 - Receipts and contracts still need private storage, access control, and retention rules before attachments are added.
 - Budget, committed cost, actual payment, reimbursement, and sponsor income are different records and must not be collapsed into one number.
+- Ticket and sponsor modules must own their payment/reconciliation facts; Finance receives source-linked rollups and must not permit manual edits to those derived records.
 
 ## Current Application Coverage
 

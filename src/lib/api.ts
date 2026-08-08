@@ -34,6 +34,11 @@ import type {
   AnnualConferenceFinanceBudgetLineInput,
   AnnualConferenceFinanceEntry,
   AnnualConferenceFinanceEntryInput,
+  AnnualConferenceFinanceIncomeAmendment,
+  AnnualConferenceFinanceIncomeCancellationInput,
+  AnnualConferenceFinanceIncomeExpectationAmendmentInput,
+  AnnualConferenceFinanceIncomeReceiptInput,
+  AnnualConferenceFinanceIncomeReceipt,
   AnnualConferenceFinanceSummary,
 } from '@/lib/annual-conference-finance';
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
@@ -289,6 +294,8 @@ export interface AnnualConferenceFinanceResponse {
   edition_id: string;
   budgets: AnnualConferenceFinanceBudgetLine[];
   entries: AnnualConferenceFinanceEntry[];
+  income_amendments: AnnualConferenceFinanceIncomeAmendment[];
+  income_receipts: AnnualConferenceFinanceIncomeReceipt[];
   summary: AnnualConferenceFinanceSummary;
   permissions: {
     can_manage: boolean;
@@ -463,6 +470,45 @@ export function createAnnualConferenceFinanceEntry(
   input: AnnualConferenceFinanceEntryInput,
 ) {
   return fetchJson<AnnualConferenceFinanceEntry>('/api/annual-conference/' + year + '/finance/entries', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function amendAnnualConferenceFinanceIncomeExpectation(
+  year: string,
+  entryId: string,
+  input: AnnualConferenceFinanceIncomeExpectationAmendmentInput,
+) {
+  return fetchJson<AnnualConferenceFinanceEntry>(`/api/annual-conference/${year}/finance/entries/${entryId}/expected`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function recordAnnualConferenceFinanceIncomeReceipt(
+  year: string,
+  entryId: string,
+  input: AnnualConferenceFinanceIncomeReceiptInput,
+) {
+  return fetchJson<AnnualConferenceFinanceEntry>(`/api/annual-conference/${year}/finance/entries/${entryId}/receipts`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function cancelAnnualConferenceFinanceIncomeExpectation(
+  year: string,
+  entryId: string,
+  input: AnnualConferenceFinanceIncomeCancellationInput,
+) {
+  return fetchJson<AnnualConferenceFinanceEntry>(`/api/annual-conference/${year}/finance/entries/${entryId}/cancel`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

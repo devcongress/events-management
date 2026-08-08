@@ -25,6 +25,7 @@ import {
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
+import { notify } from '@/src/lib/notify';
 
 const addOrganizerSchema = z.object({
   email: z.string().trim().email('Enter a valid email.'),
@@ -33,7 +34,6 @@ const addOrganizerSchema = z.object({
 });
 
 const queryClient = useQueryClient();
-const actionError = ref('');
 const showEmails = ref(false);
 const roleUpdatingId = ref<string | null>(null);
 const enableUpdatingId = ref<string | null>(null);
@@ -77,7 +77,7 @@ const canRevealEmails = computed(() => currentUserRole.value === 'owner');
 const activeOrganizers = computed(() => organizers.value.filter((organizer) => organizer.status === 'active'));
 const ownerCount = computed(() => activeOrganizers.value.filter((organizer) => organizer.role === 'owner').length);
 const loading = computed(() => organizersQuery.isPending.value);
-const error = computed(() => actionError.value || organizersQuery.error.value?.message || '');
+const pageError = computed(() => organizersQuery.error.value?.message || '');
 const organizerPage = ref(1);
 const organizersPerPage = 10;
 const organizerPageCount = computed(() => Math.max(1, Math.ceil(organizers.value.length / organizersPerPage)));
@@ -152,6 +152,10 @@ async function readError(response: Response): Promise<string> {
   return payload?.error ?? `Request failed: ${response.status}`;
 }
 
+function notifyActionError(caught: unknown, fallback: string) {
+  notify.error(caught instanceof Error ? caught.message : fallback);
+}
+
 const addOrganizerMutation = useMutation({
   mutationFn: async () => {
     const parsed = addOrganizerSchema.parse(form);
@@ -173,14 +177,13 @@ const addOrganizerMutation = useMutation({
     return response.json() as Promise<OrganizerMembership>;
   },
   onSuccess: async () => {
-    actionError.value = '';
     form.email = '';
     form.display_name = '';
     form.role = 'organizer';
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
   },
   onError: (caught) => {
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to add team member';
+    notifyActionError(caught, 'Unable to add team member.');
   },
 });
 
@@ -200,7 +203,6 @@ const updateOrganizerRoleMutation = useMutation({
     return response.json() as Promise<OrganizerMembership>;
   },
   onMutate: async ({ organizerId, role }) => {
-    actionError.value = '';
     roleUpdatingId.value = organizerId;
     await queryClient.cancelQueries({ queryKey: queryKeys.adminOrganizers });
     const previous = queryClient.getQueryData<OrganizerMembershipsResponse>(queryKeys.adminOrganizers);
@@ -218,7 +220,7 @@ const updateOrganizerRoleMutation = useMutation({
     if (context?.previous) {
       queryClient.setQueryData(queryKeys.adminOrganizers, context.previous);
     }
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to change member role.';
+    notifyActionError(caught, 'Unable to change member role.');
   },
   onSettled: () => {
     roleUpdatingId.value = null;
@@ -237,7 +239,6 @@ const updateResponsibilityMutation = useMutation({
     );
   },
   onMutate: async ({ capability, enabled }) => {
-    actionError.value = '';
     responsibilityUpdating.value = capability;
     const queryKey = queryKeys.annualConferenceAccess(responsibilityYear.value);
     await queryClient.cancelQueries({ queryKey });
@@ -257,7 +258,7 @@ const updateResponsibilityMutation = useMutation({
   },
   onError: (caught, _variables, context) => {
     if (context?.previous) queryClient.setQueryData(context.queryKey, context.previous);
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to update conference responsibilities.';
+    notifyActionError(caught, 'Unable to update conference responsibilities.');
   },
   onSettled: (_data, _error, _variables, context) => {
     responsibilityUpdating.value = null;
@@ -279,7 +280,6 @@ const disableOrganizerMutation = useMutation({
     return response.json() as Promise<OrganizerMembership>;
   },
   onMutate: async (organizerId) => {
-    actionError.value = '';
     await queryClient.cancelQueries({ queryKey: queryKeys.adminOrganizers });
     const previous = queryClient.getQueryData<OrganizerMembershipsResponse>(queryKeys.adminOrganizers);
     if (previous) {
@@ -296,7 +296,7 @@ const disableOrganizerMutation = useMutation({
     if (context?.previous) {
       queryClient.setQueryData(queryKeys.adminOrganizers, context.previous);
     }
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to disable organizer';
+    notifyActionError(caught, 'Unable to disable organizer.');
   },
   onSettled: () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
@@ -313,14 +313,13 @@ const enableOrganizerMutation = useMutation({
     return response.json() as Promise<OrganizerMembership>;
   },
   onMutate: (organizerId) => {
-    actionError.value = '';
     enableUpdatingId.value = organizerId;
   },
   onSuccess: async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
   },
   onError: (caught) => {
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to re-enable member access.';
+    notifyActionError(caught, 'Unable to re-enable member access.');
   },
   onSettled: () => {
     enableUpdatingId.value = null;
@@ -336,9 +335,6 @@ const removeOrganizerMutation = useMutation({
     if (!response.ok) throw new Error(await readError(response));
     return response.json() as Promise<{ removed: true; id: string }>;
   },
-  onMutate: () => {
-    actionError.value = '';
-  },
   onSuccess: async ({ id }) => {
     if (delegationMemberId.value === id) delegationMemberId.value = '';
     if (responsibilityMemberId.value === id) await closeResponsibilities();
@@ -346,19 +342,18 @@ const removeOrganizerMutation = useMutation({
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
   },
   onError: (caught) => {
-    actionError.value = caught instanceof Error ? caught.message : 'Unable to permanently remove member access.';
+    notifyActionError(caught, 'Unable to permanently remove member access.');
   },
 });
 
 function submitOrganizer() {
   if (!addOrganizerValidation.value.success) {
-    actionError.value = addOrganizerValidation.value.error.issues[0]?.message ?? 'Check the access details.';
+    notify.error(addOrganizerValidation.value.error.issues[0]?.message ?? 'Check the access details.');
     return;
   }
   if (addOrganizerMutation.isPending.value) {
     return;
   }
-  actionError.value = '';
   addOrganizerMutation.mutate();
 }
 
@@ -556,8 +551,8 @@ onUnmounted(() => {
         </dl>
       </header>
 
-      <div v-if="error" class="mt-4 rounded-md border border-red-700 bg-red-50 p-4 text-sm font-medium text-red-800">
-        {{ error }}
+      <div v-if="pageError" class="mt-4 rounded-md border border-red-700 bg-red-50 p-4 text-sm font-medium text-red-800" role="alert">
+        {{ pageError }}
       </div>
 
       <AdminOrganizersPageSkeleton v-if="loading" />

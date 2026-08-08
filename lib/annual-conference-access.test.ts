@@ -48,6 +48,7 @@ function task(overrides: Partial<AnnualConferenceTask> = {}): AnnualConferenceTa
     created_at: '2026-08-03T00:00:00.000Z',
     updated_at: '2026-08-03T00:00:00.000Z',
     ...overrides,
+    dependency_task_ids: overrides.dependency_task_ids ?? [],
   };
 }
 

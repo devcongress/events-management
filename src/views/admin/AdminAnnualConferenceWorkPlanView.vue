@@ -290,7 +290,6 @@ function handleCreate(value: AnnualConferenceTaskUpdateInput) {
   createMutation.mutate({
     title: value.title,
     details: value.details ?? null,
-    internal_note: value.internal_note ?? null,
     phase_id: value.phase_id ?? null,
     workstream: value.workstream,
     accountable_owner: value.accountable_owner,
@@ -298,7 +297,7 @@ function handleCreate(value: AnnualConferenceTaskUpdateInput) {
     priority: value.priority ?? null,
     target_date: value.target_date ?? null,
     status: value.status ?? 'not_started',
-    dependency_note: value.dependency_note ?? null,
+    dependency_task_ids: value.dependency_task_ids ?? [],
   });
 }
 
@@ -652,6 +651,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       :open="showCreateForm || Boolean(selectedTask)"
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"
+      :tasks="tasks"
       :phases="phases"
       :default-phase-id="selectedPhase?.id ?? null"
       :organizer-labels="organizerLabels"

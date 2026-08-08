@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-08 — Made Annual Conference task dependencies actionable
+
+- Replaced the Annual Conference task form's free-text **Dependency** and **Internal note** fields with explicit **Depends on** prerequisite-task links.
+- Validated every link at the service boundary, rejecting duplicate, self-referential, cross-edition, and circular task chains while preserving legacy note data without guessing its meaning.
+- Added the Overview **Dependency pulse** with a concise status summary, link/waiting/ready totals, and direct prerequisite-to-downstream paths.
+
+## 2026-08-08 — Removed the duplicate Annual Conference section divider
+
+- Removed the Overview page's redundant black-and-pink masthead divider beneath the Annual Conference navigation.
+- Kept the shared navigation's active tab underline as the single section indicator.
+
+## 2026-08-08 — Aligned Annual Conference navigation with Registration
+
+- Replaced the boxed Annual Conference section buttons with the Registration workspace's icon-led, underline tab treatment.
+- Preserved capability-aware links and routes while adding a mobile horizontal scroll affordance, focus treatment, and reduced-motion-safe press feedback.
+
+## 2026-08-08 — Kept People & Access action failures non-blocking
+
+- Moved People & Access validation and update failures into the shared dismissible app toast, so a failed delegation or role update does not take over the page layout.
+- Kept directory-load failures inline because the page content itself may be incomplete in that state.
+
+## 2026-08-08 — Made Annual Conference income commitments auditable
+
+- Kept the existing edition-specific **Finance** access toggle in People & Access as the Owner-controlled, Organizer-view-only finance boundary.
+- Added a manual-income lifecycle: Owners can amend a GHS expectation with a reason, record partial receipts, or cancel an unpaid expectation with a reason.
+- Preserved the original commitment, revision/cancellation history, receipts, received total, and outstanding balance instead of overwriting expected income.
+- Reserved source-linked finance records for future ticketing and sponsorship integrations, keeping derived revenue read-only in Finance to prevent double counting.
+
+## 2026-08-08 — Standardized community-event review criteria
+
+- Added a compact, four-point **Before you decide** checklist above pending-submission actions so every reviewer considers community fit, event clarity, credibility, and calendar value before approving or rejecting a listing.
+
+## 2026-08-08 — Made talk review and archive records inspectable
+
+- Added an explicit right-side **Review proposal** drawer with the complete abstract, presenter bio, topic, contact details, and submission time before an organizer can select or decline a presenter.
+- Added the same full-record preview to **Talks Archive**, including already published talks and product demos, so organizers can always inspect the submitted content after review.
+- Moved archive status actions into the preview drawer to make content review precede acceptance, publication, exclusion, or a resource reminder.
+- Added regression coverage that selected-speaker archive records retain the original proposal title, topic, abstract, bio, and presenter identity.
+
 ## 2026-08-08 — Made failed submission-reply Slack alerts actionable
 
 - Preserved Slack's bounded HTTP rejection detail with each captured organizer reply instead of showing an unexplained **Slack failed** state.

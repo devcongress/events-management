@@ -9,9 +9,20 @@ export type AnnualConferenceFinanceExpenseStatus = typeof ANNUAL_CONFERENCE_FINA
 export const ANNUAL_CONFERENCE_FINANCE_INCOME_STATUSES = ['expected', 'received', 'cancelled'] as const;
 export type AnnualConferenceFinanceIncomeStatus = typeof ANNUAL_CONFERENCE_FINANCE_INCOME_STATUSES[number];
 
+export const ANNUAL_CONFERENCE_FINANCE_INCOME_LIFECYCLE_STATUSES = [
+  'expected',
+  'partially_received',
+  'received',
+  'cancelled',
+] as const;
+export type AnnualConferenceFinanceIncomeLifecycleStatus = typeof ANNUAL_CONFERENCE_FINANCE_INCOME_LIFECYCLE_STATUSES[number];
+
+export const ANNUAL_CONFERENCE_FINANCE_INCOME_SOURCES = ['manual', 'sponsor', 'ticket'] as const;
+export type AnnualConferenceFinanceIncomeSource = typeof ANNUAL_CONFERENCE_FINANCE_INCOME_SOURCES[number];
+
 export type AnnualConferenceFinanceEntryStatus =
   | AnnualConferenceFinanceExpenseStatus
-  | AnnualConferenceFinanceIncomeStatus;
+  | AnnualConferenceFinanceIncomeLifecycleStatus;
 
 export const ANNUAL_CONFERENCE_FINANCE_CATEGORIES = [
   'venue',
@@ -70,8 +81,13 @@ export interface AnnualConferenceFinanceEntry {
   category: AnnualConferenceFinanceCategory;
   description: string;
   amount_minor: number;
+  original_amount_minor: number;
   currency: typeof ANNUAL_CONFERENCE_FINANCE_CURRENCY;
   status: AnnualConferenceFinanceEntryStatus;
+  source_type: AnnualConferenceFinanceIncomeSource;
+  source_reference: string | null;
+  received_amount_minor: number;
+  outstanding_amount_minor: number;
   vendor: string | null;
   entry_date: string | null;
   notes: string | null;
@@ -90,6 +106,44 @@ export interface AnnualConferenceFinanceEntryInput {
   vendor?: string | null;
   entry_date?: string | null;
   notes?: string | null;
+}
+
+export interface AnnualConferenceFinanceIncomeAmendment {
+  id: string;
+  entry_id: string;
+  previous_amount_minor: number;
+  next_amount_minor: number;
+  action: 'amend' | 'cancel';
+  reason: string;
+  created_by_email: string | null;
+  created_at: string;
+}
+
+export interface AnnualConferenceFinanceIncomeReceipt {
+  id: string;
+  entry_id: string;
+  amount_minor: number;
+  received_date: string;
+  payment_reference: string | null;
+  notes: string | null;
+  created_by_email: string | null;
+  created_at: string;
+}
+
+export interface AnnualConferenceFinanceIncomeExpectationAmendmentInput {
+  amount_minor: number;
+  reason: string;
+}
+
+export interface AnnualConferenceFinanceIncomeReceiptInput {
+  amount_minor: number;
+  received_date: string;
+  payment_reference?: string | null;
+  notes?: string | null;
+}
+
+export interface AnnualConferenceFinanceIncomeCancellationInput {
+  reason: string;
 }
 
 export interface AnnualConferenceFinanceCategorySummary {
@@ -117,6 +171,31 @@ export interface AnnualConferenceFinanceSnapshot {
   edition_id: string;
   budgets: AnnualConferenceFinanceBudgetLine[];
   entries: AnnualConferenceFinanceEntry[];
+  income_amendments: AnnualConferenceFinanceIncomeAmendment[];
+  income_receipts: AnnualConferenceFinanceIncomeReceipt[];
+}
+
+export function hydrateAnnualConferenceFinanceEntries(
+  entries: readonly AnnualConferenceFinanceEntry[],
+  receipts: readonly AnnualConferenceFinanceIncomeReceipt[],
+): AnnualConferenceFinanceEntry[] {
+  const receiptsByEntry = new Map<string, number>();
+  for (const receipt of receipts) {
+    receiptsByEntry.set(receipt.entry_id, (receiptsByEntry.get(receipt.entry_id) ?? 0) + receipt.amount_minor);
+  }
+
+  return entries.map((entry) => {
+    if (entry.kind !== 'income') {
+      return { ...entry, received_amount_minor: 0, outstanding_amount_minor: 0 };
+    }
+    const receiptTotal = receiptsByEntry.get(entry.id) ?? 0;
+    const received = receiptTotal || (entry.status === 'received' ? entry.amount_minor : 0);
+    return {
+      ...entry,
+      received_amount_minor: received,
+      outstanding_amount_minor: entry.status === 'cancelled' ? 0 : Math.max(entry.amount_minor - received, 0),
+    };
+  });
 }
 
 export function summarizeAnnualConferenceFinance(
@@ -147,8 +226,12 @@ export function summarizeAnnualConferenceFinance(
 
   for (const entry of entries) {
     if (entry.kind === 'income') {
-      if (entry.status === 'expected') incomeExpected += entry.amount_minor;
-      if (entry.status === 'received') incomeReceived += entry.amount_minor;
+      const received = entry.received_amount_minor || (entry.status === 'received' ? entry.amount_minor : 0);
+      const outstanding = entry.status === 'cancelled'
+        ? 0
+        : entry.outstanding_amount_minor || Math.max(entry.amount_minor - received, 0);
+      incomeExpected += outstanding;
+      incomeReceived += received;
       continue;
     }
 

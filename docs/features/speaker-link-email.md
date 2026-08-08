@@ -40,6 +40,13 @@ flowchart LR
 - The Proposals view already knows which participants are selected and which ones still need to complete their form.
 - The separate Speakers allowlist supports event-scoped identity/access; it is not the archive and is not a source of public archive content.
 
+### Organizer review and archive preview
+
+- **Talks review** now makes the complete proposal explicit: organizers open a right-side **Review proposal** drawer before they can select or decline a presenter. The drawer contains the submitted abstract or demo summary, presenter bio, topic, contact details, and submission time.
+- **Talks Archive** uses the same drawer for every archive state, including published items. It preserves a full internal record of the content submitted through the CFP or completion link, rather than leaving organizers with a title-only row.
+- Archive status changes (accept, publish, exclude, and reminder) live in the archive preview drawer, so an organizer reads the record before taking an irreversible decision.
+- The existing public archive remains a separate visibility rule: a published archive item is only returned publicly when its event meets the public completed-archive conditions. The organizer preview is always available to authenticated organizers and does not depend on that public condition.
+
 Relevant code:
 
 - [`AdminTalksView.vue`](../../src/views/admin/AdminTalksView.vue)

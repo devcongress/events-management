@@ -24,6 +24,7 @@ function seededTasks(tasks: AnnualConferenceTask[]): AnnualConferenceTask[] {
     ...task,
     phase_id: task.phase_id ?? null,
     collaborators: [...task.collaborators],
+    dependency_task_ids: [...(task.dependency_task_ids ?? [])],
   }));
 }
 
@@ -167,7 +168,7 @@ export async function createMockAnnualConferenceTask(
       edition_id: edition.id,
       title: input.title,
       details: input.details ?? null,
-      internal_note: input.internal_note ?? null,
+      internal_note: null,
       phase_id: input.phase_id ?? null,
       workstream: input.workstream,
       accountable_owner: input.accountable_owner,
@@ -175,7 +176,8 @@ export async function createMockAnnualConferenceTask(
       priority: input.priority ?? null,
       target_date: input.target_date ?? null,
       status,
-      dependency_note: input.dependency_note ?? null,
+      dependency_task_ids: [...(input.dependency_task_ids ?? [])],
+      dependency_note: null,
       source: 'manual',
       source_row: null,
       sort_order: Math.max(0, ...tasks.map((item) => item.sort_order)) + 1,
@@ -209,6 +211,9 @@ export async function updateMockAnnualConferenceTask(
       ...tasks[index],
       ...input,
       collaborators: input.collaborators ? [...input.collaborators] : tasks[index].collaborators,
+      dependency_task_ids: input.dependency_task_ids
+        ? [...input.dependency_task_ids]
+        : [...tasks[index].dependency_task_ids],
       updated_by_email: actorEmail,
       updated_at: timestamp,
       completed_at: 'status' in input

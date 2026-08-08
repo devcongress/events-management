@@ -479,6 +479,42 @@
     @apply shrink-0 border-t border-dc-border bg-dc-cream px-6 py-4;
   }
 
+  .submission-decision-checklist {
+    @apply mb-4 rounded-lg border border-dc-border bg-dc-paper p-4;
+  }
+
+  .submission-decision-checklist-heading {
+    @apply flex flex-wrap items-end justify-between gap-x-4 gap-y-1;
+  }
+
+  .submission-decision-checklist-heading h4 {
+    @apply text-sm font-bold text-dc-ink;
+  }
+
+  .submission-decision-checklist-heading > p {
+    @apply text-xs text-dc-gray;
+  }
+
+  .submission-decision-checklist-items {
+    @apply mt-3 grid gap-3 sm:grid-cols-2;
+  }
+
+  .submission-decision-checklist-items li {
+    @apply flex min-w-0 items-start gap-2.5;
+  }
+
+  .submission-decision-checklist-items li > span {
+    @apply grid size-5 shrink-0 place-items-center rounded-full bg-dc-yellow font-mono text-[10px] font-semibold text-dc-ink;
+  }
+
+  .submission-decision-checklist-items strong {
+    @apply block text-xs font-semibold text-dc-ink;
+  }
+
+  .submission-decision-checklist-items p {
+    @apply mt-0.5 text-xs leading-5 text-dc-gray;
+  }
+
   .submission-review-heading {
     @apply flex items-end justify-between gap-4;
   }
@@ -4807,9 +4843,261 @@
     transform: scale(0.995);
   }
 
+  .talk-preview-drawer-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .talk-preview-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(17, 17, 17, 0.3);
+    cursor: default;
+  }
+
+  .talk-preview-drawer {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    width: min(100%, 42rem);
+    height: 100%;
+    flex-direction: column;
+    border-left: 1px solid #dedad1;
+    background: #fffdf6;
+    box-shadow: -20px 0 48px rgba(17, 17, 17, 0.16);
+  }
+
+  .talk-preview-drawer__header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid #dedad1;
+    background: #ffffff;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .talk-preview-drawer__meta,
+  .talk-preview-drawer__footer-label,
+  .talk-preview-card__kicker,
+  .talk-preview-section__label,
+  .talk-preview-facts dt {
+    color: #e8117f;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.67rem;
+    font-weight: var(--font-weight-label);
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .talk-preview-drawer__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .talk-preview-drawer__title {
+    margin-top: 0.6rem;
+    color: #111111;
+    font-size: clamp(1.55rem, 4vw, 2.15rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+
+  .talk-preview-drawer__description {
+    max-width: 36rem;
+    margin-top: 0.7rem;
+    color: #555555;
+    font-size: 0.9rem;
+    font-weight: var(--font-weight-emphasis);
+    line-height: 1.55;
+  }
+
+  .talk-preview-drawer__close {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    place-items: center;
+    border: 1px solid #dedad1;
+    border-radius: 0.375rem;
+    background: #ffffff;
+    color: #111111;
+  }
+
+  .talk-preview-drawer__close:focus-visible {
+    outline: 2px solid #e8117f;
+    outline-offset: 2px;
+  }
+
+  .talk-preview-drawer__close svg {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .talk-preview-drawer__body {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+  }
+
+  .talk-preview-card {
+    border: 1px solid #dedad1;
+    border-left: 4px solid #e8117f;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    padding: 1.15rem;
+  }
+
+  .talk-preview-card__abstract {
+    margin-top: 0.65rem;
+    color: #222222;
+    font-size: 1rem;
+    font-weight: var(--font-weight-emphasis);
+    line-height: 1.68;
+    white-space: pre-line;
+  }
+
+  .talk-preview-section {
+    margin-top: 1.5rem;
+  }
+
+  .talk-preview-section__title {
+    margin-top: 0.45rem;
+    color: #111111;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .talk-preview-section__copy {
+    margin-top: 0.55rem;
+    color: #555555;
+    font-size: 0.95rem;
+    font-weight: var(--font-weight-emphasis);
+    line-height: 1.65;
+    white-space: pre-line;
+  }
+
+  .talk-preview-inline-link {
+    display: inline-block;
+    margin-top: 0.35rem;
+    color: #111111;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    text-decoration: underline;
+    text-decoration-color: #e8117f;
+    text-underline-offset: 0.2em;
+  }
+
+  .talk-preview-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    margin-top: 1.5rem;
+    border: 1px solid #dedad1;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+
+  .talk-preview-facts > div {
+    min-width: 0;
+    padding: 0.9rem 1rem;
+    background: #ffffff;
+  }
+
+  .talk-preview-facts > div:nth-child(n + 3) {
+    border-top: 1px solid #dedad1;
+  }
+
+  .talk-preview-facts > div:nth-child(even) {
+    border-left: 1px solid #dedad1;
+  }
+
+  .talk-preview-facts dd {
+    margin-top: 0.45rem;
+    color: #555555;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.74rem;
+    font-weight: var(--font-weight-label);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .talk-preview-published-note {
+    display: grid;
+    gap: 0.35rem;
+    margin-top: 1.5rem;
+    border: 1px solid #dfd8a9;
+    border-radius: 0.5rem;
+    background: #fffbe5;
+    padding: 1rem;
+  }
+
+  .talk-preview-published-note p {
+    color: #111111;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .talk-preview-published-note span {
+    color: #555555;
+    font-size: 0.82rem;
+    font-weight: var(--font-weight-emphasis);
+    line-height: 1.55;
+  }
+
+  .talk-preview-drawer__footer {
+    flex-shrink: 0;
+    border-top: 1px solid #dedad1;
+    background: #fffdf6;
+    padding: 1rem 1.5rem;
+  }
+
+  .talk-preview-drawer__footer-label {
+    margin-bottom: 0.65rem;
+  }
+
+  .talk-preview-drawer-enter-active,
+  .talk-preview-drawer-leave-active {
+    transition: opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .talk-preview-drawer-enter-active .talk-preview-drawer,
+  .talk-preview-drawer-leave-active .talk-preview-drawer {
+    transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .talk-preview-drawer-enter-from,
+  .talk-preview-drawer-leave-to {
+    opacity: 0;
+  }
+
+  .talk-preview-drawer-enter-from .talk-preview-drawer,
+  .talk-preview-drawer-leave-to .talk-preview-drawer {
+    opacity: 0;
+    transform: translate3d(2rem, 0, 0);
+  }
+
   @media (hover: hover) and (pointer: fine) {
     .proposal-row:hover {
       background: rgba(17, 17, 17, 0.025);
+    }
+
+    .talk-preview-drawer__close:hover {
+      border-color: #111111;
+      transform: scale(1.03);
     }
   }
 
@@ -4827,6 +5115,43 @@
     .proposal-row-trigger {
       grid-template-columns: minmax(0, 1.8fr) minmax(10rem, 0.7fr) minmax(8rem, 0.48fr);
       align-items: center;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .talk-preview-drawer__header,
+    .talk-preview-drawer__body,
+    .talk-preview-drawer__footer {
+      padding-right: 1rem;
+      padding-left: 1rem;
+    }
+
+    .talk-preview-facts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .talk-preview-facts > div:nth-child(even) {
+      border-left: 0;
+    }
+
+    .talk-preview-facts > div + div {
+      border-top: 1px solid #dedad1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .talk-preview-drawer-enter-active,
+    .talk-preview-drawer-leave-active,
+    .talk-preview-drawer-enter-active .talk-preview-drawer,
+    .talk-preview-drawer-leave-active .talk-preview-drawer,
+    .talk-preview-drawer__close {
+      transition: none;
+    }
+
+    .talk-preview-drawer-enter-from .talk-preview-drawer,
+    .talk-preview-drawer-leave-to .talk-preview-drawer,
+    .talk-preview-drawer__close:hover {
+      transform: none;
     }
   }
 
