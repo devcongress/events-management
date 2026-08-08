@@ -11,6 +11,13 @@
 
 - Added a compact, four-point **Before you decide** checklist above pending-submission actions so every reviewer considers community fit, event clarity, credibility, and calendar value before approving or rejecting a listing.
 
+## 2026-08-08 — Made talk review and archive records inspectable
+
+- Added an explicit right-side **Review proposal** drawer with the complete abstract, presenter bio, topic, contact details, and submission time before an organizer can select or decline a presenter.
+- Added the same full-record preview to **Talks Archive**, including already published talks and product demos, so organizers can always inspect the submitted content after review.
+- Moved archive status actions into the preview drawer to make content review precede acceptance, publication, exclusion, or a resource reminder.
+- Added regression coverage that selected-speaker archive records retain the original proposal title, topic, abstract, bio, and presenter identity.
+
 ## 2026-08-08 — Made failed submission-reply Slack alerts actionable
 
 - Preserved Slack's bounded HTTP rejection detail with each captured organizer reply instead of showing an unexplained **Slack failed** state.

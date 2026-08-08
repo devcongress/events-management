@@ -64,6 +64,7 @@
   - Active Vue pages: `src/views/admin/AdminTalksView.vue`, `src/views/SpeakerTalkIntakeView.vue`
   - Compatibility subroutes remain `/talks/cfp`, `/talks/proposals`, `/talks/program`, and `/talks/backfill`; the organizer UI presents the lasting records as **Event Archive** and the manual intake path as **Archive Requests**.
   - Archive items use the existing `Talk` persistence/API shape with `kind: 'talk' | 'product_demo'`. Older rows without `kind` normalize to `talk`.
+  - The organizer review drawer shows the complete proposal before selection and the complete archive record after completion/publication. Archive status actions are intentionally available only from that content-first drawer.
   - Generated private links open the standalone `/speaker-talks/:eventId/:token` route before the organizer-console catch-all.
   - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`/`DELETE`), `/api/events/[eventId]/speaker-intake-emails` (`POST`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`
 - **Quiz authoring + live ops**

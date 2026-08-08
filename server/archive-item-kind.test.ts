@@ -134,9 +134,20 @@ describe('archive item discriminator at the public intake boundary', () => {
     await expect(response.json()).resolves.toMatchObject({
       kind: 'product_demo',
       title: submission.title,
+      topic: submission.topic,
+      abstract: submission.abstract,
+      bio: submission.bio,
+      speaker_name: submission.speaker_name,
+      speaker_email: submission.speaker_email,
     });
     await expect(talks.getTalksByEvent(event.id)).resolves.toEqual([
-      expect.objectContaining({ kind: 'product_demo' }),
+      expect.objectContaining({
+        kind: 'product_demo',
+        title: submission.title,
+        topic: submission.topic,
+        abstract: submission.abstract,
+        bio: submission.bio,
+      }),
     ]);
     await expect(submissions.getSpeakerSubmissionById(submission.id)).resolves.toEqual(
       expect.objectContaining({

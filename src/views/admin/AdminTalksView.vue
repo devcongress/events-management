@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
-import { summarizeText, wordCount } from '@/src/lib/text-summary';
 import {
   isArchiveRequestsChecklistItem,
   isArchiveRequestsDisabledForEvent,
@@ -40,6 +39,10 @@ type AdminSpeakerIntakeLink = {
   updated_at: string;
   status: 'active' | 'used' | 'expired';
 };
+type TalkPreview = {
+  source: 'proposal' | 'archive';
+  item: SpeakerSubmission | Talk;
+};
 const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
@@ -55,16 +58,17 @@ const refreshingSubmissions = ref(false);
 const closeCfpDialogOpen = ref(false);
 const cfpLinkCopied = ref(false);
 const copiedSpeakerLinkId = ref<string | null>(null);
-const expandedSubmissionId = ref<string | null>(null);
-const expandedProgramTalkIds = ref(new Set<string>());
 const updatingTalkId = ref<string | null>(null);
+const talkPreview = ref<TalkPreview | null>(null);
+const talkPreviewPanel = ref<HTMLElement | null>(null);
+const talkPreviewCloseButton = ref<HTMLButtonElement | null>(null);
+let talkPreviewTrigger: HTMLElement | null = null;
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const speakerLinkExpiresInDays = ref(7);
 const backfillProgramItemValues = ref<string[]>([]);
 const backfillProgramItemEmails = ref<Record<string, string>>({});
 const error = ref<string | null>(null);
-const PROGRAM_ABSTRACT_PREVIEW_WORDS = 55;
 const groups: { label: string; statuses: TalkStatus[] }[] = [
   { label: 'Needs details', statuses: ['submitted'] },
   { label: 'Ready to publish', statuses: ['accepted', 'slides_received'] },
@@ -139,6 +143,17 @@ const activeTalkSectionIndex = computed(() => Math.max(
 const activeTalkSectionIndicatorStyle = computed(() => ({
   transform: `translate3d(${activeTalkSectionIndex.value * 100}%, 0, 0)`,
 }));
+const previewProposal = computed<SpeakerSubmission | null>(() => (
+  talkPreview.value?.source === 'proposal' ? talkPreview.value.item as SpeakerSubmission : null
+));
+const previewArchiveItem = computed<Talk | null>(() => (
+  talkPreview.value?.source === 'archive' ? talkPreview.value.item as Talk : null
+));
+const publicArchivePath = computed(() => (
+  event.value?.status === 'completed' && event.value.publish_to_website
+    ? `/archive/${event.value.id}`
+    : null
+));
 const cfpFormPath = computed(() => `/cfp/${route.params.eventId}`);
 const cfpFormUrl = computed(() => {
   if (typeof window === 'undefined') return cfpFormPath.value;
@@ -347,12 +362,41 @@ function linkNeedsReissue(link: AdminSpeakerIntakeLink): boolean {
   return link.purpose === 'archive_backfill' && (!link.speaker_name || !link.speaker_email);
 }
 
-function submissionDetailsOpen(submissionId: string) {
-  return expandedSubmissionId.value === submissionId;
+function openTalkPreview(source: TalkPreview['source'], item: SpeakerSubmission | Talk, triggerEvent?: MouseEvent) {
+  talkPreviewTrigger = triggerEvent?.currentTarget instanceof HTMLElement ? triggerEvent.currentTarget : null;
+  talkPreview.value = { source, item };
+  void nextTick(() => talkPreviewCloseButton.value?.focus());
 }
 
-function toggleSubmissionDetails(submissionId: string) {
-  expandedSubmissionId.value = submissionDetailsOpen(submissionId) ? null : submissionId;
+function closeTalkPreview() {
+  if (!talkPreview.value) return;
+  talkPreview.value = null;
+  const trigger = talkPreviewTrigger;
+  talkPreviewTrigger = null;
+  void nextTick(() => trigger?.focus());
+}
+
+function handleTalkPreviewKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && talkPreview.value) {
+    closeTalkPreview();
+    return;
+  }
+
+  if (event.key !== 'Tab' || !talkPreview.value || !talkPreviewPanel.value) return;
+  const focusable = Array.from(talkPreviewPanel.value.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  ));
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 async function refreshSpeakerSubmissions() {
@@ -454,6 +498,7 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
 
     if (response.ok) {
       await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
+      if (previewProposal.value?.id === submissionId) closeTalkPreview();
       if (status === 'selected' && data.token) {
         rememberIssuedSpeakerLink(data);
         resetSpeakerIntakeLinkCopied();
@@ -703,6 +748,9 @@ async function setStatus(talkId: string, status: TalkStatus) {
 
     if (response.ok) {
       await fetchTalks();
+      if (previewArchiveItem.value?.id === talkId) {
+        talkPreview.value = { source: 'archive', item: data as Talk };
+      }
       notify.success(talkStatusMessage(talk, status));
     } else {
       const message = data.error || `Failed to update ${talk ? archiveKindLabel(talk).toLowerCase() : 'archive item'}`;
@@ -805,28 +853,6 @@ function selectedSpeakerLinkLabel(submission: SpeakerSubmission): string {
   return durationDays ? `Expires in ${durationDays} days` : 'Link ready';
 }
 
-function programAbstractIsLong(abstract: string | null | undefined): boolean {
-  return wordCount(abstract ?? '') > PROGRAM_ABSTRACT_PREVIEW_WORDS;
-}
-
-function programAbstractPreview(abstract: string | null | undefined): string {
-  return summarizeText(abstract, PROGRAM_ABSTRACT_PREVIEW_WORDS);
-}
-
-function programTalkExpanded(talkId: string): boolean {
-  return expandedProgramTalkIds.value.has(talkId);
-}
-
-function toggleProgramTalkSummary(talkId: string) {
-  const next = new Set(expandedProgramTalkIds.value);
-  if (next.has(talkId)) {
-    next.delete(talkId);
-  } else {
-    next.add(talkId);
-  }
-  expandedProgramTalkIds.value = next;
-}
-
 function actionClass(isPrimary = false): string {
   return isPrimary
     ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
@@ -839,11 +865,15 @@ function proposalActionClass(isPrimary = false): string {
     : 'motion-press rounded-md border border-dc-border bg-dc-paper px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:opacity-40';
 }
 
-onMounted(fetchPageData);
+onMounted(() => {
+  void fetchPageData();
+  window.addEventListener('keydown', handleTalkPreviewKeydown);
+});
 
 onUnmounted(() => {
   if (cfpLinkCopiedResetTimer) clearTimeout(cfpLinkCopiedResetTimer);
   if (speakerIntakeLinkCopiedResetTimer) clearTimeout(speakerIntakeLinkCopiedResetTimer);
+  window.removeEventListener('keydown', handleTalkPreviewKeydown);
 });
 </script>
 
@@ -1285,17 +1315,9 @@ onUnmounted(() => {
                   v-for="submission in group.submissions"
                   :key="submission.id"
                   class="ops-row proposal-row"
-                  role="button"
-                  tabindex="0"
-                  :aria-expanded="submissionDetailsOpen(submission.id)"
-                  @click="toggleSubmissionDetails(submission.id)"
-                  @keydown.enter.prevent="toggleSubmissionDetails(submission.id)"
-                  @keydown.space.prevent="toggleSubmissionDetails(submission.id)"
                 >
                   <div class="grid gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                    <div
-                      class="proposal-row-trigger"
-                    >
+                    <div class="proposal-row-trigger">
                       <span class="flex min-w-0 items-center gap-2">
                         <span class="truncate text-sm font-semibold tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</span>
                         <span class="shrink-0 rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(submission) }}</span>
@@ -1303,22 +1325,13 @@ onUnmounted(() => {
                       <span class="truncate text-sm font-bold text-dc-gray">{{ submission.speaker_name }}</span>
                       <span class="truncate font-mono text-xs uppercase tracking-wide text-dc-gray">{{ submission.topic || 'General' }}</span>
                     </div>
-                    <div class="flex shrink-0 flex-wrap gap-2 lg:justify-end" @click.stop @keydown.stop>
+                    <div class="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                       <button
-                        v-if="submission.status !== 'selected'"
-                        :disabled="decidingSubmissionId === submission.id"
+                        type="button"
                         :class="proposalActionClass(true)"
-                        @click="decideSpeakerSubmission(submission.id, 'selected')"
+                        @click="openTalkPreview('proposal', submission, $event)"
                       >
-                        Select
-                      </button>
-                      <button
-                        v-if="submission.status !== 'not_selected'"
-                        :disabled="decidingSubmissionId === submission.id"
-                        :class="proposalActionClass()"
-                        @click="decideSpeakerSubmission(submission.id, 'not_selected')"
-                      >
-                        Not selected
+                        Review proposal
                       </button>
                       <span
                         v-if="submission.status === 'selected' && !submission.selected_talk_id"
@@ -1334,38 +1347,6 @@ onUnmounted(() => {
                       </span>
                     </div>
                   </div>
-                  <Transition name="proposal-accordion">
-                    <div v-show="submissionDetailsOpen(submission.id)" class="proposal-accordion">
-                      <div class="proposal-accordion-inner border-t border-dc-border">
-                        <div class="proposal-detail-grid">
-                          <section class="proposal-detail-block proposal-detail-block--abstract">
-                            <p class="proposal-detail-label">{{ archiveKindFor(submission) === 'product_demo' ? 'Demo summary' : 'Abstract' }}</p>
-                            <p class="proposal-detail-text">{{ submission.abstract || (archiveKindFor(submission) === 'product_demo' ? 'No demo summary provided.' : 'No abstract provided.') }}</p>
-                          </section>
-                          <div class="proposal-detail-lower">
-                            <section class="proposal-detail-block">
-                              <p class="proposal-detail-label">Presenter bio</p>
-                              <p class="proposal-detail-text">{{ submission.bio || 'No presenter bio provided.' }}</p>
-                            </section>
-                            <dl class="proposal-detail-meta" aria-label="Proposal metadata">
-                              <div class="proposal-detail-meta-item">
-                                <dt>Submitted</dt>
-                                <dd><time :datetime="submission.created_at">{{ formatDateTime(submission.created_at) }}</time></dd>
-                              </div>
-                              <div class="proposal-detail-meta-item">
-                                <dt>Email</dt>
-                                <dd>{{ submission.speaker_email }}</dd>
-                              </div>
-                              <div v-if="submission.github_username" class="proposal-detail-meta-item">
-                                <dt>GitHub</dt>
-                                <dd>@{{ submission.github_username }}</dd>
-                              </div>
-                            </dl>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Transition>
                 </article>
               </div>
             </section>
@@ -1396,35 +1377,6 @@ onUnmounted(() => {
                         <span class="rounded-md border border-dc-border bg-dc-paper-warm px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">{{ archiveStatusLabel(talk) }}</span>
                       </div>
                       <p class="text-sm text-dc-gray">{{ talk.speaker_name }} · {{ talk.speaker_email }}</p>
-                      <div v-if="talk.abstract" class="program-abstract-preview">
-                        <p class="program-abstract-preview__label">
-                          {{
-                            archiveKindFor(talk) === 'product_demo'
-                              ? 'Demo summary'
-                              : programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id)
-                                ? 'Review summary'
-                                : 'Abstract'
-                          }}
-                        </p>
-                        <p class="program-abstract-preview__text">
-                          {{ programAbstractIsLong(talk.abstract) && !programTalkExpanded(talk.id) ? programAbstractPreview(talk.abstract) : talk.abstract }}
-                        </p>
-                        <button
-                          v-if="programAbstractIsLong(talk.abstract)"
-                          type="button"
-                          class="program-abstract-preview__toggle motion-press"
-                          :aria-expanded="programTalkExpanded(talk.id)"
-                          @click="toggleProgramTalkSummary(talk.id)"
-                        >
-                          {{
-                            programTalkExpanded(talk.id)
-                              ? 'Show summary'
-                              : archiveKindFor(talk) === 'product_demo'
-                                ? 'Show full demo summary'
-                                : 'Show full abstract'
-                          }}
-                        </button>
-                      </div>
                       <p class="mt-3 font-mono text-xs uppercase tracking-wide text-dc-gray">
                         {{ talk.topic || 'General' }} <span class="mx-2 text-dc-pink">/</span> {{ slideLabel(talk) }}
                       </p>
@@ -1434,31 +1386,11 @@ onUnmounted(() => {
                         {{ archiveResourceLabel(talk) }}
                       </a>
                       <button
-                        v-if="primaryTalkAction(talk)"
                         type="button"
-                        :class="actionClass(true)"
-                        :disabled="updatingTalkId === talk.id"
-                        @click="setStatus(talk.id, primaryTalkAction(talk)!.status)"
+                        :class="actionClass(talk.status !== 'published')"
+                        @click="openTalkPreview('archive', talk, $event)"
                       >
-                        {{ updatingTalkId === talk.id ? 'Saving...' : primaryTalkAction(talk)!.label }}
-                      </button>
-                      <button
-                        v-if="talk.status !== 'rejected' && talk.status !== 'published'"
-                        type="button"
-                        :class="actionClass()"
-                        :disabled="updatingTalkId === talk.id"
-                        @click="setStatus(talk.id, 'rejected')"
-                      >
-                        Exclude
-                      </button>
-                      <button
-                        v-if="talk.status === 'accepted' && !talk.slides_uploaded_at"
-                        type="button"
-                        :class="actionClass()"
-                        :disabled="updatingTalkId === talk.id"
-                        @click="sendReminder(talk.id)"
-                      >
-                        {{ archiveReminderLabel(talk) }}
+                        {{ talk.status === 'published' ? 'Preview archive' : 'Review archive' }}
                       </button>
                     </div>
                   </div>
@@ -1476,6 +1408,158 @@ onUnmounted(() => {
         </section>
       </template>
     </div>
+    <Teleport to="body">
+      <Transition name="talk-preview-drawer">
+        <div v-if="talkPreview" class="talk-preview-drawer-shell">
+          <button type="button" class="talk-preview-drawer-backdrop" aria-label="Close talk preview" @click="closeTalkPreview" />
+          <aside
+            ref="talkPreviewPanel"
+            class="talk-preview-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="talk-preview-title"
+            aria-describedby="talk-preview-description"
+          >
+            <header class="talk-preview-drawer__header">
+              <div class="min-w-0">
+                <div class="talk-preview-drawer__meta">
+                  <span>{{ talkPreview.source === 'proposal' ? 'Talks review' : 'Talks Archive' }}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{{ archiveKindLabel(talkPreview.item) }}</span>
+                  <template v-if="previewArchiveItem">
+                    <span aria-hidden="true">·</span>
+                    <span>{{ archiveStatusLabel(previewArchiveItem) }}</span>
+                  </template>
+                  <template v-else-if="previewProposal">
+                    <span aria-hidden="true">·</span>
+                    <span>{{ previewProposal.status === 'submitted' ? 'Awaiting decision' : previewProposal.status === 'selected' ? 'Selected' : 'Not selected' }}</span>
+                  </template>
+                </div>
+                <h2 id="talk-preview-title" class="talk-preview-drawer__title">{{ talkPreview.item.title }}</h2>
+                <p id="talk-preview-description" class="talk-preview-drawer__description">
+                  {{ talkPreview.source === 'proposal' ? 'Read the complete proposal before recording a decision.' : 'Review the complete archive record, including the submitted content and presenter details.' }}
+                </p>
+              </div>
+              <button ref="talkPreviewCloseButton" type="button" class="talk-preview-drawer__close motion-press" aria-label="Close talk preview" @click="closeTalkPreview">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </button>
+            </header>
+
+            <div class="talk-preview-drawer__body">
+              <section class="talk-preview-card">
+                <p class="talk-preview-card__kicker">{{ archiveKindFor(talkPreview.item) === 'product_demo' ? 'Demo summary' : 'Abstract' }}</p>
+                <p class="talk-preview-card__abstract">
+                  {{ talkPreview.item.abstract || (archiveKindFor(talkPreview.item) === 'product_demo' ? 'No demo summary was submitted.' : 'No abstract was submitted.') }}
+                </p>
+              </section>
+
+              <section class="talk-preview-section" aria-labelledby="talk-preview-presenter">
+                <p id="talk-preview-presenter" class="talk-preview-section__label">Presenter</p>
+                <p class="talk-preview-section__title">{{ talkPreview.item.speaker_name }}</p>
+                <a :href="`mailto:${talkPreview.item.speaker_email}`" class="talk-preview-inline-link">{{ talkPreview.item.speaker_email }}</a>
+                <p v-if="talkPreview.item.github_username" class="mt-2 text-sm font-semibold text-dc-gray">GitHub · @{{ talkPreview.item.github_username }}</p>
+              </section>
+
+              <section class="talk-preview-section" aria-labelledby="talk-preview-bio">
+                <p id="talk-preview-bio" class="talk-preview-section__label">Presenter bio</p>
+                <p class="talk-preview-section__copy">{{ talkPreview.item.bio || 'No presenter bio was submitted.' }}</p>
+              </section>
+
+              <dl class="talk-preview-facts" aria-label="Talk metadata">
+                <div>
+                  <dt>Topic</dt>
+                  <dd>{{ talkPreview.item.topic || 'General' }}</dd>
+                </div>
+                <div v-if="previewProposal">
+                  <dt>Submitted</dt>
+                  <dd><time :datetime="previewProposal.created_at">{{ formatDateTime(previewProposal.created_at) }}</time></dd>
+                </div>
+                <div v-if="previewArchiveItem">
+                  <dt>Archive record</dt>
+                  <dd><time :datetime="previewArchiveItem.created_at">Created {{ formatDateTime(previewArchiveItem.created_at) }}</time></dd>
+                </div>
+                <div v-if="previewArchiveItem">
+                  <dt>{{ archiveResourceLabel(previewArchiveItem) }}</dt>
+                  <dd>
+                    <a v-if="slidesLink(previewArchiveItem)" :href="slidesLink(previewArchiveItem) ?? undefined" target="_blank" rel="noopener noreferrer" class="talk-preview-inline-link">
+                      Open {{ archiveResourceLabel(previewArchiveItem).toLowerCase() }} ↗
+                    </a>
+                    <span v-else>Not provided</span>
+                  </dd>
+                </div>
+              </dl>
+
+              <aside v-if="previewArchiveItem?.status === 'published'" class="talk-preview-published-note">
+                <p>Published archive record</p>
+                <span>This record remains available here for organizers. The existing public archive is governed separately by the event’s published and completed state.</span>
+                <a v-if="publicArchivePath" :href="publicArchivePath" target="_blank" rel="noopener noreferrer" class="talk-preview-inline-link">Open public archive ↗</a>
+              </aside>
+            </div>
+
+            <footer class="talk-preview-drawer__footer">
+              <template v-if="previewProposal">
+                <p class="talk-preview-drawer__footer-label">Decision</p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-if="previewProposal.status !== 'selected'"
+                    type="button"
+                    :disabled="decidingSubmissionId === previewProposal.id"
+                    :class="proposalActionClass(true)"
+                    @click="decideSpeakerSubmission(previewProposal.id, 'selected')"
+                  >
+                    {{ decidingSubmissionId === previewProposal.id ? 'Saving...' : 'Select presenter' }}
+                  </button>
+                  <button
+                    v-if="previewProposal.status !== 'not_selected'"
+                    type="button"
+                    :disabled="decidingSubmissionId === previewProposal.id"
+                    :class="proposalActionClass()"
+                    @click="decideSpeakerSubmission(previewProposal.id, 'not_selected')"
+                  >
+                    Not selected
+                  </button>
+                </div>
+              </template>
+              <template v-else-if="previewArchiveItem">
+                <p class="talk-preview-drawer__footer-label">Archive action</p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-if="primaryTalkAction(previewArchiveItem)"
+                    type="button"
+                    :class="actionClass(true)"
+                    :disabled="updatingTalkId === previewArchiveItem.id"
+                    @click="setStatus(previewArchiveItem.id, primaryTalkAction(previewArchiveItem)!.status)"
+                  >
+                    {{ updatingTalkId === previewArchiveItem.id ? 'Saving...' : primaryTalkAction(previewArchiveItem)!.label }}
+                  </button>
+                  <button
+                    v-if="previewArchiveItem.status !== 'rejected' && previewArchiveItem.status !== 'published'"
+                    type="button"
+                    :class="actionClass()"
+                    :disabled="updatingTalkId === previewArchiveItem.id"
+                    @click="setStatus(previewArchiveItem.id, 'rejected')"
+                  >
+                    Exclude
+                  </button>
+                  <button
+                    v-if="previewArchiveItem.status === 'accepted' && !previewArchiveItem.slides_uploaded_at"
+                    type="button"
+                    :class="actionClass()"
+                    :disabled="updatingTalkId === previewArchiveItem.id"
+                    @click="sendReminder(previewArchiveItem.id)"
+                  >
+                    {{ archiveReminderLabel(previewArchiveItem) }}
+                  </button>
+                </div>
+              </template>
+            </footer>
+          </aside>
+        </div>
+      </Transition>
+    </Teleport>
+
     <ConfirmDialog
       :open="closeCfpDialogOpen"
       title="Close CFP?"
