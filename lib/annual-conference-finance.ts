@@ -140,6 +140,8 @@ export interface AnnualConferenceFinanceIncomeReceiptInput {
   received_date: string;
   payment_reference?: string | null;
   notes?: string | null;
+  /** Reused when a client retries the same receipt submission. */
+  idempotency_key: string;
 }
 
 export interface AnnualConferenceFinanceIncomeCancellationInput {

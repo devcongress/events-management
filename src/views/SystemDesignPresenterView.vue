@@ -15,6 +15,7 @@ const loading = ref(true);
 const actionPending = ref(false);
 const error = ref('');
 let pollTimer: number | undefined;
+let pollInFlight = false;
 
 const sessionId = computed(() => String(route.params.sessionId ?? ''));
 const playUrl = computed(() => session.value
@@ -35,18 +36,24 @@ const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIn
 )));
 
 async function fetchPresenterState() {
-  const response = await fetch(`/api/quiz/sessions/${sessionId.value}`);
-  if (!response.ok) {
-    error.value = response.status === 401 ? 'Organizer access is required for this presentation.' : 'Unable to load this presentation.';
-    loading.value = false;
-    return;
-  }
+  if (pollInFlight || document.hidden) return;
+  pollInFlight = true;
+  try {
+    const response = await fetch(`/api/quiz/sessions/${sessionId.value}`);
+    if (!response.ok) {
+      error.value = response.status === 401 ? 'Organizer access is required for this presentation.' : 'Unable to load this presentation.';
+      loading.value = false;
+      return;
+    }
 
-  session.value = await response.json();
-  const stateResponse = await fetch(`/api/quiz/state?sessionId=${sessionId.value}&presenter=true`);
-  if (stateResponse.ok) liveState.value = await stateResponse.json();
-  if (!qrCodeUrl.value && session.value) await buildQrCode();
-  loading.value = false;
+    session.value = await response.json();
+    const stateResponse = await fetch(`/api/quiz/state?sessionId=${sessionId.value}&presenter=true`);
+    if (stateResponse.ok) liveState.value = await stateResponse.json();
+    if (!qrCodeUrl.value && session.value) await buildQrCode();
+    loading.value = false;
+  } finally {
+    pollInFlight = false;
+  }
 }
 
 async function buildQrCode() {

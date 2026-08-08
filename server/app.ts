@@ -120,7 +120,7 @@ import {
   updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
-import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
+import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackHubData, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import { uploadMeetupMedia, validateMeetupMediaContent, validateMeetupMediaFile } from '@/lib/supabase/media';
 import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
@@ -269,6 +269,9 @@ for (const publicWritePath of [
   '/api/quiz/join',
   '/api/quiz/answer',
   '/api/quiz/participants/*',
+  // Verify the webhook signature only after buffering the raw body; keep this
+  // unauthenticated path on the same narrow ceiling as public form posts.
+  '/api/webhooks/resend/inbound',
 ]) {
   app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
@@ -544,6 +547,7 @@ const annualConferenceFinanceIncomeReceiptSchema = z.object({
   received_date: z.string().date(),
   payment_reference: z.string().trim().max(160).nullable().optional(),
   notes: z.string().trim().max(500).nullable().optional(),
+  idempotency_key: z.string().uuid(),
 }).strict();
 const annualConferenceFinanceIncomeCancellationSchema = z.object({
   reason: z.string().trim().min(1, 'Explain why this expectation is no longer expected.').max(500),
@@ -1911,6 +1915,27 @@ async function sendPendingRegistrationConfirmationEmails(
   }
 }
 
+async function dispatchRegistrationConfirmationEmails(
+  event: Event,
+  c: Context,
+  options: Parameters<typeof sendPendingRegistrationConfirmationEmails>[2],
+): Promise<void> {
+  const task = sendPendingRegistrationConfirmationEmails(event, c, options).catch((error) => {
+    console.error(JSON.stringify({
+      event: 'registration_confirmation_email_dispatch_failed',
+      event_id: event.id,
+      registration_id: options?.registrationId ?? null,
+      error_name: safeErrorName(error),
+    }));
+  });
+
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
+  }
+}
+
 async function sendPendingEventSubmissionEmails(
   c: Context,
   options: {
@@ -3119,18 +3144,9 @@ app.get('/api/feedback/monthly', async (c) => {
     getAllEvents(c),
     getAllTalks(),
   ]);
-  const feedbackByEvent = await Promise.all(events.map(async (event) => {
-    const [campaign, submissions] = await Promise.all([
-      getFeedbackCampaignByEventStore(event.id, c),
-      getFeedbackSubmissionsByEventStore(event.id, c),
-    ]);
-
-    return { eventId: event.id, campaign, submissions };
-  }));
-  const campaigns = feedbackByEvent
-    .filter((item): item is typeof item & { campaign: FeedbackCampaign } => Boolean(item.campaign))
-    .map((item) => item.campaign);
-  const submissions = feedbackByEvent.flatMap((item) => item.submissions);
+  const hostedFeedback = await getSupabaseFeedbackHubData(events.map((event) => event.id), c);
+  const campaigns = hostedFeedback?.campaigns ?? await getAllFeedbackCampaigns();
+  const submissions = hostedFeedback?.submissions ?? await getAllFeedbackSubmissions();
   const campaignsByEvent = new Map(campaigns.map((campaign) => [campaign.event_id, campaign]));
   const submissionsByEvent = new Map<string, typeof submissions>();
   const talksByEvent = new Map<string, Talk[]>();
@@ -5123,7 +5139,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
       name: parsed.data.name,
       email: parsed.data.email,
     }, c);
-    await sendPendingRegistrationConfirmationEmails(event, c, {
+    await dispatchRegistrationConfirmationEmails(event, c, {
       registrationId: registration.id,
       limit: 1,
       kinds: ['confirmation'],
@@ -7052,10 +7068,24 @@ app.get('/api/attendance/monthly', async (c) => {
     getAttendanceImports(),
   ]);
   const ledger = buildAttendanceLedger(events, imports);
+  const redactLedgerMonth = (month: typeof ledger[number]) => ({
+    ...month,
+    events: month.events.map((eventItem) => ({
+      ...eventItem,
+      // The overview is a summary surface. Raw attendee rows remain available
+      // only through the event-scoped attendance workflow.
+      import: eventItem.import ? { ...eventItem.import, records: [] } : null,
+    })),
+  });
+  const insights = buildAttendanceInsights(ledger);
 
   return c.json({
-    ledger,
-    insights: buildAttendanceInsights(ledger),
+    ledger: ledger.map(redactLedgerMonth),
+    insights: {
+      ...insights,
+      best_month: insights.best_month ? redactLedgerMonth(insights.best_month) : null,
+      weakest_month: insights.weakest_month ? redactLedgerMonth(insights.weakest_month) : null,
+    },
   });
 });
 

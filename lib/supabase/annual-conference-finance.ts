@@ -208,6 +208,7 @@ export async function recordSupabaseAnnualConferenceFinanceIncomeReceipt(
     p_payment_reference: input.payment_reference ?? null,
     p_notes: input.notes ?? null,
     p_actor_email: actorEmail,
+    p_idempotency_key: input.idempotency_key,
   });
   if (result.error) throw new Error(result.error.message);
   return toEntry(result.data);

@@ -653,6 +653,20 @@ export interface AttendanceSourceInsight {
   check_in_rate: number;
 }
 
+export interface AttendanceRepeatAttendeeTrail {
+  event_id: string;
+  event_name: string;
+  event_date: string;
+  outcome: 'came' | 'missed';
+}
+
+export interface AttendanceRepeatAttendee {
+  key: string;
+  name: string;
+  email: string | null;
+  trail: AttendanceRepeatAttendeeTrail[];
+}
+
 export interface AttendanceMonthlyInsights {
   total_months: number;
   imported_months: number;
@@ -665,6 +679,7 @@ export interface AttendanceMonthlyInsights {
   p80_checked_in: number;
   repeat_attendees: number;
   unique_attendees: number;
+  repeat_attendee_profiles: AttendanceRepeatAttendee[];
   source_quality: AttendanceSourceInsight[];
   best_month: AttendanceLedgerMonth | null;
   weakest_month: AttendanceLedgerMonth | null;

@@ -22,7 +22,7 @@ import {
   resolveEventSeriesType,
   type EventSeriesSelection,
 } from '@/lib/event-series';
-import { queryKeys } from '@/src/lib/api';
+import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 import {
   compressionSavingsPercent,
   compressMeetupImageForUpload,
@@ -365,23 +365,20 @@ function syncSeriesTypeDraft() {
 }
 
 async function fetchOverview() {
-  const eventId = route.params.eventId;
-  const [eventResponse, checklistResponse] = await Promise.all([
-    fetch(`/api/events/${eventId}`),
-    fetch(`/api/events/${eventId}/checklist`),
+  const eventId = String(route.params.eventId);
+  const [nextEvent, checklistResponse] = await Promise.all([
+    queryClient.fetchQuery({ queryKey: queryKeys.event(eventId), queryFn: () => fetchEventById(eventId) }),
+    queryClient.fetchQuery({ queryKey: queryKeys.eventChecklist(eventId), queryFn: () => fetchEventChecklist(eventId) }),
   ]);
 
-  if (eventResponse.ok) {
-    event.value = await eventResponse.json();
+  if (nextEvent) {
+    event.value = nextEvent;
     syncDescriptionDraft();
     syncSharedLinksDraft();
     syncOutlineDrafts();
     syncSeriesTypeDraft();
   }
-  if (checklistResponse.ok) {
-    const payload = await checklistResponse.json();
-    checklist.value = payload.items ?? [];
-  }
+  checklist.value = checklistResponse.items ?? [];
   loading.value = false;
   await scrollToRequestedSection();
 }

@@ -191,18 +191,21 @@ export interface Database {
           data: Json[];
           created_at: string;
           updated_at: string;
+          version: number;
         };
         Insert: {
           key: string;
           data?: Json[];
           created_at?: string;
           updated_at?: string;
+          version?: number;
         };
         Update: {
           key?: string;
           data?: Json[];
           created_at?: string;
           updated_at?: string;
+          version?: number;
         };
         Relationships: [];
       };
@@ -449,6 +452,7 @@ export interface Database {
       annual_conference_finance_income_receipts: {
         Row: {
           id: string;
+          idempotency_key: string;
           entry_id: string;
           amount_minor: number;
           received_date: string;
@@ -459,6 +463,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
+          idempotency_key: string;
           entry_id: string;
           amount_minor: number;
           received_date: string;
@@ -469,6 +474,7 @@ export interface Database {
         };
         Update: {
           id?: string;
+          idempotency_key?: string;
           entry_id?: string;
           amount_minor?: number;
           received_date?: string;
@@ -1855,8 +1861,17 @@ export interface Database {
           p_payment_reference: string | null;
           p_notes: string | null;
           p_actor_email: string;
+          p_idempotency_key: string;
         };
         Returns: Database['public']['Tables']['annual_conference_finance_entries']['Row'];
+      };
+      replace_app_json_document: {
+        Args: {
+          p_key: string;
+          p_expected_version: number;
+          p_data: Json;
+        };
+        Returns: Database['public']['Tables']['app_json_documents']['Row'];
       };
       cancel_annual_conference_income_expectation: {
         Args: {

@@ -78,6 +78,7 @@ const incomeReceiptForm = reactive({
   received_date: new Date().toISOString().slice(0, 10),
   payment_reference: '',
   notes: '',
+  idempotency_key: '',
 });
 const incomeCancellationForm = reactive({ reason: '' });
 
@@ -166,11 +167,13 @@ const incomeReceiptMutation = useMutation({
     if (!entry) throw new Error('Choose an income expectation first.');
     if (amountMinor === null) throw new Error('Enter a valid received GHS amount with up to two decimal places.');
     if (!incomeReceiptForm.received_date) throw new Error('Choose the date the payment was received.');
+    if (!incomeReceiptForm.idempotency_key) incomeReceiptForm.idempotency_key = crypto.randomUUID();
     return recordAnnualConferenceFinanceIncomeReceipt(year.value, entry.id, {
       amount_minor: amountMinor,
       received_date: incomeReceiptForm.received_date,
       payment_reference: incomeReceiptForm.payment_reference.trim() || null,
       notes: incomeReceiptForm.notes.trim() || null,
+      idempotency_key: incomeReceiptForm.idempotency_key,
     });
   },
   onSuccess: async () => {
@@ -317,6 +320,7 @@ async function openIncomeDrawer(entry: AnnualConferenceFinanceEntry, event: Mous
   incomeReceiptForm.received_date = new Date().toISOString().slice(0, 10);
   incomeReceiptForm.payment_reference = '';
   incomeReceiptForm.notes = '';
+  incomeReceiptForm.idempotency_key = '';
   incomeCancellationForm.reason = '';
   financeDrawerMode.value = 'income';
   financeDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-08 — Hardened concurrent Conference and shared-data writes
+
+- Added a forward-only integrity migration: receipt recording is idempotent, active-owner and membership/grant eligibility rules are enforced in PostgreSQL, and task dependency / phase scheduling validation serializes concurrent edits.
+- Added versioned compare-and-swap storage for the remaining shared JSON documents, so a competing hosted write reports a refresh-and-retry conflict instead of silently replacing newer data.
+- Kept inbound Resend webhook bodies under the public-write size cap before raw-body signature verification.
+- Batched the Monthly Feedback hub's hosted campaign, question, and submission reads; recorded immutable question snapshots for submissions; and blocked question-set replacement after public responses exist.
+- Returned registration success immediately after persistence while confirmation email delivery continues through the Worker lifetime, and stopped hidden or overlapping System Design polling.
+- Changed the Monthly Attendance overview into a summary/read-model response: historical raw CSV rows remain event-scoped while the overview receives only aggregates and compact repeat-attendee trails.
+- Moved Event Overview and Talks onto the shared event/checklist query keys already used by persistent workspace navigation, removing duplicate tab-load reads.
+
 ## 2026-08-08 — Made Annual Conference task dependencies actionable
 
 - Replaced the Annual Conference task form's free-text **Dependency** and **Internal note** fields with explicit **Depends on** prerequisite-task links.

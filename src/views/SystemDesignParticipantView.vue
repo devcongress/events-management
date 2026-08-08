@@ -26,6 +26,7 @@ const now = ref(Date.now());
 
 let pollTimer: number | undefined;
 let clockTimer: number | undefined;
+let pollInFlight = false;
 
 const remaining = computed(() => {
   if (!state.value?.question_started_at || !state.value.current_question) {
@@ -105,27 +106,30 @@ async function saveName() {
 }
 
 async function pollState() {
-  if (!sessionId.value || !userId.value) return;
+  if (!sessionId.value || !userId.value || pollInFlight || document.hidden) return;
+  pollInFlight = true;
 
-  const stateQuery = new URLSearchParams({
-    sessionId: sessionId.value,
-    userId: userId.value,
-  });
-  const response = await fetch(`/api/quiz/state?${stateQuery.toString()}`, {
-    headers: { 'X-Quiz-Device-ID': getDeviceId() },
-  });
-  if (response.ok) {
-    const nextState = await response.json() as QuizStateResponse;
-    if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
-      selectedAnswer.value = null;
-      answerError.value = null;
+  try {
+    const stateQuery = new URLSearchParams({
+      sessionId: sessionId.value,
+      userId: userId.value,
+    });
+    const response = await fetch(`/api/quiz/state?${stateQuery.toString()}`, {
+      headers: { 'X-Quiz-Device-ID': getDeviceId() },
+    });
+    if (response.ok) {
+      const nextState = await response.json() as QuizStateResponse;
+      if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
+        selectedAnswer.value = null;
+        answerError.value = null;
+      }
+      state.value = nextState;
+      return;
     }
-    state.value = nextState;
-    return;
-  }
 
-  if (response.status === 404) {
-    joinError.value = 'This System Design learning room has ended.';
+    if (response.status === 404) joinError.value = 'This System Design learning room has ended.';
+  } finally {
+    pollInFlight = false;
   }
 }
 

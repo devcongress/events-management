@@ -115,70 +115,22 @@ const rsvpOutcomePieStyle = computed(() => ({
   background: `conic-gradient(#e8117f 0 ${yearCamePercent.value}%, #f5e642 ${yearCamePercent.value}% 100%)`,
 }));
 const repeatRsvpPeople = computed<ConsistencyPersonRow[]>(() => {
-  const people = new Map<string, {
-    key: string;
-    name: string;
-    email: string | null;
-    trailByEvent: Map<string, AttendanceTrailMark>;
-  }>();
-  // Parse each event date once instead of once per attendance record.
-  const eventTimeByEventId = new Map<string, number>();
-
-  for (const month of importedYearLedger.value) {
-    for (const eventItem of month.events) {
-      if (!eventItem.import) continue;
-
-      let eventTimeMs = eventTimeByEventId.get(eventItem.event.id);
-      if (eventTimeMs === undefined) {
-        eventTimeMs = new Date(eventItem.event.event_date).getTime();
-        eventTimeByEventId.set(eventItem.event.id, eventTimeMs);
-      }
-
-      for (const record of eventItem.import.records) {
-        const saidYes = record.approval_status === 'approved';
-        if (!saidYes) continue;
-        const came = Boolean(record.checked_in_at);
-
-        const normalizedEmail = record.email?.trim().toLowerCase();
-        const guestKey = record.guest_id.startsWith('row-')
-          ? `${eventItem.event.id}:${record.guest_id}`
-          : record.guest_id;
-        const key = normalizedEmail || guestKey;
-        const existing = people.get(key) ?? {
-          key,
-          name: record.name || record.email || record.guest_id,
-          email: record.email,
-          trailByEvent: new Map<string, AttendanceTrailMark>(),
-        };
-
-        existing.name = existing.name || record.name || record.email || record.guest_id;
-        existing.email = existing.email ?? record.email;
-        const currentMark = existing.trailByEvent.get(eventItem.event.id);
-        if (!currentMark || (currentMark.outcome === 'missed' && came)) {
-          existing.trailByEvent.set(eventItem.event.id, {
-            eventId: eventItem.event.id,
-            eventName: eventItem.event.name,
-            eventDate: eventItem.event.event_date,
-            eventDateMs: eventTimeMs,
-            outcome: came ? 'came' : 'missed',
-          });
-        }
-        people.set(key, existing);
-      }
-    }
-  }
-
-  return Array.from(people.values())
+  return (insights.value?.repeat_attendee_profiles ?? [])
     .map((person) => {
-      const trail = Array.from(person.trailByEvent.values())
-        .sort((a, b) => a.eventDateMs - b.eventDateMs);
+      const trail = person.trail
+        .filter((mark) => mark.event_date.startsWith(`${selectedYear.value}-`))
+        .map((mark) => ({
+          eventId: mark.event_id,
+          eventName: mark.event_name,
+          eventDate: mark.event_date,
+          eventDateMs: new Date(mark.event_date).getTime(),
+          outcome: mark.outcome,
+        } satisfies AttendanceTrailMark));
       const checkedInCount = trail.filter((mark) => mark.outcome === 'came').length;
       const lastCameAt = [...trail].reverse().find((mark) => mark.outcome === 'came')?.eventDate ?? null;
 
       return {
-        key: person.key,
-        name: person.name,
-        email: person.email,
+        ...person,
         rsvpCount: trail.length,
         checkedInCount,
         missedCount: trail.length - checkedInCount,

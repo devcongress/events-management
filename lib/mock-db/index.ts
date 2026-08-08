@@ -28,14 +28,15 @@ async function enqueueWrite<T>(filename: string, fn: () => Promise<T>): Promise<
 
 export async function readData<T>(filename: string): Promise<T[]> {
   const remote = await readRemoteData<T>(filename);
-  if (remote) return remote;
+  if (remote) return remote.data;
 
   return readDataFile<T>(filename);
 }
 
 export async function writeData<T>(filename: string, data: T[]): Promise<void> {
   return enqueueWrite(filename, async () => {
-    if (await writeRemoteData(filename, data)) return;
+    const remote = await readRemoteData<T>(filename);
+    if (remote && await writeRemoteData(filename, data, remote.version)) return;
     await writeDataFile(filename, data);
   });
 }
@@ -45,21 +46,34 @@ export async function updateData<T, R>(
   fn: (data: T[]) => Promise<{ data: T[]; result: R }> | { data: T[]; result: R },
 ): Promise<R> {
   return enqueueWrite(filename, async () => {
-    const current = await readData<T>(filename);
+    const remote = await readRemoteData<T>(filename);
+    const current = remote?.data ?? await readDataFile<T>(filename);
     const { data, result } = await fn(current);
-    if (!await writeRemoteData(filename, data)) {
+    if (!await writeRemoteData(filename, data, remote?.version)) {
       await writeDataFile(filename, data);
     }
     return result;
   });
 }
 
-async function readRemoteData<T>(filename: string): Promise<T[] | null> {
+interface SharedDocument<T> {
+  data: T[];
+  version: number;
+}
+
+export class SharedDocumentConflictError extends Error {
+  constructor(filename: string) {
+    super(`Shared ${filename} data changed before this update could be saved. Refresh and retry.`);
+    this.name = 'SharedDocumentConflictError';
+  }
+}
+
+async function readRemoteData<T>(filename: string): Promise<SharedDocument<T> | null> {
   if (!canUseRemoteDocument(filename)) return null;
 
   const { data, error } = await getSupabaseAdminClient()
     .from('app_json_documents')
-    .select('data')
+    .select('data, version')
     .eq('key', filename)
     .maybeSingle();
 
@@ -67,33 +81,37 @@ async function readRemoteData<T>(filename: string): Promise<T[] | null> {
     throw new Error(`Unable to read shared ${filename} data`);
   }
   if (!data) {
-    if (envValue('NODE_ENV') === 'production') return [];
+    if (envValue('NODE_ENV') === 'production') return { data: [], version: 0 };
 
     const localData = await readDataFile<T>(filename);
     if (localData.length > 0) {
-      await writeRemoteData(filename, localData);
+      await writeRemoteData(filename, localData, 0);
     }
-    return localData;
+    return { data: localData, version: localData.length > 0 ? 1 : 0 };
   }
 
   if (!Array.isArray(data.data)) {
     throw new Error(`Shared ${filename} data must contain an array`);
   }
 
-  return data.data as T[];
+  return { data: data.data as T[], version: data.version };
 }
 
-async function writeRemoteData<T>(filename: string, data: T[]): Promise<boolean> {
+async function writeRemoteData<T>(filename: string, data: T[], expectedVersion?: number): Promise<boolean> {
   if (!canUseRemoteDocument(filename)) return false;
 
-  const { error } = await getSupabaseAdminClient()
-    .from('app_json_documents')
-    .upsert({
-      key: filename,
-      data: data as Json[],
-    });
+  if (expectedVersion === undefined) {
+    throw new Error(`Shared ${filename} writes require a document version. Use updateData for read-modify-write operations.`);
+  }
+
+  const { error } = await getSupabaseAdminClient().rpc('replace_app_json_document', {
+    p_key: filename,
+    p_expected_version: expectedVersion,
+    p_data: data as Json[],
+  });
 
   if (error) {
+    if (error.message.includes('shared_document_conflict')) throw new SharedDocumentConflictError(filename);
     throw new Error(`Unable to write shared ${filename} data`);
   }
 

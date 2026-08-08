@@ -1,52 +1,36 @@
-# Task Plan: DevCongress Year-Round Operations
+# Task Plan: Integrity, delivery, and performance hardening
 
 ## Goal
 
-Evolve Events Management into the durable operational backbone for DevCongress meetups, the annual December conference, event-scoped people and work, public website data, and moderated external event listings.
+Implement the repository-controlled recommendations from the combined security, correctness, and performance review without changing already-applied migrations or performing remote deployment actions.
 
 ## Phases
 
-- [x] Record the product boundary and domain decisions.
-- [x] Capture the December conference workstreams in a living plan.
-- [x] Define how the annual conference workspace coexists with regular event operations.
-- [x] Protect the existing December 2026 volunteer link and application-table continuity as a migration requirement.
-- [x] Establish the first Annual Conference workspace and nest the working volunteer surface under December 2026 without moving data.
-- [x] Make event feedback anonymous and add an explicit non-attendance answer that stays out of rating averages.
-- [ ] Assign an organizer owner, target date, and status to each 2026 conference workstream.
-- [ ] Extend the event and people model without breaking the current public API.
-- [ ] Integrate and validate the extended API in `devcongress.org`.
-- [ ] Build relational annual-conference foundations for volunteers, workstreams, tasks, and expenses.
-- [ ] Add the public external-event submission and organizer moderation workflow.
-- [ ] Add annual-conference ticketing, sponsors, logistics, and communications incrementally.
+- [x] Phase 1: Confirm scope, current architecture, and safe forward-only migration design.
+- [x] Phase 2: Harden transactional invariants, finance receipt idempotency, and document-write conflict detection.
+- [ ] Phase 3: Harden audit and delivery recovery boundaries plus webhook limits. (Webhook and public delivery latency complete; scheduled outbox recovery and audit atomicity remain.)
+- [ ] Phase 4: Reduce proven attendance, feedback, polling, and duplicate-fetch waste. (Feedback fan-out and polling overlap complete; attendance and workspace deduplication remain.)
+- [ ] Phase 5: Add regression coverage, refresh project docs, verify, and deliver.
 
-## Immediate Organizer Work
+## Key Questions
 
-1. Confirm the December 2026 date, theme, venue, capacity, and keynote shortlist.
-2. Assign one accountable organizer to every row in the annual conference plan.
-3. Add realistic target dates and dependencies.
-4. Agree which workstreams need application support first:
-   - workstreams and task assignments;
-   - volunteer lifecycle;
-   - annual speaker programme;
-   - budget and expenses.
+1. Which controls can be completed in code and migrations, versus requiring platform configuration or operational access?
+2. How can compatibility document writes fail safely before incremental relational migrations are complete?
+3. Which performance changes are structurally justified before production cardinality measurements are available?
 
 ## Decisions Made
 
-- `events-management` is the operational source of truth; `devcongress.org` is the public surface.
-- The December event is an annual conference series with a yearly edition.
-- The annual conference is a first-class workspace inside the existing organizer console; it is not a separate application or a bloated regular-event page.
-- The existing December volunteer URL remains valid for the 2026 campaign; any replacement URL writes to the same campaign and organizer table.
-- Event ownership, series, format, source, moderation, and publication are independent dimensions.
-- People may hold multiple event-scoped roles without receiving global organizer access.
-- The existing public meetup API will be extended additively.
-- Public website integration happens before public external-event submissions.
-- Durable multi-user operations move to relational Supabase storage.
-- Expenses are part of annual conference operations, but their approval and access rules still need design.
+- Use forward-only migrations exclusively; already-applied migration files remain unchanged.
+- Treat platform MFA, alerting, retention, and live backup restoration as operational verification items, not assumptions the application code can satisfy.
+- Prioritize transactional integrity and durable recovery before broad server or UI refactors.
+- Use a document version compare-and-swap RPC as the immediate compatibility-store guardrail; a conflict must surface rather than silently overwrite a newer remote document.
+- Preserve the existing delivery tables and build recovery around atomic database claims, rather than introducing a second outbox abstraction.
+- Keep existing phase/task triggers, then add concurrency-safe database enforcement only where the current trigger/read-validate-write model is insufficient.
 
 ## Errors Encountered
 
-- The previous root planning files described the superseded prototype/community-hub phase. They have been refreshed to match the current year-round operations direction.
+- None.
 
 ## Status
 
-**Feedback quality slice delivered** — event feedback no longer collects attendee identity or browser/page context, session questions offer a required rating-or-non-attendance choice, and missed sessions are reported separately from 1–5 averages. The anonymous browser-level duplicate guard, annual-conference workspace, and volunteer-link continuity remain intact. No Supabase migration is required for this slice.
+**Currently in Phase 3** - narrowing webhook exposure and defining the delivery/audit recovery slice.
