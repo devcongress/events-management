@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-08 — Kept People & Access action failures non-blocking
+
+- Moved People & Access validation and update failures into the shared dismissible app toast, so a failed delegation or role update does not take over the page layout.
+- Kept directory-load failures inline because the page content itself may be incomplete in that state.
+
 ## 2026-08-08 — Made Annual Conference income commitments auditable
 
 - Kept the existing edition-specific **Finance** access toggle in People & Access as the Owner-controlled, Organizer-view-only finance boundary.
