@@ -6,6 +6,7 @@ import type {
   EventSubmissionReviewStatus,
   EventChecklistItem,
   EventBlast,
+  EventBlastStatus,
   EventRegistration,
   EventRegistrationCampaign,
   EventRegistrationSummary,
@@ -230,11 +231,24 @@ export interface RecentEmailDelivery {
   last_error: string | null;
 }
 
+export interface RecentEventBlast {
+  id: string;
+  subject: string;
+  status: EventBlastStatus;
+  recipient_count: number;
+  scheduled_for: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminAuditLogResponse {
   logs: AdminAuditLogEntry[];
   email_health: EmailDeliveryHealth | null;
   email_outbox: EmailOutboxSummary | null;
+  blast_capacity: BlastCapacity;
   recent_email_deliveries: RecentEmailDelivery[] | null;
+  recent_event_blasts: RecentEventBlast[];
   auth_mode: 'supabase';
 }
 
@@ -366,6 +380,18 @@ export interface AdminManagedEventRegistrationsResponse {
 
 export interface EventBlastsResponse {
   blasts: EventBlast[];
+  capacity: BlastCapacity;
+}
+
+export interface BlastCapacity {
+  known: boolean;
+  daily_limit: number;
+  daily_used: number | null;
+  protected_reserve: number;
+  queued_transactional: number;
+  safe_recipients_today: number | null;
+  can_send_now: boolean;
+  reason: 'capacity_unknown' | 'within_safe_capacity' | 'protect_transactional_email' | 'daily_quota_exhausted';
 }
 
 export interface AdminLegacyEventRegistrationsResponse {
@@ -717,6 +743,25 @@ export function rejectEventSubmission(submissionId: string, input: {
   );
 }
 
+export function reviewEventSubmissionAmendment(amendmentId: string, input: { approve: boolean; organizer_message?: string }) {
+  return fetchJson<{ amendment: import('@/types').EventSubmissionAmendment }>(`/api/admin/event-submission-amendments/${encodeURIComponent(amendmentId)}/review`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+}
+
+export function withdrawEventSubmission(submissionId: string, organizer_message: string) {
+  return fetchJson<{ submission: EventSubmission }>(`/api/admin/event-submissions/${encodeURIComponent(submissionId)}/withdraw`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ organizer_message }),
+  });
+}
+
+export function fetchEventSubmissionManagementLink(submissionId: string) {
+  return fetchJson<{ management_url: string; expires_at: string }>(
+    `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/management-link`,
+    { method: 'POST', credentials: 'include' },
+  );
+}
+
 export function retryEventSubmissionEmail(submissionId: string, kind: EventSubmissionEmailKind) {
   return fetchJson<{ accepted: true; kind: EventSubmissionEmailKind }>(
     `/api/admin/event-submissions/${encodeURIComponent(submissionId)}/emails/${encodeURIComponent(kind)}/retry`,
@@ -908,7 +953,7 @@ export function createEventBlast(
   eventId: string,
   input: { subject: string; body: string; scheduled_for?: string | null },
 ) {
-  return fetchJson<{ blast: EventBlast; delivery: 'scheduled' | 'sent' | 'needs_capacity' | 'failed' }>(
+  return fetchJson<{ blast: EventBlast; delivery: 'scheduled' | 'sent' | 'needs_capacity' | 'failed'; capacity: BlastCapacity; error?: string }>(
     `/api/events/${eventId}/blasts`,
     {
       method: 'POST',

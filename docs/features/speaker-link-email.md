@@ -104,7 +104,7 @@ Monthly and Annual Conference calls share one proposal lifecycle, but never shar
 - **Annual Conference:** `/speak/c/:year` is the short public URL. Proposals appear only in that edition's **Annual Conference → Speakers** workspace.
 - The first submission asks only for name, email, title, summary, and an optional product-demo choice. Topic and presenter bio default or are collected later through the selected-presenter private link.
 
-Each Annual Conference edition owns a hidden `community_events` programme record. It is never published to website feeds; it exists only to reuse the established proposal, selection, secure follow-up, and archive data contract. Applying `20260808180000_annual_conference_speaker_calls.sql` is required before opening a conference call.
+Annual Conference proposals, presenter links, and confirmed sessions are edition-owned records. They share the speaker-form and secure-link mechanics with monthly calls, but do not create, read, or appear as normal Event or Archive records. Apply `20260809110000_annual_conference_speaker_scope.sql` after the historical speaker-call migration to remove its former hidden Event bridge.
 
 Before moving the form to `devcongress.org`, choose and verify the canonical website URL. That future move is a hosting decision, not a blocker for the monthly Archive or email pilot.
 

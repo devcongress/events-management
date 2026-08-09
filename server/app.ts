@@ -15,7 +15,8 @@ import {
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
-import { boundedSlackExcerpt, eventSubmissionReplyAddress, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
+import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
+import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import {
@@ -38,7 +39,7 @@ import {
   updateRegistrationCampaign,
   updateRegistrationEmailDelivery,
 } from '@/lib/event-registration-store';
-import { createEventBlast, getEventBlasts, updateEventBlast } from '@/lib/event-blast-store';
+import { createEventBlast, getEventBlasts, getRecentEventBlasts, updateEventBlast } from '@/lib/event-blast-store';
 import { EventBlastStorageError } from '@/lib/supabase/event-blasts';
 import {
   ANNUAL_CONFERENCE_TASK_PRIORITIES,
@@ -63,6 +64,19 @@ import {
   hasAnnualConferenceCapability,
   type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
+import {
+  claimAnnualConferenceSpeakerIntakeLink,
+  consumeAnnualConferenceSpeakerIntakeLink,
+  createAnnualConferenceSession,
+  createAnnualConferenceSpeakerIntakeLink,
+  createAnnualConferenceSpeakerSubmission,
+  getAnnualConferenceSpeakerIntakeLink,
+  getAnnualConferenceSpeakerSubmission,
+  getAnnualConferenceSpeakerSubmissions,
+  releaseAnnualConferenceSpeakerIntakeClaim,
+  updateAnnualConferenceSpeakerSubmission,
+  type AnnualConferenceSpeakerSubmission,
+} from '@/lib/annual-conference-speakers';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import {
@@ -113,11 +127,17 @@ import {
   approveEventSubmission,
   createEventSubmission,
   EventSubmissionStorageError,
+  getActiveEventSubmissionManagementLink,
+  getEventSubmissionManagement,
   getEventSubmissionReply,
   getPendingEventSubmissionEmails,
   insertEventSubmissionReply,
   listEventSubmissions,
   rejectEventSubmission,
+  reviewEventSubmissionAmendment,
+  saveEventSubmissionAmendment,
+  submitEventSubmissionAmendment,
+  withdrawEventSubmission,
   updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
@@ -267,6 +287,7 @@ for (const publicWritePath of [
   '/api/public/event-submissions',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
+  '/api/public/event-submissions/manage/*',
   '/api/quiz/join',
   '/api/quiz/answer',
   '/api/quiz/participants/*',
@@ -426,7 +447,23 @@ const eventSubmissionRejectSchema = z.object({
   organizer_message: z.string().trim().max(1200).optional().default(''),
   internal_note: z.string().trim().max(1000).optional().default(''),
 }).strict();
-const eventSubmissionEmailKindSchema = z.enum(['receipt', 'approved', 'rejected']);
+const eventSubmissionAmendmentSchema = z.object({
+  starts_at: eventSubmissionDateSchema,
+  ends_at: eventSubmissionDateSchema,
+  location_type: z.enum(['in_person', 'online', 'hybrid']),
+  venue_name: z.string().trim().max(200).optional(),
+  venue_address: z.string().trim().max(300).optional(),
+  online_url: eventSubmissionOptionalUrlSchema,
+  registration_url: eventSubmissionOptionalUrlSchema,
+  organizer_note: z.string().trim().max(1200).optional(),
+}).strict().superRefine((value, ctx) => {
+  if (new Date(value.ends_at).getTime() <= new Date(value.starts_at).getTime()) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ends_at'], message: 'End time must be after the start time.' });
+  if ((value.location_type === 'in_person' || value.location_type === 'hybrid') && !value.venue_name) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['venue_name'], message: 'Enter the venue name.' });
+  if ((value.location_type === 'online' || value.location_type === 'hybrid') && !value.online_url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['online_url'], message: 'Enter the online event link.' });
+  if (!value.registration_url && !value.online_url) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['registration_url'], message: 'Add a registration or online event link.' });
+});
+const eventSubmissionAmendmentDecisionSchema = z.object({ approve: z.boolean(), organizer_message: z.string().trim().max(1200).optional().default('') }).strict();
+const eventSubmissionEmailKindSchema = z.enum(['approved', 'rejected', 'amendment_approved', 'amendment_rejected', 'withdrawn']);
 const eventSubmissionIdSchema = z.string().uuid();
 const resendInboundWebhookSchema = z.object({
   type: z.string().trim().min(1),
@@ -620,6 +657,7 @@ const speakerSubmissionDecisionSchema = z.object({
   internal_note: z.string().trim().max(1000).optional().default(''),
   expires_in_days: z.coerce.number().int().min(1).max(31).optional().default(7),
 });
+const conferenceSpeakerSubmissionCreateSchema = speakerSubmissionCreateSchema.omit({ event_id: true });
 const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
 const selectedSpeakerDetailsSchema = z.object({
   topic: z.string().trim().max(120).optional(),
@@ -1129,17 +1167,6 @@ async function getAnnualConferenceEditionByYear(year: number, c?: Context) {
   const repository = createAnnualConferenceRepository(c);
   const editions = await repository.listEditions();
   return editions.find((edition) => edition.year === year);
-}
-
-async function getAnnualConferenceEditionForProgrammeEvent(eventId: string, c?: Context) {
-  const repository = createAnnualConferenceRepository(c);
-  const editions = await repository.listEditions();
-  return editions.find((edition) => edition.conference_event_id === eventId);
-}
-
-async function canOpenSpeakerCallForEvent(event: Event, c?: Context): Promise<boolean> {
-  if (canOpenCfpForEvent(event)) return true;
-  return Boolean(await getAnnualConferenceEditionForProgrammeEvent(event.id, c));
 }
 
 async function createEvent(data: {
@@ -1803,6 +1830,27 @@ function publicAppOrigin(c: Context): string {
   return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? requestOrigin;
 }
 
+function eventSubmissionManagementSignature(linkId: string, c: Context): string | null {
+  const secret = envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c)?.trim();
+  if (!secret) return null;
+  return crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+}
+
+function eventSubmissionManagementUrl(linkId: string, c: Context): string | null {
+  const signature = eventSubmissionManagementSignature(linkId, c);
+  return signature
+    ? new URL(`/event-amendments/${encodeURIComponent(linkId)}.${encodeURIComponent(signature)}`, publicAppOrigin(c)).toString()
+    : null;
+}
+
+function verifiedEventSubmissionManagementLink(raw: string, c: Context): string | null {
+  const [linkId, signature, ...rest] = raw.split('.');
+  if (!linkId || !signature || rest.length || !z.string().uuid().safeParse(linkId).success) return null;
+  const expected = eventSubmissionManagementSignature(linkId, c);
+  if (!expected || signature.length !== expected.length) return null;
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) ? linkId : null;
+}
+
 function publicRegistrationUrl(event: Event, c: Context): string {
   const key = event.slug?.trim() || event.id;
   return new URL(`/r/${encodeURIComponent(key)}`, publicAppOrigin(c)).toString();
@@ -2000,20 +2048,7 @@ async function sendPendingEventSubmissionEmails(
   } = {},
 ): Promise<{ configured: boolean; accepted: string[]; failed: string[]; failureMessage?: string }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
-  const emailReplyTo = (
-    envValue('EVENT_EMAIL_REPLY_TO', c)
-    ?? envValue('REGISTRATION_EMAIL_REPLY_TO', c)
-  )?.trim();
-  const replyDomain = envValue('EVENT_SUBMISSION_REPLY_DOMAIN', c)?.trim();
-  const replySecret = envValue('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', c)?.trim();
-  const hasReplyRoutingConfig = Boolean(replyDomain || replySecret);
-  const hasSignedReplyRouting = Boolean(replyDomain && replySecret);
-  const hasFallbackReplyTo = Boolean(emailReplyTo && z.string().email().safeParse(emailReplyTo).success);
-  if (
-    !resendApiKey
-    || (hasReplyRoutingConfig && !hasSignedReplyRouting)
-    || (!hasSignedReplyRouting && !hasFallbackReplyTo)
-  ) {
+  if (!resendApiKey) {
     return { configured: false, accepted: [], failed: [] };
   }
 
@@ -2021,25 +2056,21 @@ async function sendPendingEventSubmissionEmails(
   if (pending.length === 0) {
     return { configured: true, accepted: [], failed: [] };
   }
+  if (
+    pending.some((delivery) => delivery.management_link_id && ['approved', 'amendment_approved', 'amendment_rejected'].includes(delivery.kind))
+    && !envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c)?.trim()
+  ) {
+    console.error(JSON.stringify({ event: 'event_submission_management_token_secret_missing', request_id: c.get('requestId') ?? null }));
+    return { configured: false, accepted: [], failed: [] };
+  }
 
   const websiteOrigin = safeHttpUrl(envValue('PUBLIC_WEBSITE_ORIGIN', c) ?? '')
     ?? 'https://devcongress.org';
   const communityCalendarUrl = new URL('/events/', websiteOrigin).toString();
   const submissionUrl = new URL('/events/submit/', websiteOrigin).toString();
-  const replyToAddresses = pending.map((delivery) => hasSignedReplyRouting
-    ? eventSubmissionReplyAddress({
-      submissionId: delivery.submission_id,
-      domain: replyDomain!,
-      secret: replySecret!,
-    })
-    : emailReplyTo!);
-  if (replyToAddresses.some((replyTo) => !replyTo)) {
-    return { configured: false, accepted: [], failed: [] };
-  }
-  const emails = pending.map((delivery, index) => ({
+  const emails = pending.map((delivery) => ({
     from: EMAIL_SENDERS.events.from,
     to: [delivery.organizer_email],
-    reply_to: replyToAddresses[index]!,
     ...communityEventSubmissionEmail({
       kind: delivery.kind,
       organizerName: delivery.organizer_name,
@@ -2051,6 +2082,9 @@ async function sendPendingEventSubmissionEmails(
       registrationUrl: delivery.registration_url,
       rejectionCategory: delivery.rejection_category,
       organizerMessage: delivery.organizer_message,
+      managementUrl: delivery.management_link_id ? eventSubmissionManagementUrl(delivery.management_link_id, c) : null,
+      amendmentStartsAt: delivery.amendment_starts_at,
+      amendmentTimezone: delivery.amendment_timezone,
     }),
   }));
   const batchDigest = crypto.createHash('sha256')
@@ -3826,10 +3860,7 @@ app.get('/api/annual-conference/:year/speakers', async (c) => {
   try {
     const edition = await getAnnualConferenceEditionByYear(year, c);
     if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-    if (!edition.conference_event_id) return c.json({ error: 'Conference speaker workspace is unavailable.' }, 503);
-    const event = await getEventById(edition.conference_event_id, c);
-    if (!event) return c.json({ error: 'Conference speaker workspace is unavailable.' }, 503);
-    const submissions = await getSpeakerSubmissionsByEvent(event.id);
+    const submissions = await getAnnualConferenceSpeakerSubmissions(edition.id);
     const session = c.get('adminSession') ?? await getAdminSession(c);
     if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
     const access = await getAnnualConferenceAccessGrants(edition.id, session.membership_id, c);
@@ -3840,7 +3871,7 @@ app.get('/api/annual-conference/:year/speakers', async (c) => {
     });
     return c.json({
       edition: { year: edition.year, label: edition.label, name: edition.name },
-      call: { open: event.status === 'cfp_open', public_path: `/speak/c/${edition.year}` },
+      call: { open: edition.speaker_call_status === 'open', public_path: `/speak/c/${edition.year}` },
       permissions: { can_manage: hasAnnualConferenceCapability(capabilities, 'speakers.manage') },
       counts: speakerSubmissionCounts(submissions),
       submissions: submissions.map(serializeSpeakerSubmission),
@@ -3864,17 +3895,66 @@ app.patch('/api/annual-conference/:year/speakers/call', async (c) => {
   try {
     const edition = await getAnnualConferenceEditionByYear(year, c);
     if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-    if (!edition.conference_event_id) return c.json({ error: 'Conference speaker workspace is unavailable.' }, 503);
-    const event = await updateEvent(edition.conference_event_id, { status: parsed.data.open ? 'cfp_open' : 'cfp_closed' }, c);
+    const repository = createAnnualConferenceRepository(c);
+    await repository.getWorkspace(year);
+    const updatedEdition = await repository.updateEditionSpeakerCallStatus(edition.id, parsed.data.open ? 'open' : 'closed');
     await auditAdminAction(c, {
       action: parsed.data.open ? 'annual_conference.speakers.call.open' : 'annual_conference.speakers.call.close',
       targetType: 'annual_conference_edition',
       targetId: edition.id,
-      metadata: { edition_year: year, conference_event_id: event.id },
+      metadata: { edition_year: year },
     });
-    return c.json({ open: event.status === 'cfp_open', public_path: `/speak/c/${year}` });
+    return c.json({ open: updatedEdition.speaker_call_status === 'open', public_path: `/speak/c/${year}` });
   } catch (error) {
     return internalErrorResponse(c, 'annual_conference_speakers_call_update_failed', error, 'Unable to update the Call for Speakers.');
+  }
+});
+
+app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+  const year = Number(c.req.param('year'));
+  if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
+  const parsed = speakerSubmissionDecisionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the proposal decision.' }, 400);
+  const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+  if (capabilityError) return capabilityError;
+
+  try {
+    const edition = await getAnnualConferenceEditionByYear(year, c);
+    if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
+    const existing = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+    if (!existing || existing.edition_id !== edition.id) return c.json({ error: 'Conference proposal not found.' }, 404);
+    if (existing.status !== 'submitted') return c.json({ error: 'This conference proposal has already been decided.' }, 409);
+
+    let link: { token: string; id: string } | null = null;
+    if (parsed.data.status === 'selected') {
+      const created = await createAnnualConferenceSpeakerIntakeLink({
+        edition_id: edition.id,
+        speaker_submission_id: existing.id,
+        kind: existing.kind,
+        speaker_name: existing.speaker_name,
+        speaker_email: existing.speaker_email,
+        talk_title: existing.title,
+        expires_at: addDays(new Date(), parsed.data.expires_in_days).toISOString(),
+      });
+      link = { token: created.token, id: created.link.id };
+    }
+
+    const submission = await updateAnnualConferenceSpeakerSubmission(existing.id, {
+      status: parsed.data.status,
+      internal_note: parsed.data.internal_note || null,
+      selected_intake_link_id: link?.id ?? null,
+    });
+    await auditAdminAction(c, {
+      action: 'annual_conference.speaker_submission.decision',
+      targetType: 'annual_conference_speaker_submission',
+      targetId: submission.id,
+      metadata: { edition_year: year, status: submission.status, selected_intake_link_id: submission.selected_intake_link_id },
+    });
+    return c.json({ submission, token: link?.token ?? null });
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : 'Unable to update conference proposal.' }, 409);
   }
 });
 
@@ -4682,6 +4762,69 @@ app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
   }
 });
 
+app.post('/api/admin/event-submission-amendments/:amendmentId/review', async (c) => {
+  const parsed = eventSubmissionAmendmentDecisionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'Check the amendment decision.' }, 400);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
+  try {
+    const amendment = await reviewEventSubmissionAmendment(c.req.param('amendmentId'), session.email, parsed.data.approve, parsed.data.organizer_message, c);
+    await auditAdminAction(c, {
+      action: parsed.data.approve ? 'event_submission_amendment.approve' : 'event_submission_amendment.reject',
+      targetType: 'event_submission_amendment', targetId: amendment.id,
+      metadata: { submission_id: amendment.submission_id },
+    });
+    await dispatchEventSubmissionEmails(c, { submissionId: amendment.submission_id, kinds: [parsed.data.approve ? 'amendment_approved' : 'amendment_rejected'], statuses: ['pending', 'failed'], limit: 1 });
+    return c.json({ amendment });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+    throw error;
+  }
+});
+
+app.post('/api/admin/event-submissions/:submissionId/withdraw', async (c) => {
+  const parsed = z.object({ organizer_message: z.string().trim().min(1, 'Add a message for the organizer.').max(1200) }).strict().safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Add a removal message.' }, 400);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
+  try {
+    const submission = await withdrawEventSubmission(c.req.param('submissionId'), session.email, parsed.data.organizer_message, c);
+    await auditAdminAction(c, { action: 'event_submission.withdraw', targetType: 'event_submission', targetId: submission.id, metadata: { approved_event_id: submission.approved_event_id } });
+    await dispatchEventSubmissionEmails(c, { submissionId: submission.id, kinds: ['withdrawn'], statuses: ['pending', 'failed'], limit: 1 });
+    return c.json({ submission });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+    throw error;
+  }
+});
+
+app.post('/api/admin/event-submissions/:submissionId/management-link', async (c) => {
+  const submissionId = eventSubmissionIdSchema.safeParse(c.req.param('submissionId'));
+  if (!submissionId.success) return c.json({ error: 'Invalid event submission.' }, 400);
+
+  try {
+    const link = await getActiveEventSubmissionManagementLink(submissionId.data, c);
+    const managementUrl = eventSubmissionManagementUrl(link.id, c);
+    if (!managementUrl) {
+      console.error(JSON.stringify({ event: 'event_submission_management_token_secret_missing', request_id: c.get('requestId') ?? null }));
+      return c.json({ error: 'Event management links are not configured.' }, 503);
+    }
+    await auditAdminAction(c, {
+      action: 'event_submission.management_link_copied',
+      targetType: 'event_submission',
+      targetId: submissionId.data,
+      metadata: { expires_at: link.expires_at },
+    });
+    c.header('Cache-Control', 'no-store');
+    return c.json({ management_url: managementUrl, expires_at: link.expires_at });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) {
+      return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 503);
+    }
+    throw error;
+  }
+});
+
 app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async (c) => {
   const parsedKind = eventSubmissionEmailKindSchema.safeParse(c.req.param('kind'));
   if (!parsedKind.success) return c.json({ error: 'Unknown submission email type.' }, 400);
@@ -4811,17 +4954,25 @@ app.get('/api/admin/audit-log', async (c) => {
     return c.json({ error: 'Unable to load audit log.' }, 500);
   }
 
-  const [emailHealth, emailOutbox, recentEmailDeliveries] = await Promise.all([
+  const [emailHealth, emailOutbox, recentEmailDeliveries, recentEventBlasts] = await Promise.all([
     getEmailDeliveryHealth(c),
     getEmailOutboxSummary(c),
     getRecentEmailDeliveries(c),
+    getRecentEventBlasts(10, c),
   ]);
 
   return c.json({
     logs: data ?? [],
     email_health: emailHealth,
     email_outbox: emailOutbox,
+    blast_capacity: assessBlastCapacity({
+      recipientCount: 0,
+      health: emailHealth,
+      outbox: emailOutbox,
+      protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
+    }),
     recent_email_deliveries: recentEmailDeliveries,
+    recent_event_blasts: recentEventBlasts,
     auth_mode: 'supabase',
   });
 });
@@ -4960,6 +5111,52 @@ app.get('/api/admin/events-preview/:slug', async (c) => {
   return c.json({ data: event });
 });
 
+app.get('/api/public/event-submissions/manage/:capability', async (c) => {
+  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+  if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
+  const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 30, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+  try {
+    const management = await getEventSubmissionManagement(linkId, c);
+    return c.json({ management });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 503);
+    throw error;
+  }
+});
+
+app.put('/api/public/event-submissions/manage/:capability', async (c) => {
+  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+  if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
+  const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+  const parsed = eventSubmissionAmendmentSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the event changes.' }, 400);
+  try {
+    const management = await getEventSubmissionManagement(linkId, c);
+    const amendment = await saveEventSubmissionAmendment(management.submission.id, parsed.data, c);
+    return c.json({ amendment });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+    throw error;
+  }
+});
+
+app.post('/api/public/event-submissions/manage/:capability/submit', async (c) => {
+  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+  if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
+  const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage_submit:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+  try {
+    const management = await getEventSubmissionManagement(linkId, c);
+    const amendment = await submitEventSubmissionAmendment(management.submission.id, c);
+    return c.json({ amendment }, 202);
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+    throw error;
+  }
+});
+
 app.post('/api/public/event-submissions', async (c) => {
   if (!publicEventSubmissionsEnabled(envValue('PUBLIC_EVENT_SUBMISSIONS_ENABLED', c))) {
     return c.json({
@@ -5068,12 +5265,6 @@ app.post('/api/public/event-submissions', async (c) => {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
     const submission = await createEventSubmission(input, c);
     await notifyEventSubmissionChannel(submission, c);
-    await dispatchEventSubmissionEmails(c, {
-      submissionId: submission.id,
-      kinds: ['receipt'],
-      statuses: ['pending', 'failed'],
-      limit: 1,
-    });
     return c.json({
       data: {
         id: submission.id,
@@ -5176,21 +5367,59 @@ app.get('/api/cfp/conferences/:year', async (c) => {
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
 
   const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
-  const event = edition?.conference_event_id ? await getEventById(edition.conference_event_id, c) : undefined;
-  if (!edition || !event || event.status !== 'cfp_open') {
+  if (!edition || edition.speaker_call_status !== 'open') {
     return c.json({ error: 'CFP event not found' }, 404);
   }
 
   return c.json({
-    id: event.id,
+    id: edition.id,
     name: edition.name,
-    description: event.description,
-    event_date: edition.provisional_date ?? event.event_date,
-    status: event.status,
-    series_type: 'special',
+    description: `Call for Speakers for ${edition.label}.`,
+    event_date: edition.provisional_date ?? `${edition.year}-12-19`,
+    status: 'cfp_open',
     call_scope: 'annual_conference',
     edition_year: edition.year,
   });
+});
+
+app.post('/api/cfp/conferences/:year', async (c) => {
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
+  const parsed = conferenceSpeakerSubmissionCreateSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presentation proposal.' }, 400);
+  const turnstileError = await requirePublicTurnstile(c, {
+    token: parsed.data.turnstile_token,
+    submittedAction: parsed.data.turnstile_action,
+    expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
+  });
+  if (turnstileError) return turnstileError;
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: `conference_cfp_submission:${yearParam}`,
+    clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 60 * 60,
+  }, 'This device has sent several proposals. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+
+  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+  if (!edition || edition.speaker_call_status !== 'open') return c.json({ error: 'The conference Call for Speakers is not open.' }, 400);
+  try {
+    await createAnnualConferenceSpeakerSubmission({
+      edition_id: edition.id,
+      kind: parsed.data.kind,
+      speaker_name: parsed.data.speaker_name,
+      speaker_email: parsed.data.speaker_email,
+      github_username: parsed.data.github_username || null,
+      title: parsed.data.title,
+      topic: parsed.data.topic || 'General',
+      abstract: parsed.data.abstract || null,
+      bio: parsed.data.bio || null,
+    });
+    return c.json({ accepted: true, message: 'If this proposal is eligible, it has been added for organizer review.' }, 202);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('already been submitted')) {
+      return c.json({ accepted: true, message: 'If this proposal is eligible, it has been added for organizer review.' }, 202);
+    }
+    return c.json({ error: 'The proposal could not be submitted. Please check the form and try again.' }, 400);
+  }
 });
 
 app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
@@ -5587,7 +5816,11 @@ app.get('/api/events/:eventId/blasts', async (c) => {
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
   if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
   try {
-    return c.json({ blasts: await getEventBlasts(event.id, c) });
+    const [blasts, health, outbox] = await Promise.all([getEventBlasts(event.id, c), getEmailDeliveryHealth(c), getEmailOutboxSummary(c)]);
+    return c.json({
+      blasts,
+      capacity: assessBlastCapacity({ recipientCount: 0, health, outbox, protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)) }),
+    });
   } catch (error) {
     if (!(error instanceof EventBlastStorageError)) throw error;
     console.error(JSON.stringify({
@@ -5627,6 +5860,28 @@ app.post('/api/events/:eventId/blasts', async (c) => {
 
   const scheduledFor = parsed.data.scheduled_for ?? null;
   const session = await getAdminSession(c);
+  const [health, outbox] = await Promise.all([getEmailDeliveryHealth(c), getEmailOutboxSummary(c)]);
+  const capacity = assessBlastCapacity({
+    recipientCount: recipients.length,
+    health,
+    outbox,
+    protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
+  });
+  if (!scheduledFor && !capacity.can_send_now) {
+    const deferred = await createEventBlast({
+      event_id: event.id, subject: parsed.data.subject, body: parsed.data.body, status: 'needs_capacity', recipient_count: recipients.length,
+      scheduled_for: null, sent_at: null, provider_broadcast_id: null, provider_segment_id: null,
+      created_by_email: session.authenticated ? session.email : null,
+    }, c);
+    await auditAdminAction(c, {
+      action: 'event.blast.deferred_for_capacity', targetType: 'event_blast', targetId: deferred.id,
+      metadata: { event_id: event.id, recipient_count: recipients.length, safe_recipients_today: capacity.safe_recipients_today, protected_reserve: capacity.protected_reserve, queued_transactional: capacity.queued_transactional },
+    });
+    return c.json({
+      blast: deferred, delivery: 'needs_capacity' as const, capacity,
+      error: `This blast would use protected email capacity. ${capacity.safe_recipients_today ?? 0} recipients can send safely today; schedule it for a quieter time or reduce the audience.`,
+    }, 202);
+  }
   let blast;
   try {
     blast = await createEventBlast({
@@ -5665,7 +5920,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       targetId: blast.id,
       metadata: { event_id: event.id, recipient_count: recipients.length, reason: 'not_configured' },
     });
-    return c.json({ blast: unavailable ?? blast, delivery: 'needs_capacity' as const }, 202);
+    return c.json({ blast: unavailable ?? blast, delivery: 'needs_capacity' as const, capacity }, 202);
   }
 
   try {
@@ -5710,7 +5965,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       targetId: blast.id,
       metadata: { event_id: event.id, recipient_count: recipients.length, scheduled_for: scheduledFor },
     });
-    return c.json({ blast: updated ?? blast, delivery: status }, 201);
+    return c.json({ blast: updated ?? blast, delivery: status, capacity }, 201);
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
     const status = providerStatus === 402 || providerStatus === 403 || providerStatus === 429
@@ -5732,7 +5987,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     }));
     return c.json({
       blast: updated ?? blast,
-      delivery: status,
+      delivery: status, capacity,
     }, status === 'needs_capacity' ? 202 : 502);
   }
 });
@@ -6589,14 +6844,14 @@ async function createSelectedSpeakerTalkForEvent(
   });
 }
 
-function serializeSpeakerSubmission(submission: SpeakerSubmission) {
+function serializeSpeakerSubmission<T extends { kind?: ArchiveItemKind }>(submission: T): T & { kind: ArchiveItemKind } {
   return {
     ...submission,
     kind: normalizeArchiveItemKind(submission.kind),
   };
 }
 
-function speakerSubmissionCounts(submissions: SpeakerSubmission[]): Record<SpeakerSubmissionStatus, number> {
+function speakerSubmissionCounts(submissions: Array<Pick<SpeakerSubmission, 'status'>>): Record<SpeakerSubmissionStatus, number> {
   return submissions.reduce<Record<SpeakerSubmissionStatus, number>>((counts, submission) => {
     counts[submission.status] += 1;
     return counts;
@@ -6647,12 +6902,6 @@ app.get('/api/events/:eventId/speaker-submissions', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const conferenceEdition = await getAnnualConferenceEditionForProgrammeEvent(eventId, c);
-  if (conferenceEdition) {
-    const capabilityError = await requireAnnualConferenceCapability(c, conferenceEdition.year, 'speakers.view');
-    if (capabilityError) return capabilityError;
-  }
-
   const submissions = await getSpeakerSubmissionsByEvent(eventId);
 
   return c.json({
@@ -6677,12 +6926,6 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
 
   if (!existing) {
     return c.json({ error: 'Presentation proposal not found' }, 404);
-  }
-
-  const conferenceEdition = await getAnnualConferenceEditionForProgrammeEvent(existing.event_id, c);
-  if (conferenceEdition) {
-    const capabilityError = await requireAnnualConferenceCapability(c, conferenceEdition.year, 'speakers.manage');
-    if (capabilityError) return capabilityError;
   }
 
   try {
@@ -7155,6 +7398,81 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
       provider_status: error instanceof ResendBatchError ? error.status : null,
     }));
     return c.json({ error: 'The email provider did not accept the request. You can retry.' }, 502);
+  }
+});
+
+app.get('/api/conferences/:year/speaker-intake/:token', async (c) => {
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'This presenter link is no longer available.' }, 404);
+  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+  if (!edition) return c.json({ error: 'This presenter link is no longer available.' }, 404);
+  const link = await getAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
+  if (!link || link.used_at || new Date(link.expires_at).getTime() <= Date.now() || !link.speaker_submission_id) {
+    return c.json({ error: 'This presenter link is no longer available.' }, 410);
+  }
+  const submission = await getAnnualConferenceSpeakerSubmission(link.speaker_submission_id);
+  if (!submission || submission.edition_id !== edition.id || submission.status !== 'selected') {
+    return c.json({ error: 'This presenter link is no longer available.' }, 410);
+  }
+  return c.json({
+    event: { id: edition.id, name: edition.name, event_date: edition.provisional_date ?? `${edition.year}-12-19`, status: 'cfp_closed' },
+    link: { purpose: 'selected_speaker_confirmation', kind: link.kind },
+    prefill: {
+      speaker_name: submission.speaker_name,
+      speaker_email: submission.speaker_email,
+      github_username: submission.github_username ?? '',
+      title: submission.title,
+      topic: submission.topic,
+      abstract: submission.abstract ?? '',
+      bio: submission.bio ?? '',
+      slides_url: '',
+    },
+  });
+});
+
+app.post('/api/conferences/:year/speaker-intake/:token', async (c) => {
+  const yearParam = c.req.param('year');
+  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'This presenter link is no longer available.' }, 404);
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: `conference_speaker_intake:${yearParam}`,
+    clientKey: `${publicClientKey(c)}:${c.req.param('token')}`,
+    maxAttempts: 10, windowSeconds: 60 * 60,
+  }, 'This private form has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+  if (!edition) return c.json({ error: 'This presenter link is no longer available.' }, 404);
+  const parsed = selectedSpeakerDetailsSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presenter details.' }, 400);
+
+  let claimId: string | null = null;
+  try {
+    const claim = await claimAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
+    claimId = claim.claimId;
+    if (!claim.link.speaker_submission_id) throw new Error('This presenter link is no longer available.');
+    const submission = await getAnnualConferenceSpeakerSubmission(claim.link.speaker_submission_id);
+    if (!submission || submission.edition_id !== edition.id || submission.status !== 'selected') throw new Error('This presenter link is no longer available.');
+    const session = await createAnnualConferenceSession({
+      edition_id: edition.id,
+      speaker_submission_id: submission.id,
+      kind: submission.kind,
+      speaker_name: submission.speaker_name,
+      speaker_email: submission.speaker_email,
+      github_username: submission.github_username,
+      title: submission.title,
+      topic: parsed.data.topic || submission.topic || 'General',
+      abstract: submission.abstract,
+      bio: parsed.data.bio || submission.bio,
+      slides_url: parsed.data.slides_url || null,
+    });
+    await consumeAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'), session.id, claim.claimId);
+    claimId = null;
+    await updateAnnualConferenceSpeakerSubmission(submission.id, { selected_session_id: session.id });
+    return c.json({ session }, 201);
+  } catch (error) {
+    await releaseAnnualConferenceSpeakerIntakeClaim(edition.id, c.req.param('token'), claimId);
+    const message = error instanceof Error ? error.message : 'Unable to submit presenter details.';
+    const closed = message.includes('no longer available') || message.includes('already being submitted');
+    return c.json({ error: closed ? message : 'Unable to submit presenter details. Please check the form and try again.' }, closed ? 410 : 400);
   }
 });
 
@@ -7754,7 +8072,7 @@ app.post('/api/cfp', async (c) => {
     return c.json({ error: 'CFP is not open for this event' }, 400);
   }
 
-  if (!(await canOpenSpeakerCallForEvent(event, c))) {
+  if (!canOpenCfpForEvent(event)) {
     return c.json({ error: 'CFP is unavailable for this event' }, 400);
   }
 

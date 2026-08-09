@@ -51,6 +51,7 @@ function publicBootVariant(pathname) {
   if (path.startsWith('/cfp/')) return 'cfp';
   if (path.startsWith('/feedback/')) return 'feedback';
   if (path.startsWith('/speaker-talks/')) return 'speaker';
+  if (path.startsWith('/event-amendments/')) return 'speaker';
   if (path.startsWith('/volunteer/')) return 'volunteer';
   if (path.startsWith('/learn/system-design/')) return 'learning-room';
   return 'organizer';

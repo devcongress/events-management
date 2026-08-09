@@ -8,14 +8,15 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import { fetchJson, queryKeys } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
-import type { SpeakerSubmission, SpeakerSubmissionStatus } from '@/types';
+import type { SpeakerSubmissionStatus } from '@/types';
+import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
 type ConferenceSpeakersResponse = {
   edition: { year: number; label: string; name: string };
   call: { open: boolean; public_path: string };
   permissions: { can_manage: boolean };
   counts: Record<SpeakerSubmissionStatus, number>;
-  submissions: SpeakerSubmission[];
+  submissions: AnnualConferenceSpeakerSubmission[];
 };
 
 const route = useRoute();
@@ -72,7 +73,7 @@ const callMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the Call for Speakers.'),
 });
 const decisionMutation = useMutation({
-  mutationFn: ({ id, eventId, status }: { id: string; eventId: string; status: 'selected' | 'not_selected' }) => fetchJson<{ token: string | null }>(`/api/speaker-submissions/${id}`, {
+  mutationFn: ({ id, status }: { id: string; status: 'selected' | 'not_selected' }) => fetchJson<{ token: string | null }>(`/api/annual-conference/${year.value}/speaker-submissions/${id}`, {
     method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
   }),
   onSuccess: async (result, variables) => {
@@ -80,7 +81,7 @@ const decisionMutation = useMutation({
     if (variables.status === 'selected' && result.token) {
       issuedPresenterLink.value = {
         submissionId: variables.id,
-        url: new URL(`/speaker-talks/${variables.eventId}/${result.token}`, window.location.origin).toString(),
+        url: new URL(`/conference-speakers/${year.value}/${result.token}`, window.location.origin).toString(),
       };
       statusFilter.value = 'selected';
     }
@@ -211,8 +212,8 @@ function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
           :submitting="decisionMutation.isPending.value"
           :can-copy-presenter-link="issuedPresenterLink?.submissionId === selectedSubmission?.id"
           @close="selectedSubmissionId = null"
-          @approve="decisionMutation.mutate({ id: $event.id, eventId: $event.event_id, status: 'selected' })"
-          @reject="decisionMutation.mutate({ id: $event.id, eventId: $event.event_id, status: 'not_selected' })"
+          @approve="decisionMutation.mutate({ id: $event.id, status: 'selected' })"
+          @reject="decisionMutation.mutate({ id: $event.id, status: 'not_selected' })"
           @copy-presenter-link="copyPresenterLink"
         />
       </template>

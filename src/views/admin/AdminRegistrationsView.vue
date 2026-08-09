@@ -175,6 +175,7 @@ const workspaceSummary = computed(() => (
 ));
 const emailSummary = computed(() => summarizeRegistrationEmails(displayedRegistrations.value));
 const blasts = computed(() => blastsQuery.data.value?.blasts ?? []);
+const blastCapacity = computed(() => blastsQuery.data.value?.capacity ?? null);
 const confirmedBlastRecipients = computed(() => displayedRegistrations.value.filter((registration) => registration.status === 'confirmed').length);
 const canCreateBlast = computed(() => (
   confirmedBlastRecipients.value > 0
@@ -713,7 +714,7 @@ async function sendBlast() {
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
         : result.delivery === 'sent'
           ? `Blast sent to ${result.blast.recipient_count} confirmed guests.`
-          : 'Blast saved. Add email capacity in Resend, then try again.',
+          : result.error ?? 'Blast saved without sending so protected transactional capacity remains available.',
     );
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to create this blast.');
@@ -1577,6 +1578,12 @@ async function retryEmails() {
                 <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
                   100 recipient limit
                 </span>
+                <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+                  {{ blastCapacity.safe_recipients_today }} safe today · {{ blastCapacity.protected_reserve }} reserved
+                </span>
+                <span v-else class="rounded-sm border border-amber-300 bg-amber-50 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-900">
+                  Capacity awaiting provider update
+                </span>
               </div>
             </div>
 
@@ -1585,6 +1592,9 @@ async function retryEmails() {
             </div>
             <div v-else-if="confirmedBlastRecipients > 100" class="border-b border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-6 text-amber-900">
               This event has {{ confirmedBlastRecipients }} confirmed guests. Blasts stop at 100 recipients so an organizer never sends a partial update by accident.
+            </div>
+            <div v-else-if="blastCapacity?.known && confirmedBlastRecipients > (blastCapacity.safe_recipients_today ?? 0)" class="border-b border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-6 text-amber-900">
+              This blast needs {{ confirmedBlastRecipients }} sends, but only {{ blastCapacity.safe_recipients_today }} can send safely today after reserving {{ blastCapacity.protected_reserve }} places for registrations and organizer decisions. Schedule it for a quieter time, or reduce the audience.
             </div>
 
             <form v-if="blastComposerOpen" class="border-b border-dc-border p-5" @submit.prevent="openBlastPreview">

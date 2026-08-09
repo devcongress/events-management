@@ -21,6 +21,7 @@ type IntakePrefill = {
 };
 
 const route = useRoute();
+const isConferenceIntake = computed(() => typeof route.params.year === 'string');
 const event = ref<IntakeEvent | null>(null);
 const linkPurpose = ref<SpeakerIntakeLinkPurpose>('archive_backfill');
 const archiveItemKind = ref<ArchiveItemKind>('talk');
@@ -150,7 +151,9 @@ async function submitTalkDetails() {
     };
 
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`, {
+    const response = await fetch(isConferenceIntake.value
+      ? `/api/conferences/${route.params.year}/speaker-intake/${route.params.token}`
+      : `/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -171,7 +174,9 @@ async function submitTalkDetails() {
 
 onMounted(async () => {
   try {
-    const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`);
+    const response = await fetch(isConferenceIntake.value
+      ? `/api/conferences/${route.params.year}/speaker-intake/${route.params.token}`
+      : `/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`);
     const data = await response.json().catch(() => ({}));
     if (response.ok) {
       event.value = data.event;

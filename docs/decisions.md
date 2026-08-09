@@ -1,9 +1,48 @@
 # Architectural Decisions
 
+## ADR-062: Keep Annual Conference Programme Records Outside Events
+
+Date: 2026-08-09
+Status: Accepted
+
+Context: A hidden `community_events` record temporarily let the Annual Conference reuse monthly speaker proposal and archive mechanics. Although it was not public, it still appeared in the organizer Events list and made a conference edition look like a special meetup. The conference is a separate operational domain with its own CFP, programme, registration, finance, and planning.
+
+Decision: Store Annual Conference call state, speaker proposals, secure presenter links, and confirmed sessions against `annual_conference_editions`. Reuse only shared validation, form, and secure-link interaction mechanics. Monthly and standalone events retain their event-scoped proposal and archive records; conference records do not receive an Event ID and cannot appear in Event workspaces or normal archives.
+
+Trade-offs: The programme tables add focused persistence and routing instead of extending one generic event table. This is intentional domain clarity: it prevents accidental feature bleed, preserves independent conference archival history, and makes future conference-specific programme features possible.
+
+Revisit when: Multiple calls/tracks within one edition, co-speakers, review assignments, or session scheduling need first-class campaign and agenda models.
+
+## ADR-061: Reserve Daily Email Capacity Before Sending Event Blasts
+
+Date: 2026-08-09
+Status: Accepted
+
+Context: Registration confirmations, waitlist promotions, community-event decisions, and presenter follow-ups share a small Resend allocation with optional event broadcasts. A provider rejection after a blast is too late to protect messages that must be delivered.
+
+Decision: Before an immediate blast, calculate safe capacity from the last observed Resend daily usage minus pending transactional outbox items and a configurable protected reserve (default 35). If the recipient count exceeds that safe amount, persist the blast as **Needs email capacity** without creating a provider draft or sending recipients; show the organizer the safe-today figure and let them schedule it for another time. When quota is unobserved, preserve existing send behavior but explicitly label capacity as awaiting a provider update. Surface the same owner-only allocation equation and the ten most recent broadcast states in Audit Log → Email delivery, separately from transactional delivery history.
+
+Trade-offs: This is a protective admission gate, not a cross-day recipient batching engine. It cannot reserve provider quota against another system and intentionally does not partially send a blast. The policy favors transactional delivery over maximum blast throughput.
+
+Revisit when: Broadcasts need automatic multi-day batches, exact quota reservations, or a scheduled queue worker with per-recipient delivery history.
+
+## ADR-060: Review Event Amendments Rather Than Editing Published Community Listings
+
+Date: 2026-08-09
+Status: Accepted
+
+Context: External community-event organizers need to correct schedules and venues after publication, while direct unauthenticated edits would let a previously reviewed listing become materially different. Repeated intake and rejection correspondence also competes for a limited transactional-email quota.
+
+Decision: An approved submission receives one revocable, time-bounded signed capability link. It can create one draft or submitted amendment for schedule, location, online, registration, and a bounded note. Draft saves and submission are silent. Organizers review submitted amendments in EMS; approval transactionally applies the delta to the canonical event and queues a durable decision email, while decline preserves the current listing. Initial rejections have no edit loop and direct the organizer to make a fresh proposal. Intake receipt emails are removed.
+
+Trade-offs: Organizers must use an email-delivered link and cannot change copy or identity after approval. The approach preserves moderation and reduces avoidable email volume without adding external accounts or a continuous correspondence workflow.
+
+Revisit when: External organizers need a logged-in portal, changes need per-field review or audit diffs, or delivery volume warrants a scheduled mail queue.
+
 ## ADR-059: Separate Speaker Calls Through a Private Conference Programme Event
 
 Date: 2026-08-08
-Status: Accepted
+Status: Superseded by ADR-062
 
 Context: Monthly event proposals, selected-presenter links, and archive records are already reliably scoped by `event_id`. Building a separate Annual Conference submission stack would duplicate review decisions, private-link security, and archive handoff. Putting conference proposals into the monthly Events workspace would instead make organisers mix two different programming queues.
 

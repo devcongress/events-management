@@ -21,13 +21,13 @@ describe('community event submission email', () => {
     expect(email.text).not.toContain('/status/');
   });
 
-  it('builds a published approval notice using the community calendar', () => {
-    const email = communityEventSubmissionEmail({ ...base, kind: 'approved' });
+  it('builds a published approval notice with the private management link', () => {
+    const email = communityEventSubmissionEmail({ ...base, kind: 'approved', managementUrl: 'https://ems.devcongress.org/event-amendments/private-link' });
 
     expect(email.subject).toBe('Your event is now listed: Systems & <Safety>');
     expect(email.text).toContain('approved and published');
-    expect(email.text).toContain('https://example.com/register');
-    expect(email.text).toContain('does not transfer ownership');
+    expect(email.text).toContain('/event-amendments/private-link');
+    expect(email.text).toContain('changes will be reviewed');
   });
 
   it('includes organizer-facing rejection copy and never accepts an internal note', () => {

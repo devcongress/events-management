@@ -80,11 +80,13 @@ async function submitProposal() {
 
   submitting.value = true;
   try {
-    const response = await fetch('/api/cfp', {
+    const response = await fetch(isConferenceCall.value
+      ? `/api/cfp/conferences/${route.params.year}`
+      : '/api/cfp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event_id: event.value?.id,
+        ...(isConferenceCall.value ? {} : { event_id: event.value?.id }),
         kind: form.kind,
         speaker_name: form.speaker_name.trim(),
         speaker_email: form.speaker_email.trim(),

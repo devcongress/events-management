@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-08-09 — Decoupled Annual Conference speakers from Events
+
+- Replaced the hidden Annual Conference backing Event with edition-owned Call for Speakers state, proposals, secure presenter links, and confirmed conference sessions.
+- Kept the monthly speaker workflow unchanged; conference proposals, reviews, and archive materials now remain exclusively inside their Annual Conference edition.
+- Added forward-only migration `20260809110000_annual_conference_speaker_scope.sql`, which migrates existing conference speaker records before removing the obsolete private Event bridge.
+
+## 2026-08-09 — Protected transactional email capacity from event blasts
+
+- Added a quota-aware blast preflight that subtracts queued transactional work and a configurable daily reserve from Resend's latest observed capacity.
+- Immediate blasts that would consume the protected capacity are saved as **Needs email capacity** without contacting the provider; the Blasts workspace now shows safe-today capacity and directs organizers to schedule the update instead.
+- Added the same owner-only allocation equation and recent broadcast state history to Audit Log → Email delivery, keeping provider acceptance distinct from inbox delivery.
+
+## 2026-08-09 — Reviewed updates for approved community listings
+
+- Replaced receipt-email correspondence for public community submissions with an on-page confirmation, reducing repeated-submission email consumption.
+- Approved organizers now receive a private, revocable management link for schedule, venue, online-link, and registration-link amendments; each submitted amendment remains pending until an organizer accepts or declines it.
+- Organizers can copy the existing active management link from an approved submission without sending email or spending quota; copies are audit-recorded without storing the bearer URL, and links close at the canonical event end time.
+- Added amendment review in the existing EMS submission drawer, transactional canonical-event updates, durable decision emails, and forward-only migrations `20260809100000_reviewed_event_amendments.sql` and `20260809103000_event_submission_management_links_expire_at_event_end.sql`.
+
 ## 2026-08-08 — Shared pagination across organizer workspaces
 
 - Added one accessible Previous / Page / Next pagination component, with a quiet full-width footer and automatic hiding when a result fits on one page.

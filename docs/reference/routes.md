@@ -11,10 +11,11 @@ This deployment is a protected operations console, with full organizer access an
 | `/feedback/:eventId` | Standalone anonymous event feedback form. It deliberately renders without the app header, navigation, organizer controls, or attendee identity fields. |
 | `/cfp/:eventId` | Standalone monthly Call for Presentations for talk or product-demo proposals. The organizer Archive workspace generates this URL while CFP is open. |
 | `/speak/m/:eventId` | Short monthly Call for Speakers URL. It accepts either the event UUID or its slug and remains separate from Annual Conference submissions. |
-| `/speak/c/:year` | Short Annual Conference Call for Speakers URL. It resolves only that edition's private programme event and never exposes it in public event feeds. |
+| `/speak/c/:year` | Short Annual Conference Call for Speakers URL. It resolves only that edition's conference call and never enters the Events domain. |
 | `/r/:eventSlug` | Canonical short free-event registration link by name and email. It deliberately has no attendee account, QR code, confirmation code, or organizer navigation. |
 | `/register/:eventId` | Backward-compatible free-event registration link retained for previously shared UUID URLs. |
 | `/speaker-talks/:eventId/:token` | Standalone private Archive completion form opened by selected-proposal and manual Archive Request links. The token locks the presenter identity, event, and archive-item kind. |
+| `/conference-speakers/:year/:token` | Standalone private Annual Conference presenter form. It creates an edition-owned conference session, never a normal Event archive item. |
 | `/volunteer/december-mega-meetup` | Standalone December 2026 annual-conference volunteer form for name, email, X handle, and Slack name. This compatibility path remains the canonical public link for the active campaign. |
 | `/learn/system-design/:code` | Public standalone anonymous System Design learning-room join and answer surface. It bypasses organizer routing/authentication and rejects codes belonging to the separate Quiz feature. |
 | `/present/system-design/:sessionId` | Organizer-protected, standalone System Design presenter opened in a new tab without organizer navigation or editing controls. |

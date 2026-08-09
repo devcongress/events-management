@@ -25,6 +25,9 @@ export type CommunityEventSubmissionEmailInput = {
   registrationUrl?: string | null;
   rejectionCategory?: EventSubmissionRejectionCategory | null;
   organizerMessage?: string | null;
+  managementUrl?: string | null;
+  amendmentStartsAt?: string | null;
+  amendmentTimezone?: string | null;
 };
 
 function escapeHtml(value: string): string {
@@ -128,7 +131,6 @@ export function communityEventSubmissionEmail(
 ${reasonHtml}${messageHtml}
 <p style="margin:20px 0 0;font-size:14px;line-height:1.65;color:#5C5850;">${escapeHtml(content.detail)}</p>
 ${ctaHtml}
-<p style="margin:28px 0 0;font-size:14px;line-height:1.65;color:#5C5850;">Questions or corrections? Reply to this email and the DevCongress team will help.</p>
 </td></tr>
 <tr><td style="padding:18px 30px;border-top:1px solid #D9D4C8;font-size:12px;line-height:1.5;color:#777168;">DevCongress · Community-powered technology events in Ghana</td></tr>
 </table></td></tr></table></body></html>`;
@@ -147,8 +149,6 @@ ${ctaHtml}
     '',
     content.detail,
     ...(content.ctaUrl ? ['', `${content.ctaLabel}: ${content.ctaUrl}`] : []),
-    '',
-    'Questions or corrections? Reply to this email and the DevCongress team will help.',
   ].join('\n');
 
   return { subject: content.subject, html, text };
@@ -176,9 +176,9 @@ function emailCopy(input: CommunityEventSubmissionEmailInput & {
       subject: emailSubjects.communitySubmissionApproved(input.eventTitle),
       heading: 'Your event was approved and published.',
       intro: 'We reviewed your submission and added it to the DevCongress community calendar.',
-      detail: 'The listing keeps your organization as the event organizer. Publication by DevCongress does not transfer ownership or make the event a DevCongress-produced programme.',
-      ctaLabel: input.registrationUrl ? 'View event page' : 'Browse community events',
-      ctaUrl: input.registrationUrl ?? input.calendarUrl,
+      detail: 'The listing keeps your organization as the event organizer. Use your private event link when the time, venue, online link, or registration link changes; those changes will be reviewed before they appear publicly.',
+      ctaLabel: 'Manage event details',
+      ctaUrl: safeHttpUrl(input.managementUrl),
     };
   }
 
@@ -187,9 +187,42 @@ function emailCopy(input: CommunityEventSubmissionEmailInput & {
       subject: emailSubjects.communitySubmissionRejected(input.eventTitle),
       heading: 'An update on your event submission.',
       intro: 'We reviewed your submission and will not publish it to the DevCongress community calendar.',
-      detail: 'This decision applies only to the community calendar listing. You can reply if important information was missing or submit a corrected event later.',
+      detail: 'This decision applies only to the community calendar listing. If you want to propose a different event, submit it as a new event for review.',
       ctaLabel: 'Submit another event',
       ctaUrl: input.submissionUrl,
+    };
+  }
+
+  if (input.kind === 'amendment_approved') {
+    return {
+      subject: emailSubjects.communitySubmissionApproved(input.eventTitle),
+      heading: 'Your event update was approved.',
+      intro: 'We reviewed the changes you requested and updated the community calendar listing.',
+      detail: 'Use your private event link again if the schedule, venue, online link, or registration link changes later.',
+      ctaLabel: 'Manage event details',
+      ctaUrl: safeHttpUrl(input.managementUrl),
+    };
+  }
+
+  if (input.kind === 'amendment_rejected') {
+    return {
+      subject: emailSubjects.communitySubmissionRejected(input.eventTitle),
+      heading: 'An update on your event changes.',
+      intro: 'We reviewed the changes you requested and did not apply them to the community calendar listing.',
+      detail: 'Your existing listing has not changed. You can use your private event link to prepare another change request.',
+      ctaLabel: 'Manage event details',
+      ctaUrl: safeHttpUrl(input.managementUrl),
+    };
+  }
+
+  if (input.kind === 'withdrawn') {
+    return {
+      subject: `Your event listing was removed: ${input.eventTitle}`,
+      heading: 'Your event listing was removed.',
+      intro: 'The DevCongress team removed this event from the community calendar.',
+      detail: 'This affects only the DevCongress community calendar listing and does not change your own event or registration page.',
+      ctaLabel: 'Browse community events',
+      ctaUrl: input.calendarUrl,
     };
   }
 

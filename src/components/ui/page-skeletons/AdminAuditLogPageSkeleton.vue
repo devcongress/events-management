@@ -1,5 +1,5 @@
 <template>
-  <div class="view-skeleton flex flex-1 min-h-0 flex-col" aria-busy="true" aria-label="Loading audit log">
+  <div class="view-skeleton flex w-full flex-1 min-h-0 flex-col" aria-busy="true" aria-label="Loading audit log">
     <section class="mb-5 flex gap-6 border-b border-dc-border px-1">
       <div v-for="tab in 2" :key="tab" class="flex h-[2.875rem] items-center gap-2">
         <div class="skeleton-option h-4 w-4" />

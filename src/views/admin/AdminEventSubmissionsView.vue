@@ -7,9 +7,12 @@ import { adminPath } from '@/src/admin-routes';
 import { presentEventSubmissionReply } from '@/lib/email/event-submission-reply-presentation';
 import {
   approveEventSubmission,
+  fetchEventSubmissionManagementLink,
   fetchEventSubmissions,
   queryKeys,
   rejectEventSubmission,
+  reviewEventSubmissionAmendment,
+  withdrawEventSubmission,
   retryEventSubmissionEmail,
   retryEventSubmissionReplySlackAlert,
 } from '@/src/lib/api';
@@ -34,6 +37,9 @@ const rejecting = ref(false);
 const rejectionCategory = ref<EventSubmissionRejectionCategory | ''>('');
 const organizerMessage = ref('');
 const internalNote = ref('');
+const amendmentDecisionMessage = ref('');
+const withdrawing = ref(false);
+const copyingManagementLink = ref(false);
 const retryingEmailKinds = ref<Set<EventSubmissionEmailKind>>(new Set());
 const retryingReplyIds = ref<Set<string>>(new Set());
 let drawerTrigger: HTMLElement | null = null;
@@ -171,6 +177,22 @@ const rejectMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to reject this event.'),
 });
 
+const amendmentReviewMutation = useMutation({
+  mutationFn: ({ amendmentId, approve }: { amendmentId: string; approve: boolean }) => reviewEventSubmissionAmendment(amendmentId, { approve, organizer_message: amendmentDecisionMessage.value }),
+  onSuccess: async (_, variables) => {
+    notify.success(variables.approve ? 'Event changes approved and the listing was updated.' : 'Event changes were declined. The current listing remains unchanged.');
+    amendmentDecisionMessage.value = '';
+    await refreshSubmissions();
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to review the event changes.'),
+});
+
+const withdrawMutation = useMutation({
+  mutationFn: (submission: EventSubmission) => withdrawEventSubmission(submission.id, amendmentDecisionMessage.value),
+  onSuccess: async () => { notify.success('Event listing removed and organizer notification queued.'); amendmentDecisionMessage.value = ''; withdrawing.value = false; await refreshSubmissions(); },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to remove this event listing.'),
+});
+
 const retryEmailMutation = useMutation({
   mutationFn: ({ submissionId, kind }: { submissionId: string; kind: EventSubmissionEmailKind }) => (
     retryEventSubmissionEmail(submissionId, kind)
@@ -224,6 +246,31 @@ function resetRejectionForm() {
   rejectionCategory.value = '';
   organizerMessage.value = '';
   internalNote.value = '';
+}
+
+async function copyManagementLink(submissionId: string) {
+  copyingManagementLink.value = true;
+  try {
+    const { management_url: managementUrl } = await fetchEventSubmissionManagementLink(submissionId);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(managementUrl);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = managementUrl;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    notify.success('Management link copied. It remains active until the event ends.');
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to copy the management link.');
+  } finally {
+    copyingManagementLink.value = false;
+  }
 }
 
 async function refreshSubmissions() {
@@ -627,6 +674,18 @@ function replyPresentation(reply: EventSubmissionReply) {
               </section>
             </div>
 
+            <section v-if="selectedSubmission.amendments?.some((item) => item.status === 'submitted')" class="submission-support-section">
+              <p class="submission-section-kicker">Change request</p>
+              <template v-for="item in selectedSubmission.amendments" :key="item.id">
+                <div v-if="item.status === 'submitted'" class="mt-3 rounded-md border border-dc-border bg-dc-yellow/10 p-4">
+                  <p class="font-semibold text-dc-ink">{{ formatDateTime(item.starts_at, selectedSubmission.timezone) }} → {{ formatDateTime(item.ends_at, selectedSubmission.timezone) }}</p>
+                  <p class="mt-1 text-sm text-dc-gray">{{ item.location_type.replace('_', ' ') }} · {{ item.venue_name || 'Online' }}</p>
+                  <p v-if="item.organizer_note" class="mt-3 whitespace-pre-line text-sm text-dc-gray">{{ item.organizer_note }}</p>
+                  <textarea v-model="amendmentDecisionMessage" class="mt-4 min-h-20 w-full rounded border border-dc-border bg-white p-3 text-sm" maxlength="1200" placeholder="Message to organizer (optional)" />
+                  <div class="mt-3 flex gap-2"><button type="button" class="editorial-primary-action motion-press" :disabled="amendmentReviewMutation.isPending.value" @click="amendmentReviewMutation.mutate({ amendmentId: item.id, approve: true })">Approve changes</button><button type="button" class="editorial-secondary-action motion-press" :disabled="amendmentReviewMutation.isPending.value" @click="amendmentReviewMutation.mutate({ amendmentId: item.id, approve: false })">Decline changes</button></div>
+                </div>
+              </template>
+            </section>
             <footer class="submission-drawer-footer">
               <template v-if="selectedSubmission.review_status === 'pending'">
                 <section class="submission-decision-checklist" aria-labelledby="submission-decision-checklist-title">
@@ -705,7 +764,24 @@ function replyPresentation(reply: EventSubmissionReply) {
               </template>
               <div v-else class="flex flex-wrap items-center justify-between gap-4 text-sm text-dc-gray">
                 <span>Reviewed {{ selectedSubmission.reviewed_at ? formatDateTime(selectedSubmission.reviewed_at) : '' }} by {{ selectedSubmission.reviewed_by }}</span>
-                <RouterLink v-if="selectedSubmission.approved_event_id" :to="adminPath(`events/${selectedSubmission.approved_event_id}`)" class="font-semibold text-dc-pink underline decoration-dc-yellow decoration-2 underline-offset-4" @click="closeDrawer">Open event</RouterLink>
+                <div class="submission-review-actions">
+                  <RouterLink v-if="selectedSubmission.approved_event_id" :to="adminPath(`events/${selectedSubmission.approved_event_id}`)" class="submission-review-action submission-review-action--secondary motion-press" @click="closeDrawer">Open event</RouterLink>
+                  <button
+                    v-if="selectedSubmission.review_status === 'approved'"
+                    type="button"
+                    class="submission-review-action submission-review-action--primary motion-press"
+                    :disabled="copyingManagementLink"
+                    @click="copyManagementLink(selectedSubmission.id)"
+                  >
+                    {{ copyingManagementLink ? 'Copying…' : 'Copy management link' }}
+                  </button>
+                  <button v-if="selectedSubmission.review_status === 'approved' && !withdrawing" type="button" class="submission-review-action submission-review-action--quiet motion-press" @click="withdrawing = true">Remove listing</button>
+                </div>
+              </div>
+              <div v-if="selectedSubmission.review_status === 'approved' && withdrawing" class="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
+                <label class="submission-field-label">Message to organizer</label>
+                <textarea v-model="amendmentDecisionMessage" class="mt-2 min-h-20 w-full rounded border border-red-200 bg-white p-3 text-sm" maxlength="1200" placeholder="Explain why the listing is being removed" />
+                <div class="mt-3 flex gap-2"><button type="button" class="motion-press rounded-md border-2 border-red-800 bg-red-800 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :disabled="!amendmentDecisionMessage || withdrawMutation.isPending.value" @click="withdrawMutation.mutate(selectedSubmission)">{{ withdrawMutation.isPending.value ? 'Removing…' : 'Remove & notify' }}</button><button type="button" class="editorial-secondary-action motion-press" @click="withdrawing = false">Cancel</button></div>
               </div>
             </footer>
           </aside>
