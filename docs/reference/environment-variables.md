@@ -23,7 +23,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `PUBLIC_APP_URL` | No | Yes | Absolute browser-facing app origin used for server-generated auth and public integration links; production is `https://em.devcongress.org` |
 | `SHORT_LINK_PUBLIC_ORIGIN` | Required when short links are enabled | Yes | Public short-link origin shown to organizers; production is `https://go.devcongress.org`. |
 | `SHORT_LINK_RESOLVER_TOKEN` | Required when short links are enabled | No | Shared high-entropy secret used only between the isolated `go.devcongress.org` Worker and the EMS internal short-link resolver. Store it as a secret in both Workers. |
-| `EMS_RESOLVER_ORIGIN` | Required on the isolated short-link Worker | No | EMS public origin used only for the authenticated server-to-server short-link resolver; production is `https://em.devcongress.org`. |
+| `EMS_RESOLVER_ORIGIN` | Required on the isolated short-link Pages project | No | EMS public origin used only for the authenticated server-to-server short-link resolver; production is `https://em.devcongress.org`. |
 | `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS and state-changing request checks; production is `https://em.devcongress.org` |
 | `PUBLIC_WEBSITE_ORIGIN` | Required for community submission email links | Yes | Public DevCongress website origin. Production uses `https://devcongress.org`; isolated preview deployments can point emails at the preview website. |
 | `TURNSTILE_SECRET_KEY` | Required for production public writes | No | Server-only Cloudflare Turnstile secret used to validate every protected public submission |

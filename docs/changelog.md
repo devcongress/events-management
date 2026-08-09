@@ -1,9 +1,9 @@
 # Changelog
 
-## 2026-08-09 — Cross-account short-link routing
+## 2026-08-09 — Pages-based short-link routing
 
-- Changed the isolated short-link Worker to call EMS through its authenticated HTTPS resolver instead of requiring a same-account Worker service binding.
-- This permits `go.devcongress.org` to be attached in the Cloudflare account that owns the `devcongress.org` DNS zone while preserving the shared server-only resolver secret.
+- Replaced the standalone short-link Worker with a small Pages Function project, matching the existing CNAME-style `em.devcongress.org` deployment.
+- The redirect function calls EMS through its authenticated HTTPS resolver, preserving the shared server-only resolver secret while allowing `go.devcongress.org` to point to the Pages hostname.
 
 ## 2026-08-09 — Decoupled Annual Conference speakers from Events
 

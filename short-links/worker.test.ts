@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import worker from './worker';
+import { resolveShortLinkRequest } from './redirect';
 
 const env = () => ({
   PUBLIC_APP_ORIGIN: 'https://em.devcongress.org',
@@ -17,7 +17,7 @@ describe('short-link Worker', () => {
       return new Response(JSON.stringify({ destination_path: '/r/august-meetup' }), { status: 200 });
     });
     vi.stubGlobal('fetch', resolver);
-    const response = await worker.fetch(new Request('https://go.devcongress.org/K7M4P'), env() as never);
+    const response = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), env());
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe('https://em.devcongress.org/r/august-meetup');
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -25,15 +25,15 @@ describe('short-link Worker', () => {
 
   it('does not become an open redirect or accept a code-shaped path with extra segments', async () => {
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ destination_path: '//evil.example' }), { status: 200 }));
-    const unsafe = await worker.fetch(new Request('https://go.devcongress.org/K7M4P'), env() as never);
-    const extra = await worker.fetch(new Request('https://go.devcongress.org/K7M4P/anything'), env() as never);
+    const unsafe = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), env());
+    const extra = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P/anything'), env());
     expect(unsafe.status).toBe(404);
     expect(extra.status).toBe(404);
   });
 
   it('returns the unavailable page when EMS cannot be reached', async () => {
     vi.stubGlobal('fetch', async () => { throw new Error('network unavailable'); });
-    const response = await worker.fetch(new Request('https://go.devcongress.org/K7M4P'), env() as never);
+    const response = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), env());
     expect(response.status).toBe(404);
   });
 });

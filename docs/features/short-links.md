@@ -16,14 +16,14 @@ Owners use **Audit Log → Short links** to create, copy, inspect, and revoke li
 
 ## Runtime boundary
 
-`short-links/worker.ts` is a deliberately small Cloudflare Worker for `go.devcongress.org`. It accepts only one opaque path segment and `GET`/`HEAD`, then resolves it through the protected EMS HTTPS resolver. It uses only a server-to-server resolver token, holds no Supabase credentials, does not forward query strings, and rejects any non-first-party path. Unavailable, revoked, stale, or temporarily unreachable links receive a branded 404 response.
+`short-links/` is a deliberately small Cloudflare Pages project for `go.devcongress.org`. Its single Pages Function accepts only one opaque path segment and `GET`/`HEAD`, then resolves it through the protected EMS HTTPS resolver. It uses only a server-to-server resolver token, holds no Supabase credentials, does not forward query strings, and rejects any non-first-party path. Unavailable, revoked, stale, or temporarily unreachable links receive a branded 404 response.
 
 ## Deployment setup
 
 1. Apply `20260809120000_short_links.sql`.
-2. Create the `SHORT_LINK_RESOLVER_TOKEN` secret in both `events-management` and the short-link Worker with the same high-entropy value.
-3. Deploy the short-link Worker in the Cloudflare account that owns the `devcongress.org` zone using `pnpm exec wrangler deploy --config short-links/wrangler.toml`.
-4. Attach `go.devcongress.org` as its custom domain in that account. Cloudflare creates its DNS record and certificate.
+2. Create the `SHORT_LINK_RESOLVER_TOKEN` secret in both `events-management` and the `devcongress-short-links` Pages project with the same high-entropy value.
+3. Create `devcongress-short-links` as a Git-backed Pages project with `short-links` as its root directory and `public` as its build output directory.
+4. Add `go.devcongress.org` to that Pages project, then create the DNS record `go CNAME devcongress-short-links.pages.dev` alongside the existing `em` CNAME.
 5. Set `SHORT_LINK_PUBLIC_ORIGIN=https://go.devcongress.org` on the EMS Worker. This is a non-secret variable used only when displaying links in Audit Log.
 
 ## Key files
@@ -33,5 +33,6 @@ Owners use **Audit Log → Short links** to create, copy, inspect, and revoke li
 | `supabase/migrations/20260809120000_short_links.sql` | constrained link storage, RLS, indexes, atomic redirect counter |
 | `lib/supabase/short-links.ts` | server-side creation, listing, revocation, resolution |
 | `server/app.ts` | owner APIs, audit records, authenticated internal resolver |
-| `short-links/worker.ts` | isolated public redirect Worker |
+| `short-links/functions/[[code]].ts` | isolated public redirect Pages Function |
+| `short-links/redirect.ts` | shared validation and EMS resolver boundary |
 | `src/views/admin/AdminAuditLogView.vue` | Short links operational subview |
