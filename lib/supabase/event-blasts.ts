@@ -31,6 +31,20 @@ export async function getSupabaseEventBlasts(
   return data;
 }
 
+export async function getRecentSupabaseEventBlasts(
+  limit: number,
+  c?: Context,
+): Promise<EventBlast[] | null> {
+  if (!canUseSupabaseEventBlasts(c)) return null;
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('event_blasts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new EventBlastStorageError(error.code ?? null);
+  return data;
+}
+
 export async function createSupabaseEventBlast(
   input: BlastInsert,
   c?: Context,

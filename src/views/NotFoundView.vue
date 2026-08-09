@@ -8,8 +8,8 @@ const route = useRoute();
 const missingPath = computed(() => route.fullPath);
 const primaryLink = computed(() => adminPath('events'));
 const secondaryLinks = computed(() => [
-  { href: adminPath('attendance'), label: 'Attendance Hub', detail: 'Review historical attendance and post-event readouts.' },
-  { href: adminPath('feedback'), label: 'Feedback Hub', detail: 'Review event feedback windows and responses.' },
+  { href: adminPath('attendance'), label: 'Attendance', detail: 'Review historical attendance and post-event readouts.' },
+  { href: adminPath('feedback'), label: 'Feedback', detail: 'Review event feedback windows and responses.' },
   { href: adminPath('events/new'), label: 'Create Event', detail: 'Start a new monthly event record.' },
 ]);
 </script>

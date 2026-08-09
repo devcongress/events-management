@@ -70,8 +70,8 @@ let organizerSessionEnding = false;
 
 const adminBaseLinks: NavLink[] = [
   { href: adminPath('events'), label: 'Events' },
-  { href: adminPath('attendance'), label: 'Attendance Hub' },
-  { href: adminPath('feedback'), label: 'Feedback Hub' },
+  { href: adminPath('attendance'), label: 'Attendance' },
+  { href: adminPath('feedback'), label: 'Feedback' },
   { href: annualConferencePath(), label: 'Annual Conference' },
   { href: adminPath('organizers'), label: 'People & Access' },
 ];
@@ -191,16 +191,16 @@ const adminFeedbackReturnMonth = computed(() => {
 });
 const adminReturnLink = computed(() => {
   if (adminReturnSource.value === 'attendance') {
-    return { href: adminPath('attendance'), label: 'Attendance Hub' };
+    return { href: adminPath('attendance'), label: 'Attendance' };
   }
 
   if (adminReturnSource.value === 'feedback') {
     if (adminFeedbackReturnMonth.value) {
       const params = new URLSearchParams({ month: adminFeedbackReturnMonth.value });
-      return { href: `${adminPath('feedback')}?${params.toString()}`, label: 'Feedback Hub' };
+      return { href: `${adminPath('feedback')}?${params.toString()}`, label: 'Feedback' };
     }
 
-    return { href: adminPath('feedback'), label: 'Feedback Hub' };
+    return { href: adminPath('feedback'), label: 'Feedback' };
   }
 
   return null;

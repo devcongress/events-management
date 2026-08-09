@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import type { SpeakerSubmission, SpeakerSubmissionStatus } from '@/types';
+import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
 const props = defineProps<{
   open: boolean;
-  submission: SpeakerSubmission | null;
+  submission: SpeakerSubmission | AnnualConferenceSpeakerSubmission | null;
   canManage: boolean;
   submitting?: boolean;
   canCopyPresenterLink?: boolean;
@@ -12,8 +13,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  approve: [submission: SpeakerSubmission];
-  reject: [submission: SpeakerSubmission];
+  approve: [submission: SpeakerSubmission | AnnualConferenceSpeakerSubmission];
+  reject: [submission: SpeakerSubmission | AnnualConferenceSpeakerSubmission];
   copyPresenterLink: [];
 }>();
 

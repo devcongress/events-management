@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented in code; requires the `20260801020000_community_event_submissions.sql` and `20260802000000_event_submission_notifications.sql` migrations, production Turnstile hostname configuration, and Resend credentials before deployment.
+Implemented in code; requires the community-submission migrations through `20260809103000_event_submission_management_links_expire_at_event_end.sql`, production Turnstile hostname configuration, Resend credentials, and `EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET` before deployment.
 
 ## Product boundary
 
@@ -25,7 +25,7 @@ A proposal is not an event. It becomes a canonical external event only when an o
 
 The server first requires the runtime launch gate `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true`. Missing, false, or invalid values reject the request before validation, Turnstile, rate limits, email, or persistence. When enabled, the server forces `source_app = website`, rejects unknown fields, validates location-dependent requirements, verifies the `event_submission` Turnstile action against the dedicated public-site hostname allowlist, then consumes distributed client and email rate limits. Production fails closed if any security dependency or relational storage is unavailable.
 
-Accepted proposals receive only an opaque receipt id and pending status. There is no public status lookup, and pending/rejected records never enter a public feed. The intake transaction also queues a receipt email; provider failure does not roll back the saved proposal.
+Accepted proposals receive only an opaque receipt id and pending status. There is no public status lookup, and pending/rejected records never enter a public feed. Intake does not send a receipt email; the on-page confirmation is deliberate quota protection.
 
 ## Organizer review
 
@@ -44,7 +44,11 @@ Before making a pending-submission decision, the review drawer presents the same
 
 All four should be true before approval. A reviewer should use the existing rejection category and organizer message to explain a decline clearly; the internal note remains private to organizers.
 
-Approval and rejection are transactional, idempotent Supabase functions. A source-submission unique constraint prevents repeated approval requests from creating duplicate canonical events. Each decision queues one durable email in the same transaction. **Approve & publish** needs no extra confirmation; it publishes the canonical external event and queues the approval notice. **Reject & notify organizer** shows the outgoing reason/message separately from the internal note. Review actions are written to the admin audit ledger without submitter contact data or note/message content.
+Approval and rejection are transactional, idempotent Supabase functions. A source-submission unique constraint prevents repeated approval requests from creating duplicate canonical events. Each decision queues one durable email in the same transaction. **Approve & publish** needs no extra confirmation; it publishes the canonical external event and queues the approval notice. **Reject & notify organizer** shows the outgoing reason/message separately from the internal note, directs the organizer to submit a new event if appropriate, and does not invite email replies. Review actions are written to the admin audit ledger without submitter contact data or note/message content.
+
+## Reviewed amendments
+
+An approved organizer receives one private, time-bounded management link. It is a signed bearer capability backed by a service-role-only link record, so it can be revoked without exposing a submission lookup. It expires at the canonical event end time, including an approved change to that time; expired, revoked, withdrawn, and ended events cannot be mutated. Organizers can retrieve the existing active URL from the approved-submission drawer with **Copy management link** when a sender says they did not receive the approval email. That action creates no email or quota usage and records only the copy event and expiry in the audit ledger, never the bearer URL. The organizer can only propose schedule, location, online, registration, and an optional reviewer note; title, description, format, and organizer identity remain fixed. Saving drafts and submitting a change request send no email. Only one draft or submitted request can exist at a time. An Organizer reviews the submitted request in the existing submission drawer: approval transactionally updates the canonical event, while decline leaves the public listing untouched and lets the organizer prepare another request. Both decisions use the existing durable email outbox. Rejected initial proposals never receive a management link and must be resubmitted as a new proposal.
 
 The review drawer groups the proposal summary, schedule, location, submitter, and supporting links into one neutral review card. Submitter notes, email operations, and replies are visually secondary so organizers can scan the event facts before making a decision; the shared organizer action primitives provide the primary and secondary decision treatments, while semantic colors are limited to actual status. The drawer shows receipt and decision delivery state as **Queued**, **Accepted**, or **Failed**, with actionable failure copy for quota/rate limits, sender or credential configuration, invalid message details, provider outages, and connectivity failures. When Resend supplies a safe provider reason, it is included after the category so the missing sender or recipient detail is visible. Retry responses preserve that same reason in the organizer toast instead of collapsing it to a generic HTTP status. Accepted means Resend accepted the message, not that it reached the inbox. A failed notification can be retried without re-running approval/rejection or creating another event.
 

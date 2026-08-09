@@ -10,6 +10,12 @@ export async function getMockEventBlasts(eventId: string): Promise<EventBlast[]>
     .sort((first, second) => second.created_at.localeCompare(first.created_at));
 }
 
+export async function getRecentMockEventBlasts(limit: number): Promise<EventBlast[]> {
+  return (await readData<EventBlast>(BLASTS_FILE))
+    .sort((first, second) => second.created_at.localeCompare(first.created_at))
+    .slice(0, limit);
+}
+
 export async function createMockEventBlast(input: Omit<EventBlast, 'id' | 'created_at' | 'updated_at'>): Promise<EventBlast> {
   const timestamp = now();
   const blast: EventBlast = {

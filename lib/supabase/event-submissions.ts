@@ -6,6 +6,8 @@ import type {
   EventSubmissionEmailDelivery,
   EventSubmissionEmailDeliveryStatus,
   EventSubmissionEmailKind,
+  EventSubmissionAmendment,
+  EventSubmissionAmendmentStatus,
   EventSubmissionReply,
   EventSubmissionReplyAttachment,
   EventSubmissionReplySlackStatus,
@@ -19,6 +21,7 @@ type EventSubmissionRow = Database['public']['Tables']['event_submissions']['Row
 type EventSubmissionInsert = Database['public']['Tables']['event_submissions']['Insert'];
 type EventSubmissionEmailDeliveryRow = Database['public']['Tables']['event_submission_email_deliveries']['Row'];
 type EventSubmissionReplyRow = Database['public']['Tables']['event_submission_replies']['Row'];
+type EventSubmissionAmendmentRow = Database['public']['Tables']['event_submission_amendments']['Row'];
 
 export type PendingEventSubmissionEmail = {
   delivery_id: string;
@@ -34,6 +37,22 @@ export type PendingEventSubmissionEmail = {
   registration_url: string | null;
   rejection_category: EventSubmissionRejectionCategory | null;
   organizer_message: string | null;
+  amendment_id: string | null;
+  amendment_starts_at: string | null;
+  amendment_timezone: string | null;
+  management_link_id: string | null;
+};
+
+export type EventSubmissionManagement = {
+  link_id: string;
+  expires_at: string;
+  submission: EventSubmission;
+  amendment: EventSubmissionAmendment | null;
+};
+
+export type ActiveEventSubmissionManagementLink = {
+  id: string;
+  expires_at: string;
 };
 
 export type CreateEventSubmissionInput = {
@@ -119,10 +138,12 @@ export async function listEventSubmissions(
   if (error) throw new EventSubmissionStorageError('Unable to load event submissions.', 'unavailable');
   const deliveries = await loadEmailDeliveries((data ?? []).map((submission) => submission.id), c);
   const replies = await loadEventSubmissionReplies((data ?? []).map((submission) => submission.id), c);
+  const amendments = await loadEventSubmissionAmendments((data ?? []).map((submission) => submission.id), c);
   return (data ?? []).map((submission) => toEventSubmission(
     submission,
     deliveries.get(submission.id) ?? [],
     replies.get(submission.id) ?? [],
+    amendments.get(submission.id) ?? [],
   ));
 }
 
@@ -163,6 +184,121 @@ export async function rejectEventSubmission(
 
   if (error) throw reviewError(error.message);
   if (!data) throw new EventSubmissionStorageError('Event submission not found.', 'not_found');
+  return toEventSubmission(data, [], []);
+}
+
+export async function getEventSubmissionManagement(linkId: string, c?: Context): Promise<EventSubmissionManagement> {
+  const client = requireStorage(c);
+  const { data: link, error: linkError } = await client.from('event_submission_management_links')
+    .select('*').eq('id', linkId).maybeSingle();
+  if (linkError) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
+  if (!link || link.revoked_at || new Date(link.expires_at).getTime() <= Date.now()) {
+    throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
+  }
+  const { data: submission, error } = await client.from('event_submissions').select('*').eq('id', link.submission_id).maybeSingle();
+  if (error) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
+  if (!submission || submission.review_status !== 'approved') throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
+  const approvedEventId = submission.approved_event_id;
+  if (!approvedEventId) throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
+  const { data: event, error: eventError } = await client.from('community_events')
+    .select('ends_at').eq('id', approvedEventId).maybeSingle();
+  if (eventError) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
+  if (!event || new Date(event.ends_at).getTime() <= Date.now()) {
+    throw new EventSubmissionStorageError('This event has ended and can no longer be updated.', 'not_found');
+  }
+  const { data: amendment, error: amendmentError } = await client.from('event_submission_amendments')
+    .select('*').eq('submission_id', submission.id).in('status', ['draft', 'submitted']).maybeSingle();
+  if (amendmentError) throw new EventSubmissionStorageError('Unable to load the event change request.', 'unavailable');
+  return { link_id: link.id, expires_at: link.expires_at, submission: toEventSubmission(submission, [], []), amendment: amendment ? toEventSubmissionAmendment(amendment) : null };
+}
+
+/**
+ * Resolves an existing bearer link for an authenticated organizer without
+ * creating a new link or sending another email. The canonical event end time
+ * remains the final authority, since an approved amendment may have changed it.
+ */
+export async function getActiveEventSubmissionManagementLink(
+  submissionId: string,
+  c?: Context,
+): Promise<ActiveEventSubmissionManagementLink> {
+  const client = requireStorage(c);
+  const { data: link, error: linkError } = await client
+    .from('event_submission_management_links')
+    .select('id, expires_at, revoked_at')
+    .eq('submission_id', submissionId)
+    .maybeSingle();
+  if (linkError) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
+  if (!link || link.revoked_at || new Date(link.expires_at).getTime() <= Date.now()) {
+    throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
+  }
+
+  const { data: submission, error: submissionError } = await client
+    .from('event_submissions')
+    .select('review_status, approved_event_id')
+    .eq('id', submissionId)
+    .maybeSingle();
+  if (submissionError) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
+  if (!submission || submission.review_status !== 'approved' || !submission.approved_event_id) {
+    throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
+  }
+
+  const { data: event, error: eventError } = await client
+    .from('community_events')
+    .select('ends_at')
+    .eq('id', submission.approved_event_id)
+    .maybeSingle();
+  if (eventError) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
+  if (!event || new Date(event.ends_at).getTime() <= Date.now()) {
+    throw new EventSubmissionStorageError('This event has ended and can no longer be updated.', 'not_found');
+  }
+
+  return { id: link.id, expires_at: link.expires_at };
+}
+
+export async function saveEventSubmissionAmendment(
+  submissionId: string,
+  input: Pick<EventSubmissionAmendment, 'starts_at' | 'ends_at' | 'location_type'> & { venue_name?: string; venue_address?: string; online_url?: string; registration_url?: string; organizer_note?: string },
+  c?: Context,
+): Promise<EventSubmissionAmendment> {
+  const client = requireStorage(c);
+  const { data: current, error: currentError } = await client.from('event_submission_amendments')
+    .select('*').eq('submission_id', submissionId).in('status', ['draft', 'submitted']).maybeSingle();
+  if (currentError) throw new EventSubmissionStorageError('Unable to save the event change request.', 'unavailable');
+  if (current?.status === 'submitted') throw new EventSubmissionStorageError('A change request is already being reviewed.', 'unavailable');
+  const values = { ...input, venue_name: input.venue_name || null, venue_address: input.venue_address || null, online_url: input.online_url || null, registration_url: input.registration_url || null, organizer_note: input.organizer_note || null };
+  const query = current
+    ? client.from('event_submission_amendments').update(values).eq('id', current.id).select('*').single()
+    : client.from('event_submission_amendments').insert({ submission_id: submissionId, ...values }).select('*').single();
+  const { data, error } = await query;
+  if (error || !data) throw new EventSubmissionStorageError('Unable to save the event change request.', 'unavailable');
+  return toEventSubmissionAmendment(data);
+}
+
+export async function submitEventSubmissionAmendment(submissionId: string, c?: Context): Promise<EventSubmissionAmendment> {
+  const { data, error } = await requireStorage(c).from('event_submission_amendments')
+    .update({ status: 'submitted' }).eq('submission_id', submissionId).eq('status', 'draft').select('*').maybeSingle();
+  if (error) throw new EventSubmissionStorageError('Unable to submit the event change request.', 'unavailable');
+  if (!data) throw new EventSubmissionStorageError('Save the changes before submitting them for review.', 'not_found');
+  return toEventSubmissionAmendment(data);
+}
+
+export async function reviewEventSubmissionAmendment(id: string, reviewerEmail: string, approve: boolean, message: string, c?: Context): Promise<EventSubmissionAmendment> {
+  const { data, error } = await requireStorage(c).rpc('review_event_submission_amendment', {
+    p_amendment_id: id, p_reviewed_by: reviewerEmail, p_approve: approve, p_message: message,
+  });
+  if (error?.message.includes('event_submission_management_window_closed')) {
+    throw new EventSubmissionStorageError('This event has ended and can no longer be changed.', 'unavailable');
+  }
+  if (error?.message.includes('event_submission_amendment_ends_in_past')) {
+    throw new EventSubmissionStorageError('The proposed event end time has already passed.', 'unavailable');
+  }
+  if (error || !data) throw new EventSubmissionStorageError('Unable to review the event change request.', 'unavailable');
+  return toEventSubmissionAmendment(data);
+}
+
+export async function withdrawEventSubmission(id: string, reviewerEmail: string, message: string, c?: Context): Promise<EventSubmission> {
+  const { data, error } = await requireStorage(c).rpc('withdraw_event_submission', { p_submission_id: id, p_reviewed_by: reviewerEmail, p_message: message });
+  if (error || !data) throw new EventSubmissionStorageError('Unable to remove this event listing.', 'unavailable');
   return toEventSubmission(data, [], []);
 }
 
@@ -271,7 +407,7 @@ export async function getPendingEventSubmissionEmails(
   let deliveriesQuery = client
     .from('event_submission_email_deliveries')
     .select('*')
-    .in('kind', input.kinds ?? ['receipt', 'approved', 'rejected'])
+    .in('kind', input.kinds ?? ['approved', 'rejected', 'amendment_approved', 'amendment_rejected', 'withdrawn'])
     .in('status', input.statuses ?? ['pending', 'failed'])
     .order('created_at', { ascending: true })
     .limit(input.limit ?? 100);
@@ -288,6 +424,11 @@ export async function getPendingEventSubmissionEmails(
   if (submissionsError) throw new EventSubmissionStorageError('Unable to load submission emails.', 'unavailable');
 
   const submissionsById = new Map((submissions ?? []).map((submission) => [submission.id, submission]));
+  const { data: links } = await client.from('event_submission_management_links').select('id, submission_id').in('submission_id', Array.from(submissionsById.keys()));
+  const linksBySubmission = new Map((links ?? []).map((link) => [link.submission_id, link.id]));
+  const amendmentIds = deliveries.map((delivery) => delivery.amendment_id).filter((id): id is string => Boolean(id));
+  const { data: amendments } = amendmentIds.length ? await client.from('event_submission_amendments').select('*').in('id', amendmentIds) : { data: [] };
+  const amendmentsById = new Map((amendments ?? []).map((amendment) => [amendment.id, amendment]));
   return deliveries.flatMap((delivery) => {
     const submission = submissionsById.get(delivery.submission_id);
     if (!submission) return [];
@@ -305,8 +446,16 @@ export async function getPendingEventSubmissionEmails(
       registration_url: submission.registration_url ?? submission.online_url,
       rejection_category: rejectionCategory(submission.rejection_category),
       organizer_message: submission.organizer_message,
+      amendment_id: delivery.amendment_id,
+      amendment_starts_at: delivery.amendment_id ? amendmentsById.get(delivery.amendment_id)?.starts_at ?? null : null,
+      amendment_timezone: delivery.amendment_id ? submission.timezone : null,
+      management_link_id: linksBySubmission.get(submission.id) ?? null,
     }];
   });
+}
+
+function toEventSubmissionAmendment(row: EventSubmissionAmendmentRow): EventSubmissionAmendment {
+  return { ...row, status: row.status as EventSubmissionAmendmentStatus, location_type: row.location_type };
 }
 
 export async function updateEventSubmissionEmailDelivery(
@@ -398,10 +547,25 @@ async function loadEventSubmissionReplies(
   return result;
 }
 
+async function loadEventSubmissionAmendments(submissionIds: string[], c?: Context): Promise<Map<string, EventSubmissionAmendment[]>> {
+  const result = new Map<string, EventSubmissionAmendment[]>();
+  if (!submissionIds.length) return result;
+  const { data, error } = await requireStorage(c).from('event_submission_amendments').select('*')
+    .in('submission_id', submissionIds).order('created_at', { ascending: false });
+  if (error) throw new EventSubmissionStorageError('Unable to load event change requests.', 'unavailable');
+  for (const row of data ?? []) {
+    const entries = result.get(row.submission_id) ?? [];
+    entries.push(toEventSubmissionAmendment(row));
+    result.set(row.submission_id, entries);
+  }
+  return result;
+}
+
 function toEventSubmission(
   row: EventSubmissionRow,
   emailDeliveries: EventSubmissionEmailDelivery[],
   replies: EventSubmissionReply[],
+  amendments: EventSubmissionAmendment[] = [],
 ): EventSubmission {
   return {
     id: row.id,
@@ -428,6 +592,7 @@ function toEventSubmission(
     organizer_message: row.organizer_message,
     internal_note: row.internal_note,
     email_deliveries: emailDeliveries,
+    amendments,
     replies,
     approved_event_id: row.approved_event_id,
     created_at: row.created_at,

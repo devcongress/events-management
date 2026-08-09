@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
-import { fetchAdminAuditLog, queryKeys, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery } from '@/src/lib/api';
+import { fetchAdminAuditLog, queryKeys, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
 
 const AUDIT_LOG_LIMIT = 80;
 const AUDIT_LOG_PAGE_SIZE = 4;
@@ -51,7 +51,9 @@ const auditQuery = useQuery({
 const logs = computed(() => auditQuery.data.value?.logs ?? []);
 const emailHealth = computed(() => auditQuery.data.value?.email_health ?? null);
 const emailOutbox = computed(() => auditQuery.data.value?.email_outbox ?? null);
+const blastCapacity = computed(() => auditQuery.data.value?.blast_capacity ?? null);
 const recentEmailDeliveries = computed(() => auditQuery.data.value?.recent_email_deliveries ?? []);
+const recentEventBlasts = computed(() => auditQuery.data.value?.recent_event_blasts ?? []);
 const selectedAuditLog = computed(() => logs.value.find((log) => log.id === selectedAuditLogId.value) ?? null);
 const loading = computed(() => auditQuery.isPending.value);
 const error = computed(() => auditQuery.error.value?.message ?? '');
@@ -242,6 +244,22 @@ function deliveryDetail(delivery: RecentEmailDelivery): string {
   return 'Awaiting delivery attempt';
 }
 
+function blastStatusLabel(status: RecentEventBlast['status']): string {
+  if (status === 'sent') return 'Sent to provider';
+  if (status === 'scheduled') return 'Scheduled';
+  if (status === 'needs_capacity') return 'Needs capacity';
+  if (status === 'failed') return 'Failed';
+  return 'Preparing';
+}
+
+function blastStatusTone(status: RecentEventBlast['status']): string {
+  if (status === 'sent') return 'audit-log-broadcast-status--sent';
+  if (status === 'scheduled') return 'audit-log-broadcast-status--scheduled';
+  if (status === 'needs_capacity') return 'audit-log-broadcast-status--needs-capacity';
+  if (status === 'failed') return 'audit-log-broadcast-status--failed';
+  return 'audit-log-broadcast-status--preparing';
+}
+
 function actionLabel(value: string): string {
   return value.replace(/\./g, ' / ');
 }
@@ -358,7 +376,7 @@ onUnmounted(() => {
 
 <template>
   <div class="editorial-page flex h-full min-h-0 flex-col">
-    <div class="editorial-wrap flex flex-1 min-h-0 flex-col">
+    <div class="editorial-wrap flex w-full flex-1 min-h-0 flex-col">
       <div class="editorial-header audit-log-header">
         <p class="editorial-eyebrow">security ledger</p>
         <h1 class="editorial-title">Audit Log</h1>
@@ -373,7 +391,7 @@ onUnmounted(() => {
 
       <AdminAuditLogPageSkeleton v-if="loading" />
 
-      <div v-else class="flex flex-1 min-h-0 flex-col" :style="auditStickyStyle">
+      <div v-else class="flex w-full flex-1 min-h-0 flex-col" :style="auditStickyStyle">
         <nav class="audit-log-tabs mb-5" role="tablist" aria-label="Audit Log sections">
           <button
             id="audit-log-tab-activity"
@@ -559,60 +577,73 @@ onUnmounted(() => {
               </p>
             </div>
 
-            <dl class="audit-log-delivery-rows">
-              <div class="audit-log-delivery-row">
-                <div class="audit-log-delivery-row__label">
+            <section class="audit-log-delivery-overview" aria-label="Email capacity overview">
+              <article class="audit-log-delivery-overview__capacity">
+                <div class="audit-log-delivery-overview__lead">
                   <svg class="audit-log-delivery-row__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M4 19V5" />
                     <path d="M4 19h16" />
                     <path d="m7 15 4-4 3 2 5-6" />
                   </svg>
                   <div>
-                    <dt>Daily capacity</dt>
-                    <dd>Resend quota activity today.</dd>
+                    <p>Resend allowance</p>
+                    <span>Live provider quota observation.</span>
                   </div>
                 </div>
-                <div class="audit-log-delivery-row__value">
-                  <strong>{{ quotaMetric(emailHealth?.daily_quota_used ?? null, emailHealth?.daily_quota_limit ?? 100) }}</strong>
-                  <span :class="healthTone(emailHealth?.daily_level ?? 'healthy')">{{ healthLabel(emailHealth?.daily_level ?? 'healthy') }}</span>
-                </div>
-              </div>
-
-              <div class="audit-log-delivery-row">
-                <div class="audit-log-delivery-row__label">
-                  <svg class="audit-log-delivery-row__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <rect x="4" y="3" width="16" height="18" rx="2" />
-                    <path d="M8 7h8M8 11h8M8 15h5" />
-                  </svg>
+                <dl class="audit-log-delivery-overview__quotas">
                   <div>
-                    <dt>Monthly capacity</dt>
-                    <dd>The current plan quota; update settings if the plan changes.</dd>
+                    <dt>Today</dt>
+                    <dd>{{ quotaMetric(emailHealth?.daily_quota_used ?? null, emailHealth?.daily_quota_limit ?? 100) }}</dd>
+                    <span :class="healthTone(emailHealth?.daily_level ?? 'healthy')">{{ healthLabel(emailHealth?.daily_level ?? 'healthy') }}</span>
                   </div>
-                </div>
-                <div class="audit-log-delivery-row__value">
-                  <strong>{{ quotaMetric(emailHealth?.monthly_quota_used ?? null, emailHealth?.monthly_quota_limit ?? 3000) }}</strong>
-                  <span :class="healthTone(emailHealth?.monthly_level ?? 'healthy')">{{ healthLabel(emailHealth?.monthly_level ?? 'healthy') }}</span>
-                </div>
-              </div>
+                  <div>
+                    <dt>This month</dt>
+                    <dd>{{ quotaMetric(emailHealth?.monthly_quota_used ?? null, emailHealth?.monthly_quota_limit ?? 3000) }}</dd>
+                    <span :class="healthTone(emailHealth?.monthly_level ?? 'healthy')">{{ healthLabel(emailHealth?.monthly_level ?? 'healthy') }}</span>
+                  </div>
+                </dl>
+              </article>
 
-              <div class="audit-log-delivery-row">
-                <div class="audit-log-delivery-row__label">
+              <article class="audit-log-delivery-overview__recovery">
+                <div class="audit-log-delivery-overview__lead">
                   <svg class="audit-log-delivery-row__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 3a9 9 0 1 0 9 9" />
                     <path d="M12 7v5l3 2" />
                     <path d="M19 3v4h-4" />
                   </svg>
                   <div>
-                    <dt>Outbox recovery</dt>
-                    <dd>Failed records can be retried from Registration or Community submissions.</dd>
+                    <p>Recovery queue</p>
+                    <span>Transactional messages awaiting action.</span>
                   </div>
                 </div>
-                <div class="audit-log-delivery-row__value audit-log-delivery-row__value--outbox">
+                <div class="audit-log-delivery-overview__recovery-values">
                   <strong>{{ emailOutbox?.pending ?? 0 }} <small>queued</small></strong>
                   <strong :class="(emailOutbox?.failed ?? 0) > 0 ? 'text-red-700' : 'text-dc-ink'">{{ emailOutbox?.failed ?? 0 }} <small>failed</small></strong>
                 </div>
-              </div>
-            </dl>
+              </article>
+
+              <article class="audit-log-delivery-overview__guardrail">
+                <div class="audit-log-delivery-overview__lead">
+                  <svg class="audit-log-delivery-row__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 18V6" />
+                    <path d="M4 18h16" />
+                    <path d="M8 14h2v-3h2v3h2V8h2v6" />
+                  </svg>
+                  <div>
+                    <p>Blast guardrail</p>
+                    <span v-if="blastCapacity?.known">{{ blastCapacity.protected_reserve }} sends protected for transactional delivery.</span>
+                    <span v-else>Awaiting a fresh quota observation.</span>
+                  </div>
+                </div>
+                <div class="audit-log-delivery-overview__guardrail-value">
+                  <strong>{{ blastCapacity?.safe_recipients_today ?? '—' }}</strong>
+                  <span>safe to send today</span>
+                </div>
+                <p v-if="blastCapacity?.known" class="audit-log-delivery-overview__formula">
+                  {{ blastCapacity.daily_limit }} limit · {{ blastCapacity.daily_used }} used · {{ blastCapacity.queued_transactional }} queued · {{ blastCapacity.protected_reserve }} protected
+                </p>
+              </article>
+            </section>
 
             <p class="audit-log-email-delivery__note">
               Accepted means Resend accepted the message. Inbox delivery and bounce outcomes will appear here once outbound delivery webhooks are enabled.
@@ -677,6 +708,40 @@ onUnmounted(() => {
                 </table>
               </div>
               <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="recentEmailDeliveries.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Email delivery pagination" />
+            </div>
+
+            <div class="audit-log-delivery-history audit-log-broadcast-history">
+              <div class="audit-log-delivery-history__heading">
+                <div>
+                  <p class="editorial-eyebrow mb-1">broadcast log</p>
+                  <h3>Recent event blasts</h3>
+                </div>
+                <p class="audit-log-delivery-history__caption">Provider acceptance is not inbox delivery.</p>
+              </div>
+
+              <div v-if="recentEventBlasts.length === 0" class="audit-log-delivery-history__empty">
+                No event broadcasts have been created yet.
+              </div>
+              <div v-else class="overflow-x-auto">
+                <table class="audit-log-delivery-history__table audit-log-broadcast-history__table">
+                  <thead>
+                    <tr>
+                      <th>When</th>
+                      <th>Broadcast</th>
+                      <th>Audience</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="blast in recentEventBlasts" :key="blast.id">
+                      <td>{{ formatDateTime(blast.updated_at) }}</td>
+                      <td><strong>{{ blast.subject }}</strong></td>
+                      <td>{{ blast.recipient_count }} recipients</td>
+                      <td><span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
         </Transition>
@@ -1008,6 +1073,154 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
+.audit-log-delivery-row__value--allocation {
+  gap: 0.55rem;
+}
+
+.audit-log-delivery-row__value--allocation > span {
+  border: 1px solid #d6d2c8;
+  border-radius: 999px;
+  background: #fcfbf7;
+  color: #6f6c65;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.audit-log-delivery-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(14rem, 1fr) minmax(14rem, 1fr);
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+}
+
+.audit-log-delivery-overview > article {
+  min-width: 0;
+  border: 1px solid #e4e0d8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 1rem;
+}
+
+.audit-log-delivery-overview__guardrail {
+  border-color: #d5b700 !important;
+  background: #fffdf0 !important;
+}
+
+.audit-log-delivery-overview__lead {
+  display: flex;
+  min-width: 0;
+  gap: 0.625rem;
+  align-items: flex-start;
+}
+
+.audit-log-delivery-overview__lead p {
+  margin: 0;
+  color: #111111;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.audit-log-delivery-overview__lead span {
+  display: block;
+  margin-top: 0.25rem;
+  color: #6f6c65;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.audit-log-delivery-overview__quotas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem;
+  margin: 1.25rem 0 0;
+}
+
+.audit-log-delivery-overview__quotas > div + div {
+  border-left: 1px solid #e4e0d8;
+  padding-left: 0.875rem;
+}
+
+.audit-log-delivery-overview__quotas dt,
+.audit-log-delivery-overview__formula {
+  color: #6f6c65;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.audit-log-delivery-overview__quotas dd {
+  margin: 0.4rem 0 0.55rem;
+  color: #111111;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.audit-log-delivery-overview__quotas span {
+  display: inline-flex;
+  border-width: 1px;
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.audit-log-delivery-overview__recovery-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: baseline;
+  margin-top: 1.25rem;
+}
+
+.audit-log-delivery-overview__recovery-values strong {
+  color: #111111;
+  font-size: 1.25rem;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.audit-log-delivery-overview__recovery-values small,
+.audit-log-delivery-overview__guardrail-value span {
+  color: #6f6c65;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.audit-log-delivery-overview__guardrail-value {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  margin-top: 1.25rem;
+}
+
+.audit-log-delivery-overview__guardrail-value strong {
+  color: #111111;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.audit-log-delivery-overview__formula {
+  margin: 0.875rem 0 0;
+  line-height: 1.5;
+}
+
 .audit-log-email-delivery__note {
   margin: 0;
   border-top: 1px solid #d6d2c8;
@@ -1052,6 +1265,61 @@ onUnmounted(() => {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.audit-log-delivery-history__caption {
+  margin: 0;
+  color: #6f6c65;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.audit-log-broadcast-history {
+  background: #fcfbf7;
+}
+
+.audit-log-broadcast-history__table {
+  min-width: 42rem;
+}
+
+.audit-log-broadcast-history__table th:nth-child(1) { width: 20%; }
+.audit-log-broadcast-history__table th:nth-child(2) { width: 44%; }
+.audit-log-broadcast-history__table th:nth-child(3) { width: 18%; }
+.audit-log-broadcast-history__table th:nth-child(4) { width: 18%; }
+
+.audit-log-broadcast-status {
+  display: inline-flex;
+  border: 1px solid #d6d2c8;
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+  color: #6f6c65;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.audit-log-broadcast-status--sent {
+  border-color: #86cfb2;
+  background: #effbf4;
+  color: #047857;
+}
+
+.audit-log-broadcast-status--scheduled {
+  border-color: #d5b700;
+  background: #fff8c7;
+  color: #715f00;
+}
+
+.audit-log-broadcast-status--needs-capacity,
+.audit-log-broadcast-status--failed {
+  border-color: #f2b2bd;
+  background: #fff5f6;
+  color: #b91c1c;
 }
 
 .audit-log-delivery-history__legend {
@@ -1420,6 +1688,16 @@ onUnmounted(() => {
   }
 }
 
+@media (max-width: 1023px) {
+  .audit-log-delivery-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .audit-log-delivery-overview__capacity {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 639px) {
   .audit-log-header {
     margin-bottom: 1.25rem;
@@ -1434,6 +1712,19 @@ onUnmounted(() => {
   .audit-log-delivery-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .audit-log-delivery-overview {
+    grid-template-columns: 1fr;
+    padding: 0.75rem 1rem;
+  }
+
+  .audit-log-delivery-overview__capacity {
+    grid-column: auto;
+  }
+
+  .audit-log-delivery-overview__quotas {
+    gap: 0.75rem;
   }
 
   .audit-log-email-delivery__heading,

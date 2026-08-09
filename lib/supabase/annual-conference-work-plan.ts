@@ -73,6 +73,22 @@ export async function createSupabaseAnnualConferenceEdition(
   return toEdition(result.data);
 }
 
+export async function updateSupabaseAnnualConferenceSpeakerCallStatus(
+  editionId: string,
+  speakerCallStatus: 'open' | 'closed',
+  c?: Context,
+): Promise<AnnualConferenceEdition | null | undefined> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('annual_conference_editions')
+    .update({ speaker_call_status: speakerCallStatus, updated_at: new Date().toISOString() })
+    .eq('id', editionId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? toEdition(data) : undefined;
+}
+
 export async function getSupabaseAnnualConferenceWorkPlan(
   year: number,
   c?: Context,

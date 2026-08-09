@@ -479,6 +479,31 @@
     @apply shrink-0 border-t border-dc-border bg-dc-cream px-6 py-4;
   }
 
+  .submission-review-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .submission-review-action {
+    @apply inline-flex min-h-10 items-center justify-center rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] outline-none focus-visible:ring-2 focus-visible:ring-dc-pink focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    transition:
+      background-color 150ms var(--motion-fast),
+      border-color 150ms var(--motion-fast),
+      color 150ms var(--motion-fast),
+      transform 100ms var(--motion-fast);
+  }
+
+  .submission-review-action--primary {
+    @apply border-2 border-dc-ink bg-dc-yellow px-4 text-dc-ink shadow-[1px_1px_0_#111111];
+  }
+
+  .submission-review-action--secondary {
+    @apply border-dc-border bg-white text-dc-ink;
+  }
+
+  .submission-review-action--quiet {
+    @apply border-transparent bg-transparent text-dc-gray;
+  }
+
   .submission-decision-checklist {
     @apply mb-4 rounded-lg border border-dc-border bg-dc-paper p-4;
   }
@@ -7718,6 +7743,22 @@
       transform: translate3d(0, -1px, 0);
     }
 
+    .submission-review-action--primary:not(:disabled):hover {
+      background: #fff8a8;
+      transform: translate3d(0, -1px, 0);
+    }
+
+    .submission-review-action--secondary:not(:disabled):hover {
+      border-color: #111111;
+      background: #fffef6;
+      transform: translate3d(0, -1px, 0);
+    }
+
+    .submission-review-action--quiet:not(:disabled):hover {
+      background: #f0ede5;
+      color: #111111;
+    }
+
     .motion-lift:hover {
       transform: translate3d(0, -2px, 0);
     }
@@ -7756,7 +7797,8 @@
   }
 
   .editorial-action:not(:disabled):active,
-  .editorial-secondary-action:not(:disabled):active {
+  .editorial-secondary-action:not(:disabled):active,
+  .submission-review-action:not(:disabled):active {
     transform: scale(0.97);
   }
 

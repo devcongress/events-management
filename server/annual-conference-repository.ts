@@ -8,6 +8,7 @@ import {
   listMockAnnualConferenceEditions,
   reorderMockAnnualConferencePhases,
   updateMockAnnualConferencePhase,
+  updateMockAnnualConferenceSpeakerCallStatus,
   updateMockAnnualConferenceTask,
 } from '@/lib/mock-db/annual-conference-work-plan';
 import {
@@ -19,6 +20,7 @@ import {
   listSupabaseAnnualConferenceEditions,
   reorderSupabaseAnnualConferencePhases,
   updateSupabaseAnnualConferencePhase,
+  updateSupabaseAnnualConferenceSpeakerCallStatus,
   updateSupabaseAnnualConferenceTask,
 } from '@/lib/supabase/annual-conference-work-plan';
 import type {
@@ -48,6 +50,7 @@ export interface AnnualConferenceRepository {
   reorderPhases(editionId: string, phases: AnnualConferencePhase[], actorEmail: string): Promise<AnnualConferencePhase[]>;
   createTask(edition: AnnualConferenceEdition, input: AnnualConferenceTaskCreateInput, actorEmail: string): Promise<AnnualConferenceTask>;
   updateTask(editionId: string, taskId: string, input: AnnualConferenceTaskUpdateInput, actorEmail: string): Promise<AnnualConferenceTask | undefined>;
+  updateEditionSpeakerCallStatus(editionId: string, status: 'open' | 'closed'): Promise<AnnualConferenceEdition>;
 }
 
 type Backend = 'supabase' | 'mock';
@@ -136,6 +139,18 @@ export function createAnnualConferenceRepository(c?: Context): AnnualConferenceR
         return task;
       }
       return updateMockAnnualConferenceTask(editionId, taskId, input, actorEmail);
+    },
+
+    async updateEditionSpeakerCallStatus(editionId, status) {
+      if (selectedBackend() === 'supabase') {
+        const edition = await updateSupabaseAnnualConferenceSpeakerCallStatus(editionId, status, c);
+        if (edition === null) throw new Error('Supabase Annual Conference storage became unavailable during the request.');
+        if (!edition) throw new Error('Annual conference edition not found.');
+        return edition;
+      }
+      const edition = await updateMockAnnualConferenceSpeakerCallStatus(editionId, status);
+      if (!edition) throw new Error('Annual conference edition not found.');
+      return edition;
     },
   };
 }

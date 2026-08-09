@@ -28,7 +28,8 @@ export type EventSubmissionRejectionCategory =
   | 'duplicate'
   | 'event_passed'
   | 'other';
-export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected';
+export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected' | 'amendment_approved' | 'amendment_rejected' | 'withdrawn';
+export type EventSubmissionAmendmentStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 export type EventSubmissionEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
@@ -110,8 +111,28 @@ export interface EventSubmission {
   organizer_message: string | null;
   internal_note: string | null;
   email_deliveries: EventSubmissionEmailDelivery[];
+  amendments?: EventSubmissionAmendment[];
   replies: EventSubmissionReply[];
   approved_event_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventSubmissionAmendment {
+  id: string;
+  submission_id: string;
+  status: EventSubmissionAmendmentStatus;
+  starts_at: string;
+  ends_at: string;
+  location_type: EventLocationType;
+  venue_name: string | null;
+  venue_address: string | null;
+  online_url: string | null;
+  registration_url: string | null;
+  organizer_note: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision_message: string | null;
   created_at: string;
   updated_at: string;
 }

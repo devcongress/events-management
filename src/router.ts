@@ -33,7 +33,9 @@ import {
   organizerViewportRedirect,
 } from './organizer-viewport';
 import {
+  CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME,
   SPEAKER_TALK_INTAKE_ROUTE_NAME,
+  conferenceSpeakerIntakeRoute,
   speakerTalkIntakeRoute,
 } from './speaker-intake-route';
 
@@ -54,6 +56,7 @@ const FeedbackView = () => import('./views/FeedbackView.vue');
 const CfpView = () => import('./views/CfpView.vue');
 const VolunteerIntakeView = () => import('./views/VolunteerIntakeView.vue');
 const EventRegistrationView = () => import('./views/EventRegistrationView.vue');
+const EventAmendmentView = () => import('./views/EventAmendmentView.vue');
 const EventsView = () => import('./views/EventsView.vue');
 const EventView = () => import('./views/EventView.vue');
 const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
@@ -105,6 +108,7 @@ export const router = createRouter({
     { path: '/speak/c/:year(\\d{4})', name: 'conference-cfp', component: CfpView },
     { path: '/r/:eventKey', name: 'event-registration-short', component: EventRegistrationView },
     { path: '/register/:eventId', name: 'event-registration', component: EventRegistrationView },
+    { path: '/event-amendments/:capability', name: 'event-amendment', component: EventAmendmentView },
     systemDesignParticipantRoute,
     {
       path: '/present/system-design/:sessionId',
@@ -113,6 +117,7 @@ export const router = createRouter({
       meta: { requiresOrganizer: true },
     },
     speakerTalkIntakeRoute,
+    conferenceSpeakerIntakeRoute,
     { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
@@ -313,7 +318,7 @@ router.afterEach((to) => {
     document.title = FEEDBACK_DISPLAY_TITLE;
   } else if (to.name === 'admin-registration-display') {
     document.title = REGISTRATION_DISPLAY_TITLE;
-  } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME) {
+  } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME || to.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME) {
     document.title = SPEAKER_TALK_INTAKE_TITLE;
   } else if (to.name === 'volunteer-intake') {
     document.title = VOLUNTEER_TITLE;

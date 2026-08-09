@@ -10,7 +10,7 @@ export type CommunityEventSubmissionSource = 'internal' | 'public_submission';
 export type CommunityEventModerationStatus = 'pending' | 'approved' | 'rejected';
 export type CommunityEventPublicationStatus = 'draft' | 'published' | 'archived';
 export type CommunityEventLocationType = 'in_person' | 'online' | 'hybrid';
-export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected';
+export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected' | 'amendment_approved' | 'amendment_rejected' | 'withdrawn';
 export type EventSubmissionEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventSubmissionReplySlackStatus = 'pending' | 'sent' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
@@ -252,10 +252,10 @@ export interface Database {
       annual_conference_editions: {
         Row: {
           id: string;
-          conference_event_id: string;
           year: number;
           name: string;
           label: string;
+          speaker_call_status: 'open' | 'closed';
           provisional_date: string | null;
           date_status: 'provisional' | 'confirmed';
           venue_note: string | null;
@@ -266,10 +266,10 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          conference_event_id?: string;
           year: number;
           name: string;
           label: string;
+          speaker_call_status?: 'open' | 'closed';
           provisional_date?: string | null;
           date_status?: 'provisional' | 'confirmed';
           venue_note?: string | null;
@@ -280,10 +280,10 @@ export interface Database {
         };
         Update: {
           id?: string;
-          conference_event_id?: string;
           year?: number;
           name?: string;
           label?: string;
+          speaker_call_status?: 'open' | 'closed';
           provisional_date?: string | null;
           date_status?: 'provisional' | 'confirmed';
           venue_note?: string | null;
@@ -292,6 +292,80 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      annual_conference_speaker_submissions: {
+        Row: {
+          id: string;
+          edition_id: string;
+          kind: 'talk' | 'product_demo';
+          speaker_name: string;
+          speaker_email: string;
+          github_username: string | null;
+          title: string;
+          topic: string;
+          abstract: string | null;
+          bio: string | null;
+          status: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
+          internal_note: string | null;
+          selected_intake_link_id: string | null;
+          selected_session_id: string | null;
+          decided_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['annual_conference_speaker_submissions']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_speaker_submissions']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_sessions: {
+        Row: {
+          id: string;
+          edition_id: string;
+          speaker_submission_id: string | null;
+          kind: 'talk' | 'product_demo';
+          speaker_name: string;
+          speaker_email: string;
+          github_username: string | null;
+          title: string;
+          topic: string;
+          abstract: string | null;
+          bio: string | null;
+          slides_url: string | null;
+          status: 'confirmed' | 'archived';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['annual_conference_sessions']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_sessions']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_speaker_intake_links: {
+        Row: {
+          id: string;
+          edition_id: string;
+          speaker_submission_id: string | null;
+          kind: 'talk' | 'product_demo';
+          speaker_name: string | null;
+          speaker_email: string | null;
+          talk_title: string | null;
+          token_hash: string;
+          email_status: 'pending' | 'accepted' | 'failed' | null;
+          email_provider_id: string | null;
+          email_idempotency_key: string | null;
+          email_sent_at: string | null;
+          email_last_attempt_at: string | null;
+          email_last_error: string | null;
+          expires_at: string;
+          claim_id: string | null;
+          claimed_at: string | null;
+          used_at: string | null;
+          used_session_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['annual_conference_speaker_intake_links']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_speaker_intake_links']['Insert']>;
         Relationships: [];
       };
       annual_conference_access_grants: {
@@ -954,6 +1028,7 @@ export interface Database {
         Row: {
           id: string;
           submission_id: string;
+          amendment_id: string | null;
           kind: EventSubmissionEmailKind;
           status: EventSubmissionEmailDeliveryStatus;
           attempts: number;
@@ -968,6 +1043,7 @@ export interface Database {
         Insert: {
           id?: string;
           submission_id: string;
+          amendment_id?: string | null;
           kind: EventSubmissionEmailKind;
           status?: EventSubmissionEmailDeliveryStatus;
           attempts?: number;
@@ -989,6 +1065,18 @@ export interface Database {
             referencedColumns: ['id'];
           },
         ];
+      };
+      event_submission_management_links: {
+        Row: { id: string; submission_id: string; expires_at: string; revoked_at: string | null; created_at: string; updated_at: string; };
+        Insert: { id?: string; submission_id: string; expires_at: string; revoked_at?: string | null; created_at?: string; updated_at?: string; };
+        Update: Partial<Database['public']['Tables']['event_submission_management_links']['Insert']>;
+        Relationships: [];
+      };
+      event_submission_amendments: {
+        Row: { id: string; submission_id: string; status: string; starts_at: string; ends_at: string; location_type: CommunityEventLocationType; venue_name: string | null; venue_address: string | null; online_url: string | null; registration_url: string | null; organizer_note: string | null; reviewed_by: string | null; reviewed_at: string | null; decision_message: string | null; created_at: string; updated_at: string; };
+        Insert: { id?: string; submission_id: string; status?: string; starts_at: string; ends_at: string; location_type: CommunityEventLocationType; venue_name?: string | null; venue_address?: string | null; online_url?: string | null; registration_url?: string | null; organizer_note?: string | null; reviewed_by?: string | null; reviewed_at?: string | null; decision_message?: string | null; created_at?: string; updated_at?: string; };
+        Update: Partial<Database['public']['Tables']['event_submission_amendments']['Insert']>;
+        Relationships: [];
       };
       event_submission_replies: {
         Row: {
@@ -1892,6 +1980,14 @@ export interface Database {
           p_claim_id: string;
         };
         Returns: boolean;
+      };
+      review_event_submission_amendment: {
+        Args: { p_amendment_id: string; p_reviewed_by: string; p_approve: boolean; p_message: string };
+        Returns: Database['public']['Tables']['event_submission_amendments']['Row'];
+      };
+      withdraw_event_submission: {
+        Args: { p_submission_id: string; p_reviewed_by: string; p_message: string };
+        Returns: Database['public']['Tables']['event_submissions']['Row'];
       };
       amend_annual_conference_income_expectation: {
         Args: {

@@ -12,6 +12,10 @@ const mocks = vi.hoisted(() => ({
   insertReply: vi.fn(),
   getReply: vi.fn(),
   updateReplySlack: vi.fn(),
+  getManagement: vi.fn(),
+  getActiveManagementLink: vi.fn(),
+  saveAmendment: vi.fn(),
+  submitAmendment: vi.fn(),
   rateLimit: vi.fn(),
   audit: vi.fn(),
 }));
@@ -27,6 +31,10 @@ vi.mock('@/lib/supabase/event-submissions', async () => {
     getPendingEventSubmissionEmails: mocks.pendingEmails,
     insertEventSubmissionReply: mocks.insertReply,
     getEventSubmissionReply: mocks.getReply,
+    getEventSubmissionManagement: mocks.getManagement,
+    getActiveEventSubmissionManagementLink: mocks.getActiveManagementLink,
+    saveEventSubmissionAmendment: mocks.saveAmendment,
+    submitEventSubmissionAmendment: mocks.submitAmendment,
     updateEventSubmissionReplySlackStatus: mocks.updateReplySlack,
     updateEventSubmissionEmailDelivery: mocks.updateEmail,
   };
@@ -145,6 +153,13 @@ beforeEach(() => {
     slack_error: 'Slack rejected the notification (HTTP 403): invalid_token.',
   });
   mocks.updateReplySlack.mockResolvedValue(undefined);
+  mocks.getManagement.mockResolvedValue(undefined);
+  mocks.getActiveManagementLink.mockResolvedValue({
+    id: '30000000-0000-4000-8000-000000000001',
+    expires_at: '2099-09-20T13:00:00.000Z',
+  });
+  mocks.saveAmendment.mockResolvedValue(undefined);
+  mocks.submitAmendment.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -251,27 +266,7 @@ describe('community event submissions', () => {
     }), expect.anything());
   });
 
-  it('attempts the durable receipt after accepting the public submission', async () => {
-    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
-    vi.stubEnv('EVENT_EMAIL_REPLY_TO', 'hello@devcongress.org');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      data: [{ id: 'email-receipt-1' }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
-    mocks.pendingEmails.mockResolvedValue([{
-      delivery_id: 'delivery-receipt-1',
-      submission_id: submission.id,
-      idempotency_key: `event-submission-${submission.id}-receipt`,
-      attempts: 0,
-      kind: 'receipt',
-      organizer_name: submission.organizer_name,
-      organizer_email: submission.organizer_email,
-      event_title: submission.title,
-      starts_at: submission.starts_at,
-      timezone: submission.timezone,
-      registration_url: submission.registration_url,
-      rejection_category: null,
-      organizer_message: null,
-    }]);
+  it('does not send an intake receipt after accepting the public submission', async () => {
 
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/event-submissions', {
@@ -281,53 +276,43 @@ describe('community event submissions', () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mocks.pendingEmails).toHaveBeenCalledWith(expect.objectContaining({
-      submissionId: submission.id,
-      kinds: ['receipt'],
-    }), expect.anything());
-    expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-receipt-1', {
-      status: 'accepted',
-      provider_id: 'email-receipt-1',
-    }, expect.anything());
+    expect(mocks.pendingEmails).not.toHaveBeenCalled();
   });
 
-  it('uses a signed submission-specific Reply-To when inbound routing is configured', async () => {
-    vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
-    vi.stubEnv('EVENT_SUBMISSION_REPLY_DOMAIN', 'inbox.devcongress.org');
-    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret');
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      data: [{ id: 'email-receipt-signed-1' }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
-    mocks.pendingEmails.mockResolvedValue([{
-      delivery_id: 'delivery-receipt-signed-1',
-      submission_id: submission.id,
-      idempotency_key: `event-submission-${submission.id}-receipt`,
-      attempts: 0,
-      kind: 'receipt',
-      organizer_name: submission.organizer_name,
-      organizer_email: submission.organizer_email,
-      event_title: submission.title,
-      starts_at: submission.starts_at,
-      timezone: submission.timezone,
-      registration_url: submission.registration_url,
-      rejection_category: null,
-      organizer_message: null,
-    }]);
-
+  it('does not expose or mutate an event after its management window closes', async () => {
+    const linkId = '30000000-0000-4000-8000-000000000001';
+    const secret = 'management-link-secret';
+    const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+    const capability = `${linkId}.${signature}`;
+    vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
+    const { EventSubmissionStorageError } = await import('@/lib/supabase/event-submissions');
+    mocks.getManagement.mockRejectedValue(new EventSubmissionStorageError(
+      'This event has ended and can no longer be updated.',
+      'not_found',
+    ));
     const { default: app } = await import('./app');
-    await app.request('http://localhost/api/public/event-submissions', {
-      method: 'POST',
+
+    const read = await app.request(`http://localhost/api/public/event-submissions/manage/${capability}`);
+    const save = await app.request(`http://localhost/api/public/event-submissions/manage/${capability}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(validPayload()),
+      body: JSON.stringify({
+        starts_at: '2099-09-20T10:00:00.000Z',
+        ends_at: '2099-09-20T14:00:00.000Z',
+        location_type: 'in_person',
+        venue_name: 'Impact Hub Accra',
+        registration_url: 'https://example.com/register',
+      }),
+    });
+    const submit = await app.request(`http://localhost/api/public/event-submissions/manage/${capability}/submit`, {
+      method: 'POST',
     });
 
-    const fetchMock = vi.mocked(fetch);
-    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
-    expect(requestBody[0].reply_to).toBe(eventSubmissionReplyAddress({
-      submissionId: submission.id,
-      domain: 'inbox.devcongress.org',
-      secret: 'reply-token-secret',
-    }));
+    expect(read.status).toBe(404);
+    expect(save.status).toBe(404);
+    expect(submit.status).toBe(404);
+    expect(mocks.saveAmendment).not.toHaveBeenCalled();
+    expect(mocks.submitAmendment).not.toHaveBeenCalled();
   });
 
   it('returns field-level errors before security providers or persistence are called', async () => {
@@ -390,6 +375,55 @@ describe('community event submissions', () => {
       action: 'event_submission.approve_and_publish',
       target_id: submission.id,
     }));
+  });
+
+  it('lets organizers copy an active management link without sending email', async () => {
+    const secret = 'management-link-secret';
+    const linkId = '30000000-0000-4000-8000-000000000001';
+    vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
+    mocks.getActiveManagementLink.mockResolvedValue({
+      id: linkId,
+      expires_at: '2099-09-20T13:00:00.000Z',
+    });
+    const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+    const { default: app } = await import('./app');
+
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/management-link`,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      management_url: `http://localhost/event-amendments/${linkId}.${signature}`,
+      expires_at: '2099-09-20T13:00:00.000Z',
+    });
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(mocks.getActiveManagementLink).toHaveBeenCalledWith(submission.id, expect.anything());
+    expect(mocks.pendingEmails).not.toHaveBeenCalled();
+    expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      action: 'event_submission.management_link_copied',
+      target_id: submission.id,
+      metadata: { expires_at: '2099-09-20T13:00:00.000Z' },
+    }));
+  });
+
+  it('does not disclose an expired or revoked management link to organizers', async () => {
+    const { EventSubmissionStorageError } = await import('@/lib/supabase/event-submissions');
+    mocks.getActiveManagementLink.mockRejectedValue(new EventSubmissionStorageError(
+      'This event link is no longer available.',
+      'not_found',
+    ));
+    const { default: app } = await import('./app');
+
+    const response = await app.request(
+      `http://localhost/api/admin/event-submissions/${submission.id}/management-link`,
+      { method: 'POST' },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'This event link is no longer available.' });
+    expect(mocks.audit).not.toHaveBeenCalled();
   });
 
   it('queues an approval notice and records provider acceptance without repeating approval', async () => {
