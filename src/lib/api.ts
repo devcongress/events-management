@@ -252,6 +252,27 @@ export interface AdminAuditLogResponse {
   auth_mode: 'supabase';
 }
 
+export interface AdminShortLink {
+  id: string;
+  code: string;
+  destination: 'monthly_cfp' | 'event_registration' | 'conference_cfp';
+  status: 'active' | 'revoked';
+  redirect_count: number;
+  last_redirected_at: string | null;
+  created_at: string;
+  url: string;
+  label: string;
+}
+
+export interface AdminShortLinksResponse {
+  links: AdminShortLink[];
+  destinations: {
+    monthly_cfp: Array<{ id: string; label: string }>;
+    event_registration: Array<{ id: string; label: string }>;
+    conference_cfp: Array<{ year: number; label: string }>;
+  };
+}
+
 export interface PublicMeetupsResponse {
   data: PublicMeetup[];
   meta: {
@@ -437,6 +458,7 @@ export const queryKeys = {
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
+  adminShortLinks: ['admin-short-links'] as const,
   event: (eventId: string) => ['events', eventId] as const,
   eventChecklist: (eventId: string) => ['event-checklist', eventId] as const,
   eventRegistrations: (eventId: string) => ['event-registrations', eventId] as const,
@@ -1001,4 +1023,18 @@ export function fetchAdminAuditLog(filters: { actor?: string; action?: string; t
   }
   const query = params.toString();
   return fetchJson<AdminAuditLogResponse>(`/api/admin/audit-log${query ? `?${query}` : ''}`, { credentials: 'include' });
+}
+
+export function fetchAdminShortLinks() {
+  return fetchJson<AdminShortLinksResponse>('/api/admin/short-links', { credentials: 'include' });
+}
+
+export function createAdminShortLink(input: { destination: AdminShortLink['destination']; event_id?: string; conference_year?: number }) {
+  return fetchJson<AdminShortLink>('/api/admin/short-links', {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+}
+
+export function revokeAdminShortLink(id: string) {
+  return fetchJson<AdminShortLink>(`/api/admin/short-links/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
 }

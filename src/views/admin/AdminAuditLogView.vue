@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { useQuery } from '@tanstack/vue-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
-import { fetchAdminAuditLog, queryKeys, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
+import { createAdminShortLink, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, revokeAdminShortLink, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
 
 const AUDIT_LOG_LIMIT = 80;
 const AUDIT_LOG_PAGE_SIZE = 4;
@@ -17,7 +17,7 @@ interface AuditLogGroup {
   logs: AdminAuditLogEntry[];
 }
 
-type AuditLogSection = 'activity' | 'email-delivery';
+type AuditLogSection = 'activity' | 'email-delivery' | 'short-links';
 
 const filters = reactive({
   action: '',
@@ -27,6 +27,9 @@ const groupByActorEmail = ref(false);
 const page = ref(1);
 const deliveryPage = ref(1);
 const activeSection = ref<AuditLogSection>('activity');
+const selectedShortLinkDestination = ref('');
+const shortLinkMessage = ref('');
+const queryClient = useQueryClient();
 const selectedAuditLogId = ref<string | null>(null);
 const auditFiltersShell = ref<HTMLElement | null>(null);
 const auditActivitySummary = ref<HTMLElement | null>(null);
@@ -46,6 +49,26 @@ const auditFilters = computed(() => ({
 const auditQuery = useQuery({
   queryKey: computed(() => queryKeys.adminAuditLog(auditFilters.value)),
   queryFn: () => fetchAdminAuditLog(auditFilters.value),
+});
+const shortLinksQuery = useQuery({ queryKey: queryKeys.adminShortLinks, queryFn: fetchAdminShortLinks });
+const shortLinkMutation = useMutation({
+  mutationFn: createAdminShortLink,
+  onSuccess: async (link) => {
+    shortLinkMessage.value = `${link.url} is ready to copy.`;
+    selectedShortLinkDestination.value = '';
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminAuditLog() });
+  },
+  onError: (error) => { shortLinkMessage.value = error instanceof Error ? error.message : 'Unable to create the short link.'; },
+});
+const revokeShortLinkMutation = useMutation({
+  mutationFn: revokeAdminShortLink,
+  onSuccess: async () => {
+    shortLinkMessage.value = 'Short link revoked.';
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminAuditLog() });
+  },
+  onError: (error) => { shortLinkMessage.value = error instanceof Error ? error.message : 'Unable to revoke the short link.'; },
 });
 
 const logs = computed(() => auditQuery.data.value?.logs ?? []);
@@ -316,8 +339,35 @@ function clearFilters() {
 
 function selectSection(section: AuditLogSection) {
   if (activeSection.value === section) return;
-  activeSectionTransition.value = section === 'email-delivery' ? 'forward' : 'backward';
+  activeSectionTransition.value = section === 'activity' ? 'backward' : 'forward';
   activeSection.value = section;
+}
+
+const shortLinkDestinationOptions = computed(() => {
+  const destinations = shortLinksQuery.data.value?.destinations;
+  if (!destinations) return [] as Array<{ value: string; label: string }>;
+  return [
+    ...destinations.monthly_cfp.map((item) => ({ value: `monthly_cfp:${item.id}`, label: `Monthly CFP — ${item.label}` })),
+    ...destinations.event_registration.map((item) => ({ value: `event_registration:${item.id}`, label: `Registration — ${item.label}` })),
+    ...destinations.conference_cfp.map((item) => ({ value: `conference_cfp:${item.year}`, label: `Conference CFP — ${item.label}` })),
+  ];
+});
+
+async function copyShortLink(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    shortLinkMessage.value = 'Short link copied.';
+  } catch {
+    shortLinkMessage.value = 'Copy failed. Select the link and copy it manually.';
+  }
+}
+
+function createShortLinkFromSelection() {
+  const [destination, target] = selectedShortLinkDestination.value.split(':');
+  if (!target || (destination !== 'monthly_cfp' && destination !== 'event_registration' && destination !== 'conference_cfp')) return;
+  shortLinkMutation.mutate(destination === 'conference_cfp'
+    ? { destination, conference_year: Number(target) }
+    : { destination, event_id: target });
 }
 
 function openAuditDrawer(log: AdminAuditLogEntry, event?: Event) {
@@ -424,6 +474,22 @@ onUnmounted(() => {
               <path d="m3.75 5.5 6.25 5 6.25-5" />
             </svg>
             <span>Email delivery</span>
+          </button>
+          <button
+            id="audit-log-tab-short-links"
+            type="button"
+            role="tab"
+            class="audit-log-tab motion-press"
+            :aria-selected="activeSection === 'short-links'"
+            aria-controls="audit-log-panel-short-links"
+            @click="selectSection('short-links')"
+          >
+            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M7.25 12.75 5.5 14.5a3 3 0 0 1-4.25-4.25L4 7.5" />
+              <path d="m12.75 7.25 1.75-1.75a3 3 0 0 1 4.25 4.25L16 12.5" />
+              <path d="m6.75 13.25 6.5-6.5" />
+            </svg>
+            <span>Short links</span>
           </button>
         </nav>
 
@@ -566,7 +632,7 @@ onUnmounted(() => {
             </section>
           </div>
 
-          <section v-else id="audit-log-panel-email-delivery" key="email-delivery" role="tabpanel" aria-labelledby="audit-log-tab-email-delivery" class="audit-log-email-delivery w-full">
+          <section v-else-if="activeSection === 'email-delivery'" id="audit-log-panel-email-delivery" key="email-delivery" role="tabpanel" aria-labelledby="audit-log-tab-email-delivery" class="audit-log-email-delivery w-full">
             <div class="audit-log-email-delivery__heading">
               <div>
                 <p class="editorial-eyebrow mb-1">provider observation</p>
@@ -738,6 +804,47 @@ onUnmounted(() => {
                       <td><strong>{{ blast.subject }}</strong></td>
                       <td>{{ blast.recipient_count }} recipients</td>
                       <td><span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+          <section v-else id="audit-log-panel-short-links" key="short-links" role="tabpanel" aria-labelledby="audit-log-tab-short-links" class="audit-log-email-delivery w-full">
+            <div class="audit-log-email-delivery__heading">
+              <div>
+                <p class="editorial-eyebrow mb-1">marketing links</p>
+                <h2 class="text-xl font-bold tracking-tight text-dc-ink">Short links</h2>
+                <p class="mt-1 text-sm text-dc-muted">Create opaque flyer links for open CFPs and registration forms. Visits are counted here; organizer changes remain in Activity.</p>
+              </div>
+            </div>
+            <div class="rounded-md border border-dc-border bg-dc-paper p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <label class="flex min-w-0 flex-1 flex-col gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-muted">
+                  Destination
+                  <select v-model="selectedShortLinkDestination" class="min-h-11 rounded-md border border-dc-border bg-white px-3 font-sans text-sm font-medium normal-case tracking-normal text-dc-ink">
+                    <option value="">Choose an open public destination</option>
+                    <option v-for="option in shortLinkDestinationOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                  </select>
+                </label>
+                <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="!selectedShortLinkDestination || shortLinkMutation.isPending.value" @click="createShortLinkFromSelection">
+                  {{ shortLinkMutation.isPending.value ? 'Creating…' : 'Create short link' }}
+                </button>
+              </div>
+              <p v-if="shortLinkMessage" class="mt-3 text-sm font-medium text-dc-muted">{{ shortLinkMessage }}</p>
+            </div>
+            <div class="audit-log-delivery-history mt-5">
+              <div v-if="shortLinksQuery.isPending.value" class="audit-log-delivery-history__empty">Loading short links…</div>
+              <div v-else-if="shortLinksQuery.data.value?.links.length === 0" class="audit-log-delivery-history__empty">No short links yet. Create one for an open CFP or registration form.</div>
+              <div v-else class="overflow-x-auto">
+                <table class="audit-log-delivery-history__table">
+                  <thead><tr><th>Link</th><th>Destination</th><th>Visits</th><th>Last visited</th><th>Status</th><th></th></tr></thead>
+                  <tbody>
+                    <tr v-for="link in shortLinksQuery.data.value?.links" :key="link.id">
+                      <td><button type="button" class="font-mono font-semibold text-dc-ink underline decoration-dc-yellow decoration-2 underline-offset-4" @click="copyShortLink(link.url)">{{ link.url.replace('https://', '') }}</button></td>
+                      <td>{{ link.label }}</td><td>{{ link.redirect_count.toLocaleString() }}</td><td>{{ link.last_redirected_at ? formatDateTime(link.last_redirected_at) : 'Not used yet' }}</td>
+                      <td><span class="audit-log-delivery-history__status" :class="link.status === 'active' ? 'audit-log-delivery-history__status--accepted' : 'audit-log-delivery-history__status--failed'">{{ link.status }}</span></td>
+                      <td><button v-if="link.status === 'active'" type="button" class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-muted underline" :disabled="revokeShortLinkMutation.isPending.value" @click="revokeShortLinkMutation.mutate(link.id)">Revoke</button></td>
                     </tr>
                   </tbody>
                 </table>

@@ -17,6 +17,8 @@ export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventBlastStatus = 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
+export type ShortLinkDestination = 'monthly_cfp' | 'event_registration' | 'conference_cfp';
+export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 export type AdminMembershipStatus = 'active' | 'disabled';
 export type AnnualConferenceCapability =
@@ -185,6 +187,36 @@ export interface Database {
           request_path?: string | null;
           created_at?: string;
         };
+        Relationships: [];
+      };
+      short_links: {
+        Row: {
+          id: string;
+          code: string;
+          destination: ShortLinkDestination;
+          event_id: string | null;
+          conference_edition_id: string | null;
+          status: ShortLinkStatus;
+          created_by_membership_id: string | null;
+          redirect_count: number;
+          last_redirected_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          destination: ShortLinkDestination;
+          event_id?: string | null;
+          conference_edition_id?: string | null;
+          status?: ShortLinkStatus;
+          created_by_membership_id?: string | null;
+          redirect_count?: number;
+          last_redirected_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['short_links']['Insert']>;
         Relationships: [];
       };
       email_delivery_health: {
@@ -2026,6 +2058,15 @@ export interface Database {
         };
         Returns: Database['public']['Tables']['annual_conference_finance_entries']['Row'];
       };
+      resolve_active_short_link: {
+        Args: { input_code: string };
+        Returns: {
+          id: string;
+          destination: ShortLinkDestination;
+          event_id: string | null;
+          conference_edition_id: string | null;
+        }[];
+      };
     };
     Enums: {
       feedback_kind: FeedbackKind;
@@ -2040,6 +2081,8 @@ export interface Database {
       registration_email_delivery_status: RegistrationEmailDeliveryStatus;
       admin_role: AdminRole;
       admin_membership_status: AdminMembershipStatus;
+      short_link_destination: ShortLinkDestination;
+      short_link_status: ShortLinkStatus;
       annual_conference_task_status: AnnualConferenceTaskStatus;
       annual_conference_workstream: AnnualConferenceWorkstream;
       annual_conference_task_priority: AnnualConferenceTaskPriority;
