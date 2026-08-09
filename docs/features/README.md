@@ -15,6 +15,7 @@ Feature docs explain user-facing behavior, key files, and follow-up work. Add a 
 | Quiz | Preview | [quiz.md](quiz.md) |
 | Speaker Email Delivery with Resend | Active — program multi-send pilot | [speaker-link-email.md](speaker-link-email.md) |
 | Annual Conference Finance | Active — private GHS budget and income lifecycle | [annual-conference-finance.md](annual-conference-finance.md) |
+| Short Links | Active — owned opaque marketing redirects | [short-links.md](short-links.md) |
 
 ## Adding a Feature Doc
 

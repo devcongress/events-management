@@ -21,6 +21,8 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `VITE_SHOW_ORGANIZER_LINK` | No | Yes | Public header visibility for the Organizer entry point; set to `false` to hide the button in production |
 | `VITE_TURNSTILE_SITE_KEY` | Required for production public writes | Yes | Browser-safe Cloudflare Turnstile sitekey used by route feedback, event feedback, volunteer, registration, and CFP forms |
 | `PUBLIC_APP_URL` | No | Yes | Absolute browser-facing app origin used for server-generated auth and public integration links; production is `https://em.devcongress.org` |
+| `SHORT_LINK_PUBLIC_ORIGIN` | Required when short links are enabled | Yes | Public short-link origin shown to organizers; production is `https://go.devcongress.org`. |
+| `SHORT_LINK_RESOLVER_TOKEN` | Required when short links are enabled | No | Shared high-entropy secret used only between the isolated `go.devcongress.org` Worker and the EMS internal short-link resolver. Store it as a secret in both Workers. |
 | `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS and state-changing request checks; production is `https://em.devcongress.org` |
 | `PUBLIC_WEBSITE_ORIGIN` | Required for community submission email links | Yes | Public DevCongress website origin. Production uses `https://devcongress.org`; isolated preview deployments can point emails at the preview website. |
 | `TURNSTILE_SECRET_KEY` | Required for production public writes | No | Server-only Cloudflare Turnstile secret used to validate every protected public submission |
@@ -57,6 +59,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 - Organizer auth requires `APP_DATA_SOURCE=supabase`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` on every organizer-capable runtime. Missing configuration fails closed; no shared-password fallback exists.
 - Google OAuth client credentials live in the Supabase dashboard provider settings, not in this app repo.
 - Keep stable runtime configuration such as `APP_DATA_SOURCE=supabase`, `PUBLIC_APP_URL`, and `PUBLIC_FRONTEND_ORIGIN` in `wrangler.toml`. Launch gates may remain dashboard-managed because this project sets `keep_vars = true`, which preserves dashboard variables across subsequent Wrangler deploys.
+- Keep `SHORT_LINK_RESOLVER_TOKEN` out of browser code and out of `wrangler.toml`; it is a Worker secret in both runtimes. `SHORT_LINK_PUBLIC_ORIGIN` is safe to keep as a normal EMS Worker variable.
 - Native creation is the only active event-creation path. Historical Luma metadata and attendance CSVs remain readable, but the app no longer fetches public Luma event pages.
 - `EVENT_TEST_MODE` is retired for new event creation. Keep legacy `[TEST]` rows available to the cleanup workflow; use the independent public-submission intake and discovery gates to control dummy/public-beta records.
 - Keep `PUBLIC_EVENT_SUBMISSIONS_ENABLED=false` or unset outside an approved beta or launch window. The website build gate controls discovery; this separate Worker runtime gate prevents direct API submissions when intake is closed.

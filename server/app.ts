@@ -114,6 +114,7 @@ import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmission
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
+import { createShortLink, listShortLinks, resolveShortLink, revokeShortLink, ShortLinkStorageError } from '@/lib/supabase/short-links';
 import {
   clearAnnualConferenceAccessGrantsForMembership,
   getAnnualConferenceAccessGrants,
@@ -189,7 +190,7 @@ import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-s
 import type { Context } from 'hono';
 import crypto from 'crypto';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
-import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
+import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 
 type AppBindings = {
   Variables: {
@@ -623,6 +624,11 @@ const adminCreateTalkSchema = z.object({
   bio: z.string().trim().max(2000).optional().default(''),
   slides_url: z.string().trim().max(2048).optional().default(''),
   publish: z.boolean().optional().default(false),
+}).strict();
+const shortLinkCreateSchema = z.object({
+  destination: z.enum(['monthly_cfp', 'event_registration', 'conference_cfp']),
+  event_id: z.string().uuid().optional(),
+  conference_year: z.number().int().min(2020).max(3000).optional(),
 }).strict();
 const CFP_ABSTRACT_WORD_LIMIT = 120;
 const CFP_BIO_WORD_LIMIT = 80;
@@ -1096,9 +1102,50 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
+    || (method === 'GET' && /^\/api\/internal\/short-links\/[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/.test(path))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
     || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
     || (method === 'PATCH' && /^\/api\/quiz\/participants\/[^/]+\/name$/.test(path));
+}
+
+function shortLinkResolverAuthorized(c: Context): boolean {
+  const expected = envValue('SHORT_LINK_RESOLVER_TOKEN', c)?.trim();
+  const received = c.req.header('x-short-link-resolver-token')?.trim();
+  if (!expected || !received) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(received);
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function shortLinkPublicUrl(code: string, c: Context): string {
+  const origin = (envValue('SHORT_LINK_PUBLIC_ORIGIN', c) ?? 'https://go.devcongress.org').replace(/\/+$/, '');
+  return `${origin}/${code}`;
+}
+
+async function shortLinkDestinationPath(link: {
+  destination: ShortLinkDestination;
+  event_id: string | null;
+  conference_edition_id: string | null;
+}, c: Context): Promise<string | null> {
+  if (link.destination === 'conference_cfp') {
+    if (!link.conference_edition_id) return null;
+    const repository = createAnnualConferenceRepository(c);
+    const editions = await repository.listEditions();
+    const edition = editions.find((candidate) => candidate.id === link.conference_edition_id);
+    return edition?.speaker_call_status === 'open' ? `/speak/c/${edition.year}` : null;
+  }
+
+  if (!link.event_id) return null;
+  const event = await getEventById(link.event_id, c);
+  if (!event?.slug) return null;
+  if (link.destination === 'monthly_cfp') {
+    return event.series_type === 'monthly' && event.status === 'cfp_open' ? `/cfp/${event.slug}` : null;
+  }
+  if (link.destination === 'event_registration') {
+    const campaign = await getRegistrationCampaign(event.id, c);
+    return campaign?.status === 'open' ? `/r/${event.slug}` : null;
+  }
+  return null;
 }
 
 function isLogoutPath(path: string): boolean {
@@ -4975,6 +5022,117 @@ app.get('/api/admin/audit-log', async (c) => {
     recent_event_blasts: recentEventBlasts,
     auth_mode: 'supabase',
   });
+});
+
+app.get('/api/admin/short-links', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  try {
+    const [links, events, editions] = await Promise.all([
+      listShortLinks(c),
+      getAllEvents(c),
+      createAnnualConferenceRepository(c).listEditions(),
+    ]);
+    const eventById = new Map(events.map((event) => [event.id, event]));
+    const editionById = new Map(editions.map((edition) => [edition.id, edition]));
+    const registrationOptions = (await Promise.all(events.map(async (event) => ({
+      event,
+      campaign: await getRegistrationCampaign(event.id, c),
+    })))).filter(({ event, campaign }) => Boolean(event.slug) && campaign?.status === 'open');
+    return c.json({
+      links: links.map((link) => ({
+        ...link,
+        url: shortLinkPublicUrl(link.code, c),
+        label: link.destination === 'conference_cfp'
+          ? (editionById.get(link.conference_edition_id ?? '')?.name ?? 'Conference Call for Speakers')
+          : (eventById.get(link.event_id ?? '')?.name ?? 'Event'),
+      })),
+      destinations: {
+        monthly_cfp: events.filter((event) => event.series_type === 'monthly' && event.status === 'cfp_open' && event.slug)
+          .map((event) => ({ id: event.id, label: event.name })),
+        event_registration: registrationOptions.map(({ event }) => ({ id: event.id, label: event.name })),
+        conference_cfp: editions.filter((edition) => edition.speaker_call_status === 'open')
+          .map((edition) => ({ year: edition.year, label: edition.name })),
+      },
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'short_links_read_failed', error, 'Unable to load short links.');
+  }
+});
+
+app.post('/api/admin/short-links', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const parsed = shortLinkCreateSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'Choose a valid public destination.' }, 400);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || !session.membership_id) return c.json({ error: 'Owner access required.' }, 401);
+
+  try {
+    let eventId: string | null = null;
+    let conferenceEditionId: string | null = null;
+    if (parsed.data.destination === 'conference_cfp') {
+      if (!parsed.data.conference_year) return c.json({ error: 'Choose an open conference Call for Speakers.' }, 400);
+      const edition = await getAnnualConferenceEditionByYear(parsed.data.conference_year, c);
+      if (!edition || edition.speaker_call_status !== 'open') return c.json({ error: 'That conference Call for Speakers is not open.' }, 409);
+      conferenceEditionId = edition.id;
+    } else {
+      if (!parsed.data.event_id) return c.json({ error: 'Choose a public event.' }, 400);
+      eventId = parsed.data.event_id;
+    }
+    const destinationPath = await shortLinkDestinationPath({
+      destination: parsed.data.destination,
+      event_id: eventId,
+      conference_edition_id: conferenceEditionId,
+    }, c);
+    if (!destinationPath) return c.json({ error: 'That public destination is not currently open.' }, 409);
+    const link = await createShortLink({
+      destination: parsed.data.destination,
+      eventId,
+      conferenceEditionId,
+      createdByMembershipId: session.membership_id,
+    }, c);
+    await auditAdminAction(c, {
+      action: 'short_link.created', targetType: 'short_link', targetId: link.id,
+      metadata: { code: link.code, destination: link.destination, destination_path: destinationPath },
+    });
+    return c.json({ ...link, url: shortLinkPublicUrl(link.code, c), destination_path: destinationPath }, 201);
+  } catch (error) {
+    return internalErrorResponse(c, 'short_link_create_failed', error, 'Unable to create the short link.');
+  }
+});
+
+app.delete('/api/admin/short-links/:linkId', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+  const linkId = z.string().uuid().safeParse(c.req.param('linkId'));
+  if (!linkId.success) return c.json({ error: 'Invalid short link.' }, 400);
+  try {
+    const link = await revokeShortLink(linkId.data, c);
+    await auditAdminAction(c, {
+      action: 'short_link.revoked', targetType: 'short_link', targetId: link.id,
+      metadata: { code: link.code, destination: link.destination },
+    });
+    return c.json(link);
+  } catch (error) {
+    if (error instanceof ShortLinkStorageError && error.code === 'not_found') return c.json({ error: error.message }, 404);
+    return internalErrorResponse(c, 'short_link_revoke_failed', error, 'Unable to revoke the short link.');
+  }
+});
+
+app.get('/api/internal/short-links/:code', async (c) => {
+  if (!shortLinkResolverAuthorized(c)) return c.json({ error: 'Not found.' }, 404);
+  const code = z.string().regex(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/).safeParse(c.req.param('code'));
+  if (!code.success) return c.json({ error: 'Not found.' }, 404);
+  try {
+    const link = await resolveShortLink(code.data, c);
+    if (!link) return c.json({ error: 'Not found.' }, 404);
+    const destinationPath = await shortLinkDestinationPath(link, c);
+    if (!destinationPath) return c.json({ error: 'Not found.' }, 404);
+    return c.json({ destination_path: destinationPath }, 200, { 'Cache-Control': 'no-store' });
+  } catch (error) {
+    return internalErrorResponse(c, 'short_link_resolve_failed', error, 'Not found.');
+  }
 });
 
 function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllEvents>>, imports: Awaited<ReturnType<typeof getAttendanceImports>>) {

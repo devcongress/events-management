@@ -14,7 +14,7 @@
     --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
     --motion-smooth: cubic-bezier(0.16, 1, 0.3, 1);
     --motion-fast: cubic-bezier(0.4, 0, 0.2, 1);
-    --organizer-detail-drawer-width: 48rem;
+    --organizer-detail-drawer-width: 60rem;
     --background: 42 39% 94%;
     --foreground: 0 0% 7%;
     --card: 0 0% 100%;

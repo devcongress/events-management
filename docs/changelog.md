@@ -1765,3 +1765,8 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ---
 
 _Future entries go above this line._
+## 2026-08-09 — Owned flyer short links
+
+- Added opaque, DevCongress-owned short links for open monthly CFPs, event registration, and Annual Conference CFPs.
+- Added the owner-only Audit Log → Short links operational view with creation, copy, visit totals, last-use time, and revocation.
+- Isolated public redirects in a small `go.devcongress.org` Worker with a private EMS resolver boundary; arbitrary destinations and private bearer links are not supported.
