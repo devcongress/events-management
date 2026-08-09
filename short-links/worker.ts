@@ -1,6 +1,6 @@
 interface Env {
-  EMS: Fetcher;
   PUBLIC_APP_ORIGIN: string;
+  EMS_RESOLVER_ORIGIN: string;
   SHORT_LINK_RESOLVER_TOKEN: string;
 }
 
@@ -30,10 +30,20 @@ export default {
     const segments = url.pathname.split('/').filter(Boolean);
     if (segments.length !== 1 || !CODE_PATTERN.test(segments[0])) return unavailable();
 
-    const resolverRequest = new Request(`https://events-management/api/internal/short-links/${segments[0]}`, {
-      headers: { 'x-short-link-resolver-token': env.SHORT_LINK_RESOLVER_TOKEN },
-    });
-    const resolved = await env.EMS.fetch(resolverRequest);
+    let resolved: Response;
+    try {
+      const resolverUrl = new URL(`/api/internal/short-links/${segments[0]}`, env.EMS_RESOLVER_ORIGIN);
+      resolved = await fetch(resolverUrl, {
+        headers: {
+          accept: 'application/json',
+          'cache-control': 'no-store',
+          'x-short-link-resolver-token': env.SHORT_LINK_RESOLVER_TOKEN,
+        },
+        redirect: 'manual',
+      });
+    } catch {
+      return unavailable();
+    }
     if (!resolved.ok) return unavailable();
     const body = await resolved.json<{ destination_path?: unknown }>();
     if (typeof body.destination_path !== 'string' || !body.destination_path.startsWith('/') || body.destination_path.startsWith('//')) {
