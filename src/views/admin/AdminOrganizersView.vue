@@ -752,7 +752,7 @@ onUnmounted(() => {
       >
         <aside
           ref="responsibilityPanel"
-          class="responsibility-drawer flex h-full w-full max-w-xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl"
+          class="responsibility-drawer flex h-full w-full max-w-[var(--organizer-detail-drawer-width)] flex-col border-l border-dc-border bg-dc-paper shadow-2xl"
           role="dialog"
           aria-modal="true"
           aria-labelledby="conference-responsibilities-title"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import { adminPath } from '@/src/admin-routes';
 import { presentEventSubmissionReply } from '@/lib/email/event-submission-reply-presentation';
@@ -24,6 +24,8 @@ import type {
 } from '@/types';
 
 const queryClient = useQueryClient();
+const route = useRoute();
+const router = useRouter();
 const activeFilter = ref<EventSubmissionReviewStatus>('pending');
 const selectedId = ref<string | null>(null);
 const drawerCloseButton = ref<HTMLButtonElement | null>(null);
@@ -46,6 +48,15 @@ const submissionsQuery = useQuery({
   queryKey: computed(() => queryKeys.eventSubmissions(activeFilter.value)),
   queryFn: () => fetchEventSubmissions(activeFilter.value),
 });
+const linkedSubmissionId = computed(() => {
+  const value = route.query.submission;
+  return typeof value === 'string' && value.length <= 128 ? value : null;
+});
+const linkedSubmissionsQuery = useQuery({
+  queryKey: computed(() => ['event-submission-deep-link', linkedSubmissionId.value]),
+  queryFn: () => fetchEventSubmissions('all'),
+  enabled: computed(() => linkedSubmissionId.value !== null),
+});
 const pendingSubmissionsQuery = useQuery({
   queryKey: queryKeys.eventSubmissions('pending'),
   queryFn: () => fetchEventSubmissions('pending'),
@@ -53,18 +64,29 @@ const pendingSubmissionsQuery = useQuery({
 const submissions = computed(() => submissionsQuery.data.value?.submissions ?? []);
 const pendingSubmissionCount = computed(() => pendingSubmissionsQuery.data.value?.submissions.length ?? 0);
 const selectedSubmission = computed(() => (
-  submissions.value.find((submission) => submission.id === selectedId.value) ?? null
+  submissions.value.find((submission) => submission.id === selectedId.value)
+  ?? linkedSubmissionsQuery.data.value?.submissions.find((submission) => submission.id === selectedId.value)
+  ?? null
 ));
 
 watch(submissions, (next) => {
-  if (!next.some((submission) => submission.id === selectedId.value)) {
+  if (!linkedSubmissionId.value && !next.some((submission) => submission.id === selectedId.value)) {
     closeDrawer();
   }
 }, { immediate: true });
 
 watch(activeFilter, () => {
-  closeDrawer();
+  if (!linkedSubmissionId.value) closeDrawerWithoutClearingLink();
 });
+
+watch([linkedSubmissionId, () => linkedSubmissionsQuery.data.value], ([submissionId, response]) => {
+  if (!submissionId) return;
+  const submission = response?.submissions.find((item) => item.id === submissionId);
+  if (!submission) return;
+  if (activeFilter.value !== submission.review_status) activeFilter.value = submission.review_status;
+  selectedId.value = submission.id;
+  void nextTick(() => drawerCloseButton.value?.focus());
+}, { immediate: true });
 
 watch(selectedId, () => {
   resetRejectionForm();
@@ -77,8 +99,21 @@ function openDrawer(submissionId: string, event?: Event) {
 }
 
 function closeDrawer() {
+  closeDrawerInternal(true);
+}
+
+function closeDrawerWithoutClearingLink() {
+  closeDrawerInternal(false);
+}
+
+function closeDrawerInternal(clearDeepLink: boolean) {
   if (!selectedId.value) return;
   selectedId.value = null;
+  if (clearDeepLink && linkedSubmissionId.value) {
+    const query = { ...route.query };
+    delete query.submission;
+    void router.replace({ query });
+  }
   const trigger = drawerTrigger;
   drawerTrigger = null;
   void nextTick(() => trigger?.focus());

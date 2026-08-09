@@ -6,6 +6,16 @@
 - Replaced the divergent pagination controls in events, attendance, People & Access, audit activity and email delivery, annual-conference work planning and timeline gaps, and the public leaderboard.
 - Added the same bounded queue to conference speaker proposals so a larger Call for Speakers stays easy to review without changing the existing status filters.
 
+## 2026-08-09 — Standardized organizer detail drawers
+
+- Made desktop review and detail drawers consistently 48rem wide across community submissions, talks, Annual Conference tasks and speakers, finance, People & Access, and Audit Log.
+- Kept narrow dialogs, bottom sheets, and mobile full-screen workflows unchanged; detail drawers still fill the available viewport on small screens.
+
+## 2026-08-09 — Made Slack submission alerts open the exact review record
+
+- Slack notifications for new community submissions, inbound replies, and Slack retries now link to the specific EMS submission.
+- Opening that link selects the matching queue state and opens the existing review drawer; closing it removes the deep-link parameter without changing the submission.
+
 ## 2026-08-09 — Refined the Annual Conference speaker review queue
 
 - Replaced large proposal cards and status tiles with one compact directory table: its Review queue header has a live Pending-button counter, default Pending view, and clear Approved and Rejected filters; rows use compact status icons for faster scanning.

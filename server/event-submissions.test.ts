@@ -209,9 +209,15 @@ describe('community event submissions', () => {
     expect(response.status).toBe(202);
     expect(slackFetch).toHaveBeenCalledTimes(1);
     expect(String(slackFetch.mock.calls[0]?.[0])).toBe('https://hooks.slack.com/services/test/submissions');
-    expect(JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+    const slackPayload = JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body)) as {
+      text: string;
+      blocks: Array<{ type: string; elements?: Array<{ url?: string }> }>;
+    };
+    expect(slackPayload).toMatchObject({
       text: 'New event submission: Community systems workshop',
     });
+    const reviewButton = slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0];
+    expect(reviewButton?.url).toBe(`http://localhost/organizer-console/events/submissions?submission=${submission.id}`);
   });
 
   it('does not fail submission intake when the submission channel is unavailable', async () => {

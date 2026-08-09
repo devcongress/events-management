@@ -1200,7 +1200,7 @@ onUnmounted(() => {
   position: relative;
   z-index: 1;
   display: flex;
-  width: min(100%, 34rem);
+  width: min(100%, var(--organizer-detail-drawer-width));
   height: 100%;
   flex-direction: column;
   border-left: 1px solid #d6d2c8;

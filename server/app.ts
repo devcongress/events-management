@@ -1854,7 +1854,7 @@ async function notifyEventSubmissionChannel(submission: EventSubmission, c: Cont
       startsAt: submission.starts_at,
       format: submission.format,
       location: submission.venue_name ?? submission.online_url ?? 'Location to be announced',
-      dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+      dashboardUrl: eventSubmissionDashboardUrl(submission.id, c),
     });
   } catch (error) {
     console.warn(JSON.stringify({
@@ -1864,6 +1864,12 @@ async function notifyEventSubmissionChannel(submission: EventSubmission, c: Cont
       error_name: safeErrorName(error),
     }));
   }
+}
+
+function eventSubmissionDashboardUrl(submissionId: string, c: Context): string {
+  const url = new URL('/organizer-console/events/submissions', publicAppOrigin(c));
+  url.searchParams.set('submission', submissionId);
+  return url.toString();
 }
 
 function publicRegistrationCalendarUrl(event: Event, c: Context): string {
@@ -2186,7 +2192,7 @@ async function handleResendInboundWebhook(c: Context): Promise<globalThis.Respon
       subject: receivedEmail.subject,
       bodyExcerpt: boundedSlackExcerpt(bodyText),
       receivedAt,
-      dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+      dashboardUrl: eventSubmissionDashboardUrl(recipient.submissionId, c),
     });
     await updateEventSubmissionReplySlackStatus(result.reply.id, { status: 'sent' }, c);
   } catch (error) {
@@ -4736,7 +4742,7 @@ app.post('/api/admin/event-submissions/:submissionId/replies/:replyId/slack/retr
         subject: reply.subject,
         bodyExcerpt: boundedSlackExcerpt(reply.body_text),
         receivedAt: reply.received_at,
-        dashboardUrl: new URL('/organizer-console/events/submissions', publicAppOrigin(c)).toString(),
+        dashboardUrl: eventSubmissionDashboardUrl(submissionId.data, c),
       });
       await updateEventSubmissionReplySlackStatus(reply.id, { status: 'sent' }, c);
       await auditAdminAction(c, {
