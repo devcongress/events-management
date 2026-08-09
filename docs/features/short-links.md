@@ -16,14 +16,14 @@ Owners use **Audit Log → Short links** to create, copy, inspect, and revoke li
 
 ## Runtime boundary
 
-`short-links/worker.ts` is a deliberately small Cloudflare Worker for `go.devcongress.org`. It accepts only one opaque path segment and `GET`/`HEAD`, then resolves it through a service binding to EMS. It uses only a server-to-server resolver token, holds no Supabase credentials, does not forward query strings, and rejects any non-first-party path. Unavailable, revoked, or stale links receive a branded 404 response.
+`short-links/worker.ts` is a deliberately small Cloudflare Worker for `go.devcongress.org`. It accepts only one opaque path segment and `GET`/`HEAD`, then resolves it through the protected EMS HTTPS resolver. It uses only a server-to-server resolver token, holds no Supabase credentials, does not forward query strings, and rejects any non-first-party path. Unavailable, revoked, stale, or temporarily unreachable links receive a branded 404 response.
 
 ## Deployment setup
 
 1. Apply `20260809120000_short_links.sql`.
-2. Create the `SHORT_LINK_RESOLVER_TOKEN` secret in both `events-management` and `devcongress-short-links` Workers with the same high-entropy value.
-3. Deploy the short-link Worker using `pnpm exec wrangler deploy --config short-links/wrangler.toml`.
-4. Attach `go.devcongress.org` as its custom domain in Cloudflare. The `devcongress.org` zone must be Cloudflare-managed.
+2. Create the `SHORT_LINK_RESOLVER_TOKEN` secret in both `events-management` and the short-link Worker with the same high-entropy value.
+3. Deploy the short-link Worker in the Cloudflare account that owns the `devcongress.org` zone using `pnpm exec wrangler deploy --config short-links/wrangler.toml`.
+4. Attach `go.devcongress.org` as its custom domain in that account. Cloudflare creates its DNS record and certificate.
 5. Set `SHORT_LINK_PUBLIC_ORIGIN=https://go.devcongress.org` on the EMS Worker. This is a non-secret variable used only when displaying links in Audit Log.
 
 ## Key files

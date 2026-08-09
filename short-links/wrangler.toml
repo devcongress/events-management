@@ -3,12 +3,9 @@ main = "worker.ts"
 compatibility_date = "2026-08-09"
 workers_dev = false
 
-[[services]]
-binding = "EMS"
-service = "events-management"
-
 [vars]
 PUBLIC_APP_ORIGIN = "https://em.devcongress.org"
+EMS_RESOLVER_ORIGIN = "https://em.devcongress.org"
 
 [observability]
 enabled = true

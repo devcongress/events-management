@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-063: Resolve Short Links Across Cloudflare Accounts Through EMS HTTPS
+
+Date: 2026-08-09
+Status: Accepted
+
+Context: The Cloudflare account that runs EMS Workers is separate from the account that owns the authoritative `devcongress.org` zone. A Worker service binding is private and account-scoped, so the original short-link resolver could not be attached to `go.devcongress.org` without an Enterprise-only child-zone delegation or moving the parent zone.
+
+Decision: Deploy the isolated short-link Worker in the account that owns `devcongress.org` and attach `go.devcongress.org` there as a Worker custom domain. The Worker resolves its opaque code over HTTPS through EMS's existing server-only `/api/internal/short-links/:code` endpoint, presenting the same high-entropy `SHORT_LINK_RESOLVER_TOKEN` shared with EMS. The Worker holds no Supabase credentials, rejects malformed paths, does not forward query strings, and fails closed with the branded unavailable response if EMS is unavailable.
+
+Trade-offs: The resolver is now a cross-account network request rather than a private service binding, adding a small availability dependency on EMS. It avoids a DNS-zone move, avoids an Enterprise-only subdomain setup, and keeps the database/API authority in EMS rather than duplicating credentials in the redirect Worker.
+
+Alternatives considered: Delegate `go.devcongress.org` as a child zone (not available on the current Cloudflare plan), move `devcongress.org` into the EMS account (unnecessary DNS churn), or give the public redirect Worker Supabase service-role access (unacceptably broad authority).
+
+Revisit when: Both Workers run in one Cloudflare account, EMS exposes a dedicated internal service network, or redirect throughput requires a replicated edge-safe lookup.
+
 ## ADR-062: Keep Annual Conference Programme Records Outside Events
 
 Date: 2026-08-09

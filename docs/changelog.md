@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-09 — Cross-account short-link routing
+
+- Changed the isolated short-link Worker to call EMS through its authenticated HTTPS resolver instead of requiring a same-account Worker service binding.
+- This permits `go.devcongress.org` to be attached in the Cloudflare account that owns the `devcongress.org` DNS zone while preserving the shared server-only resolver secret.
+
 ## 2026-08-09 — Decoupled Annual Conference speakers from Events
 
 - Replaced the hidden Annual Conference backing Event with edition-owned Call for Speakers state, proposals, secure presenter links, and confirmed conference sessions.
