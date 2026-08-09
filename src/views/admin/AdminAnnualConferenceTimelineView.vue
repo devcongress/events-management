@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import {
@@ -119,10 +120,6 @@ const paginatedGapTasks = computed(() => {
 });
 const gapRangeStart = computed(() => filteredGapTasks.value.length ? (gapPage.value - 1) * GAP_TABLE_PAGE_SIZE + 1 : 0);
 const gapRangeEnd = computed(() => Math.min(gapPage.value * GAP_TABLE_PAGE_SIZE, filteredGapTasks.value.length));
-
-function changeGapPage(direction: -1 | 1) {
-  gapPage.value = Math.min(gapPageCount.value, Math.max(1, gapPage.value + direction));
-}
 
 function resetGapPage() {
   gapPage.value = 1;
@@ -499,14 +496,7 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
               </tbody>
             </table>
           </div>
-          <footer class="planning-table__footer">
-            <span>{{ gapRangeStart }}–{{ gapRangeEnd }} of {{ filteredGapTasks.length }}</span>
-            <div class="planning-table__pager">
-              <button type="button" class="motion-press" :disabled="gapPage === 1" aria-label="Previous planning gap page" @click="changeGapPage(-1)">←</button>
-              <span>{{ gapPage }}/{{ gapPageCount }}</span>
-              <button type="button" class="motion-press" :disabled="gapPage === gapPageCount" aria-label="Next planning gap page" @click="changeGapPage(1)">→</button>
-            </div>
-          </footer>
+          <AppPagination v-model:page="gapPage" :page-count="gapPageCount" :total="filteredGapTasks.length" :range-start="gapRangeStart" :range-end="gapRangeEnd" item-label="planning gaps" aria-label="Planning gap pagination" />
         </section>
       </main>
     </div>
@@ -598,14 +588,10 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
 .planning-table__action { white-space: nowrap; font-family: var(--font-mono); font-size: .5rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #b20d61; }
 .planning-table__action span { display: inline-block; transition: transform 140ms cubic-bezier(.4, 0, .2, 1); }
 .planning-table__empty { padding: 2.5rem 1.5rem !important; text-align: center !important; color: #666 !important; }
-.planning-table__footer { display: flex; min-height: 3.5rem; align-items: center; justify-content: space-between; gap: .75rem; border-top: 1px solid #e0ddd4; padding: .45rem .75rem .45rem 1.5rem; background: white; font-family: var(--font-mono); font-size: .5rem; font-weight: 700; text-transform: uppercase; color: #777; }
-.planning-table__pager { display: flex; align-items: center; gap: .3rem; }
-.planning-table__pager button { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid #e0ddd4; border-radius: 6px; color: #b20d61; }
-.planning-table__pager button:disabled { cursor: not-allowed; color: #bbb; opacity: .45; }.planning-table__pager > span { min-width: 2.25rem; text-align: center; }
 .health-panel-enter-active, .health-panel-leave-active { transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1), transform 200ms cubic-bezier(0.16, 1, 0.3, 1); }.health-panel-enter-from, .health-panel-leave-to { opacity: 0; transform: translateY(-6px); }
 @media (min-width: 640px) { .health-hero__main, .health-hero__countdown { padding: 2rem; }.health-hero__facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }.health-hero__facts > div + div { border-left: 1px solid #e0ddd4; }.health-hero__facts > div:nth-child(4) { border-left: 0; }.health-hero__facts > div:nth-child(n + 4) { border-top: 1px solid #e0ddd4; } }
 @media (min-width: 900px) { .health-hero { grid-template-columns: minmax(0, 1fr) auto; }.health-hero__countdown { border-top: 0; border-left: 1px solid #e0ddd4; } }
 @media (min-width: 1200px) { .health-hero__facts { grid-template-columns: repeat(5, minmax(0, 1fr)); }.health-hero__facts > div:nth-child(4) { border-left: 1px solid #e0ddd4; }.health-hero__facts > div:nth-child(n + 4) { border-top: 0; } }
-@media (hover: hover) and (pointer: fine) { .health-hero__action:hover { transform: translateY(-1px); border-color: #e8117f; color: #e8117f; }.phase-control:hover:not(:disabled) { transform: translateY(-1px); border-color: #111; }.planning-table__task:hover strong { color: #b20d61; }.planning-table__action:hover span { transform: translateX(.2rem); }.planning-table__pager button:hover:not(:disabled) { border-color: #b20d61; background: #fce7f3; } }
+@media (hover: hover) and (pointer: fine) { .health-hero__action:hover { transform: translateY(-1px); border-color: #e8117f; color: #e8117f; }.phase-control:hover:not(:disabled) { transform: translateY(-1px); border-color: #111; }.planning-table__task:hover strong { color: #b20d61; }.planning-table__action:hover span { transform: translateX(.2rem); } }
 @media (prefers-reduced-motion: reduce) { .health-panel-enter-active, .health-panel-leave-active, .planning-table__action span { transition: none; }.health-hero__action:hover, .phase-control:hover, .planning-table__action span { transform: none; } }
 </style>

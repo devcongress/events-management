@@ -60,6 +60,7 @@ export async function createMockAnnualConferenceEdition(
     const timestamp = now();
     const edition: AnnualConferenceEdition = {
       id: generateId(),
+      conference_event_id: generateId(),
       year: input.year,
       name: input.name,
       label: input.label,

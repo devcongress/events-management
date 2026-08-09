@@ -8,6 +8,8 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
   'volunteers.view_team',
   'volunteers.share_intake',
   'volunteers.review_applications',
+  'speakers.view',
+  'speakers.manage',
   'finance.view',
 ] as const;
 
@@ -15,7 +17,7 @@ export type AnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[n
 
 export interface AnnualConferenceCapabilityDefinition {
   value: AnnualConferenceCapability;
-  section: 'Work plan' | 'Timeline' | 'Volunteers' | 'Finance';
+  section: 'Work plan' | 'Timeline' | 'Volunteers' | 'Speakers' | 'Finance';
   label: string;
   description: string;
 }
@@ -64,6 +66,18 @@ export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConference
     description: 'See applicant names, email addresses, and social handles.',
   },
   {
+    value: 'speakers.view',
+    section: 'Speakers',
+    label: 'View conference proposals',
+    description: 'See conference Call for Speakers submissions and their review status.',
+  },
+  {
+    value: 'speakers.manage',
+    section: 'Speakers',
+    label: 'Manage conference speakers',
+    description: 'Open or close the call and select or decline conference proposals.',
+  },
+  {
     value: 'finance.view',
     section: 'Finance',
     label: 'View the finance workspace',
@@ -77,6 +91,8 @@ const ORGANIZER_DEFAULT_CAPABILITIES: readonly AnnualConferenceCapability[] = [
   'volunteers.view_team',
   'volunteers.share_intake',
   'volunteers.review_applications',
+  'speakers.view',
+  'speakers.manage',
 ];
 
 export function isAnnualConferenceCapability(value: unknown): value is AnnualConferenceCapability {
@@ -97,7 +113,7 @@ export function effectiveAnnualConferenceCapabilities(input: {
 }): AnnualConferenceCapability[] {
   const capabilities = new Set<AnnualConferenceCapability>(annualConferenceRoleCapabilities(input.role));
   for (const capability of input.grants ?? []) {
-    if (capability === 'finance.view' && input.role === 'volunteer') continue;
+    if ((capability === 'finance.view' || capability.startsWith('speakers.')) && input.role === 'volunteer') continue;
     capabilities.add(capability);
   }
   if (input.isPlanningOwner) {
@@ -131,6 +147,6 @@ export function canDelegateAnnualConferenceCapability(
   capability: AnnualConferenceCapability,
   role: AdminRole,
 ): boolean {
-  if (capability === 'finance.view') return role === 'organizer';
+  if (capability === 'finance.view' || capability.startsWith('speakers.')) return role === 'organizer';
   return role === 'volunteer';
 }

@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { useMutation, useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import {
@@ -278,10 +279,6 @@ function setPhaseFilter(value: string | number) {
     workstreamFilter.value = 'all';
     ownerFilter.value = 'all';
   });
-}
-
-function changeLedgerPage(direction: -1 | 1) {
-  ledgerPage.value = Math.min(ledgerPageCount.value, Math.max(1, ledgerPage.value + direction));
 }
 
 function setStatusFilter(value: 'all' | AnnualConferenceTask['status']) {
@@ -652,14 +649,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             </article>
           </div>
 
-          <footer v-if="visibleTasks.length" class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border bg-dc-paper-warm px-4 py-2.5">
-            <span class="text-xs font-medium text-dc-gray">Showing {{ ledgerRangeStart }}–{{ ledgerRangeEnd }} of {{ visibleTasks.length }}</span>
-            <div class="flex items-center gap-2 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
-              <button type="button" class="motion-press min-h-9 rounded-md border border-dc-border bg-dc-paper px-3 text-dc-ink disabled:cursor-not-allowed disabled:opacity-40" :disabled="ledgerPage === 1" @click="changeLedgerPage(-1)">Previous</button>
-              <span class="min-w-14 text-center">{{ ledgerPage }} of {{ ledgerPageCount }}</span>
-              <button type="button" class="motion-press min-h-9 rounded-md border border-dc-border bg-dc-paper px-3 text-dc-ink disabled:cursor-not-allowed disabled:opacity-40" :disabled="ledgerPage === ledgerPageCount" @click="changeLedgerPage(1)">Next</button>
-            </div>
-          </footer>
+          <AppPagination v-model:page="ledgerPage" :page-count="ledgerPageCount" :total="visibleTasks.length" :range-start="ledgerRangeStart" :range-end="ledgerRangeEnd" item-label="tasks" aria-label="Work plan pagination" />
         </section>
       </template>
     </div>

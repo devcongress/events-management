@@ -30,3 +30,36 @@ Let an Owner request missing archive materials from a presenter through a secure
 ## Status
 
 **Complete** - ready for the forward-only migration and normal feature-release workflow.
+
+---
+
+# Task Plan: Separate monthly and conference Calls for Speakers
+
+## Goal
+
+Ship one secure, shared speaker-call foundation with two clearly separate public forms, organizer review queues, short URLs, and communications.
+
+## Phases
+
+- [x] Phase 1: Confirm the monthly CFP, existing private speaker links, annual-conference boundaries, and public-site constraints.
+- [x] Phase 2: Add forward-only campaign/proposal persistence and the server-side public/admin contracts.
+- [x] Phase 3: Build the shared short proposal form, separate monthly and conference public routes, and isolated organizer queues.
+- [x] Phase 4: Add delivery/notification hooks, tests, documentation, verification, and release handoff.
+
+## Key Questions
+
+1. How do monthly and conference calls share lifecycle code without mixing review records or URLs?
+2. Which proposal information is essential at first submission, and which belongs in a secure selected-speaker follow-up?
+3. How do public submission, review, and email/Slack notifications remain scoped, rate-limited, and auditable?
+
+## Decisions Made
+
+- A call has exactly one parent: one monthly Event or one Annual Conference edition. The public route decides the scope; presenters never choose it.
+- Initial submission is intentionally short: name, email, title, and session summary; topic defaults to General and demo selection is lightweight.
+- Monthly review stays inside the event Talks workspace. Conference review lives inside Annual Conference, never in a combined inbox.
+- Existing monthly CFP links remain compatible while short canonical routes are added.
+- The shared proposal, selected-speaker link, and public archive lifecycle is currently event-bound. An Annual Conference edition does not yet have an Event association.
+
+## Status
+
+**Complete** - ready for the normal feature-release workflow. The selected-presenter secure link now collects the fuller bio/resource details omitted from the short first form; the existing Owner-only archive-material follow-up is retained for later missing-material reminders.

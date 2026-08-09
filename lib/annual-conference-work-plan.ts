@@ -27,6 +27,8 @@ export type AnnualConferenceTaskPriority = typeof ANNUAL_CONFERENCE_TASK_PRIORIT
 
 export interface AnnualConferenceEdition {
   id: string;
+  /** Populated for every persisted edition by the speaker-call migration. */
+  conference_event_id?: string;
   year: number;
   name: string;
   label: string;
@@ -221,6 +223,7 @@ const SEEDED_AT = '2026-07-26T00:00:00.000Z';
 
 export const ANNUAL_CONFERENCE_2026_EDITION: AnnualConferenceEdition = {
   id: ANNUAL_CONFERENCE_2026_EDITION_ID,
+  conference_event_id: '20260000-0000-4000-8000-000000000002',
   year: 2026,
   name: 'DevCongress Annual Conference',
   label: 'December 2026',

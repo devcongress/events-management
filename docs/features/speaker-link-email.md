@@ -96,19 +96,17 @@ eventId: string
 
 July uses `manual` with either archive-item kind. Later monthly editions use `speaker_submission` for selected talks and product demos.
 
-### Monthly public CFP destination
+### Public Call for Speakers destinations
 
-The Vue router mounts the same-origin `/cfp/:eventId` form, and the organizer Archive constructs that URL for monthly events.
+Monthly and Annual Conference calls share one proposal lifecycle, but never share a review queue:
+
+- **Monthly:** `/speak/m/:eventId` is the short public URL (with `/cfp/:eventId` retained for existing links). Proposals remain in that Event's **Talks review** workspace.
+- **Annual Conference:** `/speak/c/:year` is the short public URL. Proposals appear only in that edition's **Annual Conference → Speakers** workspace.
+- The first submission asks only for name, email, title, summary, and an optional product-demo choice. Topic and presenter bio default or are collected later through the selected-presenter private link.
+
+Each Annual Conference edition owns a hidden `community_events` programme record. It is never published to website feeds; it exists only to reuse the established proposal, selection, secure follow-up, and archive data contract. Applying `20260808180000_annual_conference_speaker_calls.sql` is required before opening a conference call.
 
 Before moving the form to `devcongress.org`, choose and verify the canonical website URL. That future move is a hosting decision, not a blocker for the monthly Archive or email pilot.
-
-## Current Gap That Must Stay Visible
-
-### Annual-conference CFP
-
-The Annual Conference workspace currently has Overview, Work Plan, and Volunteers. Call for Speakers and the annual speaker form exist as work-plan tasks, not as a live public form or proposal store.
-
-The conference CFP form and canonical public URL must be live before a Broadcast is sent. The monthly `/api/cfp` contract cannot be reused unchanged because it explicitly accepts only upcoming monthly events.
 
 ## Implemented: Program Multi-Send
 
