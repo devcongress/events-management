@@ -168,7 +168,7 @@ onUnmounted(() => {
         <section
           id="annual-conference-task-drawer"
           ref="panelRef"
-          class="annual-task-drawer-panel flex h-full w-full max-w-[42rem] flex-col border-l-2 border-dc-ink bg-dc-paper shadow-[-10px_0_0_rgba(17,17,17,0.14)]"
+          class="annual-task-drawer-panel flex h-full w-full max-w-[var(--organizer-detail-drawer-width)] flex-col border-l-2 border-dc-ink bg-dc-paper shadow-[-10px_0_0_rgba(17,17,17,0.14)]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="annual-task-drawer-title"

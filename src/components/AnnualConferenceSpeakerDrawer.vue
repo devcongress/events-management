@@ -115,7 +115,7 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="annual-speaker-drawer">
       <div v-if="open && submission" class="fixed inset-0 z-[130] flex justify-end bg-black/30" role="presentation" @click.self="requestClose">
-        <section ref="panelRef" class="flex h-full w-full max-w-[42rem] flex-col border-l-2 border-dc-ink bg-dc-paper shadow-[-10px_0_0_rgba(17,17,17,0.14)]" role="dialog" aria-modal="true" aria-labelledby="annual-conference-speaker-drawer-title" tabindex="-1">
+        <section ref="panelRef" class="flex h-full w-full max-w-[var(--organizer-detail-drawer-width)] flex-col border-l-2 border-dc-ink bg-dc-paper shadow-[-10px_0_0_rgba(17,17,17,0.14)]" role="dialog" aria-modal="true" aria-labelledby="annual-conference-speaker-drawer-title" tabindex="-1">
           <header class="flex shrink-0 items-start justify-between gap-4 border-b-2 border-dc-ink bg-dc-yellow px-5 py-4 sm:px-6">
             <div class="min-w-0">
               <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-ink">{{ kindLabel }}</p>
