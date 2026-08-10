@@ -36,6 +36,10 @@ describe('short-link Worker', () => {
     const response = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), env());
     expect(response.status).toBe(404);
     expect(response.headers.get('content-type')).toContain('text/html');
-    await expect(response.text()).resolves.toContain('This link left the building.');
+    expect(response.headers.get('content-security-policy')).toContain("img-src https://em.devcongress.org");
+    const page = await response.text();
+    expect(page).toContain('This link left the building.');
+    expect(page).toContain('<title>DevCongress | Link unavailable</title>');
+    expect(page).toContain('https://em.devcongress.org/brand/favicon-32x32.png');
   });
 });

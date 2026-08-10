@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-10 — Branded short-link fallback tab
+
+- Aligned unavailable `go.devcongress.org` links with the DevCongress browser identity: the standard title format and shared favicon assets now render in browser tabs and saved mobile shortcuts.
+- Refined the unavailable-link page into a lighter, compact card so the playful route artwork remains the emphasis rather than an overly heavy error headline.
+
+## 2026-08-10 — Improved mobile CFP receipt
+
+- Reworked the post-submission phone layout around the actual DevCongress wordmark, a short confirmation, and the submitted presentation title.
+- On ordinary mobile viewports, the event image and receipt each take half of the card; compact phones use a smaller image so all receipt details remain visible without scrolling.
+
+## 2026-08-10 — Simplified monthly CFP review
+
+- Replaced the older grouped monthly proposal cards with the compact Community-submissions review table: Pending opens by default, with Approved and Rejected filters, pagination, and concise scan rows.
+- Kept the existing right-side proposal drawer for the full submission and decision, while moving selected-presenter completion-link preparation into the Approved view.
+
 ## 2026-08-10 — Playful, safe short-link fallback
 
 - Replaced the bare `go.devcongress.org` unavailable response with a responsive, playful DevCongress fallback for phones and desktops, including a single path back to the public site.

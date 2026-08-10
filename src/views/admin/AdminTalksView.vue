@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
@@ -81,6 +82,11 @@ const speakerLinkExpiresInDays = ref(7);
 const backfillProgramItemValues = ref<string[]>([]);
 const backfillProgramItemEmails = ref<Record<string, string>>({});
 const error = ref<string | null>(null);
+const proposalStatusFilter = ref<'submitted' | 'selected' | 'not_selected'>('submitted');
+const proposalPage = ref(1);
+// Keep the review queue deliberately short so larger CFPs do not turn the
+// workspace into an endlessly scrolling list. AppPagination carries the rest.
+const PROPOSALS_PAGE_SIZE = 5;
 const groups: { label: string; statuses: TalkStatus[] }[] = [
   { label: 'Needs details', statuses: ['submitted'] },
   { label: 'Ready to publish', statuses: ['accepted', 'slides_received'] },
@@ -93,24 +99,18 @@ const groupedTalks = computed(() => groups.map((group) => ({
   talks: talks.value.filter((talk) => group.statuses.includes(talk.status)),
 })));
 const canUnpublishArchiveItem = computed(() => adminSessionQuery.data.value?.user?.role === 'owner');
-const submissionGroups: { label: string; statuses: SpeakerSubmissionStatus[] }[] = [
-  { label: 'Awaiting organizer decision', statuses: ['submitted'] },
-  { label: 'Selected presenters', statuses: ['selected'] },
-  { label: 'Not selected', statuses: ['not_selected'] },
-];
-const groupedSubmissions = computed(() => submissionGroups.map((group) => ({
-  ...group,
-  submissions: speakerSubmissions.value.filter((submission) => group.statuses.includes(submission.status)),
-})));
 const pendingSubmissionCount = computed(() => speakerSubmissions.value.filter((submission) => submission.status === 'submitted').length);
-const selectedAwaitingSlidesCount = computed(() => speakerSubmissions.value.filter((submission) => (
-  submission.status === 'selected' && !submission.selected_talk_id
-)).length);
 const confirmedTalkCount = computed(() => talks.value.length);
 const archiveBackfillLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'archive_backfill'));
 const selectedSpeakerPendingSubmissions = computed(() => speakerSubmissions.value.filter((submission) => (
   submission.status === 'selected' && !submission.selected_talk_id
 )));
+const visibleProposalSubmissions = computed(() => speakerSubmissions.value.filter((submission) => submission.status === proposalStatusFilter.value));
+const proposalPageCount = computed(() => Math.max(1, Math.ceil(visibleProposalSubmissions.value.length / PROPOSALS_PAGE_SIZE)));
+const proposalPageStart = computed(() => visibleProposalSubmissions.value.length ? (proposalPage.value - 1) * PROPOSALS_PAGE_SIZE + 1 : 0);
+const proposalPageEnd = computed(() => Math.min(visibleProposalSubmissions.value.length, proposalPage.value * PROPOSALS_PAGE_SIZE));
+const paginatedProposalSubmissions = computed(() => visibleProposalSubmissions.value.slice((proposalPage.value - 1) * PROPOSALS_PAGE_SIZE, proposalPage.value * PROPOSALS_PAGE_SIZE));
+const proposalFilterLabel = computed(() => ({ submitted: 'pending', selected: 'approved', not_selected: 'rejected' })[proposalStatusFilter.value]);
 const selectedSpeakerLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'selected_speaker_confirmation'));
 const materialsFollowUpLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'archive_materials_follow_up'));
 // Latest-active link per submission, built once per links change. The template
@@ -197,6 +197,8 @@ const cfpStatusHelp = computed(() => {
   if (cfpIsClosed.value) return 'Submission is paused. Reopen only if organizers are still accepting proposals.';
   return 'Open CFP when this event is ready to receive presentation proposals.';
 });
+watch(proposalStatusFilter, () => { proposalPage.value = 1; });
+watch(proposalPageCount, () => { proposalPage.value = Math.min(proposalPage.value, proposalPageCount.value); });
 const speakerLinkExpiryDurations = [3, 7, 14, 31];
 const speakerLinkExpiryOptions = computed(() => speakerLinkExpiryDurations.map((days) => ({
   value: days,
@@ -361,6 +363,13 @@ function formatDateTime(value: string): string {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatProposalSubmittedDate(value: string): string {
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
   }).format(new Date(value));
 }
 
@@ -946,15 +955,10 @@ function selectedSpeakerLinkForSubmission(submissionId: string): AdminSpeakerInt
   return selectedSpeakerLinkBySubmissionId.value.get(submissionId) ?? null;
 }
 
-function selectedSpeakerLinkLabel(submission: SpeakerSubmission): string {
-  const link = selectedSpeakerLinkForSubmission(submission.id);
-  if (!link) return 'Needs link';
-  if (!link.token) return 'Needs regeneration';
-  if (link.status === 'used') return 'Used';
-  if (link.status === 'expired') return 'Expired';
-
-  const durationDays = linkDurationDays(link);
-  return durationDays ? `Expires in ${durationDays} days` : 'Link ready';
+function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
+  if (status === 'selected') return 'Approved';
+  if (status === 'not_selected') return 'Rejected';
+  return 'Pending';
 }
 
 function actionClass(isPrimary = false): string {
@@ -1337,131 +1341,68 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="speakerSubmissions.length > 0" class="space-y-6">
-            <section v-if="selectedSpeakerPendingSubmissions.length > 0" class="ops-panel overflow-hidden">
-              <div class="flex flex-col gap-3 border-b border-dc-border bg-dc-paper-warm px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p class="ops-label">selected presenter links</p>
-                  <h3 class="mt-1 text-lg font-bold tracking-tight text-dc-ink">Archive completion links</h3>
-                  <p class="mt-1 text-sm leading-6 text-dc-gray">Generate one private link per selected presenter so they can finish the record required for this event archive.</p>
-                </div>
-                <button
-                  type="button"
-                  :disabled="creatingSpeakerLink || missingSelectedSpeakerLinkCount === 0"
-                  :class="proposalActionClass(true)"
-                  @click="generateSelectedSpeakerLinks"
-                >
-                  {{ creatingSpeakerLink ? 'Generating...' : missingSelectedSpeakerLinkCount === 0 ? 'Links ready' : `Generate ${missingSelectedSpeakerLinkCount} link${missingSelectedSpeakerLinkCount === 1 ? '' : 's'}` }}
+          <section class="ops-panel overflow-hidden" aria-live="polite">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border bg-dc-paper-warm px-4 py-3 sm:px-6">
+              <div>
+                <p class="ops-label">Review queue</p>
+                <p class="mt-1 text-sm font-medium text-dc-gray">{{ visibleProposalSubmissions.length }} {{ proposalFilterLabel }} proposal{{ visibleProposalSubmissions.length === 1 ? '' : 's' }}</p>
+              </div>
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <nav class="flex flex-wrap gap-2" aria-label="Filter presentation proposals by status">
+                  <button v-for="filter in ([{ value: 'submitted', label: 'Pending' }, { value: 'selected', label: 'Approved' }, { value: 'not_selected', label: 'Rejected' }] as const)" :key="filter.value" type="button" class="motion-press relative min-h-9 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="proposalStatusFilter === filter.value ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[1px_1px_0_#111111]' : 'border-dc-border bg-white text-dc-gray hover:border-dc-ink hover:text-dc-ink'" :aria-pressed="proposalStatusFilter === filter.value" @click="proposalStatusFilter = filter.value">
+                    {{ filter.label }}
+                    <Transition v-if="filter.value === 'submitted'" name="submission-count"><span v-if="pendingSubmissionCount" class="submission-filter-count" :class="pendingSubmissionCount > 99 ? 'text-[7px]' : 'text-[9px]'" :aria-label="`${pendingSubmissionCount} pending proposals`">{{ pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount }}</span></Transition>
+                  </button>
+                </nav>
+                <button v-if="proposalStatusFilter === 'selected' && selectedSpeakerPendingSubmissions.length > 0" type="button" :disabled="creatingSpeakerLink || missingSelectedSpeakerLinkCount === 0" :class="proposalActionClass()" @click="generateSelectedSpeakerLinks">
+                  {{ creatingSpeakerLink ? 'Generating...' : missingSelectedSpeakerLinkCount === 0 ? 'Links ready' : `Prepare ${missingSelectedSpeakerLinkCount} link${missingSelectedSpeakerLinkCount === 1 ? '' : 's'}` }}
                 </button>
               </div>
-
-              <div class="divide-y divide-dc-border">
-                <article
-                  v-for="submission in selectedSpeakerPendingSubmissions"
-                  :key="`selected-link-${submission.id}`"
-                  class="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(16rem,1fr)_auto] lg:items-center"
-                >
-                  <div class="min-w-0">
-                    <div class="flex min-w-0 items-center gap-2">
-                      <h4 class="truncate text-sm font-semibold tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</h4>
-                      <span class="shrink-0 rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(submission) }}</span>
-                    </div>
-                    <p class="mt-1 truncate text-sm font-medium text-dc-gray">{{ submission.speaker_name }}</p>
-                  </div>
-                  <input
-                    v-if="speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
-                    :value="speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
-                    readonly
-                    class="editorial-input font-mono text-sm"
-                  />
-                  <p v-else class="rounded-md border border-dc-border bg-dc-paper px-3 py-2 text-sm leading-6 text-dc-gray">
-                    {{ selectedSpeakerLinkLabel(submission) }}
-                  </p>
-                  <div class="flex flex-wrap gap-2 lg:justify-end">
-                    <button
-                      type="button"
-                      :disabled="!speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
-                      class="inline-flex items-center gap-1.5"
-                      :class="actionClass()"
-                      :aria-label="copiedSpeakerLinkId === `selected-${submission.id}` ? 'Archive completion link copied' : 'Copy archive completion link'"
-                      @click="copySpeakerIntakeLink(speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null), `selected-${submission.id}`)"
-                    >
-                      <svg v-if="copiedSpeakerLinkId === `selected-${submission.id}`" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                      <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                        <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
-                      </svg>
-                      <span>{{ copiedSpeakerLinkId === `selected-${submission.id}` ? 'Copied' : 'Copy' }}</span>
-                    </button>
-                    <a
-                      v-if="speakerIntakePathForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
-                      :href="speakerIntakePathForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      :class="actionClass()"
-                    >
-                      Open
-                    </a>
-                  </div>
-                </article>
-              </div>
-            </section>
-
-            <section v-for="group in groupedSubmissions.filter((item) => item.submissions.length > 0)" :key="group.label">
-              <h3 class="mb-3 flex items-center gap-3 text-lg font-bold tracking-tight text-dc-ink">
-                {{ group.label }}
-                <span class="font-mono text-xs font-semibold text-dc-gray">({{ group.submissions.length }})</span>
-              </h3>
-              <div class="ops-panel overflow-hidden">
-                <article
-                  v-for="submission in group.submissions"
-                  :key="submission.id"
-                  class="ops-row proposal-row"
-                >
-                  <div class="grid gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                    <div class="proposal-row-trigger">
-                      <span class="flex min-w-0 items-center gap-2">
-                        <span class="truncate text-sm font-semibold tracking-tight text-dc-ink sm:text-base">{{ submission.title }}</span>
-                        <span class="shrink-0 rounded-md border border-dc-border bg-dc-paper px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ archiveKindLabel(submission) }}</span>
-                      </span>
-                      <span class="truncate text-sm font-bold text-dc-gray">{{ submission.speaker_name }}</span>
-                      <span class="truncate font-mono text-xs uppercase tracking-wide text-dc-gray">{{ submission.topic || 'General' }}</span>
-                    </div>
-                    <div class="flex shrink-0 flex-wrap gap-2 lg:justify-end">
-                      <button
-                        type="button"
-                        :class="proposalActionClass(true)"
-                        @click="openTalkPreview('proposal', submission, $event)"
-                      >
-                        Review proposal
-                      </button>
-                      <span
-                        v-if="submission.status === 'selected' && !submission.selected_talk_id"
-                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray"
-                      >
-                        {{ selectedSpeakerLinkLabel(submission) }}
-                      </span>
-                      <span
-                        v-if="submission.status === 'selected' && submission.selected_talk_id"
-                        class="rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray"
-                      >
-                        Archive details received
-                      </span>
-                    </div>
-                  </div>
-                </article>
-              </div>
-            </section>
-          </div>
-          <div v-else class="editorial-panel p-12 text-center">
-            <p class="editorial-eyebrow">proposal inbox</p>
-            <h2 class="mt-3 text-2xl font-bold tracking-tight text-dc-ink">No proposals yet</h2>
-            <p class="mx-auto mt-3 max-w-2xl text-sm leading-6 text-dc-gray">
-              Open and share the CFP link from the CFP step. New submissions will appear here for selection.
-            </p>
-          </div>
+            </div>
+            <div v-if="visibleProposalSubmissions.length === 0" class="p-8 text-center">
+              <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ proposalStatusFilter === 'submitted' ? 'Inbox clear' : `No ${proposalFilterLabel} proposals` }}</p>
+              <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">{{ proposalStatusFilter === 'submitted' ? 'New CFP submissions will arrive here for review.' : 'There are no proposals in this view yet.' }}</p>
+            </div>
+            <div v-else class="overflow-hidden">
+              <table class="w-full table-fixed border-collapse text-left">
+                <caption class="sr-only">Presentation proposals</caption>
+                <thead class="border-b border-dc-border bg-dc-paper font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">
+                  <tr>
+                    <th scope="col" class="w-[36%] px-5 py-3 sm:px-6">Proposal</th>
+                    <th scope="col" class="w-[19%] px-4 py-3">Speaker</th>
+                    <th scope="col" class="w-[11%] px-4 py-3">Type</th>
+                    <th scope="col" class="w-[14%] px-4 py-3">Submitted</th>
+                    <th scope="col" class="w-[8%] px-4 py-3"><span class="sr-only">Status</span></th>
+                    <th scope="col" class="w-[12%] px-5 py-3 text-right sm:px-6"><span class="sr-only">Proposal actions</span></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-dc-border bg-white">
+                  <tr v-for="submission in paginatedProposalSubmissions" :key="submission.id" tabindex="0" class="h-14 cursor-pointer outline-none hover:bg-dc-paper-warm/40 focus-visible:bg-dc-paper-warm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openTalkPreview('proposal', submission, $event)" @keydown.enter.prevent="openTalkPreview('proposal', submission)" @keydown.space.prevent="openTalkPreview('proposal', submission)">
+                    <th scope="row" class="truncate px-5 py-2 text-sm font-semibold text-dc-ink sm:px-6" :title="submission.title">{{ submission.title }}</th>
+                    <td class="truncate px-4 py-2 text-sm text-dc-gray" :title="`${submission.speaker_name} · ${submission.speaker_email}`">{{ submission.speaker_name }}</td>
+                    <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ submission.kind === 'product_demo' ? 'Demo' : 'Talk' }}</td>
+                    <td class="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray" :title="formatDateTime(submission.created_at)">{{ formatProposalSubmittedDate(submission.created_at) }}</td>
+                    <td class="px-4 py-2"><span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)"><svg v-if="submission.status === 'selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><svg v-else-if="submission.status === 'not_selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg><svg v-else viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.8" /><path d="M12 8.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span></td>
+                    <td class="px-5 py-2 text-right sm:px-6">
+                      <div class="flex items-center justify-end gap-2">
+                        <button
+                          v-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.token"
+                          type="button"
+                          :class="proposalActionClass()"
+                          :aria-label="copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'Presenter completion link copied' : 'Copy presenter completion link'"
+                          @click.stop="copySpeakerIntakeLink(speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null), selectedSpeakerLinkForSubmission(submission.id)?.id ?? '')"
+                        >
+                          {{ copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'Copied' : 'Copy link' }}
+                        </button>
+                        <span aria-hidden="true" class="font-mono text-sm text-dc-gray">→</span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <AppPagination v-model:page="proposalPage" :page-count="proposalPageCount" :total="visibleProposalSubmissions.length" :range-start="proposalPageStart" :range-end="proposalPageEnd" item-label="proposals" aria-label="Presentation proposal pagination" />
+          </section>
         </section>
 
         <section v-if="activeTalkSection === 'program'" class="mb-8">

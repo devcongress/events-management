@@ -42,7 +42,8 @@ flowchart LR
 
 ### Organizer review and archive preview
 
-- **Talks review** now makes the complete proposal explicit: organizers open a right-side **Review proposal** drawer before they can select or decline a presenter. The drawer contains the submitted abstract or demo summary, presenter bio, topic, contact details, and submission time.
+- **Talks review** uses the same compact review-table pattern as Community submissions: **Pending** is the default queue, with **Approved** and **Rejected** filters, pagination, and a row that opens the right-side **Review proposal** drawer. The drawer contains the submitted abstract or demo summary, presenter bio, topic, contact details, and submission time before an organizer selects or declines a presenter.
+- The Approved view keeps selected-presenter completion links close to their proposal: organizers can prepare missing links in that filtered view and copy a newly issued link from its row without reopening a separate queue.
 - **Talks Archive** uses the same drawer for every archive state, including published items. It preserves a full internal record of the content submitted through the CFP or completion link, rather than leaving organizers with a title-only row.
 - Archive status changes (accept, publish, exclude, and reminder) live in the archive preview drawer, so an organizer reads the record before taking an irreversible decision. An Owner can also unpublish a published item there, returning it to its appropriate internal ready state; Organizers cannot reverse public visibility.
 - The existing public archive remains a separate visibility rule: a published archive item is only returned publicly when its event meets the public completed-archive conditions. The organizer preview is always available to authenticated organizers and does not depend on that public condition.
