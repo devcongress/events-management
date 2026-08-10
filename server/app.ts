@@ -1961,6 +1961,16 @@ function publicWebsiteEventUrl(event: Event, c: Context): string {
   return new URL(`/events/${encodeURIComponent(key)}`, websiteOrigin).toString();
 }
 
+function slackEventCoverUrl(event: Event, c: Context): string {
+  const cover = safeWebsiteUrl(event.cover);
+  if (cover?.startsWith('https://')) return cover;
+  if (cover?.startsWith('/') && !cover.startsWith('//')) {
+    return absoluteAppUrl(publicAppOrigin(c), cover);
+  }
+
+  return absoluteAppUrl(publicAppOrigin(c), '/images/event-announcement-fallback.png');
+}
+
 async function notifyEventsChannel(event: Event, source: 'organizer' | 'public submission', c: Context): Promise<void> {
   const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
   if (!webhookUrl) return;
@@ -1974,6 +1984,7 @@ async function notifyEventsChannel(event: Event, source: 'organizer' | 'public s
       location: event.location?.name ?? event.location?.label ?? event.online_url ?? 'Location to be announced',
       source,
       publicEventUrl: publicWebsiteEventUrl(event, c),
+      coverImageUrl: slackEventCoverUrl(event, c),
     });
   } catch (error) {
     console.warn(JSON.stringify({

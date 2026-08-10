@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-10 — Slack event announcement cards
+
+- Redesigned Events-channel notifications into a compact, readable card with a cover image, human-formatted Accra date/time, concise event metadata, and one public event action.
+- Added a neutral DevCongress announcement cover for events without their own image, avoiding unrelated meetup photography in Slack.
+
 ## 2026-08-10 — Slack event announcements open public event details
 
 - Changed the `#events` Slack announcement action from the EMS registration/details URL to the matching public event-detail page on `devcongress.org`, so **Open event** lands on the actual event page visitors use.
