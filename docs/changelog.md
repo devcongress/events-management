@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-10 — Playful, safe short-link fallback
+
+- Replaced the bare `go.devcongress.org` unavailable response with a responsive, playful DevCongress fallback for phones and desktops, including a single path back to the public site.
+- Kept revoked, malformed, unknown, and temporarily unresolvable codes indistinguishable behind the same generic 404 response.
+
+## 2026-08-09 — Canonical flyer links from their public form workspaces
+
+- Changed flyer links from a manually-created Audit Log item into a destination-owned public sharing capability: every open monthly CFP, event registration, and Annual Conference CFP receives or reuses one live opaque code; copying from its workspace returns that same code.
+- Turned Audit Log → Short links into the owner registry for copying, viewing reach, regenerating, and revoking codes; revoked links are retained as history but cannot be copied.
+- Added a forward-only short-link invariant migration that serializes concurrent creation/regeneration and ensures one active code per eligible destination.
+
 ## 2026-08-09 — Pages-based short-link routing
 
 - Replaced the standalone short-link Worker with a small Pages Function project, matching the existing CNAME-style `em.devcongress.org` deployment.

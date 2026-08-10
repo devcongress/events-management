@@ -6,7 +6,7 @@ import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceSpeakerDrawer from '@/src/components/AnnualConferenceSpeakerDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
-import { fetchJson, queryKeys } from '@/src/lib/api';
+import { ensureAdminShortLink, fetchJson, queryKeys } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import type { SpeakerSubmissionStatus } from '@/types';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
@@ -91,11 +91,15 @@ const decisionMutation = useMutation({
 });
 
 async function copyPublicLink() {
-  const path = speakersQuery.data.value?.call.public_path;
-  if (!path) return;
-  await navigator.clipboard?.writeText(new URL(path, window.location.origin).toString());
-  copied.value = true;
-  window.setTimeout(() => { copied.value = false; }, 1800);
+  if (!speakersQuery.data.value?.call.open) return;
+  try {
+    const shortLink = await ensureAdminShortLink({ destination: 'conference_cfp', conference_year: Number(year.value) });
+    await navigator.clipboard?.writeText(shortLink.url);
+    copied.value = true;
+    window.setTimeout(() => { copied.value = false; }, 1800);
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to prepare the public link.');
+  }
 }
 
 async function copyPresenterLink() {

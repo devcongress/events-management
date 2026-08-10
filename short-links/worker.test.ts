@@ -35,5 +35,7 @@ describe('short-link Worker', () => {
     vi.stubGlobal('fetch', async () => { throw new Error('network unavailable'); });
     const response = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), env());
     expect(response.status).toBe(404);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    await expect(response.text()).resolves.toContain('This link left the building.');
   });
 });

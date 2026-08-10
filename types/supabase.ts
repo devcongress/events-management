@@ -1925,6 +1925,24 @@ export interface Database {
           retry_after_seconds: number;
         }[];
       };
+      ensure_active_short_link: {
+        Args: {
+          input_destination: ShortLinkDestination;
+          input_event_id: string | null;
+          input_conference_edition_id: string | null;
+          input_code: string;
+          input_created_by_membership_id: string;
+        };
+        Returns: Database['public']['Tables']['short_links']['Row'][];
+      };
+      regenerate_active_short_link: {
+        Args: {
+          input_link_id: string;
+          input_code: string;
+          input_created_by_membership_id: string;
+        };
+        Returns: Database['public']['Tables']['short_links']['Row'][];
+      };
       approve_event_submission: {
         Args: {
           p_submission_id: string;

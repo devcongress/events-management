@@ -12,6 +12,7 @@ import {
   cancelEventRegistration,
   checkInEventRegistration,
   createEventBlast,
+  ensureAdminShortLink,
   fetchAdminSession,
   fetchEventBlasts,
   fetchEventRegistrations,
@@ -119,6 +120,7 @@ const pendingCheckInUndo = ref<EventRegistration | null>(null);
 const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
 const publicLinkCopied = ref(false);
+const publicShortLinkUrl = ref<string | null>(null);
 const manualRefreshPending = ref(false);
 const reopenRegistrationConfirmationOpen = ref(false);
 const reopenRegistrationPending = ref(false);
@@ -372,6 +374,7 @@ const canUsePublicRegistrationForm = computed(() => (
   Boolean(data.value?.public_url)
   && registrationIsOpen.value
 ));
+const publicShareUrl = computed(() => publicShortLinkUrl.value ?? data.value?.public_url ?? '');
 const currentSettings = computed<RegistrationSettingsDraft>(() => ({
   status: settings.status,
   description: settings.description,
@@ -809,7 +812,11 @@ async function savePageDetails() {
 async function copyPublicLink() {
   if (!data.value?.public_url || !canUsePublicRegistrationForm.value) return;
   try {
-    await navigator.clipboard.writeText(data.value.public_url);
+    const shortLink = publicShortLinkUrl.value
+      ? { url: publicShortLinkUrl.value }
+      : await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+    publicShortLinkUrl.value = shortLink.url;
+    await navigator.clipboard.writeText(shortLink.url);
     publicLinkCopied.value = true;
     if (publicLinkFeedbackTimer) {
       clearTimeout(publicLinkFeedbackTimer);
@@ -823,6 +830,21 @@ async function copyPublicLink() {
     notify.error('Unable to copy the registration form link.');
   }
 }
+
+async function prepareRegistrationShareLink() {
+  publicShortLinkUrl.value = null;
+  if (!canUsePublicRegistrationForm.value) return;
+  try {
+    const shortLink = await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+    if (canUsePublicRegistrationForm.value) publicShortLinkUrl.value = shortLink.url;
+  } catch {
+    // The direct internal URL remains available while the short-link service recovers.
+  }
+}
+
+watch([eventId, canUsePublicRegistrationForm], () => {
+  void prepareRegistrationShareLink();
+}, { immediate: true });
 
 async function checkIn(registration: EventRegistration) {
   if (actionRegistrationId.value) return;
@@ -1329,7 +1351,7 @@ async function retryEmails() {
                 </button>
                 <template v-if="canUsePublicRegistrationForm">
                   <a
-                    :href="data?.public_url ?? undefined"
+                    :href="publicShareUrl || undefined"
                     target="_blank"
                     rel="noopener noreferrer"
                     class="editorial-secondary-action min-h-11 justify-center px-4"
@@ -1442,7 +1464,7 @@ async function retryEmails() {
             <p class="editorial-label">Public registration link</p>
             <div class="mt-2 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3">
               <p class="break-all font-mono text-xs text-dc-gray">
-                {{ canUsePublicRegistrationForm ? data?.public_url : 'Open the campaign to expose its public form link.' }}
+                {{ canUsePublicRegistrationForm ? publicShareUrl : 'Open the campaign to expose its public form link.' }}
               </p>
             </div>
           </div>
