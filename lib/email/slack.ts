@@ -149,7 +149,7 @@ export async function sendEventAddedToSlack(input: {
   eventFormat: string;
   location: string;
   source: 'organizer' | 'public submission';
-  eventUrl: string;
+  publicEventUrl: string;
   fetcher?: typeof fetch;
 }): Promise<void> {
   const payload = {
@@ -175,7 +175,7 @@ export async function sendEventAddedToSlack(input: {
           {
             type: 'button',
             text: { type: 'plain_text', text: 'Open event' },
-            url: input.eventUrl,
+            url: input.publicEventUrl,
           },
         ],
       },

@@ -1975,6 +1975,12 @@ function publicEventDetailsUrl(event: Event, c: Context): string {
   return url.toString();
 }
 
+function publicWebsiteEventUrl(event: Event, c: Context): string {
+  const websiteOrigin = safeHttpUrl(envValue('PUBLIC_WEBSITE_ORIGIN', c) ?? '') ?? 'https://devcongress.org';
+  const key = event.slug?.trim() || event.id;
+  return new URL(`/events/${encodeURIComponent(key)}`, websiteOrigin).toString();
+}
+
 async function notifyEventsChannel(event: Event, source: 'organizer' | 'public submission', c: Context): Promise<void> {
   const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
   if (!webhookUrl) return;
@@ -1987,7 +1993,7 @@ async function notifyEventsChannel(event: Event, source: 'organizer' | 'public s
       eventFormat: event.format ?? 'meetup',
       location: event.location?.name ?? event.location?.label ?? event.online_url ?? 'Location to be announced',
       source,
-      eventUrl: publicEventDetailsUrl(event, c),
+      publicEventUrl: publicWebsiteEventUrl(event, c),
     });
   } catch (error) {
     console.warn(JSON.stringify({
