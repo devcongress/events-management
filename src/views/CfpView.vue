@@ -19,6 +19,7 @@ const turnstileToken = ref('');
 const turnstileError = ref('');
 const turnstileActive = turnstileEnabled();
 const ABSTRACT_WORD_LIMIT = 120;
+const devconLogoSrc = '/brand/dev-con-logo.png';
 
 const form = reactive({
   kind: 'talk' as ArchiveItemKind,
@@ -171,32 +172,19 @@ onMounted(async () => {
       <div class="cfp-success-card">
         <div class="cfp-success-visual" aria-hidden="true"></div>
         <div class="cfp-success-body">
-          <div class="cfp-success-brand-row" aria-hidden="true">
-            <span>dev:congress{}</span>
-          </div>
+          <img class="cfp-success-logo" :src="devconLogoSrc" alt="DevCongress">
 
-          <div class="cfp-success-topline">
-            <div class="cfp-success-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="m5 12.5 4.2 4.2L19 6.8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </div>
-            <p>Proposal received</p>
-          </div>
-
-          <h2>Thanks for sharing.</h2>
-          <p class="cfp-success-copy">
-            Thanks for submitting to {{ event.name }}. Organizers will review proposals together and contact selected presenters.
-          </p>
+          <h2>Thank you.</h2>
+          <p class="cfp-success-copy">We’ll be in touch if your proposal is selected.</p>
 
           <div class="cfp-success-pass">
             <div>
               <span>{{ archiveItemLabel }} title</span>
-              <strong>{{ form.title }}</strong>
+              <strong>{{ form.title || 'Your presentation title' }}</strong>
             </div>
           </div>
 
-          <p class="cfp-success-footnote">No extra steps needed. You can close this tab.</p>
+          <p class="cfp-success-footnote">You can close this tab.</p>
         </div>
       </div>
     </div>

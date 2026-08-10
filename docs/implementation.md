@@ -19,7 +19,7 @@
 | `src/lib/notify.ts` | Typed notification helper that targets the app toaster |
 | `src/views/DashboardView.vue` | DEV::CON[] landing page backed by current mock data |
 | `src/views/ArchiveView.vue` / `ArchiveEventView.vue` | Public event archive and published item surfaces |
-| `src/views/CfpView.vue` / `SpeakerTalkIntakeView.vue` | CFP and private selected-proposal/manual Archive Request flows |
+| `src/views/CfpView.vue` / `SpeakerTalkIntakeView.vue` | CFP and private selected-proposal/manual Archive Request flows; the CFP receipt is image-led and responsive after a public proposal is received. |
 | `src/views/FeedbackView.vue` | Public event feedback form for active or auto-open campaigns |
 | `lib/event-feedback-report.ts` | Pure event-feedback aggregate model used by the organizer dashboard |
 | `lib/speaker-archive-email.ts` | Eligible program-item selection and strict stored speaker-email resolution |
