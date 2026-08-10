@@ -165,6 +165,8 @@ import {
   validateParticipantDisplayName,
 } from '@/lib/system-design-participant-identity';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
+import { EVENT_ANNOUNCEMENT_FALLBACK_COVER, publicEventCoverUrl } from '@/lib/event-cover';
+import { checkPublicEventAvailability } from '@/lib/public-event-availability';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { adminRolesForApiRequest } from '@/server/admin-api-access';
 import { createAnnualConferenceRepository } from '@/server/annual-conference-repository';
@@ -315,7 +317,7 @@ app.use('/api/public/event-submissions/manage/:capability/with-cover', bodyLimit
 // A neutral brand asset for events that do not supply their own cover. Do not
 // rotate archival meetup photos here: an unrelated photo can imply a false
 // affiliation or format for a community event.
-const EVENT_FALLBACK_COVER = '/images/event-fallback.png';
+const EVENT_FALLBACK_COVER = EVENT_ANNOUNCEMENT_FALLBACK_COVER;
 const DEFAULT_MEETUP_LOCATION = {
   label: 'Accra, Ghana',
   name: 'Accra, Ghana',
@@ -1104,6 +1106,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
+    || (method === 'POST' && path === '/api/internal/slack-announcements/retry')
     || (method === 'GET' && /^\/api\/internal\/short-links\/[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/.test(path))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
     || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
@@ -1113,6 +1116,15 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
 function shortLinkResolverAuthorized(c: Context): boolean {
   const expected = envValue('SHORT_LINK_RESOLVER_TOKEN', c)?.trim();
   const received = c.req.header('x-short-link-resolver-token')?.trim();
+  if (!expected || !received) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(received);
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function scheduledSlackRetryAuthorized(c: Context): boolean {
+  const expected = envValue('SLACK_EVENTS_RETRY_SECRET', c)?.trim();
+  const received = c.req.header('x-scheduled-job-secret')?.trim();
   if (!expected || !received) return false;
   const expectedBuffer = Buffer.from(expected);
   const receivedBuffer = Buffer.from(received);
@@ -1257,14 +1269,14 @@ app.use('/api/*', async (c, next) => {
 
 async function getAllEvents(c?: Context): Promise<Event[]> {
   const events = (await getSupabaseCommunityEvents(c)) ?? await getAllMockEvents();
-  return events.map(canonicalizeEventSchedule);
+  return events.map((event) => withPublicEventCover(canonicalizeEventSchedule(event)));
 }
 
 async function getEventById(id: string, c?: Context): Promise<Event | undefined> {
   const event = await getSupabaseCommunityEventById(id, c);
   if (event !== null) return event ? canonicalizeEventSchedule(event) : event;
   const fallback = await getMockEventById(id);
-  return fallback ? canonicalizeEventSchedule(fallback) : fallback;
+  return fallback ? withPublicEventCover(canonicalizeEventSchedule(fallback)) : fallback;
 }
 
 async function getEventByRegistrationKey(key: string, c?: Context): Promise<Event | undefined> {
@@ -1275,7 +1287,11 @@ async function getEventByRegistrationKey(key: string, c?: Context): Promise<Even
   }
 
   const fallback = (await getAllMockEvents()).find((candidate) => candidate.slug === key);
-  return fallback ? canonicalizeEventSchedule(fallback) : getEventById(key, c);
+  return fallback ? withPublicEventCover(canonicalizeEventSchedule(fallback)) : getEventById(key, c);
+}
+
+function withPublicEventCover(event: Event): Event {
+  return { ...event, cover: publicEventCoverUrl(event.cover) };
 }
 
 async function getAnnualConferenceEditionByYear(year: number, c?: Context) {
@@ -1574,7 +1590,7 @@ function publicMeetupStatus(event: Event): PublicMeetup['status'] {
 }
 
 function coverForEvent(event: Event): string {
-  return event.cover || EVENT_FALLBACK_COVER;
+  return publicEventCoverUrl(event.cover);
 }
 
 function absoluteAppUrl(origin: string, path: string): string {
@@ -1889,7 +1905,7 @@ async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
       registration_url: safeWebsiteUrl(event.registration_url),
       organizer_name: event.organizer_name ?? 'DevCongress',
       organizer_website: safeHttpUrl(event.organizer_url),
-      cover_url: safeWebsiteUrl(event.cover),
+      cover_url: publicEventCoverUrl(event.cover),
       updated_at: event.updated_at,
     }))
     .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
@@ -1985,7 +2001,7 @@ function slackEventCoverUrl(event: Event, _c: Context): string {
   // Slack fetches event-card images itself, so never point it at a local or
   // request-derived origin. Event media is served publicly from EMS.
   const eventAssetsOrigin = 'https://em.devcongress.org';
-  const cover = safeWebsiteUrl(event.cover);
+  const cover = safeWebsiteUrl(publicEventCoverUrl(event.cover));
   if (cover?.startsWith('https://')) return cover;
   if (cover?.startsWith('/') && !cover.startsWith('//')) {
     return absoluteAppUrl(eventAssetsOrigin, cover);
@@ -2009,6 +2025,8 @@ function announcementSource(event: Event): 'organizer' | 'public submission' {
 type EventSlackDispatchResult = {
   announcement: EventSlackAnnouncement | null;
   dispatched: boolean;
+  websiteReady: boolean;
+  websiteStatus: number | null;
 };
 
 async function notifyEventsChannel(
@@ -2018,7 +2036,34 @@ async function notifyEventsChannel(
   options: { allowRetry?: boolean } = {},
 ): Promise<EventSlackDispatchResult> {
   if (!eventIsEligibleForSlackAnnouncement(event)) {
-    return { announcement: await getEventSlackAnnouncement(event.id, c), dispatched: false };
+    return {
+      announcement: await getEventSlackAnnouncement(event.id, c),
+      dispatched: false,
+      websiteReady: true,
+      websiteStatus: null,
+    };
+  }
+
+  const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
+  if (webhookUrl) {
+    const websiteUrl = publicWebsiteEventUrl(event, c);
+    const website = await checkPublicEventAvailability(websiteUrl);
+    if (!website.available) {
+      console.warn(JSON.stringify({
+        event: 'event_added_slack_notification_waiting_for_website',
+        event_id: event.id,
+        source,
+        website_url: websiteUrl,
+        website_status: website.status,
+        request_id: c.get('requestId') ?? null,
+      }));
+      return {
+        announcement: await getEventSlackAnnouncement(event.id, c),
+        dispatched: false,
+        websiteReady: false,
+        websiteStatus: website.status,
+      };
+    }
   }
 
   let claimed;
@@ -2032,14 +2077,13 @@ async function notifyEventsChannel(
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
-    return { announcement: null, dispatched: false };
+    return { announcement: null, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
   if (!claimed.should_send || !claimed.attempt_token) {
-    return { announcement: claimed, dispatched: false };
+    return { announcement: claimed, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
-  const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
   if (!webhookUrl) {
     const announcement = await completeEventSlackAnnouncement(
       event.id,
@@ -2048,7 +2092,7 @@ async function notifyEventsChannel(
       'Slack event-channel webhook is not configured.',
       c,
     );
-    return { announcement, dispatched: false };
+    return { announcement, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
   try {
@@ -2063,7 +2107,7 @@ async function notifyEventsChannel(
       coverImageUrl: slackEventCoverUrl(event, c),
     });
     const announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, true, null, c);
-    return { announcement, dispatched: true };
+    return { announcement, dispatched: true, websiteReady: true, websiteStatus: null };
   } catch (error) {
     const errorMessage = error instanceof SlackWebhookError ? error.message : 'Slack notification failed.';
     let announcement: EventSlackAnnouncement | null = null;
@@ -2085,8 +2129,36 @@ async function notifyEventsChannel(
       error: errorMessage,
       request_id: c.get('requestId') ?? null,
     }));
-    return { announcement, dispatched: false };
+    return { announcement, dispatched: false, websiteReady: true, websiteStatus: null };
   }
+}
+
+async function retryEligibleEventSlackAnnouncements(c: Context) {
+  if (!envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)) {
+    return { checked: 0, sent: 0, waiting_for_website: 0, failed: 0 };
+  }
+
+  const events = await getAllEvents(c);
+  let checked = 0;
+  let sent = 0;
+  let waitingForWebsite = 0;
+  let failed = 0;
+
+  for (const event of events) {
+    if (!eventIsEligibleForSlackAnnouncement(event)) continue;
+    const existing = await getEventSlackAnnouncement(event.id, c);
+    if (existing?.status === 'sent' || existing?.status === 'failed') continue;
+
+    checked += 1;
+    const result = await notifyEventsChannel(event, announcementSource(event), c, {
+      allowRetry: false,
+    });
+    if (!result.websiteReady) waitingForWebsite += 1;
+    else if (result.dispatched) sent += 1;
+    else if (result.announcement?.status === 'failed') failed += 1;
+  }
+
+  return { checked, sent, waiting_for_website: waitingForWebsite, failed };
 }
 
 async function notifyEventSubmissionChannel(submission: EventSubmission, c: Context): Promise<void> {
@@ -2104,6 +2176,7 @@ async function notifyEventSubmissionChannel(submission: EventSubmission, c: Cont
       format: submission.format,
       location: submission.venue_name ?? submission.online_url ?? 'Location to be announced',
       dashboardUrl: eventSubmissionDashboardUrl(submission.id, c),
+      coverImageUrl: submission.cover_url ?? 'https://em.devcongress.org/images/event-announcement-fallback.png',
     });
   } catch (error) {
     console.warn(JSON.stringify({
@@ -6120,10 +6193,35 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   if (!event) return c.json({ error: 'Event not found' }, 404);
 
+  const eligible = eventIsEligibleForSlackAnnouncement(event);
+  const websiteUrl = publicWebsiteEventUrl(event, c);
+  const website = eligible && envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)
+    ? await checkPublicEventAvailability(websiteUrl)
+    : { available: true, status: null };
+  const announcement = await getEventSlackAnnouncement(event.id, c);
   return c.json({
-    announcement: await getEventSlackAnnouncement(event.id, c),
-    eligible: eventIsEligibleForSlackAnnouncement(event),
+    announcement,
+    eligible,
+    website_ready: website.available,
+    website_status: website.status,
   });
+});
+
+app.post('/api/internal/slack-announcements/retry', async (c) => {
+  if (!scheduledSlackRetryAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+
+  try {
+    const result = await retryEligibleEventSlackAnnouncements(c);
+    console.info(JSON.stringify({ event: 'scheduled_event_slack_announcement_retry', ...result }));
+    return c.json({ ok: true, ...result });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'scheduled_event_slack_announcement_retry_failed',
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return c.json({ error: 'Slack announcement retry failed.' }, 500);
+  }
 });
 
 app.post('/api/events/:eventId/slack-announcement', async (c) => {
@@ -6148,6 +6246,8 @@ app.post('/api/events/:eventId/slack-announcement', async (c) => {
     metadata: {
       outcome,
       dispatched: result.dispatched,
+      website_ready: result.websiteReady,
+      website_status: result.websiteStatus,
       attempt_count: result.announcement?.attempt_count ?? null,
     },
   });
@@ -6156,6 +6256,8 @@ app.post('/api/events/:eventId/slack-announcement', async (c) => {
     announcement: result.announcement,
     eligible: true,
     dispatched: result.dispatched,
+    website_ready: result.websiteReady,
+    website_status: result.websiteStatus,
   });
 });
 

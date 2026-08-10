@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-10 — Redesigned event-submission Slack review card
+
+- Reworked private submission notifications into a focused review card with the cover image, human-formatted date/details, organizer attribution, bounded summary, and a single primary **Review submission** action.
+- Submission cards use the neutral event-announcement fallback when no cover was supplied, keeping the review channel visually consistent with Events-channel announcements.
+
+## 2026-08-10 — Wait for the public event page before Slack delivery
+
+- Slack announcement sends now verify that the matching `devcongress.org/events/...` page returns successfully before claiming or posting an announcement.
+- Added a 15-minute Cloudflare Worker retry drain for eligible announcements that were not claimed while the website was unavailable, covering variable daily website build completion times without duplicate successful posts.
+- Added organizer-facing event-detail guidance explaining the wait and preserved the existing manual send/retry controls.
+
+## 2026-08-10 — Corrected community no-cover fallback
+
+- Community submissions without an uploaded cover now use `/images/event-announcement-fallback.png` for physical, online, and hybrid events.
+- Existing promoted submissions that used the retired Google Meet or other placeholder covers are normalized by a forward-only migration.
+
 ## 2026-08-10 — Recoverable Slack event announcements
 
 - Added durable, one-send state for public event announcements in the Slack events channel. A successful post cannot be resent accidentally; a failed post is explicitly retryable.

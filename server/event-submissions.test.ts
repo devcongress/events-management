@@ -254,13 +254,15 @@ describe('community event submissions', () => {
     expect(String(slackFetch.mock.calls[0]?.[0])).toBe('https://hooks.slack.com/services/test/submissions');
     const slackPayload = JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body)) as {
       text: string;
-      blocks: Array<{ type: string; elements?: Array<{ url?: string }> }>;
+      blocks: Array<{ type: string; image_url?: string; elements?: Array<{ url?: string }> }>;
     };
     expect(slackPayload).toMatchObject({
       text: 'New event submission: Community systems workshop',
     });
     const reviewButton = slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0];
     expect(reviewButton?.url).toBe(`http://localhost/organizer-console/events/submissions?submission=${submission.id}`);
+    expect(slackPayload.blocks.find((block) => block.type === 'image')?.image_url)
+      .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
   });
 
   it('does not fail submission intake when the submission channel is unavailable', async () => {

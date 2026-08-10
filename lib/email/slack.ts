@@ -147,32 +147,41 @@ export async function sendEventSubmissionReceivedToSlack(input: {
   format: string;
   location: string;
   dashboardUrl: string;
+  coverImageUrl?: string | null;
   fetcher?: typeof fetch;
 }): Promise<void> {
+  const coverImageUrl = publicSlackImageUrl(input.coverImageUrl);
+  const eventDetails = [
+    formatEventDateForSlack(input.startsAt),
+    `${titleCase(input.format)} · ${input.location.trim() || 'Location to be announced'}`,
+  ].join('\n');
   const payload = {
     text: `New event submission: ${input.eventTitle}`,
     blocks: [
-      { type: 'header', text: { type: 'plain_text', text: 'New event submission' } },
+      { type: 'header', text: { type: 'plain_text', text: 'New community event submission' } },
+      ...(coverImageUrl ? [{
+        type: 'image',
+        image_url: coverImageUrl,
+        alt_text: `Event cover for ${input.eventTitle}`.slice(0, 2_000),
+      }] : []),
       {
         type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*Event*\n${slackText(input.eventTitle)}` },
-          { type: 'mrkdwn', text: `*Organizer*\n${slackText(input.organizerName)}` },
-          { type: 'mrkdwn', text: `*Email*\n${slackText(input.organizerEmail)}` },
-          { type: 'mrkdwn', text: `*When*\n${slackText(input.startsAt)}` },
-          { type: 'mrkdwn', text: `*Format*\n${slackText(input.format)}` },
-          { type: 'mrkdwn', text: `*Where*\n${slackText(input.location)}` },
-        ],
+        text: { type: 'mrkdwn', text: `*${slackText(input.eventTitle)}*\n${slackText(eventDetails)}` },
+      },
+      {
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: `Submitted by ${slackText(input.organizerName)} · ${slackText(input.organizerEmail)}` }],
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: `*Summary*\n${slackText(input.summary) || '(no summary)'}` },
+        text: { type: 'mrkdwn', text: `*About this event*\n${slackText(input.summary) || '(no summary)'}` },
       },
       {
         type: 'actions',
         elements: [{
           type: 'button',
-          text: { type: 'plain_text', text: 'Review in EMS' },
+          text: { type: 'plain_text', text: 'Review submission →' },
+          style: 'primary',
           url: input.dashboardUrl,
         }],
       },

@@ -6,18 +6,13 @@ import { inferEventSeriesType, isEventSeriesType } from '@/lib/event-series';
 import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { isEventFormat } from '@/lib/event-format';
+import { EVENT_ANNOUNCEMENT_FALLBACK_COVER, publicEventCoverUrl } from '@/lib/event-cover';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
 type CommunityEventUpdate = Database['public']['Tables']['community_events']['Update'];
 
-const EVENT_FALLBACK_COVER = '/images/event-fallback.png';
-const LEGACY_FALLBACK_COVERS = new Set([
-  '/images/apr-meetup.jpg',
-  '/images/logo.png',
-  '/images/quarterly-april-meetup-2.jpeg',
-]);
-const DEFAULT_COVER = EVENT_FALLBACK_COVER;
+const DEFAULT_COVER = EVENT_ANNOUNCEMENT_FALLBACK_COVER;
 const DEFAULT_LOCATION = {
   label: 'Accra, Ghana',
   name: 'Accra, Ghana',
@@ -389,7 +384,7 @@ function toEvent(row: CommunityEventRow): Event {
     event_date: row.starts_at,
     end_date: row.ends_at,
     status: row.status as EventStatus,
-    cover: safeWebsiteUrl(row.cover_url) ?? undefined,
+    cover: publicEventCoverUrl(row.cover_url),
     location: {
       label: row.location_label ?? undefined,
       name: row.location_name,
@@ -486,15 +481,6 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     archive_url: absoluteAppUrl(origin, `/archive/${row.id}`),
     updated_at: toWebsiteDateTime(row.updated_at),
   };
-}
-
-function publicEventCoverUrl(value: string | null): string {
-  const cover = safeWebsiteUrl(value);
-  // Older promoted events were given an EMS placeholder or a random meetup
-  // image. Use the neutral shared fallback without changing explicit uploads.
-  return !cover || LEGACY_FALLBACK_COVERS.has(cover)
-    ? EVENT_FALLBACK_COVER
-    : cover;
 }
 
 function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {

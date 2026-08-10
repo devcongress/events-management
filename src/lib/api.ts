@@ -864,6 +864,8 @@ export type EventSlackAnnouncementResponse = {
   announcement: EventSlackAnnouncement | null;
   eligible: boolean;
   dispatched?: boolean;
+  website_ready?: boolean;
+  website_status?: number | null;
 };
 
 export function fetchEventSlackAnnouncement(eventId: string) {

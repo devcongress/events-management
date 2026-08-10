@@ -65,7 +65,11 @@ afterEach(async () => {
 describe('native event registration API', () => {
   it('announces a published organizer event to the configured events channel', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
-    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+    const slackFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => (
+      String(input).startsWith('https://devcongress.org/')
+        ? new Response('', { status: 200 })
+        : new Response('ok', { status: 200 })
+    ));
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -82,9 +86,10 @@ describe('native event registration API', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(slackFetch).toHaveBeenCalledTimes(1);
-    expect(String(slackFetch.mock.calls[0]?.[0])).toEqual('https://hooks.slack.com/services/test/events');
-    const slackPayload = JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body)) as {
+    expect(slackFetch).toHaveBeenCalledTimes(2);
+    const slackCall = slackFetch.mock.calls.find(([input]) => String(input).startsWith('https://hooks.slack.com/'));
+    expect(String(slackCall?.[0])).toEqual('https://hooks.slack.com/services/test/events');
+    const slackPayload = JSON.parse(String(slackCall?.[1]?.body)) as {
       text: string;
       blocks: Array<{
         type: string;
@@ -107,7 +112,11 @@ describe('native event registration API', () => {
 
   it('does not fail event creation when the events channel is unavailable', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
-    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('unavailable', { status: 503 }));
+    const slackFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => (
+      String(input).startsWith('https://devcongress.org/')
+        ? new Response('', { status: 200 })
+        : new Response('unavailable', { status: 503 })
+    ));
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -124,13 +133,17 @@ describe('native event registration API', () => {
     });
 
     expect(response.status).toBe(201);
-    expect(slackFetch).toHaveBeenCalledTimes(1);
+    expect(slackFetch).toHaveBeenCalledTimes(2);
   });
 
   it('permits one deliberate retry after a failed event-channel announcement and never reposts after success', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
     let available = false;
-    const slackFetch = vi.fn(async () => new Response(available ? 'ok' : 'unavailable', { status: available ? 200 : 503 }));
+    const slackFetch = vi.fn(async (input: RequestInfo | URL) => (
+      String(input).startsWith('https://devcongress.org/')
+        ? new Response('', { status: 200 })
+        : new Response(available ? 'ok' : 'unavailable', { status: available ? 200 : 503 })
+    ));
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -156,7 +169,45 @@ describe('native event registration API', () => {
 
     const repeated = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
     await expect(repeated.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 2 }, dispatched: false });
-    expect(slackFetch).toHaveBeenCalledTimes(2);
+    expect(slackFetch).toHaveBeenCalledTimes(6);
+  });
+
+  it('waits for the public page and sends from the scheduled retry once it is available', async () => {
+    vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'scheduled-retry-secret');
+    let websiteReady = false;
+    const slackFetch = vi.fn(async (input: RequestInfo | URL) => (
+      String(input).startsWith('https://devcongress.org/')
+        ? new Response('', { status: websiteReady ? 200 : 404 })
+        : new Response('ok', { status: 200 })
+    ));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Website-gated meetup',
+        description: 'The Slack post waits for the public page.',
+        event_date: '2099-08-20T19:00:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+
+    websiteReady = true;
+    const retry = await app.request('http://localhost/api/internal/slack-announcements/retry', {
+      method: 'POST',
+      headers: { 'x-scheduled-job-secret': 'scheduled-retry-secret' },
+    });
+    await expect(retry.json()).resolves.toMatchObject({ ok: true, sent: 1, waiting_for_website: 0 });
+    expect(slackFetch).toHaveBeenCalledTimes(3);
+
+    const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+    await expect(status.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 1 } });
   });
 
   it('does not expose event-channel announcement controls to volunteers', async () => {

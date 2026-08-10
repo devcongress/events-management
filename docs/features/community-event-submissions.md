@@ -62,7 +62,7 @@ When inbound reply routing is configured, each community-submission email receiv
 
 Resend sends an `email.received` webhook to `POST /api/webhooks/resend/inbound`. EMS verifies the raw Svix signature, ignores addresses that do not match a valid submission token, retrieves the message body through Resend, stores a sanitized plain-text copy in `event_submission_replies`, and exposes it in the submission drawer. Webhook delivery is idempotent on both the webhook event id and Resend email id. Attachments are recorded as metadata only in this slice.
 
-If `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` is configured for the private submission channel, every saved public submission posts a bounded submission summary and a link to that exact record in the EMS submissions inbox. Replies to submission emails post there too. Opening the Slack link loads the matching status filter and opens its review drawer, including for already approved or rejected submissions. Slack failure never rejects intake or discards the EMS record; the dashboard remains the source of truth.
+If `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` is configured for the private submission channel, every saved public submission posts a compact review card with its cover (or the neutral fallback), human-formatted event details, organizer attribution, bounded summary, and one primary link to that exact record in the EMS submissions inbox. Replies to submission emails post there too. Opening the Slack link loads the matching status filter and opens its review drawer, including for already approved or rejected submissions. Slack failure never rejects intake or discards the EMS record; the dashboard remains the source of truth.
 The reply card exposes the bounded Slack rejection reason and gives an Organizer a **Retry Slack** action. A retry addresses only that saved reply, records its outcome in the audit ledger, and never reprocesses the inbound email.
 
 The reply card keeps the new message prominent. When a standard reply boundary or quoted-line marker is present, the preserved original email is cleaned for display and appears in an optional **Original email** disclosure; the full inbound body remains stored unchanged.
@@ -81,7 +81,7 @@ Emails sent before signed routing is enabled still point at the old `EVENT_EMAIL
 
 Approved listings open into a compact **Community event** overview rather than the normal DevCongress event workspace. Its administrator-only editor can update the live listing details and cover image directly; those writes use the existing authenticated event mutation/media endpoints and retain their audit records. Direct links to talks, attendance, registration, quiz, System Design, feedback, speakers, and finance redirect community listings back to that overview so they cannot acquire normal DevCongress operational workflows.
 
-Eligible published events (current or future only) also keep a durable Events-channel Slack announcement record. The first automatic publication attempt is reserved atomically; an Organizer can use **Send to Slack** if an eligible event has never been announced, or **Retry Slack** only after the provider recorded a failure. A successful announcement is terminal and the action disappears, preventing accidental duplicate public posts. The actions are audited without storing a webhook URL or other provider secret. Apply `20260810230000_event_slack_announcements.sql` before deploying this workflow.
+Eligible published events (current or future only) also keep a durable Events-channel Slack announcement record. EMS checks the exact `devcongress.org/events/...` page before reserving or sending a Slack post, so a static-site 404 or unreachable page can never produce a broken Slack link. The organizer details explain that the post waits for the next website refresh. A Worker scheduled drain checks eligible announcements that were not claimed because the website was unavailable every 15 minutes, so a website build that completes at 6:00, 7:00, or 8:00 is picked up automatically on the next successful check. Provider failures remain explicit **Retry Slack** actions, while the Organizer can still use **Send to Slack** manually. A successful announcement is terminal and the action disappears, preventing accidental duplicate public posts. The actions are audited without storing a webhook URL or other provider secret. Apply `20260810230000_event_slack_announcements.sql` and configure `SLACK_EVENTS_RETRY_SECRET` before deploying this workflow.
 
 ## Event taxonomy
 
@@ -106,7 +106,7 @@ Authenticated organizers can inspect the complete published collection, includin
 
 Approval updates the public API immediately. The current Astro website is statically built, so its `/events/` page reflects the new listing after the next website build/deployment; the approval email links to the submitted registration/event page when available instead of depending on that refresh.
 
-Approved submissions promote their verified cover URL to the canonical event. If no cover was supplied, or an older submission still references the retired `/images/logo.png` placeholder, the public API returns the neutral DevCongress event fallback instead of a broken image or unrelated meetup photography.
+Approved submissions promote their verified cover URL to the canonical event. If no cover was supplied, or an older submission still references a retired placeholder—including the former Google Meet image—the public API returns `/images/event-announcement-fallback.png` instead of a broken image or unrelated meetup photography.
 
 ## Temporary manual acceptance testing
 
@@ -119,6 +119,6 @@ Only after cleanup reports zero beta submissions and promoted events should `PUB
 ## Deliberate follow-ups
 
 - Verified delivered/bounced state for outbound messages still requires a separate delivery webhook; this inbound webhook only handles organizer replies.
-- A scheduled outbox drain can be added if volume makes organizer-driven retry insufficient; every pending/failed record is already durable and idempotent.
+- A provider delivery webhook can be added if Slack acceptance must be distinguished from later delivery outcomes; every pending/failed event announcement is already durable and idempotent.
 - Approve-as-draft is supported by the API and relational model but is not exposed in the initial two-decision organizer UI.
 - Submitter edit/appeal and rejected-record retention require product policy before implementation.
