@@ -8,7 +8,8 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
-import { ensureAdminShortLink, fetchAdminSession, fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
+import { ensureAdminShortLink, fetchAdminSession, queryKeys } from '@/src/lib/api';
+import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 import {
   isArchiveRequestsChecklistItem,
   isArchiveRequestsDisabledForEvent,
@@ -19,6 +20,7 @@ import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, 
 
 const route = useRoute();
 const queryClient = useQueryClient();
+const workspace = useEventWorkspace(() => String(route.params.eventId));
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
@@ -284,11 +286,8 @@ async function fetchTalks() {
 }
 
 async function fetchEvent() {
-  const eventId = String(route.params.eventId);
-  event.value = await queryClient.fetchQuery({
-    queryKey: queryKeys.event(eventId),
-    queryFn: () => fetchEventById(eventId),
-  });
+  const result = await workspace.eventQuery.refetch();
+  event.value = result.data ?? null;
 }
 
 async function prepareCfpShareLink() {
@@ -318,12 +317,8 @@ async function fetchSpeakerIntakeLinks() {
 }
 
 async function fetchArchiveRequestAvailability() {
-  const eventId = String(route.params.eventId);
-  const data = await queryClient.fetchQuery({
-    queryKey: queryKeys.eventChecklist(eventId),
-    queryFn: () => fetchEventChecklist(eventId),
-  });
-  checklistItems.value = data.items ?? [];
+  const result = await workspace.checklistQuery.refetch();
+  checklistItems.value = result.data?.items ?? [];
 }
 
 function rememberIssuedSpeakerLink(payload: { link?: AdminSpeakerIntakeLink | null; token?: string | null }) {

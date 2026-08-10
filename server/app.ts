@@ -125,20 +125,10 @@ import {
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEventPreviewMeetups, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import {
-  approveEventSubmission,
-  createEventSubmission,
   EventSubmissionStorageError,
-  getActiveEventSubmissionManagementLink,
-  getEventSubmissionManagement,
   getEventSubmissionReply,
   getPendingEventSubmissionEmails,
   insertEventSubmissionReply,
-  listEventSubmissions,
-  rejectEventSubmission,
-  reviewEventSubmissionAmendment,
-  saveEventSubmissionAmendment,
-  submitEventSubmissionAmendment,
-  withdrawEventSubmission,
   updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
@@ -171,6 +161,9 @@ import {
   annualConferenceErrorStatus,
   createAnnualConferenceService,
 } from '@/server/annual-conference-service';
+import { createEventSubmissionRequestAdapter } from '@/server/event-submissions/request-adapter';
+import { createOperationsReadModel, OperationsReadModelError } from '@/server/operations-read-model';
+import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import {
   AnnualConferenceFinanceServiceError,
   annualConferenceFinanceErrorStatus,
@@ -908,20 +901,7 @@ async function auditAdminAction(c: Context, input: {
   targetId?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  // requireAdmin already resolved (and cached) the session for this request;
-  // re-fetching it here used to cost an extra Supabase round trip per mutation.
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-  if (!session.authenticated) return;
-
-  await recordAdminAudit(c, {
-    actor_user_id: session.user_id,
-    actor_email: session.email,
-    actor_role: session.role,
-    action: input.action,
-    target_type: input.targetType ?? null,
-    target_id: input.targetId ?? null,
-    metadata: input.metadata,
-  });
+  await recordProtectedMutationAudit(c, input);
 }
 
 function internalErrorResponse(c: Context, event: string, error: unknown, publicMessage: string) {
@@ -2390,6 +2370,53 @@ async function dispatchEventSubmissionEmails(
   } catch {
     await task;
   }
+}
+
+/**
+ * Adapts request-scoped infrastructure to the community-submission lifecycle.
+ * Hono validation/authentication stays in the routes; related state transitions,
+ * audit descriptors, and delivery intent stay together in the lifecycle.
+ */
+function eventSubmissionLifecycleForRequest(c: Context) {
+  return createEventSubmissionRequestAdapter(c, {
+    audit: (event) => auditAdminAction(c, event),
+    queueEmail: ({ submissionId, kind }) => dispatchEventSubmissionEmails(c, {
+      submissionId,
+      kinds: [kind],
+      statuses: ['pending', 'failed'],
+      limit: 1,
+    }),
+    findEvent: async (eventId) => (await getEventById(eventId, c)) ?? null,
+    announcePublished: (event) => notifyEventsChannel(event, 'public submission', c),
+  });
+}
+
+function operationsReadModelForRequest(c: Context) {
+  return createOperationsReadModel({
+    async listAudit(filters) {
+      let query = getSupabaseAdminClient(c)
+        .from('admin_audit_log')
+        .select('id, actor_email, actor_role, action, target_type, target_id, metadata, ip_address, user_agent, request_method, request_path, created_at')
+        .order('created_at', { ascending: false })
+        .limit(filters.limit);
+      if (filters.actor) query = query.ilike('actor_email', `%${filters.actor}%`);
+      if (filters.action) query = query.eq('action', filters.action);
+      if (filters.targetType) query = query.eq('target_type', filters.targetType);
+      const { data, error } = await query;
+      if (error) throw new OperationsReadModelError('Unable to load audit log.');
+      return data ?? [];
+    },
+    emailHealth: () => getEmailDeliveryHealth(c),
+    emailOutbox: () => getEmailOutboxSummary(c),
+    recentEmailDeliveries: async () => (await getRecentEmailDeliveries(c)) ?? [],
+    recentEventBlasts: (limit) => getRecentEventBlasts(limit, c),
+    blastCapacity: ({ health, outbox }) => assessBlastCapacity({
+      recipientCount: 0,
+      health,
+      outbox,
+      protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
+    }),
+  });
 }
 
 function feedbackActivityLabelKey(label: string): string {
@@ -4789,7 +4816,7 @@ app.get('/api/admin/event-submissions', async (c) => {
   if (!parsed.success) return c.json({ error: 'Invalid submission status.' }, 400);
 
   try {
-    const submissions = await listEventSubmissions(parsed.data.status as EventSubmissionReviewStatus | undefined, c);
+    const submissions = await eventSubmissionLifecycleForRequest(c).list(parsed.data.status as EventSubmissionReviewStatus | undefined);
     return c.json({ submissions });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
@@ -4806,31 +4833,12 @@ app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
 
   try {
-    const submission = await approveEventSubmission(
-      c.req.param('submissionId'),
-      session.email,
-      parsed.data.publish,
-      c,
-    );
-    await auditAdminAction(c, {
-      action: parsed.data.publish ? 'event_submission.approve_and_publish' : 'event_submission.approve_as_draft',
-      targetType: 'event_submission',
-      targetId: submission.id,
-      metadata: { approved_event_id: submission.approved_event_id },
+    const result = await eventSubmissionLifecycleForRequest(c).review({
+      submissionId: c.req.param('submissionId'),
+      actor: { email: session.email, userId: session.user_id, role: session.role },
+      command: { kind: 'approve', publish: parsed.data.publish },
     });
-    if (parsed.data.publish) {
-      if (submission.approved_event_id) {
-        const approvedEvent = await getEventById(submission.approved_event_id, c);
-        if (approvedEvent) await notifyEventsChannel(approvedEvent, 'public submission', c);
-      }
-      await dispatchEventSubmissionEmails(c, {
-        submissionId: submission.id,
-        kinds: ['approved'],
-        statuses: ['pending', 'failed'],
-        limit: 1,
-      });
-    }
-    return c.json({ submission, event_id: submission.approved_event_id });
+    return c.json({ submission: result.submission, event_id: result.eventId });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       if (error.code === 'not_found') return c.json({ error: error.message }, 404);
@@ -4848,29 +4856,17 @@ app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
 
   try {
-    const submission = await rejectEventSubmission(
-      c.req.param('submissionId'),
-      session.email,
-      parsed.data,
-      c,
-    );
-    await auditAdminAction(c, {
-      action: 'event_submission.reject',
-      targetType: 'event_submission',
-      targetId: submission.id,
-      metadata: {
-        category: submission.rejection_category,
-        organizer_message_provided: Boolean(submission.organizer_message),
-        internal_note_provided: Boolean(submission.internal_note),
+    const result = await eventSubmissionLifecycleForRequest(c).review({
+      submissionId: c.req.param('submissionId'),
+      actor: { email: session.email, userId: session.user_id, role: session.role },
+      command: {
+        kind: 'reject',
+        category: parsed.data.category,
+        organizerMessage: parsed.data.organizer_message,
+        internalNote: parsed.data.internal_note,
       },
     });
-    await dispatchEventSubmissionEmails(c, {
-      submissionId: submission.id,
-      kinds: ['rejected'],
-      statuses: ['pending', 'failed'],
-      limit: 1,
-    });
-    return c.json({ submission });
+    return c.json({ submission: result.submission });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       if (error.code === 'not_found') return c.json({ error: error.message }, 404);
@@ -4887,13 +4883,12 @@ app.post('/api/admin/event-submission-amendments/:amendmentId/review', async (c)
   const session = c.get('adminSession') ?? await getAdminSession(c);
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
   try {
-    const amendment = await reviewEventSubmissionAmendment(c.req.param('amendmentId'), session.email, parsed.data.approve, parsed.data.organizer_message, c);
-    await auditAdminAction(c, {
-      action: parsed.data.approve ? 'event_submission_amendment.approve' : 'event_submission_amendment.reject',
-      targetType: 'event_submission_amendment', targetId: amendment.id,
-      metadata: { submission_id: amendment.submission_id },
+    const amendment = await eventSubmissionLifecycleForRequest(c).management.review({
+      amendmentId: c.req.param('amendmentId'),
+      actor: { email: session.email, userId: session.user_id, role: session.role },
+      approve: parsed.data.approve,
+      organizerMessage: parsed.data.organizer_message,
     });
-    await dispatchEventSubmissionEmails(c, { submissionId: amendment.submission_id, kinds: [parsed.data.approve ? 'amendment_approved' : 'amendment_rejected'], statuses: ['pending', 'failed'], limit: 1 });
     return c.json({ amendment });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
@@ -4907,10 +4902,12 @@ app.post('/api/admin/event-submissions/:submissionId/withdraw', async (c) => {
   const session = c.get('adminSession') ?? await getAdminSession(c);
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
   try {
-    const submission = await withdrawEventSubmission(c.req.param('submissionId'), session.email, parsed.data.organizer_message, c);
-    await auditAdminAction(c, { action: 'event_submission.withdraw', targetType: 'event_submission', targetId: submission.id, metadata: { approved_event_id: submission.approved_event_id } });
-    await dispatchEventSubmissionEmails(c, { submissionId: submission.id, kinds: ['withdrawn'], statuses: ['pending', 'failed'], limit: 1 });
-    return c.json({ submission });
+    const result = await eventSubmissionLifecycleForRequest(c).review({
+      submissionId: c.req.param('submissionId'),
+      actor: { email: session.email, userId: session.user_id, role: session.role },
+      command: { kind: 'withdraw', organizerMessage: parsed.data.organizer_message },
+    });
+    return c.json({ submission: result.submission });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
     throw error;
@@ -4922,18 +4919,17 @@ app.post('/api/admin/event-submissions/:submissionId/management-link', async (c)
   if (!submissionId.success) return c.json({ error: 'Invalid event submission.' }, 400);
 
   try {
-    const link = await getActiveEventSubmissionManagementLink(submissionId.data, c);
+    const session = c.get('adminSession') ?? await getAdminSession(c);
+    if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
+    const link = await eventSubmissionLifecycleForRequest(c).management.copyLink({
+      submissionId: submissionId.data,
+      actor: { email: session.email, userId: session.user_id, role: session.role },
+    });
     const managementUrl = eventSubmissionManagementUrl(link.id, c);
     if (!managementUrl) {
       console.error(JSON.stringify({ event: 'event_submission_management_token_secret_missing', request_id: c.get('requestId') ?? null }));
       return c.json({ error: 'Event management links are not configured.' }, 503);
     }
-    await auditAdminAction(c, {
-      action: 'event_submission.management_link_copied',
-      targetType: 'event_submission',
-      targetId: submissionId.data,
-      metadata: { expires_at: link.expires_at },
-    });
     c.header('Cache-Control', 'no-store');
     return c.json({ management_url: managementUrl, expires_at: link.expires_at });
   } catch (error) {
@@ -5049,51 +5045,17 @@ app.get('/api/admin/audit-log', async (c) => {
     return c.json({ error: 'Invalid audit log filters.' }, 400);
   }
 
-  let query = getSupabaseAdminClient(c)
-    .from('admin_audit_log')
-    .select('id, actor_email, actor_role, action, target_type, target_id, metadata, ip_address, user_agent, request_method, request_path, created_at')
-    .order('created_at', { ascending: false })
-    .limit(parsed.data.limit);
-
-  if (parsed.data.actor) {
-    query = query.ilike('actor_email', `%${parsed.data.actor}%`);
+  try {
+    return c.json(await operationsReadModelForRequest(c).load({
+      limit: parsed.data.limit,
+      actor: parsed.data.actor || undefined,
+      action: parsed.data.action || undefined,
+      targetType: parsed.data.target_type || undefined,
+    }));
+  } catch (error) {
+    if (error instanceof OperationsReadModelError) return c.json({ error: error.message }, 500);
+    throw error;
   }
-
-  if (parsed.data.action) {
-    query = query.eq('action', parsed.data.action);
-  }
-
-  if (parsed.data.target_type) {
-    query = query.eq('target_type', parsed.data.target_type);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    return c.json({ error: 'Unable to load audit log.' }, 500);
-  }
-
-  const [emailHealth, emailOutbox, recentEmailDeliveries, recentEventBlasts] = await Promise.all([
-    getEmailDeliveryHealth(c),
-    getEmailOutboxSummary(c),
-    getRecentEmailDeliveries(c),
-    getRecentEventBlasts(10, c),
-  ]);
-
-  return c.json({
-    logs: data ?? [],
-    email_health: emailHealth,
-    email_outbox: emailOutbox,
-    blast_capacity: assessBlastCapacity({
-      recipientCount: 0,
-      health: emailHealth,
-      outbox: emailOutbox,
-      protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
-    }),
-    recent_email_deliveries: recentEmailDeliveries,
-    recent_event_blasts: recentEventBlasts,
-    auth_mode: 'supabase',
-  });
 });
 
 app.get('/api/admin/short-links', async (c) => {
@@ -5369,7 +5331,7 @@ app.get('/api/public/event-submissions/manage/:capability', async (c) => {
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 30, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
   if (rateLimitError) return rateLimitError;
   try {
-    const management = await getEventSubmissionManagement(linkId, c);
+    const management = await eventSubmissionLifecycleForRequest(c).management.open(linkId);
     return c.json({ management });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 503);
@@ -5385,8 +5347,7 @@ app.put('/api/public/event-submissions/manage/:capability', async (c) => {
   const parsed = eventSubmissionAmendmentSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the event changes.' }, 400);
   try {
-    const management = await getEventSubmissionManagement(linkId, c);
-    const amendment = await saveEventSubmissionAmendment(management.submission.id, parsed.data, c);
+    const amendment = await eventSubmissionLifecycleForRequest(c).management.saveDraft({ linkId, changes: parsed.data });
     return c.json({ amendment });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
@@ -5400,8 +5361,7 @@ app.post('/api/public/event-submissions/manage/:capability/submit', async (c) =>
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage_submit:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
   if (rateLimitError) return rateLimitError;
   try {
-    const management = await getEventSubmissionManagement(linkId, c);
-    const amendment = await submitEventSubmissionAmendment(management.submission.id, c);
+    const amendment = await eventSubmissionLifecycleForRequest(c).management.submit({ linkId });
     return c.json({ amendment }, 202);
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
@@ -5515,7 +5475,7 @@ app.post('/api/public/event-submissions', async (c) => {
 
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
-    const submission = await createEventSubmission(input, c);
+    const submission = await eventSubmissionLifecycleForRequest(c).submit(input);
     await notifyEventSubmissionChannel(submission, c);
     return c.json({
       data: {

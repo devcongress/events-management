@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-065: Deepen Organizer Domain Boundaries Without Changing API Contracts
+
+Date: 2026-08-10
+Status: Accepted
+
+Context: `server/app.ts` had become the transport adapter, policy coordinator, persistence selector, provider dispatcher, and audit caller for most organizer workflows. Community event submissions were especially dispersed: intake, review, withdrawal, management-link amendments, delivery, Slack, and audit behavior were reachable from unrelated regions of the app. Event workspace tabs also recreated cache behavior independently, while Audit Log assembled separate operational concerns in the page and route.
+
+Decision: Keep Hono at the HTTP edge for parsing, sessions, signed capabilities, Turnstile, rate limits, and response status mapping. Move community-submission transitions into an explicit `submit` / `review` / `management` lifecycle backed by a repository port and request-scoped adapters for audit, asynchronous email delivery, and published-event announcement. Use one protected-mutation audit sink for authenticated commands, one operations read model for Audit Log’s bounded snapshot, and one client composable for shared event/checklist queries. Preserve every existing endpoint and payload while extracting; external providers remain adapters rather than domain dependencies.
+
+Trade-offs: This is a deliberately incremental extraction, not a one-shot rewrite of `server/app.ts` or a data migration. Audit records and domain mutations still use the existing persistence capabilities; a transactional audit outbox remains a separately funded data-layer change. More domains can now follow the same lifecycle/repository/read-model pattern without forcing a framework-wide abstraction.
+
+Revisit when: another organizer lifecycle needs its own route module, audit must be committed atomically with every mutation, or compatibility stores are retired through a dedicated relational migration and reconciliation programme.
+
+---
+
 ## ADR-064: Make Flyer Links Canonical Per Public Destination
 
 Date: 2026-08-09

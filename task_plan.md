@@ -63,3 +63,38 @@ Ship one secure, shared speaker-call foundation with two clearly separate public
 ## Status
 
 **Complete** - ready for the normal feature-release workflow. The selected-presenter secure link now collects the fuller bio/resource details omitted from the short first form; the existing Owner-only archive-material follow-up is retained for later missing-material reminders.
+
+---
+
+# Task Plan: Deepen EMS Architecture Safely
+
+## Goal
+
+Replace the highest-friction shallow seams with backward-compatible domain boundaries, while preserving current routes, authorization, data, and user-facing behavior.
+
+## Phases
+
+- [x] Phase 1: Read-only architecture exploration and candidate prioritization.
+- [x] Phase 2: Design and implement the community-event submission lifecycle boundary.
+- [x] Phase 3: Extract the first request-scoped community-submission composition adapter from `server/app.ts`.
+- [x] Phase 4: Establish the event-workspace client data boundary.
+- [x] Phase 5: Centralize protected mutation audit execution.
+- [x] Phase 6: Create the operational delivery/short-link read model.
+- [x] Phase 7: Establish repository contracts and a staged compatibility-persistence migration boundary.
+- [x] Phase 8: Regression review, documentation, codebase index update, and delivery report.
+
+## Decisions Made
+
+- Preserve public and organizer route contracts during every extraction.
+- Start with the community-submission lifecycle because it is bounded and carries real delivery/audit correctness risk.
+- Use an explicit lifecycle surface (`submit`, `review`, `management`) with typed decision commands; do not use a generic action dispatcher.
+- Treat compatibility persistence as a staged migration boundary, not a one-shot data rewrite.
+- Use database/owned-service boundaries for concurrency-critical work and mock only external providers.
+
+## Errors Encountered
+
+- `git restore` was rejected because the initial planning file update would have overwritten existing completed work. Restored that history through a scoped patch and appended this programme instead.
+
+## Status
+
+**Complete** — compatibility-first implementation, project/index documentation, full regression suite, production build, and final diff review are complete. The delivery report records deliberately separate persistence-migration follow-up rather than misrepresenting it as finished.

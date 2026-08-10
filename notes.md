@@ -18,7 +18,7 @@
 ## Implemented evidence
 
 - `20260808150000_archive_materials_follow_up.sql` adds `talk_id`, `requested_fields`, shape validation, and an active-link lookup index to the private link table.
-- Owner issuance persists pending delivery before Resend, records provider acceptance or failure, and audits successful sends.
+- Owner issuance persists pending delivery before Resend, records provider acceptance/failure, and audits successful sends.
 - Completion keeps a published Talk published, updates only the selected fields, and consumes the link after the record update.
 
 ---
@@ -46,3 +46,30 @@
 - Annual Conference editions are currently independent of `community_events`.
 - Recommended model: add a private, one-to-one `conference_event_id` relationship from each edition to an internal Event with `series_type = special` and `format = conference`. The Annual Conference Speakers UI remains edition-scoped, but it uses that event only as durable programme identity.
 - Alternative: a separate conference proposal/selection/archive schema. This would duplicate the existing lifecycle and create a second implementation to maintain.
+
+---
+
+# Notes: EMS Architecture Deepening
+
+## Read-only findings
+
+- `server/app.ts` is 9,708 lines and currently mixes app composition, transport, authorization, validation, persistence selection, provider orchestration, and domain decisions.
+- Community submissions span public intake, amendment links, organizer review, publication, removal, audit rows, outbox records, Resend, and Slack across separate route regions.
+- Event workspace views reassemble event-scoped query/cache behavior independently.
+- Privileged routes combine global admission, local role/capability checks, and manual audit calls.
+- Audit Log combines audit history, email delivery health, quota, outbox recovery, blasts, and short links.
+- Compatibility stores still require a clear repository boundary before any relational migration programme.
+
+## Chosen lifecycle shape
+
+- Prefer explicit `submit`, `review`, and `management` operations over a broad untyped dispatcher.
+- Keep Hono parsing, Turnstile, fixed-window limits, signed-capability extraction, and `waitUntil` scheduling at the transport edge.
+- Keep owned transition/outbox/audit intent in the lifecycle/store boundary; mock only Resend and Slack at their external edges.
+
+## Candidate dependency categories
+
+- Community submission lifecycle: owned persistence plus mocked external providers.
+- Route composition and protected mutations: primarily local-substitutable/in-process.
+- Event workspace client data: owned remote HTTP boundary with TanStack Query cache adapter.
+- Operations read model: owned read data plus mocked provider observation.
+- Persistence migration: local-substitutable adapter contracts with owned Supabase production adapter.
