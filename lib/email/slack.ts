@@ -9,6 +9,35 @@ function slackText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function titleCase(value: string): string {
+  return value
+    .trim()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatEventDateForSlack(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const dateLabel = new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Africa/Accra',
+  }).format(date);
+  const timeLabel = new Intl.DateTimeFormat('en-GB', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Africa/Accra',
+    timeZoneName: 'short',
+  }).format(date);
+
+  return `${dateLabel} · ${timeLabel}`;
+}
+
 function slackWebhookUrl(value: string): URL {
   let webhook: URL;
   try {
@@ -150,24 +179,33 @@ export async function sendEventAddedToSlack(input: {
   location: string;
   source: 'organizer' | 'public submission';
   publicEventUrl: string;
+  coverImageUrl: string;
   fetcher?: typeof fetch;
 }): Promise<void> {
+  const sourceLabel = input.source === 'public submission' ? 'Community submission' : 'Organizer workspace';
+  const eventDetails = [
+    formatEventDateForSlack(input.eventDate),
+    `${titleCase(input.eventFormat)} · ${input.location.trim() || 'Location to be announced'}`,
+  ].join('\n');
   const payload = {
     text: `New event added: ${input.eventName}`,
     blocks: [
       {
         type: 'header',
-        text: { type: 'plain_text', text: 'New event added' },
+        text: { type: 'plain_text', text: 'New event' },
+      },
+      {
+        type: 'image',
+        image_url: input.coverImageUrl,
+        alt_text: `Event cover for ${input.eventName}`.slice(0, 2_000),
       },
       {
         type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*Event*\n${slackText(input.eventName)}` },
-          { type: 'mrkdwn', text: `*When*\n${slackText(input.eventDate)}` },
-          { type: 'mrkdwn', text: `*Format*\n${slackText(input.eventFormat)}` },
-          { type: 'mrkdwn', text: `*Added via*\n${slackText(input.source)}` },
-          { type: 'mrkdwn', text: `*Where*\n${slackText(input.location)}` },
-        ],
+        text: { type: 'mrkdwn', text: `*${slackText(input.eventName)}*\n${slackText(eventDetails)}` },
+      },
+      {
+        type: 'context',
+        elements: [{ type: 'mrkdwn', text: `Added via ${slackText(sourceLabel)}` }],
       },
       {
         type: 'actions',

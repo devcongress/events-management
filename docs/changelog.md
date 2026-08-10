@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-10 — Slack event announcement cards
+
+- Redesigned Events-channel notifications into a compact, readable card with a cover image, human-formatted Accra date/time, concise event metadata, and one public event action.
+- Added a neutral DevCongress announcement cover for events without their own image, avoiding unrelated meetup photography in Slack.
+
 ## 2026-08-10 — Slack event announcements open public event details
 
 - Changed the `#events` Slack announcement action from the EMS registration/details URL to the matching public event-detail page on `devcongress.org`, so **Open event** lands on the actual event page visitors use.
@@ -7,6 +12,13 @@
 ## 2026-08-10
 
 - Fixed community event approval and rejection after the amendment-delivery migration split email-outbox uniqueness into partial indexes. Moderation now targets the root-delivery index explicitly, so the canonical event promotion and durable decision email are committed atomically again.
+
+## 2026-08-10 — Deepened organizer-domain boundaries
+
+- Moved community-event submission decisions, management-link amendments, audit intent, and delivery intent behind a typed lifecycle with a dedicated Supabase repository adapter; existing public and organizer API contracts remain unchanged.
+- Consolidated authenticated mutation audit recording behind one server boundary, and moved the Audit Log’s combined ledger/delivery/quota snapshot into a dedicated operations read model.
+- Added a shared event-workspace query composable so Overview, Talks, and persistent event navigation use the same Event and checklist cache boundary rather than recreating that data contract per view.
+- Added focused lifecycle, protected-audit, and operational-read-model boundary tests alongside the existing API contract suite.
 
 ## 2026-08-10 — Branded short-link fallback tab
 

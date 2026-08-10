@@ -22,7 +22,8 @@ import {
   resolveEventSeriesType,
   type EventSeriesSelection,
 } from '@/lib/event-series';
-import { fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
+import { queryKeys } from '@/src/lib/api';
+import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 import {
   compressionSavingsPercent,
   compressMeetupImageForUpload,
@@ -35,6 +36,7 @@ import type { Event as CommunityEvent, EventChecklistItem, EventChecklistPhase, 
 
 const route = useRoute();
 const queryClient = useQueryClient();
+const workspace = useEventWorkspace(() => String(route.params.eventId));
 const event = ref<CommunityEvent | null>(null);
 const checklist = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
@@ -365,11 +367,9 @@ function syncSeriesTypeDraft() {
 }
 
 async function fetchOverview() {
-  const eventId = String(route.params.eventId);
-  const [nextEvent, checklistResponse] = await Promise.all([
-    queryClient.fetchQuery({ queryKey: queryKeys.event(eventId), queryFn: () => fetchEventById(eventId) }),
-    queryClient.fetchQuery({ queryKey: queryKeys.eventChecklist(eventId), queryFn: () => fetchEventChecklist(eventId) }),
-  ]);
+  const [eventResult, checklistResult] = await workspace.refresh();
+  const nextEvent = eventResult.data;
+  const checklistResponse = checklistResult.data;
 
   if (nextEvent) {
     event.value = nextEvent;
@@ -378,7 +378,7 @@ async function fetchOverview() {
     syncOutlineDrafts();
     syncSeriesTypeDraft();
   }
-  checklist.value = checklistResponse.items ?? [];
+  checklist.value = checklistResponse?.items ?? [];
   loading.value = false;
   await scrollToRequestedSection();
 }

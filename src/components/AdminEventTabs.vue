@@ -7,7 +7,8 @@ import { adminPath } from '@/src/admin-routes';
 import { isSystemDesignWorkspaceDisabled } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { isSystemDesignSessionItem } from '@/lib/system-design';
-import { fetchAdminSession, fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
+import { fetchAdminSession, queryKeys } from '@/src/lib/api';
+import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 
 const props = defineProps<{
   eventId: string;
@@ -30,16 +31,7 @@ const quarterlyTabs: AdminEventTab[] = [
   { href: 'registrations', label: 'Registration' },
   { href: 'feedback', label: 'Feedback' },
 ];
-const eventQuery = useQuery({
-  queryKey: queryKeys.event(props.eventId),
-  queryFn: () => fetchEventById(props.eventId),
-  enabled: Boolean(props.eventId),
-});
-const checklistQuery = useQuery({
-  queryKey: queryKeys.eventChecklist(props.eventId),
-  queryFn: () => fetchEventChecklist(props.eventId),
-  enabled: Boolean(props.eventId),
-});
+const { eventQuery, checklistQuery } = useEventWorkspace(() => props.eventId);
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,

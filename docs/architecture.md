@@ -60,6 +60,9 @@ devcongress-comm-idea/
 |---|---|
 | `src` | Vue SPA shell and active client-side routes |
 | `server` | Hono API routes and Bun static/API server |
+| `server/event-submissions/` | Community-submission lifecycle, repository adapter, and request-scoped composition boundary |
+| `server/operations-read-model.ts` | Owner operations projection joining audit history with delivery, quota, and blast state |
+| `server/protected-mutation.ts` | Shared authenticated-mutation audit adapter |
 | `app/(public)` | Legacy public-facing Next pages: landing, archive, CFP, quiz play, leaderboard |
 | `app/(admin)` | Legacy organizer dashboard: event/talk/quiz/speaker management |
 | `app/api` | Legacy REST route handlers retained during migration |
@@ -69,6 +72,12 @@ devcongress-comm-idea/
 | `lib/design-system.ts` | JS-side design tokens; mirrors `tailwind.config.ts` |
 | `hooks/` | Legacy React hooks: `useRole`, `useDeviceId`, `useQuizPolling`, `useCountdown` |
 | `types/index.ts` | Canonical entity types, enums, and API payload types |
+
+## Organizer Boundary Pattern
+
+Organizer HTTP routes remain responsible for sessions, authorization, validation, rate limits, signed capabilities, and their established response contracts. A domain lifecycle receives already-validated values and owns related state transitions plus audit/delivery intent; a repository adapter isolates current Supabase helpers; provider calls remain injected adapters. This keeps a route change from having to rediscover a domain’s persistence, audit, and notification choreography.
+
+For shared event workspace state, `src/composables/useEventWorkspace.ts` is the single TanStack Query boundary for Event and checklist resources. Views may still keep local drafts, but should use this composable rather than inventing query keys or cache behavior.
 
 ---
 

@@ -75,7 +75,7 @@ describe('native event registration API', () => {
       body: JSON.stringify({
         name: 'Events channel meetup',
         description: 'A published organizer event.',
-        event_date: '2099-08-20',
+        event_date: '2099-08-20T19:00:00.000Z',
         location: { name: 'Accra', label: 'Accra', url: null },
         registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
       }),
@@ -86,12 +86,21 @@ describe('native event registration API', () => {
     expect(String(slackFetch.mock.calls[0]?.[0])).toEqual('https://hooks.slack.com/services/test/events');
     const slackPayload = JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body)) as {
       text: string;
-      blocks: Array<{ type: string; elements?: Array<{ url?: string }> }>;
+      blocks: Array<{
+        type: string;
+        image_url?: string;
+        text?: { text?: string };
+        elements?: Array<{ url?: string }>;
+      }>;
     };
     expect(slackPayload).toMatchObject({
       text: 'New event added: Events channel meetup',
     });
     const created = await response.clone().json() as { event: { id: string; slug?: string | null } };
+    expect(slackPayload.blocks.find((block) => block.type === 'image')?.image_url)
+      .toBe('http://localhost/images/event-announcement-fallback.png');
+    expect(slackPayload.blocks.find((block) => block.type === 'section')?.text?.text)
+      .toContain('Thu, 20 Aug 2099 · 7:00 pm GMT');
     expect(slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0]?.url)
       .toBe(`https://devcongress.org/events/${created.event.slug ?? created.event.id}`);
   });
