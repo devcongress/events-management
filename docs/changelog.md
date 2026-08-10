@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-10 — Slack event announcements open public event details
+
+- Changed the `#events` Slack announcement action from the EMS registration/details URL to the matching public event-detail page on `devcongress.org`, so **Open event** lands on the actual event page visitors use.
+
+## 2026-08-10
+
+- Fixed community event approval and rejection after the amendment-delivery migration split email-outbox uniqueness into partial indexes. Moderation now targets the root-delivery index explicitly, so the canonical event promotion and durable decision email are committed atomically again.
+
 ## 2026-08-10 — Branded short-link fallback tab
 
 - Aligned unavailable `go.devcongress.org` links with the DevCongress browser identity: the standard title format and shared favicon assets now render in browser tabs and saved mobile shortcuts.

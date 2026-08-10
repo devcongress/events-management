@@ -84,9 +84,16 @@ describe('native event registration API', () => {
     expect(response.status).toBe(201);
     expect(slackFetch).toHaveBeenCalledTimes(1);
     expect(String(slackFetch.mock.calls[0]?.[0])).toEqual('https://hooks.slack.com/services/test/events');
-    expect(JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+    const slackPayload = JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body)) as {
+      text: string;
+      blocks: Array<{ type: string; elements?: Array<{ url?: string }> }>;
+    };
+    expect(slackPayload).toMatchObject({
       text: 'New event added: Events channel meetup',
     });
+    const created = await response.clone().json() as { event: { id: string; slug?: string | null } };
+    expect(slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0]?.url)
+      .toBe(`https://devcongress.org/events/${created.event.slug ?? created.event.id}`);
   });
 
   it('does not fail event creation when the events channel is unavailable', async () => {

@@ -135,7 +135,7 @@ Status: Accepted
 
 Context: The team wants the existing Slack `#events` channel to reflect newly available events without making Slack a dependency of event creation. Events can be published directly by organizers or promoted from public submissions after approval.
 
-Decision: Add a separate server-only `SLACK_EVENTS_CHANNEL_WEBHOOK_URL` and send a compact announcement after a native event is successfully published or a public submission is approved and published. Reuse the existing Slack webhook validation and bounded request boundary. Slack delivery is best-effort; failures are logged and do not fail, roll back, or hide the event. Draft events are not announced.
+Decision: Add a separate server-only `SLACK_EVENTS_CHANNEL_WEBHOOK_URL` and send a compact announcement after a native event is successfully published or a public submission is approved and published. The announcement's **Open event** action points to the matching public event-detail page on `devcongress.org`, rather than the EMS registration form. Reuse the existing Slack webhook validation and bounded request boundary. Slack delivery is best-effort; failures are logged and do not fail, roll back, or hide the event. Draft events are not announced.
 
 Trade-offs: This keeps the feature inexpensive and small, but a Slack outage can leave a channel announcement missing. EMS and the public event page remain the source of truth. A durable notification outbox can be added later if delivery history or retries become necessary.
 
