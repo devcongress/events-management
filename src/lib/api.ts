@@ -462,7 +462,24 @@ export const queryKeys = {
 };
 
 export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
+  const controller = init?.signal ? null : new AbortController();
+  const timeout = controller ? window.setTimeout(() => controller.abort(), 15_000) : null;
+
+  let response: Response;
+  try {
+    response = await fetch(input, {
+      ...init,
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+  } catch (error) {
+    if (controller?.signal.aborted) {
+      throw new Error('The request took too long. Check your connection and try again.');
+    }
+    throw error;
+  } finally {
+    if (timeout !== null) window.clearTimeout(timeout);
+  }
+
   const payload = await response.json().catch(() => null) as T | { error?: string } | null;
 
   if (!response.ok) {
@@ -830,6 +847,37 @@ export function updateEventById(eventId: string, input: Record<string, unknown>)
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+}
+
+export type EventSlackAnnouncement = {
+  event_id: string;
+  source: 'organizer' | 'public submission';
+  status: 'pending' | 'sent' | 'failed';
+  attempt_count: number;
+  last_attempt_at: string | null;
+  sent_at: string | null;
+  last_error: string | null;
+};
+
+export type EventSlackAnnouncementResponse = {
+  announcement: EventSlackAnnouncement | null;
+  eligible: boolean;
+  dispatched?: boolean;
+};
+
+export function fetchEventSlackAnnouncement(eventId: string) {
+  return fetchJson<EventSlackAnnouncementResponse>(`/api/events/${eventId}/slack-announcement`, {
+    credentials: 'include',
+  });
+}
+
+export function sendEventSlackAnnouncement(eventId: string) {
+  return fetchJson<EventSlackAnnouncementResponse>(`/api/events/${eventId}/slack-announcement`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   });
 }
 

@@ -97,12 +97,12 @@ describe('native event registration API', () => {
       text: 'New event added: Events channel meetup',
     });
     const created = await response.clone().json() as { event: { id: string; slug?: string | null } };
-    expect(slackPayload.blocks.find((block) => block.type === 'image')?.image_url)
-      .toBe('http://localhost/images/event-announcement-fallback.png');
     expect(slackPayload.blocks.find((block) => block.type === 'section')?.text?.text)
       .toContain('Thu, 20 Aug 2099 · 7:00 pm GMT');
     expect(slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0]?.url)
       .toBe(`https://devcongress.org/events/${created.event.slug ?? created.event.id}`);
+    expect(slackPayload.blocks.find((block) => block.type === 'image')?.image_url)
+      .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
   });
 
   it('does not fail event creation when the events channel is unavailable', async () => {
@@ -125,6 +125,58 @@ describe('native event registration API', () => {
 
     expect(response.status).toBe(201);
     expect(slackFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('permits one deliberate retry after a failed event-channel announcement and never reposts after success', async () => {
+    vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
+    let available = false;
+    const slackFetch = vi.fn(async () => new Response(available ? 'ok' : 'unavailable', { status: available ? 200 : 503 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Retryable events channel meetup',
+        description: 'A published organizer event.',
+        event_date: '2099-08-20T19:00:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+
+    const failedStatus = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+    await expect(failedStatus.json()).resolves.toMatchObject({ announcement: { status: 'failed', attempt_count: 1 }, eligible: true });
+
+    available = true;
+    const retry = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
+    await expect(retry.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 2 }, dispatched: true });
+
+    const repeated = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
+    await expect(repeated.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 2 }, dispatched: false });
+    expect(slackFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not expose event-channel announcement controls to volunteers', async () => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Restricted Slack action meetup',
+        description: 'A published organizer event.',
+        event_date: '2099-08-20T19:00:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+    mockAdminRole.value = 'volunteer';
+
+    const response = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
+    expect(response.status).toBe(403);
   });
 
   it('removes an event and reports a repeated removal as not found', async () => {

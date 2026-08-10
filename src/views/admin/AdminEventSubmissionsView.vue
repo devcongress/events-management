@@ -33,6 +33,7 @@ const activeFilter = ref<EventSubmissionReviewStatus>('pending');
 const selectedId = ref<string | null>(null);
 const drawerCloseButton = ref<HTMLButtonElement | null>(null);
 const drawerPanel = ref<HTMLElement | null>(null);
+const approvingSubmissionId = ref<string | null>(null);
 const rejecting = ref(false);
 const rejectionCategory = ref<EventSubmissionRejectionCategory | ''>('');
 const organizerMessage = ref('');
@@ -154,10 +155,17 @@ onUnmounted(() => window.removeEventListener('keydown', handleWindowKeydown));
 const approveMutation = useMutation({
   mutationFn: (submission: EventSubmission) => approveEventSubmission(submission.id, true),
   onSuccess: async () => {
+    closeDrawer();
     notify.success('Community event approved and published. Organizer notification queued.');
     await refreshSubmissions();
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to approve this event.'),
+  onMutate: (submission) => {
+    approvingSubmissionId.value = submission.id;
+  },
+  onSettled: () => {
+    approvingSubmissionId.value = null;
+  },
 });
 
 const rejectMutation = useMutation({
@@ -748,10 +756,10 @@ function replyPresentation(reply: EventSubmissionReply) {
                   <button
                     type="button"
                     class="editorial-action motion-press min-h-11 flex-1 justify-center disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="rejecting || approveMutation.isPending.value || rejectMutation.isPending.value"
+                    :disabled="rejecting || approvingSubmissionId === selectedSubmission.id || approveMutation.isPending.value || rejectMutation.isPending.value"
                     @click="approveMutation.mutate(selectedSubmission)"
                   >
-                    {{ approveMutation.isPending.value ? 'Publishing…' : 'Approve & publish' }}
+                    {{ approvingSubmissionId === selectedSubmission.id || approveMutation.isPending.value ? 'Publishing…' : 'Approve & publish' }}
                   </button>
                   <button v-if="!rejecting" type="button" class="editorial-secondary-action motion-press min-h-11" @click="rejecting = true">Reject</button>
                   <template v-else>

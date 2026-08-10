@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented in code; requires the community-submission migrations through `20260809103000_event_submission_management_links_expire_at_event_end.sql`, production Turnstile hostname configuration, Resend credentials, and `EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET` before deployment.
+Implemented in code; requires the community-submission migrations through `20260810220000_event_submission_amendment_covers.sql`, production Turnstile hostname configuration, Resend credentials, and `EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET` before deployment.
 
 ## Product boundary
 
@@ -22,6 +22,8 @@ A proposal is not an event. It becomes a canonical external event only when an o
 - organizer name, email, and optional website;
 - optional notes from the submitter;
 - Turnstile action and token.
+
+`POST /api/public/event-submissions/with-cover` accepts the same validated fields as multipart form data plus one optional public cover image. It exists separately so the normal JSON route remains capped at 64KB; the cover route is capped just above 5MB and accepts only AVIF, JPEG, PNG, or WebP files after extension, MIME, and file-signature validation. The website renders a client-only event preview before either route is submitted. Draft recovery deliberately excludes the image file.
 
 The server first requires the runtime launch gate `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true`. Missing, false, or invalid values reject the request before validation, Turnstile, rate limits, email, or persistence. When enabled, the server forces `source_app = website`, rejects unknown fields, validates location-dependent requirements, verifies the `event_submission` Turnstile action against the dedicated public-site hostname allowlist, then consumes distributed client and email rate limits. Production fails closed if any security dependency or relational storage is unavailable.
 
@@ -48,7 +50,7 @@ Approval and rejection are transactional, idempotent Supabase functions. A sourc
 
 ## Reviewed amendments
 
-An approved organizer receives one private, time-bounded management link. It is a signed bearer capability backed by a service-role-only link record, so it can be revoked without exposing a submission lookup. It expires at the canonical event end time, including an approved change to that time; expired, revoked, withdrawn, and ended events cannot be mutated. Organizers can retrieve the existing active URL from the approved-submission drawer with **Copy management link** when a sender says they did not receive the approval email. That action creates no email or quota usage and records only the copy event and expiry in the audit ledger, never the bearer URL. The organizer can only propose schedule, location, online, registration, and an optional reviewer note; title, description, format, and organizer identity remain fixed. Saving drafts and submitting a change request send no email. Only one draft or submitted request can exist at a time. An Organizer reviews the submitted request in the existing submission drawer: approval transactionally updates the canonical event, while decline leaves the public listing untouched and lets the organizer prepare another request. Both decisions use the existing durable email outbox. Rejected initial proposals never receive a management link and must be resubmitted as a new proposal.
+An approved organizer receives one private, time-bounded management link. It is a signed bearer capability backed by a service-role-only link record, so it can be revoked without exposing a submission lookup. It expires at the canonical event end time, including an approved change to that time; expired, revoked, withdrawn, and ended events cannot be mutated. Organizers can retrieve the existing active URL from the approved-submission drawer with **Copy management link** when a sender says they did not receive the approval email. That action creates no email or quota usage and records only the copy event and expiry in the audit ledger, never the bearer URL. The organizer can only propose schedule, location, online, registration, an optional replacement cover image, and an optional reviewer note; title, description, format, and organizer identity remain fixed. The cover is staged with the amendment and does not replace the published image unless the organizer approves the entire change request. Saving drafts and submitting a change request send no email. Only one draft or submitted request can exist at a time. An Organizer reviews the submitted request in the existing submission drawer: approval transactionally updates the canonical event, while decline leaves the public listing untouched and lets the organizer prepare another request. Both decisions use the existing durable email outbox. Rejected initial proposals never receive a management link and must be resubmitted as a new proposal.
 
 Root approval and rejection notifications use the outbox's root-delivery partial unique index, while amendment decisions use the amendment-specific index. This keeps moderation idempotent without allowing the amendment index split to block initial approval or rejection.
 
@@ -77,7 +79,9 @@ These steps require deployment/provider access and are intentionally not perform
 
 Emails sent before signed routing is enabled still point at the old `EVENT_EMAIL_REPLY_TO` mailbox; their replies are not retroactively captured by EMS. Local webhook testing needs a publicly reachable HTTPS URL or a Resend webhook tunnel.
 
-Approved listings appear in the main organizer Events workspace with a **Community event** badge so they remain visibly distinct from events created by DevCongress organizers.
+Approved listings open into a compact **Community event** overview rather than the normal DevCongress event workspace. Its administrator-only editor can update the live listing details and cover image directly; those writes use the existing authenticated event mutation/media endpoints and retain their audit records. Direct links to talks, attendance, registration, quiz, System Design, feedback, speakers, and finance redirect community listings back to that overview so they cannot acquire normal DevCongress operational workflows.
+
+Eligible published events (current or future only) also keep a durable Events-channel Slack announcement record. The first automatic publication attempt is reserved atomically; an Organizer can use **Send to Slack** if an eligible event has never been announced, or **Retry Slack** only after the provider recorded a failure. A successful announcement is terminal and the action disappears, preventing accidental duplicate public posts. The actions are audited without storing a webhook URL or other provider secret. Apply `20260810230000_event_slack_announcements.sql` before deploying this workflow.
 
 ## Event taxonomy
 
@@ -101,6 +105,8 @@ External promoted events retain the submitted organizer identity, have no DevCon
 Authenticated organizers can inspect the complete published collection, including private-beta submissions, through `/organizer-console/website-preview/events`. That preview reads the private, non-cacheable `/api/admin/events-preview` contract and never changes the public visibility of a record.
 
 Approval updates the public API immediately. The current Astro website is statically built, so its `/events/` page reflects the new listing after the next website build/deployment; the approval email links to the submitted registration/event page when available instead of depending on that refresh.
+
+Approved submissions promote their verified cover URL to the canonical event. If no cover was supplied, or an older submission still references the retired `/images/logo.png` placeholder, the public API returns the neutral DevCongress event fallback instead of a broken image or unrelated meetup photography.
 
 ## Temporary manual acceptance testing
 

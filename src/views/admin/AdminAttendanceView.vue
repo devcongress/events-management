@@ -12,6 +12,7 @@ interface AttendanceResponse {
   event: CommunityEvent;
   import: EventAttendanceImport | null;
   summary: EventAttendanceSummary;
+  source?: 'luma_csv' | 'native_registration';
   upload_available: boolean;
   upload_unavailable_reason: string | null;
   upload_unlocks_at: string | null;
@@ -28,6 +29,7 @@ const importProgress = ref<number | null>(null);
 const event = ref<CommunityEvent | null>(null);
 const attendanceImport = ref<EventAttendanceImport | null>(null);
 const summary = ref<EventAttendanceSummary | null>(null);
+const attendanceSource = ref<'luma_csv' | 'native_registration'>('luma_csv');
 const uploadAvailable = ref(false);
 const uploadUnavailableReason = ref<string | null>(null);
 const uploadUnlocksAt = ref<string | null>(null);
@@ -39,6 +41,7 @@ const selectedAttendanceFilter = ref<'all' | 'said_yes' | 'came' | 'missed' | 'p
 const currentPage = ref(1);
 
 const attendanceRecords = computed(() => attendanceImport.value?.records ?? []);
+const usesNativeRegistrations = computed(() => attendanceSource.value === 'native_registration');
 // Debounce the keystroke path and precompute one lowercase haystack per record
 // so filtering a multi-thousand-row CSV import isn't redone per character typed.
 const debouncedSearchQuery = ref('');
@@ -137,6 +140,7 @@ function hydrateAttendance(payload: AttendanceResponse) {
   event.value = payload.event;
   attendanceImport.value = payload.import;
   summary.value = payload.summary;
+  attendanceSource.value = payload.source ?? 'luma_csv';
   uploadAvailable.value = payload.upload_available;
   uploadUnavailableReason.value = payload.upload_unavailable_reason;
   uploadUnlocksAt.value = payload.upload_unlocks_at;
@@ -373,19 +377,29 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
           <div>
             <p class="editorial-eyebrow">event attendance</p>
             <h1 class="editorial-title">Attendance readout</h1>
-            <p class="editorial-subtitle">A post-event view of Luma registrations, check-ins, and the gap organizers need for venue planning.</p>
+            <p class="editorial-subtitle">
+              {{ usesNativeRegistrations
+                ? 'A live post-event view of DevCongress registrations, check-ins, and no-shows.'
+                : 'A post-event view of Luma registrations, check-ins, and the gap organizers need for venue planning.' }}
+            </p>
           </div>
           <div class="w-full border border-dc-border bg-dc-paper px-4 py-3 lg:w-[24rem]">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Transition name="attendance-import-state" mode="out-in">
-                <div :key="attendanceImport?.id ?? 'empty-import'" class="min-w-0">
-                  <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">Luma CSV</p>
-                  <p v-if="attendanceImport" class="mt-1 max-w-[13rem] truncate text-lg font-semibold tracking-tight text-dc-ink">{{ attendanceImport.source_filename ?? 'Luma CSV' }}</p>
+                <div :key="usesNativeRegistrations ? 'native-registration' : attendanceImport?.id ?? 'empty-import'" class="min-w-0">
+                  <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
+                    {{ usesNativeRegistrations ? 'DevCongress registration' : 'Luma CSV' }}
+                  </p>
+                  <p v-if="usesNativeRegistrations" class="mt-1 text-lg font-semibold tracking-tight text-dc-ink">
+                    {{ summary?.total_registrations ?? 0 }} registered
+                  </p>
+                  <p v-else-if="attendanceImport" class="mt-1 max-w-[13rem] truncate text-lg font-semibold tracking-tight text-dc-ink">{{ attendanceImport.source_filename ?? 'Luma CSV' }}</p>
                   <p v-else class="mt-1 text-lg font-semibold tracking-tight text-dc-ink">No CSV imported</p>
                 </div>
               </Transition>
-              <input ref="fileInput" class="sr-only" type="file" accept=".csv,text/csv" @change="handleFileChange" />
-              <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+              <template v-if="!usesNativeRegistrations">
+                <input ref="fileInput" class="sr-only" type="file" accept=".csv,text/csv" @change="handleFileChange" />
+                <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
                 <button type="button" class="editorial-action min-h-10 px-4 py-2 text-[11px]" :disabled="importing || removing || !uploadAvailable" @click="chooseCsv">
                   {{ importButtonLabel }}
                 </button>
@@ -400,9 +414,10 @@ onUnmounted(() => clearTimeout(searchDebounceTimer));
                     {{ removing ? 'Removing...' : 'Remove file' }}
                   </button>
                 </Transition>
-              </div>
+                </div>
+              </template>
             </div>
-            <p v-if="!uploadAvailable" class="mt-3 text-xs font-medium leading-5 text-dc-gray">
+            <p v-if="!usesNativeRegistrations && !uploadAvailable" class="mt-3 text-xs font-medium leading-5 text-dc-gray">
               {{ uploadBlockedCopy }}
             </p>
             <Transition name="attendance-progress">

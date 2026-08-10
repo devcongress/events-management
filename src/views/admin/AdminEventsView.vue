@@ -7,6 +7,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
+import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
 import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
 import { createNativeEvent, deleteEventById, fetchEvents, queryKeys } from '@/src/lib/api';
@@ -69,6 +70,7 @@ const form = reactive({
 });
 const createPending = ref(false);
 const createProgress = ref<'idle' | 'preparing-cover' | 'creating' | 'uploading-cover'>('idle');
+const createCoverUploadProgress = ref<number | null>(null);
 const createError = ref<string | null>(null);
 const slugWasEdited = ref(false);
 const coverFile = ref<File | null>(null);
@@ -145,7 +147,10 @@ const physicalLocationTypeOptions = [
 ];
 const seriesFilterOptions = [
   { value: 'all', label: 'All types' },
-  ...EVENT_SERIES_SELECTIONS.map((value) => ({ value, label: EVENT_SERIES_LABELS[value] })),
+  ...EVENT_SERIES_SELECTIONS
+    .filter((value) => value !== 'none')
+    .map((value) => ({ value, label: EVENT_SERIES_LABELS[value] })),
+  { value: 'community', label: 'Community…' },
 ];
 const monthOptions = computed(() => {
   const uniqueMonths = Array.from(new Set(events.value.map((event) => eventMonthValue(event.event_date))));
@@ -159,7 +164,9 @@ const selectedMonthLabel = computed(() => monthOptions.value.find((option) => op
 const filteredEvents = computed(() => events.value.filter((event) => {
   const matchesMonth = selectedMonth.value === 'all' || eventMonthValue(event.event_date) === selectedMonth.value;
   const matchesSeries = selectedSeriesFilter.value === 'all'
-    || eventSeriesValueToSelection(resolveEventSeriesType(event)) === selectedSeriesFilter.value;
+    || (selectedSeriesFilter.value === 'community'
+      ? isCommunityEvent(event)
+      : eventSeriesValueToSelection(resolveEventSeriesType(event)) === selectedSeriesFilter.value);
 
   return matchesMonth && matchesSeries;
 }));
@@ -285,7 +292,10 @@ async function createEvent() {
     if (compressedCoverFile && originalCoverFile) {
       createProgress.value = 'uploading-cover';
       try {
-        await uploadEventMedia(result.event.id, compressedCoverFile, 'cover');
+        createCoverUploadProgress.value = 0;
+        await uploadEventMedia(result.event.id, compressedCoverFile, 'cover', (percent) => {
+          createCoverUploadProgress.value = percent;
+        });
         const savedPercent = compressionSavingsPercent(originalCoverFile, compressedCoverFile);
         notify.success(`Cover uploaded${savedPercent > 0 ? ` (${savedPercent}% smaller)` : ''}.`);
       } catch (error) {
@@ -304,6 +314,7 @@ async function createEvent() {
   } finally {
     createPending.value = false;
     createProgress.value = 'idle';
+    createCoverUploadProgress.value = null;
   }
 }
 
@@ -607,8 +618,13 @@ async function openEventNextStep(event: CommunityEvent) {
         </section>
 
         <div v-if="createError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">{{ createError }}</div>
+        <UploadProgressBar
+          v-if="createProgress === 'preparing-cover' || createProgress === 'uploading-cover'"
+          :percent="createCoverUploadProgress"
+          :label="createProgress === 'preparing-cover' ? 'Preparing cover' : 'Uploading cover'"
+        />
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <RouterLink :to="adminPath('events')" class="inline-flex min-h-12 items-center justify-center rounded-md border-2 border-dc-ink bg-white px-5 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink">Cancel</RouterLink>
+          <button type="button" class="inline-flex min-h-12 items-center justify-center rounded-md border-2 border-dc-ink bg-white px-5 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-60" :disabled="createPending" @click="router.push(adminPath('events'))">Cancel</button>
           <button type="submit" class="editorial-action min-h-12 justify-center disabled:cursor-not-allowed disabled:opacity-60" :disabled="createDisabled">
             {{ createButtonLabel }}
           </button>
@@ -714,6 +730,7 @@ async function openEventNextStep(event: CommunityEvent) {
             <div class="min-w-[900px]">
               <div class="ops-panel-header event-list-grid">
                 <div class="ops-label">Event</div>
+                <div class="ops-label">Tags</div>
                 <div class="ops-label">Date</div>
                 <div class="ops-label">Status</div>
                 <div class="ops-label text-right">Actions</div>
@@ -736,32 +753,30 @@ async function openEventNextStep(event: CommunityEvent) {
                   >
                     <div class="flex min-w-0 items-center">
                       <div class="min-w-0">
-                        <div class="flex min-w-0 flex-wrap items-center gap-2">
-                          <div class="event-list-title">{{ formatEventMonth(event.event_date) }}</div>
-                          <span
-                            v-if="eventKindLabel(event)"
-                            class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide"
-                            :class="eventKindClass(event)"
-                          >
-                            {{ eventKindLabel(event) }}
-                          </span>
-                          <span
-                            v-if="isDraftEvent(event)"
-                            class="rounded-sm border border-dc-yellow bg-dc-yellow/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink"
-                          >
-                            Draft
-                          </span>
-                        </div>
-                        <div class="flex min-w-0 flex-wrap items-center gap-2">
-                          <div class="event-list-meta">{{ event.name }}</div>
-                          <span
-                            v-if="isCommunityEvent(event)"
-                            class="shrink-0 rounded-sm border border-dc-pink bg-dc-pink/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink"
-                          >
-                            Community event
-                          </span>
-                        </div>
+                        <div class="event-list-title" :title="event.name">{{ event.name }}</div>
+                        <div class="event-list-meta">{{ formatEventMonth(event.event_date) }}</div>
                       </div>
+                    </div>
+                    <div class="event-list-tags">
+                      <span
+                        v-if="eventKindLabel(event)"
+                        class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide"
+                        :class="eventKindClass(event)"
+                      >
+                        {{ eventKindLabel(event) }}
+                      </span>
+                      <span
+                        v-if="isCommunityEvent(event)"
+                        class="rounded-sm border border-dc-pink bg-dc-pink/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink"
+                      >
+                        Community event
+                      </span>
+                      <span
+                        v-if="isDraftEvent(event)"
+                        class="rounded-sm border border-dc-yellow bg-dc-yellow/10 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink"
+                      >
+                        Draft
+                      </span>
                     </div>
                     <div class="event-list-date">{{ formatDate(event.event_date) }}</div>
                     <div class="event-list-status">

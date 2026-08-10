@@ -1,9 +1,27 @@
 # Changelog
 
+## 2026-08-10 — Recoverable Slack event announcements
+
+- Added durable, one-send state for public event announcements in the Slack events channel. A successful post cannot be resent accidentally; a failed post is explicitly retryable.
+- Added Organizer controls in both the standard Event and compact Community event overviews: **Send to Slack** appears for an eligible event that has never been announced, and **Retry Slack** appears only after a saved failure.
+- Added forward-only migration `20260810230000_event_slack_announcements.sql`, including atomic claim/lease functions so concurrent clicks cannot duplicate a Slack post.
+
 ## 2026-08-10 — Slack event announcement cards
 
 - Redesigned Events-channel notifications into a compact, readable card with a cover image, human-formatted Accra date/time, concise event metadata, and one public event action.
 - Added a neutral DevCongress announcement cover for events without their own image, avoiding unrelated meetup photography in Slack.
+
+## 2026-08-10 — Community listing overview and reviewed cover amendments
+
+- Routed approved community-submission events to a dedicated, compact organizer overview instead of the DevCongress workspace for talks, attendance, registrations, quiz, System Design, feedback, speakers, and finance.
+- Added an administrator editor for the live community listing, including direct cover replacement with the existing authenticated media upload and audit trail.
+- Let external organizers stage a replacement cover through their signed management link; the image becomes public only when the organizer approves the submitted amendment. Added forward-only migration `20260810220000_event_submission_amendment_covers.sql`.
+
+## 2026-08-10 — Public community-event covers and preview
+
+- Added an optional, validated cover-image path for public community-event submissions, with a dedicated multipart endpoint that leaves the normal anonymous JSON body limit unchanged.
+- Added a forward-only approval migration so submitted covers become canonical public-event covers, while legacy placeholder covers now resolve to a real fallback instead of rendering as broken images.
+- The public website adds a final event preview before submission; its image picker accepts AVIF, JPEG, PNG, and WebP images up to 5MB.
 
 ## 2026-08-10 — Slack event announcements open public event details
 

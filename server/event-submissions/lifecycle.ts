@@ -59,6 +59,7 @@ export type EventSubmissionLifecycleRepository = {
       venue_address?: string;
       online_url?: string;
       registration_url?: string;
+      cover_url?: string | null;
       organizer_note?: string;
     },
   ): Promise<EventSubmissionAmendment>;

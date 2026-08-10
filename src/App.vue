@@ -222,6 +222,7 @@ const showAdminEventTabs = computed(() => Boolean(
   isOrganizerAuthenticated.value
   && !showOrganizerPhoneView.value
   && adminEventId.value
+  && route.name !== 'admin-community-event'
   && route.path.startsWith(adminPath(`events/${adminEventId.value}`)),
 ));
 const appMainStyle = computed(() => ({
