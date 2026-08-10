@@ -138,20 +138,43 @@ export async function uploadEventMedia(
   eventId: string,
   file: File,
   purpose: 'cover' | 'photo',
+  onProgress?: (percent: number) => void,
 ): Promise<{ event: CommunityEvent | null; media: { url: string; type: 'cover' | 'photo' } | null }> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('purpose', purpose);
 
-  const response = await fetch(`/api/events/${eventId}/media`, {
-    method: 'POST',
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', `/api/events/${eventId}/media`);
+
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    request.upload.onload = () => onProgress?.(100);
+    request.onerror = () => reject(new Error('Network error while uploading image'));
+    request.onload = () => {
+      let payload: unknown = {};
+      try {
+        payload = request.responseText ? JSON.parse(request.responseText) : {};
+      } catch {
+        reject(new Error('Unable to read image upload response'));
+        return;
+      }
+
+      if (request.status >= 200 && request.status < 300) {
+        resolve(payload as { event: CommunityEvent | null; media: { url: string; type: 'cover' | 'photo' } | null });
+        return;
+      }
+
+      const message = typeof payload === 'object' && payload !== null && 'error' in payload
+        && typeof payload.error === 'string'
+        ? payload.error
+        : 'Failed to upload image';
+      reject(new Error(message));
+    };
+    request.send(formData);
   });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error ?? 'Failed to upload image');
-  }
-
-  return response.json();
 }

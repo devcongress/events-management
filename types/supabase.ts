@@ -1005,6 +1005,7 @@ export interface Database {
           organizer_email: string;
           organizer_website: string | null;
           submitter_notes: string | null;
+          cover_url: string | null;
           source_app: string;
           review_status: CommunityEventModerationStatus;
           reviewed_by: string | null;
@@ -1034,6 +1035,7 @@ export interface Database {
           organizer_email: string;
           organizer_website?: string | null;
           submitter_notes?: string | null;
+          cover_url?: string | null;
           source_app?: string;
           review_status?: CommunityEventModerationStatus;
           reviewed_by?: string | null;
@@ -1105,8 +1107,8 @@ export interface Database {
         Relationships: [];
       };
       event_submission_amendments: {
-        Row: { id: string; submission_id: string; status: string; starts_at: string; ends_at: string; location_type: CommunityEventLocationType; venue_name: string | null; venue_address: string | null; online_url: string | null; registration_url: string | null; organizer_note: string | null; reviewed_by: string | null; reviewed_at: string | null; decision_message: string | null; created_at: string; updated_at: string; };
-        Insert: { id?: string; submission_id: string; status?: string; starts_at: string; ends_at: string; location_type: CommunityEventLocationType; venue_name?: string | null; venue_address?: string | null; online_url?: string | null; registration_url?: string | null; organizer_note?: string | null; reviewed_by?: string | null; reviewed_at?: string | null; decision_message?: string | null; created_at?: string; updated_at?: string; };
+        Row: { id: string; submission_id: string; status: string; starts_at: string; ends_at: string; location_type: CommunityEventLocationType; venue_name: string | null; venue_address: string | null; online_url: string | null; registration_url: string | null; cover_url: string | null; organizer_note: string | null; reviewed_by: string | null; reviewed_at: string | null; decision_message: string | null; created_at: string; updated_at: string; };
+        Insert: { id?: string; submission_id: string; status?: string; starts_at: string; ends_at: string; location_type: CommunityEventLocationType; venue_name?: string | null; venue_address?: string | null; online_url?: string | null; registration_url?: string | null; cover_url?: string | null; organizer_note?: string | null; reviewed_by?: string | null; reviewed_at?: string | null; decision_message?: string | null; created_at?: string; updated_at?: string; };
         Update: Partial<Database['public']['Tables']['event_submission_amendments']['Insert']>;
         Relationships: [];
       };

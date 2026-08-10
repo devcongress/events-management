@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   submitAmendment: vi.fn(),
   rateLimit: vi.fn(),
   audit: vi.fn(),
+  uploadCover: vi.fn(),
+  removeMedia: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/event-submissions', async () => {
@@ -43,6 +45,15 @@ vi.mock('@/lib/supabase/event-submissions', async () => {
 vi.mock('@/lib/public-rate-limit', async () => {
   const actual = await vi.importActual<typeof import('@/lib/public-rate-limit')>('@/lib/public-rate-limit');
   return { ...actual, consumePublicRateLimit: mocks.rateLimit };
+});
+
+vi.mock('@/lib/supabase/media', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/supabase/media')>('@/lib/supabase/media');
+  return {
+    ...actual,
+    uploadEventSubmissionCover: mocks.uploadCover,
+    removeMeetupMedia: mocks.removeMedia,
+  };
 });
 
 vi.mock('@/lib/supabase/admin-auth', async () => {
@@ -84,6 +95,7 @@ const submission = {
   organizer_email: 'hello@example.com',
   organizer_website: 'https://example.com',
   notes: null,
+  cover_url: null,
   source_app: 'website' as const,
   review_status: 'pending' as const,
   reviewed_by: null,
@@ -127,6 +139,7 @@ beforeEach(() => {
   mocks.create.mockResolvedValue(submission);
   mocks.list.mockResolvedValue([submission]);
   mocks.rateLimit.mockResolvedValue({ allowed: true });
+  mocks.uploadCover.mockResolvedValue({ path: 'event-submissions/covers/cover.jpg', publicUrl: 'https://storage.example.test/cover.jpg' });
   mocks.pendingEmails.mockResolvedValue([]);
   mocks.updateEmail.mockResolvedValue(undefined);
   mocks.insertReply.mockResolvedValue({
@@ -207,6 +220,21 @@ describe('community event submissions', () => {
     }), expect.anything());
     expect(mocks.create.mock.calls[0]?.[0]).not.toHaveProperty('source_app');
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
+  });
+
+  it('stores a validated public cover only through the dedicated multipart route', async () => {
+    const { default: app } = await import('./app');
+    const form = new FormData();
+    Object.entries(validPayload()).forEach(([key, value]) => form.set(key, value));
+    form.set('cover', new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00])], 'community-event.jpg', { type: 'image/jpeg' }));
+
+    const response = await app.request('http://localhost/api/public/event-submissions/with-cover', { method: 'POST', body: form });
+
+    expect(response.status).toBe(202);
+    expect(mocks.uploadCover).toHaveBeenCalledTimes(1);
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      cover_url: 'https://storage.example.test/cover.jpg',
+    }), expect.anything());
   });
 
   it('notifies the submission channel after saving a validated proposal', async () => {
@@ -313,6 +341,33 @@ describe('community event submissions', () => {
     expect(submit.status).toBe(404);
     expect(mocks.saveAmendment).not.toHaveBeenCalled();
     expect(mocks.submitAmendment).not.toHaveBeenCalled();
+  });
+
+  it('stages a replacement cover through a valid management link for later review', async () => {
+    const linkId = '30000000-0000-4000-8000-000000000001';
+    const secret = 'management-link-secret';
+    const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+    const capability = `${linkId}.${signature}`;
+    vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
+    mocks.getManagement.mockResolvedValue({ link_id: linkId, expires_at: '2099-09-20T13:00:00.000Z', submission, amendment: null });
+    mocks.saveAmendment.mockResolvedValue({ id: 'amendment-1', cover_url: 'https://storage.example.test/cover.jpg' });
+    const form = new FormData();
+    form.set('starts_at', '2099-09-20T10:00:00.000Z');
+    form.set('ends_at', '2099-09-20T14:00:00.000Z');
+    form.set('location_type', 'in_person');
+    form.set('venue_name', 'Impact Hub Accra');
+    form.set('registration_url', 'https://example.com/register');
+    form.set('cover', new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00])], 'replacement.jpg', { type: 'image/jpeg' }));
+    const { default: app } = await import('./app');
+
+    const response = await app.request(`http://localhost/api/public/event-submissions/manage/${capability}/with-cover`, { method: 'PUT', body: form });
+
+    expect(response.status).toBe(200);
+    expect(mocks.uploadCover).toHaveBeenCalledTimes(1);
+    expect(mocks.saveAmendment).toHaveBeenCalledWith(submission.id, expect.objectContaining({
+      cover_url: 'https://storage.example.test/cover.jpg',
+      venue_name: 'Impact Hub Accra',
+    }), expect.anything());
   });
 
   it('returns field-level errors before security providers or persistence are called', async () => {

@@ -14,9 +14,11 @@ import {
 import {
   fetchAdminSession,
   fetchAnnualConferenceWorkPlan,
+  fetchEventById,
   queryKeys,
   type AdminSessionResponse,
 } from './lib/api';
+import { isCommunitySubmissionEvent } from './lib/community-submission-event';
 import { queryClient } from './lib/query';
 import {
   SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME,
@@ -83,6 +85,7 @@ const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
 const AdminOrganizersView = () => import('./views/admin/AdminOrganizersView.vue');
 const AdminAuditLogView = () => import('./views/admin/AdminAuditLogView.vue');
 const AdminEventView = () => import('./views/admin/AdminEventView.vue');
+const AdminCommunityEventView = () => import('./views/admin/AdminCommunityEventView.vue');
 const AdminTalksView = () => import('./views/admin/AdminTalksView.vue');
 const AdminSpeakersView = () => import('./views/admin/AdminSpeakersView.vue');
 const AdminQuizView = () => import('./views/admin/AdminQuizView.vue');
@@ -96,6 +99,45 @@ function storedAdminOAuthRedirect(): string {
   } catch {
     return adminPath('events');
   }
+}
+
+async function redirectCommunitySubmissionWorkspace(to: { params: Record<string, unknown> }) {
+  const eventId = typeof to.params.eventId === 'string' ? to.params.eventId : '';
+  if (!eventId) return true;
+
+  try {
+    const event = await queryClient.fetchQuery({
+      queryKey: queryKeys.event(eventId),
+      queryFn: () => fetchEventById(eventId),
+    });
+    return isCommunitySubmissionEvent(event)
+      ? { path: adminPath(`events/${eventId}`) }
+      : true;
+  } catch {
+    // Let the target view present its normal fetch/auth error rather than
+    // replacing it with a routing failure.
+    return true;
+  }
+}
+
+async function redirectCommunitySubmissionEvent(to: { params: Record<string, unknown> }) {
+  const eventId = typeof to.params.eventId === 'string' ? to.params.eventId : '';
+  if (!eventId) return true;
+
+  try {
+    const event = await queryClient.fetchQuery({
+      queryKey: queryKeys.event(eventId),
+      queryFn: () => fetchEventById(eventId),
+    });
+    if (isCommunitySubmissionEvent(event)) {
+      return { path: adminPath(`events/${eventId}/community`) };
+    }
+  } catch {
+    // The standard event route owns the visible retry state when the event
+    // cannot be read; do not turn a temporary API failure into a bad route.
+  }
+
+  return true;
 }
 
 export const router = createRouter({
@@ -128,6 +170,7 @@ export const router = createRouter({
       path: adminPath('mobile/events/:eventId/check-in'),
       name: ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
       component: AdminMobileCheckInView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
     },
     {
       path: adminPath('mobile/annual-conference/:year(\\d{4})'),
@@ -170,19 +213,23 @@ export const router = createRouter({
     { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
     { path: adminPath('audit-log'), name: 'admin-audit-log', component: AdminAuditLogView },
     { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },
-    { path: adminPath('events/:eventId'), name: 'admin-event', component: AdminEventView },
+    // Standard events retain their established workspace. The guard only
+    // diverts promoted public submissions to their deliberately smaller
+    // community-listing workspace.
+    { path: adminPath('events/:eventId'), name: 'admin-event', component: AdminEventView, beforeEnter: redirectCommunitySubmissionEvent },
+    { path: adminPath('events/:eventId/community'), name: 'admin-community-event', component: AdminCommunityEventView },
     { path: adminPath('events/:eventId/talks'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/talks/cfp`) },
-    { path: adminPath('events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)'), name: 'admin-talks', component: AdminTalksView },
-    { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView },
-    { path: adminPath('events/:eventId/attendance'), name: 'admin-attendance', component: AdminAttendanceView },
-    { path: adminPath('events/:eventId/finance'), name: 'admin-monthly-meetup-finance', component: () => import('./views/admin/AdminMonthlyMeetupFinanceView.vue') },
-    { path: adminPath('events/:eventId/registrations'), name: 'admin-registrations', component: AdminRegistrationsView },
-    { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView },
-    { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView },
-    { path: adminPath('events/:eventId/system-design'), name: 'admin-system-design', component: AdminSystemDesignView },
+    { path: adminPath('events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)'), name: 'admin-talks', component: AdminTalksView, beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView, beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/attendance'), name: 'admin-attendance', component: AdminAttendanceView, beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/finance'), name: 'admin-monthly-meetup-finance', component: () => import('./views/admin/AdminMonthlyMeetupFinanceView.vue'), beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/registrations'), name: 'admin-registrations', component: AdminRegistrationsView, beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView, beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView, beforeEnter: redirectCommunitySubmissionWorkspace },
+    { path: adminPath('events/:eventId/system-design'), name: 'admin-system-design', component: AdminSystemDesignView, beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath('events/:eventId/system-design/learning-room'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/system-design`) },
     { path: adminPath('events/:eventId/system-design/learning-room/live'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/system-design`) },
-    { path: adminPath('events/:eventId/feedback'), name: 'admin-feedback', component: AdminFeedbackView },
+    { path: adminPath('events/:eventId/feedback'), name: 'admin-feedback', component: AdminFeedbackView, beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath(':pathMatch(.*)*'), name: 'admin-not-found', component: NotFoundView },
     { path: '/:pathMatch(.*)*', redirect: adminPath('events') },
   ],

@@ -12,6 +12,11 @@ const MEETUP_MEDIA_TYPES = new Map([
 
 export type MeetupMediaPurpose = 'cover' | 'photo';
 
+export type UploadedEventSubmissionCover = {
+  path: string;
+  publicUrl: string;
+};
+
 export function meetupMediaPath(
   eventSlug: string,
   purpose: MeetupMediaPurpose,
@@ -112,6 +117,41 @@ export async function uploadMeetupMedia(
     .getPublicUrl(path);
 
   return data.publicUrl;
+}
+
+/**
+ * Stores an untrusted community-submission cover outside the event namespace.
+ * It only becomes an event cover after the associated submission is approved.
+ */
+export async function uploadEventSubmissionCover(
+  file: File,
+  c?: Context,
+): Promise<UploadedEventSubmissionCover> {
+  if (!isMeetupMediaConfigured(c)) {
+    throw new Error('Supabase media storage is not configured');
+  }
+
+  const extension = MEETUP_MEDIA_TYPES.get(file.type);
+  if (!extension) throw new Error('Unsupported image type');
+
+  const path = `event-submissions/covers/${crypto.randomUUID()}.${extension}`;
+  const client = getSupabaseAdminClient(c);
+  const { error } = await client.storage.from(MEETUP_MEDIA_BUCKET).upload(path, await file.arrayBuffer(), {
+    cacheControl: '31536000',
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+
+  return {
+    path,
+    publicUrl: client.storage.from(MEETUP_MEDIA_BUCKET).getPublicUrl(path).data.publicUrl,
+  };
+}
+
+export async function removeMeetupMedia(path: string, c?: Context): Promise<void> {
+  if (!path || !isMeetupMediaConfigured(c)) return;
+  await getSupabaseAdminClient(c).storage.from(MEETUP_MEDIA_BUCKET).remove([path]);
 }
 
 function slugify(value: string): string {

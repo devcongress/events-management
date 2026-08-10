@@ -11,7 +11,13 @@ type CommunityEventRow = Database['public']['Tables']['community_events']['Row']
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
 type CommunityEventUpdate = Database['public']['Tables']['community_events']['Update'];
 
-const DEFAULT_COVER = '/images/apr-meetup.jpg';
+const EVENT_FALLBACK_COVER = '/images/event-fallback.png';
+const LEGACY_FALLBACK_COVERS = new Set([
+  '/images/apr-meetup.jpg',
+  '/images/logo.png',
+  '/images/quarterly-april-meetup-2.jpeg',
+]);
+const DEFAULT_COVER = EVENT_FALLBACK_COVER;
 const DEFAULT_LOCATION = {
   label: 'Accra, Ghana',
   name: 'Accra, Ghana',
@@ -222,6 +228,11 @@ export async function updateSupabaseCommunityEvent(
   if (typeof input.stream_url === 'string' || input.stream_url === null) update.stream_url = input.stream_url ?? null;
   if (typeof input.embed_stream === 'boolean') update.embed_stream = input.embed_stream;
   if (typeof input.registration_url === 'string' || input.registration_url === null) update.registration_url = input.registration_url ?? null;
+  if (input.location_type === 'in_person' || input.location_type === 'online' || input.location_type === 'hybrid') {
+    update.location_type = input.location_type;
+  }
+  if (typeof input.venue_address === 'string' || input.venue_address === null) update.venue_address = input.venue_address ?? null;
+  if (typeof input.online_url === 'string' || input.online_url === null) update.online_url = input.online_url ?? null;
   if (typeof input.publish_to_website === 'boolean') {
     update.publish_to_website = input.publish_to_website;
     update.publication_status = input.publish_to_website ? 'published' : 'draft';
@@ -436,7 +447,7 @@ function toPublicEvent(row: CommunityEventRow): PublicEvent {
     registration_url: safeWebsiteUrl(row.registration_url),
     organizer_name: external ? (row.organizer_name ?? 'External organizer') : 'DevCongress',
     organizer_website: safeHttpUrl(row.organizer_url),
-    cover_url: safeWebsiteUrl(row.cover_url),
+    cover_url: publicEventCoverUrl(row.cover_url),
     updated_at: row.updated_at,
   };
 }
@@ -454,7 +465,7 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     start: toWebsiteDateTime(row.starts_at),
     end: toWebsiteDateTime(row.ends_at),
     description: row.description ?? '',
-    cover: safeWebsiteUrl(row.cover_url) ?? '/images/logo.png',
+    cover: publicEventCoverUrl(row.cover_url),
     location: {
       label: row.location_label ?? undefined,
       name: row.location_name,
@@ -475,6 +486,15 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     archive_url: absoluteAppUrl(origin, `/archive/${row.id}`),
     updated_at: toWebsiteDateTime(row.updated_at),
   };
+}
+
+function publicEventCoverUrl(value: string | null): string {
+  const cover = safeWebsiteUrl(value);
+  // Older promoted events were given an EMS placeholder or a random meetup
+  // image. Use the neutral shared fallback without changing explicit uploads.
+  return !cover || LEGACY_FALLBACK_COVERS.has(cover)
+    ? EVENT_FALLBACK_COVER
+    : cover;
 }
 
 function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {

@@ -103,6 +103,7 @@ export interface EventSubmission {
   organizer_email: string;
   organizer_website: string | null;
   notes: string | null;
+  cover_url: string | null;
   source_app: 'website';
   review_status: EventSubmissionReviewStatus;
   reviewed_by: string | null;
@@ -129,6 +130,7 @@ export interface EventSubmissionAmendment {
   venue_address: string | null;
   online_url: string | null;
   registration_url: string | null;
+  cover_url: string | null;
   organizer_note: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;

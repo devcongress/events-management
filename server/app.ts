@@ -26,6 +26,7 @@ import {
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
+import { attendanceRecordsFromRegistrations } from '@/lib/native-attendance';
 import {
   cancelRegistration,
   checkInRegistration,
@@ -125,6 +126,12 @@ import {
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
 import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEventPreviewMeetups, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
 import {
+  claimEventSlackAnnouncement,
+  completeEventSlackAnnouncement,
+  getEventSlackAnnouncement,
+  type EventSlackAnnouncement,
+} from '@/lib/supabase/event-slack-announcements';
+import {
   EventSubmissionStorageError,
   getEventSubmissionReply,
   getPendingEventSubmissionEmails,
@@ -133,7 +140,13 @@ import {
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
 import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackHubData, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
-import { uploadMeetupMedia, validateMeetupMediaContent, validateMeetupMediaFile } from '@/lib/supabase/media';
+import {
+  removeMeetupMedia,
+  uploadEventSubmissionCover,
+  uploadMeetupMedia,
+  validateMeetupMediaContent,
+  validateMeetupMediaFile,
+} from '@/lib/supabase/media';
 import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
@@ -257,6 +270,7 @@ app.use('*', async (c, next) => {
 
 const API_BODY_MAX_BYTES = 7 * 1024 * 1024;
 const PUBLIC_JSON_BODY_MAX_BYTES = 64 * 1024;
+const PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES = 5 * 1024 * 1024 + 64 * 1024;
 const bodyTooLarge = (c: Context) => c.json({ error: 'Request body is too large.' }, 413);
 const PAYLOAD_REQUEST_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
@@ -281,7 +295,8 @@ for (const publicWritePath of [
   '/api/public/event-submissions',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
-  '/api/public/event-submissions/manage/*',
+  '/api/public/event-submissions/manage/:capability',
+  '/api/public/event-submissions/manage/:capability/submit',
   '/api/quiz/join',
   '/api/quiz/answer',
   '/api/quiz/participants/*',
@@ -292,11 +307,15 @@ for (const publicWritePath of [
   app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
 
-const PUBLIC_MEETUP_COVERS = [
-  '/images/apr-meetup.jpg',
-  '/images/fido-dev-0375.jpg',
-  '/images/fido-dev-0539.jpg',
-];
+// Covers are optional and use a dedicated endpoint so the normal public
+// submission route keeps its small JSON body ceiling.
+app.use('/api/public/event-submissions/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
+app.use('/api/public/event-submissions/manage/:capability/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
+
+// A neutral brand asset for events that do not supply their own cover. Do not
+// rotate archival meetup photos here: an unrelated photo can imply a false
+// affiliation or format for a community event.
+const EVENT_FALLBACK_COVER = '/images/event-fallback.png';
 const DEFAULT_MEETUP_LOCATION = {
   label: 'Accra, Ghana',
   name: 'Accra, Ghana',
@@ -507,6 +526,9 @@ const eventUpdateSchema = z.object({
   stream_url: httpUrlSchema.nullable().optional(),
   embed_stream: z.boolean().optional(),
   registration_url: websiteUrlSchema.nullable().optional(),
+  location_type: z.enum(['in_person', 'online', 'hybrid']).optional(),
+  venue_address: z.string().trim().max(300).nullable().optional(),
+  online_url: httpUrlSchema.nullable().optional(),
   schedule: z.array(eventScheduleItemSchema).max(100).optional(),
   photos: z.array(z.object({
     url: websiteUrlSchema,
@@ -1552,9 +1574,7 @@ function publicMeetupStatus(event: Event): PublicMeetup['status'] {
 }
 
 function coverForEvent(event: Event): string {
-  if (event.cover) return event.cover;
-  const charTotal = [...event.id].reduce((total, char) => total + char.charCodeAt(0), 0);
-  return PUBLIC_MEETUP_COVERS[charTotal % PUBLIC_MEETUP_COVERS.length];
+  return event.cover || EVENT_FALLBACK_COVER;
 }
 
 function absoluteAppUrl(origin: string, path: string): string {
@@ -1691,7 +1711,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     start: toWebsiteDateTime(event.event_date),
     end: endDate,
     description: event.description ?? '',
-    cover: safeWebsiteUrl(coverForEvent(event)) ?? PUBLIC_MEETUP_COVERS[0],
+    cover: safeWebsiteUrl(coverForEvent(event)) ?? EVENT_FALLBACK_COVER,
     location: {
       ...location,
       url: safeHttpUrl(location.url),
@@ -1722,7 +1742,7 @@ function toPublicArchiveEvent(event: Event): PublicArchiveEvent {
     description: event.description,
     event_date: event.event_date,
     series_type: resolveEventSeriesType(event),
-    cover: safeWebsiteUrl(coverForEvent(event)) ?? PUBLIC_MEETUP_COVERS[0],
+    cover: safeWebsiteUrl(coverForEvent(event)) ?? EVENT_FALLBACK_COVER,
     schedule: normalizePublicSchedule(event.schedule),
     photos: normalizeEventPhotos(event.photos),
   };
@@ -1961,19 +1981,75 @@ function publicWebsiteEventUrl(event: Event, c: Context): string {
   return new URL(`/events/${encodeURIComponent(key)}`, websiteOrigin).toString();
 }
 
-function slackEventCoverUrl(event: Event, c: Context): string {
+function slackEventCoverUrl(event: Event, _c: Context): string {
+  // Slack fetches event-card images itself, so never point it at a local or
+  // request-derived origin. Event media is served publicly from EMS.
+  const eventAssetsOrigin = 'https://em.devcongress.org';
   const cover = safeWebsiteUrl(event.cover);
   if (cover?.startsWith('https://')) return cover;
   if (cover?.startsWith('/') && !cover.startsWith('//')) {
-    return absoluteAppUrl(publicAppOrigin(c), cover);
+    return absoluteAppUrl(eventAssetsOrigin, cover);
   }
 
-  return absoluteAppUrl(publicAppOrigin(c), '/images/event-announcement-fallback.png');
+  return absoluteAppUrl(eventAssetsOrigin, '/images/event-announcement-fallback.png');
 }
 
-async function notifyEventsChannel(event: Event, source: 'organizer' | 'public submission', c: Context): Promise<void> {
+function eventIsEligibleForSlackAnnouncement(event: Event): boolean {
+  if (event.publish_to_website === false || event.publication_status === 'draft') return false;
+  const endsAt = event.end_date ?? event.event_date;
+  return Number.isFinite(new Date(endsAt).getTime()) && new Date(endsAt).getTime() >= Date.now();
+}
+
+function announcementSource(event: Event): 'organizer' | 'public submission' {
+  return event.submission_source === 'public_submission' || Boolean(event.source_submission_id)
+    ? 'public submission'
+    : 'organizer';
+}
+
+type EventSlackDispatchResult = {
+  announcement: EventSlackAnnouncement | null;
+  dispatched: boolean;
+};
+
+async function notifyEventsChannel(
+  event: Event,
+  source: 'organizer' | 'public submission',
+  c: Context,
+  options: { allowRetry?: boolean } = {},
+): Promise<EventSlackDispatchResult> {
+  if (!eventIsEligibleForSlackAnnouncement(event)) {
+    return { announcement: await getEventSlackAnnouncement(event.id, c), dispatched: false };
+  }
+
+  let claimed;
+  try {
+    claimed = await claimEventSlackAnnouncement(event.id, source, Boolean(options.allowRetry), c);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_added_slack_notification_tracking_failed',
+      event_id: event.id,
+      source,
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return { announcement: null, dispatched: false };
+  }
+
+  if (!claimed.should_send || !claimed.attempt_token) {
+    return { announcement: claimed, dispatched: false };
+  }
+
   const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    const announcement = await completeEventSlackAnnouncement(
+      event.id,
+      claimed.attempt_token,
+      false,
+      'Slack event-channel webhook is not configured.',
+      c,
+    );
+    return { announcement, dispatched: false };
+  }
 
   try {
     await sendEventAddedToSlack({
@@ -1986,15 +2062,30 @@ async function notifyEventsChannel(event: Event, source: 'organizer' | 'public s
       publicEventUrl: publicWebsiteEventUrl(event, c),
       coverImageUrl: slackEventCoverUrl(event, c),
     });
+    const announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, true, null, c);
+    return { announcement, dispatched: true };
   } catch (error) {
+    const errorMessage = error instanceof SlackWebhookError ? error.message : 'Slack notification failed.';
+    let announcement: EventSlackAnnouncement | null = null;
+    try {
+      announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, false, errorMessage, c);
+    } catch (completionError) {
+      console.warn(JSON.stringify({
+        event: 'event_added_slack_notification_completion_failed',
+        event_id: event.id,
+        error_name: safeErrorName(completionError),
+        request_id: c.get('requestId') ?? null,
+      }));
+    }
     console.warn(JSON.stringify({
       event: 'event_added_slack_notification_failed',
       event_id: event.id,
       source,
       error_name: error instanceof SlackWebhookError ? error.name : 'Error',
-      error: error instanceof SlackWebhookError ? error.message : 'Slack notification failed.',
+      error: errorMessage,
       request_id: c.get('requestId') ?? null,
     }));
+    return { announcement, dispatched: false };
   }
 }
 
@@ -2398,7 +2489,9 @@ function eventSubmissionLifecycleForRequest(c: Context) {
       limit: 1,
     }),
     findEvent: async (eventId) => (await getEventById(eventId, c)) ?? null,
-    announcePublished: (event) => notifyEventsChannel(event, 'public submission', c),
+    announcePublished: async (event) => {
+      await notifyEventsChannel(event, 'public submission', c);
+    },
   });
 }
 
@@ -5366,6 +5459,61 @@ app.put('/api/public/event-submissions/manage/:capability', async (c) => {
   }
 });
 
+// Cover uploads have their own narrow multipart endpoint so ordinary amendment
+// drafts remain under the small public JSON ceiling.
+app.put('/api/public/event-submissions/manage/:capability/with-cover', async (c) => {
+  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+  if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
+
+  const form = await c.req.raw.formData().catch(() => null);
+  if (!form) return c.json({ error: 'Choose a cover image and check the event changes.' }, 400);
+
+  const values: Record<string, string> = {};
+  let cover: File | null = null;
+  const allowedFields = new Set([...Object.keys(eventSubmissionAmendmentSchema.shape), 'cover']);
+  for (const [key, value] of form.entries()) {
+    if (!allowedFields.has(key) || values[key] !== undefined || (key === 'cover' && cover)) {
+      return c.json({ error: 'Check the event changes.' }, 400);
+    }
+    if (key === 'cover') {
+      if (!isUploadedFile(value) || !value.name) return c.json({ error: 'Choose a cover image.' }, 400);
+      cover = value;
+    } else if (typeof value === 'string') {
+      values[key] = value;
+    } else {
+      return c.json({ error: 'Check the event changes.' }, 400);
+    }
+  }
+  if (!cover) return c.json({ error: 'Choose a cover image.' }, 400);
+
+  const parsed = eventSubmissionAmendmentSchema.safeParse(values);
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the event changes.' }, 400);
+  const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
+  if (fileError) return c.json({ error: fileError }, 400);
+
+  const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+
+  try {
+    await eventSubmissionLifecycleForRequest(c).management.open(linkId);
+    const uploadedCover = await uploadEventSubmissionCover(cover, c);
+    let amendment;
+    try {
+      amendment = await eventSubmissionLifecycleForRequest(c).management.saveDraft({
+        linkId,
+        changes: { ...parsed.data, cover_url: uploadedCover.publicUrl },
+      });
+    } catch (error) {
+      await removeMeetupMedia(uploadedCover.path, c);
+      throw error;
+    }
+    return c.json({ amendment });
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+    throw error;
+  }
+});
+
 app.post('/api/public/event-submissions/manage/:capability/submit', async (c) => {
   const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
@@ -5380,7 +5528,30 @@ app.post('/api/public/event-submissions/manage/:capability/submit', async (c) =>
   }
 });
 
-app.post('/api/public/event-submissions', async (c) => {
+type PublicEventSubmissionPayload = z.infer<typeof eventSubmissionSchema>;
+
+function isUploadedFile(value: unknown): value is File {
+  return typeof value === 'object'
+    && value !== null
+    && 'name' in value
+    && 'arrayBuffer' in value
+    && typeof (value as { name?: unknown }).name === 'string'
+    && typeof (value as { arrayBuffer?: unknown }).arrayBuffer === 'function';
+}
+
+function eventSubmissionValidationError(parsed: { error: z.ZodError<PublicEventSubmissionPayload> }) {
+  const fieldErrors = Object.fromEntries(
+    Object.entries(parsed.error.flatten().fieldErrors)
+      .flatMap(([field, messages]) => messages?.[0] ? [[field, messages[0]]] : []),
+  );
+  return { error: { code: 'validation_failed', message: 'Check the event details and try again.', field_errors: fieldErrors } };
+}
+
+async function submitPublicEventSubmission(
+  c: Context,
+  parsedData: PublicEventSubmissionPayload,
+  cover: File | null,
+) {
   if (!publicEventSubmissionsEnabled(envValue('PUBLIC_EVENT_SUBMISSIONS_ENABLED', c))) {
     return c.json({
       error: {
@@ -5390,19 +5561,9 @@ app.post('/api/public/event-submissions', async (c) => {
     }, 503);
   }
 
-  const parsed = eventSubmissionSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    const fieldErrors = Object.fromEntries(
-      Object.entries(parsed.error.flatten().fieldErrors)
-        .flatMap(([field, messages]) => messages?.[0] ? [[field, messages[0]]] : []),
-    );
-    return c.json({
-      error: {
-        code: 'validation_failed',
-        message: 'Check the event details and try again.',
-        field_errors: fieldErrors,
-      },
-    }, 400);
+  if (cover) {
+    const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
+    if (fileError) return c.json({ error: { code: 'validation_failed', message: fileError, field_errors: { cover: fileError } } }, 400);
   }
 
   const expectedHostnames = eventSubmissionTurnstileHostnames(c);
@@ -5422,7 +5583,7 @@ app.post('/api/public/event-submissions', async (c) => {
 
   const turnstileSecret = envValue('TURNSTILE_SECRET_KEY', c)?.trim();
   if (!turnstileSecret) {
-    if (envValue('NODE_ENV', c) === 'production' || parsed.data.turnstile_token) {
+    if (envValue('NODE_ENV', c) === 'production' || parsedData.turnstile_token) {
       return c.json({
         error: {
           code: 'verification_unavailable',
@@ -5431,7 +5592,7 @@ app.post('/api/public/event-submissions', async (c) => {
       }, 503);
     }
   } else {
-    if (parsed.data.turnstile_action !== EVENT_SUBMISSION_TURNSTILE_ACTION) {
+    if (parsedData.turnstile_action !== EVENT_SUBMISSION_TURNSTILE_ACTION) {
       return c.json({
         error: {
           code: 'verification_failed',
@@ -5440,7 +5601,7 @@ app.post('/api/public/event-submissions', async (c) => {
       }, 400);
     }
     const verification = await validateTurnstileToken({
-      token: parsed.data.turnstile_token,
+      token: parsedData.turnstile_token,
       secretKey: turnstileSecret,
       remoteIp: publicClientIp(c),
       expectedAction: EVENT_SUBMISSION_TURNSTILE_ACTION,
@@ -5465,7 +5626,7 @@ app.post('/api/public/event-submissions', async (c) => {
     },
     {
       action: 'event_submission_email',
-      clientKey: parsed.data.organizer_email,
+      clientKey: parsedData.organizer_email,
       maxAttempts: 3,
       windowSeconds: 24 * 60 * 60,
     },
@@ -5485,8 +5646,15 @@ app.post('/api/public/event-submissions', async (c) => {
   }
 
   try {
-    const { turnstile_action: _action, turnstile_token: _token, ...input } = parsed.data;
-    const submission = await eventSubmissionLifecycleForRequest(c).submit(input);
+    const { turnstile_action: _action, turnstile_token: _token, ...input } = parsedData;
+    const uploadedCover = cover ? await uploadEventSubmissionCover(cover, c) : null;
+    let submission;
+    try {
+      submission = await eventSubmissionLifecycleForRequest(c).submit({ ...input, cover_url: uploadedCover?.publicUrl ?? null });
+    } catch (error) {
+      if (uploadedCover) await removeMeetupMedia(uploadedCover.path, c);
+      throw error;
+    }
     await notifyEventSubmissionChannel(submission, c);
     return c.json({
       data: {
@@ -5507,6 +5675,38 @@ app.post('/api/public/event-submissions', async (c) => {
     }
     throw error;
   }
+}
+
+app.post('/api/public/event-submissions', async (c) => {
+  const parsed = eventSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json(eventSubmissionValidationError(parsed), 400);
+  return submitPublicEventSubmission(c, parsed.data, null);
+});
+
+app.post('/api/public/event-submissions/with-cover', async (c) => {
+  const form = await c.req.raw.formData().catch(() => null);
+  if (!form) return c.json({ error: { code: 'validation_failed', message: 'Choose an image and check the event details.', field_errors: {} } }, 400);
+
+  const values: Record<string, string> = {};
+  let cover: File | null = null;
+  const allowedFields = new Set([...Object.keys(eventSubmissionSchema.shape), 'cover']);
+  for (const [key, value] of form.entries()) {
+    if (!allowedFields.has(key) || values[key] !== undefined || (key === 'cover' && cover)) {
+      return c.json({ error: { code: 'validation_failed', message: 'Check the event details and try again.', field_errors: {} } }, 400);
+    }
+    if (key === 'cover') {
+      if (!isUploadedFile(value) || !value.name) return c.json({ error: { code: 'validation_failed', message: 'Choose a cover image.', field_errors: { cover: 'Choose a cover image.' } } }, 400);
+      cover = value;
+    } else if (typeof value === 'string') {
+      values[key] = value;
+    } else {
+      return c.json({ error: { code: 'validation_failed', message: 'Check the event details and try again.', field_errors: {} } }, 400);
+    }
+  }
+  if (!cover) return c.json({ error: { code: 'validation_failed', message: 'Choose a cover image.', field_errors: { cover: 'Choose a cover image.' } } }, 400);
+  const parsed = eventSubmissionSchema.safeParse(values);
+  if (!parsed.success) return c.json(eventSubmissionValidationError(parsed), 400);
+  return submitPublicEventSubmission(c, parsed.data, cover);
 });
 
 app.get('/api/public/archive', async (c) => {
@@ -5911,6 +6111,52 @@ app.get('/api/events/:eventId', async (c) => {
   }
 
   return c.json(event);
+});
+
+app.get('/api/events/:eventId/slack-announcement', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+
+  return c.json({
+    announcement: await getEventSlackAnnouncement(event.id, c),
+    eligible: eventIsEligibleForSlackAnnouncement(event),
+  });
+});
+
+app.post('/api/events/:eventId/slack-announcement', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  if (!eventIsEligibleForSlackAnnouncement(event)) {
+    return c.json({ error: 'Only current or future published events can be announced in Slack.' }, 409);
+  }
+
+  const existing = await getEventSlackAnnouncement(event.id, c);
+  const retry = existing?.status === 'failed';
+  const result = await notifyEventsChannel(event, announcementSource(event), c, { allowRetry: retry });
+  const outcome = result.announcement?.status ?? 'unavailable';
+
+  await auditAdminAction(c, {
+    action: retry ? 'event.slack_announcement.retry' : 'event.slack_announcement.send',
+    targetType: 'event',
+    targetId: event.id,
+    metadata: {
+      outcome,
+      dispatched: result.dispatched,
+      attempt_count: result.announcement?.attempt_count ?? null,
+    },
+  });
+
+  return c.json({
+    announcement: result.announcement,
+    eligible: true,
+    dispatched: result.dispatched,
+  });
 });
 
 app.get('/api/events/:eventId/finance', async (c) => {
@@ -6743,6 +6989,7 @@ app.patch('/api/events/:eventId', async (c) => {
       ...(body.cover !== undefined ? { cover: safeWebsiteUrl(body.cover) } : {}),
       ...(body.stream_url !== undefined ? { stream_url: safeHttpUrl(body.stream_url) } : {}),
       ...(body.registration_url !== undefined ? { registration_url: safeWebsiteUrl(body.registration_url) } : {}),
+      ...(body.online_url !== undefined ? { online_url: safeHttpUrl(body.online_url) } : {}),
       ...(body.external_url !== undefined ? { external_url: safeHttpUrl(body.external_url) } : {}),
       ...(body.schedule ? { schedule: normalizePublicSchedule(body.schedule) } : {}),
       ...(body.photos ? { photos: normalizeEventPhotos(body.photos) } : {}),
@@ -6759,6 +7006,9 @@ app.patch('/api/events/:eventId', async (c) => {
         status: updatedEvent.status,
       },
     });
+    if (!eventIsEligibleForSlackAnnouncement(event) && eventIsEligibleForSlackAnnouncement(updatedEvent)) {
+      await notifyEventsChannel(updatedEvent, announcementSource(updatedEvent), c);
+    }
     return c.json(updatedEvent);
   } catch (error) {
     return internalErrorResponse(c, 'event_update_failed', error, 'Unable to update the event.');
@@ -7987,6 +8237,39 @@ app.get('/api/events/:eventId/attendance', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
+  const startsNativeAttendance = new Date(event.event_date).getTime() >= Date.UTC(2026, 7, 1);
+  const isOfficialMonthlyMeetup = resolveEventSeriesType(event) === 'monthly'
+    && event.submission_source !== 'public_submission';
+  const registrationCampaign = startsNativeAttendance && isOfficialMonthlyMeetup
+    ? await getRegistrationCampaign(event.id, c)
+    : undefined;
+
+  if (registrationCampaign) {
+    const records = attendanceRecordsFromRegistrations(
+      event.id,
+      await getEventRegistrations(event.id, c),
+    );
+    const registrationAttendance = {
+      id: `native-registration-${event.id}`,
+      event_id: event.id,
+      attendance_month: attendanceMonthForEvent(event),
+      source_filename: null,
+      row_count: records.length,
+      imported_at: registrationCampaign.updated_at,
+      records,
+    };
+
+    return c.json({
+      event,
+      import: registrationAttendance,
+      summary: buildAttendanceSummary(registrationAttendance),
+      source: 'native_registration' as const,
+      upload_available: false,
+      upload_unavailable_reason: null,
+      upload_unlocks_at: null,
+    });
+  }
+
   const attendanceImport = await getLatestAttendanceImport(eventId);
   const uploadWindow = attendanceUploadWindowForEvent(event);
 
@@ -7994,6 +8277,7 @@ app.get('/api/events/:eventId/attendance', async (c) => {
     event,
     import: attendanceImport,
     summary: buildAttendanceSummary(attendanceImport),
+    source: 'luma_csv' as const,
     upload_available: uploadWindow.available,
     upload_unavailable_reason: uploadWindow.reason,
     upload_unlocks_at: uploadWindow.unlocks_at,

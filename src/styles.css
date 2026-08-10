@@ -1255,8 +1255,16 @@
 
   .event-list-grid {
     display: grid;
-    grid-template-columns: minmax(13rem, 0.76fr) minmax(8rem, 0.44fr) minmax(15rem, 0.72fr) minmax(15rem, 0.66fr);
+    grid-template-columns: minmax(16rem, 1fr) minmax(10rem, 0.5fr) minmax(9rem, 0.38fr) minmax(15rem, 0.68fr) minmax(15rem, 0.62fr);
     gap: 1rem;
+  }
+
+  .event-list-tags {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
   }
 
   .event-list-meta {

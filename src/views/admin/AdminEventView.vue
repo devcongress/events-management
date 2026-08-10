@@ -12,6 +12,7 @@ import {
 import { resolveEventStatus } from '@/lib/event-status';
 import { EVENT_FORMAT_LABELS, EVENT_FORMATS } from '@/lib/event-format';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
 import {
   EVENT_SERIES_HELP_TEXT,
@@ -22,7 +23,7 @@ import {
   resolveEventSeriesType,
   type EventSeriesSelection,
 } from '@/lib/event-series';
-import { queryKeys } from '@/src/lib/api';
+import { fetchEventSlackAnnouncement, queryKeys, sendEventSlackAnnouncement, type EventSlackAnnouncement } from '@/src/lib/api';
 import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 import {
   compressionSavingsPercent,
@@ -40,6 +41,8 @@ const workspace = useEventWorkspace(() => String(route.params.eventId));
 const event = ref<CommunityEvent | null>(null);
 const checklist = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
+const overviewError = ref<string | null>(null);
+const checklistError = ref<string | null>(null);
 const checklistSavingId = ref<string | null>(null);
 const checklistDisablingId = ref<string | null>(null);
 const publishSaving = ref(false);
@@ -74,6 +77,10 @@ const photoError = ref<string | null>(null);
 const photoUrl = ref('');
 const photoType = ref<'image' | 'folder'>('folder');
 const mediaUploadPurpose = ref<'cover' | 'photo' | null>(null);
+const mediaUploadProgress = ref<number | null>(null);
+const slackAnnouncement = ref<EventSlackAnnouncement | null>(null);
+const slackEligible = ref(false);
+const slackSending = ref(false);
 const photoTypeOptions = [
   { value: 'folder', label: 'Gallery / folder' },
   { value: 'image', label: 'Single image' },
@@ -366,6 +373,19 @@ function syncSeriesTypeDraft() {
   savedEventFormat.value = format;
 }
 
+async function fetchChecklist(_eventId: string) {
+  checklistError.value = null;
+  try {
+    const result = await workspace.checklistQuery.refetch();
+    checklist.value = result.data?.items ?? [];
+  } catch (error) {
+    checklist.value = [];
+    checklistError.value = error instanceof Error
+      ? error.message
+      : 'The checklist could not be loaded.';
+  }
+}
+
 async function fetchOverview() {
   const [eventResult, checklistResult] = await workspace.refresh();
   const nextEvent = eventResult.data;
@@ -377,10 +397,42 @@ async function fetchOverview() {
     syncSharedLinksDraft();
     syncOutlineDrafts();
     syncSeriesTypeDraft();
+    try {
+      const slack = await fetchEventSlackAnnouncement(nextEvent.id);
+      slackAnnouncement.value = slack.announcement;
+      slackEligible.value = slack.eligible;
+    } catch {
+      slackAnnouncement.value = null;
+      slackEligible.value = false;
+    }
   }
   checklist.value = checklistResponse?.items ?? [];
   loading.value = false;
   await scrollToRequestedSection();
+}
+
+const slackAnnouncementLabel = computed(() => {
+  if (!slackEligible.value) return null;
+  if (!slackAnnouncement.value) return 'SEND TO SLACK';
+  if (slackAnnouncement.value.status === 'failed') return 'RETRY SLACK';
+  if (slackAnnouncement.value.status === 'pending') return 'SENDING…';
+  return null;
+});
+
+async function sendSlackAnnouncement() {
+  if (!event.value || !slackAnnouncementLabel.value || slackSending.value) return;
+  slackSending.value = true;
+  try {
+    const response = await sendEventSlackAnnouncement(event.value.id);
+    slackAnnouncement.value = response.announcement;
+    slackEligible.value = response.eligible;
+    if (response.announcement?.status === 'sent') notify.success('Event sent to the Slack events channel.');
+    else notify.error(response.announcement?.last_error || 'Slack could not accept the event. Retry is available.');
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Slack notification could not be sent.');
+  } finally {
+    slackSending.value = false;
+  }
 }
 
 async function scrollToRequestedSection() {
@@ -1032,11 +1084,15 @@ async function uploadMediaFile(file: File, purpose: 'cover' | 'photo') {
   }
 
   mediaUploadPurpose.value = purpose;
+  mediaUploadProgress.value = null;
   photoError.value = null;
 
   try {
     const compressedFile = await compressMeetupImageForUpload(file);
-    const payload = await uploadEventMedia(String(route.params.eventId), compressedFile, purpose);
+    mediaUploadProgress.value = 0;
+    const payload = await uploadEventMedia(String(route.params.eventId), compressedFile, purpose, (percent) => {
+      mediaUploadProgress.value = percent;
+    });
     event.value = payload.event ?? event.value;
     await invalidateEventQueries();
     const savedPercent = compressionSavingsPercent(file, compressedFile);
@@ -1050,6 +1106,7 @@ async function uploadMediaFile(file: File, purpose: 'cover' | 'photo') {
     notify.error(photoError.value);
   } finally {
     mediaUploadPurpose.value = null;
+    mediaUploadProgress.value = null;
   }
 }
 
@@ -1083,6 +1140,12 @@ onMounted(fetchOverview);
   <div class="editorial-page event-overview-page">
     <div class="editorial-wrap event-overview-wrap">
       <AdminEventOverviewPageSkeleton v-if="loading" />
+      <section v-else-if="overviewError" class="rounded-lg border border-dc-pink bg-dc-paper p-6 shadow-[4px_4px_0_0_#111]">
+        <p class="editorial-eyebrow">event unavailable</p>
+        <h1 class="mt-2 text-2xl font-extrabold text-dc-ink">We could not load this event.</h1>
+        <p class="mt-3 max-w-2xl text-sm leading-6 text-dc-gray">{{ overviewError }}</p>
+        <button type="button" class="editorial-action mt-5" @click="fetchOverview">Try again</button>
+      </section>
       <div v-else-if="!event" class="py-12 text-center font-mono text-dc-gray">EVENT NOT FOUND</div>
 
       <template v-else>
@@ -1106,6 +1169,15 @@ onMounted(fetchOverview);
               >
                 Published
               </span>
+              <button
+                v-if="slackAnnouncementLabel"
+                type="button"
+                class="event-overview-publish-action"
+                :disabled="slackSending || slackAnnouncement?.status === 'pending'"
+                @click="sendSlackAnnouncement"
+              >
+                {{ slackSending ? 'Sending...' : slackAnnouncementLabel }}
+              </button>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
             <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -1475,23 +1547,28 @@ onMounted(fetchOverview);
             </div>
           </div>
 
-          <div class="event-checklist-progress-track" aria-hidden="true">
+          <div v-if="checklistError" class="mt-5 rounded-lg border border-dc-pink/40 bg-dc-paper px-4 py-3 text-sm text-dc-gray">
+            <p>The event is available, but its checklist could not be loaded.</p>
+            <button type="button" class="event-overview-copy-action mt-3" @click="fetchChecklist(String(route.params.eventId))">Retry checklist</button>
+	          </div>
+
+          <div v-else class="event-checklist-progress-track" aria-hidden="true">
             <span
               class="event-checklist-progress-fill"
               :style="{ transform: `scaleX(${checklistProgress.percent / 100})` }"
             />
           </div>
 
-          <div v-if="nextChecklistItem" class="event-checklist-next">
+          <div v-if="!checklistError && nextChecklistItem" class="event-checklist-next">
             <span class="event-checklist-next-label">Next up</span>
             <span class="event-checklist-next-copy">{{ nextChecklistItem.label }}</span>
           </div>
-          <div v-else class="event-checklist-next event-checklist-next--done">
+          <div v-else-if="!checklistError" class="event-checklist-next event-checklist-next--done">
             <span class="event-checklist-next-label">Run sheet</span>
             <span class="event-checklist-next-copy">All checklist items are complete.</span>
           </div>
 
-          <div class="event-checklist-phases">
+          <div v-if="!checklistError" class="event-checklist-phases">
             <div
               v-for="group in checklistByPhase"
               :key="group.phase"
@@ -1576,6 +1653,11 @@ onMounted(fetchOverview);
                 >
                 {{ mediaUploadPurpose === 'cover' ? 'Uploading...' : event.cover ? 'Re-upload cover' : 'Upload cover' }}
               </label>
+              <UploadProgressBar
+                v-if="mediaUploadPurpose === 'cover'"
+                :percent="mediaUploadProgress"
+                :label="mediaUploadProgress === null ? 'Preparing cover' : 'Uploading cover'"
+              />
             </div>
             <div class="event-media-upload-card">
               <div class="min-w-0">

@@ -51,6 +51,17 @@ function slackWebhookUrl(value: string): URL {
   return webhook;
 }
 
+function publicSlackImageUrl(value: string | null | undefined): string | null {
+  if (!value || value.length > 3_000) return null;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function postSlackWebhook(input: {
   webhookUrl: string;
   payload: Record<string, unknown>;
@@ -179,7 +190,7 @@ export async function sendEventAddedToSlack(input: {
   location: string;
   source: 'organizer' | 'public submission';
   publicEventUrl: string;
-  coverImageUrl: string;
+  coverImageUrl?: string | null;
   fetcher?: typeof fetch;
 }): Promise<void> {
   const sourceLabel = input.source === 'public submission' ? 'Community submission' : 'Organizer workspace';
@@ -187,6 +198,7 @@ export async function sendEventAddedToSlack(input: {
     formatEventDateForSlack(input.eventDate),
     `${titleCase(input.eventFormat)} · ${input.location.trim() || 'Location to be announced'}`,
   ].join('\n');
+  const coverImageUrl = publicSlackImageUrl(input.coverImageUrl);
   const payload = {
     text: `New event added: ${input.eventName}`,
     blocks: [
@@ -194,11 +206,11 @@ export async function sendEventAddedToSlack(input: {
         type: 'header',
         text: { type: 'plain_text', text: 'New event' },
       },
-      {
+      ...(coverImageUrl ? [{
         type: 'image',
-        image_url: input.coverImageUrl,
+        image_url: coverImageUrl,
         alt_text: `Event cover for ${input.eventName}`.slice(0, 2_000),
-      },
+      }] : []),
       {
         type: 'section',
         text: { type: 'mrkdwn', text: `*${slackText(input.eventName)}*\n${slackText(eventDetails)}` },

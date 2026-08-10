@@ -71,6 +71,7 @@ export type CreateEventSubmissionInput = {
   organizer_email: string;
   organizer_website?: string | null;
   notes?: string | null;
+  cover_url?: string | null;
 };
 
 export class EventSubmissionStorageError extends Error {
@@ -111,6 +112,7 @@ export async function createEventSubmission(
     organizer_email: input.organizer_email,
     organizer_website: input.organizer_website ?? null,
     submitter_notes: input.notes ?? null,
+    cover_url: input.cover_url ?? null,
     source_app: 'website',
   };
 
@@ -257,7 +259,7 @@ export async function getActiveEventSubmissionManagementLink(
 
 export async function saveEventSubmissionAmendment(
   submissionId: string,
-  input: Pick<EventSubmissionAmendment, 'starts_at' | 'ends_at' | 'location_type'> & { venue_name?: string; venue_address?: string; online_url?: string; registration_url?: string; organizer_note?: string },
+  input: Pick<EventSubmissionAmendment, 'starts_at' | 'ends_at' | 'location_type'> & { venue_name?: string; venue_address?: string; online_url?: string; registration_url?: string; cover_url?: string | null; organizer_note?: string },
   c?: Context,
 ): Promise<EventSubmissionAmendment> {
   const client = requireStorage(c);
@@ -265,7 +267,15 @@ export async function saveEventSubmissionAmendment(
     .select('*').eq('submission_id', submissionId).in('status', ['draft', 'submitted']).maybeSingle();
   if (currentError) throw new EventSubmissionStorageError('Unable to save the event change request.', 'unavailable');
   if (current?.status === 'submitted') throw new EventSubmissionStorageError('A change request is already being reviewed.', 'unavailable');
-  const values = { ...input, venue_name: input.venue_name || null, venue_address: input.venue_address || null, online_url: input.online_url || null, registration_url: input.registration_url || null, organizer_note: input.organizer_note || null };
+  const values = {
+    ...input,
+    venue_name: input.venue_name || null,
+    venue_address: input.venue_address || null,
+    online_url: input.online_url || null,
+    registration_url: input.registration_url || null,
+    ...('cover_url' in input ? { cover_url: input.cover_url || null } : {}),
+    organizer_note: input.organizer_note || null,
+  };
   const query = current
     ? client.from('event_submission_amendments').update(values).eq('id', current.id).select('*').single()
     : client.from('event_submission_amendments').insert({ submission_id: submissionId, ...values }).select('*').single();
@@ -584,6 +594,7 @@ function toEventSubmission(
     organizer_email: row.organizer_email,
     organizer_website: row.organizer_website,
     notes: row.submitter_notes,
+    cover_url: row.cover_url,
     source_app: 'website',
     review_status: row.review_status,
     reviewed_by: row.reviewed_by,
