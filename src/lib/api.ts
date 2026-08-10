@@ -266,11 +266,6 @@ export interface AdminShortLink {
 
 export interface AdminShortLinksResponse {
   links: AdminShortLink[];
-  destinations: {
-    monthly_cfp: Array<{ id: string; label: string }>;
-    event_registration: Array<{ id: string; label: string }>;
-    conference_cfp: Array<{ year: number; label: string }>;
-  };
 }
 
 export interface PublicMeetupsResponse {
@@ -1029,10 +1024,14 @@ export function fetchAdminShortLinks() {
   return fetchJson<AdminShortLinksResponse>('/api/admin/short-links', { credentials: 'include' });
 }
 
-export function createAdminShortLink(input: { destination: AdminShortLink['destination']; event_id?: string; conference_year?: number }) {
-  return fetchJson<AdminShortLink>('/api/admin/short-links', {
+export function ensureAdminShortLink(input: { destination: AdminShortLink['destination']; event_id?: string; conference_year?: number }) {
+  return fetchJson<AdminShortLink & { destination_path: string; created: boolean }>('/api/admin/short-links/ensure', {
     method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });
+}
+
+export function regenerateAdminShortLink(id: string) {
+  return fetchJson<AdminShortLink>(`/api/admin/short-links/${encodeURIComponent(id)}/regenerate`, { method: 'POST', credentials: 'include' });
 }
 
 export function revokeAdminShortLink(id: string) {

@@ -4,7 +4,7 @@ import { useRoute, RouterLink } from 'vue-router';
 import QRCode from 'qrcode';
 import { registrationAvailability } from '@/lib/event-registration';
 import { adminPath } from '@/src/admin-routes';
-import { fetchEventRegistrations } from '@/src/lib/api';
+import { ensureAdminShortLink, fetchEventRegistrations } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import type { AdminEventRegistrationsResponse } from '@/src/lib/api';
 
@@ -14,10 +14,12 @@ const error = ref('');
 const registrationData = ref<AdminEventRegistrationsResponse | null>(null);
 const qrCodeUrl = ref<string | null>(null);
 const linkCopied = ref(false);
+const shortLinkUrl = ref<string | null>(null);
 
 const eventId = computed(() => String(route.params.eventId ?? ''));
 const event = computed(() => registrationData.value?.event ?? null);
 const publicUrl = computed(() => registrationData.value?.public_url ?? null);
+const publicShareUrl = computed(() => shortLinkUrl.value ?? publicUrl.value);
 const registrationIsAvailable = computed(() => (
   registrationData.value?.managed_internally === true
   && registrationAvailability(registrationData.value.campaign).available
@@ -62,7 +64,13 @@ async function loadDisplay() {
     const payload = await fetchEventRegistrations(eventId.value);
     registrationData.value = payload;
     if (payload.managed_internally && registrationAvailability(payload.campaign).available && payload.public_url) {
-      await buildQrCode(payload.public_url);
+      try {
+        const shortLink = await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+        shortLinkUrl.value = shortLink.url;
+      } catch {
+        shortLinkUrl.value = null;
+      }
+      await buildQrCode(shortLinkUrl.value ?? payload.public_url);
     } else {
       qrCodeUrl.value = null;
     }
@@ -76,7 +84,11 @@ async function loadDisplay() {
 async function copyRegistrationLink() {
   if (!publicUrl.value || !registrationIsAvailable.value) return;
   try {
-    await navigator.clipboard.writeText(publicUrl.value);
+    const shortLink = shortLinkUrl.value
+      ? { url: shortLinkUrl.value }
+      : await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+    shortLinkUrl.value = shortLink.url;
+    await navigator.clipboard.writeText(shortLink.url);
     linkCopied.value = true;
     notify.success('Registration link copied.');
     window.setTimeout(() => {
@@ -139,12 +151,12 @@ onMounted(() => {
                 </div>
               </dl>
               <div class="registration-display-actions">
-                <a :href="publicUrl as string" class="editorial-action min-h-11 justify-center px-4" target="_blank" rel="noopener noreferrer">Open form on this phone</a>
+                <a :href="publicShareUrl as string" class="editorial-action min-h-11 justify-center px-4" target="_blank" rel="noopener noreferrer">Open form on this phone</a>
                 <button type="button" class="editorial-secondary-action min-h-11 justify-center px-4" @click="copyRegistrationLink">
                   {{ linkCopied ? 'Link copied' : 'Copy form link' }}
                 </button>
               </div>
-              <p class="registration-display-url">{{ publicUrl }}</p>
+              <p class="registration-display-url">{{ publicShareUrl }}</p>
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
-import { createAdminShortLink, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, revokeAdminShortLink, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
+import { fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, revokeAdminShortLink, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
 
 const AUDIT_LOG_LIMIT = 80;
 const AUDIT_LOG_PAGE_SIZE = 4;
@@ -18,6 +18,11 @@ interface AuditLogGroup {
 }
 
 type AuditLogSection = 'activity' | 'email-delivery' | 'short-links';
+type ShortLinkStatusFilter = 'active' | 'revoked';
+interface ShortLinkMenuPosition {
+  left: number;
+  top: number;
+}
 
 const filters = reactive({
   action: '',
@@ -27,8 +32,11 @@ const groupByActorEmail = ref(false);
 const page = ref(1);
 const deliveryPage = ref(1);
 const activeSection = ref<AuditLogSection>('activity');
-const selectedShortLinkDestination = ref('');
 const shortLinkMessage = ref('');
+const copiedShortLinkId = ref<string | null>(null);
+const shortLinkStatusFilter = ref<ShortLinkStatusFilter>('active');
+const openShortLinkMenuId = ref<string | null>(null);
+const shortLinkMenuPosition = ref<ShortLinkMenuPosition | null>(null);
 const queryClient = useQueryClient();
 const selectedAuditLogId = ref<string | null>(null);
 const auditFiltersShell = ref<HTMLElement | null>(null);
@@ -39,6 +47,7 @@ const auditFiltersHeight = ref(0);
 const auditActivitySummaryHeight = ref(0);
 let auditStickyResizeObserver: ResizeObserver | undefined;
 let auditDrawerTrigger: HTMLElement | null = null;
+let copiedShortLinkResetTimer: number | undefined;
 
 const auditFilters = computed(() => ({
   action: filters.action.trim(),
@@ -51,16 +60,6 @@ const auditQuery = useQuery({
   queryFn: () => fetchAdminAuditLog(auditFilters.value),
 });
 const shortLinksQuery = useQuery({ queryKey: queryKeys.adminShortLinks, queryFn: fetchAdminShortLinks });
-const shortLinkMutation = useMutation({
-  mutationFn: createAdminShortLink,
-  onSuccess: async (link) => {
-    shortLinkMessage.value = `${link.url} is ready to copy.`;
-    selectedShortLinkDestination.value = '';
-    await queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.adminAuditLog() });
-  },
-  onError: (error) => { shortLinkMessage.value = error instanceof Error ? error.message : 'Unable to create the short link.'; },
-});
 const revokeShortLinkMutation = useMutation({
   mutationFn: revokeAdminShortLink,
   onSuccess: async () => {
@@ -70,8 +69,21 @@ const revokeShortLinkMutation = useMutation({
   },
   onError: (error) => { shortLinkMessage.value = error instanceof Error ? error.message : 'Unable to revoke the short link.'; },
 });
+const regenerateShortLinkMutation = useMutation({
+  mutationFn: regenerateAdminShortLink,
+  onSuccess: async (link) => {
+    shortLinkMessage.value = `${link.url} is ready to share.`;
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.adminAuditLog() });
+  },
+  onError: (error) => { shortLinkMessage.value = error instanceof Error ? error.message : 'Unable to regenerate the short link.'; },
+});
 
 const logs = computed(() => auditQuery.data.value?.logs ?? []);
+const allShortLinks = computed(() => shortLinksQuery.data.value?.links ?? []);
+const visibleShortLinks = computed(() => allShortLinks.value.filter((link) => link.status === shortLinkStatusFilter.value));
+const activeShortLinkCount = computed(() => allShortLinks.value.filter((link) => link.status === 'active').length);
+const revokedShortLinkCount = computed(() => allShortLinks.value.filter((link) => link.status === 'revoked').length);
 const emailHealth = computed(() => auditQuery.data.value?.email_health ?? null);
 const emailOutbox = computed(() => auditQuery.data.value?.email_outbox ?? null);
 const blastCapacity = computed(() => auditQuery.data.value?.blast_capacity ?? null);
@@ -343,31 +355,59 @@ function selectSection(section: AuditLogSection) {
   activeSection.value = section;
 }
 
-const shortLinkDestinationOptions = computed(() => {
-  const destinations = shortLinksQuery.data.value?.destinations;
-  if (!destinations) return [] as Array<{ value: string; label: string }>;
-  return [
-    ...destinations.monthly_cfp.map((item) => ({ value: `monthly_cfp:${item.id}`, label: `Monthly CFP — ${item.label}` })),
-    ...destinations.event_registration.map((item) => ({ value: `event_registration:${item.id}`, label: `Registration — ${item.label}` })),
-    ...destinations.conference_cfp.map((item) => ({ value: `conference_cfp:${item.year}`, label: `Conference CFP — ${item.label}` })),
-  ];
-});
+function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registration' | 'conference_cfp'): string {
+  if (destination === 'conference_cfp') return 'Conference CFP';
+  if (destination === 'monthly_cfp') return 'Monthly CFP';
+  return 'Registration';
+}
 
-async function copyShortLink(value: string) {
+function toggleShortLinkMenu(linkId: string, event: MouseEvent) {
+  if (openShortLinkMenuId.value === linkId) {
+    closeShortLinkMenu();
+    return;
+  }
+
+  const trigger = event.currentTarget;
+  if (!(trigger instanceof HTMLElement)) return;
+
+  const rect = trigger.getBoundingClientRect();
+  const menuWidth = 160;
+  const menuHeight = 128;
+  const gutter = 8;
+  const openAbove = rect.bottom + gutter + menuHeight > window.innerHeight;
+  shortLinkMenuPosition.value = {
+    left: Math.min(Math.max(gutter, rect.right - menuWidth), window.innerWidth - menuWidth - gutter),
+    top: openAbove
+      ? Math.max(gutter, rect.top - gutter - menuHeight)
+      : Math.min(rect.bottom + gutter, window.innerHeight - menuHeight - gutter),
+  };
+  openShortLinkMenuId.value = linkId;
+}
+
+function closeShortLinkMenu() {
+  openShortLinkMenuId.value = null;
+  shortLinkMenuPosition.value = null;
+}
+
+async function copyShortLink(linkId: string, value: string) {
   try {
     await navigator.clipboard.writeText(value);
-    shortLinkMessage.value = 'Short link copied.';
+    copiedShortLinkId.value = linkId;
+    if (copiedShortLinkResetTimer !== undefined) window.clearTimeout(copiedShortLinkResetTimer);
+    copiedShortLinkResetTimer = window.setTimeout(() => {
+      copiedShortLinkId.value = null;
+      copiedShortLinkResetTimer = undefined;
+    }, 1600);
+    closeShortLinkMenu();
   } catch {
     shortLinkMessage.value = 'Copy failed. Select the link and copy it manually.';
   }
 }
 
-function createShortLinkFromSelection() {
-  const [destination, target] = selectedShortLinkDestination.value.split(':');
-  if (!target || (destination !== 'monthly_cfp' && destination !== 'event_registration' && destination !== 'conference_cfp')) return;
-  shortLinkMutation.mutate(destination === 'conference_cfp'
-    ? { destination, conference_year: Number(target) }
-    : { destination, event_id: target });
+function handleDocumentPointerDown(event: PointerEvent) {
+  const target = event.target;
+  if (target instanceof Element && target.closest('[data-short-link-menu]')) return;
+  closeShortLinkMenu();
 }
 
 function openAuditDrawer(log: AdminAuditLogEntry, event?: Event) {
@@ -385,6 +425,10 @@ function closeAuditDrawer() {
 }
 
 function handleAuditDrawerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && openShortLinkMenuId.value) {
+    closeShortLinkMenu();
+    return;
+  }
   if (event.key === 'Escape' && selectedAuditLog.value) {
     closeAuditDrawer();
     return;
@@ -414,6 +458,7 @@ onMounted(() => {
 
   window.addEventListener('resize', updateAuditStickyHeights);
   window.addEventListener('keydown', handleAuditDrawerKeydown);
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
   void nextTick(syncAuditStickyObserver);
 });
 
@@ -421,6 +466,8 @@ onUnmounted(() => {
   auditStickyResizeObserver?.disconnect();
   window.removeEventListener('resize', updateAuditStickyHeights);
   window.removeEventListener('keydown', handleAuditDrawerKeydown);
+  document.removeEventListener('pointerdown', handleDocumentPointerDown);
+  if (copiedShortLinkResetTimer !== undefined) window.clearTimeout(copiedShortLinkResetTimer);
 });
 </script>
 
@@ -811,40 +858,40 @@ onUnmounted(() => {
             </div>
           </section>
           <section v-else id="audit-log-panel-short-links" key="short-links" role="tabpanel" aria-labelledby="audit-log-tab-short-links" class="audit-log-email-delivery w-full">
-            <div class="audit-log-email-delivery__heading">
-              <div>
-                <p class="editorial-eyebrow mb-1">marketing links</p>
-                <h2 class="text-xl font-bold tracking-tight text-dc-ink">Short links</h2>
-                <p class="mt-1 text-sm text-dc-muted">Create opaque flyer links for open CFPs and registration forms. Visits are counted here; organizer changes remain in Activity.</p>
+            <div class="audit-log-short-links__toolbar">
+              <div class="audit-log-short-links__heading">
+                <p class="editorial-eyebrow">marketing links</p>
+                <h2>Short links</h2>
+                <p class="audit-log-short-links__description">Every open public CFP and registration form has one flyer link. Copy the current code here; manage rare changes without leaving the registry.</p>
               </div>
-            </div>
-            <div class="rounded-md border border-dc-border bg-dc-paper p-4">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <label class="flex min-w-0 flex-1 flex-col gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-muted">
-                  Destination
-                  <select v-model="selectedShortLinkDestination" class="min-h-11 rounded-md border border-dc-border bg-white px-3 font-sans text-sm font-medium normal-case tracking-normal text-dc-ink">
-                    <option value="">Choose an open public destination</option>
-                    <option v-for="option in shortLinkDestinationOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-                  </select>
-                </label>
-                <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 font-mono text-xs font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="!selectedShortLinkDestination || shortLinkMutation.isPending.value" @click="createShortLinkFromSelection">
-                  {{ shortLinkMutation.isPending.value ? 'Creating…' : 'Create short link' }}
-                </button>
+              <div class="audit-log-short-links__filters" role="group" aria-label="Filter short links by status">
+                <button type="button" class="motion-press" :class="{ 'audit-log-short-links__filter--active': shortLinkStatusFilter === 'active' }" :aria-pressed="shortLinkStatusFilter === 'active'" @click="shortLinkStatusFilter = 'active'">Active <strong>{{ activeShortLinkCount }}</strong></button>
+                <button type="button" class="motion-press" :class="{ 'audit-log-short-links__filter--active': shortLinkStatusFilter === 'revoked' }" :aria-pressed="shortLinkStatusFilter === 'revoked'" @click="shortLinkStatusFilter = 'revoked'">Revoked <strong>{{ revokedShortLinkCount }}</strong></button>
               </div>
-              <p v-if="shortLinkMessage" class="mt-3 text-sm font-medium text-dc-muted">{{ shortLinkMessage }}</p>
+              <p v-if="shortLinkMessage" class="audit-log-short-links__message">{{ shortLinkMessage }}</p>
             </div>
-            <div class="audit-log-delivery-history mt-5">
+            <div class="audit-log-delivery-history audit-log-short-links__history">
               <div v-if="shortLinksQuery.isPending.value" class="audit-log-delivery-history__empty">Loading short links…</div>
-              <div v-else-if="shortLinksQuery.data.value?.links.length === 0" class="audit-log-delivery-history__empty">No short links yet. Create one for an open CFP or registration form.</div>
+              <div v-else-if="allShortLinks.length === 0" class="audit-log-delivery-history__empty">No open public forms are ready for a flyer link.</div>
+              <div v-else-if="visibleShortLinks.length === 0" class="audit-log-delivery-history__empty">No {{ shortLinkStatusFilter }} links.</div>
               <div v-else class="overflow-x-auto">
-                <table class="audit-log-delivery-history__table">
-                  <thead><tr><th>Link</th><th>Destination</th><th>Visits</th><th>Last visited</th><th>Status</th><th></th></tr></thead>
-                  <tbody>
-                    <tr v-for="link in shortLinksQuery.data.value?.links" :key="link.id">
-                      <td><button type="button" class="font-mono font-semibold text-dc-ink underline decoration-dc-yellow decoration-2 underline-offset-4" @click="copyShortLink(link.url)">{{ link.url.replace('https://', '') }}</button></td>
-                      <td>{{ link.label }}</td><td>{{ link.redirect_count.toLocaleString() }}</td><td>{{ link.last_redirected_at ? formatDateTime(link.last_redirected_at) : 'Not used yet' }}</td>
-                      <td><span class="audit-log-delivery-history__status" :class="link.status === 'active' ? 'audit-log-delivery-history__status--accepted' : 'audit-log-delivery-history__status--failed'">{{ link.status }}</span></td>
-                      <td><button v-if="link.status === 'active'" type="button" class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-muted underline" :disabled="revokeShortLinkMutation.isPending.value" @click="revokeShortLinkMutation.mutate(link.id)">Revoke</button></td>
+                <table class="audit-log-short-links__table w-full table-fixed text-left">
+                  <colgroup>
+                    <col class="w-[24%]">
+                    <col class="w-[13%]">
+                    <col class="w-[22%]">
+                    <col class="w-[8%]">
+                    <col class="w-[14%]">
+                    <col class="w-[15%]">
+                  </colgroup>
+                  <thead class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray"><tr><th class="px-4 py-2">Destination</th><th class="px-3 py-2">Form</th><th class="px-3 py-2">Link</th><th class="px-3 py-2">Visits</th><th class="px-3 py-2">Last visited</th><th class="px-3 py-2">Actions</th></tr></thead>
+                  <tbody class="divide-y divide-dc-border">
+                    <tr v-for="link in visibleShortLinks" :key="link.id">
+                      <td class="px-4 py-2 align-middle"><div class="audit-log-short-links__destination"><strong>{{ link.label }}</strong></div></td>
+                      <td class="px-3 py-2 align-middle"><span class="audit-log-short-links__type" :class="`audit-log-short-links__type--${link.destination}`">{{ shortLinkDestinationLabel(link.destination) }}</span></td>
+                      <td class="px-3 py-2 align-middle"><span class="audit-log-short-links__url">{{ link.url.replace('https://', '') }}</span></td>
+                      <td class="px-3 py-2 align-middle text-sm font-semibold text-dc-gray">{{ link.redirect_count.toLocaleString() }}</td><td class="px-3 py-2 align-middle text-sm text-dc-gray">{{ link.last_redirected_at ? formatDateTime(link.last_redirected_at) : 'N/A' }}</td>
+                      <td class="px-3 py-2 align-middle"><div v-if="link.status === 'active'" class="audit-log-short-links__actions"><button type="button" class="motion-press min-h-9 rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-ink hover:bg-dc-paper-warm" @click="copyShortLink(link.id, link.url)"><Transition name="short-link-copy-label" mode="out-in"><span :key="copiedShortLinkId === link.id ? 'copied' : 'copy'">{{ copiedShortLinkId === link.id ? 'Copied' : 'Copy' }}</span></Transition></button><div data-short-link-menu class="audit-log-short-links__menu"><button type="button" class="motion-press audit-log-short-links__manage-button" aria-haspopup="menu" :aria-expanded="openShortLinkMenuId === link.id" :aria-label="`Manage ${link.url}`" @click.stop="toggleShortLinkMenu(link.id, $event)"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="4.5" r="1.35" /><circle cx="10" cy="10" r="1.35" /><circle cx="10" cy="15.5" r="1.35" /></svg></button></div></div><a v-else :href="link.url" target="_blank" rel="noopener noreferrer" class="audit-log-short-links__open-history">Open link ↗</a></td>
                     </tr>
                   </tbody>
                 </table>
@@ -854,6 +901,16 @@ onUnmounted(() => {
         </Transition>
       </div>
     </div>
+
+    <Teleport to="body">
+      <Transition name="short-link-menu">
+        <div v-if="openShortLinkMenuId && shortLinkMenuPosition" data-short-link-menu class="audit-log-short-links__menu-popover" :style="{ left: `${shortLinkMenuPosition.left}px`, top: `${shortLinkMenuPosition.top}px` }" role="menu">
+          <a :href="allShortLinks.find((link) => link.id === openShortLinkMenuId)?.url" target="_blank" rel="noopener noreferrer" role="menuitem" @click="closeShortLinkMenu">Open link <span aria-hidden="true">↗</span></a>
+          <button type="button" role="menuitem" :disabled="regenerateShortLinkMutation.isPending.value" @click="closeShortLinkMenu(); regenerateShortLinkMutation.mutate(openShortLinkMenuId)">Regenerate</button>
+          <button type="button" role="menuitem" class="audit-log-short-links__menu-danger" :disabled="revokeShortLinkMutation.isPending.value" @click="closeShortLinkMenu(); revokeShortLinkMutation.mutate(openShortLinkMenuId)">Revoke</button>
+        </div>
+      </Transition>
+    </Teleport>
 
     <Teleport to="body">
       <Transition name="audit-log-drawer">
@@ -1556,6 +1613,286 @@ onUnmounted(() => {
   justify-content: center;
 }
 
+.audit-log-short-links__toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: start;
+  padding: 1.125rem 1.5rem;
+  border-bottom: 1px solid #e4e0d8;
+  background: #fcfbf7;
+}
+
+.audit-log-short-links__heading {
+  min-width: 0;
+}
+
+.audit-log-short-links__heading .editorial-eyebrow {
+  margin: 0 0 0.25rem;
+}
+
+.audit-log-short-links__toolbar h2 {
+  margin: 0;
+  color: #111111;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.audit-log-short-links__description {
+  margin: 0.25rem 0 0;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.audit-log-short-links__filters {
+  display: inline-flex;
+  align-self: center;
+  overflow: hidden;
+  border: 1px solid #d3cec4;
+  border-radius: 0.5rem;
+  background: #fffdf8;
+  box-shadow: 0 1px 2px rgba(17, 17, 17, 0.04);
+}
+
+.audit-log-short-links__filters button {
+  min-height: 2.25rem;
+  padding: 0 0.8rem;
+  border: 0;
+  border-left: 1px solid #e2ded6;
+  color: #716d65;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.audit-log-short-links__filters button:first-child {
+  border-left: 0;
+}
+
+.audit-log-short-links__filters button strong {
+  margin-left: 0.25rem;
+  color: inherit;
+  font-size: 0.75rem;
+}
+
+.audit-log-short-links__filters .audit-log-short-links__filter--active {
+  background: #fff09a;
+  color: #111111;
+}
+
+.audit-log-short-links__message {
+  grid-column: 1 / -1;
+  margin: -0.25rem 0 0;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+@media (max-width: 1120px) {
+  .audit-log-short-links__toolbar {
+    gap: 1rem;
+  }
+}
+
+.audit-log-short-links__history {
+  margin-top: 0;
+}
+
+.audit-log-short-links__table {
+  min-width: 62rem;
+  border-top: 1px solid #e4e0d8;
+  border-collapse: collapse;
+}
+
+.audit-log-short-links__table thead {
+  background: #fffdf0;
+}
+
+.audit-log-short-links__url {
+  color: #625d55;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.audit-log-short-links__destination {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.audit-log-short-links__table .audit-log-short-links__destination strong {
+  overflow: hidden;
+  color: #3f3a33;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-log-short-links__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: #716d65;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.audit-log-short-links__type::before {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #8b877f;
+  content: '';
+}
+
+.audit-log-short-links__type--conference_cfp::before {
+  background: #be0c62;
+}
+
+.audit-log-short-links__type--monthly_cfp::before {
+  background: #715f00;
+}
+
+.audit-log-short-links__type--event_registration::before {
+  background: #197343;
+}
+
+.audit-log-short-links__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.audit-log-short-links__actions button {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.audit-log-short-links__menu {
+  display: contents;
+}
+
+.audit-log-short-links__manage-button {
+  display: grid;
+  width: 2.25rem;
+  min-height: 2.25rem;
+  place-items: center;
+  border: 1px solid #d8d3ca;
+  border-radius: 0.375rem;
+  background: #fffdf8;
+  color: #57534e;
+}
+
+.audit-log-short-links__manage-button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.audit-log-short-links__menu-popover {
+  position: fixed;
+  z-index: 70;
+  display: grid;
+  width: 10.5rem;
+  overflow: hidden;
+  border: 1px solid #d6d2c8;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(17, 17, 17, 0.14);
+}
+
+.audit-log-short-links__menu-popover a,
+.audit-log-short-links__menu-popover button {
+  display: flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  border: 0;
+  border-top: 1px solid #ebe8e1;
+  background: transparent;
+  color: #2d2924;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.audit-log-short-links__menu-popover > :first-child {
+  border-top: 0;
+}
+
+.audit-log-short-links__menu-popover a:hover,
+.audit-log-short-links__menu-popover button:hover {
+  background: #fffbe1;
+}
+
+.audit-log-short-links__menu-popover .audit-log-short-links__menu-danger {
+  color: #b42318;
+}
+
+.audit-log-short-links__open-history {
+  color: #57534e;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .audit-log-short-links__table tbody tr:hover {
+    background: #fcfbf7;
+  }
+
+  .audit-log-short-links__manage-button:hover {
+    border-color: #a9a39a;
+    background: #f8f5ee;
+    color: #111111;
+  }
+}
+
+.short-link-menu-enter-active,
+.short-link-menu-leave-active {
+  transform-origin: bottom right;
+  transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1), transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.short-link-menu-enter-from,
+.short-link-menu-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+}
+
+.short-link-copy-label-enter-active,
+.short-link-copy-label-leave-active {
+  transition: opacity 140ms cubic-bezier(0.4, 0, 0.2, 1), transform 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.short-link-copy-label-enter-from {
+  opacity: 0;
+  transform: translateY(2px);
+}
+
+.short-link-copy-label-leave-to {
+  opacity: 0;
+  transform: translateY(-2px);
+}
+
 .audit-log-drawer-shell {
   position: fixed;
   inset: 0;
@@ -1863,6 +2200,16 @@ onUnmounted(() => {
     padding-left: 1rem;
   }
 
+  .audit-log-short-links__toolbar {
+    grid-template-columns: 1fr;
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .audit-log-short-links__filters {
+    justify-self: start;
+  }
+
   .audit-log-drawer__header,
   .audit-log-drawer__body {
     padding-right: 1rem;
@@ -1884,7 +2231,9 @@ onUnmounted(() => {
   .audit-log-panel-forward-enter-active,
   .audit-log-panel-forward-leave-active,
   .audit-log-panel-backward-enter-active,
-  .audit-log-panel-backward-leave-active {
+  .audit-log-panel-backward-leave-active,
+  .short-link-copy-label-enter-active,
+  .short-link-copy-label-leave-active {
     transition: none;
   }
 
@@ -1894,7 +2243,9 @@ onUnmounted(() => {
   .audit-log-panel-backward-enter-from,
   .audit-log-panel-backward-leave-to,
   .audit-log-drawer-enter-from .audit-log-drawer,
-  .audit-log-drawer-leave-to .audit-log-drawer {
+  .audit-log-drawer-leave-to .audit-log-drawer,
+  .short-link-copy-label-enter-from,
+  .short-link-copy-label-leave-to {
     transform: none;
   }
 }

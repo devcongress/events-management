@@ -1,5 +1,18 @@
 # Architectural Decisions
 
+## ADR-064: Make Flyer Links Canonical Per Public Destination
+
+Date: 2026-08-09
+Status: Accepted
+
+Context: A manual generator inside Audit Log made marketing links easy to overlook, allowed multiple live codes for the same form, and separated the share action from the public destination it was meant to promote. Organizers need the short code at the moment they copy a CFP or registration link; owners still need one operational place to inspect and control links.
+
+Decision: Each eligible open public destination owns at most one active opaque flyer link. The event registration, monthly CFP, and Annual Conference CFP share controls call an idempotent server ensure operation that returns the existing code or creates it. The Owner registry also reconciles currently open destinations, backfilling legacy open forms so it is a complete list rather than a history of clicks. PostgreSQL partial unique indexes and advisory-locked RPCs protect the invariant across concurrent requests. Audit Log is a registry only: Owners can inspect, copy, regenerate, or revoke links. Regeneration revokes the old code and inserts the replacement atomically; private bearer links and non-public flows remain ineligible.
+
+Trade-offs: Code creation now happens as a side effect of a normal share action, which means the first copy needs an authenticated server round trip. That is preferable to stale manual setup and keeps form-specific access control intact. Registry management remains Owner-only while eligible organizers can obtain the link they are allowed to share.
+
+Revisit when: Marketing needs named campaigns, per-channel attribution, expiration dates, destination A/B tests, or non-organizer self-service links.
+
 ## ADR-063: Resolve Short Links Through a Pages Function and EMS HTTPS
 
 Date: 2026-08-09

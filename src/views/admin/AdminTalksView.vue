@@ -7,7 +7,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
-import { fetchAdminSession, fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
+import { ensureAdminShortLink, fetchAdminSession, fetchEventById, fetchEventChecklist, queryKeys } from '@/src/lib/api';
 import {
   isArchiveRequestsChecklistItem,
   isArchiveRequestsDisabledForEvent,
@@ -66,6 +66,7 @@ const updatingCfp = ref(false);
 const refreshingSubmissions = ref(false);
 const closeCfpDialogOpen = ref(false);
 const cfpLinkCopied = ref(false);
+const cfpShortLinkUrl = ref<string | null>(null);
 const copiedSpeakerLinkId = ref<string | null>(null);
 const updatingTalkId = ref<string | null>(null);
 const sendingMaterialsFollowUp = ref(false);
@@ -172,6 +173,7 @@ const cfpFormUrl = computed(() => {
   if (typeof window === 'undefined') return cfpFormPath.value;
   return new URL(cfpFormPath.value, window.location.origin).toString();
 });
+const cfpShareUrl = computed(() => cfpShortLinkUrl.value ?? cfpFormUrl.value);
 const eventStatus = computed(() => event.value?.status ?? 'draft');
 const cfpIsOpen = computed(() => eventStatus.value === 'cfp_open');
 const cfpIsClosed = computed(() => eventStatus.value === 'cfp_closed');
@@ -287,6 +289,13 @@ async function fetchEvent() {
   });
 }
 
+async function prepareCfpShareLink() {
+  cfpShortLinkUrl.value = null;
+  if (!cfpCanReceiveSubmissions.value) return;
+  const shortLink = await ensureAdminShortLink({ destination: 'monthly_cfp', event_id: String(route.params.eventId) });
+  cfpShortLinkUrl.value = shortLink.url;
+}
+
 async function fetchSpeakerSubmissions() {
   const response = await fetch(`/api/events/${route.params.eventId}/speaker-submissions`, { cache: 'no-store' });
   if (response.ok) {
@@ -334,13 +343,14 @@ function rememberIssuedSpeakerLink(payload: { link?: AdminSpeakerIntakeLink | nu
 }
 
 async function fetchPageData() {
+  await fetchEvent();
   await Promise.all([
-    fetchEvent(),
     fetchTalks(),
     fetchSpeakerSubmissions(),
     fetchSpeakerIntakeLinks(),
     fetchArchiveRequestAvailability(),
   ]);
+  await prepareCfpShareLink();
   loading.value = false;
 }
 
@@ -642,11 +652,14 @@ async function copyCfpFormLink() {
   error.value = null;
 
   try {
+    const shortLink = cfpShortLinkUrl.value
+      ? { url: cfpShortLinkUrl.value }
+      : await ensureAdminShortLink({ destination: 'monthly_cfp', event_id: String(route.params.eventId) });
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(cfpFormUrl.value);
+      await navigator.clipboard.writeText(shortLink.url);
     } else {
       const textarea = document.createElement('textarea');
-      textarea.value = cfpFormUrl.value;
+      textarea.value = shortLink.url;
       textarea.setAttribute('readonly', '');
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
@@ -683,6 +696,7 @@ async function updateCfpStatus(status: Extract<EventStatus, 'cfp_open' | 'cfp_cl
 
     if (response.ok) {
       event.value = data;
+      if (status === 'cfp_open') await prepareCfpShareLink();
       notify.success(status === 'cfp_open' ? 'CFP opened.' : 'CFP closed.');
     } else {
       error.value = data.error || 'Failed to update CFP status';
@@ -1019,7 +1033,7 @@ onUnmounted(() => {
             <div v-if="cfpIsOpen" class="cfp-share-row">
               <label class="cfp-share-field">
                 <span class="ops-label">public form</span>
-                <input :value="cfpCanReceiveSubmissions ? cfpFormUrl : 'CFP unavailable for this event date'" readonly class="editorial-input font-mono text-sm" />
+                <input :value="cfpCanReceiveSubmissions ? cfpShareUrl : 'CFP unavailable for this event date'" readonly class="editorial-input font-mono text-sm" />
               </label>
               <div class="cfp-share-actions">
                 <button
