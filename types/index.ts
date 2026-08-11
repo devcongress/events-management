@@ -407,6 +407,8 @@ export interface PublicEvent {
   venue_name: string | null;
   venue_address: string | null;
   online_url: string | null;
+  stream_url: string | null;
+  embed_stream: boolean;
   registration_url: string | null;
   organizer_name: string;
   organizer_website: string | null;

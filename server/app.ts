@@ -1089,6 +1089,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
+    || /^\/api\/public\/events\/[^/]+$/.test(path)
     || path === '/api/public/archive'
     || path.startsWith('/api/public/archive/')
     || path === '/api/public/home'
@@ -1904,7 +1905,9 @@ async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
       location_type: event.location_type ?? (event.stream_url ? 'online' : 'in_person'),
       venue_name: event.location?.name ?? null,
       venue_address: event.venue_address ?? event.location?.label ?? null,
-      online_url: safeHttpUrl(event.online_url ?? event.stream_url),
+      online_url: safeHttpUrl(event.online_url),
+      stream_url: safeHttpUrl(event.stream_url),
+      embed_stream: event.embed_stream ?? false,
       registration_url: safeWebsiteUrl(event.registration_url),
       organizer_name: event.organizer_name ?? 'DevCongress',
       organizer_website: safeHttpUrl(event.organizer_url),

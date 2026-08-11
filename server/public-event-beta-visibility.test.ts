@@ -4,6 +4,8 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '../lib/event-cover';
 
+const requireAdminMock = vi.hoisted(() => vi.fn());
+
 vi.mock('../lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('../lib/supabase/admin-auth')>('../lib/supabase/admin-auth');
   const session = {
@@ -19,7 +21,7 @@ vi.mock('../lib/supabase/admin-auth', async () => {
   return {
     ...actual,
     getAdminSession: vi.fn(async () => session),
-    requireAdmin: vi.fn(async (c: { set: (key: string, value: unknown) => void }) => {
+    requireAdmin: requireAdminMock.mockImplementation(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
       return null;
     }),
@@ -59,7 +61,18 @@ beforeEach(async () => {
   process.chdir(tempRoot);
   await fs.mkdir('data');
   await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([
-    event({ id: 'official', slug: 'official', name: 'Official event' }),
+    event({
+      id: 'official',
+      slug: 'official',
+      name: 'Official event',
+      event_date: '2025-06-20T18:00:00.000Z',
+      end_date: '2025-06-20T20:00:00.000Z',
+      location_type: 'online',
+      online_url: 'https://meet.google.com/current-session',
+      stream_url: 'https://www.youtube.com/watch?v=recording',
+      embed_stream: false,
+      registration_url: 'https://lu.ma/official-event',
+    }),
     event({
       id: 'community-live',
       slug: 'community-live',
@@ -119,10 +132,10 @@ describe('private beta event visibility', () => {
 
     expect(response.status).toBe(200);
     expect(payload.data.map((item) => item.id)).toEqual([
-      'official',
       'community-live',
       'community-beta',
       'community-physical',
+      'official',
     ]);
     expect(payload.data.filter((item) => item.source === 'public_submission').map((item) => item.cover_url))
       .toEqual([EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER]);
@@ -131,18 +144,43 @@ describe('private beta event visibility', () => {
   it('returns one published event by slug while preserving the discovery gate', async () => {
     const { default: app } = await import('./app');
 
+    requireAdminMock.mockClear();
     await expect(app.request('http://localhost/api/public/events/community-live'))
       .resolves.toMatchObject({ status: 404 });
+    expect(requireAdminMock).not.toHaveBeenCalled();
 
     vi.stubEnv('PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED', 'true');
+    requireAdminMock.mockClear();
     const response = await app.request('http://localhost/api/public/events/community-live');
     const payload = await response.json() as { data: { id: string; slug: string; publication_status: string } };
 
     expect(response.status).toBe(200);
+    expect(requireAdminMock).not.toHaveBeenCalled();
     expect(payload.data).toMatchObject({
       id: 'community-live',
       slug: 'community-live',
       publication_status: 'published',
+    });
+  });
+
+  it('keeps a past event recording distinct from registration and online event links', async () => {
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/events/official');
+    const payload = await response.json() as {
+      data: {
+        online_url: string | null;
+        stream_url: string | null;
+        embed_stream: boolean;
+        registration_url: string | null;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toMatchObject({
+      online_url: 'https://meet.google.com/current-session',
+      stream_url: 'https://www.youtube.com/watch?v=recording',
+      embed_stream: false,
+      registration_url: 'https://lu.ma/official-event',
     });
   });
 
@@ -160,10 +198,10 @@ describe('private beta event visibility', () => {
 
     expect(response.status).toBe(200);
     expect(payload.data.map((item) => item.id)).toEqual([
-      'official',
       'community-live',
       'community-beta',
       'community-physical',
+      'official',
     ]);
   });
 });
