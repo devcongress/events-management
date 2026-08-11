@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — Dedicated website readiness check for Slack
+
+- Slack now checks the event route’s explicit `?readiness=1` signal before posting, rather than relying on the visitor-facing page response.
+- This keeps the no-early-announcement rule while allowing the website to serve its dynamic event shell immediately.
+
 ## 2026-08-11 — Preserved public event media semantics
 
 - Added safe `stream_url` and `embed_stream` fields to the generic public-events DTO across local JSON and Supabase sources.

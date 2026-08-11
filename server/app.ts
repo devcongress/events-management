@@ -2003,6 +2003,12 @@ function publicWebsiteEventUrl(event: Event, c: Context): string {
   return new URL(`/events/${encodeURIComponent(key)}`, websiteOrigin).toString();
 }
 
+function publicWebsiteEventReadinessUrl(event: Event, c: Context): string {
+  const url = new URL(publicWebsiteEventUrl(event, c));
+  url.searchParams.set('readiness', '1');
+  return url.toString();
+}
+
 function slackEventCoverUrl(event: Event, _c: Context): string {
   // Slack fetches event-card images itself, so never point it at a local or
   // request-derived origin. Event media is served publicly from EMS.
@@ -2053,7 +2059,7 @@ async function notifyEventsChannel(
   const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
   if (webhookUrl) {
     const websiteUrl = publicWebsiteEventUrl(event, c);
-    const website = await checkPublicEventAvailability(websiteUrl);
+    const website = await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c));
     if (!website.available) {
       console.warn(JSON.stringify({
         event: 'event_added_slack_notification_waiting_for_website',
@@ -6222,7 +6228,7 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
   const eligible = eventIsEligibleForSlackAnnouncement(event);
   const websiteUrl = publicWebsiteEventUrl(event, c);
   const website = eligible && envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)
-    ? await checkPublicEventAvailability(websiteUrl)
+    ? await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c))
     : { available: true, status: null };
   const announcement = await getEventSlackAnnouncement(event.id, c);
   return c.json({
