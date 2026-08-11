@@ -163,6 +163,7 @@ const activeTalkSectionIndicatorStyle = computed(() => ({
 const previewProposal = computed<SpeakerSubmission | null>(() => (
   talkPreview.value?.source === 'proposal' ? talkPreview.value.item as SpeakerSubmission : null
 ));
+const previewProposalResourceUrl = computed(() => safePublicResourceUrl(previewProposal.value?.resource_url));
 const previewArchiveItem = computed<Talk | null>(() => (
   talkPreview.value?.source === 'archive' ? talkPreview.value.item as Talk : null
 ));
@@ -923,10 +924,6 @@ function slidesLink(talk: Talk): string | null {
   return null;
 }
 
-function proposalResourceLink(submission: SpeakerSubmission): string | null {
-  return safePublicResourceUrl(submission.resource_url);
-}
-
 function archiveKindFor(item: { kind?: ArchiveItemKind | null }): ArchiveItemKind {
   return item.kind === 'product_demo' ? 'product_demo' : 'talk';
 }
@@ -1540,8 +1537,8 @@ onUnmounted(() => {
                   <dt>{{ archiveResourceLabel(previewProposal) }} submitted</dt>
                   <dd>
                     <a
-                      v-if="proposalResourceLink(previewProposal)"
-                      :href="proposalResourceLink(previewProposal) ?? undefined"
+                      v-if="previewProposalResourceUrl"
+                      :href="previewProposalResourceUrl ?? undefined"
                       target="_blank"
                       rel="noopener noreferrer nofollow"
                       class="talk-preview-inline-link"

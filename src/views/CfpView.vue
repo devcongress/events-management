@@ -20,7 +20,7 @@ const turnstileToken = ref('');
 const turnstileError = ref('');
 const turnstileActive = turnstileEnabled();
 const ABSTRACT_WORD_LIMIT = 120;
-const devconLogoSrc = '/brand/dev-con-logo.png';
+const devconLogoSrc = '/brand/dev-con-logo.webp';
 
 const form = reactive({
   kind: 'talk' as ArchiveItemKind,

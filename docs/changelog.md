@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — CFP asset and preview efficiency
+
+- Replaced the CFP’s oversized PNG logo with a resized WebP asset, reducing the initial brand image from 62 KB to 32 KB while preserving the existing visual treatment.
+- Reused the validated proposal resource URL in the organizer preview instead of parsing the same value twice during one render.
+
 ## 2026-08-11 — Clarified CFP form action
 
 - Restyled the active **Open form** control with a strong border, dark label, and tactile shadow so it no longer reads as disabled beside **Copy link**.
