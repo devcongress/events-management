@@ -61,7 +61,18 @@ beforeEach(async () => {
   process.chdir(tempRoot);
   await fs.mkdir('data');
   await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([
-    event({ id: 'official', slug: 'official', name: 'Official event' }),
+    event({
+      id: 'official',
+      slug: 'official',
+      name: 'Official event',
+      event_date: '2025-06-20T18:00:00.000Z',
+      end_date: '2025-06-20T20:00:00.000Z',
+      location_type: 'online',
+      online_url: 'https://meet.google.com/current-session',
+      stream_url: 'https://www.youtube.com/watch?v=recording',
+      embed_stream: false,
+      registration_url: 'https://lu.ma/official-event',
+    }),
     event({
       id: 'community-live',
       slug: 'community-live',
@@ -121,10 +132,10 @@ describe('private beta event visibility', () => {
 
     expect(response.status).toBe(200);
     expect(payload.data.map((item) => item.id)).toEqual([
-      'official',
       'community-live',
       'community-beta',
       'community-physical',
+      'official',
     ]);
     expect(payload.data.filter((item) => item.source === 'public_submission').map((item) => item.cover_url))
       .toEqual([EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER]);
@@ -152,6 +163,27 @@ describe('private beta event visibility', () => {
     });
   });
 
+  it('keeps a past event recording distinct from registration and online event links', async () => {
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/events/official');
+    const payload = await response.json() as {
+      data: {
+        online_url: string | null;
+        stream_url: string | null;
+        embed_stream: boolean;
+        registration_url: string | null;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toMatchObject({
+      online_url: 'https://meet.google.com/current-session',
+      stream_url: 'https://www.youtube.com/watch?v=recording',
+      embed_stream: false,
+      registration_url: 'https://lu.ma/official-event',
+    });
+  });
+
   it('rejects malformed public event slugs without querying the feed', async () => {
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/events/not%20a%20slug');
@@ -166,10 +198,10 @@ describe('private beta event visibility', () => {
 
     expect(response.status).toBe(200);
     expect(payload.data.map((item) => item.id)).toEqual([
-      'official',
       'community-live',
       'community-beta',
       'community-physical',
+      'official',
     ]);
   });
 });

@@ -32,6 +32,8 @@ The compatibility meetup routes return DevCongress-owned events only. Generic pu
 
 The slug-scoped endpoint applies the same publication and discovery rules as the collection feed. A missing, unpublished, or gated slug returns `404`; malformed slugs are rejected before the database-backed public read is attempted. This lets the website confirm that a canonical `/events/<slug>/` page is publicly available before serving its client-rendered shell.
 
+The generic public-event DTO keeps event access and event media separate: `online_url` is only the safe online event/access link, while `stream_url` and `embed_stream` carry safe stream media semantics. For a past event, a non-embedded `stream_url` is the recording candidate; it must not be substituted into `online_url` or `registration_url`.
+
 ## Organizer Consumer Preview
 
 Authenticated organizers can inspect this contract before another service consumes it:

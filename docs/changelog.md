@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — Preserved public event media semantics
+
+- Added safe `stream_url` and `embed_stream` fields to the generic public-events DTO across local JSON and Supabase sources.
+- Kept `online_url`, registration, and past-event recording media distinct for website event-detail rendering.
+
 ## 2026-08-11 — Restored unauthenticated public event detail reads
 
 - Added slug-scoped public event GET requests to the unauthenticated API allowlist so production event detail pages no longer receive organizer authentication handling.
