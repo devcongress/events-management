@@ -4,6 +4,8 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '../lib/event-cover';
 
+const requireAdminMock = vi.hoisted(() => vi.fn());
+
 vi.mock('../lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('../lib/supabase/admin-auth')>('../lib/supabase/admin-auth');
   const session = {
@@ -19,7 +21,7 @@ vi.mock('../lib/supabase/admin-auth', async () => {
   return {
     ...actual,
     getAdminSession: vi.fn(async () => session),
-    requireAdmin: vi.fn(async (c: { set: (key: string, value: unknown) => void }) => {
+    requireAdmin: requireAdminMock.mockImplementation(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
       return null;
     }),
@@ -131,14 +133,18 @@ describe('private beta event visibility', () => {
   it('returns one published event by slug while preserving the discovery gate', async () => {
     const { default: app } = await import('./app');
 
+    requireAdminMock.mockClear();
     await expect(app.request('http://localhost/api/public/events/community-live'))
       .resolves.toMatchObject({ status: 404 });
+    expect(requireAdminMock).not.toHaveBeenCalled();
 
     vi.stubEnv('PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED', 'true');
+    requireAdminMock.mockClear();
     const response = await app.request('http://localhost/api/public/events/community-live');
     const payload = await response.json() as { data: { id: string; slug: string; publication_status: string } };
 
     expect(response.status).toBe(200);
+    expect(requireAdminMock).not.toHaveBeenCalled();
     expect(payload.data).toMatchObject({
       id: 'community-live',
       slug: 'community-live',
