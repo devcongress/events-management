@@ -172,7 +172,7 @@ describe('native event registration API', () => {
     expect(slackFetch).toHaveBeenCalledTimes(6);
   });
 
-  it('waits for the public page and sends from the scheduled retry once it is available', async () => {
+  it('waits for the public website readiness check and sends from the scheduled retry once it is available', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
     vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'scheduled-retry-secret');
     let websiteReady = false;
@@ -197,6 +197,7 @@ describe('native event registration API', () => {
     });
     const created = await createdResponse.json() as { event: { id: string } };
     expect(slackFetch).toHaveBeenCalledTimes(1);
+    expect(String(slackFetch.mock.calls[0]?.[0])).toContain('?readiness=1');
 
     websiteReady = true;
     const retry = await app.request('http://localhost/api/internal/slack-announcements/retry', {
