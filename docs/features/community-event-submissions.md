@@ -100,11 +100,11 @@ External promoted events retain the submitted organizer identity, have no DevCon
 
 ## Public discovery
 
-`GET /api/public/events` is the additive generic-events feed. It returns published DevCongress events and, only when `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true`, approved and published events promoted from public submissions. During private beta the variable remains false, so those events stay out of devcongress.org without changing their titles. `GET /api/public/meetups` remains the compatibility feed for DevCongress-owned meetups only.
+`GET /api/public/events` is the additive generic-events feed. It returns published DevCongress events and, only when `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true`, approved and published events promoted from public submissions. `GET /api/public/events/:slug` returns one event through the same visibility gate for dynamic public detail pages and readiness checks. During private beta the variable remains false, so those events stay out of devcongress.org without changing their titles. `GET /api/public/meetups` remains the compatibility feed for DevCongress-owned meetups only.
 
 Authenticated organizers can inspect the complete published collection, including private-beta submissions, through `/organizer-console/website-preview/events`. That preview reads the private, non-cacheable `/api/admin/events-preview` contract and never changes the public visibility of a record.
 
-Approval updates the public API immediately. The current Astro website is statically built, so its `/events/` page reflects the new listing after the next website build/deployment; the approval email links to the submitted registration/event page when available instead of depending on that refresh.
+Approval updates the public API immediately. The website consumes the collection and slug-scoped event endpoint as a public read model; its dynamic event surface can therefore reflect approval without waiting for the daily static rebuild. The approval email links to the submitted registration/event page when available instead of depending on that refresh.
 
 Approved submissions promote their verified cover URL to the canonical event. If no cover was supplied, or an older submission still references a retired placeholder—including the former Google Meet image—the public API returns `/images/event-announcement-fallback.png` instead of a broken image or unrelated meetup photography.
 

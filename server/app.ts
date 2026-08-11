@@ -5481,6 +5481,25 @@ app.get('/api/public/events', async (c) => {
   });
 });
 
+app.get('/api/public/events/:slug', async (c) => {
+  const slug = c.req.param('slug').trim();
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,239}$/.test(slug)) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  setPublicApiCache(c);
+  const event = (await publicEventsForApi(c)).find((item) => item.slug === slug);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+
+  return c.json({
+    data: event,
+    meta: {
+      source: 'events-management',
+      version: 1,
+    },
+  });
+});
+
 app.get('/api/admin/events-preview', async (c) => {
   c.header('Cache-Control', 'private, no-store');
   return c.json({

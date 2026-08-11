@@ -105,6 +105,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/quiz*` | Separate quiz and System Design learning-room sessions, reviewed questions, protected presenter controls/state, and anonymous join/answer state |
 | `/api/public/meetups*` | Read-only website integration API |
 | `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and, behind an independent fail-closed discovery gate, approved and published public-submission listings |
+| `GET /api/public/events/:slug` | Read-only published event detail lookup for the dynamic public website and public-link readiness checks; applies the same discovery gate as the collection endpoint |
 | `POST /api/public/event-submissions` | Runtime-gated public proposal intake with strict schema validation, purpose-specific Turnstile hostname validation, and distributed client/email limits |
 | `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, idempotent failed-email retry, and one-reply-at-a-time Slack notification retry with bounded provider diagnostics |
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |

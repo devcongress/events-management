@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-068: Use a Dynamic Public Event Surface With Static Fallbacks
+
+Date: 2026-08-11
+Status: Accepted
+
+Context: Events Management publishes approved events immediately, but the Astro website currently materializes its event list, calendar feed, and event routes during a scheduled static build. That leaves an approved event absent from the public website and keeps Slack waiting for the next build even though the public API is already current.
+
+Decision: Keep Events Management as the source of truth and add a slug-scoped public event read endpoint alongside the collection feed. The website will use a Cloudflare edge route and browser refresh to resolve `/events/:slug`, the event list, and the calendar feed from the public API while retaining the static Astro output as a fallback. EMS will attempt Slack delivery as soon as publication completes, and the existing 15-minute scheduled drain remains the recovery path for delayed website/API availability. The slug endpoint applies the same public-submission discovery gate, URL-safe slug validation, cache policy, and public DTO as the collection endpoint.
+
+Trade-offs: The canonical Cloudflare deployment becomes more current than the GitHub Pages fallback unless the same edge behavior is added there. Dynamic reads add a bounded public API request and require the website to handle API unavailability without exposing organizer data. Keeping the static build preserves fast first paint and a recoverable fallback while avoiding a full Astro SSR migration.
+
+Alternatives considered: Keep the daily build only (rejected because publication latency is user-visible), trigger a complete static build after every approval (useful as an interim mitigation but still build-dependent), or move the whole site to Astro SSR immediately (larger deployment and GitHub Pages parity change than this slice requires).
+
+Revisit when: GitHub Pages is retired, the public site needs server-rendered SEO metadata for every event, or event volume makes the browser feed too large for the current collection contract.
+
 ## ADR-067: Keep Presenter Resource Links Submission-Scoped Until Publication
 
 Date: 2026-08-11
