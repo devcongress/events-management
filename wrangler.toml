@@ -21,3 +21,6 @@ EVENT_SUBMISSION_REPLY_DOMAIN = "updates.devcongress.org"
 
 [observability]
 enabled = true
+
+[triggers]
+crons = ["*/15 * * * *"]

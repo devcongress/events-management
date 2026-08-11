@@ -7,6 +7,7 @@ import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { fetchEventById, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventSlackAnnouncement } from '@/src/lib/api';
 import { compressMeetupImageForUpload, uploadEventMedia, validateMeetupImageFile } from '@/src/lib/meetup-media-client';
 import { notify } from '@/src/lib/notify';
+import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
 import type { Event as CommunityEvent, EventFormat, EventLocationType } from '@/types';
 
 const route = useRoute();
@@ -18,6 +19,7 @@ const coverSaving = ref(false);
 const coverUploadProgress = ref<number | null>(null);
 const slackAnnouncement = ref<EventSlackAnnouncement | null>(null);
 const slackEligible = ref(false);
+const slackWebsiteReady = ref(true);
 const slackLoading = ref(false);
 const error = ref('');
 const draft = reactive({
@@ -34,7 +36,7 @@ const locationOptions = [
 ];
 const eventId = computed(() => String(route.params.eventId));
 const publicStatus = computed(() => event.value?.publication_status === 'published' ? 'Published' : 'Draft');
-const cover = computed(() => event.value?.cover || '/images/event-fallback.png');
+const cover = computed(() => event.value?.cover || EVENT_ANNOUNCEMENT_FALLBACK_COVER);
 
 function local(value: string | null | undefined) { return value ? value.slice(0, 16) : ''; }
 const accraDate = new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Accra' });
@@ -77,10 +79,12 @@ async function load() {
       const slack = await fetchEventSlackAnnouncement(loaded.id);
       slackAnnouncement.value = slack.announcement;
       slackEligible.value = slack.eligible;
+      slackWebsiteReady.value = slack.website_ready !== false;
     } catch {
       // Event details should remain usable if the operational panel is unavailable.
       slackAnnouncement.value = null;
       slackEligible.value = false;
+      slackWebsiteReady.value = true;
     }
   } catch {
     error.value = 'This community event could not be loaded.';
@@ -91,6 +95,7 @@ async function load() {
 const slackActionLabel = computed(() => slackAnnouncement.value?.status === 'failed' ? 'RETRY SLACK' : 'SEND TO SLACK');
 const slackStatus = computed(() => {
   if (!slackEligible.value) return 'Not eligible';
+  if (!slackWebsiteReady.value) return 'Waiting for website update';
   if (!slackAnnouncement.value) return 'Not sent yet';
   if (slackAnnouncement.value.status === 'sent') return 'Sent to events channel';
   if (slackAnnouncement.value.status === 'pending') return 'Sending…';
@@ -103,7 +108,9 @@ async function sendSlackAnnouncement() {
     const result = await sendEventSlackAnnouncement(event.value.id);
     slackAnnouncement.value = result.announcement;
     slackEligible.value = result.eligible;
-    if (result.announcement?.status === 'sent') notify.success('Event sent to the Slack events channel.');
+    slackWebsiteReady.value = result.website_ready !== false;
+    if (!slackWebsiteReady.value) notify.error('The public page is not available yet. Slack will be retried after the website update.');
+    else if (result.announcement?.status === 'sent') notify.success('Event sent to the Slack events channel.');
     else notify.error(result.announcement?.last_error || 'Slack could not accept the event. You can retry it.');
   } catch (cause) {
     notify.error(cause instanceof Error ? cause.message : 'Slack notification could not be sent.');
@@ -199,7 +206,7 @@ onMounted(load);
             <div class="border-b border-dc-line px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">WHEN</dt><dd class="mt-2 font-semibold leading-6">{{ eventTiming(event.event_date, event.end_date) }}</dd></div>
             <div class="border-b border-dc-line px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">WHERE</dt><dd class="mt-2 font-semibold">{{ event.location?.name || 'Online' }}</dd><p v-if="event.venue_address" class="mt-1 text-sm text-dc-gray">{{ event.venue_address }}</p></div>
             <div class="border-b border-dc-line px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">PUBLIC LINKS</dt><dd class="mt-3 flex flex-wrap gap-2"><a v-if="event.registration_url" :href="event.registration_url" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">REGISTRATION ↗</a><a v-if="event.online_url || event.stream_url" :href="event.online_url || event.stream_url || undefined" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">JOIN ONLINE ↗</a><span v-if="!event.registration_url && !event.online_url && !event.stream_url" class="text-sm text-dc-gray">No public links supplied.</span></dd></div>
-            <div class="px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">SLACK EVENTS CHANNEL</dt><dd class="mt-2 text-sm font-semibold" :class="slackAnnouncement?.status === 'failed' ? 'text-red-700' : 'text-dc-ink'">{{ slackStatus }}</dd><p v-if="slackAnnouncement?.status === 'sent' && slackAnnouncement.sent_at" class="mt-1 text-xs text-dc-gray">{{ accraDate.format(new Date(slackAnnouncement.sent_at)) }} · {{ accraTime.format(new Date(slackAnnouncement.sent_at)) }}</p><p v-if="slackAnnouncement?.status === 'failed' && slackAnnouncement.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ slackAnnouncement.last_error }}</p><button v-if="slackEligible && slackAnnouncement?.status !== 'sent'" class="motion-press mt-3 rounded border-2 border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="slackLoading || slackAnnouncement?.status === 'pending'" @click="sendSlackAnnouncement">{{ slackLoading ? 'SENDING…' : slackActionLabel }}</button></div>
+            <div class="px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">SLACK EVENTS CHANNEL</dt><dd class="mt-2 text-sm font-semibold" :class="slackAnnouncement?.status === 'failed' ? 'text-red-700' : 'text-dc-ink'">{{ slackStatus }}</dd><p v-if="slackAnnouncement?.status === 'sent' && slackAnnouncement.sent_at" class="mt-1 text-xs text-dc-gray">{{ accraDate.format(new Date(slackAnnouncement.sent_at)) }} · {{ accraTime.format(new Date(slackAnnouncement.sent_at)) }}</p><p v-if="slackAnnouncement?.status === 'failed' && slackAnnouncement.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ slackAnnouncement.last_error }}</p><p v-if="slackEligible" class="mt-2 text-xs leading-5 text-dc-gray">This event will be posted to Slack as soon as its public page is available on devcongress.org. The website refresh runs daily; the scheduled retry will check again after the update.</p><button v-if="slackEligible && slackAnnouncement?.status !== 'sent'" class="motion-press mt-3 rounded border-2 border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="slackLoading || slackAnnouncement?.status === 'pending'" @click="sendSlackAnnouncement">{{ slackLoading ? 'SENDING…' : slackActionLabel }}</button></div>
           </dl>
         </aside>
       </div>

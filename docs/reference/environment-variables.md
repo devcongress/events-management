@@ -46,6 +46,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Required for EMS-routed submission replies | No | Server-only Resend/Svix webhook signing secret used to verify the raw `email.received` payload before retrieval. |
 | `SLACK_EVENT_SUBMISSION_WEBHOOK_URL` | Optional for submission alerts | No | Server-only Slack incoming webhook URL for the private submission/review channel. New submissions and email replies are posted there; EMS remains the source of truth if Slack is unavailable. |
 | `SLACK_EVENTS_CHANNEL_WEBHOOK_URL` | Optional for event announcements | No | Server-only Slack incoming webhook URL for the `#events` channel. Published organizer-created and approved public-submission events are announced there; Slack remains best-effort. |
+| `SLACK_EVENTS_RETRY_SECRET` | Required for scheduled Slack retries | No | Secret used only by the Worker scheduled trigger to authorize the internal retry drain. Set with `wrangler secret put SLACK_EVENTS_RETRY_SECRET`; do not expose it to the frontend. |
 | `GOOGLE_MAPS_PLACES_API_KEY` | Required for organizer venue autocomplete | No | Server-only Google Maps Platform key restricted to Places API (New); venue predictions are proxied through the authenticated API and restricted to Ghana. |
 
 ## Rules

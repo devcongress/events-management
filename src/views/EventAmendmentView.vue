@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
+import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
 
 type Amendment = { status: string; cover_url: string | null };
 type Submission = {
@@ -48,7 +49,7 @@ const locationOptions = [
   { value: 'hybrid', label: 'Hybrid' },
 ];
 const isInReview = computed(() => amendment.value?.status === 'submitted');
-const currentCover = computed(() => coverPreviewUrl.value || amendment.value?.cover_url || submission.value?.cover_url || '/images/event-fallback.png');
+const currentCover = computed(() => coverPreviewUrl.value || amendment.value?.cover_url || submission.value?.cover_url || EVENT_ANNOUNCEMENT_FALLBACK_COVER);
 
 function toLocal(iso: string) { return iso ? iso.slice(0, 16) : ''; }
 function payload() {

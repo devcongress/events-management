@@ -80,6 +80,7 @@ const mediaUploadPurpose = ref<'cover' | 'photo' | null>(null);
 const mediaUploadProgress = ref<number | null>(null);
 const slackAnnouncement = ref<EventSlackAnnouncement | null>(null);
 const slackEligible = ref(false);
+const slackWebsiteReady = ref(true);
 const slackSending = ref(false);
 const photoTypeOptions = [
   { value: 'folder', label: 'Gallery / folder' },
@@ -401,9 +402,11 @@ async function fetchOverview() {
       const slack = await fetchEventSlackAnnouncement(nextEvent.id);
       slackAnnouncement.value = slack.announcement;
       slackEligible.value = slack.eligible;
+      slackWebsiteReady.value = slack.website_ready !== false;
     } catch {
       slackAnnouncement.value = null;
       slackEligible.value = false;
+      slackWebsiteReady.value = true;
     }
   }
   checklist.value = checklistResponse?.items ?? [];
@@ -426,7 +429,9 @@ async function sendSlackAnnouncement() {
     const response = await sendEventSlackAnnouncement(event.value.id);
     slackAnnouncement.value = response.announcement;
     slackEligible.value = response.eligible;
-    if (response.announcement?.status === 'sent') notify.success('Event sent to the Slack events channel.');
+    slackWebsiteReady.value = response.website_ready !== false;
+    if (!slackWebsiteReady.value) notify.error('The public page is not available yet. Slack will be retried after the website update.');
+    else if (response.announcement?.status === 'sent') notify.success('Event sent to the Slack events channel.');
     else notify.error(response.announcement?.last_error || 'Slack could not accept the event. Retry is available.');
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Slack notification could not be sent.');
@@ -1180,6 +1185,7 @@ onMounted(fetchOverview);
               </button>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
+            <p v-if="slackEligible" class="mt-3 max-w-2xl text-xs leading-5 text-dc-gray">This event will be posted to Slack as soon as its public page is available on devcongress.org. The website refresh runs daily; the scheduled retry will check again after the update.</p>
             <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div class="rounded-lg border border-dc-border bg-dc-paper p-4">
                 <div class="event-overview-copy-header">

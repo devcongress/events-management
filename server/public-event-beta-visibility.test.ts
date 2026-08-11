@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '../lib/event-cover';
 
 vi.mock('../lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('../lib/supabase/admin-auth')>('../lib/supabase/admin-auth');
@@ -66,6 +67,7 @@ beforeEach(async () => {
       ownership: 'external',
       submission_source: 'public_submission',
       moderation_status: 'approved',
+      location_type: 'online',
     }),
     event({
       id: 'community-beta',
@@ -74,6 +76,18 @@ beforeEach(async () => {
       ownership: 'external',
       submission_source: 'public_submission',
       moderation_status: 'approved',
+      location_type: 'hybrid',
+      cover: '/images/event-fallback.png',
+    }),
+    event({
+      id: 'community-physical',
+      slug: 'community-physical',
+      name: 'Community physical event',
+      ownership: 'external',
+      submission_source: 'public_submission',
+      moderation_status: 'approved',
+      location_type: 'in_person',
+      cover: '/images/quarterly-april-meetup-2.jpeg',
     }),
   ]), 'utf-8');
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
@@ -91,7 +105,7 @@ describe('private beta event visibility', () => {
   it('keeps public-submission events out of the public events API by default', async () => {
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/events');
-    const payload = await response.json() as { data: Array<{ id: string }> };
+    const payload = await response.json() as { data: Array<{ id: string; source?: string; cover_url?: string }> };
 
     expect(response.status).toBe(200);
     expect(payload.data.map((item) => item.id)).toEqual(['official']);
@@ -101,14 +115,17 @@ describe('private beta event visibility', () => {
     vi.stubEnv('PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED', 'true');
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/public/events');
-    const payload = await response.json() as { data: Array<{ id: string }> };
+    const payload = await response.json() as { data: Array<{ id: string; source?: string; cover_url?: string }> };
 
     expect(response.status).toBe(200);
     expect(payload.data.map((item) => item.id)).toEqual([
       'official',
       'community-live',
       'community-beta',
+      'community-physical',
     ]);
+    expect(payload.data.filter((item) => item.source === 'public_submission').map((item) => item.cover_url))
+      .toEqual([EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER]);
   });
 
   it('keeps public-submission events visible in the authenticated EMS preview', async () => {
@@ -121,6 +138,7 @@ describe('private beta event visibility', () => {
       'official',
       'community-live',
       'community-beta',
+      'community-physical',
     ]);
   });
 });

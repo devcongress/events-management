@@ -1,5 +1,22 @@
 # Architectural Decisions
 
+## ADR-066: Gate Slack Announcements on Public Page Availability
+
+Date: 2026-08-10
+Status: Accepted
+
+Context: `devcongress.org` is statically built, so an approved or newly created event can exist in EMS before its public `/events/...` page is deployed. Sending the Slack announcement immediately creates a broken public link, while manual retry timing is unreliable when the daily website build completes later than planned.
+
+Decision: Before an Events-channel announcement claim or provider call, EMS checks the exact public event URL and fails closed unless it returns a successful response. A Cloudflare Worker scheduled trigger drains eligible announcements that remain unclaimed because the public page is unavailable every 15 minutes through a secret-protected internal route. Provider failures remain explicit Organizer retries rather than being retried automatically. Durable claim/lease state remains the duplicate-send boundary; successful announcements are terminal, while unavailable pages remain unclaimed and retryable.
+
+Trade-offs: Each eligible send attempt adds a small public-site request, and the scheduled drain needs the `SLACK_EVENTS_RETRY_SECRET` deployment secret. The 15-minute interval is not instant, but it absorbs variable daily build completion without coupling the website repository to EMS or requiring an operator to watch the build.
+
+Alternatives considered: Send immediately and accept a temporary 404 (rejected because Slack links are public and durable), depend only on an Organizer retry (rejected because build timing varies), or add a direct website-to-EMS callback (unnecessary cross-repository coordination for this volume).
+
+Revisit when: The public site becomes on-demand rendered, the website deployment can emit a trusted callback, or announcement volume requires a dedicated queue/observability workflow.
+
+---
+
 ## ADR-065: Deepen Organizer Domain Boundaries Without Changing API Contracts
 
 Date: 2026-08-10
