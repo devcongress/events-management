@@ -128,6 +128,31 @@ describe('private beta event visibility', () => {
       .toEqual([EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER]);
   });
 
+  it('returns one published event by slug while preserving the discovery gate', async () => {
+    const { default: app } = await import('./app');
+
+    await expect(app.request('http://localhost/api/public/events/community-live'))
+      .resolves.toMatchObject({ status: 404 });
+
+    vi.stubEnv('PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED', 'true');
+    const response = await app.request('http://localhost/api/public/events/community-live');
+    const payload = await response.json() as { data: { id: string; slug: string; publication_status: string } };
+
+    expect(response.status).toBe(200);
+    expect(payload.data).toMatchObject({
+      id: 'community-live',
+      slug: 'community-live',
+      publication_status: 'published',
+    });
+  });
+
+  it('rejects malformed public event slugs without querying the feed', async () => {
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/events/not%20a%20slug');
+
+    expect(response.status).toBe(404);
+  });
+
   it('keeps public-submission events visible in the authenticated EMS preview', async () => {
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/admin/events-preview');

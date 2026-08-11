@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — Dynamic public event detail lookup
+
+- Added `GET /api/public/events/:slug` for the website’s dynamic event routes and Slack public-link readiness checks.
+- Applied the existing fail-closed public-submission discovery gate and bounded slug validation to the new endpoint.
+
 ## 2026-08-11 — CFP asset and preview efficiency
 
 - Replaced the CFP’s oversized PNG logo with a resized WebP asset, reducing the initial brand image from 62 KB to 32 KB while preserving the existing visual treatment.

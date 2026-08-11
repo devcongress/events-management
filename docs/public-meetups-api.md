@@ -18,6 +18,7 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 |---|---|
 | `GET /api/public/meetups` | Lists public meetup summaries and page data |
 | `GET /api/public/events` | Lists published official events and approved, published external community events |
+| `GET /api/public/events/:slug` | Returns one published event for dynamic public detail routes; uses the same visibility gate as the collection feed |
 | `POST /api/public/event-submissions` | Accepts a Turnstile-protected external event proposal for organizer review |
 | `GET /api/public/meetups/:slug` | Returns one meetup by slug or event id |
 | `GET /api/public/meetups/:slug/talks` | Returns explicitly published Event Archive items through the compatibility talks route |
@@ -28,6 +29,8 @@ Only rows with `publish_to_website = true` are returned from the Supabase-backed
 Only the public `/api/public/*` endpoints are intended for unauthenticated website consumption. Public reads are cacheable; the event-submission write is strictly validated, Turnstile-protected, and distributed-rate-limited. Event feedback form endpoints expose a separate minimal attendee payload for open feedback forms. Other `/api/*` routes are organizer-gated while the public website contract is being stabilized.
 
 The compatibility meetup routes return DevCongress-owned events only. Generic public discovery must use `/api/public/events`, which includes an external public-submission event only when moderation is `approved`, publication is `published`, and `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true`. Missing, false, or invalid discovery configuration keeps all promoted public submissions out of this feed. Its version-1 DTO exposes `ownership`, `series`, `format`, `source`, `moderation_status`, `publication_status`, organizer identity, location mode, dates, and public URLs without submitter email, private notes, reviewer identity, or rejected/pending proposals.
+
+The slug-scoped endpoint applies the same publication and discovery rules as the collection feed. A missing, unpublished, or gated slug returns `404`; malformed slugs are rejected before the database-backed public read is attempted. This lets the website confirm that a canonical `/events/<slug>/` page is publicly available before serving its client-rendered shell.
 
 ## Organizer Consumer Preview
 
