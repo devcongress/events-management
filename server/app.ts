@@ -164,7 +164,7 @@ import {
   generateParticipantAlias,
   validateParticipantDisplayName,
 } from '@/lib/system-design-participant-identity';
-import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
+import { safeHttpUrl, safePublicResourceUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER, publicEventCoverUrl } from '@/lib/event-cover';
 import { checkPublicEventAvailability } from '@/lib/public-event-availability';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
@@ -671,6 +671,9 @@ const speakerSubmissionCreateSchema = adminCreateTalkSchema
     bio: z.string().trim()
       .refine((value) => countWords(value) <= CFP_BIO_WORD_LIMIT, `Presenter bio must be ${CFP_BIO_WORD_LIMIT} words or fewer`)
       .optional().default(''),
+    resource_url: z.string().trim().max(2048)
+      .refine((value) => !value || Boolean(safePublicResourceUrl(value)), 'Resource link must be a secure public HTTPS URL')
+      .optional().default(''),
     turnstile_action: z.string().trim().max(80).optional(),
     turnstile_token: z.string().trim().max(4096).optional(),
   })
@@ -689,7 +692,7 @@ const selectedSpeakerDetailsSchema = z.object({
     `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
   ).optional().default(''),
   slides_url: z.string().trim().max(2048)
-    .refine((value) => !value || Boolean(safeHttpUrl(value)), 'Resource URL must use http or https')
+    .refine((value) => !value || Boolean(safePublicResourceUrl(value)), 'Resource URL must be a secure public HTTPS URL')
     .optional().default(''),
 });
 const archiveMaterialFieldSchema = z.enum(['abstract', 'bio', 'slides_url']);
@@ -708,7 +711,7 @@ const archiveMaterialsFollowUpSubmissionSchema = z.object({
     `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
   ).optional(),
   slides_url: z.string().trim().min(1, 'Resource URL is required').max(2048)
-    .refine((value) => Boolean(safeHttpUrl(value)), 'Resource URL must use http or https')
+    .refine((value) => Boolean(safePublicResourceUrl(value)), 'Resource URL must be a secure public HTTPS URL')
     .optional(),
 }).strict();
 const speakerIntakeLinkRequestSchema = z.object({
@@ -759,7 +762,7 @@ const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({
     .optional()
     .default(''),
   slides_url: z.string().trim().max(2048)
-    .refine((value) => !value || Boolean(safeHttpUrl(value)), 'Resource URL must use http or https')
+    .refine((value) => !value || Boolean(safePublicResourceUrl(value)), 'Resource URL must be a secure public HTTPS URL')
     .optional()
     .default(''),
 }).transform(({ kind: _kind, speaker_name: _speakerName, speaker_email: _speakerEmail, title: _title, ...details }) => details);
@@ -5908,6 +5911,7 @@ app.post('/api/cfp/conferences/:year', async (c) => {
       topic: parsed.data.topic || 'General',
       abstract: parsed.data.abstract || null,
       bio: parsed.data.bio || null,
+      resource_url: safePublicResourceUrl(parsed.data.resource_url) || null,
     });
     return c.json({ accepted: true, message: 'If this proposal is eligible, it has been added for organizer review.' }, 202);
   } catch (error) {
@@ -7334,20 +7338,22 @@ async function acquireSpeakerIntakeSubmissionLock(key: string): Promise<() => vo
   };
 }
 
-function validateSlidesUrl(slidesUrl: string | null): void {
-  if (!slidesUrl) return;
+function normalizeSlidesUrl(slidesUrl: string | null): string | null {
+  if (!slidesUrl) return null;
 
-  if (!validExternalUrl(slidesUrl)) {
-    throw new Error('Resource URL must use http or https');
+  const normalized = safePublicResourceUrl(slidesUrl);
+  if (!normalized) {
+    throw new Error('Resource URL must be a secure public HTTPS URL');
   }
+
+  return normalized;
 }
 
 async function createBackfilledTalkForEvent(
   eventId: string,
   data: SpeakerTalkIntakeInput & { publish?: boolean },
 ): Promise<{ talk: Talk; speakerCreated: boolean }> {
-  const slidesUrl = data.slides_url || null;
-  validateSlidesUrl(slidesUrl);
+  const slidesUrl = normalizeSlidesUrl(data.slides_url || null);
 
   const existingTalks = await getTalksByEvent(eventId);
   const duplicate = existingTalks.find((talk) => (
@@ -8000,7 +8006,7 @@ app.get('/api/conferences/:year/speaker-intake/:token', async (c) => {
       topic: submission.topic,
       abstract: submission.abstract ?? '',
       bio: submission.bio ?? '',
-      slides_url: '',
+      slides_url: safePublicResourceUrl(submission.resource_url) ?? '',
     },
   });
 });
@@ -8037,7 +8043,7 @@ app.post('/api/conferences/:year/speaker-intake/:token', async (c) => {
       topic: parsed.data.topic || submission.topic || 'General',
       abstract: submission.abstract,
       bio: parsed.data.bio || submission.bio,
-      slides_url: parsed.data.slides_url || null,
+      slides_url: safePublicResourceUrl(parsed.data.slides_url) || null,
     });
     await consumeAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'), session.id, claim.claimId);
     claimId = null;
@@ -8101,7 +8107,7 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
       topic: followUpTalk?.topic ?? submission?.topic ?? '',
       abstract: followUpTalk?.abstract ?? submission?.abstract ?? '',
       bio: followUpTalk?.bio ?? submission?.bio ?? '',
-      slides_url: followUpTalk?.slides_url ?? '',
+      slides_url: followUpTalk?.slides_url ?? safePublicResourceUrl(submission?.resource_url) ?? '',
     },
   });
 });
@@ -8177,7 +8183,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
         if (requestedFields.has('abstract')) updates.abstract = parsed.data.abstract!;
         if (requestedFields.has('bio')) updates.bio = parsed.data.bio!;
         if (requestedFields.has('slides_url')) {
-          updates.slides_url = parsed.data.slides_url!;
+          updates.slides_url = safePublicResourceUrl(parsed.data.slides_url)!;
           updates.slides_type = 'url';
           updates.storage_path = null;
           updates.slides_uploaded_at = now();
@@ -8582,11 +8588,14 @@ app.patch('/api/talks/:talkId', async (c) => {
   }
 
   if (body.slides_url) {
-    if (typeof body.slides_url !== 'string' || !validExternalUrl(body.slides_url)) {
-      return c.json({ error: 'Resource URL must use http or https' }, 400);
+    const normalizedSlidesUrl = typeof body.slides_url === 'string'
+      ? safePublicResourceUrl(body.slides_url)
+      : null;
+    if (!normalizedSlidesUrl) {
+      return c.json({ error: 'Resource URL must be a secure public HTTPS URL' }, 400);
     }
 
-    updates.slides_url = body.slides_url;
+    updates.slides_url = normalizedSlidesUrl;
     updates.slides_type = 'url';
     updates.storage_path = null;
     updates.slides_uploaded_at = now();
@@ -8696,6 +8705,7 @@ app.post('/api/cfp', async (c) => {
       topic: parsed.data.topic || 'General',
       abstract: parsed.data.abstract || null,
       bio: parsed.data.bio || null,
+      resource_url: safePublicResourceUrl(parsed.data.resource_url) || null,
     });
 
     return c.json({

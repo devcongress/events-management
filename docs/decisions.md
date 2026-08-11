@@ -1,5 +1,18 @@
 # Architectural Decisions
 
+## ADR-067: Keep Presenter Resource Links Submission-Scoped Until Publication
+
+Date: 2026-08-11
+Status: Accepted
+
+Context: Speakers may already have slides, a demo, a recording, a repository, or a project page when they submit a proposal. The existing public CFP did not provide a place to share that resource, while the later private presenter form already collected a resource URL. Copying an unreviewed link directly into the public archive would expand the public trust boundary and make product-demo links awkwardly dependent on the `slides_url` compatibility field.
+
+Decision: Add one optional `resource_url` to monthly and annual speaker proposals. Accept only canonical public HTTPS URLs without credentials or local/private-network destinations, validate at the browser and server boundaries, and enforce a bounded HTTPS shape in Supabase. Keep the URL private and organizer-visible on the proposal. When a proposal is selected, prefill the one-time presenter form; the presenter can confirm, replace, or clear it. Copy the final validated value into the existing archive/session `slides_url` compatibility field only when the presenter completes the private form. Never fetch, iframe, unfurl, or publish the submitted URL automatically.
+
+Trade-offs: A broad HTTPS policy supports legitimate repositories, documents, demos, and recordings without maintaining a brittle host allowlist, but organizers must still treat links as untrusted external content. HTTPS-only and local/private-host rejection reduce common abuse without claiming that a valid HTTPS domain is inherently trustworthy. Keeping the proposal field separate avoids exposing an unreviewed link and preserves the existing archive contract.
+
+Revisit when: Resource moderation needs provider/domain policy, link safety scanning becomes a requirement, or the archive replaces its compatibility `slides_url` field with a typed resource model.
+
 ## ADR-066: Gate Slack Announcements on Public Page Availability
 
 Date: 2026-08-10

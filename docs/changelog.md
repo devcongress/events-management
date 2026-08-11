@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-11 — Clarified CFP form action
+
+- Restyled the active **Open form** control with a strong border, dark label, and tactile shadow so it no longer reads as disabled beside **Copy link**.
+
+## 2026-08-11 — Simplified speaker proposal header
+
+- Consolidated the CFP logo and “Call for Speakers” label into one compact brand row, reducing repetition and vertical weight above the form.
+
+## 2026-08-11 — Branded speaker proposal form
+
+- Added the DevCongress logo to the open and closed speaker proposal states, with an accessible link back to the public website.
+
+## 2026-08-11 — Optional speaker resource links
+
+- Added an optional secure presentation/demo resource link to monthly and annual speaker proposals.
+- Kept submitted links private and organizer-reviewable, then prefilled the one-time presenter form so speakers can confirm, replace, or remove them before archive publication.
+- Added HTTPS-only URL validation, local/private-host rejection, database shape constraints, and regression coverage for unsafe schemes and resource carry-forward.
+
 ## 2026-08-10 — Redesigned event-submission Slack review card
 
 - Reworked private submission notifications into a focused review card with the cover image, human-formatted date/details, organizer attribution, bounded summary, and a single primary **Review submission** action.

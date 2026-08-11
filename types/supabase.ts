@@ -338,6 +338,7 @@ export interface Database {
           topic: string;
           abstract: string | null;
           bio: string | null;
+          resource_url: string | null;
           status: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
           internal_note: string | null;
           selected_intake_link_id: string | null;
@@ -1740,6 +1741,7 @@ export interface Database {
           topic: string;
           abstract: string | null;
           bio: string | null;
+          resource_url: string | null;
           status: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
           internal_note: string | null;
           selected_intake_link_id: string | null;
@@ -1759,6 +1761,7 @@ export interface Database {
           topic: string;
           abstract?: string | null;
           bio?: string | null;
+          resource_url?: string | null;
           status?: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
           internal_note?: string | null;
           selected_intake_link_id?: string | null;
@@ -1778,6 +1781,7 @@ export interface Database {
           topic?: string;
           abstract?: string | null;
           bio?: string | null;
+          resource_url?: string | null;
           status?: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
           internal_note?: string | null;
           selected_intake_link_id?: string | null;

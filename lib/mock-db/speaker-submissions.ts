@@ -15,6 +15,7 @@ function normalizeSpeakerSubmission(submission: SpeakerSubmission): SpeakerSubmi
   return {
     ...submission,
     kind: normalizeArchiveItemKind(submission.kind),
+    resource_url: submission.resource_url ?? null,
   };
 }
 
@@ -77,13 +78,15 @@ export async function createSpeakerSubmission(
     | 'decided_at'
     | 'created_at'
     | 'updated_at'
-  >,
+    | 'resource_url'
+  > & { resource_url?: string | null },
 ): Promise<SpeakerSubmission> {
   const createdAt = now();
   const submission: SpeakerSubmission = {
     ...data,
     id: generateId(),
     kind: normalizeArchiveItemKind(data.kind),
+    resource_url: data.resource_url ?? null,
     status: 'submitted',
     internal_note: null,
     selected_intake_link_id: null,
@@ -107,6 +110,7 @@ export async function createSpeakerSubmission(
         topic: submission.topic,
         abstract: submission.abstract,
         bio: submission.bio,
+        resource_url: submission.resource_url,
         status: submission.status,
         internal_note: submission.internal_note,
         selected_intake_link_id: submission.selected_intake_link_id,
