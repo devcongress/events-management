@@ -21,6 +21,7 @@ export interface AnnualConferenceSpeakerSubmission {
   topic: string;
   abstract: string | null;
   bio: string | null;
+  resource_url: string | null;
   status: SpeakerSubmissionStatus;
   internal_note: string | null;
   selected_intake_link_id: string | null;
@@ -88,6 +89,10 @@ function submissionFromRow(row: SubmissionRow): AnnualConferenceSpeakerSubmissio
   return { ...row, kind: kind(row.kind), status: status(row.status) };
 }
 
+function submissionFromMock(value: AnnualConferenceSpeakerSubmission): AnnualConferenceSpeakerSubmission {
+  return { ...value, resource_url: value.resource_url ?? null };
+}
+
 function linkFromRow(row: LinkRow): AnnualConferenceSpeakerIntakeLink {
   return { ...row, kind: kind(row.kind) };
 }
@@ -108,6 +113,7 @@ export async function getAnnualConferenceSpeakerSubmissions(editionId: string): 
     return (data ?? []).map(submissionFromRow);
   }
   return (await readData<AnnualConferenceSpeakerSubmission>(SUBMISSIONS_FILE))
+    .map(submissionFromMock)
     .filter((submission) => submission.edition_id === editionId)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
@@ -118,13 +124,14 @@ export async function getAnnualConferenceSpeakerSubmission(id: string): Promise<
     if (error) throw new Error('Unable to load conference speaker proposal.');
     return data ? submissionFromRow(data) : undefined;
   }
-  return (await readData<AnnualConferenceSpeakerSubmission>(SUBMISSIONS_FILE)).find((submission) => submission.id === id);
+  const submission = (await readData<AnnualConferenceSpeakerSubmission>(SUBMISSIONS_FILE)).find((item) => item.id === id);
+  return submission ? submissionFromMock(submission) : undefined;
 }
 
-export async function createAnnualConferenceSpeakerSubmission(input: Omit<AnnualConferenceSpeakerSubmission, 'id' | 'status' | 'internal_note' | 'selected_intake_link_id' | 'selected_session_id' | 'decided_at' | 'created_at' | 'updated_at'>): Promise<AnnualConferenceSpeakerSubmission> {
+export async function createAnnualConferenceSpeakerSubmission(input: Omit<AnnualConferenceSpeakerSubmission, 'id' | 'status' | 'internal_note' | 'selected_intake_link_id' | 'selected_session_id' | 'decided_at' | 'created_at' | 'updated_at' | 'resource_url'> & { resource_url?: string | null }): Promise<AnnualConferenceSpeakerSubmission> {
   const createdAt = now();
   const submission: AnnualConferenceSpeakerSubmission = {
-    ...input, id: generateId(), kind: kind(input.kind), status: 'submitted', internal_note: null,
+    ...input, id: generateId(), kind: kind(input.kind), resource_url: input.resource_url ?? null, status: 'submitted', internal_note: null,
     selected_intake_link_id: null, selected_session_id: null, decided_at: null, created_at: createdAt, updated_at: createdAt,
   };
   if (isSupabaseRuntimeEnabled()) {

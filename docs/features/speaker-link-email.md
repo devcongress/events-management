@@ -35,7 +35,7 @@ flowchart LR
 - A public monthly speaker proposal becomes a `SpeakerSubmission`.
 - Hosted proposals are private relational Supabase rows; normalized database uniqueness prevents concurrent Workers from accepting the same active event/kind/email/title proposal twice.
 - Marking a proposal `selected` creates a speaker-bound `selected_speaker_confirmation` link.
-- The selected-speaker form reuses the proposal's name, title, topic, abstract, and bio, then asks the speaker for the remaining slides URL.
+- The public CFP optionally accepts a secure presentation or demo resource URL. It stays on the private proposal until review; the selected-speaker form reuses it as a prefilled resource field so the speaker can confirm, replace, or remove it.
 - Completing that link creates the same archive-item/Talk compatibility record used by the manual path. It does not publish the item.
 - The Proposals view already knows which participants are selected and which ones still need to complete their form.
 - The separate Speakers allowlist supports event-scoped identity/access; it is not the archive and is not a source of public archive content.
@@ -103,7 +103,7 @@ Monthly and Annual Conference calls share one proposal lifecycle, but never shar
 
 - **Monthly:** `/speak/m/:eventId` is the short public URL (with `/cfp/:eventId` retained for existing links). Proposals remain in that Event's **Talks review** workspace.
 - **Annual Conference:** `/speak/c/:year` is the short public URL. Proposals appear only in that edition's **Annual Conference → Speakers** workspace.
-- The first submission asks only for name, email, title, summary, and an optional product-demo choice. Topic and presenter bio default or are collected later through the selected-presenter private link.
+- The first submission asks for name, email, title, summary, an optional product-demo choice, and an optional secure presentation/demo resource URL. Topic and presenter bio default or are collected later through the selected-presenter private link.
 
 Annual Conference proposals, presenter links, and confirmed sessions are edition-owned records. They share the speaker-form and secure-link mechanics with monthly calls, but do not create, read, or appear as normal Event or Archive records. Apply `20260809110000_annual_conference_speaker_scope.sql` after the historical speaker-call migration to remove its former hidden Event bridge.
 

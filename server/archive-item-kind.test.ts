@@ -101,6 +101,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       topic: 'Product Engineering',
       abstract: 'A selected product demonstration.',
       bio: 'Community builder.',
+      resource_url: 'https://example.com/selected-demo-ready',
     });
     await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
     const { link, token } = await links.createSpeakerIntakeLink({
@@ -116,6 +117,14 @@ describe('archive item discriminator at the public intake boundary', () => {
     });
     await submissions.updateSpeakerSubmission(submission.id, {
       selected_intake_link_id: link.id,
+    });
+
+    const prefillResponse = await app.request(
+      `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
+    );
+    expect(prefillResponse.status).toBe(200);
+    await expect(prefillResponse.json()).resolves.toMatchObject({
+      prefill: { slides_url: 'https://example.com/selected-demo-ready' },
     });
 
     const response = await app.request(
@@ -314,7 +323,7 @@ describe('archive item discriminator at the public intake boundary', () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({
-      error: 'Resource URL must use http or https',
+      error: 'Resource URL must be a secure public HTTPS URL',
     });
     await expect(talks.getTalksByEvent(event.id)).resolves.toEqual([]);
   });

@@ -16,6 +16,7 @@ import {
 } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { archiveRequestProgramItems, sameArchiveProgramItemIdentity } from '@/lib/speaker-archive-email';
+import { safePublicResourceUrl } from '@/lib/safe-url';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventStatus, SpeakerIntakeEmailStatus, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 
 const route = useRoute();
@@ -922,6 +923,10 @@ function slidesLink(talk: Talk): string | null {
   return null;
 }
 
+function proposalResourceLink(submission: SpeakerSubmission): string | null {
+  return safePublicResourceUrl(submission.resource_url);
+}
+
 function archiveKindFor(item: { kind?: ArchiveItemKind | null }): ArchiveItemKind {
   return item.kind === 'product_demo' ? 'product_demo' : 'talk';
 }
@@ -1527,6 +1532,21 @@ onUnmounted(() => {
                   <dd>
                     <a v-if="slidesLink(previewArchiveItem)" :href="slidesLink(previewArchiveItem) ?? undefined" target="_blank" rel="noopener noreferrer" class="talk-preview-inline-link">
                       Open {{ archiveResourceLabel(previewArchiveItem).toLowerCase() }} ↗
+                    </a>
+                    <span v-else>Not provided</span>
+                  </dd>
+                </div>
+                <div v-if="previewProposal">
+                  <dt>{{ archiveResourceLabel(previewProposal) }} submitted</dt>
+                  <dd>
+                    <a
+                      v-if="proposalResourceLink(previewProposal)"
+                      :href="proposalResourceLink(previewProposal) ?? undefined"
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      class="talk-preview-inline-link"
+                    >
+                      Open submitted resource ↗
                     </a>
                     <span v-else>Not provided</span>
                   </dd>

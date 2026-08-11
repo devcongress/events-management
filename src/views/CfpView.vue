@@ -5,6 +5,7 @@ import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
+import { safePublicResourceUrl } from '@/lib/safe-url';
 import type { ArchiveItemKind, Event } from '@/types';
 
 const route = useRoute();
@@ -27,6 +28,7 @@ const form = reactive({
   speaker_email: '',
   title: '',
   abstract: '',
+  resource_url: '',
 });
 
 function wordCount(value: string): number {
@@ -36,6 +38,8 @@ function wordCount(value: string): number {
 const abstractWordCount = computed(() => wordCount(form.abstract));
 const abstractOverLimit = computed(() => abstractWordCount.value > ABSTRACT_WORD_LIMIT);
 const speakerEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.speaker_email.trim()));
+const resourceUrlInvalid = computed(() => Boolean(form.resource_url.trim()) && !safePublicResourceUrl(form.resource_url));
+const resourceUrlError = computed(() => resourceUrlInvalid.value ? 'Use a secure public HTTPS link.' : '');
 const requiredFieldsComplete = computed(() => Boolean(
   form.speaker_name.trim()
   && speakerEmailValid.value
@@ -47,6 +51,7 @@ const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status 
 const canSubmitProposal = computed(() => (
   cfpIsAvailable.value
   && (!turnstileActive || turnstileToken.value.length > 0)
+  && !resourceUrlInvalid.value
   && !submitting.value
 ));
 const cfpClosedTitle = computed(() => {
@@ -78,6 +83,10 @@ async function submitProposal() {
     error.value = `Keep the presentation summary to ${ABSTRACT_WORD_LIMIT} words or fewer.`;
     return;
   }
+  if (resourceUrlInvalid.value) {
+    error.value = 'Use a secure public HTTPS link for the presentation or demo resource.';
+    return;
+  }
 
   submitting.value = true;
   try {
@@ -93,6 +102,7 @@ async function submitProposal() {
         speaker_email: form.speaker_email.trim(),
         title: form.title.trim(),
         abstract: form.abstract.trim(),
+        resource_url: form.resource_url.trim(),
         turnstile_action: turnstileActive ? CFP_SUBMISSION_TURNSTILE_ACTION : undefined,
         turnstile_token: turnstileActive ? turnstileToken.value : undefined,
       }),
@@ -154,7 +164,10 @@ onMounted(async () => {
     <div v-else-if="!cfpIsAvailable" class="flex min-h-screen items-center justify-center p-4">
       <div class="w-full max-w-2xl overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[4px_4px_0_#111111]">
         <div class="border-b-2 border-dc-ink bg-dc-paper-warm px-6 py-4 sm:px-8">
-          <p class="editorial-eyebrow">Call for Speakers</p>
+          <div class="mb-5 flex items-center gap-3 sm:gap-4">
+            <img class="h-auto w-32 sm:w-40" :src="devconLogoSrc" alt="DevCongress">
+            <p class="editorial-eyebrow !mb-0">Call for Speakers</p>
+          </div>
           <h1 class="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-dc-ink sm:text-5xl">{{ cfpClosedTitle }}</h1>
         </div>
         <div class="p-6 sm:p-8">
@@ -191,7 +204,18 @@ onMounted(async () => {
 
     <div v-else class="mx-auto max-w-3xl px-4 py-5 sm:py-12">
       <div class="editorial-header">
-        <p class="editorial-eyebrow">Call for Speakers</p>
+        <div class="mb-6 flex items-center gap-3 sm:gap-4">
+          <a
+            href="https://devcongress.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit DevCongress"
+            class="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-dc-pink"
+          >
+            <img class="h-auto w-32 sm:w-40" :src="devconLogoSrc" alt="DevCongress">
+          </a>
+          <p class="editorial-eyebrow !mb-0">Call for Speakers</p>
+        </div>
         <h1 class="editorial-title">Propose a {{ archiveItemLabel }}</h1>
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
@@ -243,6 +267,23 @@ onMounted(async () => {
             :class="{ 'cfp-input-error border-red-700 bg-red-50': abstractOverLimit }"
           />
         </div>
+        <label class="block">
+          <span class="editorial-label">{{ form.kind === 'product_demo' ? 'Demo link' : 'Presentation link' }} <span class="text-dc-gray">(optional)</span></span>
+          <input
+            v-model="form.resource_url"
+            type="url"
+            inputmode="url"
+            autocomplete="url"
+            placeholder="https://..."
+            class="editorial-input font-mono"
+            :class="{ 'cfp-input-error border-red-700 bg-red-50': resourceUrlInvalid }"
+            aria-describedby="cfp-resource-help cfp-resource-error"
+          />
+          <span id="cfp-resource-help" class="mt-2 block text-sm leading-6 text-dc-gray">
+            Share slides, a demo, recording, repository, or project page if it is ready. You can add or replace it later.
+          </span>
+          <span v-if="resourceUrlError" id="cfp-resource-error" class="mt-2 block text-sm font-semibold text-red-800" role="alert">{{ resourceUrlError }}</span>
+        </label>
         <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <TurnstileWidget
             v-if="turnstileActive"

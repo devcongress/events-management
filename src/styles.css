@@ -965,9 +965,10 @@
   }
 
   .cfp-secondary-action {
-    border: 2px solid #dedad1;
+    border: 2px solid #111111;
     background: #ffffff;
-    color: #5f5f5f;
+    color: #111111;
+    box-shadow: 2px 2px 0 #111111;
   }
 
   .cfp-danger-action {
@@ -993,8 +994,7 @@
     }
 
     .cfp-secondary-action:not(:disabled):hover {
-      border-color: #111111;
-      color: #111111;
+      background: #fff9d9;
     }
 
     .cfp-danger-action:not(:disabled):hover {

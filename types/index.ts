@@ -311,6 +311,7 @@ export interface SpeakerSubmission {
   topic: string;
   abstract: string | null;
   bio: string | null;
+  resource_url: string | null;
   status: SpeakerSubmissionStatus;
   internal_note: string | null;
   selected_intake_link_id: string | null;

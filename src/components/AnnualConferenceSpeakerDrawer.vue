@@ -2,6 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import type { SpeakerSubmission, SpeakerSubmissionStatus } from '@/types';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
+import { safePublicResourceUrl } from '@/lib/safe-url';
 
 const props = defineProps<{
   open: boolean;
@@ -31,6 +32,7 @@ const statusLabel = computed(() => {
 });
 const kindLabel = computed(() => props.submission?.kind === 'product_demo' ? 'Product demo' : 'Talk proposal');
 const drawerTitle = computed(() => props.submission?.title ?? 'Speaker proposal');
+const resourceUrl = computed(() => safePublicResourceUrl(props.submission?.resource_url));
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
@@ -152,6 +154,12 @@ onUnmounted(() => {
             <section v-if="submission.bio" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
               <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Speaker bio</p>
               <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ submission.bio }}</p>
+            </section>
+
+            <section class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
+              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">{{ submission.kind === 'product_demo' ? 'Demo link' : 'Presentation link' }}</p>
+              <a v-if="resourceUrl" :href="resourceUrl" target="_blank" rel="noopener noreferrer nofollow" class="mt-2 inline-block text-sm font-semibold text-dc-pink underline decoration-dc-border underline-offset-4 hover:text-dc-ink">Open submitted resource ↗</a>
+              <p v-else class="mt-2 text-sm leading-6 text-dc-gray">No resource link was submitted.</p>
             </section>
 
             <section v-if="submission.status === 'selected'" class="mt-6 rounded-md border border-[#15803d] bg-[#effcf3] p-4">
