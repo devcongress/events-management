@@ -1089,6 +1089,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
+    || /^\/api\/public\/events\/[^/]+$/.test(path)
     || path === '/api/public/archive'
     || path.startsWith('/api/public/archive/')
     || path === '/api/public/home'

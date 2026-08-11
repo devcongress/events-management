@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-11 — Restored unauthenticated public event detail reads
+
+- Added slug-scoped public event GET requests to the unauthenticated API allowlist so production event detail pages no longer receive organizer authentication handling.
+- Added regression coverage that fails if `requireAdmin` is invoked for the public detail route.
+
 ## 2026-08-11 — Dynamic public event detail lookup
 
 - Added `GET /api/public/events/:slug` for the website’s dynamic event routes and Slack public-link readiness checks.
