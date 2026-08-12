@@ -230,7 +230,7 @@ describe('native event registration API', () => {
     expect(response.status).toBe(403);
   });
 
-  it('removes an event and reports a repeated removal as not found', async () => {
+  it('archives an event by default, hard-deletes deliberately, and rejects organizers', async () => {
     const { default: app } = await import('./app');
     const createdResponse = await app.request('http://localhost/api/events', {
       method: 'POST',
@@ -245,17 +245,51 @@ describe('native event registration API', () => {
     });
     const created = await createdResponse.json() as { event: { id: string } };
 
+    mockAdminRole.value = 'organizer';
+    const organizerDeleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'DELETE',
+    });
+    expect(organizerDeleteResponse.status).toBe(403);
+
+    mockAdminRole.value = 'owner';
     const deleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'DELETE',
     });
     expect(deleteResponse.status).toBe(200);
-    await expect(deleteResponse.json()).resolves.toEqual({ ok: true });
+    await expect(deleteResponse.json()).resolves.toMatchObject({
+      ok: true,
+      mode: 'archive',
+      event: expect.objectContaining({
+        id: created.event.id,
+        publication_status: 'archived',
+        publish_to_website: false,
+        deleted_by_email: 'organizer@devcongress.org',
+      }),
+    });
 
     const repeatedDeleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'DELETE',
     });
     expect(repeatedDeleteResponse.status).toBe(404);
     await expect(repeatedDeleteResponse.json()).resolves.toEqual({ error: 'Event not found' });
+
+    const hardCreatedResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Permanent cleanup meetup',
+        description: 'An event that should be deleted permanently.',
+        event_date: '2099-08-21',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const hardCreated = await hardCreatedResponse.json() as { event: { id: string } };
+    const hardDeleteResponse = await app.request(`http://localhost/api/events/${hardCreated.event.id}?mode=hard`, {
+      method: 'DELETE',
+    });
+    expect(hardDeleteResponse.status).toBe(200);
+    await expect(hardDeleteResponse.json()).resolves.toEqual({ ok: true, mode: 'hard' });
   });
 
   it('keeps real organizer-created events unmarked when the legacy test-mode variable is enabled', async () => {

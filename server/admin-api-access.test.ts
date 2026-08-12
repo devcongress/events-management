@@ -44,6 +44,18 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1', 'GET')).toEqual(['owner', 'organizer']);
   });
 
+  it('keeps event removal and restore owner-only', () => {
+    expect(adminRolesForApiRequest('/api/events/event-1', 'DELETE')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/events/event-1', 'DELETE')).not.toContain('organizer');
+    expect(adminRolesForApiRequest('/api/events/event-1', 'DELETE')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/restore', 'POST')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/events/event-1/restore', 'POST')).not.toContain('organizer');
+    expect(adminRolesForApiRequest('/api/events/event-1/restore', 'POST')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/restore', 'GET')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/admin/archived-events', 'GET')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/admin/archived-events', 'GET')).not.toContain('organizer');
+  });
+
   it('does not admit similarly prefixed or malformed paths', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/export', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/current/work-plan', 'GET')).not.toContain('volunteer');

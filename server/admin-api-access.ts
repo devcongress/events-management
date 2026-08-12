@@ -11,6 +11,9 @@ const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
 const MEMBERSHIP_ENABLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/enable$/;
 const MEMBERSHIP_PERMANENT_REMOVE_PATH = /^\/api\/admin\/organizers\/[^/]+\/permanent$/;
 const LOGOUT_PATH = '/api/auth/logout';
+const EVENT_DELETE_PATH = /^\/api\/events\/[^/]+$/;
+const EVENT_RESTORE_PATH = /^\/api\/events\/[^/]+\/restore$/;
+const ARCHIVED_EVENTS_PATH = '/api/admin/archived-events';
 const EVENT_REGISTRATION_PERMANENT_REMOVE_PATH = /^\/api\/events\/[^/]+\/registrations\/[^/]+$/;
 const MONTHLY_MEETUP_FINANCE_READ_PATH = /^\/api\/events\/[^/]+\/finance$/;
 const MONTHLY_MEETUP_FINANCE_CATEGORY_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/categories$/;
@@ -18,6 +21,18 @@ const MONTHLY_MEETUP_FINANCE_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/expe
 const MONTHLY_MEETUP_FINANCE_UPDATE_PATH = /^\/api\/events\/[^/]+\/finance\/expenses\/[^/]+$/;
 
 export function adminRolesForApiRequest(path: string, method: string): AdminRole[] {
+  if (method === 'DELETE' && EVENT_DELETE_PATH.test(path)) {
+    return OWNER_ROLES;
+  }
+
+  if (method === 'POST' && EVENT_RESTORE_PATH.test(path)) {
+    return OWNER_ROLES;
+  }
+
+  if (method === 'GET' && path === ARCHIVED_EVENTS_PATH) {
+    return OWNER_ROLES;
+  }
+
   if (method === 'GET' && MONTHLY_MEETUP_FINANCE_READ_PATH.test(path)) {
     return ORGANIZER_ROLES;
   }

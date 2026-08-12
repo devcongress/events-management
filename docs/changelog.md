@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-12 — Owner-only recoverable event deletion
+
+- Replaced direct event removal with an Owner-only deletion choice: soft archive hides the event from EMS/public surfaces and keeps a 30-day restore window, while hard delete immediately removes test or junk event records.
+- Added an Owner-only **Archived events** area in Audit Log where viable archived events can be restored and expired/test records can be permanently deleted.
+- Updated event reads and public feeds to ignore archived events, and archive now revokes public short links and closes native registration campaigns instead of failing on dependent records.
+
+## 2026-08-12 — Management links use live event details
+
+- Seeded signed organizer management links from the current approved community event after an amendment is accepted, instead of falling back to the original submitted venue, schedule, registration, and cover details.
+- Kept the original event submission immutable as review history while returning a narrow current-event snapshot for the edit form.
+
 ## 2026-08-12 — Community submission update queue
 
 - Added an **Updates** queue and counter for approved community listings with a submitted organizer amendment, keeping normal Approved listings free of outstanding change requests.
@@ -1917,3 +1928,7 @@ _Future entries go above this line._
 - Added opaque, DevCongress-owned short links for open monthly CFPs, event registration, and Annual Conference CFPs.
 - Added the owner-only Audit Log → Short links operational view with creation, copy, visit totals, last-use time, and revocation.
 - Isolated public redirects in a small `go.devcongress.org` Worker with a private EMS resolver boundary; arbitrary destinations and private bearer links are not supported.
+## 2026-08-12 — Amendment decision enum fix
+
+- Fixed approved-event change requests failing during the durable email insert because PostgreSQL treated the approval/rejection `CASE` result as text instead of the email-kind enum.
+- Applied the explicit enum conversion to the shared decision path so both approving and rejecting amendments can commit atomically.

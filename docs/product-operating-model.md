@@ -59,6 +59,7 @@ An event must not be represented by one overloaded “type” field. These are i
 - `special` is a DevCongress series, not a catch-all for external events.
 - An approved external event is listed by DevCongress; it is not automatically owned, organized, endorsed, or sponsored by DevCongress.
 - Approval and publication are separate decisions.
+- Archived events are hidden from organizer lists, public feeds, short links, and registration entry points. Owners may restore a soft-archived event only while its restore window is open and the event timeline is still viable.
 - An external event must retain its actual organizer identity and source.
 
 ### Examples
@@ -130,6 +131,7 @@ The model must separate:
 - Volunteers may update the status of their assigned tasks, but cannot change task ownership/details or access organizer-wide operations and private applicant records.
 - Speaker category comes from the event engagement, not permanent labels such as “monthly speaker” or “December speaker.”
 - Session format belongs to the programme item: talk, workshop, panel, and so on.
+- Event deletion is Owner-only. Organizers can operate events but cannot soft-delete, hard-delete, or restore them.
 
 The membership role now includes a deliberately narrow `volunteer` option for the active annual edition. Future multi-edition access should move the edition engagement out of this platform-level role instead of broadening it into permanent cross-edition access.
 

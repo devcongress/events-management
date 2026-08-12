@@ -89,6 +89,10 @@ export interface Event {
   external_id?: string | null;
   external_url?: string | null;
   external_synced_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by_email?: string | null;
+  delete_reason?: string | null;
+  restore_until?: string | null;
 }
 
 export interface EventSubmission {

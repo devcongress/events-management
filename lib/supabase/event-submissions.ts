@@ -22,6 +22,7 @@ type EventSubmissionInsert = Database['public']['Tables']['event_submissions']['
 type EventSubmissionEmailDeliveryRow = Database['public']['Tables']['event_submission_email_deliveries']['Row'];
 type EventSubmissionReplyRow = Database['public']['Tables']['event_submission_replies']['Row'];
 type EventSubmissionAmendmentRow = Database['public']['Tables']['event_submission_amendments']['Row'];
+type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 
 export type PendingEventSubmissionEmail = {
   delivery_id: string;
@@ -47,7 +48,19 @@ export type EventSubmissionManagement = {
   link_id: string;
   expires_at: string;
   submission: EventSubmission;
+  current_event: EventSubmissionManagedEvent;
   amendment: EventSubmissionAmendment | null;
+};
+
+export type EventSubmissionManagedEvent = {
+  starts_at: string;
+  ends_at: string;
+  location_type: EventLocationType;
+  venue_name: string | null;
+  venue_address: string | null;
+  online_url: string | null;
+  registration_url: string | null;
+  cover_url: string | null;
 };
 
 export type ActiveEventSubmissionManagementLink = {
@@ -207,7 +220,9 @@ export async function getEventSubmissionManagement(linkId: string, c?: Context):
   const approvedEventId = submission.approved_event_id;
   if (!approvedEventId) throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
   const { data: event, error: eventError } = await client.from('community_events')
-    .select('ends_at').eq('id', approvedEventId).maybeSingle();
+    .select('starts_at, ends_at, location_type, location_name, location_label, venue_address, online_url, stream_url, registration_url, cover_url')
+    .eq('id', approvedEventId)
+    .maybeSingle();
   if (eventError) throw new EventSubmissionStorageError('Unable to load the event link.', 'unavailable');
   if (!event || new Date(event.ends_at).getTime() <= Date.now()) {
     throw new EventSubmissionStorageError('This event has ended and can no longer be updated.', 'not_found');
@@ -215,7 +230,13 @@ export async function getEventSubmissionManagement(linkId: string, c?: Context):
   const { data: amendment, error: amendmentError } = await client.from('event_submission_amendments')
     .select('*').eq('submission_id', submission.id).in('status', ['draft', 'submitted']).maybeSingle();
   if (amendmentError) throw new EventSubmissionStorageError('Unable to load the event change request.', 'unavailable');
-  return { link_id: link.id, expires_at: link.expires_at, submission: toEventSubmission(submission, [], []), amendment: amendment ? toEventSubmissionAmendment(amendment) : null };
+  return {
+    link_id: link.id,
+    expires_at: link.expires_at,
+    submission: toEventSubmission(submission, [], []),
+    current_event: toEventSubmissionManagedEvent(event),
+    amendment: amendment ? toEventSubmissionAmendment(amendment) : null,
+  };
 }
 
 /**
@@ -612,6 +633,31 @@ function toEventSubmission(
     approved_event_id: row.approved_event_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function toEventSubmissionManagedEvent(row: Pick<CommunityEventRow,
+  'starts_at'
+  | 'ends_at'
+  | 'location_type'
+  | 'location_name'
+  | 'location_label'
+  | 'venue_address'
+  | 'online_url'
+  | 'stream_url'
+  | 'registration_url'
+  | 'cover_url'
+>): EventSubmissionManagedEvent {
+  const venueName = row.location_type === 'online' ? 'Online' : row.location_name;
+  return {
+    starts_at: row.starts_at,
+    ends_at: row.ends_at,
+    location_type: row.location_type,
+    venue_name: venueName,
+    venue_address: row.venue_address ?? row.location_label,
+    online_url: row.online_url ?? row.stream_url,
+    registration_url: row.registration_url,
+    cover_url: row.cover_url,
   };
 }
 

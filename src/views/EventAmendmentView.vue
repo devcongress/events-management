@@ -6,9 +6,8 @@ import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
 
-type Amendment = { status: string; cover_url: string | null };
-type Submission = {
-  title: string;
+type Amendment = EventEditSource & { status: string; cover_url: string | null };
+type EventEditSource = {
   starts_at: string;
   ends_at: string;
   location_type: 'in_person' | 'online' | 'hybrid';
@@ -18,6 +17,7 @@ type Submission = {
   registration_url: string | null;
   cover_url: string | null;
 };
+type Submission = EventEditSource & { title: string };
 
 const route = useRoute();
 const loading = ref(true);
@@ -28,6 +28,7 @@ const error = ref('');
 const saved = ref(false);
 const unavailable = ref('');
 const submission = ref<Submission | null>(null);
+const currentEvent = ref<EventEditSource | null>(null);
 const amendment = ref<Amendment | null>(null);
 const coverFile = ref<File | null>(null);
 const coverPreviewUrl = ref('');
@@ -109,7 +110,8 @@ async function load() {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { unavailable.value = data.error || 'This event link is no longer available.'; return; }
     submission.value = data.management.submission;
-    const source = data.management.amendment ?? data.management.submission;
+    currentEvent.value = data.management.current_event ?? null;
+    const source = data.management.amendment ?? data.management.current_event ?? data.management.submission;
     amendment.value = data.management.amendment;
     Object.assign(form, {
       starts_at: toLocal(source.starts_at), ends_at: toLocal(source.ends_at), location_type: source.location_type,

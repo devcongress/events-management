@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
@@ -48,6 +49,8 @@ import type { EventBlast, EventRegistration } from '@/types';
 
 type RegistrationWorkspaceTab = 'summary' | 'guests' | 'form' | 'emails' | 'blasts';
 type RegistrationOverviewPhase = 'before' | 'live' | 'after';
+const REGISTRATION_GUEST_PAGE_SIZE = 8;
+const REGISTRATION_EMAIL_PAGE_SIZE = 8;
 
 const route = useRoute();
 const queryClient = useQueryClient();
@@ -104,6 +107,8 @@ const workspacePanelTransition = ref('registration-panel-forward');
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
 const selectedGuestStatus = ref<RegistrationGuestFilter>('all');
+const guestPage = ref(1);
+const emailPage = ref(1);
 const savePending = ref(false);
 const settingsConfirmationOpen = ref(false);
 const retryPending = ref(false);
@@ -460,6 +465,15 @@ const filteredRegistrations = computed(() => {
     eventEnded: workspaceSummary.value?.eventEnded ?? false,
   });
 });
+const guestPageCount = computed(() => Math.max(1, Math.ceil(filteredRegistrations.value.length / REGISTRATION_GUEST_PAGE_SIZE)));
+const guestPageStartIndex = computed(() => filteredRegistrations.value.length === 0
+  ? 0
+  : (guestPage.value - 1) * REGISTRATION_GUEST_PAGE_SIZE + 1);
+const guestPageEndIndex = computed(() => Math.min(guestPage.value * REGISTRATION_GUEST_PAGE_SIZE, filteredRegistrations.value.length));
+const paginatedRegistrations = computed(() => {
+  const start = (guestPage.value - 1) * REGISTRATION_GUEST_PAGE_SIZE;
+  return filteredRegistrations.value.slice(start, start + REGISTRATION_GUEST_PAGE_SIZE);
+});
 const emailRegistrations = computed(() => [...displayedRegistrations.value].sort((first, second) => {
   const rank = (status: EventRegistration['email_status']) => {
     if (status === 'failed') return 0;
@@ -470,6 +484,15 @@ const emailRegistrations = computed(() => [...displayedRegistrations.value].sort
   return rank(first.email_status) - rank(second.email_status)
     || first.name.localeCompare(second.name, 'en-GH', { sensitivity: 'base' });
 }));
+const emailPageCount = computed(() => Math.max(1, Math.ceil(emailRegistrations.value.length / REGISTRATION_EMAIL_PAGE_SIZE)));
+const emailPageStartIndex = computed(() => emailRegistrations.value.length === 0
+  ? 0
+  : (emailPage.value - 1) * REGISTRATION_EMAIL_PAGE_SIZE + 1);
+const emailPageEndIndex = computed(() => Math.min(emailPage.value * REGISTRATION_EMAIL_PAGE_SIZE, emailRegistrations.value.length));
+const paginatedEmailRegistrations = computed(() => {
+  const start = (emailPage.value - 1) * REGISTRATION_EMAIL_PAGE_SIZE;
+  return emailRegistrations.value.slice(start, start + REGISTRATION_EMAIL_PAGE_SIZE);
+});
 
 watch(() => data.value?.campaign, (campaign) => {
   if (!campaign) return;
@@ -510,10 +533,22 @@ watch(availableInitials, (initials) => {
   }
 });
 
+watch([search, selectedInitial, selectedGuestStatus], () => {
+  guestPage.value = 1;
+});
+
 watch(guestStatusOptions, (options) => {
   if (!options.some((option) => option.value === selectedGuestStatus.value)) {
     selectedGuestStatus.value = 'all';
   }
+});
+
+watch(guestPageCount, (pages) => {
+  if (guestPage.value > pages) guestPage.value = pages;
+});
+
+watch(emailPageCount, (pages) => {
+  if (emailPage.value > pages) emailPage.value = pages;
 });
 
 onBeforeUnmount(() => {
@@ -1193,9 +1228,9 @@ async function retryEmails() {
             key="guests"
             role="tabpanel"
             aria-labelledby="registration-tab-guests"
-            class="ops-panel mt-5 overflow-hidden"
+            class="ops-panel registration-guest-panel mt-5"
           >
-          <div class="border-b border-dc-border bg-dc-paper-warm px-4 py-4">
+          <div class="registration-guest-controls border-b border-dc-border bg-dc-paper-warm px-4 py-4">
             <div class="flex flex-col gap-4">
               <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-4">
                 <div class="w-full max-w-xs xl:shrink-0">
@@ -1220,7 +1255,7 @@ async function retryEmails() {
                 </div>
 
                 <p class="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray xl:ml-auto xl:pb-4">
-                  {{ filteredRegistrations.length }} of {{ displayedRegistrations.length }} shown
+                  {{ guestPageStartIndex }}-{{ guestPageEndIndex }} of {{ filteredRegistrations.length }} shown
                 </p>
               </div>
 
@@ -1253,12 +1288,11 @@ async function retryEmails() {
           </div>
           <div
             v-else
-            class="registration-guest-scroll divide-y divide-dc-border"
-            role="region"
+            class="divide-y divide-dc-border"
+            role="list"
             :aria-label="`Guest list, ${filteredRegistrations.length} people shown`"
-            :tabindex="filteredRegistrations.length > 6 ? 0 : undefined"
           >
-            <div v-for="registration in filteredRegistrations" :key="registration.id" class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div v-for="registration in paginatedRegistrations" :key="registration.id" class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" role="listitem">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate font-bold text-dc-ink">{{ registration.name }}</p>
@@ -1322,6 +1356,16 @@ async function retryEmails() {
               </div>
             </div>
           </div>
+          <AppPagination
+            v-if="filteredRegistrations.length > 0"
+            v-model:page="guestPage"
+            :page-count="guestPageCount"
+            :total="filteredRegistrations.length"
+            :range-start="guestPageStartIndex"
+            :range-end="guestPageEndIndex"
+            item-label="guests"
+            aria-label="Registration guest pagination"
+          />
           </section>
 
           <section
@@ -1533,15 +1577,15 @@ async function retryEmails() {
           </div>
           <div
             v-else
-            class="registration-guest-scroll divide-y divide-dc-border"
-            role="region"
+            class="divide-y divide-dc-border"
+            role="list"
             aria-label="Registration email delivery records"
-            :tabindex="emailRegistrations.length > 6 ? 0 : undefined"
           >
             <div
-              v-for="registration in emailRegistrations"
+              v-for="registration in paginatedEmailRegistrations"
               :key="registration.id"
               class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+              role="listitem"
             >
               <div class="min-w-0">
                 <p class="truncate font-bold text-dc-ink">{{ registration.name }}</p>
@@ -1564,6 +1608,16 @@ async function retryEmails() {
               </span>
             </div>
           </div>
+          <AppPagination
+            v-if="emailRegistrations.length > 0"
+            v-model:page="emailPage"
+            :page-count="emailPageCount"
+            :total="emailRegistrations.length"
+            :range-start="emailPageStartIndex"
+            :range-end="emailPageEndIndex"
+            item-label="records"
+            aria-label="Registration email delivery pagination"
+          />
           </section>
 
           <section
@@ -1809,6 +1863,7 @@ async function retryEmails() {
 
 <style scoped>
 .registration-page-wrap {
+  --registration-workspace-tabs-height: 3rem;
   padding-top: clamp(1rem, 2vh, 1.5rem);
   padding-bottom: clamp(1rem, 2vh, 1.5rem);
 }
@@ -1839,12 +1894,25 @@ async function retryEmails() {
   gap: 1.5rem;
   overflow-x: auto;
   border-bottom: 1px solid #d6d2c8;
+  background: #f5f2e8;
   padding: 0 0.125rem;
   scrollbar-width: none;
 }
 
 .registration-workspace-tabs::-webkit-scrollbar {
   display: none;
+}
+
+@media (min-width: 768px) {
+  .registration-workspace-tabs {
+    position: sticky;
+    top: var(--admin-event-tabs-height, 0px);
+    z-index: 40;
+    min-height: var(--registration-workspace-tabs-height);
+    box-shadow:
+      0 1px 0 #d6d2c8,
+      0 14px 22px rgba(245, 242, 232, 0.9);
+  }
 }
 
 .registration-workspace-tab {

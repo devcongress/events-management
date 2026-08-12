@@ -6,7 +6,7 @@ const migrationPath = join(
   process.cwd(),
   'supabase',
   'migrations',
-  '20260812123000_fix_event_submission_amendment_review.sql',
+  '20260812195500_fix_event_submission_amendment_email_kind.sql',
 );
 
 describe('event submission amendment review migration', () => {
@@ -28,7 +28,9 @@ describe('event submission amendment review migration', () => {
 
   it('preserves unchanged covers and queues an idempotent decision email', () => {
     expect(migration).toContain("cover_url = coalesce(nullif(trim(amendment.cover_url), ''), current_event.cover_url)");
-    expect(migration).toContain("case when p_approve then 'amendment_approved' else 'amendment_rejected' end");
+    expect(migration).toContain("when p_approve then 'amendment_approved'");
+    expect(migration).toContain("else 'amendment_rejected'");
+    expect(migration).toContain('end)::public.event_submission_email_kind');
     expect(migration).toContain('on conflict do nothing');
   });
 });
