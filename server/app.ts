@@ -199,6 +199,7 @@ import type { Context } from 'hono';
 import crypto from 'crypto';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
+import { publicRegistrationOrigin } from './public-registration-origin';
 
 type AppBindings = {
   Variables: {
@@ -1988,7 +1989,11 @@ function verifiedEventSubmissionManagementLink(raw: string, c: Context): string 
 
 function publicRegistrationUrl(event: Event, c: Context): string {
   const key = event.slug?.trim() || event.id;
-  return new URL(`/r/${encodeURIComponent(key)}`, publicAppOrigin(c)).toString();
+  return new URL(`/r/${encodeURIComponent(key)}`, publicRegistrationOrigin({
+    requestOrigin: new URL(c.req.url).origin,
+    configuredOrigin: envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c),
+    usesSharedEventStorage: isSupabaseRuntimeEnabled(c),
+  })).toString();
 }
 
 function publicEventDetailsUrl(event: Event, c: Context): string {

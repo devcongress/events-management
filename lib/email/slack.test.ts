@@ -28,6 +28,32 @@ describe('event Slack announcements', () => {
       .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
   });
 
+  it('uses a normal event link instead of an interactive Slack button', async () => {
+    const requests: RequestInit[] = [];
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init ?? {});
+      return new Response('ok', { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await sendEventAddedToSlack({
+      webhookUrl: 'https://hooks.slack.com/services/test/events',
+      eventName: 'Community design night',
+      eventDate: '2026-08-10T19:00:00.000Z',
+      eventFormat: 'meetup',
+      location: 'Accra',
+      source: 'organizer',
+      publicEventUrl: 'https://devcongress.org/events/community-design-night',
+      fetcher,
+    });
+
+    const payload = JSON.parse(String(requests[0]?.body)) as {
+      blocks: Array<{ type: string; text?: { text?: string } }>;
+    };
+    expect(payload.blocks.some((block) => block.type === 'actions')).toBe(false);
+    expect(payload.blocks.find((block) => block.text?.text?.includes('Open event'))?.text?.text)
+      .toBe('<https://devcongress.org/events/community-design-night|Open event →>');
+  });
+
   it('omits a malformed or non-public cover instead of sending an invalid image block', async () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
