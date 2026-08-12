@@ -454,6 +454,15 @@ describe('community event submissions', () => {
     }));
   });
 
+  it('exposes submitted approved-event amendments through the separate updates queue', async () => {
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/admin/event-submissions?status=updates');
+
+    expect(response.status).toBe(200);
+    expect(mocks.list).toHaveBeenCalledWith('updates', expect.anything());
+  });
+
   it('lets organizers copy an active management link without sending email', async () => {
     const secret = 'management-link-secret';
     const linkId = '30000000-0000-4000-8000-000000000001';

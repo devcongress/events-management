@@ -12,7 +12,7 @@ import type {
   EventSubmissionReplyAttachment,
   EventSubmissionReplySlackStatus,
   EventSubmissionRejectionCategory,
-  EventSubmissionReviewStatus,
+  EventSubmissionQueueFilter,
 } from '@/types';
 import type { Database } from '@/types/supabase';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
@@ -127,7 +127,7 @@ export async function createEventSubmission(
 }
 
 export async function listEventSubmissions(
-  status?: EventSubmissionReviewStatus,
+  status?: EventSubmissionQueueFilter,
   c?: Context,
 ): Promise<EventSubmission[]> {
   let query = requireStorage(c)
@@ -135,18 +135,22 @@ export async function listEventSubmissions(
     .select('*')
     .order('created_at', { ascending: false });
 
-  if (status) query = query.eq('review_status', status);
+  if (status === 'updates') query = query.eq('review_status', 'approved');
+  else if (status) query = query.eq('review_status', status);
   const { data, error } = await query;
   if (error) throw new EventSubmissionStorageError('Unable to load event submissions.', 'unavailable');
   const deliveries = await loadEmailDeliveries((data ?? []).map((submission) => submission.id), c);
   const replies = await loadEventSubmissionReplies((data ?? []).map((submission) => submission.id), c);
   const amendments = await loadEventSubmissionAmendments((data ?? []).map((submission) => submission.id), c);
-  return (data ?? []).map((submission) => toEventSubmission(
+  const submissions = (data ?? []).map((submission) => toEventSubmission(
     submission,
     deliveries.get(submission.id) ?? [],
     replies.get(submission.id) ?? [],
     amendments.get(submission.id) ?? [],
   ));
+  return status === 'updates'
+    ? submissions.filter((submission) => submission.amendments?.some((amendment) => amendment.status === 'submitted'))
+    : submissions;
 }
 
 export async function approveEventSubmission(

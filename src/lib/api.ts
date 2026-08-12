@@ -2,8 +2,8 @@ import type {
   Event,
   EventSubmission,
   EventSubmissionEmailKind,
+  EventSubmissionQueueFilter,
   EventSubmissionRejectionCategory,
-  EventSubmissionReviewStatus,
   EventChecklistItem,
   EventBlast,
   EventBlastStatus,
@@ -445,7 +445,7 @@ export const queryKeys = {
   volunteerApplications: (year: string) => ['volunteer-applications', year] as const,
   annualConferenceVolunteerTeam: (year: string) => ['annual-conference-volunteer-team', year] as const,
   annualConferenceAccess: (year: string) => ['annual-conference-access', year] as const,
-  eventSubmissions: (status: EventSubmissionReviewStatus | 'all') => ['event-submissions', status] as const,
+  eventSubmissions: (status: EventSubmissionQueueFilter | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
   monthlyMeetupFinance: (eventId: string) => ['monthly-meetup-finance', eventId] as const,
@@ -744,7 +744,7 @@ export function fetchEvents() {
   return fetchJson<Event[]>('/api/events');
 }
 
-export function fetchEventSubmissions(status: EventSubmissionReviewStatus | 'all' = 'all') {
+export function fetchEventSubmissions(status: EventSubmissionQueueFilter | 'all' = 'all') {
   const query = status === 'all' ? '' : `?status=${encodeURIComponent(status)}`;
   return fetchJson<AdminEventSubmissionsResponse>(`/api/admin/event-submissions${query}`, { credentials: 'include' });
 }

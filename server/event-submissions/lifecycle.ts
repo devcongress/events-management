@@ -3,7 +3,7 @@ import type {
   EventSubmissionAmendment,
   EventSubmissionEmailKind,
   EventSubmissionRejectionCategory,
-  EventSubmissionReviewStatus,
+  EventSubmissionQueueFilter,
 } from '@/types';
 import type {
   ActiveEventSubmissionManagementLink,
@@ -42,7 +42,7 @@ export type EventSubmissionReviewCommand =
 
 export type EventSubmissionLifecycleRepository = {
   create(input: CreateEventSubmissionInput): Promise<EventSubmission>;
-  list(status?: EventSubmissionReviewStatus): Promise<EventSubmission[]>;
+  list(status?: EventSubmissionQueueFilter): Promise<EventSubmission[]>;
   approve(submissionId: string, reviewerEmail: string, publish: boolean): Promise<EventSubmission>;
   reject(
     submissionId: string,
@@ -91,7 +91,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
       return repository.create(input);
     },
 
-    async list(status?: EventSubmissionReviewStatus): Promise<EventSubmission[]> {
+    async list(status?: EventSubmissionQueueFilter): Promise<EventSubmission[]> {
       return repository.list(status);
     },
 
