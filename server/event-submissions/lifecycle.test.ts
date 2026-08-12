@@ -16,6 +16,17 @@ const amendment = {
   status: 'approved',
 } as any;
 
+const currentEvent = {
+  starts_at: '2099-01-01T10:00:00.000Z',
+  ends_at: '2099-01-01T12:00:00.000Z',
+  location_type: 'online' as const,
+  venue_name: 'Online',
+  venue_address: 'Online',
+  online_url: 'https://meet.example.com/event',
+  registration_url: 'https://example.com/register',
+  cover_url: 'https://example.com/cover.png',
+};
+
 function repository(): EventSubmissionLifecycleRepository {
   return {
     create: vi.fn(),
@@ -23,7 +34,7 @@ function repository(): EventSubmissionLifecycleRepository {
     approve: vi.fn(async () => submission),
     reject: vi.fn(async (_id, _email, input) => ({ ...submission, review_status: 'rejected', ...input })),
     withdraw: vi.fn(async () => ({ ...submission, review_status: 'withdrawn' })),
-    management: vi.fn(async () => ({ link_id: 'link-1', expires_at: '2099-01-01T00:00:00.000Z', submission, amendment: null })),
+    management: vi.fn(async () => ({ link_id: 'link-1', expires_at: '2099-01-01T00:00:00.000Z', submission, current_event: currentEvent, amendment: null })),
     activeManagementLink: vi.fn(async () => ({ id: 'link-1', expires_at: '2099-01-01T00:00:00.000Z' })),
     saveAmendment: vi.fn(async () => amendment),
     submitAmendment: vi.fn(async () => amendment),

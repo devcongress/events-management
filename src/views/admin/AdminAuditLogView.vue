@@ -4,7 +4,8 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
-import { fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, revokeAdminShortLink, type AdminAuditLogEntry, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
+import { deleteEventById, fetchAdminArchivedEvents, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, restoreArchivedEvent, revokeAdminShortLink, type AdminAuditLogEntry, type ArchivedEvent, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
+import { notify } from '@/src/lib/notify';
 
 const AUDIT_LOG_LIMIT = 80;
 const AUDIT_LOG_PAGE_SIZE = 4;
@@ -17,7 +18,7 @@ interface AuditLogGroup {
   logs: AdminAuditLogEntry[];
 }
 
-type AuditLogSection = 'activity' | 'email-delivery' | 'short-links';
+type AuditLogSection = 'activity' | 'email-delivery' | 'short-links' | 'archived-events';
 type ShortLinkStatusFilter = 'active' | 'revoked';
 interface ShortLinkMenuPosition {
   left: number;
@@ -60,6 +61,7 @@ const auditQuery = useQuery({
   queryFn: () => fetchAdminAuditLog(auditFilters.value),
 });
 const shortLinksQuery = useQuery({ queryKey: queryKeys.adminShortLinks, queryFn: fetchAdminShortLinks });
+const archivedEventsQuery = useQuery({ queryKey: queryKeys.adminArchivedEvents, queryFn: fetchAdminArchivedEvents });
 const revokeShortLinkMutation = useMutation({
   mutationFn: revokeAdminShortLink,
   onSuccess: async () => {
@@ -78,9 +80,37 @@ const regenerateShortLinkMutation = useMutation({
   },
   onError: (error) => { shortLinkMessage.value = error instanceof Error ? error.message : 'Unable to regenerate the short link.'; },
 });
+const restoreArchivedEventMutation = useMutation({
+  mutationFn: restoreArchivedEvent,
+  onSuccess: async () => {
+    notify.success('Event restored.');
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminArchivedEvents }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.events }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks }),
+      queryClient.invalidateQueries({ queryKey: ['admin-audit-log'] }),
+    ]);
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to restore the event.'),
+});
+const hardDeleteArchivedEventMutation = useMutation({
+  mutationFn: (eventId: string) => deleteEventById(eventId, 'hard'),
+  onSuccess: async () => {
+    notify.success('Archived event permanently deleted.');
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminArchivedEvents }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.events }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks }),
+      queryClient.invalidateQueries({ queryKey: ['admin-audit-log'] }),
+    ]);
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to delete the archived event.'),
+});
 
 const logs = computed(() => auditQuery.data.value?.logs ?? []);
 const allShortLinks = computed(() => shortLinksQuery.data.value?.links ?? []);
+const archivedEvents = computed(() => archivedEventsQuery.data.value?.events ?? []);
 const visibleShortLinks = computed(() => allShortLinks.value.filter((link) => link.status === shortLinkStatusFilter.value));
 const activeShortLinkCount = computed(() => allShortLinks.value.filter((link) => link.status === 'active').length);
 const revokedShortLinkCount = computed(() => allShortLinks.value.filter((link) => link.status === 'revoked').length);
@@ -295,6 +325,20 @@ function blastStatusTone(status: RecentEventBlast['status']): string {
   return 'audit-log-broadcast-status--preparing';
 }
 
+function archivedEventRestoreLabel(event: ArchivedEvent): string {
+  if (event.can_restore) return 'Restorable';
+  if (event.restore_blocker === 'expired') return 'Expired';
+  if (event.restore_blocker === 'event_ended') return 'Event ended';
+  return 'Locked';
+}
+
+function archivedEventRestoreDetail(event: ArchivedEvent): string {
+  if (event.can_restore && event.restore_until) return `Can restore until ${formatDateTime(event.restore_until)}.`;
+  if (event.restore_blocker === 'expired') return 'The restore window has expired.';
+  if (event.restore_blocker === 'event_ended') return 'The event has ended, so restoring it would serve stale public links.';
+  return 'This archived event cannot be restored.';
+}
+
 function actionLabel(value: string): string {
   return value.replace(/\./g, ' / ');
 }
@@ -351,7 +395,8 @@ function clearFilters() {
 
 function selectSection(section: AuditLogSection) {
   if (activeSection.value === section) return;
-  activeSectionTransition.value = section === 'activity' ? 'backward' : 'forward';
+  const order: AuditLogSection[] = ['activity', 'email-delivery', 'short-links', 'archived-events'];
+  activeSectionTransition.value = order.indexOf(section) > order.indexOf(activeSection.value) ? 'forward' : 'backward';
   activeSection.value = section;
 }
 
@@ -537,6 +582,23 @@ onUnmounted(() => {
               <path d="m6.75 13.25 6.5-6.5" />
             </svg>
             <span>Short links</span>
+          </button>
+          <button
+            id="audit-log-tab-archived-events"
+            type="button"
+            role="tab"
+            class="audit-log-tab motion-press"
+            :aria-selected="activeSection === 'archived-events'"
+            aria-controls="audit-log-panel-archived-events"
+            @click="selectSection('archived-events')"
+          >
+            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M3.5 6.5h13" />
+              <path d="M6.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 13.5 5v1.5" />
+              <path d="m5 6.5.75 9.5h8.5L15 6.5" />
+              <path d="M8 10h4" />
+            </svg>
+            <span>Archived events</span>
           </button>
         </nav>
 
@@ -857,7 +919,7 @@ onUnmounted(() => {
               </div>
             </div>
           </section>
-          <section v-else id="audit-log-panel-short-links" key="short-links" role="tabpanel" aria-labelledby="audit-log-tab-short-links" class="audit-log-email-delivery w-full">
+          <section v-else-if="activeSection === 'short-links'" id="audit-log-panel-short-links" key="short-links" role="tabpanel" aria-labelledby="audit-log-tab-short-links" class="audit-log-email-delivery w-full">
             <div class="audit-log-short-links__toolbar">
               <div class="audit-log-short-links__heading">
                 <p class="editorial-eyebrow">marketing links</p>
@@ -892,6 +954,85 @@ onUnmounted(() => {
                       <td class="px-3 py-2 align-middle"><span class="audit-log-short-links__url">{{ link.url.replace('https://', '') }}</span></td>
                       <td class="px-3 py-2 align-middle text-sm font-semibold text-dc-gray">{{ link.redirect_count.toLocaleString() }}</td><td class="px-3 py-2 align-middle text-sm text-dc-gray">{{ link.last_redirected_at ? formatDateTime(link.last_redirected_at) : 'N/A' }}</td>
                       <td class="px-3 py-2 align-middle"><div v-if="link.status === 'active'" class="audit-log-short-links__actions"><button type="button" class="motion-press min-h-9 rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-ink hover:bg-dc-paper-warm" @click="copyShortLink(link.id, link.url)"><Transition name="short-link-copy-label" mode="out-in"><span :key="copiedShortLinkId === link.id ? 'copied' : 'copy'">{{ copiedShortLinkId === link.id ? 'Copied' : 'Copy' }}</span></Transition></button><div data-short-link-menu class="audit-log-short-links__menu"><button type="button" class="motion-press audit-log-short-links__manage-button" aria-haspopup="menu" :aria-expanded="openShortLinkMenuId === link.id" :aria-label="`Manage ${link.url}`" @click.stop="toggleShortLinkMenu(link.id, $event)"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="4.5" r="1.35" /><circle cx="10" cy="10" r="1.35" /><circle cx="10" cy="15.5" r="1.35" /></svg></button></div></div><a v-else :href="link.url" target="_blank" rel="noopener noreferrer" class="audit-log-short-links__open-history">Open link ↗</a></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section v-else id="audit-log-panel-archived-events" key="archived-events" role="tabpanel" aria-labelledby="audit-log-tab-archived-events" class="audit-log-email-delivery w-full">
+            <div class="audit-log-short-links__toolbar">
+              <div class="audit-log-short-links__heading">
+                <p class="editorial-eyebrow">recovery shelf</p>
+                <h2>Archived events</h2>
+                <p class="audit-log-short-links__description">Soft-deleted events are hidden from the organizer console and public surfaces. Owners can restore viable events or permanently delete old test records.</p>
+              </div>
+              <p class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
+                {{ archivedEvents.length }} archived
+              </p>
+            </div>
+
+            <div class="audit-log-delivery-history audit-log-archived-events__history">
+              <div v-if="archivedEventsQuery.isPending.value" class="audit-log-delivery-history__empty">Loading archived events…</div>
+              <div v-else-if="archivedEvents.length === 0" class="audit-log-delivery-history__empty">
+                No archived events. Soft-deleted events will appear here during their restore window.
+              </div>
+              <div v-else class="overflow-x-auto">
+                <table class="audit-log-archived-events__table w-full table-fixed text-left">
+                  <colgroup>
+                    <col class="w-[34%]">
+                    <col class="w-[18%]">
+                    <col class="w-[18%]">
+                    <col class="w-[12%]">
+                    <col class="w-[18%]">
+                  </colgroup>
+                  <thead class="font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
+                    <tr>
+                      <th class="px-4 py-2">Event</th>
+                      <th class="px-3 py-2">Archived</th>
+                      <th class="px-3 py-2">Restore window</th>
+                      <th class="px-3 py-2">State</th>
+                      <th class="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-dc-border">
+                    <tr v-for="event in archivedEvents" :key="event.id" class="audit-log-archived-events__row">
+                      <td class="px-4 py-3 align-middle">
+                        <strong class="block truncate text-sm text-dc-ink" :title="event.name">{{ event.name }}</strong>
+                        <span class="mt-1 block truncate text-xs font-semibold text-dc-gray">{{ event.deleted_by_email ?? 'Unknown owner' }}</span>
+                      </td>
+                      <td class="px-3 py-3 align-middle text-sm font-semibold text-dc-gray">{{ formatDateTime(event.deleted_at) }}</td>
+                      <td class="px-3 py-3 align-middle text-sm font-semibold text-dc-gray">{{ event.restore_until ? formatDateTime(event.restore_until) : 'No window' }}</td>
+                      <td class="px-3 py-3 align-middle">
+                        <span
+                          class="audit-log-archived-events__state"
+                          :class="{ 'audit-log-archived-events__state--restorable': event.can_restore }"
+                          :title="archivedEventRestoreDetail(event)"
+                        >
+                          {{ archivedEventRestoreLabel(event) }}
+                        </span>
+                      </td>
+                      <td class="px-3 py-3 align-middle">
+                        <div class="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            class="motion-press inline-flex min-h-9 items-center rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="!event.can_restore || restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
+                            @click="restoreArchivedEventMutation.mutate(event.id)"
+                          >
+                            Restore
+                          </button>
+                          <button
+                            type="button"
+                            class="motion-press inline-flex min-h-9 items-center rounded-md border border-red-600 bg-red-50 px-3 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="restoreArchivedEventMutation.isPending.value || hardDeleteArchivedEventMutation.isPending.value"
+                            @click="hardDeleteArchivedEventMutation.mutate(event.id)"
+                          >
+                            Delete forever
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -1484,6 +1625,36 @@ onUnmounted(() => {
   border-color: #f2b2bd;
   background: #fff5f6;
   color: #b91c1c;
+}
+
+.audit-log-archived-events__table {
+  min-width: 58rem;
+}
+
+.audit-log-archived-events__row {
+  background: #ffffff;
+}
+
+.audit-log-archived-events__state {
+  display: inline-flex;
+  border: 1px solid #f2b2bd;
+  border-radius: 999px;
+  background: #fff5f6;
+  padding: 0.25rem 0.5rem;
+  color: #b91c1c;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.audit-log-archived-events__state--restorable {
+  border-color: #d5b700;
+  background: #fff8c7;
+  color: #715f00;
 }
 
 .audit-log-delivery-history__legend {

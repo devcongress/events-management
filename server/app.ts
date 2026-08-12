@@ -124,7 +124,21 @@ import {
   setAnnualConferenceAccessGrant,
 } from '@/lib/supabase/annual-conference-access-grants';
 import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
-import { createSupabaseCommunityEvent, deleteSupabaseCommunityEvent, getSupabaseCommunityEventById, getSupabaseCommunityEventBySlug, getSupabaseCommunityEvents, getSupabasePublicEventPreviewMeetups, getSupabasePublicEvents, getSupabasePublicMeetups, updateSupabaseCommunityEvent } from '@/lib/supabase/community-events';
+import {
+  archiveSupabaseCommunityEvent,
+  createSupabaseCommunityEvent,
+  deleteSupabaseCommunityEvent,
+  getSupabaseArchivedCommunityEvents,
+  getSupabaseCommunityEventById,
+  getSupabaseCommunityEventBySlug,
+  getSupabaseCommunityEvents,
+  getSupabasePublicEventPreviewMeetups,
+  getSupabasePublicEvents,
+  getSupabasePublicMeetups,
+  restoreSupabaseArchivedCommunityEvent,
+  updateSupabaseCommunityEvent,
+  type ArchivedCommunityEvent,
+} from '@/lib/supabase/community-events';
 import {
   claimEventSlackAnnouncement,
   completeEventSlackAnnouncement,
@@ -1368,6 +1382,37 @@ async function deleteEvent(id: string, c?: Context): Promise<boolean> {
   if (!existing) return false;
   await deleteMockEvent(id);
   return true;
+}
+
+async function archiveEvent(
+  id: string,
+  input: { deletedByEmail: string | null; reason?: string | null },
+  c?: Context,
+): Promise<Event | undefined> {
+  const archived = await archiveSupabaseCommunityEvent(id, input, c);
+  if (archived !== null) return archived ? canonicalizeEventSchedule(archived) : archived;
+  const existing = await getMockEventById(id);
+  if (!existing) return undefined;
+  await deleteMockEvent(id);
+  return withPublicEventCover(canonicalizeEventSchedule({
+    ...existing,
+    publish_to_website: false,
+    publication_status: 'archived',
+    deleted_at: new Date().toISOString(),
+    deleted_by_email: input.deletedByEmail,
+    delete_reason: input.reason ?? null,
+    restore_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  }));
+}
+
+async function restoreArchivedEvent(id: string, c?: Context): Promise<Event | undefined> {
+  const restored = await restoreSupabaseArchivedCommunityEvent(id, c);
+  if (restored !== null) return restored ? canonicalizeEventSchedule(restored) : restored;
+  return undefined;
+}
+
+async function getArchivedEvents(c?: Context): Promise<ArchivedCommunityEvent[]> {
+  return (await getSupabaseArchivedCommunityEvents(c)) ?? [];
 }
 
 async function getFeedbackCampaignByEventStore(eventId: string, c?: Context): Promise<FeedbackCampaign | undefined> {
@@ -5266,6 +5311,20 @@ app.get('/api/admin/audit-log', async (c) => {
   }
 });
 
+app.get('/api/admin/archived-events', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  try {
+    return c.json({
+      events: await getArchivedEvents(c),
+      auth_mode: 'supabase',
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'archived_events_read_failed', error, 'Unable to load archived events.');
+  }
+});
+
 app.get('/api/admin/short-links', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
   if (adminError) return adminError;
@@ -6939,10 +6998,13 @@ app.post('/api/events/:eventId/system-design/learning-room/questions/generate', 
 });
 
 app.delete('/api/events/:eventId', async (c) => {
-  const adminError = await requireAdmin(c);
+  const adminError = await requireAdmin(c, ['owner']);
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
+  const mode = c.req.query('mode') === 'hard' ? 'hard' : 'archive';
+  const reason = c.req.query('reason')?.trim().slice(0, 300) || null;
+  const session = c.get('adminSession') ?? await getAdminSession(c);
 
   try {
     let event: Event | undefined;
@@ -6956,29 +7018,103 @@ app.delete('/api/events/:eventId', async (c) => {
       }));
     }
 
-    const deleted = await deleteEvent(eventId, c);
-    if (!deleted) {
+    if (mode === 'hard') {
+      const deleted = await deleteEvent(eventId, c);
+      if (!deleted) {
+        return c.json({ error: 'Event not found' }, 404);
+      }
+
+      await auditAdminAction(c, {
+        action: 'event.delete_permanent',
+        targetType: 'event',
+        targetId: eventId,
+        metadata: {
+          name: event?.name ?? null,
+          event_date: event?.event_date ?? null,
+          status: event?.status ?? null,
+          external_source: event?.external_source ?? null,
+          external_id: event?.external_id ?? null,
+          registration_url: event?.registration_url ?? null,
+          deleted_event_ids: [eventId],
+          mode: 'hard',
+        },
+      });
+
+      return c.json({ ok: true, mode: 'hard' });
+    }
+
+    const archived = await archiveEvent(eventId, {
+      deletedByEmail: session.authenticated ? session.email : null,
+      reason,
+    }, c);
+    if (!archived) {
       return c.json({ error: 'Event not found' }, 404);
     }
 
     await auditAdminAction(c, {
-      action: 'event.delete',
+      action: 'event.archive',
       targetType: 'event',
       targetId: eventId,
       metadata: {
-        name: event?.name ?? null,
-        event_date: event?.event_date ?? null,
-        status: event?.status ?? null,
-        external_source: event?.external_source ?? null,
-        external_id: event?.external_id ?? null,
-        registration_url: event?.registration_url ?? null,
+        name: archived.name ?? event?.name ?? null,
+        event_date: archived.event_date ?? event?.event_date ?? null,
+        status: archived.status ?? event?.status ?? null,
+        external_source: archived.external_source ?? event?.external_source ?? null,
+        external_id: archived.external_id ?? event?.external_id ?? null,
+        registration_url: archived.registration_url ?? event?.registration_url ?? null,
+        restore_until: archived.restore_until ?? null,
+        mode: 'archive',
         deleted_event_ids: [eventId],
       },
     });
 
-    return c.json({ ok: true });
+    return c.json({ ok: true, mode: 'archive', event: archived });
   } catch (error) {
+    if (error instanceof Error && error.message.includes('event_already_archived')) {
+      return c.json({ error: 'This event is already archived.' }, 409);
+    }
     return internalErrorResponse(c, 'event_delete_failed', error, 'Unable to remove the event.');
+  }
+});
+
+app.post('/api/events/:eventId/restore', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+
+  try {
+    const restored = await restoreArchivedEvent(eventId, c);
+    if (!restored) {
+      return c.json({ error: 'Archived event not found.' }, 404);
+    }
+
+    await auditAdminAction(c, {
+      action: 'event.restore',
+      targetType: 'event',
+      targetId: eventId,
+      metadata: {
+        name: restored.name,
+        event_date: restored.event_date,
+        status: restored.status,
+        registration_url: restored.registration_url ?? null,
+      },
+    });
+
+    return c.json(restored);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('event_restore_window_expired')) {
+        return c.json({ error: 'The restore window for this event has expired.' }, 409);
+      }
+      if (error.message.includes('event_timeline_not_viable')) {
+        return c.json({ error: 'This event has already ended and cannot be restored.' }, 409);
+      }
+      if (error.message.includes('event_not_archived')) {
+        return c.json({ error: 'This event is not archived.' }, 409);
+      }
+    }
+    return internalErrorResponse(c, 'event_restore_failed', error, 'Unable to restore the event.');
   }
 });
 

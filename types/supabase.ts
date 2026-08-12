@@ -900,6 +900,11 @@ export interface Database {
           external_id: string | null;
           external_url: string | null;
           external_synced_at: string | null;
+          deleted_at: string | null;
+          deleted_by_email: string | null;
+          delete_reason: string | null;
+          restore_until: string | null;
+          deletion_snapshot: Json;
           created_at: string;
           updated_at: string;
         };
@@ -941,6 +946,11 @@ export interface Database {
           external_id?: string | null;
           external_url?: string | null;
           external_synced_at?: string | null;
+          deleted_at?: string | null;
+          deleted_by_email?: string | null;
+          delete_reason?: string | null;
+          restore_until?: string | null;
+          deletion_snapshot?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -982,6 +992,11 @@ export interface Database {
           external_id?: string | null;
           external_url?: string | null;
           external_synced_at?: string | null;
+          deleted_at?: string | null;
+          deleted_by_email?: string | null;
+          delete_reason?: string | null;
+          restore_until?: string | null;
+          deletion_snapshot?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -1948,6 +1963,23 @@ export interface Database {
           input_created_by_membership_id: string;
         };
         Returns: Database['public']['Tables']['short_links']['Row'][];
+      };
+      archive_community_event: {
+        Args: {
+          p_event_id: string;
+          p_deleted_by_email: string;
+          p_delete_reason?: string | null;
+          p_restore_days?: number;
+        };
+        Returns: Database['public']['Tables']['community_events']['Row'][];
+      };
+      restore_archived_community_event: {
+        Args: { p_event_id: string };
+        Returns: Database['public']['Tables']['community_events']['Row'][];
+      };
+      hard_delete_community_event: {
+        Args: { p_event_id: string };
+        Returns: boolean;
       };
       approve_event_submission: {
         Args: {

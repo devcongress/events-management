@@ -111,6 +111,17 @@ const submission = {
   updated_at: '2099-08-01T10:00:00.000Z',
 };
 
+const currentManagedEvent = {
+  starts_at: '2099-09-20T09:00:00.000Z',
+  ends_at: '2099-09-20T13:00:00.000Z',
+  location_type: 'in_person' as const,
+  venue_name: 'Impact Hub Accra',
+  venue_address: 'Osu, Accra',
+  online_url: null,
+  registration_url: 'https://example.com/register',
+  cover_url: null,
+};
+
 function validPayload() {
   return {
     title: submission.title,
@@ -371,7 +382,13 @@ describe('community event submissions', () => {
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
     const capability = `${linkId}.${signature}`;
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
-    mocks.getManagement.mockResolvedValue({ link_id: linkId, expires_at: '2099-09-20T13:00:00.000Z', submission, amendment: null });
+    mocks.getManagement.mockResolvedValue({
+      link_id: linkId,
+      expires_at: '2099-09-20T13:00:00.000Z',
+      submission,
+      current_event: currentManagedEvent,
+      amendment: null,
+    });
     mocks.saveAmendment.mockResolvedValue({ id: 'amendment-1', cover_url: 'https://storage.example.test/cover.jpg' });
     const form = new FormData();
     form.set('starts_at', '2099-09-20T10:00:00.000Z');

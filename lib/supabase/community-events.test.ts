@@ -51,6 +51,11 @@ function communityEventRow(overrides: Partial<CommunityEventRow> = {}): Communit
     external_id: null,
     external_url: null,
     external_synced_at: null,
+    deleted_at: null,
+    deleted_by_email: null,
+    delete_reason: null,
+    restore_until: null,
+    deletion_snapshot: {},
     created_at: '2025-06-01T00:00:00.000Z',
     updated_at: '2025-06-21T00:00:00.000Z',
     ...overrides,
@@ -61,10 +66,12 @@ function mockPublicEventQuery(rows: CommunityEventRow[]) {
   const query = {
     select: vi.fn(),
     eq: vi.fn(),
+    is: vi.fn(),
     order: vi.fn(),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
+  query.is.mockReturnValue(query);
   query.order.mockResolvedValue({ data: rows, error: null });
   mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => query) });
 }

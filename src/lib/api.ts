@@ -268,6 +268,20 @@ export interface AdminShortLinksResponse {
   links: AdminShortLink[];
 }
 
+export interface ArchivedEvent extends Event {
+  deleted_at: string;
+  deleted_by_email: string | null;
+  delete_reason: string | null;
+  restore_until: string | null;
+  can_restore: boolean;
+  restore_blocker: 'expired' | 'event_ended' | null;
+}
+
+export interface AdminArchivedEventsResponse {
+  events: ArchivedEvent[];
+  auth_mode: 'supabase';
+}
+
 export interface PublicMeetupsResponse {
   data: PublicMeetup[];
   meta: {
@@ -454,6 +468,7 @@ export const queryKeys = {
   adminOrganizers: ['admin-organizers'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
   adminShortLinks: ['admin-short-links'] as const,
+  adminArchivedEvents: ['admin-archived-events'] as const,
   event: (eventId: string) => ['events', eventId] as const,
   eventChecklist: (eventId: string) => ['event-checklist', eventId] as const,
   eventRegistrations: (eventId: string) => ['event-registrations', eventId] as const,
@@ -883,9 +898,17 @@ export function sendEventSlackAnnouncement(eventId: string) {
   });
 }
 
-export function deleteEventById(eventId: string) {
-  return fetchJson<{ ok: true }>(`/api/events/${eventId}`, {
+export function deleteEventById(eventId: string, mode: 'archive' | 'hard' = 'archive') {
+  const query = new URLSearchParams({ mode }).toString();
+  return fetchJson<{ ok: true; mode: 'archive' | 'hard'; event?: Event }>(`/api/events/${eventId}?${query}`, {
     method: 'DELETE',
+    credentials: 'include',
+  });
+}
+
+export function restoreArchivedEvent(eventId: string) {
+  return fetchJson<Event>(`/api/events/${eventId}/restore`, {
+    method: 'POST',
     credentials: 'include',
   });
 }
@@ -1068,6 +1091,10 @@ export function fetchAdminAuditLog(filters: { actor?: string; action?: string; t
   }
   const query = params.toString();
   return fetchJson<AdminAuditLogResponse>(`/api/admin/audit-log${query ? `?${query}` : ''}`, { credentials: 'include' });
+}
+
+export function fetchAdminArchivedEvents() {
+  return fetchJson<AdminArchivedEventsResponse>('/api/admin/archived-events', { credentials: 'include' });
 }
 
 export function fetchAdminShortLinks() {

@@ -5,12 +5,11 @@ import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
-import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import EventCoverPicker from '@/src/components/ui/EventCoverPicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
 import AdminEventsPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventsPageSkeleton.vue';
-import { createNativeEvent, deleteEventById, fetchEvents, queryKeys } from '@/src/lib/api';
+import { createNativeEvent, deleteEventById, fetchAdminSession, fetchEvents, queryKeys } from '@/src/lib/api';
 import {
   createEventFormSchema,
   eventEndDateError,
@@ -48,6 +47,10 @@ const eventsQuery = useQuery({
   queryKey: queryKeys.events,
   queryFn: fetchEvents,
 });
+const adminSessionQuery = useQuery({
+  queryKey: queryKeys.adminSession,
+  queryFn: fetchAdminSession,
+});
 const form = reactive({
   name: '',
   description: '',
@@ -76,6 +79,7 @@ const slugWasEdited = ref(false);
 const coverFile = ref<File | null>(null);
 const eventPendingDelete = ref<CommunityEvent | null>(null);
 const deletePending = ref(false);
+const deleteMode = ref<'archive' | 'hard'>('archive');
 const page = ref(1);
 const selectedMonth = ref('all');
 const selectedSeriesFilter = ref('all');
@@ -196,6 +200,7 @@ const endDateError = computed(() => eventEndDateError(form.event_date, form.end_
 const createDisabled = computed(() => (
   createPending.value || googleMapsLinkInvalid.value || Boolean(endDateError.value)
 ));
+const canDeleteEvents = computed(() => adminSessionQuery.data.value?.user?.role === 'owner');
 
 function broadcastPublicMeetupsRefresh() {
   if (typeof window === 'undefined') return;
@@ -208,6 +213,9 @@ async function refreshEventQueries() {
     queryClient.invalidateQueries({ queryKey: queryKeys.events }),
     queryClient.invalidateQueries({ queryKey: queryKeys.overview }),
     queryClient.invalidateQueries({ queryKey: queryKeys.publicMeetups }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.adminArchivedEvents }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.adminShortLinks }),
+    queryClient.invalidateQueries({ queryKey: ['admin-audit-log'] }),
     queryClient.invalidateQueries({ queryKey: ['public-meetup'] }),
   ]);
   broadcastPublicMeetupsRefresh();
@@ -320,24 +328,29 @@ async function createEvent() {
 
 function requestDeleteEvent(event: CommunityEvent) {
   eventPendingDelete.value = event;
+  deleteMode.value = 'archive';
 }
 
 function cancelDeleteEvent() {
   if (deletePending.value) return;
   eventPendingDelete.value = null;
+  deleteMode.value = 'archive';
 }
 
-async function confirmDeleteEvent() {
+async function confirmDeleteEvent(mode: 'archive' | 'hard' = deleteMode.value) {
   if (!eventPendingDelete.value) return;
 
   const event = eventPendingDelete.value;
   deletePending.value = true;
 
   try {
-    await deleteEventById(event.id);
+    await deleteEventById(event.id, mode);
     await refreshEventQueries();
-    notify.success('Event removed.');
+    notify.success(mode === 'hard'
+      ? 'Event permanently deleted.'
+      : 'Event archived. Owners can restore it from Audit Log.');
     eventPendingDelete.value = null;
+    deleteMode.value = 'archive';
     if (page.value > pageCount.value) page.value = pageCount.value;
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to remove event.');
@@ -390,7 +403,7 @@ function isCommunityEvent(event: CommunityEvent): boolean {
 
 function removalMessage(event: CommunityEvent): string {
   const eventMonth = formatEventMonth(event.event_date);
-  return `This permanently removes ${eventMonth}, including its registration list and check-ins.`;
+  return `Choose how to remove ${eventMonth}. Archive hides it now and keeps a short recovery window. Permanent delete removes its EMS records immediately.`;
 }
 
 function statusMeta(status: string) {
@@ -796,6 +809,7 @@ async function openEventNextStep(event: CommunityEvent) {
                     <div class="event-list-actions">
                       <span class="event-list-primary-action">{{ statusActionLabel(event.status) }} &rarr;</span>
                       <button
+                        v-if="canDeleteEvents"
                         type="button"
                         class="event-list-remove-action motion-press"
                         :aria-label="`Remove ${event.name}`"
@@ -815,17 +829,139 @@ async function openEventNextStep(event: CommunityEvent) {
         </template>
       </template>
     </div>
-    <ConfirmDialog
-      :open="Boolean(eventPendingDelete)"
-      title="Remove event?"
-      :message="eventPendingDelete ? removalMessage(eventPendingDelete) : ''"
-      confirm-label="Remove event"
-      busy-label="Removing..."
-      cancel-label="Keep event"
-      danger
-      :busy="deletePending"
-      @cancel="cancelDeleteEvent"
-      @confirm="confirmDeleteEvent"
-    />
+
+    <Teleport to="body">
+      <Transition name="event-delete-dialog">
+        <div v-if="eventPendingDelete" class="fixed inset-0 z-50 flex items-center justify-center bg-dc-ink/40 px-4 py-6" role="presentation">
+          <button type="button" class="absolute inset-0 cursor-default" aria-label="Keep event" @click="cancelDeleteEvent" />
+          <section
+            class="relative w-full max-w-xl rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[8px_8px_0_#111]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="event-delete-title"
+            aria-describedby="event-delete-copy"
+          >
+            <div class="flex items-start justify-between gap-4 border-b border-dc-border px-5 py-4">
+              <div class="min-w-0">
+                <p class="editorial-eyebrow mb-2">owner action</p>
+                <h2 id="event-delete-title" class="text-2xl font-bold tracking-tight text-dc-ink">Remove event?</h2>
+              </div>
+              <button
+                type="button"
+                class="motion-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-dc-border bg-white text-dc-ink hover:bg-dc-paper-warm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/30"
+                :disabled="deletePending"
+                aria-label="Keep event"
+                @click="cancelDeleteEvent"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="space-y-4 px-5 py-5">
+              <p id="event-delete-copy" class="text-sm font-medium leading-6 text-dc-gray">
+                {{ removalMessage(eventPendingDelete) }}
+              </p>
+
+              <div class="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Removal method">
+                <button
+                  type="button"
+                  class="motion-press rounded-lg border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dc-pink/30"
+                  :class="deleteMode === 'archive' ? 'border-dc-pink bg-dc-pink/10' : 'border-dc-border bg-white hover:border-dc-ink'"
+                  role="radio"
+                  :aria-checked="deleteMode === 'archive'"
+                  :disabled="deletePending"
+                  @click="deleteMode = 'archive'"
+                >
+                  <span class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-dc-yellow bg-dc-yellow text-dc-ink">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                      <path d="M4 7h16M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7M6 7l1 13h10l1-13" />
+                      <path d="M9 12h6" />
+                    </svg>
+                  </span>
+                  <strong class="mt-3 block text-base text-dc-ink">Archive event</strong>
+                  <span class="mt-1 block text-sm leading-5 text-dc-gray">Hide now, revoke public entry points, restore from Audit Log if still viable.</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="motion-press rounded-lg border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/30"
+                  :class="deleteMode === 'hard' ? 'border-red-600 bg-red-50' : 'border-dc-border bg-white hover:border-red-500'"
+                  role="radio"
+                  :aria-checked="deleteMode === 'hard'"
+                  :disabled="deletePending"
+                  @click="deleteMode = 'hard'"
+                >
+                  <span class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-500 bg-red-50 text-red-700">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V5h6v2" />
+                    </svg>
+                  </span>
+                  <strong class="mt-3 block text-base text-dc-ink">Delete permanently</strong>
+                  <span class="mt-1 block text-sm leading-5 text-dc-gray">Use for test or junk events. This cannot be restored.</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-col-reverse gap-3 border-t border-dc-border px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                class="motion-press inline-flex min-h-11 items-center justify-center rounded-md border-2 border-dc-ink bg-white px-4 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="deletePending"
+                @click="cancelDeleteEvent"
+              >
+                Keep event
+              </button>
+              <button
+                type="button"
+                class="motion-press inline-flex min-h-11 items-center justify-center rounded-md border-2 px-4 font-mono text-xs font-semibold uppercase tracking-wide disabled:cursor-not-allowed disabled:opacity-60"
+                :class="deleteMode === 'hard'
+                  ? 'border-red-700 bg-red-600 text-white shadow-[4px_4px_0_#111]'
+                  : 'border-dc-ink bg-dc-pink text-white shadow-[4px_4px_0_#111]'"
+                :disabled="deletePending"
+                @click="confirmDeleteEvent()"
+              >
+                {{ deletePending ? 'Removing…' : deleteMode === 'hard' ? 'Delete permanently' : 'Archive event' }}
+              </button>
+            </div>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.event-delete-dialog-enter-active,
+.event-delete-dialog-leave-active {
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.event-delete-dialog-enter-active > section,
+.event-delete-dialog-leave-active > section {
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.event-delete-dialog-enter-from,
+.event-delete-dialog-leave-to {
+  opacity: 0;
+}
+
+.event-delete-dialog-enter-from > section,
+.event-delete-dialog-leave-to > section {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-delete-dialog-enter-active,
+  .event-delete-dialog-leave-active,
+  .event-delete-dialog-enter-active > section,
+  .event-delete-dialog-leave-active > section {
+    transition-duration: 1ms;
+  }
+}
+</style>

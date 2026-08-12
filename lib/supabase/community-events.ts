@@ -12,6 +12,15 @@ type CommunityEventRow = Database['public']['Tables']['community_events']['Row']
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
 type CommunityEventUpdate = Database['public']['Tables']['community_events']['Update'];
 
+export type ArchivedCommunityEvent = Event & {
+  deleted_at: string;
+  deleted_by_email: string | null;
+  delete_reason: string | null;
+  restore_until: string | null;
+  can_restore: boolean;
+  restore_blocker: 'expired' | 'event_ended' | null;
+};
+
 const DEFAULT_COVER = EVENT_ANNOUNCEMENT_FALLBACK_COVER;
 const DEFAULT_LOCATION = {
   label: 'Accra, Ghana',
@@ -53,6 +62,7 @@ export async function getSupabaseCommunityEvents(c?: Context): Promise<Event[] |
   const { data, error } = await getSupabaseAdminClient(c)
     .from('community_events')
     .select('*')
+    .is('deleted_at', null)
     .order('starts_at', { ascending: false });
 
   if (error) throw new Error('Unable to load community events');
@@ -66,6 +76,7 @@ export async function getSupabaseCommunityEventById(id: string, c?: Context): Pr
     .from('community_events')
     .select('*')
     .eq('id', id)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
@@ -79,6 +90,7 @@ export async function getSupabaseCommunityEventBySlug(slug: string, c?: Context)
     .from('community_events')
     .select('*')
     .eq('slug', slug)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
@@ -97,6 +109,7 @@ export async function getSupabaseCommunityEventByExternalId(
     .select('*')
     .eq('external_source', source)
     .eq('external_id', externalId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
@@ -113,6 +126,7 @@ export async function getSupabaseCommunityEventByRegistrationUrl(
     .from('community_events')
     .select('*')
     .eq('registration_url', registrationUrl)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
@@ -273,13 +287,54 @@ export async function updateSupabaseCommunityEvent(
 export async function deleteSupabaseCommunityEvent(id: string, c?: Context): Promise<boolean | null> {
   if (!canUseSupabaseCommunityEvents(c)) return null;
 
-  const { error, count } = await getSupabaseAdminClient(c)
-    .from('community_events')
-    .delete({ count: 'exact' })
-    .eq('id', id);
+  const { data, error } = await getSupabaseAdminClient(c).rpc('hard_delete_community_event', {
+    p_event_id: id,
+  });
 
   if (error) throw new Error(error.message);
-  return (count ?? 0) > 0;
+  return data === true;
+}
+
+export async function archiveSupabaseCommunityEvent(
+  id: string,
+  input: { deletedByEmail: string | null; reason?: string | null; restoreDays?: number },
+  c?: Context,
+): Promise<Event | null | undefined> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const { data, error } = await getSupabaseAdminClient(c).rpc('archive_community_event', {
+    p_event_id: id,
+    p_deleted_by_email: input.deletedByEmail ?? '',
+    p_delete_reason: input.reason ?? null,
+    p_restore_days: input.restoreDays ?? 30,
+  });
+
+  if (error) throw new Error(error.message);
+  return data?.[0] ? toEvent(data[0] as CommunityEventRow) : undefined;
+}
+
+export async function restoreSupabaseArchivedCommunityEvent(id: string, c?: Context): Promise<Event | null | undefined> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const { data, error } = await getSupabaseAdminClient(c).rpc('restore_archived_community_event', {
+    p_event_id: id,
+  });
+
+  if (error) throw new Error(error.message);
+  return data?.[0] ? toEvent(data[0] as CommunityEventRow) : undefined;
+}
+
+export async function getSupabaseArchivedCommunityEvents(c?: Context): Promise<ArchivedCommunityEvent[] | null> {
+  if (!canUseSupabaseCommunityEvents(c)) return null;
+
+  const { data, error: listError } = await getSupabaseAdminClient(c)
+    .from('community_events')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+
+  if (listError) throw new Error(listError.message);
+  return (data ?? []).map(toArchivedEvent);
 }
 
 export async function deleteSupabaseCommunityEventsByImportMatch(
@@ -297,7 +352,8 @@ export async function deleteSupabaseCommunityEventsByImportMatch(
       .from('community_events')
       .select('id')
       .eq('external_source', input.external_source)
-      .eq('external_id', input.external_id);
+      .eq('external_id', input.external_id)
+      .is('deleted_at', null);
 
     if (error) throw new Error(error.message);
     for (const row of data ?? []) matchedIds.add(row.id);
@@ -307,7 +363,8 @@ export async function deleteSupabaseCommunityEventsByImportMatch(
     const { data, error } = await getSupabaseAdminClient(c)
       .from('community_events')
       .select('id')
-      .eq('registration_url', input.registration_url);
+      .eq('registration_url', input.registration_url)
+      .is('deleted_at', null);
 
     if (error) throw new Error(error.message);
     for (const row of data ?? []) matchedIds.add(row.id);
@@ -332,6 +389,7 @@ export async function getSupabasePublicMeetups(origin: string, c?: Context): Pro
     .from('community_events')
     .select('*')
     .eq('publish_to_website', true)
+    .is('deleted_at', null)
     .eq('event_ownership', 'devcongress')
     .order('starts_at', { ascending: false });
 
@@ -347,6 +405,7 @@ export async function getSupabasePublicEvents(c?: Context): Promise<PublicEvent[
     .select('*')
     .eq('publish_to_website', true)
     .eq('publication_status', 'published')
+    .is('deleted_at', null)
     .order('starts_at', { ascending: false });
 
   if (error) throw new Error('Unable to load public events');
@@ -366,6 +425,7 @@ export async function getSupabasePublicEventPreviewMeetups(
     .select('*')
     .eq('publish_to_website', true)
     .eq('publication_status', 'published')
+    .is('deleted_at', null)
     .order('starts_at', { ascending: false });
 
   if (error) throw new Error('Unable to load event preview');
@@ -413,8 +473,31 @@ function toEvent(row: CommunityEventRow): Event {
     external_id: row.external_id,
     external_url: safeHttpUrl(row.external_url),
     external_synced_at: row.external_synced_at,
+    deleted_at: row.deleted_at,
+    deleted_by_email: row.deleted_by_email,
+    delete_reason: row.delete_reason,
+    restore_until: row.restore_until,
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function toArchivedEvent(row: CommunityEventRow): ArchivedCommunityEvent {
+  const event = toEvent(row);
+  const now = Date.now();
+  const restoreUntil = row.restore_until ? new Date(row.restore_until).getTime() : null;
+  const endsAt = new Date(row.ends_at).getTime();
+  const restoreExpired = restoreUntil !== null && restoreUntil < now;
+  const eventEnded = endsAt <= now;
+
+  return {
+    ...event,
+    deleted_at: row.deleted_at ?? row.updated_at,
+    deleted_by_email: row.deleted_by_email,
+    delete_reason: row.delete_reason,
+    restore_until: row.restore_until,
+    can_restore: !restoreExpired && !eventEnded,
+    restore_blocker: restoreExpired ? 'expired' : eventEnded ? 'event_ended' : null,
   };
 }
 

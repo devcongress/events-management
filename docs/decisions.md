@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-069: Make Event Deletion Owner-Only With Archive-First Recovery
+
+Date: 2026-08-12
+Status: Accepted
+
+Context: A direct event delete can fail when dependent records exist, such as public short links, registration campaigns, check-ins, or future downstream integrations. It also creates two different product needs: real events should be recoverable if removed by mistake, while test or junk events should not remain in the system unnecessarily.
+
+Decision: Event deletion is Owner-only. The default removal path is soft archive: hide the event from organizer lists and public feeds, close its registration campaign, revoke active short links, retain a deletion snapshot, and expose the event in Audit Log for restoration during a 30-day window. Restoration is allowed only while the window is open and the event has not ended. Owners can also choose hard delete for deliberate test/junk cleanup, which removes the event and immediate dependent public-link records permanently.
+
+Trade-offs: Owners must make one extra choice when removing an event, but the UI makes the safe archive path primary. Archived records add retention state to the event table, but avoid accidental data loss and fix deletion failures caused by dependent records. Hard delete remains available for data hygiene, with no restore path by design.
+
+Revisit when: event deletion needs legal retention periods, attendee data export before permanent deletion, Slack message deletion, or a scheduled purge worker for expired archives.
+
+---
+
 ## ADR-068: Use a Dynamic Public Event Surface With Static Fallbacks
 
 Date: 2026-08-11
