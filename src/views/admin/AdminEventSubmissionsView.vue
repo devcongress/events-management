@@ -17,19 +17,21 @@ import {
   retryEventSubmissionReplySlackAlert,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { amendmentReplacesCover } from '@/src/lib/event-submission-amendment';
 import type {
   EventSubmission,
+  EventSubmissionAmendment,
   EventSubmissionEmailDelivery,
   EventSubmissionEmailKind,
+  EventSubmissionQueueFilter,
   EventSubmissionReply,
   EventSubmissionRejectionCategory,
-  EventSubmissionReviewStatus,
 } from '@/types';
 
 const queryClient = useQueryClient();
 const route = useRoute();
 const router = useRouter();
-const activeFilter = ref<EventSubmissionReviewStatus>('pending');
+const activeFilter = ref<EventSubmissionQueueFilter>('pending');
 const selectedId = ref<string | null>(null);
 const drawerCloseButton = ref<HTMLButtonElement | null>(null);
 const drawerPanel = ref<HTMLElement | null>(null);
@@ -70,11 +72,80 @@ const pendingSubmissionsQuery = useQuery({
 });
 const submissions = computed(() => submissionsQuery.data.value?.submissions ?? []);
 const pendingSubmissionCount = computed(() => pendingSubmissionsQuery.data.value?.submissions.length ?? 0);
+const updateSubmissionsQuery = useQuery({
+  queryKey: queryKeys.eventSubmissions('updates'),
+  queryFn: () => fetchEventSubmissions('updates'),
+});
+const updateSubmissionCount = computed(() => updateSubmissionsQuery.data.value?.submissions.length ?? 0);
 const selectedSubmission = computed(() => (
   submissions.value.find((submission) => submission.id === selectedId.value)
   ?? linkedSubmissionsQuery.data.value?.submissions.find((submission) => submission.id === selectedId.value)
   ?? null
 ));
+const selectedSubmittedAmendment = computed(() => (
+  selectedSubmission.value?.amendments?.find((amendment) => amendment.status === 'submitted') ?? null
+));
+
+interface AmendmentChange {
+  label: string;
+  current: string;
+  requested: string;
+  currentUrl?: string | null;
+  requestedUrl?: string | null;
+}
+
+const selectedAmendmentChanges = computed<AmendmentChange[]>(() => {
+  const submission = selectedSubmission.value;
+  const amendment = selectedSubmittedAmendment.value;
+  if (!submission || !amendment) return [];
+
+  const changes: AmendmentChange[] = [];
+  if (amendmentScheduleChanged(submission, amendment)) {
+    changes.push({
+      label: 'Schedule',
+      current: formatSchedule(submission.starts_at, submission.ends_at, submission.timezone),
+      requested: formatSchedule(amendment.starts_at, amendment.ends_at, submission.timezone),
+    });
+  }
+  if (amendmentLocationChanged(submission, amendment)) {
+    changes.push({
+      label: 'Location',
+      current: formatLocation(submission.location_type, submission.venue_name, submission.venue_address),
+      requested: formatLocation(amendment.location_type, amendment.venue_name, amendment.venue_address),
+    });
+  }
+  if (normalizedValue(submission.online_url) !== normalizedValue(amendment.online_url)) {
+    changes.push({
+      label: 'Online event link',
+      current: submission.online_url || 'Not provided',
+      requested: amendment.online_url || 'Removed',
+      currentUrl: submission.online_url,
+      requestedUrl: amendment.online_url,
+    });
+  }
+  if (normalizedValue(submission.registration_url) !== normalizedValue(amendment.registration_url)) {
+    changes.push({
+      label: 'Registration page',
+      current: submission.registration_url || 'Not provided',
+      requested: amendment.registration_url || 'Removed',
+      currentUrl: submission.registration_url,
+      requestedUrl: amendment.registration_url,
+    });
+  }
+  // The management form only sends cover_url when a replacement file is
+  // uploaded. A null amendment value therefore means "leave the cover alone",
+  // not "remove the current cover".
+  if (amendmentReplacesCover(submission.cover_url, amendment.cover_url)) {
+    changes.push({
+      label: 'Cover image',
+      current: submission.cover_url ? 'Current cover' : 'Default event cover',
+      requested: 'New cover uploaded',
+      currentUrl: submission.cover_url,
+      requestedUrl: amendment.cover_url,
+    });
+  }
+  return changes;
+});
 
 watch(submissions, (next) => {
   if (!linkedSubmissionId.value && !next.some((submission) => submission.id === selectedId.value)) {
@@ -90,7 +161,8 @@ watch([linkedSubmissionId, () => linkedSubmissionsQuery.data.value], ([submissio
   if (!submissionId) return;
   const submission = response?.submissions.find((item) => item.id === submissionId);
   if (!submission) return;
-  if (activeFilter.value !== submission.review_status) activeFilter.value = submission.review_status;
+  const matchingFilter = submissionQueueStatus(submission);
+  if (activeFilter.value !== matchingFilter) activeFilter.value = matchingFilter;
   selectedId.value = submission.id;
   void nextTick(() => drawerCloseButton.value?.focus());
 }, { immediate: true });
@@ -303,7 +375,44 @@ function formatLabel(value: string) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function statusClass(status: EventSubmissionReviewStatus) {
+function normalizedValue(value: string | null | undefined) {
+  return value?.trim() || null;
+}
+
+function formatSchedule(startsAt: string, endsAt: string, timezone: string) {
+  return `${formatDateTime(startsAt, timezone)} – ${formatDateTime(endsAt, timezone)}`;
+}
+
+function formatLocation(locationType: EventSubmissionAmendment['location_type'], venueName: string | null, venueAddress: string | null) {
+  if (locationType === 'online') return 'Online';
+  const place = [venueName, venueAddress].filter(Boolean).join(', ');
+  return `${formatLabel(locationType)}${place ? ` · ${place}` : ''}`;
+}
+
+function hasSubmittedAmendment(submission: EventSubmission) {
+  return submission.amendments?.some((amendment) => amendment.status === 'submitted') ?? false;
+}
+
+function submissionQueueStatus(submission: EventSubmission): EventSubmissionQueueFilter {
+  return hasSubmittedAmendment(submission) ? 'updates' : submission.review_status;
+}
+
+function submissionStatusLabel(submission: EventSubmission) {
+  return hasSubmittedAmendment(submission) ? 'Changes requested' : formatLabel(submission.review_status);
+}
+
+function amendmentScheduleChanged(submission: EventSubmission, amendment: NonNullable<EventSubmission['amendments']>[number]) {
+  return submission.starts_at !== amendment.starts_at || submission.ends_at !== amendment.ends_at;
+}
+
+function amendmentLocationChanged(submission: EventSubmission, amendment: NonNullable<EventSubmission['amendments']>[number]) {
+  return submission.location_type !== amendment.location_type
+    || submission.venue_name !== amendment.venue_name
+    || submission.venue_address !== amendment.venue_address;
+}
+
+function statusClass(status: EventSubmissionQueueFilter) {
+  if (status === 'updates') return 'border-dc-pink/40 bg-dc-pink/5 text-dc-pink';
   if (status === 'approved') return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (status === 'rejected') return 'border-destructive/40 bg-destructive/5 text-destructive';
   return 'border-dc-border bg-dc-paper-warm text-dc-ink';
@@ -365,12 +474,12 @@ function replyPresentation(reply: EventSubmissionReply) {
           <div>
             <p class="editorial-eyebrow">Review queue</p>
             <p class="text-sm font-medium text-dc-gray">
-              {{ submissions.length }} {{ activeFilter }} proposal{{ submissions.length === 1 ? '' : 's' }}
+              {{ submissions.length }} {{ activeFilter === 'updates' ? 'update request' : `${activeFilter} proposal` }}{{ submissions.length === 1 ? '' : 's' }}
             </p>
           </div>
           <nav class="flex flex-wrap gap-2" aria-label="Submission status">
             <button
-              v-for="filter in (['pending', 'approved', 'rejected'] as EventSubmissionReviewStatus[])"
+              v-for="filter in (['pending', 'updates', 'approved', 'rejected'] as EventSubmissionQueueFilter[])"
               :key="filter"
               type="button"
               class="motion-press relative min-h-9 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
@@ -378,14 +487,14 @@ function replyPresentation(reply: EventSubmissionReply) {
               @click="activeFilter = filter"
             >
               {{ filter }}
-              <Transition v-if="filter === 'pending'" name="submission-count">
+              <Transition v-if="filter === 'pending' || filter === 'updates'" name="submission-count">
                 <span
-                  v-if="pendingSubmissionCount"
+                  v-if="filter === 'pending' ? pendingSubmissionCount : updateSubmissionCount"
                   class="submission-filter-count"
-                  :class="pendingSubmissionCount > 99 ? 'text-[7px]' : 'text-[9px]'"
-                  :aria-label="`${pendingSubmissionCount} pending submissions`"
+                  :class="(filter === 'pending' ? pendingSubmissionCount : updateSubmissionCount) > 99 ? 'text-[7px]' : 'text-[9px]'"
+                  :aria-label="`${filter === 'pending' ? pendingSubmissionCount : updateSubmissionCount} ${filter} submissions`"
                 >
-                  {{ pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount }}
+                  {{ (filter === 'pending' ? pendingSubmissionCount : updateSubmissionCount) > 99 ? '99+' : (filter === 'pending' ? pendingSubmissionCount : updateSubmissionCount) }}
                 </span>
               </Transition>
             </button>
@@ -423,9 +532,9 @@ function replyPresentation(reply: EventSubmissionReply) {
               <path d="M21.5 5.5h5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
           </div>
-          <p class="text-lg font-bold text-dc-ink">{{ activeFilter === 'pending' ? 'Inbox clear' : `No ${activeFilter} submissions` }}</p>
+          <p class="text-lg font-bold text-dc-ink">{{ activeFilter === 'pending' ? 'Inbox clear' : activeFilter === 'updates' ? 'No update requests' : `No ${activeFilter} submissions` }}</p>
           <p class="mt-2 max-w-md text-sm leading-6 text-dc-gray">
-            {{ activeFilter === 'pending' ? 'New community event proposals from devcongress.org will arrive here for review.' : 'There are no proposals in this view yet.' }}
+            {{ activeFilter === 'pending' ? 'New community event proposals from devcongress.org will arrive here for review.' : activeFilter === 'updates' ? 'Approved events with organiser-requested changes will appear here for review.' : 'There are no proposals in this view yet.' }}
           </p>
         </div>
         <div v-else class="submission-table-scroll">
@@ -461,12 +570,16 @@ function replyPresentation(reply: EventSubmissionReply) {
                 <td>
                   <span
                     class="submission-table-status-icon"
-                    :class="statusClass(submission.review_status)"
+                    :class="statusClass(submissionQueueStatus(submission))"
                     role="img"
-                    :aria-label="formatLabel(submission.review_status)"
-                    :title="formatLabel(submission.review_status)"
+                    :aria-label="submissionStatusLabel(submission)"
+                    :title="submissionStatusLabel(submission)"
                   >
                     <svg v-if="submission.review_status === 'pending'" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" />
+                      <path d="M12 7.5v5l3 1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <svg v-else-if="submissionQueueStatus(submission) === 'updates'" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                       <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8" />
                       <path d="M12 7.5v5l3 1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
@@ -507,81 +620,145 @@ function replyPresentation(reply: EventSubmissionReply) {
             </header>
 
             <div class="submission-drawer-body">
-              <div class="submission-review-heading">
-                <div>
-                  <p class="submission-section-kicker">Review request</p>
-                  <h3>Event proposal</h3>
-                </div>
-                <span class="submission-status-badge" :class="statusClass(selectedSubmission.review_status)">
-                  <span class="submission-status-dot" aria-hidden="true" />
-                  {{ selectedSubmission.review_status }}
-                </span>
-              </div>
-
-              <section class="submission-review-card" aria-labelledby="submission-overview">
-                <h4 id="submission-overview" class="sr-only">Proposal overview</h4>
-                <p class="submission-summary">{{ selectedSubmission.summary }}</p>
-
-                <dl class="submission-facts">
-                  <div class="submission-fact submission-fact--wide">
-                    <dt>Schedule</dt>
-                    <dd>
-                      <span>{{ formatDateTime(selectedSubmission.starts_at, selectedSubmission.timezone) }}</span>
-                      <span class="submission-fact-separator" aria-hidden="true">→</span>
-                      <span>{{ formatDateTime(selectedSubmission.ends_at, selectedSubmission.timezone) }}</span>
-                    </dd>
-                    <dd class="submission-fact-supporting">{{ selectedSubmission.timezone }}</dd>
+              <template v-if="selectedSubmittedAmendment">
+                <div class="submission-amendment-intro">
+                  <div>
+                    <p class="submission-section-kicker">Update review</p>
+                    <h3>Review requested changes</h3>
+                    <p>{{ selectedAmendmentChanges.length }} field{{ selectedAmendmentChanges.length === 1 ? '' : 's' }} changed by {{ selectedSubmission.organizer_name }}.</p>
                   </div>
-                  <div class="submission-fact">
-                    <dt>Location</dt>
-                    <dd>{{ selectedSubmission.venue_name || 'Online' }}</dd>
-                    <dd v-if="selectedSubmission.venue_address" class="submission-fact-supporting">{{ selectedSubmission.venue_address }}</dd>
+                  <span class="submission-status-badge" :class="statusClass('updates')">
+                    <span class="submission-status-dot" aria-hidden="true" />
+                    Decision needed
+                  </span>
+                </div>
+
+                <section class="submission-amendment-workspace" aria-labelledby="amendment-comparison-title">
+                  <header class="submission-amendment-workspace-header">
+                    <div>
+                      <h4 id="amendment-comparison-title">Current listing and requested update</h4>
+                      <p>The public event remains unchanged until you approve.</p>
+                    </div>
+                    <a :href="`mailto:${selectedSubmission.organizer_email}`" class="submission-amendment-requester">
+                      {{ selectedSubmission.organizer_email }}
+                    </a>
+                  </header>
+
+                  <div class="submission-amendment-comparison-table">
+                    <div class="submission-amendment-column-headings" aria-hidden="true">
+                      <span>Field</span>
+                      <span>Current listing</span>
+                      <span>Requested update</span>
+                    </div>
+                    <dl>
+                      <div v-for="change in selectedAmendmentChanges" :key="change.label" class="submission-amendment-change-row">
+                        <dt>{{ change.label }}</dt>
+                        <dd>
+                          <span class="submission-amendment-mobile-label">Current</span>
+                          <a v-if="change.currentUrl" :href="change.currentUrl" target="_blank" rel="noreferrer">{{ change.current }} ↗</a>
+                          <span v-else>{{ change.current }}</span>
+                        </dd>
+                        <dd class="submission-amendment-requested-value">
+                          <span class="submission-amendment-mobile-label">Requested</span>
+                          <a v-if="change.requestedUrl" :href="change.requestedUrl" target="_blank" rel="noreferrer">{{ change.requested }} ↗</a>
+                          <span v-else>{{ change.requested }}</span>
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
-                  <div class="submission-fact">
-                    <dt>Submitted by</dt>
-                    <dd>{{ selectedSubmission.organizer_name }}</dd>
-                    <dd><a :href="`mailto:${selectedSubmission.organizer_email}`" class="submission-inline-link">{{ selectedSubmission.organizer_email }}</a></dd>
+
+                  <aside v-if="selectedSubmittedAmendment.organizer_note" class="submission-amendment-organizer-note">
+                    <p>Note from organiser</p>
+                    <blockquote>{{ selectedSubmittedAmendment.organizer_note }}</blockquote>
+                  </aside>
+
+                  <div class="submission-amendment-decision">
+                    <div class="submission-amendment-message">
+                      <label for="amendment-decision-message">Reply to organiser <span>Optional</span></label>
+                      <textarea id="amendment-decision-message" v-model="amendmentDecisionMessage" maxlength="1200" placeholder="Add context for your decision…" />
+                      <p>This note is included in the decision email.</p>
+                    </div>
+                    <div class="submission-amendment-actions">
+                      <button
+                        type="button"
+                        class="submission-amendment-decline motion-press"
+                        :disabled="amendmentReviewMutation.isPending.value"
+                        @click="amendmentReviewMutation.mutate({ amendmentId: selectedSubmittedAmendment.id, approve: false })"
+                      >
+                        Decline request
+                      </button>
+                      <button
+                        type="button"
+                        class="editorial-action motion-press"
+                        :disabled="amendmentReviewMutation.isPending.value"
+                        @click="amendmentReviewMutation.mutate({ amendmentId: selectedSubmittedAmendment.id, approve: true })"
+                      >
+                        {{ amendmentReviewMutation.isPending.value ? 'Saving…' : 'Approve update' }}
+                      </button>
+                    </div>
                   </div>
-                </dl>
+                </section>
+              </template>
 
-                <div v-if="selectedSubmission.registration_url || selectedSubmission.online_url || selectedSubmission.organizer_website" class="submission-resource-links" aria-label="Proposal links">
-                  <a v-if="selectedSubmission.registration_url" :href="selectedSubmission.registration_url" target="_blank" rel="noreferrer">
-                    Registration page
-                    <span aria-hidden="true">↗</span>
-                  </a>
-                  <a v-if="selectedSubmission.online_url" :href="selectedSubmission.online_url" target="_blank" rel="noreferrer">
-                    Online event
-                    <span aria-hidden="true">↗</span>
-                  </a>
-                  <a v-if="selectedSubmission.organizer_website" :href="selectedSubmission.organizer_website" target="_blank" rel="noreferrer">
-                    Organizer website
-                    <span aria-hidden="true">↗</span>
-                  </a>
+              <template v-else>
+                <div class="submission-review-heading">
+                  <div>
+                    <p class="submission-section-kicker">Review request</p>
+                    <h3>Event proposal</h3>
+                  </div>
+                  <span class="submission-status-badge" :class="statusClass(submissionQueueStatus(selectedSubmission))">
+                    <span class="submission-status-dot" aria-hidden="true" />
+                    {{ submissionStatusLabel(selectedSubmission) }}
+                  </span>
                 </div>
-              </section>
 
-              <aside v-if="selectedSubmission.notes" class="submission-note" aria-labelledby="submission-note-heading">
-                <div class="submission-note-mark" aria-hidden="true">“</div>
-                <div>
-                  <h4 id="submission-note-heading">Note from submitter</h4>
-                  <p>{{ selectedSubmission.notes }}</p>
-                </div>
-              </aside>
+                <section class="submission-review-card" aria-labelledby="submission-overview">
+                  <h4 id="submission-overview" class="sr-only">Proposal overview</h4>
+                  <p class="submission-summary">{{ selectedSubmission.summary }}</p>
 
-              <div v-if="selectedSubmission.review_status === 'rejected'" class="submission-rejection-summary">
-                <div>
-                  <p class="submission-field-label">Rejection reason</p>
-                  <p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ rejectionCategoryLabel(selectedSubmission.rejection_category) }}</p>
+                  <dl class="submission-facts">
+                    <div class="submission-fact submission-fact--wide">
+                      <dt>Schedule</dt>
+                      <dd>
+                        <span>{{ formatDateTime(selectedSubmission.starts_at, selectedSubmission.timezone) }}</span>
+                        <span class="submission-fact-separator" aria-hidden="true">→</span>
+                        <span>{{ formatDateTime(selectedSubmission.ends_at, selectedSubmission.timezone) }}</span>
+                      </dd>
+                      <dd class="submission-fact-supporting">{{ selectedSubmission.timezone }}</dd>
+                    </div>
+                    <div class="submission-fact">
+                      <dt>Location</dt>
+                      <dd>{{ selectedSubmission.venue_name || 'Online' }}</dd>
+                      <dd v-if="selectedSubmission.venue_address" class="submission-fact-supporting">{{ selectedSubmission.venue_address }}</dd>
+                    </div>
+                    <div class="submission-fact">
+                      <dt>Submitted by</dt>
+                      <dd>{{ selectedSubmission.organizer_name }}</dd>
+                      <dd><a :href="`mailto:${selectedSubmission.organizer_email}`" class="submission-inline-link">{{ selectedSubmission.organizer_email }}</a></dd>
+                    </div>
+                  </dl>
+
+                  <div v-if="selectedSubmission.registration_url || selectedSubmission.online_url || selectedSubmission.organizer_website" class="submission-resource-links" aria-label="Proposal links">
+                    <a v-if="selectedSubmission.registration_url" :href="selectedSubmission.registration_url" target="_blank" rel="noreferrer">Registration page <span aria-hidden="true">↗</span></a>
+                    <a v-if="selectedSubmission.online_url" :href="selectedSubmission.online_url" target="_blank" rel="noreferrer">Online event <span aria-hidden="true">↗</span></a>
+                    <a v-if="selectedSubmission.organizer_website" :href="selectedSubmission.organizer_website" target="_blank" rel="noreferrer">Organizer website <span aria-hidden="true">↗</span></a>
+                  </div>
+                </section>
+
+                <aside v-if="selectedSubmission.notes" class="submission-note" aria-labelledby="submission-note-heading">
+                  <div class="submission-note-mark" aria-hidden="true">“</div>
+                  <div>
+                    <h4 id="submission-note-heading">Note from submitter</h4>
+                    <p>{{ selectedSubmission.notes }}</p>
+                  </div>
+                </aside>
+
+                <div v-if="selectedSubmission.review_status === 'rejected'" class="submission-rejection-summary">
+                  <div><p class="submission-field-label">Rejection reason</p><p class="mt-2 text-sm font-semibold leading-6 text-dc-ink">{{ rejectionCategoryLabel(selectedSubmission.rejection_category) }}</p></div>
+                  <div v-if="selectedSubmission.organizer_message"><p class="submission-field-label">Message sent to organizer</p><p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.organizer_message }}</p></div>
+                  <div v-if="selectedSubmission.internal_note"><p class="submission-field-label">Internal note · Private</p><p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.internal_note }}</p></div>
                 </div>
-                <div v-if="selectedSubmission.organizer_message">
-                  <p class="submission-field-label">Message sent to organizer</p>
-                  <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.organizer_message }}</p>
-                </div>
-                <div v-if="selectedSubmission.internal_note">
-                  <p class="submission-field-label">Internal note · Private</p>
-                  <p class="mt-2 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ selectedSubmission.internal_note }}</p>
-                </div>
-              </div>
+              </template>
 
               <section v-if="selectedSubmission.email_deliveries.length" class="submission-support-section" aria-labelledby="submission-email-status">
                 <div class="submission-section-heading">
@@ -682,18 +859,6 @@ function replyPresentation(reply: EventSubmissionReply) {
               </section>
             </div>
 
-            <section v-if="selectedSubmission.amendments?.some((item) => item.status === 'submitted')" class="submission-support-section">
-              <p class="submission-section-kicker">Change request</p>
-              <template v-for="item in selectedSubmission.amendments" :key="item.id">
-                <div v-if="item.status === 'submitted'" class="mt-3 rounded-md border border-dc-border bg-dc-yellow/10 p-4">
-                  <p class="font-semibold text-dc-ink">{{ formatDateTime(item.starts_at, selectedSubmission.timezone) }} → {{ formatDateTime(item.ends_at, selectedSubmission.timezone) }}</p>
-                  <p class="mt-1 text-sm text-dc-gray">{{ item.location_type.replace('_', ' ') }} · {{ item.venue_name || 'Online' }}</p>
-                  <p v-if="item.organizer_note" class="mt-3 whitespace-pre-line text-sm text-dc-gray">{{ item.organizer_note }}</p>
-                  <textarea v-model="amendmentDecisionMessage" class="mt-4 min-h-20 w-full rounded border border-dc-border bg-white p-3 text-sm" maxlength="1200" placeholder="Message to organizer (optional)" />
-                  <div class="mt-3 flex gap-2"><button type="button" class="editorial-primary-action motion-press" :disabled="amendmentReviewMutation.isPending.value" @click="amendmentReviewMutation.mutate({ amendmentId: item.id, approve: true })">Approve changes</button><button type="button" class="editorial-secondary-action motion-press" :disabled="amendmentReviewMutation.isPending.value" @click="amendmentReviewMutation.mutate({ amendmentId: item.id, approve: false })">Decline changes</button></div>
-                </div>
-              </template>
-            </section>
             <footer class="submission-drawer-footer">
               <template v-if="selectedSubmission.review_status === 'pending'">
                 <section class="submission-decision-checklist" aria-labelledby="submission-decision-checklist-title">
@@ -706,19 +871,19 @@ function replyPresentation(reply: EventSubmissionReply) {
                   </div>
                   <ol class="submission-decision-checklist-items">
                     <li>
-                      <span aria-hidden="true">1</span>
+                      <span aria-hidden="true">01</span>
                       <div><strong>Community fit</strong><p>Relevant to Ghana's technology community.</p></div>
                     </li>
                     <li>
-                      <span aria-hidden="true">2</span>
+                      <span aria-hidden="true">02</span>
                       <div><strong>Event clarity</strong><p>Date, place or link, and registration are ready.</p></div>
                     </li>
                     <li>
-                      <span aria-hidden="true">3</span>
+                      <span aria-hidden="true">03</span>
                       <div><strong>Credibility</strong><p>The organizer and event details can be verified.</p></div>
                     </li>
                     <li>
-                      <span aria-hidden="true">4</span>
+                      <span aria-hidden="true">04</span>
                       <div><strong>Calendar value</strong><p>Not a duplicate, past, or avoidable major clash.</p></div>
                     </li>
                   </ol>

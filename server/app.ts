@@ -197,7 +197,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionReviewStatus, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 import { publicRegistrationOrigin } from './public-registration-origin';
 
@@ -448,7 +448,7 @@ const eventSubmissionSchema = z.object({
   }
 });
 const eventSubmissionListQuerySchema = z.object({
-  status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  status: z.enum(['pending', 'updates', 'approved', 'rejected']).optional(),
 }).strict();
 const eventSubmissionApproveSchema = z.object({ publish: z.boolean() }).strict();
 const eventSubmissionRejectionCategorySchema = z.enum([
@@ -5024,7 +5024,7 @@ app.get('/api/admin/event-submissions', async (c) => {
   if (!parsed.success) return c.json({ error: 'Invalid submission status.' }, 400);
 
   try {
-    const submissions = await eventSubmissionLifecycleForRequest(c).list(parsed.data.status as EventSubmissionReviewStatus | undefined);
+    const submissions = await eventSubmissionLifecycleForRequest(c).list(parsed.data.status as EventSubmissionQueueFilter | undefined);
     return c.json({ submissions });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {

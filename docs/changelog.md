@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-12 — Community submission update queue
+
+- Added an **Updates** queue and counter for approved community listings with a submitted organizer amendment, keeping normal Approved listings free of outstanding change requests.
+- Kept Updates derived from amendment state rather than changing the public event's approved moderation state; approving or declining the amendment removes it from Updates automatically.
+- Replaced the duplicated proposal-and-amendment layout with a focused comparison workspace that shows only changed fields, the current public value, the requested value, and one clear decision area.
+- Kept an event's existing cover out of the comparison when the organiser did not upload a replacement; an empty amendment cover means "leave unchanged," matching the approval function.
+- Corrected amendment approval to update the canonical community-event location fields, with safe non-blank names for physical, online, and hybrid events.
+
 ## 2026-08-12 — Restored public submissions with cover images
 
 - Marked the dedicated public multipart cover-upload route as unauthenticated so community proposals with an optional cover can reach their existing validation, Turnstile, rate-limit, storage, and moderation checks.

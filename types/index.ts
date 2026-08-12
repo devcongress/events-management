@@ -22,6 +22,11 @@ export type EventModerationStatus = 'pending' | 'approved' | 'rejected';
 export type EventPublicationStatus = 'draft' | 'published' | 'archived';
 export type EventLocationType = 'in_person' | 'online' | 'hybrid';
 export type EventSubmissionReviewStatus = 'pending' | 'approved' | 'rejected';
+/**
+ * Organizer inbox views. `updates` is derived from a submitted amendment;
+ * the canonical event remains approved while that review is outstanding.
+ */
+export type EventSubmissionQueueFilter = EventSubmissionReviewStatus | 'updates';
 export type EventSubmissionRejectionCategory =
   | 'calendar_fit'
   | 'insufficient_information'
