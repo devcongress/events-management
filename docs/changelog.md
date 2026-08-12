@@ -1,10 +1,15 @@
 # Changelog
 
+## 2026-08-12 — Safe public registration links and non-interactive Slack event links
+
+- Prevented local EMS development origins from being persisted into shared Supabase event registration URLs; shared events now use the configured public EMS origin even when created from a local organizer session.
+- Repaired the affected DevCongress August Meetup registration URL in production.
+- Replaced the Slack Events-channel **Open event** button with a normal link, avoiding Slack’s interactive-response requirement while retaining the public event destination.
+
 ## 2026-08-11 — Dedicated website readiness check for Slack
 
 - Slack now checks the event route’s explicit `?readiness=1` signal before posting, rather than relying on the visitor-facing page response.
 - This keeps the no-early-announcement rule while allowing the website to serve its dynamic event shell immediately.
-
 ## 2026-08-11 — Preserved public event media semantics
 
 - Added safe `stream_url` and `embed_stream` fields to the generic public-events DTO across local JSON and Supabase sources.

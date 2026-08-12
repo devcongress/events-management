@@ -26,7 +26,7 @@ Historical events without a native campaign remain readable but are explicitly l
 9. For an older event with no native campaign, the tab explains that registration was not managed in this app. It does not expose campaign controls, guest actions, or made-up attendee data. Use Attendance for any historical CSV import.
 10. In local development, Owners only can use **Remove test guest** to permanently delete real test registrations after confirming the attendee and linked-data cleanup. Organizers and Volunteers never see or can call the action. Production builds hide the action, and the production API rejects the delete route.
 
-New events publish a short same-origin `/r/:eventSlug` URL through the existing `registration_url` compatibility field, so the public meetup API can expose the native action without changing its consumer contract. Existing `/register/:eventId` links remain valid.
+New events publish a short same-origin `/r/:eventSlug` URL through the existing `registration_url` compatibility field, so the public meetup API can expose the native action without changing its consumer contract. When EMS writes shared Supabase event data, that URL is always rooted at the configured hosted EMS origin; local development URLs are permitted only for local JSON data. Existing `/register/:eventId` links remain valid. Organizer copy and QR actions can create a separate tracked `go.devcongress.org` short link without changing the canonical registration URL.
 
 ## Attendee Flow
 

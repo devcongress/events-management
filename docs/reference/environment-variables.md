@@ -20,7 +20,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `VITE_ADMIN_BASE_PATH` | No | Yes | Organizer route prefix; defaults to `/organizer-console` |
 | `VITE_SHOW_ORGANIZER_LINK` | No | Yes | Public header visibility for the Organizer entry point; set to `false` to hide the button in production |
 | `VITE_TURNSTILE_SITE_KEY` | Required for production public writes | Yes | Browser-safe Cloudflare Turnstile sitekey used by route feedback, event feedback, volunteer, registration, and CFP forms |
-| `PUBLIC_APP_URL` | No | Yes | Absolute browser-facing app origin used for server-generated auth and public integration links; production is `https://em.devcongress.org` |
+| `PUBLIC_APP_URL` | No | Yes | Absolute browser-facing app origin used for server-generated auth and public integration links; production is `https://em.devcongress.org`. Shared Supabase event records never use a local value for native registration URLs. |
 | `SHORT_LINK_PUBLIC_ORIGIN` | Required when short links are enabled | Yes | Public short-link origin shown to organizers; production is `https://go.devcongress.org`. |
 | `SHORT_LINK_RESOLVER_TOKEN` | Required when short links are enabled | No | Shared high-entropy secret used only between the isolated `go.devcongress.org` Pages Function and the EMS internal short-link resolver. Store it as a secret in EMS and the short-link Pages project. |
 | `EMS_RESOLVER_ORIGIN` | Required on the isolated short-link Pages project | No | EMS public origin used only for the authenticated server-to-server short-link resolver; production is `https://em.devcongress.org`. |

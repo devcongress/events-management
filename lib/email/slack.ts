@@ -229,14 +229,8 @@ export async function sendEventAddedToSlack(input: {
         elements: [{ type: 'mrkdwn', text: `Added via ${slackText(sourceLabel)}` }],
       },
       {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            text: { type: 'plain_text', text: 'Open event' },
-            url: input.publicEventUrl,
-          },
-        ],
+        type: 'section',
+        text: { type: 'mrkdwn', text: `<${input.publicEventUrl}|Open event →>` },
       },
     ],
   };

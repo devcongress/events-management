@@ -95,7 +95,6 @@ describe('native event registration API', () => {
         type: string;
         image_url?: string;
         text?: { text?: string };
-        elements?: Array<{ url?: string }>;
       }>;
     };
     expect(slackPayload).toMatchObject({
@@ -104,8 +103,8 @@ describe('native event registration API', () => {
     const created = await response.clone().json() as { event: { id: string; slug?: string | null } };
     expect(slackPayload.blocks.find((block) => block.type === 'section')?.text?.text)
       .toContain('Thu, 20 Aug 2099 · 7:00 pm GMT');
-    expect(slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0]?.url)
-      .toBe(`https://devcongress.org/events/${created.event.slug ?? created.event.id}`);
+    expect(slackPayload.blocks.find((block) => block.text?.text?.includes('Open event'))?.text?.text)
+      .toBe(`<https://devcongress.org/events/${created.event.slug ?? created.event.id}|Open event →>`);
     expect(slackPayload.blocks.find((block) => block.type === 'image')?.image_url)
       .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
   });
