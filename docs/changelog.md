@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-12 — Restored public submissions with cover images
+
+- Marked the dedicated public multipart cover-upload route as unauthenticated so community proposals with an optional cover can reach their existing validation, Turnstile, rate-limit, storage, and moderation checks.
+- Restored the same intended public boundary for signed organizer management links, while preserving their capability-token verification and existing abuse controls.
+- Added regression coverage that fails if organizer authentication is invoked for a public cover submission or signed management request.
+
 ## 2026-08-12 — Safe public registration links and non-interactive Slack event links
 
 - Prevented local EMS development origins from being persisted into shared Supabase event registration URLs; shared events now use the configured public EMS origin even when created from a local organizer session.

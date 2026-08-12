@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   uploadCover: vi.fn(),
   removeMedia: vi.fn(),
+  requireAdmin: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/event-submissions', async () => {
@@ -70,7 +71,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
   return {
     ...actual,
     getAdminSession: vi.fn(async () => session),
-    requireAdmin: vi.fn(async (c: { set: (key: string, value: unknown) => void }) => {
+    requireAdmin: mocks.requireAdmin.mockImplementation(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
       return null;
     }),
@@ -223,6 +224,7 @@ describe('community event submissions', () => {
   });
 
   it('stores a validated public cover only through the dedicated multipart route', async () => {
+    mocks.requireAdmin.mockClear();
     const { default: app } = await import('./app');
     const form = new FormData();
     Object.entries(validPayload()).forEach(([key, value]) => form.set(key, value));
@@ -231,10 +233,28 @@ describe('community event submissions', () => {
     const response = await app.request('http://localhost/api/public/event-submissions/with-cover', { method: 'POST', body: form });
 
     expect(response.status).toBe(202);
+    expect(mocks.requireAdmin).not.toHaveBeenCalled();
     expect(mocks.uploadCover).toHaveBeenCalledTimes(1);
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
       cover_url: 'https://storage.example.test/cover.jpg',
     }), expect.anything());
+  });
+
+  it('leaves public submission intake and signed management paths outside organizer authentication', async () => {
+    mocks.requireAdmin.mockClear();
+    const { default: app } = await import('./app');
+
+    const requests = [
+      app.request('http://localhost/api/public/event-submissions/with-cover', { method: 'POST' }),
+      app.request('http://localhost/api/public/event-submissions/manage/not-a-capability'),
+      app.request('http://localhost/api/public/event-submissions/manage/not-a-capability', { method: 'PUT' }),
+      app.request('http://localhost/api/public/event-submissions/manage/not-a-capability/with-cover', { method: 'PUT' }),
+      app.request('http://localhost/api/public/event-submissions/manage/not-a-capability/submit', { method: 'POST' }),
+    ];
+
+    await Promise.all(requests);
+
+    expect(mocks.requireAdmin).not.toHaveBeenCalled();
   });
 
   it('notifies the submission channel after saving a validated proposal', async () => {

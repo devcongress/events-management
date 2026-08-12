@@ -1085,6 +1085,20 @@ function isPublicEventRegistrationRequest(path: string, method: string): boolean
     || (method === 'POST' && eventRegistrationPath.test(path));
 }
 
+function isPublicEventSubmissionRequest(path: string, method: string): boolean {
+  const managementPath = /^\/api\/public\/event-submissions\/manage\/[^/]+$/;
+  const managementCoverPath = /^\/api\/public\/event-submissions\/manage\/[^/]+\/with-cover$/;
+  const managementSubmitPath = /^\/api\/public\/event-submissions\/manage\/[^/]+\/submit$/;
+
+  return (method === 'POST' && (
+    path === '/api/public/event-submissions'
+    || path === '/api/public/event-submissions/with-cover'
+    || managementSubmitPath.test(path)
+  ))
+    || (method === 'GET' && managementPath.test(path))
+    || (method === 'PUT' && (managementPath.test(path) || managementCoverPath.test(path)));
+}
+
 function isUnauthenticatedApiRequest(path: string, method: string): boolean {
   return (method === 'GET' && (
     path === '/api/public/meetups'
@@ -1100,13 +1114,13 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || path === '/api/auth/admin/callback'
     ))
     || (method === 'POST' && (
-      path === '/api/public/event-submissions'
-      || path === '/api/webhooks/resend/inbound'
+      path === '/api/webhooks/resend/inbound'
       || path === '/api/cfp'
       || path === '/api/feedback'
       || path === '/api/auth/admin/exchange'
       || path === '/api/volunteer-applications'
     ))
+    || isPublicEventSubmissionRequest(path, method)
     || isPublicFeedbackEventRequest(path, method)
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
