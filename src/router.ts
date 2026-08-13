@@ -250,7 +250,7 @@ async function volunteerCanOpenRoute(path: string, yearParam: unknown): Promise<
 
 router.beforeEach(async (to, from) => {
   const oauthCode = typeof to.query.code === 'string' ? to.query.code : '';
-  const oauthError = typeof to.query.error_description === 'string' ? to.query.error_description : '';
+  const oauthError = typeof to.query.error_description === 'string' ? 'oauth_failed' : '';
 
   if ((oauthCode || oauthError) && to.path !== adminPath('auth/callback')) {
     return {

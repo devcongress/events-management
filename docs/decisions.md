@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-070: Fail Closed for Application RPCs and Shared Secrets
+
+Date: 2026-08-13
+Status: Accepted
+
+Context: PostgreSQL grants new functions to `PUBLIC` by default, and several capability or internal-request boundaries depend on operator-supplied shared secrets. The security audit found one finance RPC overload that retained the default execute grant and found no code-level minimum strength for four application secrets.
+
+Decision: Revoke the audited finance overload from `PUBLIC`, `anon`, and `authenticated`, explicitly retain `service_role` access, and alter the `postgres` role's future `public`-schema function defaults so each new RPC needs a deliberate runtime grant. Require at least 32 trimmed UTF-8 bytes for event-management links, submission Reply-To routing, short-link resolution, and scheduled Slack retries. Invalid configuration fails only the protected workflow closed, while the owner-only data-source diagnostic reports `missing` / `weak` / `ready` without returning values. Keep production Turnstile hostnames separate from local dummy-key testing and serve application styles from same-origin stylesheets so CSP can reject inline style attributes.
+
+Trade-offs: Weak or missing deployed secrets now make the associated link, reply, redirect, or retry path unavailable until configuration is corrected. Rotating existing HMAC secrets can invalidate issued links, and the short-link resolver token must match across two Cloudflare projects, so operators should verify strength without rotating already-strong values. The targeted RPC revocation avoids changing helper/trigger permissions while the new default closes the same class of mistake for future functions.
+
+Revisit when: application RPCs intentionally move to direct browser access, secrets move to an account-level secrets store, or CSP nonces are needed for a new rendering boundary.
+
+---
+
 ## ADR-069: Make Event Deletion Owner-Only With Archive-First Recovery
 
 Date: 2026-08-12

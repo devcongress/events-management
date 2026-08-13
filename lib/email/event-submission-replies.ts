@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { secureSharedSecret } from '@/lib/security/shared-secret';
 
 const REPLY_LOCAL_PREFIX = 's+';
 const LEGACY_REPLY_LOCAL_PREFIX = 'submissions+';
@@ -47,7 +48,7 @@ export function eventSubmissionReplyAddress(input: {
   secret: string;
 }): string | null {
   const domain = normalizedDomain(input.domain);
-  const secret = input.secret.trim();
+  const secret = secureSharedSecret(input.secret);
   const submissionId = compactSubmissionId(input.submissionId.trim());
   if (!domain || !secret || !submissionId) return null;
 
@@ -62,7 +63,8 @@ export function parseEventSubmissionReplyRecipient(
   secret: string,
 ): ParsedEventSubmissionReplyRecipient | null {
   const domain = normalizedDomain(configuredDomain);
-  if (!domain || !secret.trim()) return null;
+  const verifiedSecret = secureSharedSecret(secret);
+  if (!domain || !verifiedSecret) return null;
 
   const [localPart, addressDomain, ...unexpected] = address.trim().split('@');
   if (unexpected.length > 0 || addressDomain?.toLowerCase() !== domain) return null;
@@ -75,7 +77,7 @@ export function parseEventSubmissionReplyRecipient(
     const submissionId = expandSubmissionId(encoded.slice(0, separator));
     const signature = encoded.slice(separator + 1);
     if (!submissionId || !/^[A-Za-z0-9_-]{20}$/.test(signature)) return null;
-    if (!signaturesMatch(signature, submissionSignature(submissionId, secret))) return null;
+    if (!signaturesMatch(signature, submissionSignature(submissionId, verifiedSecret))) return null;
 
     return { submissionId, signature };
   }
@@ -91,7 +93,7 @@ export function parseEventSubmissionReplyRecipient(
   const signature = encoded.slice(separator + 1);
   if (!/^[0-9a-f-]{36}$/.test(submissionId) || !/^[A-Za-z0-9_-]{40,64}$/.test(signature)) return null;
 
-  if (!signaturesMatch(signature, fullSubmissionSignature(submissionId, secret))) return null;
+  if (!signaturesMatch(signature, fullSubmissionSignature(submissionId, verifiedSecret))) return null;
 
   return { submissionId, signature };
 }

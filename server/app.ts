@@ -5,7 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
-import { renderAppBootMarkup, APP_BOOT_STYLES } from '@/lib/app-boot';
+import { renderAppBootMarkup } from '@/lib/app-boot';
 import {
   isEventFeedbackAnswerPresent,
   isEventFeedbackNotAttended,
@@ -214,6 +214,7 @@ import crypto from 'crypto';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 import { publicRegistrationOrigin } from './public-registration-origin';
+import { secureSharedSecret, sharedSecretStatus } from '@/lib/security/shared-secret';
 
 type AppBindings = {
   Variables: {
@@ -270,7 +271,8 @@ app.use('*', async (c, next) => {
       "frame-ancestors 'none'",
       "form-action 'self'",
       "script-src 'self' https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline' https://api.fontshare.com",
+      "style-src 'self' https://api.fontshare.com",
+      "style-src-attr 'none'",
       "font-src 'self' data: https://cdn.fontshare.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' https:",
@@ -1147,7 +1149,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
 }
 
 function shortLinkResolverAuthorized(c: Context): boolean {
-  const expected = envValue('SHORT_LINK_RESOLVER_TOKEN', c)?.trim();
+  const expected = secureSharedSecret(envValue('SHORT_LINK_RESOLVER_TOKEN', c));
   const received = c.req.header('x-short-link-resolver-token')?.trim();
   if (!expected || !received) return false;
   const expectedBuffer = Buffer.from(expected);
@@ -1156,7 +1158,7 @@ function shortLinkResolverAuthorized(c: Context): boolean {
 }
 
 function scheduledSlackRetryAuthorized(c: Context): boolean {
-  const expected = envValue('SLACK_EVENTS_RETRY_SECRET', c)?.trim();
+  const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
   const received = c.req.header('x-scheduled-job-secret')?.trim();
   if (!expected || !received) return false;
   const expectedBuffer = Buffer.from(expected);
@@ -2026,7 +2028,7 @@ function publicAppOrigin(c: Context): string {
 }
 
 function eventSubmissionManagementSignature(linkId: string, c: Context): string | null {
-  const secret = envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c)?.trim();
+  const secret = secureSharedSecret(envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c));
   if (!secret) return null;
   return crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
 }
@@ -3276,6 +3278,14 @@ app.get('/api/health/data-sources', async (c) => {
       configured: supabaseConfigured,
       project_ref: supabaseProjectRef(c),
       document_store_available: documentStoreAvailable,
+    },
+    security_configuration: {
+      shared_secrets: {
+        event_submission_management: sharedSecretStatus(envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c)),
+        event_submission_reply_routing: sharedSecretStatus(envValue('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', c)),
+        short_link_resolver: sharedSecretStatus(envValue('SHORT_LINK_RESOLVER_TOKEN', c)),
+        slack_events_retry: sharedSecretStatus(envValue('SLACK_EVENTS_RETRY_SECRET', c)),
+      },
     },
     sources: {
       community_events: supabaseSource,
@@ -4592,7 +4602,7 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
 app.get('/api/auth/admin/callback', async (c) => {
   const code = String(c.req.query('code') ?? '');
   const next = String(c.req.query('next') ?? defaultAdminRedirectPath(c));
-  const callbackError = String(c.req.query('error_description') ?? c.req.query('error') ?? '');
+  const callbackError = Boolean(c.req.query('error_description') ?? c.req.query('error'));
   const basePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : defaultAdminRedirectPath(c);
   const clientOrigin = publicAppOrigin(c);
@@ -4600,7 +4610,7 @@ app.get('/api/auth/admin/callback', async (c) => {
   clientCallback.searchParams.set('next', safeNext);
 
   if (callbackError) {
-    clientCallback.searchParams.set('error', callbackError);
+    clientCallback.searchParams.set('error', 'oauth_failed');
     return c.redirect(clientCallback.toString());
   }
 
@@ -9857,7 +9867,7 @@ app.get('*', (c) => {
     <link rel="preconnect" href="https://api.fontshare.com" />
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap" rel="stylesheet" />
     <title>${pageTitle}</title>
-    <style>${APP_BOOT_STYLES}</style>
+    <link rel="stylesheet" href="/app-boot.css" />
   </head>
   <body>
     <div id="app">${renderAppBootMarkup(pathname)}</div>

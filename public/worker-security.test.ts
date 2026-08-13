@@ -25,4 +25,11 @@ describe('deployed response-layer security parity', () => {
       expect(apiApp).toContain(origin);
     }
   });
+
+  it('disallows inline style attributes and unsafe inline style blocks at every response layer', () => {
+    for (const source of [staticHeaders, outerWorker, apiApp]) {
+      expect(source).not.toContain("style-src 'self' 'unsafe-inline'");
+      expect(source).toContain("style-src-attr 'none'");
+    }
+  });
 });

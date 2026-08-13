@@ -4,7 +4,7 @@ import { eventSubmissionReplyAddress, parseEventSubmissionReplyRecipient } from 
 
 const submissionId = '3e171129-0077-4dbd-ad8b-d82ba31d3176';
 const domain = 'updates.devcongress.org';
-const secret = 'submission-routing-secret';
+const secret = 'submission-routing-secret-for-tests-2026';
 
 describe('event submission reply addresses', () => {
   it('uses a compact signed local part that remains within the email limit', () => {
@@ -23,5 +23,14 @@ describe('event submission reply addresses', () => {
       submissionId,
       signature: legacySignature,
     });
+  });
+
+  it('rejects weak routing secrets for new and legacy reply addresses', () => {
+    expect(eventSubmissionReplyAddress({ submissionId, domain, secret: 'short-secret' })).toBeNull();
+    expect(parseEventSubmissionReplyRecipient(
+      `submissions+${submissionId}.invalid@${domain}`,
+      domain,
+      'short-secret',
+    )).toBeNull();
   });
 });

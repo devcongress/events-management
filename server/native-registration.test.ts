@@ -173,7 +173,7 @@ describe('native event registration API', () => {
 
   it('waits for the public website readiness check and sends from the scheduled retry once it is available', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
-    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'scheduled-retry-secret');
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'scheduled-retry-secret-for-tests-2026');
     let websiteReady = false;
     const slackFetch = vi.fn(async (input: RequestInfo | URL) => (
       String(input).startsWith('https://devcongress.org/')
@@ -201,7 +201,7 @@ describe('native event registration API', () => {
     websiteReady = true;
     const retry = await app.request('http://localhost/api/internal/slack-announcements/retry', {
       method: 'POST',
-      headers: { 'x-scheduled-job-secret': 'scheduled-retry-secret' },
+      headers: { 'x-scheduled-job-secret': 'scheduled-retry-secret-for-tests-2026' },
     });
     await expect(retry.json()).resolves.toMatchObject({ ok: true, sent: 1, waiting_for_website: 0 });
     expect(slackFetch).toHaveBeenCalledTimes(3);
