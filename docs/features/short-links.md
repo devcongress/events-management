@@ -18,7 +18,7 @@ Owners use **Audit Log → Short links** as the registry: copy an active link, i
 
 ## Runtime boundary
 
-`short-links/` is a deliberately small Cloudflare Pages project for `go.devcongress.org`. Its single Pages Function accepts only one opaque path segment and `GET`/`HEAD`, then resolves it through the protected EMS HTTPS resolver. It uses only a server-to-server resolver token, holds no Supabase credentials, does not forward query strings, and rejects any non-first-party path. Unavailable, revoked, stale, or temporarily unreachable links receive the same responsive branded 404 page; it does not disclose whether a code ever existed or why it is unavailable.
+`short-links/` is a deliberately small Cloudflare Pages project for `go.devcongress.org`. Its single Pages Function accepts only one opaque path segment and `GET`/`HEAD`, then resolves it through the protected EMS HTTPS resolver. It uses only a server-to-server resolver token, holds no Supabase credentials, does not forward query strings, and rejects any non-first-party path. The catch-all explicitly passes the known `unavailable.css` and `robots.txt` assets through to Pages static hosting; every other non-code path remains fail closed. Unavailable, revoked, stale, or temporarily unreachable links receive the same responsive branded 404 page; it does not disclose whether a code ever existed or why it is unavailable.
 
 ## Deployment setup
 
@@ -36,6 +36,6 @@ Owners use **Audit Log → Short links** as the registry: copy an active link, i
 | `supabase/migrations/20260809193000_short_link_canonical_destinations.sql` | one-active-link invariant and serialized ensure/regenerate RPCs |
 | `lib/supabase/short-links.ts` | server-side ensure, regeneration, listing, revocation, resolution |
 | `server/app.ts` | share-time ensure API, owner registry controls, audit records, authenticated internal resolver |
-| `short-links/functions/[[code]].ts` | isolated public redirect Pages Function |
+| `short-links/functions/[[code]].ts` | isolated public redirect Pages Function and explicit static-asset pass-through |
 | `short-links/redirect.ts` | shared validation and EMS resolver boundary |
 | `src/views/admin/AdminAuditLogView.vue` | Short links operational subview |

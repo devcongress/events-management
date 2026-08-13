@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-13 — Restored short-link fallback styling
+
+- Allowed the isolated Pages catch-all to pass the known `unavailable.css` and `robots.txt` files through to static hosting instead of treating their filenames as invalid short-link codes.
+- Kept every other non-code path on the branded fail-closed `404` response and added function-boundary regression coverage for both static assets.
+
 ## 2026-08-13 — OWASP public API and upload hardening
 
 - Moved new event-management bearer capabilities out of HTTP paths into URL fragments plus same-origin authorization headers, retained legacy links, and redacted legacy capability segments from application logs.

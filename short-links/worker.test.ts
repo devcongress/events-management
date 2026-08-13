@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { onRequest } from './functions/[[code]]';
 import { resolveShortLinkRequest } from './redirect';
 
 const env = () => ({
@@ -10,6 +11,23 @@ const env = () => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe('short-link Worker', () => {
+  it.each(['/unavailable.css', '/robots.txt'])('passes the static asset %s to Pages', async (pathname) => {
+    const next = vi.fn(async () => new Response('static asset', {
+      status: 200,
+      headers: { 'content-type': pathname.endsWith('.css') ? 'text/css' : 'text/plain' },
+    }));
+
+    const response = await onRequest({
+      request: new Request(`https://go.devcongress.org${pathname}`),
+      env: env(),
+      next,
+    });
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('static asset');
+  });
+
   it('resolves an opaque code through EMS and uses a mutable redirect', async () => {
     const resolver = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('https://em.devcongress.org/api/internal/short-links/K7M4P');
