@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-13 — OWASP public API and upload hardening
+
+- Moved new event-management bearer capabilities out of HTTP paths into URL fragments plus same-origin authorization headers, retained legacy links, and redacted legacy capability segments from application logs.
+- Added pre-parse limits for public cover uploads, reordered Turnstile/rate checks ahead of image inspection, and enforced bounded JPEG/PNG/WebP/AVIF dimensions.
+- Replaced wildcard public API CORS with exact website origins while keeping capability routes same-origin only.
+- Added explicit five-minute Pages edge caching for queryless public reads, rejected unsupported cache-key queries, and bounded event/archive collections.
+- Confirmed the production Turnstile hostname hardening was already merged in commit `4d20098` through PR #112; no duplicate configuration change was needed.
+
 ## 2026-08-13 — Post-feature security audit
 
 - Audited the 272-file change set since the prior security review against OWASP Top 10:2025, including finance, delegated conference access, public event amendments/uploads, inbound email, Slack, short links, backups, and public event delivery.

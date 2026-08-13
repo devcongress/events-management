@@ -7,6 +7,7 @@ import { canonicalizeSystemDesignSchedule } from '@/lib/system-design';
 import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { isEventFormat } from '@/lib/event-format';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER, publicEventCoverUrl } from '@/lib/event-cover';
+import { PUBLIC_EVENT_COLLECTION_LIMIT } from '@/lib/public-api-policy';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
@@ -391,22 +392,31 @@ export async function getSupabasePublicMeetups(origin: string, c?: Context): Pro
     .eq('publish_to_website', true)
     .is('deleted_at', null)
     .eq('event_ownership', 'devcongress')
-    .order('starts_at', { ascending: false });
+    .order('starts_at', { ascending: false })
+    .limit(PUBLIC_EVENT_COLLECTION_LIMIT);
 
   if (error) throw new Error('Unable to load public meetups');
   return data.map((row) => toPublicMeetup(row, origin));
 }
 
-export async function getSupabasePublicEvents(c?: Context): Promise<PublicEvent[] | null> {
+export async function getSupabasePublicEvents(
+  c?: Context,
+  options: { includePublicSubmissions?: boolean } = {},
+): Promise<PublicEvent[] | null> {
   if (!canUseSupabaseCommunityEvents(c)) return null;
 
-  const { data, error } = await getSupabaseAdminClient(c)
+  const query = getSupabaseAdminClient(c)
     .from('community_events')
     .select('*')
     .eq('publish_to_website', true)
     .eq('publication_status', 'published')
-    .is('deleted_at', null)
-    .order('starts_at', { ascending: false });
+    .is('deleted_at', null);
+  const filteredQuery = options.includePublicSubmissions === false
+    ? query.neq('submission_source', 'public_submission')
+    : query;
+  const { data, error } = await filteredQuery
+    .order('starts_at', { ascending: false })
+    .limit(PUBLIC_EVENT_COLLECTION_LIMIT);
 
   if (error) throw new Error('Unable to load public events');
   return data
@@ -426,7 +436,8 @@ export async function getSupabasePublicEventPreviewMeetups(
     .eq('publish_to_website', true)
     .eq('publication_status', 'published')
     .is('deleted_at', null)
-    .order('starts_at', { ascending: false });
+    .order('starts_at', { ascending: false })
+    .limit(PUBLIC_EVENT_COLLECTION_LIMIT);
 
   if (error) throw new Error('Unable to load event preview');
   return data

@@ -1,4 +1,9 @@
 const WORKER_API_ORIGIN = 'https://events-management.admins-a7d.workers.dev';
+const PUBLIC_API_ALLOWED_ORIGINS = new Set([
+  'https://devcongress.org',
+  'https://www.devcongress.org',
+]);
+const PUBLIC_API_EDGE_TTL_SECONDS = 300;
 const STALE_ASSET_RELOAD_KEY = 'devcon-stale-asset-reload';
 const APP_BOOT_VARIANT_ATTRIBUTE = 'data-app-boot-variant';
 const APP_BOOT_LABELS = {
@@ -52,7 +57,7 @@ function publicBootVariant(pathname) {
   if (path.startsWith('/cfp/')) return 'cfp';
   if (path.startsWith('/feedback/')) return 'feedback';
   if (path.startsWith('/speaker-talks/')) return 'speaker';
-  if (path.startsWith('/event-amendments/')) return 'speaker';
+  if (path === '/event-amendments' || path.startsWith('/event-amendments/')) return 'speaker';
   if (path.startsWith('/volunteer/')) return 'volunteer';
   if (path.startsWith('/learn/system-design/')) return 'learning-room';
   return 'organizer';
@@ -101,12 +106,66 @@ async function proxyApiRequest(request) {
   const headers = new Headers(request.headers);
   headers.delete('host');
 
-  return fetch(new Request(targetUrl, {
+  const cacheablePublicRead = isCacheablePublicApiRead(request, incomingUrl);
+  const requestOrigin = headers.get('origin');
+  if (cacheablePublicRead) {
+    // Cache one origin-neutral upstream response, then attach the narrow
+    // browser CORS header after the cache lookup. This prevents one allowed
+    // website origin from poisoning the response served to another.
+    headers.delete('origin');
+  }
+
+  const response = await fetch(new Request(targetUrl, {
     method: request.method,
     headers,
     body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
     redirect: 'manual',
+    cf: cacheablePublicRead ? {
+      cacheEverything: true,
+      cacheTtlByStatus: {
+        '200-299': PUBLIC_API_EDGE_TTL_SECONDS,
+        '404': 30,
+        '400-499': 0,
+        '500-599': 0,
+      },
+    } : undefined,
   }));
+
+  return cacheablePublicRead
+    ? withPublicReadCors(response, requestOrigin)
+    : response;
+}
+
+function isCacheablePublicApiRead(request, url) {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  if (url.search || request.headers.has('authorization') || request.headers.has('cookie')) return false;
+
+  const path = url.pathname;
+  return path === '/api/public/meetups'
+    || path.startsWith('/api/public/meetups/')
+    || path === '/api/public/events'
+    || /^\/api\/public\/events\/[^/]+$/.test(path)
+    || path === '/api/public/archive'
+    || path.startsWith('/api/public/archive/')
+    || path === '/api/public/home';
+}
+
+function withPublicReadCors(response, requestOrigin) {
+  const headers = new Headers(response.headers);
+  if (requestOrigin && PUBLIC_API_ALLOWED_ORIGINS.has(requestOrigin)) {
+    headers.set('access-control-allow-origin', requestOrigin);
+  } else {
+    headers.delete('access-control-allow-origin');
+  }
+  const vary = headers.get('vary')?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
+  if (!vary.some((value) => value.toLowerCase() === 'origin')) vary.push('Origin');
+  headers.set('vary', vary.join(', '));
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 export default {

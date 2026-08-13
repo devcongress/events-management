@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-071: Bound Public API Work and Remove Bearer Capabilities From New Request Paths
+
+Date: 2026-08-13
+Status: Accepted
+
+Context: The OWASP API review found that anonymous public collections could repeatedly fan out into Worker and database reads, public CORS also covered signed management routes, image headers were inspected before the strongest abuse checks, and event-management capabilities appeared in URL paths that application and platform request logs may retain.
+
+Decision: Cache only queryless, unauthenticated public reads at the Pages edge for five minutes, reject unsupported public-read query strings, cap event/archive collections, and restrict browser CORS to explicit website origins. Apply a distributed client limit before parsing public cover multipart bodies, then run Turnstile and normal limits before signature/dimension work; reject covers above a 4096px edge or 16,777,216 pixels. Issue new event-management links with the bearer in a URL fragment and pass it to same-origin API routes through `Authorization`. Keep legacy path routes for existing emails, redact their capability segment from every application request-path sink, and treat any historical provider URL-log retention as an external operational responsibility rather than inventing a repository setting.
+
+Trade-offs: Public website changes can remain stale at one edge location for up to five minutes. Collection caps require a future pagination contract before the public catalogue exceeds 250 events. Preliminary upload limiting adds one distributed limiter operation to successful cover submissions. Legacy links cannot be made absent from platform logs retroactively, but new links and subsequent API calls no longer place the bearer in the request target.
+
+Revisit when: the public API adds supported filters or pagination, cache invalidation hooks become necessary, Cloudflare log retention/access is formally configured, or all legacy management links have expired and their path routes can be removed.
+
+---
+
 ## ADR-070: Fail Closed for Application RPCs and Shared Secrets
 
 Date: 2026-08-13

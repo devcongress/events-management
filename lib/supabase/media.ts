@@ -3,6 +3,9 @@ import { getSupabaseAdminClient, isSupabaseServerConfigured } from './server';
 
 const MEETUP_MEDIA_BUCKET = 'meetup-media';
 const MEETUP_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+const MEETUP_MEDIA_MAX_EDGE_PIXELS = 4096;
+const MEETUP_MEDIA_MAX_TOTAL_PIXELS = 16_777_216;
+const MEETUP_MEDIA_HEADER_MAX_BYTES = 512 * 1024;
 const MEETUP_MEDIA_TYPES = new Map([
   ['image/avif', 'avif'],
   ['image/jpeg', 'jpg'],
@@ -48,7 +51,7 @@ export function validateMeetupMediaFile(file: File): string | null {
 }
 
 export async function validateMeetupMediaContent(file: File): Promise<string | null> {
-  const bytes = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  const bytes = new Uint8Array(await file.slice(0, MEETUP_MEDIA_HEADER_MAX_BYTES).arrayBuffer());
   const matches = {
     'image/jpeg': bytes.length >= 3
       && bytes[0] === 0xff
@@ -68,12 +71,24 @@ export async function validateMeetupMediaContent(file: File): Promise<string | n
       && ascii(bytes, 8, 12) === 'WEBP',
     'image/avif': bytes.length >= 16
       && ascii(bytes, 4, 8) === 'ftyp'
-      && ['avif', 'avis'].some((brand) => ascii(bytes, 8, bytes.length).includes(brand)),
+      && avifFtypHasSupportedBrand(bytes),
   } as const;
 
-  return matches[file.type as keyof typeof matches]
-    ? null
-    : 'The file contents do not match the selected image type';
+  if (!matches[file.type as keyof typeof matches]) {
+    return 'The file contents do not match the selected image type';
+  }
+
+  const dimensions = imageDimensions(bytes, file.type);
+  if (!dimensions) return 'Image dimensions could not be verified';
+  if (
+    dimensions.width > MEETUP_MEDIA_MAX_EDGE_PIXELS
+    || dimensions.height > MEETUP_MEDIA_MAX_EDGE_PIXELS
+    || dimensions.width * dimensions.height > MEETUP_MEDIA_MAX_TOTAL_PIXELS
+  ) {
+    return 'Image dimensions must be 4096 × 4096 pixels or smaller';
+  }
+
+  return null;
 }
 
 export function isMeetupMediaConfigured(c?: Context): boolean {
@@ -164,4 +179,210 @@ function slugify(value: string): string {
 
 function ascii(bytes: Uint8Array, start: number, end: number): string {
   return String.fromCharCode(...bytes.slice(start, end));
+}
+
+type ImageDimensions = { width: number; height: number };
+
+function imageDimensions(bytes: Uint8Array, type: string): ImageDimensions | null {
+  const dimensions = type === 'image/png'
+    ? pngDimensions(bytes)
+    : type === 'image/jpeg'
+      ? jpegDimensions(bytes)
+      : type === 'image/webp'
+        ? webpDimensions(bytes)
+        : type === 'image/avif'
+          ? avifDimensions(bytes)
+          : null;
+
+  return dimensions && validDimensions(dimensions) ? dimensions : null;
+}
+
+function validDimensions(value: ImageDimensions): boolean {
+  return Number.isInteger(value.width)
+    && Number.isInteger(value.height)
+    && value.width > 0
+    && value.height > 0;
+}
+
+function pngDimensions(bytes: Uint8Array): ImageDimensions | null {
+  if (bytes.length < 24 || ascii(bytes, 12, 16) !== 'IHDR') return null;
+  return {
+    width: readUint32BigEndian(bytes, 16),
+    height: readUint32BigEndian(bytes, 20),
+  };
+}
+
+const JPEG_START_OF_FRAME_MARKERS = new Set([
+  0xc0, 0xc1, 0xc2, 0xc3,
+  0xc5, 0xc6, 0xc7,
+  0xc9, 0xca, 0xcb,
+  0xcd, 0xce, 0xcf,
+]);
+
+function jpegDimensions(bytes: Uint8Array): ImageDimensions | null {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
+
+  let offset = 2;
+  while (offset + 3 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    while (bytes[offset] === 0xff) offset += 1;
+    const marker = bytes[offset];
+    offset += 1;
+    if (marker === undefined || marker === 0xd9 || marker === 0xda) return null;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+    if (offset + 1 >= bytes.length) return null;
+
+    const segmentLength = readUint16BigEndian(bytes, offset);
+    if (segmentLength < 2 || offset + segmentLength > bytes.length) return null;
+    if (JPEG_START_OF_FRAME_MARKERS.has(marker) && segmentLength >= 7) {
+      return {
+        height: readUint16BigEndian(bytes, offset + 3),
+        width: readUint16BigEndian(bytes, offset + 5),
+      };
+    }
+    offset += segmentLength;
+  }
+
+  return null;
+}
+
+function webpDimensions(bytes: Uint8Array): ImageDimensions | null {
+  if (bytes.length < 30 || ascii(bytes, 0, 4) !== 'RIFF' || ascii(bytes, 8, 12) !== 'WEBP') return null;
+
+  let offset = 12;
+  while (offset + 8 <= bytes.length) {
+    const chunkType = ascii(bytes, offset, offset + 4);
+    const chunkSize = readUint32LittleEndian(bytes, offset + 4);
+    const payloadOffset = offset + 8;
+    if (payloadOffset + chunkSize > bytes.length) return null;
+
+    if (chunkType === 'VP8X' && chunkSize >= 10) {
+      return {
+        width: readUint24LittleEndian(bytes, payloadOffset + 4) + 1,
+        height: readUint24LittleEndian(bytes, payloadOffset + 7) + 1,
+      };
+    }
+    if (
+      chunkType === 'VP8 '
+      && chunkSize >= 10
+      && bytes[payloadOffset + 3] === 0x9d
+      && bytes[payloadOffset + 4] === 0x01
+      && bytes[payloadOffset + 5] === 0x2a
+    ) {
+      return {
+        width: readUint16LittleEndian(bytes, payloadOffset + 6) & 0x3fff,
+        height: readUint16LittleEndian(bytes, payloadOffset + 8) & 0x3fff,
+      };
+    }
+    if (chunkType === 'VP8L' && chunkSize >= 5 && bytes[payloadOffset] === 0x2f) {
+      const b1 = bytes[payloadOffset + 1] ?? 0;
+      const b2 = bytes[payloadOffset + 2] ?? 0;
+      const b3 = bytes[payloadOffset + 3] ?? 0;
+      const b4 = bytes[payloadOffset + 4] ?? 0;
+      return {
+        width: 1 + (((b2 & 0x3f) << 8) | b1),
+        height: 1 + (((b4 & 0x0f) << 10) | (b3 << 2) | ((b2 & 0xc0) >> 6)),
+      };
+    }
+
+    offset = payloadOffset + chunkSize + (chunkSize % 2);
+  }
+
+  return null;
+}
+
+function avifDimensions(bytes: Uint8Array): ImageDimensions | null {
+  return findAvifDimensions(bytes, 0, bytes.length, 0);
+}
+
+function avifFtypHasSupportedBrand(bytes: Uint8Array): boolean {
+  const ftypSize = readUint32BigEndian(bytes, 0);
+  if (ftypSize < 16 || ftypSize > bytes.length || ascii(bytes, 4, 8) !== 'ftyp') return false;
+
+  for (let offset = 8; offset + 4 <= ftypSize; offset += 4) {
+    const brand = ascii(bytes, offset, offset + 4);
+    if (brand === 'avif' || brand === 'avis') return true;
+  }
+  return false;
+}
+
+function findAvifDimensions(
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  depth: number,
+): ImageDimensions | null {
+  if (depth > 6) return null;
+
+  let offset = start;
+  while (offset + 8 <= end) {
+    let boxSize = readUint32BigEndian(bytes, offset);
+    const boxType = ascii(bytes, offset + 4, offset + 8);
+    let headerSize = 8;
+    if (boxSize === 1) {
+      if (offset + 16 > end) return null;
+      const high = readUint32BigEndian(bytes, offset + 8);
+      const low = readUint32BigEndian(bytes, offset + 12);
+      if (high !== 0) return null;
+      boxSize = low;
+      headerSize = 16;
+    } else if (boxSize === 0) {
+      boxSize = end - offset;
+    }
+    if (boxSize < headerSize || offset + boxSize > end) return null;
+
+    const payloadStart = offset + headerSize;
+    const boxEnd = offset + boxSize;
+    if (boxType === 'ispe' && boxEnd - payloadStart >= 12) {
+      return {
+        width: readUint32BigEndian(bytes, payloadStart + 4),
+        height: readUint32BigEndian(bytes, payloadStart + 8),
+      };
+    }
+
+    if (boxType === 'meta' || boxType === 'iprp' || boxType === 'ipco') {
+      const childStart = boxType === 'meta' ? payloadStart + 4 : payloadStart;
+      const nested = findAvifDimensions(bytes, childStart, boxEnd, depth + 1);
+      if (nested) return nested;
+    }
+
+    offset = boxEnd;
+  }
+
+  return null;
+}
+
+function readUint16BigEndian(bytes: Uint8Array, offset: number): number {
+  return ((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0);
+}
+
+function readUint16LittleEndian(bytes: Uint8Array, offset: number): number {
+  return (bytes[offset] ?? 0) | ((bytes[offset + 1] ?? 0) << 8);
+}
+
+function readUint24LittleEndian(bytes: Uint8Array, offset: number): number {
+  return (bytes[offset] ?? 0)
+    | ((bytes[offset + 1] ?? 0) << 8)
+    | ((bytes[offset + 2] ?? 0) << 16);
+}
+
+function readUint32BigEndian(bytes: Uint8Array, offset: number): number {
+  return (
+    ((bytes[offset] ?? 0) * 0x1000000)
+    + ((bytes[offset + 1] ?? 0) << 16)
+    + ((bytes[offset + 2] ?? 0) << 8)
+    + (bytes[offset + 3] ?? 0)
+  ) >>> 0;
+}
+
+function readUint32LittleEndian(bytes: Uint8Array, offset: number): number {
+  return (
+    (bytes[offset] ?? 0)
+    + ((bytes[offset + 1] ?? 0) << 8)
+    + ((bytes[offset + 2] ?? 0) << 16)
+    + ((bytes[offset + 3] ?? 0) * 0x1000000)
+  ) >>> 0;
 }

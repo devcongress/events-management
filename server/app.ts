@@ -166,6 +166,12 @@ import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } f
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
 import { consumePublicRateLimit, type PublicRateLimitResult } from '@/lib/public-rate-limit';
 import {
+  PUBLIC_API_CACHE_CONTROL,
+  PUBLIC_ARCHIVE_ITEM_COLLECTION_LIMIT,
+  PUBLIC_EVENT_ARCHIVE_ITEM_LIMIT,
+  PUBLIC_EVENT_COLLECTION_LIMIT,
+} from '@/lib/public-api-policy';
+import {
   archiveRequestProgramItems,
   sameArchiveProgramItemIdentity,
 } from '@/lib/speaker-archive-email';
@@ -316,6 +322,8 @@ for (const publicWritePath of [
   '/api/events/*/speaker-intake/*',
   '/api/public/event-submissions/manage/:capability',
   '/api/public/event-submissions/manage/:capability/submit',
+  '/api/public/event-submissions/management',
+  '/api/public/event-submissions/management/submit',
   '/api/quiz/join',
   '/api/quiz/answer',
   '/api/quiz/participants/*',
@@ -330,6 +338,7 @@ for (const publicWritePath of [
 // submission route keeps its small JSON body ceiling.
 app.use('/api/public/event-submissions/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
 app.use('/api/public/event-submissions/manage/:capability/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
+app.use('/api/public/event-submissions/management/with-cover', bodyLimitForPayloadMethods(PUBLIC_EVENT_SUBMISSION_COVER_MAX_BYTES));
 
 // A neutral brand asset for events that do not supply their own cover. Do not
 // rotate archival meetup photos here: an unrelated photo can imply a false
@@ -1076,6 +1085,42 @@ function eventSubmissionTurnstileHostnames(c: Context): string[] {
     .filter(Boolean);
 }
 
+function configuredPublicApiOrigins(c: Context): Set<string> {
+  return new Set((envValue('PUBLIC_API_CORS_ORIGINS', c) ?? envValue('PUBLIC_WEBSITE_ORIGIN', c) ?? '')
+    .split(',')
+    .flatMap((value) => {
+      try {
+        return [new URL(value.trim()).origin];
+      } catch {
+        return [];
+      }
+    }));
+}
+
+function publicApiCorsOrigin(origin: string | undefined, c: Context): string | undefined {
+  if (!origin) return undefined;
+  if (configuredPublicApiOrigins(c).has(origin)) return origin;
+  if (envValue('NODE_ENV', c) === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) {
+    return origin;
+  }
+  return undefined;
+}
+
+function isPublicReadApiPath(path: string): boolean {
+  return path === '/api/public/meetups'
+    || path.startsWith('/api/public/meetups/')
+    || path === '/api/public/events'
+    || /^\/api\/public\/events\/[^/]+$/.test(path)
+    || path === '/api/public/archive'
+    || path.startsWith('/api/public/archive/')
+    || path === '/api/public/home';
+}
+
+function isPublicEventSubmissionIntakePath(path: string): boolean {
+  return path === '/api/public/event-submissions'
+    || path === '/api/public/event-submissions/with-cover';
+}
+
 function isPublicFeedbackEventRequest(path: string, method: string): boolean {
   return (method === 'GET' && /^\/api\/feedback\/events\/[^/]+$/.test(path))
     || (method === 'POST' && /^\/api\/feedback\/events\/[^/]+\/submissions$/.test(path));
@@ -1105,14 +1150,23 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
   const managementPath = /^\/api\/public\/event-submissions\/manage\/[^/]+$/;
   const managementCoverPath = /^\/api\/public\/event-submissions\/manage\/[^/]+\/with-cover$/;
   const managementSubmitPath = /^\/api\/public\/event-submissions\/manage\/[^/]+\/submit$/;
+  const headerManagementPath = path === '/api/public/event-submissions/management';
+  const headerManagementCoverPath = path === '/api/public/event-submissions/management/with-cover';
+  const headerManagementSubmitPath = path === '/api/public/event-submissions/management/submit';
 
   return (method === 'POST' && (
     path === '/api/public/event-submissions'
     || path === '/api/public/event-submissions/with-cover'
     || managementSubmitPath.test(path)
+    || headerManagementSubmitPath
   ))
-    || (method === 'GET' && managementPath.test(path))
-    || (method === 'PUT' && (managementPath.test(path) || managementCoverPath.test(path)));
+    || (method === 'GET' && (managementPath.test(path) || headerManagementPath))
+    || (method === 'PUT' && (
+      managementPath.test(path)
+      || managementCoverPath.test(path)
+      || headerManagementPath
+      || headerManagementCoverPath
+    ));
 }
 
 function isUnauthenticatedApiRequest(path: string, method: string): boolean {
@@ -1267,12 +1321,36 @@ function isLogoutPath(path: string): boolean {
   return path === '/api/auth/logout';
 }
 
-app.use('/api/public/*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'OPTIONS'],
+const publicReadCors = cors({
+  origin: publicApiCorsOrigin,
+  allowMethods: ['GET', 'HEAD', 'OPTIONS'],
   allowHeaders: ['Content-Type'],
   maxAge: 86400,
-}));
+});
+
+const publicSubmissionCors = cors({
+  origin: publicApiCorsOrigin,
+  allowMethods: ['POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+  maxAge: 86400,
+});
+
+app.use('/api/public/*', async (c, next) => {
+  if (isPublicReadApiPath(c.req.path)) return publicReadCors(c, next);
+  if (isPublicEventSubmissionIntakePath(c.req.path)) return publicSubmissionCors(c, next);
+  await next();
+});
+
+app.use('/api/public/*', async (c, next) => {
+  if (
+    (c.req.method === 'GET' || c.req.method === 'HEAD')
+    && isPublicReadApiPath(c.req.path)
+    && new URL(c.req.url).search.length > 0
+  ) {
+    return c.json({ error: 'Query parameters are not supported for this endpoint.' }, 400);
+  }
+  await next();
+});
 
 const credentialedApiCors = cors({
   origin: corsOrigin,
@@ -1622,7 +1700,7 @@ function canonicalizeEventSchedule(event: Event): Event {
 }
 
 function setPublicApiCache(c: Context) {
-  c.header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400');
+  c.header('Cache-Control', PUBLIC_API_CACHE_CONTROL);
 }
 
 function slugify(value: string): string {
@@ -1860,7 +1938,8 @@ async function publicArchivePayload(c: Context) {
   const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
   const archiveEvents = events
     .filter(isPublicArchiveEvent)
-    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime());
+    .sort((a, b) => new Date(b.event_date).getTime() - new Date(a.event_date).getTime())
+    .slice(0, PUBLIC_EVENT_COLLECTION_LIMIT);
   const eventById = new Map(archiveEvents.map((event) => [event.id, event]));
   const archiveItems = talks
     .filter((talk) => talk.status === 'published')
@@ -1868,7 +1947,8 @@ async function publicArchivePayload(c: Context) {
       const event = eventById.get(talk.event_id);
       return event ? [toPublicArchiveTalk(talk, event)] : [];
     })
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, PUBLIC_ARCHIVE_ITEM_COLLECTION_LIMIT);
 
   return {
     events: archiveEvents.map(toPublicArchiveEvent),
@@ -1893,7 +1973,8 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
   const archiveItems = talks
     .filter((talk) => talk.status === 'published')
     .map((talk) => toPublicArchiveTalk(talk, event))
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, PUBLIC_EVENT_ARCHIVE_ITEM_LIMIT);
 
   return {
     event: toPublicArchiveEvent(event),
@@ -1939,7 +2020,8 @@ async function buildPublicMeetups(origin: string, c?: Context) {
   return events
     .filter((event) => event.ownership !== 'external' && (event.publish_to_website ?? event.status !== 'draft'))
     .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), origin))
-    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+    .slice(0, PUBLIC_EVENT_COLLECTION_LIMIT);
 }
 
 async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
@@ -1991,18 +2073,20 @@ async function publicEventPreviewMeetups(c: Context): Promise<PublicMeetup[]> {
     ))
     .filter((event) => event.ownership !== 'external' || event.moderation_status === 'approved')
     .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), publicAppOrigin(c)))
-    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime());
+    .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())
+    .slice(0, PUBLIC_EVENT_COLLECTION_LIMIT);
 }
 
 async function publicEventsForApi(c: Context): Promise<PublicEvent[]> {
-  const events = await getSupabasePublicEvents(c) ?? await buildPublicEvents(c);
-  if (publicEventSubmissionsPublicDiscoveryEnabled(
+  const includePublicSubmissions = publicEventSubmissionsPublicDiscoveryEnabled(
     envValue('PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED', c),
-  )) {
-    return events;
-  }
+  );
+  const events = await getSupabasePublicEvents(c, { includePublicSubmissions }) ?? await buildPublicEvents(c);
 
-  return events.filter((event) => event.source !== 'public_submission');
+  return (includePublicSubmissions
+    ? events
+    : events.filter((event) => event.source !== 'public_submission'))
+    .slice(0, PUBLIC_EVENT_COLLECTION_LIMIT);
 }
 
 async function publicMeetupsForApi(c: Context): Promise<PublicMeetup[]> {
@@ -2035,9 +2119,11 @@ function eventSubmissionManagementSignature(linkId: string, c: Context): string 
 
 function eventSubmissionManagementUrl(linkId: string, c: Context): string | null {
   const signature = eventSubmissionManagementSignature(linkId, c);
-  return signature
-    ? new URL(`/event-amendments/${encodeURIComponent(linkId)}.${encodeURIComponent(signature)}`, publicAppOrigin(c)).toString()
-    : null;
+  if (!signature) return null;
+
+  const url = new URL('/event-amendments', publicAppOrigin(c));
+  url.hash = new URLSearchParams({ capability: `${linkId}.${signature}` }).toString();
+  return url.toString();
 }
 
 function verifiedEventSubmissionManagementLink(raw: string, c: Context): string | null {
@@ -2046,6 +2132,15 @@ function verifiedEventSubmissionManagementLink(raw: string, c: Context): string 
   const expected = eventSubmissionManagementSignature(linkId, c);
   if (!expected || signature.length !== expected.length) return null;
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) ? linkId : null;
+}
+
+function eventSubmissionManagementCapability(c: Context): string {
+  const legacyPathCapability = c.req.param('capability')?.trim();
+  if (legacyPathCapability) return legacyPathCapability;
+
+  const authorization = c.req.header('authorization')?.trim() ?? '';
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() ?? '';
 }
 
 function publicRegistrationUrl(event: Event, c: Context): string {
@@ -5621,8 +5716,8 @@ app.get('/api/admin/events-preview/:slug', async (c) => {
   return c.json({ data: event });
 });
 
-app.get('/api/public/event-submissions/manage/:capability', async (c) => {
-  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+async function openEventSubmissionManagement(c: Context) {
+  const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 30, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
   if (rateLimitError) return rateLimitError;
@@ -5633,10 +5728,13 @@ app.get('/api/public/event-submissions/manage/:capability', async (c) => {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 503);
     throw error;
   }
-});
+}
 
-app.put('/api/public/event-submissions/manage/:capability', async (c) => {
-  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+app.get('/api/public/event-submissions/management', openEventSubmissionManagement);
+app.get('/api/public/event-submissions/manage/:capability', openEventSubmissionManagement);
+
+async function saveEventSubmissionManagement(c: Context) {
+  const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
   if (rateLimitError) return rateLimitError;
@@ -5649,13 +5747,26 @@ app.put('/api/public/event-submissions/manage/:capability', async (c) => {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
     throw error;
   }
-});
+}
+
+app.put('/api/public/event-submissions/management', saveEventSubmissionManagement);
+app.put('/api/public/event-submissions/manage/:capability', saveEventSubmissionManagement);
 
 // Cover uploads have their own narrow multipart endpoint so ordinary amendment
 // drafts remain under the small public JSON ceiling.
-app.put('/api/public/event-submissions/manage/:capability/with-cover', async (c) => {
-  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+async function saveEventSubmissionManagementWithCover(c: Context) {
+  const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
+
+  const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+  if (rateLimitError) return rateLimitError;
+
+  try {
+    await eventSubmissionLifecycleForRequest(c).management.open(linkId);
+  } catch (error) {
+    if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+    throw error;
+  }
 
   const form = await c.req.raw.formData().catch(() => null);
   if (!form) return c.json({ error: 'Choose a cover image and check the event changes.' }, 400);
@@ -5683,11 +5794,7 @@ app.put('/api/public/event-submissions/manage/:capability/with-cover', async (c)
   const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
   if (fileError) return c.json({ error: fileError }, 400);
 
-  const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
-  if (rateLimitError) return rateLimitError;
-
   try {
-    await eventSubmissionLifecycleForRequest(c).management.open(linkId);
     const uploadedCover = await uploadEventSubmissionCover(cover, c);
     let amendment;
     try {
@@ -5704,10 +5811,13 @@ app.put('/api/public/event-submissions/manage/:capability/with-cover', async (c)
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
     throw error;
   }
-});
+}
 
-app.post('/api/public/event-submissions/manage/:capability/submit', async (c) => {
-  const linkId = verifiedEventSubmissionManagementLink(c.req.param('capability'), c);
+app.put('/api/public/event-submissions/management/with-cover', saveEventSubmissionManagementWithCover);
+app.put('/api/public/event-submissions/manage/:capability/with-cover', saveEventSubmissionManagementWithCover);
+
+async function submitEventSubmissionManagement(c: Context) {
+  const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage_submit:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
   if (rateLimitError) return rateLimitError;
@@ -5718,7 +5828,10 @@ app.post('/api/public/event-submissions/manage/:capability/submit', async (c) =>
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
     throw error;
   }
-});
+}
+
+app.post('/api/public/event-submissions/management/submit', submitEventSubmissionManagement);
+app.post('/api/public/event-submissions/manage/:capability/submit', submitEventSubmissionManagement);
 
 type PublicEventSubmissionPayload = z.infer<typeof eventSubmissionSchema>;
 
@@ -5751,11 +5864,6 @@ async function submitPublicEventSubmission(
         message: 'Event submissions are not currently accepting new proposals.',
       },
     }, 503);
-  }
-
-  if (cover) {
-    const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
-    if (fileError) return c.json({ error: { code: 'validation_failed', message: fileError, field_errors: { cover: fileError } } }, 400);
   }
 
   const expectedHostnames = eventSubmissionTurnstileHostnames(c);
@@ -5837,6 +5945,11 @@ async function submitPublicEventSubmission(
     }
   }
 
+  if (cover) {
+    const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
+    if (fileError) return c.json({ error: { code: 'validation_failed', message: fileError, field_errors: { cover: fileError } } }, 400);
+  }
+
   try {
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsedData;
     const uploadedCover = cover ? await uploadEventSubmissionCover(cover, c) : null;
@@ -5876,6 +5989,23 @@ app.post('/api/public/event-submissions', async (c) => {
 });
 
 app.post('/api/public/event-submissions/with-cover', async (c) => {
+  if (!publicEventSubmissionsEnabled(envValue('PUBLIC_EVENT_SUBMISSIONS_ENABLED', c))) {
+    return c.json({
+      error: {
+        code: 'submissions_disabled',
+        message: 'Event submissions are not currently accepting new proposals.',
+      },
+    }, 503);
+  }
+
+  const parseLimitError = await enforcePublicRateLimit(c, {
+    action: 'event_submission_cover_parse',
+    clientKey: publicClientKey(c),
+    maxAttempts: 10,
+    windowSeconds: 60 * 60,
+  }, 'Too many event submission uploads. Please try again later.');
+  if (parseLimitError) return parseLimitError;
+
   const form = await c.req.raw.formData().catch(() => null);
   if (!form) return c.json({ error: { code: 'validation_failed', message: 'Choose an image and check the event details.', field_errors: {} } }, 400);
 
@@ -5918,7 +6048,7 @@ app.get('/api/public/archive/:eventId', async (c) => {
 });
 
 app.get('/api/public/home', async (c) => {
-  c.header('Cache-Control', 'no-store');
+  setPublicApiCache(c);
   return c.json(await publicHomePayload(c));
 });
 
@@ -5947,7 +6077,8 @@ app.get('/api/public/meetups/:slug/talks', async (c) => {
 
   const archiveItems = (await getTalksByEvent(meetup.id))
     .filter((talk) => talk.status === 'published')
-    .map((talk) => toPublicArchiveTalk(talk, meetup));
+    .map((talk) => toPublicArchiveTalk(talk, meetup))
+    .slice(0, PUBLIC_EVENT_ARCHIVE_ITEM_LIMIT);
 
   return c.json({
     data: archiveItems,

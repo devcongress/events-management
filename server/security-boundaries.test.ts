@@ -15,6 +15,12 @@ describe('HTTP security boundaries', () => {
     expect(match?.[1]).not.toMatch(/(?:^|,)(?:localhost|127\.0\.0\.1)(?:,|$)/);
   });
 
+  it('keeps production public API CORS on explicit website origins', () => {
+    const match = productionWorkerConfig.match(/PUBLIC_API_CORS_ORIGINS\s*=\s*"([^"]+)"/);
+    expect(match?.[1]).toBe('https://devcongress.org,https://www.devcongress.org');
+    expect(match?.[1]).not.toContain('*');
+  });
+
   it('adds browser security headers to API responses', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     const { default: app } = await import('./app');
@@ -77,6 +83,58 @@ describe('HTTP security boundaries', () => {
 
     expect(response.status).toBe(204);
     expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('allows public reads and intake only from configured website origins', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PUBLIC_API_CORS_ORIGINS', 'https://devcongress.org,https://www.devcongress.org');
+    const { default: app } = await import('./app');
+
+    const allowedRead = await app.request('https://em.devcongress.org/api/public/events', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://devcongress.org',
+        'Access-Control-Request-Method': 'GET',
+      },
+    });
+    const rejectedRead = await app.request('https://em.devcongress.org/api/public/events', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://attacker.example',
+        'Access-Control-Request-Method': 'GET',
+      },
+    });
+    const allowedIntake = await app.request('https://em.devcongress.org/api/public/event-submissions', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://www.devcongress.org',
+        'Access-Control-Request-Method': 'POST',
+      },
+    });
+    const capabilityPreflight = await app.request('https://em.devcongress.org/api/public/event-submissions/management', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://devcongress.org',
+        'Access-Control-Request-Method': 'GET',
+      },
+    });
+
+    expect(allowedRead.headers.get('access-control-allow-origin')).toBe('https://devcongress.org');
+    expect(rejectedRead.headers.get('access-control-allow-origin')).toBeNull();
+    expect(allowedIntake.headers.get('access-control-allow-origin')).toBe('https://www.devcongress.org');
+    expect(capabilityPreflight.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('rejects query-shaped cache keys on public read contracts', async () => {
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/events?limit=999999');
+    const headResponse = await app.request('http://localhost/api/public/events?limit=999999', { method: 'HEAD' });
+
+    expect(response.status).toBe(400);
+    expect(headResponse.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Query parameters are not supported for this endpoint.',
+    });
   });
 
   it('rejects oversized public JSON before route processing', async () => {
