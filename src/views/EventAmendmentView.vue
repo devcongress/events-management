@@ -43,7 +43,7 @@ const form = reactive({
   registration_url: '',
   organizer_note: '',
 });
-const capability = String(route.params.capability ?? '');
+const capability = String(route.params.capability ?? new URLSearchParams(window.location.hash.slice(1)).get('capability') ?? '').trim();
 const locationOptions = [
   { value: 'in_person', label: 'In person' },
   { value: 'online', label: 'Online' },
@@ -86,10 +86,14 @@ function payloadFormData() {
   if (coverFile.value) data.set('cover', coverFile.value);
   return data;
 }
+function managementHeaders(headers: Record<string, string> = {}) {
+  return { ...headers, Authorization: `Bearer ${capability}` };
+}
 function saveCoverWithProgress() {
   return new Promise<unknown>((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open('PUT', `/api/public/event-submissions/manage/${encodeURIComponent(capability)}/with-cover`);
+    request.open('PUT', '/api/public/event-submissions/management/with-cover');
+    request.setRequestHeader('Authorization', `Bearer ${capability}`);
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) coverUploadProgress.value = Math.round((event.loaded / event.total) * 100);
     };
@@ -106,7 +110,11 @@ function saveCoverWithProgress() {
 async function load() {
   loading.value = true;
   try {
-    const response = await fetch(`/api/public/event-submissions/manage/${encodeURIComponent(capability)}`);
+    if (!capability) {
+      unavailable.value = 'This event link is no longer available.';
+      return;
+    }
+    const response = await fetch('/api/public/event-submissions/management', { headers: managementHeaders() });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { unavailable.value = data.error || 'This event link is no longer available.'; return; }
     submission.value = data.management.submission;
@@ -132,8 +140,8 @@ async function save() {
     coverUploadProgress.value = withCover ? 0 : null;
     const data = withCover
       ? await saveCoverWithProgress() as { amendment: Amendment }
-      : await fetch(`/api/public/event-submissions/manage/${encodeURIComponent(capability)}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload()),
+      : await fetch('/api/public/event-submissions/management', {
+        method: 'PUT', headers: managementHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload()),
       }).then(async (response) => {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Changes could not be saved.');
@@ -157,7 +165,10 @@ async function submit() {
   if (!saved.value) return;
   submitting.value = true; error.value = '';
   try {
-    const response = await fetch(`/api/public/event-submissions/manage/${encodeURIComponent(capability)}/submit`, { method: 'POST' });
+    const response = await fetch('/api/public/event-submissions/management/submit', {
+      method: 'POST',
+      headers: managementHeaders(),
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Changes could not be submitted.');
     amendment.value = data.amendment;
@@ -168,7 +179,16 @@ async function submit() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  if (route.params.capability && capability) {
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `/event-amendments#${new URLSearchParams({ capability }).toString()}`,
+    );
+  }
+  void load();
+});
 onBeforeUnmount(revokeCoverPreview);
 </script>
 

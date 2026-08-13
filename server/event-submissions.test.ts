@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   uploadCover: vi.fn(),
   removeMedia: vi.fn(),
+  validateMediaContent: vi.fn(),
   requireAdmin: vi.fn(),
 }));
 
@@ -54,6 +55,7 @@ vi.mock('@/lib/supabase/media', async () => {
     ...actual,
     uploadEventSubmissionCover: mocks.uploadCover,
     removeMeetupMedia: mocks.removeMedia,
+    validateMeetupMediaContent: mocks.validateMediaContent.mockImplementation(actual.validateMeetupMediaContent),
   };
 });
 
@@ -140,6 +142,17 @@ function validPayload() {
     turnstile_action: 'event_submission',
     turnstile_token: '',
   };
+}
+
+function validJpegFile(name: string): File {
+  return new File([new Uint8Array([
+    0xff, 0xd8,
+    0xff, 0xc0, 0x00, 0x11, 0x08,
+    0x02, 0x76,
+    0x04, 0xb0,
+    0x03, 0x01, 0x11, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00,
+    0xff, 0xd9,
+  ])], name, { type: 'image/jpeg' });
 }
 
 beforeEach(() => {
@@ -239,13 +252,14 @@ describe('community event submissions', () => {
     const { default: app } = await import('./app');
     const form = new FormData();
     Object.entries(validPayload()).forEach(([key, value]) => form.set(key, value));
-    form.set('cover', new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00])], 'community-event.jpg', { type: 'image/jpeg' }));
+    form.set('cover', validJpegFile('community-event.jpg'));
 
     const response = await app.request('http://localhost/api/public/event-submissions/with-cover', { method: 'POST', body: form });
 
     expect(response.status).toBe(202);
     expect(mocks.requireAdmin).not.toHaveBeenCalled();
     expect(mocks.uploadCover).toHaveBeenCalledTimes(1);
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(3);
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
       cover_url: 'https://storage.example.test/cover.jpg',
     }), expect.anything());
@@ -376,6 +390,28 @@ describe('community event submissions', () => {
     expect(mocks.submitAmendment).not.toHaveBeenCalled();
   });
 
+  it('accepts the management capability from an authorization header instead of the request path', async () => {
+    const linkId = '30000000-0000-4000-8000-000000000001';
+    const secret = 'management-link-secret-for-tests-2026';
+    const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+    vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
+    mocks.getManagement.mockResolvedValue({
+      link_id: linkId,
+      expires_at: '2099-09-20T13:00:00.000Z',
+      submission,
+      current_event: currentManagedEvent,
+      amendment: null,
+    });
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions/management', {
+      headers: { Authorization: `Bearer ${linkId}.${signature}` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.getManagement).toHaveBeenCalledWith(linkId, expect.anything());
+  });
+
   it('stages a replacement cover through a valid management link for later review', async () => {
     const linkId = '30000000-0000-4000-8000-000000000001';
     const secret = 'management-link-secret-for-tests-2026';
@@ -396,7 +432,7 @@ describe('community event submissions', () => {
     form.set('location_type', 'in_person');
     form.set('venue_name', 'Impact Hub Accra');
     form.set('registration_url', 'https://example.com/register');
-    form.set('cover', new File([new Uint8Array([0xff, 0xd8, 0xff, 0x00])], 'replacement.jpg', { type: 'image/jpeg' }));
+    form.set('cover', validJpegFile('replacement.jpg'));
     const { default: app } = await import('./app');
 
     const response = await app.request(`http://localhost/api/public/event-submissions/manage/${capability}/with-cover`, { method: 'PUT', body: form });
@@ -445,6 +481,33 @@ describe('community event submissions', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'verification_failed' } });
     expect(mocks.rateLimit).not.toHaveBeenCalled();
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it('rate-limits multipart parsing and verifies Turnstile before reading image headers', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-secret');
+    vi.stubEnv('EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES', 'devcongress.org,www.devcongress.org');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      action: 'event_submission',
+      hostname: 'untrusted.example.com',
+    }), { status: 200 })));
+    const form = new FormData();
+    Object.entries(validPayload()).forEach(([key, value]) => form.set(key, value));
+    form.set('turnstile_token', 'valid-looking-token');
+    form.set('cover', validJpegFile('community-event.jpg'));
+    const { default: app } = await import('./app');
+
+    const response = await app.request('https://em.devcongress.org/api/public/event-submissions/with-cover', {
+      method: 'POST',
+      body: form,
+    });
+
+    expect(response.status).toBe(400);
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.rateLimit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: 'event_submission_cover_parse' }));
+    expect(mocks.validateMediaContent).not.toHaveBeenCalled();
+    expect(mocks.uploadCover).not.toHaveBeenCalled();
   });
 
   it('keeps organizer review routes authenticated and records an approval audit', async () => {
@@ -498,7 +561,7 @@ describe('community event submissions', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      management_url: `http://localhost/event-amendments/${linkId}.${signature}`,
+      management_url: `http://localhost/event-amendments#capability=${linkId}.${signature}`,
       expires_at: '2099-09-20T13:00:00.000Z',
     });
     expect(response.headers.get('Cache-Control')).toBe('no-store');

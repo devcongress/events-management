@@ -154,7 +154,7 @@ describe('public event archive contract', () => {
     const payload = await response.json() as { regulars: unknown[] };
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('cache-control')).toContain('s-maxage=300');
     expect(payload.regulars).toEqual([]);
     expect(JSON.stringify(payload)).not.toContain('private-attendee@example.com');
   });

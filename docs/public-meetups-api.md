@@ -52,12 +52,19 @@ adapter and continues to read the narrower public feed.
 Public `/api/public/*` endpoints:
 
 - are unauthenticated read-only endpoints
-- send permissive CORS headers for static-site consumption
+- allow browser CORS only for the origins in `PUBLIC_API_CORS_ORIGINS`
 - return JSON objects
 
-Meetup and archive reads send short public cache headers. `/api/public/home` is
-explicitly non-cacheable because older versions of that aggregate included
-attendance-derived data.
+Meetup, event, archive, and homepage reads send short public cache headers. The
+Pages proxy explicitly caches successful queryless reads for five minutes and
+re-applies the narrow website CORS header after the cache lookup. Requests with
+cookies, authorization, or query strings bypass that edge cache; unsupported
+public-read query strings are rejected instead of creating unbounded cache
+keys.
+
+Collection responses are bounded to 250 events, 500 archive items across the
+archive, and 100 archive items for one event. `/api/public/home` remains free of
+attendance identities and is safe to cache under the same short policy.
 
 Meetup list, meetup detail, and compatibility-talk responses use a top-level `data` field. Event Archive and homepage endpoints return their payloads directly:
 

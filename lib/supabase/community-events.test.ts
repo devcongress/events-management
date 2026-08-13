@@ -66,14 +66,19 @@ function mockPublicEventQuery(rows: CommunityEventRow[]) {
   const query = {
     select: vi.fn(),
     eq: vi.fn(),
+    neq: vi.fn(),
     is: vi.fn(),
     order: vi.fn(),
+    limit: vi.fn(),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
+  query.neq.mockReturnValue(query);
   query.is.mockReturnValue(query);
-  query.order.mockResolvedValue({ data: rows, error: null });
+  query.order.mockReturnValue(query);
+  query.limit.mockResolvedValue({ data: rows, error: null });
   mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => query) });
+  return query;
 }
 
 beforeEach(() => {
@@ -93,5 +98,13 @@ describe('getSupabasePublicEvents', () => {
         registration_url: 'https://lu.ma/recorded-event',
       }),
     ]);
+  });
+
+  it('excludes public submissions before applying the collection limit when discovery is disabled', async () => {
+    const query = mockPublicEventQuery([communityEventRow()]);
+
+    await getSupabasePublicEvents(undefined, { includePublicSubmissions: false });
+
+    expect(query.neq).toHaveBeenCalledWith('submission_source', 'public_submission');
   });
 });

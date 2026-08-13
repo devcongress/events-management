@@ -150,7 +150,8 @@ export const router = createRouter({
     { path: '/speak/c/:year(\\d{4})', name: 'conference-cfp', component: CfpView },
     { path: '/r/:eventKey', name: 'event-registration-short', component: EventRegistrationView },
     { path: '/register/:eventId', name: 'event-registration', component: EventRegistrationView },
-    { path: '/event-amendments/:capability', name: 'event-amendment', component: EventAmendmentView },
+    { path: '/event-amendments', name: 'event-amendment', component: EventAmendmentView },
+    { path: '/event-amendments/:capability', name: 'event-amendment-legacy', component: EventAmendmentView },
     systemDesignParticipantRoute,
     {
       path: '/present/system-design/:sessionId',

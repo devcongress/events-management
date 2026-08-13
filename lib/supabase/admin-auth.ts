@@ -355,7 +355,7 @@ export async function recordAdminAudit(c: Context, input: {
       ip_address: requestIp(c),
       user_agent: c.req.header('user-agent') ?? null,
       request_method: c.req.method,
-      request_path: requestUrl.pathname,
+      request_path: securitySafeRequestPath(requestUrl.pathname),
     });
 
   if (error) {

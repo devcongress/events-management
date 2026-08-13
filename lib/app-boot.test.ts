@@ -17,6 +17,8 @@ describe('app boot route variants', () => {
     expect(appBootVariantForPathname('/cfp/event-id')).toBe('cfp');
     expect(appBootVariantForPathname('/feedback/event-id')).toBe('feedback');
     expect(appBootVariantForPathname('/speaker-talks/event-id/token')).toBe('speaker');
+    expect(appBootVariantForPathname('/event-amendments')).toBe('speaker');
+    expect(appBootVariantForPathname('/event-amendments/legacy-capability')).toBe('speaker');
     expect(appBootVariantForPathname('/volunteer/december-mega-meetup')).toBe('volunteer');
     expect(appBootVariantForPathname('/learn/system-design/ROOM42')).toBe('learning-room');
   });

@@ -32,4 +32,19 @@ describe('deployed response-layer security parity', () => {
       expect(source).toContain("style-src-attr 'none'");
     }
   });
+
+  it('edge-caches only bounded public reads and keeps capability routes out of cache', () => {
+    expect(outerWorker).toContain('cacheEverything: true');
+    expect(outerWorker).toContain("path === '/api/public/events'");
+    expect(outerWorker).toContain("path === '/api/public/home'");
+    expect(outerWorker).toContain("request.headers.has('authorization')");
+    expect(outerWorker).not.toMatch(/cacheablePublicRead[\s\S]{0,800}event-submissions\/management/);
+  });
+
+  it('re-applies only the two public website CORS origins after cache lookup', () => {
+    expect(outerWorker).toContain("'https://devcongress.org'");
+    expect(outerWorker).toContain("'https://www.devcongress.org'");
+    expect(outerWorker).toContain("headers.set('access-control-allow-origin', requestOrigin)");
+    expect(outerWorker).not.toContain("access-control-allow-origin', '*'");
+  });
 });
