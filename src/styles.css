@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+.home-hero-grid {
+  background-image:
+    linear-gradient(rgb(17 17 17 / 5.5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(17 17 17 / 5.5%) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
 @layer base {
   :root {
     --font-sans: 'Inter';

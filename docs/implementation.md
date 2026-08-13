@@ -151,7 +151,7 @@
 - Feedback tables have no anonymous select/insert privileges after the security migration; all public submissions pass through validated, rate-limited Hono routes using the server-only service role.
 - Row-level security allows public reads of `community_events` only when `publish_to_website = true`; trusted organizer writes use the server-side service role.
 - `/api/health` and `/api/health/supabase` expose only minimal public readiness state.
-- `/api/health/data-sources`, `/api/health/supabase/community-events`, and `/api/health/supabase/storage` require owner access before returning internal diagnostics.
+- `/api/health/data-sources`, `/api/health/supabase/community-events`, and `/api/health/supabase/storage` require owner access before returning internal diagnostics. The data-source response includes only `missing` / `weak` / `ready` shared-secret preflight states, never secret values.
 - `/api/events` reads, writes, and removes Supabase `community_events` when `APP_DATA_SOURCE=supabase` is set with credentials. Configured Supabase query failures surface instead of silently serving stale local JSON; JSON fallback is limited to local/dev runtimes that explicitly disable or omit the Supabase data source.
 - The hosted `community_events` projection remains separate from compatibility `Talk` archive records. Until those records move to a relational archive source or are joined into that projection, a Supabase-backed public meetup response may not include archive items that exist only in the compatibility store.
 - Active Luma preview/import routes are removed because deployed Cloudflare Workers cannot reliably extract the public pages. Historical Luma metadata and attendance CSVs remain compatibility data.

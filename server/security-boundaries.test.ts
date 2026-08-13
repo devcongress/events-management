@@ -1,4 +1,7 @@
+import { readFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const productionWorkerConfig = await readFile(new URL('../wrangler.toml', import.meta.url), 'utf8');
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -6,6 +9,12 @@ afterEach(() => {
 });
 
 describe('HTTP security boundaries', () => {
+  it('keeps production Turnstile hostname binding on public domains only', () => {
+    const match = productionWorkerConfig.match(/EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES\s*=\s*"([^"]+)"/);
+    expect(match?.[1]).toBe('devcongress.org,www.devcongress.org');
+    expect(match?.[1]).not.toMatch(/(?:^|,)(?:localhost|127\.0\.0\.1)(?:,|$)/);
+  });
+
   it('adds browser security headers to API responses', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     const { default: app } = await import('./app');
@@ -13,6 +22,8 @@ describe('HTTP security boundaries', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toContain("style-src-attr 'none'");
+    expect(response.headers.get('content-security-policy')).not.toContain("style-src 'self' 'unsafe-inline'");
     expect(response.headers.get('content-security-policy')).toContain(
       'frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com',
     );

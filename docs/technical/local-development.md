@@ -26,6 +26,14 @@ The server falls back to JSON mock data when local/dev runs omit `APP_DATA_SOURC
 
 See [Environment Variables](../reference/environment-variables.md) for the full table.
 
+For local Turnstile flows, use Cloudflare's published dummy sitekey and matching dummy secret rather than adding `localhost` or `127.0.0.1` to the production widget. Application HMAC and internal-request secrets must be at least 32 random bytes; generate a local value with:
+
+```bash
+openssl rand -base64 32
+```
+
+Keep generated values only in `.env.local`. A missing or weak secret fails its protected workflow closed.
+
 ## Seed Data
 
 ```bash

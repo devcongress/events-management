@@ -342,7 +342,7 @@ describe('community event submissions', () => {
 
   it('does not expose or mutate an event after its management window closes', async () => {
     const linkId = '30000000-0000-4000-8000-000000000001';
-    const secret = 'management-link-secret';
+    const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
     const capability = `${linkId}.${signature}`;
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
@@ -378,7 +378,7 @@ describe('community event submissions', () => {
 
   it('stages a replacement cover through a valid management link for later review', async () => {
     const linkId = '30000000-0000-4000-8000-000000000001';
-    const secret = 'management-link-secret';
+    const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
     const capability = `${linkId}.${signature}`;
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
@@ -481,7 +481,7 @@ describe('community event submissions', () => {
   });
 
   it('lets organizers copy an active management link without sending email', async () => {
-    const secret = 'management-link-secret';
+    const secret = 'management-link-secret-for-tests-2026';
     const linkId = '30000000-0000-4000-8000-000000000001';
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     mocks.getActiveManagementLink.mockResolvedValue({
@@ -700,13 +700,13 @@ describe('community event submissions', () => {
   it('stores a verified inbound reply and sends one Slack notification', async () => {
     vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
     vi.stubEnv('EVENT_SUBMISSION_REPLY_DOMAIN', 'inbox.devcongress.org');
-    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret-for-tests-2026');
     vi.stubEnv('RESEND_INBOUND_WEBHOOK_SECRET', `whsec_${Buffer.from('webhook-secret').toString('base64')}`);
     vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/T000/B000/secret');
     const replyAddress = eventSubmissionReplyAddress({
       submissionId: submission.id,
       domain: 'inbox.devcongress.org',
-      secret: 'reply-token-secret',
+      secret: 'reply-token-secret-for-tests-2026',
     });
     const payload = JSON.stringify({
       type: 'email.received',
@@ -802,7 +802,7 @@ describe('community event submissions', () => {
   it('rejects an inbound webhook with an invalid signature before retrieval or storage', async () => {
     vi.stubEnv('RESEND_API_KEY', 'resend-test-key');
     vi.stubEnv('EVENT_SUBMISSION_REPLY_DOMAIN', 'inbox.devcongress.org');
-    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret');
+    vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret-for-tests-2026');
     vi.stubEnv('RESEND_INBOUND_WEBHOOK_SECRET', `whsec_${Buffer.from('webhook-secret').toString('base64')}`);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

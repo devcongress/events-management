@@ -34,6 +34,18 @@ describe('organizer authentication contract', () => {
     expect(payload.auth_configured).toEqual(expect.any(Boolean));
   });
 
+  it('maps provider-controlled OAuth errors to a stable internal code', async () => {
+    const response = await app.request(
+      'https://em.devcongress.org/api/auth/admin/callback?error=access_denied&error_description=provider%20detail%20with%20user%40example.com',
+    );
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get('location') ?? '';
+    expect(location).toContain('error=oauth_failed');
+    expect(location).not.toContain('provider');
+    expect(location).not.toContain('user%40example.com');
+  });
+
   it('signs out over HTTPS and expires both secure and local session cookies', async () => {
     const response = await app.request('https://em.devcongress.org/api/auth/logout', {
       method: 'POST',

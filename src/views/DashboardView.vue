@@ -97,13 +97,7 @@ onUnmounted(() => {
     <div class="home-hero relative border-b-2 border-dc-ink" :class="loading ? 'home-hero--loading overflow-visible' : 'overflow-hidden'">
       <div class="absolute inset-0 bg-dc-cream" />
       <div
-        class="absolute inset-0 opacity-100"
-        style="
-          background-image:
-            linear-gradient(rgba(17, 17, 17, 0.055) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(17, 17, 17, 0.055) 1px, transparent 1px);
-          background-size: 44px 44px;
-        "
+        class="home-hero-grid absolute inset-0 opacity-100"
       />
 
       <div class="home-hero-inner relative mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-20">

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-13 — Post-feature security audit
+
+- Audited the 272-file change set since the prior security review against OWASP Top 10:2025, including finance, delegated conference access, public event amendments/uploads, inbound email, Slack, short links, backups, and public event delivery.
+- Verified 505 tests, a production build, dependency and history secret scans, 31 live perimeter checks, and production RLS/ACL state for newly introduced sensitive tables.
+- Recorded two medium remediation items for the production Turnstile hostname allowlist and an overloaded finance RPC's default execute privilege, plus lower-severity configuration and defense-in-depth follow-ups.
+- Removed local hostnames from the production Turnstile binding and added a regression guard for the committed production configuration.
+- Added a forward-only migration that makes the audited finance RPC service-role-only and removes PostgreSQL's default public execution grant for future functions.
+- Enforced 32-byte minimum shared secrets with owner-only readiness preflight, normalized environment guidance, mapped OAuth provider failures to an internal code, and removed inline-style CSP allowances from the app and isolated short-link response.
+
 ## 2026-08-12 — Owner-only recoverable event deletion
 
 - Replaced direct event removal with an Owner-only deletion choice: soft archive hides the event from EMS/public surfaces and keeps a 30-day restore window, while hard delete immediately removes test or junk event records.
