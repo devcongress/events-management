@@ -31,7 +31,7 @@ New events publish a short same-origin `/r/:eventSlug` URL through the existing 
 ## Attendee Flow
 
 - Open `/r/:eventSlug` (or a previously shared `/register/:eventId` link).
-- Submit name and email.
+- Submit name and email. The existing page checks syntax, common provider typos, known disposable domains, and mail-domain DNS availability inside the same action; the disabled button moves from **Checking email** to **Submitting** without requiring a link, code, or second attendee action.
 - Receive the same neutral on-page acknowledgement whether the address is new or already registered. This prevents the form from revealing attendee membership.
 - Receive the authoritative confirmed/waitlist outcome by email when the address can be registered. Registration remains saved if delivery is delayed.
 - Check in at the venue with name or email.
@@ -48,7 +48,7 @@ The public page presents event details and the form as one continuous registrati
 | `registration_email_deliveries` | Durable pending/accepted/failed receipt, waitlist, and promotion-notice queue |
 | `event_blasts` | Organizer-owned subject/body, confirmed-recipient snapshot count, preparation/scheduled/sent/capacity state, and provider reconciliation IDs for custom event updates |
 
-All four tables have RLS enabled and no anonymous table policies. Public writes go through the validated Hono endpoint using the server-only Supabase client. In production, the endpoint requires action/hostname-bound Turnstile verification and applies atomic cross-Worker limits by client and normalized email. Each campaign permits one active registration per normalized email. The `register_for_event` database function locks the campaign row while allocating capacity, preventing concurrent submissions from over-confirming the event. The service-role-only `cancel_registration_and_promote` function takes the same campaign lock, cancels the selected guest, promotes only the oldest waitlisted guest when a confirmed place opens, and queues the promotion notice in the same transaction. Draft campaigns return the same not-found contract as an unknown registration link so unpublished event details are not exposed; scheduled and closed campaigns reject public submissions on the server.
+All four tables have RLS enabled and no anonymous table policies. Public writes go through the validated Hono endpoint using the server-only Supabase client. In production, the endpoint requires action/hostname-bound Turnstile verification and applies atomic cross-Worker limits by client and normalized email. The browser's rate-limited email preflight is repeated by the final registration endpoint; definite invalid domains are rejected, while DNS timeouts and other inconclusive resolver results continue to registration. This is deliverability preflight, not mailbox-ownership verification, and it introduces no registration or check-in state. Each campaign permits one active registration per normalized email. The `register_for_event` database function locks the campaign row while allocating capacity, preventing concurrent submissions from over-confirming the event. The service-role-only `cancel_registration_and_promote` function takes the same campaign lock, cancels the selected guest, promotes only the oldest waitlisted guest when a confirmed place opens, and queues the promotion notice in the same transaction. Draft campaigns return the same not-found contract as an unknown registration link so unpublished event details are not exposed; scheduled and closed campaigns reject public submissions on the server.
 
 ## Email Delivery
 
@@ -93,6 +93,7 @@ Owners also see a compact **Email delivery** workspace in the Audit Log. It sepa
 | `lib/supabase/event-registrations.ts` | Relational production repository |
 | `lib/event-blast-store.ts` | Supabase/local blast persistence boundary |
 | `lib/email/resend.ts` | Transactional batch client plus event-scoped Contact/Segment/Broadcast client |
+| `lib/email/public-email-preflight.ts` | Shared syntax, typo, disposable-domain, DNS, caching, and fail-open policy for new public email submissions |
 | `server/app.ts` | Public and organizer registration API |
 | `supabase/migrations/20260728000000_native_event_registrations.sql` | Relational schema and atomic registration function |
 | `supabase/migrations/20260729010000_registration_waitlist_promotion.sql` | Fixed automatic-allocation policy plus atomic cancellation, oldest-first promotion, and durable promotion delivery |

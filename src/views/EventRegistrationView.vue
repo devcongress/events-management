@@ -8,8 +8,10 @@ import { turnstileEnabled } from '@/src/lib/turnstile';
 import { EVENT_REGISTRATION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { registrationFirstName } from '@/src/lib/registration-workspace';
 import RegistrationPageSkeleton from '@/src/components/ui/page-skeletons/RegistrationPageSkeleton.vue';
+import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
 import {
   fetchPublicEventRegistration,
+  preflightPublicEmail,
   queryKeys,
   submitEventRegistration,
 } from '@/src/lib/api';
@@ -21,6 +23,7 @@ const eventDetailsView = computed(() => route.query.view === 'details');
 const logoSrc = '/brand/dev-con-logo.png';
 const form = reactive({ name: '', email: '' });
 const submitting = ref(false);
+const submissionStage = ref<'checking' | 'submitting' | null>(null);
 const error = ref('');
 const receipt = ref<{ name: string } | null>(null);
 const receiptFirstName = computed(() => registrationFirstName(receipt.value?.name ?? ''));
@@ -76,9 +79,15 @@ function unavailableMessage(reason: string | null | undefined): string {
 async function submitRegistration() {
   if (!canSubmit.value) return;
   submitting.value = true;
+  submissionStage.value = 'checking';
   error.value = '';
+  let registrationAttempted = false;
 
   try {
+    const emailCheck = await preflightPublicEmail(form.email);
+    form.email = emailCheck.normalized_email;
+    submissionStage.value = 'submitting';
+    registrationAttempted = true;
     await submitEventRegistration(eventKey.value, {
       name: form.name,
       email: form.email,
@@ -90,12 +99,13 @@ async function submitRegistration() {
     error.value = submitError instanceof Error
       ? submitError.message
       : 'We could not save your registration. Please try again.';
-    if (turnstileActive) {
+    if (turnstileActive && registrationAttempted) {
       turnstileToken.value = '';
       turnstileWidget.value?.reset();
     }
   } finally {
     submitting.value = false;
+    submissionStage.value = null;
   }
 }
 </script>
@@ -244,8 +254,14 @@ async function submitRegistration() {
             <p v-else class="registration-form-note">
               Only used for registration and event check-in.
             </p>
-            <button type="submit" class="registration-submit editorial-action" :disabled="!canSubmit">
-              {{ submitting ? 'SAVING…' : 'REGISTER' }}
+            <button
+              type="submit"
+              class="registration-submit editorial-action"
+              :disabled="!canSubmit"
+              :aria-busy="submitting"
+            >
+              <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
+              <template v-else>REGISTER</template>
             </button>
           </form>
         </section>

@@ -963,6 +963,18 @@ export function fetchPublicEventRegistration(eventKey: string) {
   });
 }
 
+export function preflightPublicEmail(email: string) {
+  return fetchJson<{
+    accepted: true;
+    status: 'deliverable' | 'unknown';
+    normalized_email: string;
+  }>('/api/public/email-preflight', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+}
+
 export function submitEventRegistration(
   eventKey: string,
   input: {

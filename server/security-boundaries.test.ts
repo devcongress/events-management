@@ -140,6 +140,11 @@ describe('HTTP security boundaries', () => {
   it('rejects oversized public JSON before route processing', async () => {
     const { default: app } = await import('./app');
     const responses = await Promise.all([
+      app.request('http://localhost/api/public/email-preflight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'person@example.com', padding: 'x'.repeat(70 * 1024) }),
+      }),
       app.request('http://localhost/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -157,7 +162,7 @@ describe('HTTP security boundaries', () => {
       }),
     ]);
 
-    expect(responses.map((response) => response.status)).toEqual([413, 413, 413]);
+    expect(responses.map((response) => response.status)).toEqual([413, 413, 413, 413]);
     for (const response of responses) {
       await expect(response.json()).resolves.toEqual({ error: 'Request body is too large.' });
     }

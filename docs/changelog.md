@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-14 — Frictionless public email preflight
+
+- Added an in-process email-quality check for registration, volunteer, monthly/conference CFP, and community-event submissions covering syntax, common provider typos, maintained disposable domains, and MX/A/AAAA mail-domain availability.
+- Kept public forms as one fill-and-submit flow with a disabled **Checking email** then **Submitting** button state and reduced-motion-safe dot feedback; no email confirmation click or account was introduced.
+- Rechecked every final submission endpoint, rate-limited the browser preflight, cached domain-only results, and allowed inconclusive DNS outcomes to continue so a resolver failure cannot take public intake offline.
+- Left all historical registrations, check-in behavior, capacity allocation, persistence schemas, public data feeds, and transactional email contracts unchanged.
+- Patched the repository-wide `nanoid` override from `3.3.17` to `3.3.18` to resolve the current high-severity advisory inherited through PostCSS.
+
 ## 2026-08-13 — Restored short-link fallback styling
 
 - Allowed the isolated Pages catch-all to pass the known `unavailable.css` and `robots.txt` files through to static hosting instead of treating their filenames as invalid short-link codes.

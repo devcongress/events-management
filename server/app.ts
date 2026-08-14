@@ -25,6 +25,7 @@ import {
 } from '@/lib/email/templates/event-registration-confirmation';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
+import { assessPublicEmail, type PublicEmailPreflightResult } from '@/lib/email/public-email-preflight';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
 import { attendanceRecordsFromRegistrations } from '@/lib/native-attendance';
 import {
@@ -317,6 +318,7 @@ for (const publicWritePath of [
   '/api/volunteer-applications',
   '/api/cfp',
   '/api/registration/events/*',
+  '/api/public/email-preflight',
   '/api/public/event-submissions',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
@@ -372,6 +374,9 @@ const eventRegistrationSubmissionSchema = z.object({
   email: z.string().trim().toLowerCase().email('Please enter a valid email address.').max(254),
   turnstile_action: z.string().trim().max(80).optional(),
   turnstile_token: z.string().trim().max(4096).optional(),
+}).strict();
+const publicEmailPreflightSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address.').max(254),
 }).strict();
 const eventRegistrationCampaignUpdateSchema = z.object({
   status: z.enum(['draft', 'open', 'closed']).optional(),
@@ -1037,6 +1042,22 @@ async function enforcePublicRateLimit(
   return result.allowed ? null : publicRateLimitError(c, result, message);
 }
 
+async function assessPublicSubmissionEmail(c: Context, email: string): Promise<PublicEmailPreflightResult> {
+  return assessPublicEmail(email, {
+    // Unit and route tests use reserved example domains and must not depend on
+    // external DNS. Production and local development exercise the real check.
+    skipDomainLookup: envValue('NODE_ENV', c) === 'test',
+  });
+}
+
+function publicEmailErrorPayload(result: Extract<PublicEmailPreflightResult, { status: 'invalid' }>) {
+  return {
+    error: result.message,
+    code: result.reason,
+    ...(result.suggestion ? { suggestion: result.suggestion } : {}),
+  };
+}
+
 async function requirePublicTurnstile(
   c: Context,
   input: {
@@ -1118,7 +1139,8 @@ function isPublicReadApiPath(path: string): boolean {
 
 function isPublicEventSubmissionIntakePath(path: string): boolean {
   return path === '/api/public/event-submissions'
-    || path === '/api/public/event-submissions/with-cover';
+    || path === '/api/public/event-submissions/with-cover'
+    || path === '/api/public/email-preflight';
 }
 
 function isPublicFeedbackEventRequest(path: string, method: string): boolean {
@@ -1185,6 +1207,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     ))
     || (method === 'POST' && (
       path === '/api/webhooks/resend/inbound'
+      || path === '/api/public/email-preflight'
       || path === '/api/cfp'
       || path === '/api/feedback'
       || path === '/api/auth/admin/exchange'
@@ -4149,6 +4172,32 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   return c.json({ id: submission.id }, 201);
 });
 
+app.post('/api/public/email-preflight', async (c) => {
+  const parsed = publicEmailPreflightSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Enter a valid email address.' }, 400);
+  }
+
+  const rateLimitError = await enforcePublicRateLimit(c, {
+    action: 'public_email_preflight',
+    clientKey: publicClientKey(c),
+    maxAttempts: 20,
+    windowSeconds: 10 * 60,
+  }, 'Too many email checks. Please wait a few minutes and try again.');
+  if (rateLimitError) return rateLimitError;
+
+  const result = await assessPublicSubmissionEmail(c, parsed.data.email);
+  if (result.status === 'invalid') {
+    return c.json(publicEmailErrorPayload(result), 422);
+  }
+
+  return c.json({
+    accepted: true,
+    status: result.status,
+    normalized_email: result.normalizedEmail,
+  });
+});
+
 app.post('/api/volunteer-applications', async (c) => {
   const parsed = volunteerApplicationSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
@@ -4178,6 +4227,11 @@ app.post('/api/volunteer-applications', async (c) => {
     windowSeconds: 24 * 60 * 60,
   }, 'This device has reached the volunteer application limit for today.');
   if (dailyLimitError) return dailyLimitError;
+
+  const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.email);
+  if (emailAssessment.status === 'invalid') {
+    return c.json(publicEmailErrorPayload(emailAssessment), 422);
+  }
 
   const result = await createVolunteerApplication({
     name: parsed.data.name,
@@ -5945,6 +5999,18 @@ async function submitPublicEventSubmission(
     }
   }
 
+  const emailAssessment = await assessPublicSubmissionEmail(c, parsedData.organizer_email);
+  if (emailAssessment.status === 'invalid') {
+    return c.json({
+      error: {
+        code: 'validation_failed',
+        message: 'Check the event details and try again.',
+        field_errors: { organizer_email: emailAssessment.message },
+        ...(emailAssessment.suggestion ? { suggestion: emailAssessment.suggestion } : {}),
+      },
+    }, 422);
+  }
+
   if (cover) {
     const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
     if (fileError) return c.json({ error: { code: 'validation_failed', message: fileError, field_errors: { cover: fileError } } }, 400);
@@ -6147,6 +6213,10 @@ app.post('/api/cfp/conferences/:year', async (c) => {
 
   const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
   if (!edition || edition.speaker_call_status !== 'open') return c.json({ error: 'The conference Call for Speakers is not open.' }, 400);
+  const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
+  if (emailAssessment.status === 'invalid') {
+    return c.json(publicEmailErrorPayload(emailAssessment), 422);
+  }
   try {
     await createAnnualConferenceSpeakerSubmission({
       edition_id: edition.id,
@@ -6262,6 +6332,11 @@ app.post('/api/registration/events/:eventId', async (c) => {
     windowSeconds: 24 * 60 * 60,
   }, 'Too many registration attempts. Please try again later.');
   if (emailLimitError) return emailLimitError;
+
+  const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.email);
+  if (emailAssessment.status === 'invalid') {
+    return c.json(publicEmailErrorPayload(emailAssessment), 422);
+  }
 
   try {
     const registration = await registerForEvent({
@@ -9016,6 +9091,11 @@ app.post('/api/cfp', async (c) => {
 
   if (!canOpenCfpForEvent(event)) {
     return c.json({ error: 'CFP is unavailable for this event' }, 400);
+  }
+
+  const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
+  if (emailAssessment.status === 'invalid') {
+    return c.json(publicEmailErrorPayload(emailAssessment), 422);
   }
 
   try {

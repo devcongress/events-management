@@ -3,6 +3,8 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
+import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
+import { preflightPublicEmail } from '@/src/lib/api';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { safePublicResourceUrl } from '@/lib/safe-url';
@@ -12,6 +14,7 @@ const route = useRoute();
 const event = ref<Event | null>(null);
 const loading = ref(true);
 const submitting = ref(false);
+const submissionStage = ref<'checking' | 'submitting' | null>(null);
 const submitted = ref(false);
 const error = ref<string | null>(null);
 const loadError = ref(false);
@@ -89,7 +92,11 @@ async function submitProposal() {
   }
 
   submitting.value = true;
+  submissionStage.value = 'checking';
   try {
+    const emailCheck = await preflightPublicEmail(form.speaker_email);
+    form.speaker_email = emailCheck.normalized_email;
+    submissionStage.value = 'submitting';
     const response = await fetch(isConferenceCall.value
       ? `/api/cfp/conferences/${route.params.year}`
       : '/api/cfp', {
@@ -118,10 +125,13 @@ async function submitProposal() {
         turnstileWidget.value?.reset();
       }
     }
-  } catch {
-    error.value = 'The proposal could not be submitted. Check your connection and try again.';
+  } catch (caught) {
+    error.value = caught instanceof Error
+      ? caught.message
+      : 'The proposal could not be submitted. Check your connection and try again.';
   } finally {
     submitting.value = false;
+    submissionStage.value = null;
   }
 }
 
@@ -292,8 +302,14 @@ onMounted(async () => {
             @token-change="turnstileToken = $event"
             @error="turnstileError = $event ?? ''"
           />
-          <button type="submit" :disabled="!canSubmitProposal" class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1">
-            {{ submitting ? 'SUBMITTING...' : 'SUBMIT PROPOSAL' }}
+          <button
+            type="submit"
+            :disabled="!canSubmitProposal"
+            :aria-busy="submitting"
+            class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
+            <template v-else>SUBMIT PROPOSAL</template>
           </button>
         </div>
         <p v-if="turnstileError" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
