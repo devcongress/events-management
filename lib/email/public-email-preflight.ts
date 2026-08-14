@@ -1,7 +1,10 @@
 import { isDisposableEmailDomain } from 'disposable-email-domains-js';
 
-const DNS_OVER_HTTPS_ENDPOINT = 'https://cloudflare-dns.com/dns-query';
-const DNS_TIMEOUT_MS = 2_500;
+const DNS_RESOLVERS = [
+  { name: 'cloudflare', endpoint: 'https://cloudflare-dns.com/dns-query' },
+  { name: 'google', endpoint: 'https://dns.google/resolve' },
+] as const;
+const DNS_TIMEOUT_MS = 1_500;
 const DNS_CACHE_TTL_MS = 6 * 60 * 60 * 1_000;
 const DNS_INVALID_CACHE_TTL_MS = 30 * 60 * 1_000;
 const DNS_UNKNOWN_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -75,11 +78,22 @@ interface CachedDomainAssessment {
 export interface PublicEmailPreflightOptions {
   fetcher?: PublicEmailPreflightFetcher;
   now?: () => number;
+  onDnsFailure?: (failure: PublicEmailDnsFailure) => void;
   skipDomainLookup?: boolean;
   timeoutMs?: number;
 }
 
 export type PublicEmailPreflightFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export interface PublicEmailDnsFailure {
+  resolver: (typeof DNS_RESOLVERS)[number]['name'];
+  recordType: DnsRecordType;
+  failureKind: 'dns_status' | 'http_status' | 'invalid_response' | 'request_error';
+  durationMs: number;
+  dnsStatus?: number;
+  httpStatus?: number;
+  errorName?: string;
+}
 
 const domainAssessmentCache = new Map<string, CachedDomainAssessment>();
 
@@ -137,22 +151,108 @@ function cacheDomainAssessment(domain: string, value: DomainAssessment, now: num
   });
 }
 
+function reportDnsFailure(
+  options: PublicEmailPreflightOptions,
+  failure: PublicEmailDnsFailure,
+): void {
+  try {
+    options.onDnsFailure?.(failure);
+  } catch {
+    // Observability must never change whether a public submission can proceed.
+  }
+}
+
+function validDnsResponse(value: unknown): value is DnsJsonResponse & { Status: number } {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as { Status?: unknown; Answer?: unknown };
+  if (!Number.isInteger(response.Status) || (response.Status as number) < 0) return false;
+  if (response.Answer === undefined) return true;
+  return Array.isArray(response.Answer) && response.Answer.every((answer) => {
+    if (!answer || typeof answer !== 'object') return false;
+    const record = answer as { type?: unknown; data?: unknown };
+    return (record.type === undefined || typeof record.type === 'number')
+      && (record.data === undefined || typeof record.data === 'string');
+  });
+}
+
+async function queryDnsResolver(
+  domain: string,
+  type: DnsRecordType,
+  resolver: (typeof DNS_RESOLVERS)[number],
+  fetcher: PublicEmailPreflightFetcher,
+  options: PublicEmailPreflightOptions,
+): Promise<DnsJsonResponse | null> {
+  const url = new URL(resolver.endpoint);
+  url.searchParams.set('name', domain);
+  url.searchParams.set('type', type);
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DNS_TIMEOUT_MS);
+
+  try {
+    const response = await fetcher(url.toString(), {
+      headers: { Accept: 'application/dns-json' },
+      redirect: 'error',
+      signal: controller.signal,
+    });
+    const durationMs = Date.now() - startedAt;
+    if (!response.ok) {
+      reportDnsFailure(options, {
+        resolver: resolver.name,
+        recordType: type,
+        failureKind: 'http_status',
+        httpStatus: response.status,
+        durationMs,
+      });
+      return null;
+    }
+
+    const value: unknown = await response.json();
+    if (!validDnsResponse(value)) {
+      reportDnsFailure(options, {
+        resolver: resolver.name,
+        recordType: type,
+        failureKind: 'invalid_response',
+        durationMs,
+      });
+      return null;
+    }
+    if (value.Status !== 0 && value.Status !== 3) {
+      reportDnsFailure(options, {
+        resolver: resolver.name,
+        recordType: type,
+        failureKind: 'dns_status',
+        dnsStatus: value.Status,
+        durationMs,
+      });
+      return null;
+    }
+    return value;
+  } catch (error) {
+    reportDnsFailure(options, {
+      resolver: resolver.name,
+      recordType: type,
+      failureKind: 'request_error',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      durationMs: Date.now() - startedAt,
+    });
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function queryDns(
   domain: string,
   type: DnsRecordType,
   fetcher: PublicEmailPreflightFetcher,
-  signal: AbortSignal,
+  options: PublicEmailPreflightOptions,
 ): Promise<DnsJsonResponse> {
-  const url = new URL(DNS_OVER_HTTPS_ENDPOINT);
-  url.searchParams.set('name', domain);
-  url.searchParams.set('type', type);
-  const response = await fetcher(url, {
-    headers: { Accept: 'application/dns-json' },
-    redirect: 'error',
-    signal,
-  });
-  if (!response.ok) throw new Error('dns_query_failed');
-  return response.json() as Promise<DnsJsonResponse>;
+  for (const resolver of DNS_RESOLVERS) {
+    const response = await queryDnsResolver(domain, type, resolver, fetcher, options);
+    if (response) return response;
+  }
+  throw new Error('dns_resolvers_unavailable');
 }
 
 function hasDnsAnswer(response: DnsJsonResponse, type: number): boolean {
@@ -169,12 +269,9 @@ async function assessDomain(
   if (cached) domainAssessmentCache.delete(domain);
 
   const fetcher = options.fetcher ?? fetch;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DNS_TIMEOUT_MS);
-
   let assessment: DomainAssessment;
   try {
-    const mx = await queryDns(domain, 'MX', fetcher, controller.signal);
+    const mx = await queryDns(domain, 'MX', fetcher, options);
     if (mx.Status === 3) {
       assessment = {
         status: 'invalid',
@@ -196,8 +293,8 @@ async function assessDomain(
         assessment = { status: 'deliverable', reason: 'mail_domain_available' };
       } else {
         const [a, aaaa] = await Promise.all([
-          queryDns(domain, 'A', fetcher, controller.signal),
-          queryDns(domain, 'AAAA', fetcher, controller.signal),
+          queryDns(domain, 'A', fetcher, options),
+          queryDns(domain, 'AAAA', fetcher, options),
         ]);
         if (hasDnsAnswer(a, 1) || hasDnsAnswer(aaaa, 28)) {
           assessment = { status: 'deliverable', reason: 'mail_domain_available' };
@@ -220,8 +317,6 @@ async function assessDomain(
     }
   } catch {
     assessment = { status: 'unknown', reason: 'dns_unavailable' };
-  } finally {
-    clearTimeout(timeout);
   }
 
   cacheDomainAssessment(domain, assessment, now);

@@ -106,6 +106,66 @@ describe('public email preflight', () => {
       domain: 'example.org',
       reason: 'dns_unavailable',
     });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the secondary resolver when the primary resolver is unavailable', async () => {
+    const failures: unknown[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => (
+      new URL(String(input)).hostname === 'cloudflare-dns.com'
+        ? dnsResponse({}, 403)
+        : dnsResponse({ Status: 0, Answer: [{ type: 15, data: '10 mail.example.org.' }] })
+    ));
+
+    await expect(assessPublicEmail('guest@example.org', {
+      fetcher: fetcher as PublicEmailPreflightFetcher,
+      onDnsFailure: (failure) => failures.push(failure),
+    })).resolves.toMatchObject({
+      status: 'deliverable',
+      reason: 'mail_domain_available',
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(failures).toEqual([expect.objectContaining({
+      resolver: 'cloudflare',
+      recordType: 'MX',
+      failureKind: 'http_status',
+      httpStatus: 403,
+    })]);
+  });
+
+  it('uses the secondary resolver when the primary returns malformed JSON data', async () => {
+    const failures: unknown[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => (
+      new URL(String(input)).hostname === 'cloudflare-dns.com'
+        ? dnsResponse({ Status: 0, Answer: [null] })
+        : dnsResponse({ Status: 3 })
+    ));
+
+    await expect(assessPublicEmail('guest@missing.example', {
+      fetcher: fetcher as PublicEmailPreflightFetcher,
+      onDnsFailure: (failure) => failures.push(failure),
+    })).resolves.toMatchObject({
+      status: 'invalid',
+      reason: 'domain_not_found',
+    });
+    expect(failures).toEqual([expect.objectContaining({
+      resolver: 'cloudflare',
+      failureKind: 'invalid_response',
+    })]);
+  });
+
+  it('does not let a diagnostics callback break fail-open validation', async () => {
+    const fetcher = vi.fn(async () => dnsResponse({}, 503));
+
+    await expect(assessPublicEmail('guest@example.org', {
+      fetcher: fetcher as PublicEmailPreflightFetcher,
+      onDnsFailure: () => {
+        throw new Error('logging unavailable');
+      },
+    })).resolves.toMatchObject({
+      status: 'unknown',
+      reason: 'dns_unavailable',
+    });
   });
 
   it('caches only domain-level results and preserves each normalized address', async () => {
