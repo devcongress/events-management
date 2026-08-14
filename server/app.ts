@@ -1047,6 +1047,19 @@ async function assessPublicSubmissionEmail(c: Context, email: string): Promise<P
     // Unit and route tests use reserved example domains and must not depend on
     // external DNS. Production and local development exercise the real check.
     skipDomainLookup: envValue('NODE_ENV', c) === 'test',
+    onDnsFailure: (failure) => {
+      console.warn(JSON.stringify({
+        event: 'public_email_dns_resolver_failed',
+        request_id: c.get('requestId') ?? null,
+        resolver: failure.resolver,
+        record_type: failure.recordType,
+        failure_kind: failure.failureKind,
+        duration_ms: failure.durationMs,
+        ...(failure.httpStatus === undefined ? {} : { http_status: failure.httpStatus }),
+        ...(failure.dnsStatus === undefined ? {} : { dns_status: failure.dnsStatus }),
+        ...(failure.errorName === undefined ? {} : { error_name: failure.errorName }),
+      }));
+    },
   });
 }
 

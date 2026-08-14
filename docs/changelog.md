@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-14 — Restored production mail-domain DNS validation
+
+- Added an ordered Google Public DNS JSON fallback when the primary Cloudflare DNS-over-HTTPS request is unavailable, while preserving definite NXDOMAIN/null-MX rejection and the all-resolvers-down fail-open policy.
+- Added bounded per-resolver timeouts and structured failure diagnostics containing only resolver, record type, failure class/status, duration, and request correlation; attendee email addresses and domains are not logged.
+- Added regression coverage for primary failure plus fallback success and for diagnostics that cannot interrupt a public submission.
+
 ## 2026-08-14 — Frictionless public email preflight
 
 - Added an in-process email-quality check for registration, volunteer, monthly/conference CFP, and community-event submissions covering syntax, common provider typos, maintained disposable domains, and MX/A/AAAA mail-domain availability.
