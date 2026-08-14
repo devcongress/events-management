@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-14 — Moved email-domain validation to Workers-native DNS
+
+- Replaced outbound JSON DNS-over-HTTPS fetches, which remained inconclusive in the deployed Worker, with Cloudflare Workers' supported `node:dns` MX/A/AAAA resolution under the existing `nodejs_compat` configuration.
+- Preserved null-MX rejection, address-record fallback, domain-only caching, bounded lookup time, safe resolver diagnostics, and fail-open behavior when native DNS is unavailable.
+- Added native resolver tests for MX, null MX, no-MX address fallback, confirmed NXDOMAIN, malformed records, timeout, unavailable DNS, diagnostics isolation, and caching.
+
 ## 2026-08-14 — Restored production mail-domain DNS validation
 
 - Added an ordered Google Public DNS JSON fallback when the primary Cloudflare DNS-over-HTTPS request is unavailable, while preserving definite NXDOMAIN/null-MX rejection and the all-resolvers-down fail-open policy.

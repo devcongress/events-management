@@ -1055,8 +1055,7 @@ async function assessPublicSubmissionEmail(c: Context, email: string): Promise<P
         record_type: failure.recordType,
         failure_kind: failure.failureKind,
         duration_ms: failure.durationMs,
-        ...(failure.httpStatus === undefined ? {} : { http_status: failure.httpStatus }),
-        ...(failure.dnsStatus === undefined ? {} : { dns_status: failure.dnsStatus }),
+        ...(failure.errorCode === undefined ? {} : { error_code: failure.errorCode }),
         ...(failure.errorName === undefined ? {} : { error_name: failure.errorName }),
       }));
     },

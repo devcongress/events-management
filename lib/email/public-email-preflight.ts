@@ -1,10 +1,7 @@
 import { isDisposableEmailDomain } from 'disposable-email-domains-js';
+import { promises as nodeDns } from 'node:dns';
 
-const DNS_RESOLVERS = [
-  { name: 'cloudflare', endpoint: 'https://cloudflare-dns.com/dns-query' },
-  { name: 'google', endpoint: 'https://dns.google/resolve' },
-] as const;
-const DNS_TIMEOUT_MS = 1_500;
+const DNS_TIMEOUT_MS = 2_500;
 const DNS_CACHE_TTL_MS = 6 * 60 * 60 * 1_000;
 const DNS_INVALID_CACHE_TTL_MS = 30 * 60 * 1_000;
 const DNS_UNKNOWN_CACHE_TTL_MS = 5 * 60 * 1_000;
@@ -29,14 +26,9 @@ const COMMON_EMAIL_DOMAIN_TYPOS = new Map<string, string>([
 
 type DnsRecordType = 'A' | 'AAAA' | 'MX';
 
-interface DnsJsonAnswer {
-  type?: number;
-  data?: string;
-}
-
-interface DnsJsonResponse {
-  Status?: number;
-  Answer?: DnsJsonAnswer[];
+interface MxRecord {
+  exchange: string;
+  priority: number;
 }
 
 export type PublicEmailPreflightResult =
@@ -76,24 +68,38 @@ interface CachedDomainAssessment {
 }
 
 export interface PublicEmailPreflightOptions {
-  fetcher?: PublicEmailPreflightFetcher;
+  dnsResolver?: PublicEmailDnsResolver;
   now?: () => number;
   onDnsFailure?: (failure: PublicEmailDnsFailure) => void;
   skipDomainLookup?: boolean;
   timeoutMs?: number;
 }
 
-export type PublicEmailPreflightFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+export interface PublicEmailDnsResolver {
+  resolve4(domain: string): Promise<string[]>;
+  resolve6(domain: string): Promise<string[]>;
+  resolveMx(domain: string): Promise<MxRecord[]>;
+}
 
 export interface PublicEmailDnsFailure {
-  resolver: (typeof DNS_RESOLVERS)[number]['name'];
+  resolver: 'cloudflare_native';
   recordType: DnsRecordType;
-  failureKind: 'dns_status' | 'http_status' | 'invalid_response' | 'request_error';
+  failureKind: 'dns_error' | 'invalid_response' | 'timeout';
   durationMs: number;
-  dnsStatus?: number;
-  httpStatus?: number;
+  errorCode?: string;
   errorName?: string;
 }
+
+type DnsQueryOutcome<T> =
+  | { status: 'available'; records: T[] }
+  | { status: 'absent'; errorCode: 'ENODATA' | 'ENOTFOUND' }
+  | { status: 'unavailable' };
+
+const nativeDnsResolver: PublicEmailDnsResolver = {
+  resolve4: (domain) => nodeDns.resolve4(domain),
+  resolve6: (domain) => nodeDns.resolve6(domain),
+  resolveMx: (domain) => nodeDns.resolveMx(domain),
+};
 
 const domainAssessmentCache = new Map<string, CachedDomainAssessment>();
 
@@ -162,101 +168,67 @@ function reportDnsFailure(
   }
 }
 
-function validDnsResponse(value: unknown): value is DnsJsonResponse & { Status: number } {
-  if (!value || typeof value !== 'object') return false;
-  const response = value as { Status?: unknown; Answer?: unknown };
-  if (!Number.isInteger(response.Status) || (response.Status as number) < 0) return false;
-  if (response.Answer === undefined) return true;
-  return Array.isArray(response.Answer) && response.Answer.every((answer) => {
-    if (!answer || typeof answer !== 'object') return false;
-    const record = answer as { type?: unknown; data?: unknown };
-    return (record.type === undefined || typeof record.type === 'number')
-      && (record.data === undefined || typeof record.data === 'string');
+function dnsErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+  return typeof error.code === 'string' ? error.code : undefined;
+}
+
+function validDnsRecords(type: DnsRecordType, value: unknown): value is string[] | MxRecord[] {
+  if (!Array.isArray(value)) return false;
+  if (type !== 'MX') return value.every((record) => typeof record === 'string' && record.length > 0);
+  return value.every((record) => {
+    if (!record || typeof record !== 'object') return false;
+    const mx = record as { exchange?: unknown; priority?: unknown };
+    return typeof mx.exchange === 'string' && typeof mx.priority === 'number';
   });
 }
 
-async function queryDnsResolver(
-  domain: string,
+async function queryNativeDns<T extends string | MxRecord>(
   type: DnsRecordType,
-  resolver: (typeof DNS_RESOLVERS)[number],
-  fetcher: PublicEmailPreflightFetcher,
+  operation: () => Promise<T[]>,
   options: PublicEmailPreflightOptions,
-): Promise<DnsJsonResponse | null> {
-  const url = new URL(resolver.endpoint);
-  url.searchParams.set('name', domain);
-  url.searchParams.set('type', type);
-  const controller = new AbortController();
+): Promise<DnsQueryOutcome<T>> {
   const startedAt = Date.now();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? DNS_TIMEOUT_MS);
+  let timeout: ReturnType<typeof setTimeout> | undefined;
 
   try {
-    const response = await fetcher(url.toString(), {
-      headers: { Accept: 'application/dns-json' },
-      redirect: 'error',
-      signal: controller.signal,
-    });
-    const durationMs = Date.now() - startedAt;
-    if (!response.ok) {
+    const value: unknown = await Promise.race([
+      operation(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          const error = new Error('DNS query timed out.');
+          error.name = 'DnsTimeoutError';
+          reject(error);
+        }, options.timeoutMs ?? DNS_TIMEOUT_MS);
+      }),
+    ]);
+    if (!validDnsRecords(type, value)) {
       reportDnsFailure(options, {
-        resolver: resolver.name,
-        recordType: type,
-        failureKind: 'http_status',
-        httpStatus: response.status,
-        durationMs,
-      });
-      return null;
-    }
-
-    const value: unknown = await response.json();
-    if (!validDnsResponse(value)) {
-      reportDnsFailure(options, {
-        resolver: resolver.name,
+        resolver: 'cloudflare_native',
         recordType: type,
         failureKind: 'invalid_response',
-        durationMs,
+        durationMs: Date.now() - startedAt,
       });
-      return null;
+      return { status: 'unavailable' };
     }
-    if (value.Status !== 0 && value.Status !== 3) {
-      reportDnsFailure(options, {
-        resolver: resolver.name,
-        recordType: type,
-        failureKind: 'dns_status',
-        dnsStatus: value.Status,
-        durationMs,
-      });
-      return null;
-    }
-    return value;
+    return { status: 'available', records: value as T[] };
   } catch (error) {
+    const errorCode = dnsErrorCode(error);
+    if (errorCode === 'ENODATA' || errorCode === 'ENOTFOUND') {
+      return { status: 'absent', errorCode };
+    }
     reportDnsFailure(options, {
-      resolver: resolver.name,
+      resolver: 'cloudflare_native',
       recordType: type,
-      failureKind: 'request_error',
+      failureKind: error instanceof Error && error.name === 'DnsTimeoutError' ? 'timeout' : 'dns_error',
+      errorCode,
       errorName: error instanceof Error ? error.name : 'UnknownError',
       durationMs: Date.now() - startedAt,
     });
-    return null;
+    return { status: 'unavailable' };
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
-}
-
-async function queryDns(
-  domain: string,
-  type: DnsRecordType,
-  fetcher: PublicEmailPreflightFetcher,
-  options: PublicEmailPreflightOptions,
-): Promise<DnsJsonResponse> {
-  for (const resolver of DNS_RESOLVERS) {
-    const response = await queryDnsResolver(domain, type, resolver, fetcher, options);
-    if (response) return response;
-  }
-  throw new Error('dns_resolvers_unavailable');
-}
-
-function hasDnsAnswer(response: DnsJsonResponse, type: number): boolean {
-  return response.Answer?.some((answer) => answer.type === type && Boolean(answer.data?.trim())) ?? false;
 }
 
 async function assessDomain(
@@ -268,55 +240,45 @@ async function assessDomain(
   if (cached && cached.expiresAt > now) return cached.value;
   if (cached) domainAssessmentCache.delete(domain);
 
-  const fetcher = options.fetcher ?? fetch;
+  const resolver = options.dnsResolver ?? nativeDnsResolver;
+  const mx = await queryNativeDns('MX', () => resolver.resolveMx(domain), options);
   let assessment: DomainAssessment;
-  try {
-    const mx = await queryDns(domain, 'MX', fetcher, options);
-    if (mx.Status === 3) {
+  if (mx.status === 'unavailable') {
+    assessment = { status: 'unknown', reason: 'dns_unavailable' };
+  } else if (mx.status === 'available' && mx.records.length > 0) {
+    const nullMx = mx.records.some((record) => record.priority === 0 && record.exchange.trim() === '');
+    assessment = nullMx
+      ? {
+          status: 'invalid',
+          reason: 'domain_rejects_email',
+          message: 'That email domain does not accept messages. Use another email address.',
+        }
+      : { status: 'deliverable', reason: 'mail_domain_available' };
+  } else {
+    const [a, aaaa] = await Promise.all([
+      queryNativeDns('A', () => resolver.resolve4(domain), options),
+      queryNativeDns('AAAA', () => resolver.resolve6(domain), options),
+    ]);
+    const hasAddress = (a.status === 'available' && a.records.length > 0)
+      || (aaaa.status === 'available' && aaaa.records.length > 0);
+    if (hasAddress) {
+      assessment = { status: 'deliverable', reason: 'mail_domain_available' };
+    } else if (a.status === 'unavailable' || aaaa.status === 'unavailable') {
+      assessment = { status: 'unknown', reason: 'dns_unavailable' };
+    } else if (a.status === 'absent' && a.errorCode === 'ENOTFOUND'
+      && aaaa.status === 'absent' && aaaa.errorCode === 'ENOTFOUND') {
       assessment = {
         status: 'invalid',
         reason: 'domain_not_found',
         message: 'That email domain does not exist. Check the address and try again.',
       };
-    } else if (mx.Status !== 0) {
-      assessment = { status: 'unknown', reason: 'dns_unavailable' };
     } else {
-      const mxAnswers = mx.Answer?.filter((answer) => answer.type === 15 && Boolean(answer.data?.trim())) ?? [];
-      const nullMx = mxAnswers.some((answer) => /^0\s+\.$/u.test(answer.data!.trim()));
-      if (nullMx) {
-        assessment = {
-          status: 'invalid',
-          reason: 'domain_rejects_email',
-          message: 'That email domain does not accept messages. Use another email address.',
-        };
-      } else if (mxAnswers.length > 0) {
-        assessment = { status: 'deliverable', reason: 'mail_domain_available' };
-      } else {
-        const [a, aaaa] = await Promise.all([
-          queryDns(domain, 'A', fetcher, options),
-          queryDns(domain, 'AAAA', fetcher, options),
-        ]);
-        if (hasDnsAnswer(a, 1) || hasDnsAnswer(aaaa, 28)) {
-          assessment = { status: 'deliverable', reason: 'mail_domain_available' };
-        } else if (a.Status === 3 && aaaa.Status === 3) {
-          assessment = {
-            status: 'invalid',
-            reason: 'domain_not_found',
-            message: 'That email domain does not exist. Check the address and try again.',
-          };
-        } else if (a.Status !== 0 || aaaa.Status !== 0) {
-          assessment = { status: 'unknown', reason: 'dns_unavailable' };
-        } else {
-          assessment = {
-            status: 'invalid',
-            reason: 'domain_rejects_email',
-            message: 'That email domain does not appear to receive messages. Use another email address.',
-          };
-        }
-      }
+      assessment = {
+        status: 'invalid',
+        reason: 'domain_rejects_email',
+        message: 'That email domain does not appear to receive messages. Use another email address.',
+      };
     }
-  } catch {
-    assessment = { status: 'unknown', reason: 'dns_unavailable' };
   }
 
   cacheDomainAssessment(domain, assessment, now);
