@@ -1,5 +1,20 @@
 # Architectural Decisions
 
+## ADR-072: In-Process Email Preflight Without Ownership Verification
+
+Date: 2026-08-14
+Status: Accepted
+
+Context: Public registration, volunteer, CFP, and community-event forms need fewer mistyped, disposable, or non-mail domains without adding a confirmation-link step that interrupts the intended fill-and-submit experience. A paid mailbox-verification provider would add cost and still could not prove that the submitter owns the address. Existing attendee and submission records must remain valid and check-in must not acquire a new verification state.
+
+Decision: Keep email preflight inside the existing Hono application. A shared module performs bounded syntax normalization, high-confidence provider-typo suggestions, a maintained disposable-domain lookup, and Cloudflare DNS-over-HTTPS MX checks with the RFC-defined A/AAAA fallback and null-MX rejection. EMS-hosted forms call a narrowly rate-limited preflight endpoint to render a real **Checking email** then **Submitting** button sequence. Every final public submission endpoint repeats the same server-side policy so clients cannot bypass it. Definite invalid results stop only the new submission; DNS timeouts, resolver failures, and other inconclusive results fail open. Cache domain-level results only, never complete addresses. Do not add a database column, migration, historical backfill, check-in restriction, email challenge, or claim that domain deliverability proves mailbox ownership.
+
+Trade-offs: This catches common errors and low-effort disposable addresses without a click-through gate, but it cannot detect a valid address entered by someone else or prove that an individual mailbox exists. DNS adds one bounded external read on an uncached domain, and community-maintained disposable lists can have false positives or lag new providers. Rechecking final endpoints adds server work but preserves the security boundary; short-lived domain caching and fail-open resolver handling keep the registration path available.
+
+Revisit when: forged-but-deliverable addresses become measurable abuse, bounce/complaint webhooks provide better evidence, disposable-domain false positives affect legitimate attendees, or multiple products need a separately operated validation API.
+
+---
+
 ## ADR-071: Bound Public API Work and Remove Bearer Capabilities From New Request Paths
 
 Date: 2026-08-13

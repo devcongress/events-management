@@ -247,6 +247,30 @@ describe('community event submissions', () => {
     expect(mocks.rateLimit).toHaveBeenCalledTimes(2);
   });
 
+  it('rechecks the organizer email on the final endpoint so preflight cannot be bypassed', async () => {
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/public/event-submissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...validPayload(),
+        organizer_email: 'organizer@mailinator.com',
+      }),
+    });
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: 'validation_failed',
+        message: 'Check the event details and try again.',
+        field_errors: {
+          organizer_email: 'Use a permanent email address so we can send your event updates.',
+        },
+      },
+    });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it('stores a validated public cover only through the dedicated multipart route', async () => {
     mocks.requireAdmin.mockClear();
     const { default: app } = await import('./app');

@@ -383,6 +383,39 @@ describe('native event registration API', () => {
     });
   });
 
+  it('does not create a registration when the final endpoint receives a disposable email', async () => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Email quality meetup',
+        description: 'An event protected by the email preflight.',
+        event_date: '2099-08-20T18:00:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+    await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'open' }),
+    });
+
+    const registrationResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Temporary Guest', email: 'guest@mailinator.com' }),
+    });
+
+    expect(registrationResponse.status).toBe(422);
+    await expect(registrationResponse.json()).resolves.toMatchObject({ code: 'disposable_domain' });
+    const registrationsResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`);
+    const registrations = await registrationsResponse.json() as { registrations: unknown[] };
+    expect(registrations.registrations).toEqual([]);
+  });
+
   it('retries a persisted provider draft without creating another blast audience', async () => {
     vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');

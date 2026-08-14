@@ -24,6 +24,7 @@
 | `lib/event-feedback-report.ts` | Pure event-feedback aggregate model used by the organizer dashboard |
 | `lib/speaker-archive-email.ts` | Eligible program-item selection and strict stored speaker-email resolution |
 | `lib/email/scenarios.ts` / `lib/email/resend.ts` / `lib/email/templates/monthly-archive-request.ts` | Code-owned sender and subject policy, Worker-native Resend client, and Archive Request email |
+| `lib/email/public-email-preflight.ts` | Shared public-form email syntax, provider-typo, disposable-domain, DNS fallback, domain-only cache, and fail-open resolver policy |
 | `src/components/NaviiAvatar.vue` | Local deterministic Navii avatar renderer for leaderboard profiles |
 | `src/views/PlayView.vue` / `PlayCodeView.vue` | Quiz join and live player gameplay |
 | `src/views/NotFoundView.vue` | Branded fallback for unknown Vue routes |
@@ -54,7 +55,7 @@
   - Authenticated registration reads return `managed_internally: true` with the private campaign/guest list, or `managed_internally: false` for an existing historical event with no campaign. Unknown events remain `404`, and reads never create campaigns or synthetic attendees.
   - On-site registration: `/organizer-console/registration-display/:eventId` is an authenticated Owner/Organizer display route that generates a local QR from the existing public registration URL. The same display is allowed on phone viewports, while the mobile Events workspace exposes a direct **Show registration QR** action. No attendee identity or check-in token is encoded in the QR.
   - `register_for_event` serializes capacity allocation per campaign in Postgres, rejects duplicate active emails, confirms within capacity, and automatically waitlists overflow. The legacy `auto_confirm` and `waitlist_enabled` columns remain fixed internal compatibility fields and are no longer organizer-controlled. `cancel_registration_and_promote` takes the same campaign lock, cancels the selected registration, promotes the oldest waitlisted guest when a confirmed place opens, and queues the promotion delivery in the same transaction.
-  - The canonical public `/r/:eventSlug` form collects name/email only; legacy `/register/:eventId` links remain valid. Attendee tables have RLS and no anonymous policies; all access goes through validated Hono routes.
+  - The canonical public `/r/:eventSlug` form collects name/email only; legacy `/register/:eventId` links remain valid. The client performs a rate-limited `/api/public/email-preflight` before the final request so the button can show a real checking/submitting sequence, and the final route independently repeats the policy. Definite syntax, typo, disposable, null-MX, nonexistent-domain, or no-mail-domain results stop the new submission; DNS outages fail open. No historical attendee or check-in state changes. Attendee tables have RLS and no anonymous policies; all access goes through validated Hono routes.
   - Confirmation delivery is an outbox operation. Missing provider configuration or a Resend quota error never rolls back the attendee record.
 - **Speaker management**
   - Active Vue page: `src/views/admin/AdminSpeakersView.vue`
@@ -103,7 +104,7 @@
   - Authenticated volunteer access: `admin_memberships.role = volunteer`; the SPA routes volunteers to Annual Conference without rendering the redundant global navigation tab, the API returns only tasks matched by accountable-owner/collaborator email, and volunteer mutations accept status-only changes on those assigned tasks
   - Security boundary: non-conference APIs retain the owner/organizer role gate, volunteer-applicant records remain organizer-only, and assigned-task responses redact `internal_note`
   - Storage: `lib/mock-db/volunteer-applications.ts` uses the existing `app_json_documents` Supabase compatibility store under the `volunteer-applications` key when server-side Supabase is enabled, with local JSON fallback for development
-  - Abuse controls: mandatory production Turnstile using the `volunteer_intake` action, atomic cross-Worker client limits, and one application per campaign/email
+  - Abuse controls: mandatory production Turnstile using the `volunteer_intake` action, atomic cross-Worker client limits, shared email preflight, and one application per campaign/email
 - **Monthly system design**
   - Active Vue pages: `src/views/admin/AdminSystemDesignView.vue`, `src/views/SystemDesignPresenterView.vue`, `src/views/SystemDesignParticipantView.vue`, `src/views/EventView.vue`, `src/views/ArchiveEventView.vue`
   - Storage: `event.schedule` rows with type `system_design`, optional public recap notes, and prompt-link resources

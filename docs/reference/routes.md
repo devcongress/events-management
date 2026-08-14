@@ -74,7 +74,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | Group | Purpose |
 |---|---|
 | `/api/events*` | Event list, event details, organizer mutations, event removal, media metadata |
-| `GET/POST /api/registration/events/:eventKey` | Public registration status and non-enumerating name/email submission by event slug or ID, protected by strict input validation, production Turnstile, atomic cross-Worker limits, campaign/email uniqueness, and atomic capacity allocation |
+| `GET/POST /api/registration/events/:eventKey` | Public registration status and non-enumerating name/email submission by event slug or ID, protected by strict input and mail-domain preflight, production Turnstile, atomic cross-Worker limits, campaign/email uniqueness, and atomic capacity allocation |
 | `GET /api/registration/events/:eventKey/calendar.ics` | Public, attendee-free calendar download used by confirmed registration emails |
 | `/api/events/:eventId/registrations*` | Organizer registration status/window/capacity, private guest list, check-in, Owner/Organizer-only `DELETE .../:registrationId/check-in` undo, cancellation with atomic oldest-waitlisted promotion, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. Monthly place allocation and overflow waitlisting are server policy, not mutable organizer settings. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
 | `GET /api/events/:eventId/finance` | Owner or Organizer access to the monthly meetup actual-expense summary and ledger; Volunteers are rejected and non-monthly events are rejected |
@@ -85,11 +85,11 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
 | `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send using stored program identities and validated one-off recipient emails; successful identities are suppressed from repeat UI/API sends |
 | `GET /api/cfp/events/:eventId` | Minimal public event context for an open monthly CFP; avoids exposing organizer event records |
-| `/api/cfp` and `/api/speaker-submissions*` | Turnstile/rate-limited public talk/product-demo proposals and organizer selection decisions |
+| `/api/cfp` and `/api/speaker-submissions*` | Turnstile/rate-limited, email-preflighted public talk/product-demo proposals and organizer selection decisions |
 | `/api/speakers*` | Speaker access workflows |
 | `/api/attendance*` | Luma CSV import, removal, summaries, monthly ledger |
 | `/api/feedback*` | App feedback, event campaigns, and anonymous public event-feedback submission. Session ratings accept 1–5 or `not_attended`; the latter is excluded from averages. |
-| `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by mandatory production Turnstile, atomic per-client limits, and email de-duplication |
+| `POST /api/volunteer-applications` | Public December 2026 volunteer application submission, protected by mandatory production Turnstile, atomic per-client limits, email-domain preflight, and email de-duplication |
 | `GET /api/admin/volunteer-applications` | Organizer-only December 2026 volunteer application read API |
 | `GET /api/annual-conference/:year/work-plan` | Returns the edition plan and effective capability list; volunteers default to assigned tasks with internal notes removed, while explicit full-view or management grants expand the projection |
 | `GET /api/annual-conference/:year/speakers` | Returns only the edition's conference proposal queue and Call for Speakers state; requires conference-speaker access |
@@ -106,7 +106,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/public/meetups*` | Read-only website integration API |
 | `GET /api/public/events` | Read-only generic event feed containing published DevCongress events and, behind an independent fail-closed discovery gate, approved and published public-submission listings |
 | `GET /api/public/events/:slug` | Read-only published event detail lookup for the dynamic public website and public-link readiness checks; applies the same discovery gate as the collection endpoint |
-| `POST /api/public/event-submissions` | Runtime-gated public proposal intake with strict schema validation, purpose-specific Turnstile hostname validation, and distributed client/email limits |
+| `POST /api/public/email-preflight` | Rate-limited, non-persistent syntax/typo/disposable/mail-domain check used for the public forms' two-stage submit state; inconclusive DNS results are accepted and final submission endpoints recheck policy |
+| `POST /api/public/event-submissions` | Runtime-gated public proposal intake with strict schema and organizer-email preflight, purpose-specific Turnstile hostname validation, and distributed client/email limits |
 | `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, idempotent failed-email retry, and one-reply-at-a-time Slack notification retry with bounded provider diagnostics |
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |

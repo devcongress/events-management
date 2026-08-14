@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
+import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
+import { preflightPublicEmail } from '@/src/lib/api';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { VOLUNTEER_INTAKE_TURNSTILE_ACTION } from '@/lib/turnstile';
 
@@ -14,6 +16,7 @@ const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
 const turnstileToken = ref('');
 const turnstileError = ref('');
 const submitting = ref(false);
+const submissionStage = ref<'checking' | 'submitting' | null>(null);
 const submitted = ref(false);
 const error = ref('');
 const turnstileActive = turnstileEnabled();
@@ -30,9 +33,13 @@ async function submitApplication() {
   if (!canSubmit.value || submitting.value) return;
 
   submitting.value = true;
+  submissionStage.value = 'checking';
   error.value = '';
 
   try {
+    const emailCheck = await preflightPublicEmail(form.email);
+    form.email = emailCheck.normalized_email;
+    submissionStage.value = 'submitting';
     const response = await fetch('/api/volunteer-applications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -54,10 +61,13 @@ async function submitApplication() {
     }
 
     submitted.value = true;
-  } catch {
-    error.value = 'We could not save your details. Please check your connection and try again.';
+  } catch (caught) {
+    error.value = caught instanceof Error
+      ? caught.message
+      : 'We could not save your details. Please check your connection and try again.';
   } finally {
     submitting.value = false;
+    submissionStage.value = null;
   }
 }
 </script>
@@ -112,8 +122,14 @@ async function submitApplication() {
 
         <p v-if="error || turnstileError" class="volunteer-intake-error" role="alert">{{ error || turnstileError }}</p>
 
-        <button class="volunteer-intake-submit motion-press" type="submit" :disabled="!canSubmit || submitting">
-          {{ submitting ? 'Sending…' : 'Volunteer for the conference' }}
+        <button
+          class="volunteer-intake-submit motion-press"
+          type="submit"
+          :disabled="!canSubmit || submitting"
+          :aria-busy="submitting"
+        >
+          <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
+          <template v-else>Volunteer for the conference</template>
         </button>
       </form>
     </section>
