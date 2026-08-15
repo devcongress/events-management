@@ -217,7 +217,7 @@ function emailCopy(input: CommunityEventSubmissionEmailInput & {
 
   if (input.kind === 'withdrawn') {
     return {
-      subject: `Your event listing was removed: ${input.eventTitle}`,
+      subject: emailSubjects.communitySubmissionWithdrawn(input.eventTitle),
       heading: 'Your event listing was removed.',
       intro: 'The DevCongress team removed this event from the community calendar.',
       detail: 'This affects only the DevCongress community calendar listing and does not change your own event or registration page.',

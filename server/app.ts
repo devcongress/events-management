@@ -19,6 +19,7 @@ import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blas
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
+import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
   eventRegistrationCalendarFile,
   eventRegistrationConfirmationEmail,
@@ -262,16 +263,34 @@ app.use('*', async (c, next) => {
   }
   await next();
 
+  const isEmailPreviewDocument = (
+    c.req.method === 'GET'
+    && /^\/api\/admin\/email-previews\/[^/]+\/html$/.test(c.req.path)
+    && c.res.status === 200
+    && c.res.headers.get('content-type')?.startsWith('text/html')
+  );
+
   c.header('X-Request-ID', requestId);
   c.header('X-Content-Type-Options', 'nosniff');
-  c.header('X-Frame-Options', 'DENY');
+  c.header('X-Frame-Options', isEmailPreviewDocument ? 'SAMEORIGIN' : 'DENY');
   c.header('X-Permitted-Cross-Domain-Policies', 'none');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   c.header('Cross-Origin-Opener-Policy', 'same-origin');
-  c.header(
-    'Content-Security-Policy',
-    [
+  c.header('Content-Security-Policy', isEmailPreviewDocument
+    ? [
+      "default-src 'none'",
+      "base-uri 'none'",
+      "object-src 'none'",
+      "frame-ancestors 'self'",
+      "form-action 'none'",
+      "script-src 'none'",
+      "style-src 'unsafe-inline'",
+      "style-src-attr 'unsafe-inline'",
+      "font-src 'self' data:",
+      "img-src 'self' data: https://devcongress.org https://em.devcongress.org",
+    ].join('; ')
+    : [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
@@ -284,10 +303,9 @@ app.use('*', async (c, next) => {
       "img-src 'self' data: blob: https:",
       "media-src 'self' https:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
-      "frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
+      "frame-src 'self' https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
       "worker-src 'self' blob:",
-    ].join('; '),
-  );
+    ].join('; '));
 
   if (envValue('NODE_ENV', c) === 'production') {
     c.header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
@@ -5480,6 +5498,35 @@ app.get('/api/admin/audit-log', async (c) => {
     if (error instanceof OperationsReadModelError) return c.json({ error: error.message }, 500);
     throw error;
   }
+});
+
+app.get('/api/admin/email-previews', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const catalog = emailPreviewCatalog();
+
+  return c.json({
+    ...catalog,
+    previews: catalog.previews.map(({ html: _html, ...preview }) => preview),
+  }, 200, {
+    'Cache-Control': 'private, no-store',
+  });
+});
+
+app.get('/api/admin/email-previews/:previewId/html', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const previewId = z.string().regex(/^[a-z0-9_]+$/).safeParse(c.req.param('previewId'));
+  if (!previewId.success) return c.json({ error: 'Email preview not found.' }, 404);
+  const preview = emailPreviewCatalog().previews.find((candidate) => candidate.id === previewId.data);
+  if (!preview) return c.json({ error: 'Email preview not found.' }, 404);
+
+  return c.html(preview.html, 200, {
+    'Cache-Control': 'private, no-store',
+    'Content-Disposition': 'inline',
+  });
 });
 
 app.get('/api/admin/archived-events', async (c) => {

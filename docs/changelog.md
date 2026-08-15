@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-15 — Scenario Atlas interaction prototype
+
+- Added a standalone Scenario Atlas proof of concept for the external-event submission and organizer-moderation workflows.
+- Made workflows, checkpoint-derived scenarios, and individual scenario paths replace the full graph as users drill down, with breadcrumb and one-level Back navigation.
+- Applied Inter interface typography, JetBrains Mono graph metadata, light/dark themes, first-unresolved-checkpoint semantics, and a compact Coverage view.
+
+## 2026-08-15 — Owner email preview catalog
+
+- Added an Owner-only **Email previews** subsection beside **Email delivery** inside Audit Log, covering all 12 active registration, event-update, community-listing, and speaker-archive recipient scenarios with safe sample content.
+- Rendered visual previews from the same production template functions used by delivery, with sender/recipient/subject context, plain-text fallback inspection, and desktop/mobile email widths; the workspace has no send action.
+- Listed five planned Annual Conference scenarios separately without inventing templates for emails EMS does not send yet.
+- Added a sandboxed, non-cacheable preview-document endpoint with a narrow CSP for email inline styles while preserving the organizer app's strict default CSP and Owner-only API admission.
+
 ## 2026-08-14 — Moved email-domain validation to Workers-native DNS
 
 - Replaced outbound JSON DNS-over-HTTPS fetches, which remained inconclusive in the deployed Worker, with Cloudflare Workers' supported `node:dns` MX/A/AAAA resolution under the existing `nodejs_compat` configuration.

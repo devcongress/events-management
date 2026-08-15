@@ -252,6 +252,30 @@ export interface AdminAuditLogResponse {
   auth_mode: 'supabase';
 }
 
+export interface AdminEmailPreview {
+  id: string;
+  label: string;
+  category: 'Registration' | 'Event updates' | 'Community listings' | 'Speaker archive';
+  recipient: string;
+  trigger: string;
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+}
+
+export interface PlannedEmailScenario {
+  id: string;
+  recipient: string;
+  subject_pattern: string;
+  from: string;
+}
+
+export interface AdminEmailPreviewsResponse {
+  previews: AdminEmailPreview[];
+  planned: PlannedEmailScenario[];
+}
+
 export interface AdminShortLink {
   id: string;
   code: string;
@@ -467,6 +491,7 @@ export const queryKeys = {
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
+  adminEmailPreviews: ['admin-email-previews'] as const,
   adminShortLinks: ['admin-short-links'] as const,
   adminArchivedEvents: ['admin-archived-events'] as const,
   event: (eventId: string) => ['events', eventId] as const,
@@ -1103,6 +1128,10 @@ export function fetchAdminAuditLog(filters: { actor?: string; action?: string; t
   }
   const query = params.toString();
   return fetchJson<AdminAuditLogResponse>(`/api/admin/audit-log${query ? `?${query}` : ''}`, { credentials: 'include' });
+}
+
+export function fetchAdminEmailPreviews() {
+  return fetchJson<AdminEmailPreviewsResponse>('/api/admin/email-previews', { credentials: 'include' });
 }
 
 export function fetchAdminArchivedEvents() {

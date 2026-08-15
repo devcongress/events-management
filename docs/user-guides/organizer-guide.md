@@ -12,6 +12,12 @@ Open the organizer console and continue with Google using an approved organizer 
 
 The base path can be changed with `VITE_ADMIN_BASE_PATH`.
 
+## Inspect Recipient Emails
+
+Owners can open **Audit Log** from the primary navigation on a tablet or desktop, then choose **Email previews** beside **Email delivery**. Choose any live scenario to see who receives it, when it is triggered, its sender and subject, and the exact HTML produced by the current delivery template. Use **Plain text** to inspect the fallback inbox content and **Desktop / Mobile** to change the email preview width. The subsection uses sample names, addresses, events, and links; it never reads a real recipient record and never sends an email.
+
+The collapsed **Not active yet** section lists planned Annual Conference email scenarios separately. They do not have previews because EMS does not send them today.
+
 ## Manage Events
 
 Use the event list to create, classify, edit, publish, and remove meetups. Native creation is the only path: the event record and its internal registration campaign are created together.

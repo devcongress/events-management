@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
+import AdminEmailPreviewsView from '@/src/views/admin/AdminEmailPreviewsView.vue';
 import { deleteEventById, fetchAdminArchivedEvents, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, restoreArchivedEvent, revokeAdminShortLink, type AdminAuditLogEntry, type ArchivedEvent, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 
@@ -18,7 +19,7 @@ interface AuditLogGroup {
   logs: AdminAuditLogEntry[];
 }
 
-type AuditLogSection = 'activity' | 'email-delivery' | 'short-links' | 'archived-events';
+type AuditLogSection = 'activity' | 'email-delivery' | 'email-previews' | 'short-links' | 'archived-events';
 type ShortLinkStatusFilter = 'active' | 'revoked';
 interface ShortLinkMenuPosition {
   left: number;
@@ -395,7 +396,7 @@ function clearFilters() {
 
 function selectSection(section: AuditLogSection) {
   if (activeSection.value === section) return;
-  const order: AuditLogSection[] = ['activity', 'email-delivery', 'short-links', 'archived-events'];
+  const order: AuditLogSection[] = ['activity', 'email-delivery', 'email-previews', 'short-links', 'archived-events'];
   activeSectionTransition.value = order.indexOf(section) > order.indexOf(activeSection.value) ? 'forward' : 'backward';
   activeSection.value = section;
 }
@@ -566,6 +567,22 @@ onUnmounted(() => {
               <path d="m3.75 5.5 6.25 5 6.25-5" />
             </svg>
             <span>Email delivery</span>
+          </button>
+          <button
+            id="audit-log-tab-email-previews"
+            type="button"
+            role="tab"
+            class="audit-log-tab motion-press"
+            :aria-selected="activeSection === 'email-previews'"
+            aria-controls="audit-log-panel-email-previews"
+            @click="selectSection('email-previews')"
+          >
+            <svg class="audit-log-tab-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <rect x="2.75" y="3.25" width="14.5" height="10.5" rx="1.5" />
+              <path d="m3.75 4.75 6.25 4.75 6.25-4.75" />
+              <path d="M7 16.5h6" />
+            </svg>
+            <span>Email previews</span>
           </button>
           <button
             id="audit-log-tab-short-links"
@@ -918,6 +935,9 @@ onUnmounted(() => {
                 </table>
               </div>
             </div>
+          </section>
+          <section v-else-if="activeSection === 'email-previews'" id="audit-log-panel-email-previews" key="email-previews" role="tabpanel" aria-labelledby="audit-log-tab-email-previews" class="w-full">
+            <AdminEmailPreviewsView />
           </section>
           <section v-else-if="activeSection === 'short-links'" id="audit-log-panel-short-links" key="short-links" role="tabpanel" aria-labelledby="audit-log-tab-short-links" class="audit-log-email-delivery w-full">
             <div class="audit-log-short-links__toolbar">
