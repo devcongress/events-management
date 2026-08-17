@@ -92,7 +92,7 @@ export async function buildQuizStateResponse(
     answersCount = hostedAnalytics?.answers_count ?? responses.length;
   }
 
-  const fullLeaderboard = hostedAnalytics?.leaderboard ?? [...participants]
+  let fullLeaderboard = hostedAnalytics?.leaderboard ?? [...participants]
     .sort((left, right) => right.total_score - left.total_score || left.joined_at.localeCompare(right.joined_at))
     .map((participant, index) => ({
       user_id: participant.user_id,
@@ -102,6 +102,18 @@ export async function buildQuizStateResponse(
       rank: index + 1,
       avatar_seed: participant.id,
     }));
+  if (session.purpose === 'system_design_learning' && options.includePresenterLeaderboard && questions.length > 0) {
+    const responseGroups = await Promise.all(questions.map((question) => getResponsesByQuestion(question.id)));
+    const correctAnswers = new Map<string, number>();
+    for (const response of responseGroups.flat()) {
+      if (!response.is_correct) continue;
+      correctAnswers.set(response.user_id, (correctAnswers.get(response.user_id) ?? 0) + 1);
+    }
+    fullLeaderboard = fullLeaderboard.map((entry) => ({
+      ...entry,
+      correct_answers: correctAnswers.get(entry.user_id) ?? 0,
+    }));
+  }
   const leaderboard = session.purpose === 'system_design_learning' && !options.includePresenterLeaderboard
     ? []
     : fullLeaderboard.slice(0, 10);

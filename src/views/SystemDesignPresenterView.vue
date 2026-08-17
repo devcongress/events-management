@@ -15,7 +15,9 @@ const loading = ref(true);
 const actionPending = ref(false);
 const error = ref('');
 let pollTimer: number | undefined;
+let clockTimer: number | undefined;
 let pollInFlight = false;
+const nowMs = ref(Date.now());
 
 const sessionId = computed(() => String(route.params.sessionId ?? ''));
 const playUrl = computed(() => session.value
@@ -28,6 +30,16 @@ const participantsCount = computed(() => liveState.value?.participants_count ?? 
 const releasedCount = computed(() => session.value?.released_question_ids?.length ?? 0);
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
 const skippedQuestions = computed(() => session.value?.questions.filter((question) => (session.value?.skipped_question_ids ?? []).includes(question.id)) ?? []);
+const secondsRemaining = computed(() => {
+  if (session.value?.question_phase !== 'answering' || !currentQuestion.value || !session.value.question_started_at) return null;
+  const endsAt = new Date(session.value.question_started_at).getTime() + (currentQuestion.value.time_limit_seconds * 1000);
+  return Math.max(0, Math.ceil((endsAt - nowMs.value) / 1000));
+});
+const presenterTimer = computed(() => {
+  if (secondsRemaining.value === null) return null;
+  const minutes = Math.floor(secondsRemaining.value / 60);
+  return `${minutes}:${String(secondsRemaining.value % 60).padStart(2, '0')}`;
+});
 const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIndex) => (
   liveState.value?.answer_distribution?.find((result) => result.option_index === optionIndex) ?? {
     option_index: optionIndex,
@@ -112,10 +124,12 @@ async function finishRoom() {
 onMounted(async () => {
   await fetchPresenterState();
   pollTimer = window.setInterval(fetchPresenterState, 1500);
+  clockTimer = window.setInterval(() => { nowMs.value = Date.now(); }, 250);
 });
 
 onUnmounted(() => {
   if (pollTimer) window.clearInterval(pollTimer);
+  if (clockTimer) window.clearInterval(clockTimer);
 });
 </script>
 
@@ -197,13 +211,23 @@ onUnmounted(() => {
           <p>The strongest decisions across the complete learning sequence.</p>
         </div>
 
+        <aside class="presenter-score-legend" aria-label="How System Design points are calculated">
+          <p class="presenter-eyebrow">How points work</p>
+          <p><strong>Correct answers</strong> earn 50–100% of that question’s points, based on speed.</p>
+          <p><strong>Correct streaks</strong> add: 2 → +100 · 3 → +200 · 4 → +300 · 5+ → +500.</p>
+        </aside>
+
         <div v-if="liveState?.leaderboard.length" class="presenter-leaderboard">
+          <div class="presenter-leaderboard-header" aria-hidden="true">
+            <span>Rank</span><span>Participant</span><span>Correct / total</span><span>Points</span>
+          </div>
           <div v-for="entry in liveState.leaderboard" :key="entry.user_id" class="presenter-leaderboard-row" :class="{ 'presenter-leaderboard-row--podium': entry.rank <= 3 }">
             <span class="presenter-rank">#{{ entry.rank }}</span>
             <div class="presenter-player">
               <NaviiAvatar :seed="entry.avatar_seed ?? entry.user_id" :title="`${entry.nickname} avatar`" :size="entry.rank <= 3 ? 56 : 46" />
               <span>{{ entry.nickname }}</span>
             </div>
+            <span class="presenter-correct-count">{{ entry.correct_answers ?? 0 }} / {{ session.questions.length }}</span>
             <span class="presenter-score">{{ entry.total_score }} pts</span>
           </div>
         </div>
@@ -223,9 +247,15 @@ onUnmounted(() => {
 
         <div class="presenter-question-layout">
           <article class="presenter-question-panel">
-            <div>
-              <p class="presenter-kicker">Think through the trade-off</p>
-              <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
+            <div class="presenter-question-heading">
+              <div>
+                <p class="presenter-kicker">Think through the trade-off</p>
+                <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
+              </div>
+              <div v-if="presenterTimer !== null" class="presenter-timer" :class="{ 'presenter-timer--urgent': secondsRemaining !== null && secondsRemaining <= 5 }" aria-live="off">
+                <span>Time left</span>
+                <strong>{{ presenterTimer }}</strong>
+              </div>
             </div>
 
             <div class="presenter-options">
@@ -240,9 +270,10 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div v-if="session.question_phase === 'revealing'" class="presenter-explanation">
+            <div class="presenter-explanation" :class="{ 'presenter-explanation--revealed': session.question_phase === 'revealing' }">
               <p class="presenter-eyebrow">Why this answer</p>
-              <p>{{ currentQuestion?.explanation }}</p>
+              <p v-if="session.question_phase === 'revealing'">{{ currentQuestion?.explanation }}</p>
+              <p v-else class="presenter-explanation-placeholder">The explanation will appear here when the answer is revealed.</p>
             </div>
 
             <footer class="presenter-controls">
@@ -544,10 +575,50 @@ onUnmounted(() => {
 
 .presenter-question-panel h1 {
   max-width: 26ch;
-  font-size: clamp(1.8rem, 3vw, 3.5rem);
+  font-size: clamp(1.55rem, 2.35vw, 2.75rem);
   font-weight: var(--font-weight-emphasis);
   letter-spacing: -0.035em;
-  line-height: 1.12;
+  line-height: 1.16;
+}
+
+.presenter-question-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.presenter-timer {
+  display: grid;
+  flex: 0 0 auto;
+  min-width: 6.5rem;
+  justify-items: end;
+  border: 2px solid #111111;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  background: #f5e642;
+  box-shadow: 2px 2px 0 #111111;
+}
+
+.presenter-timer span {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.presenter-timer strong {
+  margin-top: 0.15rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 1.8rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.presenter-timer--urgent {
+  background: #e8117f;
+  color: #ffffff;
 }
 
 .presenter-options {
@@ -603,10 +674,22 @@ onUnmounted(() => {
 }
 
 .presenter-explanation {
+  display: flex;
+  min-height: clamp(8.5rem, 12vw, 10.5rem);
+  max-height: clamp(8.5rem, 12vw, 10.5rem);
+  flex-direction: column;
   margin-top: 1rem;
+  overflow: auto;
   border: 2px solid #111111;
   border-radius: 8px;
   padding: 1.1rem 1.25rem;
+  background: #ffffff;
+  transition:
+    background-color 180ms var(--motion-fast),
+    border-color 180ms var(--motion-fast);
+}
+
+.presenter-explanation--revealed {
   background: #fefce8;
 }
 
@@ -615,6 +698,10 @@ onUnmounted(() => {
   color: #555555;
   font-size: 1rem;
   line-height: 1.6;
+}
+
+.presenter-explanation-placeholder {
+  color: #8c877d !important;
 }
 
 .presenter-controls {
@@ -802,17 +889,63 @@ onUnmounted(() => {
   font-size: 1.1rem;
 }
 
+.presenter-score-legend {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem 2rem;
+  align-items: start;
+  margin-bottom: 1.25rem;
+  border: 1px solid #e0ddd4;
+  border-left: 3px solid #e8117f;
+  padding: 1rem 1.25rem;
+  background: #fefce8;
+}
+
+.presenter-score-legend p {
+  margin: 0;
+  color: #555555;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.presenter-score-legend strong { color: #111111; }
+
 .presenter-leaderboard {
   overflow: hidden;
 }
 
 .presenter-leaderboard-row {
   display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  grid-template-columns: 4rem minmax(0, 1fr) minmax(7rem, auto) minmax(7rem, auto);
   align-items: center;
   gap: 1rem;
   border-bottom: 1px solid #e0ddd4;
   padding: 0.85rem 1.25rem;
+}
+
+.presenter-leaderboard-header {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) minmax(7rem, auto) minmax(7rem, auto);
+  gap: 1rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding: 0.7rem 1.25rem;
+  color: #555555;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.presenter-leaderboard-header span:nth-child(n + 3),
+.presenter-correct-count,
+.presenter-score { text-align: right; }
+
+.presenter-correct-count {
+  color: #555555;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .presenter-leaderboard-row:last-child {
@@ -929,18 +1062,38 @@ onUnmounted(() => {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .presenter-leaderboard-row {
-    grid-template-columns: 3rem minmax(0, 1fr);
+  .presenter-question-heading {
+    display: block;
   }
 
-  .presenter-score {
-    grid-column: 2;
+  .presenter-timer {
+    width: fit-content;
+    margin-top: 1rem;
+    justify-items: start;
   }
+
+  .presenter-score-legend {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .presenter-leaderboard-row {
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+  }
+
+  .presenter-leaderboard-header { display: none; }
+
+  .presenter-score {
+    grid-column: 2 / -1;
+  }
+
+  .presenter-correct-count { grid-column: 3; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .presenter-option,
   .presenter-chart-fill,
+  .presenter-explanation,
   .presenter-end-action {
     transition: none;
   }

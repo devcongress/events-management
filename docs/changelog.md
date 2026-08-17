@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-17 — System Design removal and presenter stability
+
+- Made removal of a saved System Design session delete its linked learning-room record, ending any live presentation and cascading its questions, responses, and room participants so a later brief starts fresh.
+- Reduced presenter question type scale and reserved a fixed explanation panel, preventing answer reveal from changing the two-column presentation layout.
+- Added the server-timed presenter countdown and an explained final board with correct-answer progress beside points.
+
 ## 2026-08-17 — System Design session lifecycle
 
 - Reframed System Design as one event-scoped session brief with multiple facilitators, docs URL, description, manual MCQ authoring, and a ten-question lifetime generation allowance.
