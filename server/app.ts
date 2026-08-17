@@ -19,6 +19,7 @@ import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blas
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
+import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
   eventRegistrationCalendarFile,
   eventRegistrationConfirmationEmail,
@@ -110,7 +111,7 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, mergeQuizParticipantUsers, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
-import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, releaseNextSystemDesignQuestion, revealSystemDesignQuestion } from '@/lib/mock-db/system-design-learning-room';
+import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, rebuildSystemDesignScores, releaseNextSystemDesignQuestion, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
@@ -180,7 +181,7 @@ import {
   SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS,
   SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS,
 } from '@/lib/speaker-intake-limits';
-import { canonicalizeSystemDesignSchedule, findSystemDesignSource } from '@/lib/system-design';
+import { canonicalizeSystemDesignSchedule, findSystemDesignSource, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
 import {
   generateParticipantAlias,
   validateParticipantDisplayName,
@@ -262,32 +263,50 @@ app.use('*', async (c, next) => {
   }
   await next();
 
+  const isEmailPreviewDocument = (
+    c.req.method === 'GET'
+    && /^\/api\/admin\/email-previews\/[^/]+\/html$/.test(c.req.path)
+    && c.res.status === 200
+    && c.res.headers.get('content-type')?.startsWith('text/html')
+  );
+  const isDevelopment = envValue('NODE_ENV', c) === 'development';
+
   c.header('X-Request-ID', requestId);
   c.header('X-Content-Type-Options', 'nosniff');
-  c.header('X-Frame-Options', 'DENY');
+  c.header('X-Frame-Options', isEmailPreviewDocument ? 'SAMEORIGIN' : 'DENY');
   c.header('X-Permitted-Cross-Domain-Policies', 'none');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
   c.header('Cross-Origin-Opener-Policy', 'same-origin');
-  c.header(
-    'Content-Security-Policy',
-    [
+  c.header('Content-Security-Policy', isEmailPreviewDocument
+    ? [
+      "default-src 'none'",
+      "base-uri 'none'",
+      "object-src 'none'",
+      "frame-ancestors 'self'",
+      "form-action 'none'",
+      "script-src 'none'",
+      "style-src 'unsafe-inline'",
+      "style-src-attr 'unsafe-inline'",
+      "font-src 'self' data:",
+      "img-src 'self' data: https://devcongress.org https://em.devcongress.org",
+    ].join('; ')
+    : [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      "script-src 'self' https://challenges.cloudflare.com",
-      "style-src 'self' https://api.fontshare.com",
+      `script-src 'self'${isDevelopment ? " 'unsafe-inline'" : ''} https://challenges.cloudflare.com`,
+      `style-src 'self'${isDevelopment ? " 'unsafe-inline'" : ''} https://api.fontshare.com`,
       "style-src-attr 'none'",
       "font-src 'self' data: https://cdn.fontshare.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' https:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://challenges.cloudflare.com",
-      "frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
+      "frame-src 'self' https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
       "worker-src 'self' blob:",
-    ].join('; '),
-  );
+    ].join('; '));
 
   if (envValue('NODE_ENV', c) === 'production') {
     c.header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
@@ -533,6 +552,7 @@ const eventScheduleItemSchema = z.object({
     'break',
   ]),
   lead: z.string().trim().max(120).nullable(),
+  facilitators: z.array(z.string().trim().min(1).max(120)).max(12).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   system_design_title: z.string().trim().max(200).nullable().optional(),
   resources: z.array(z.object({
@@ -1146,6 +1166,7 @@ function isPublicReadApiPath(path: string): boolean {
     || /^\/api\/public\/events\/[^/]+$/.test(path)
     || path === '/api/public/archive'
     || path.startsWith('/api/public/archive/')
+    || path.startsWith('/api/public/system-design/')
     || path === '/api/public/home';
 }
 
@@ -1998,9 +2019,10 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
     return null;
   }
 
-  const [talks, campaign] = await Promise.all([
+  const [talks, campaign, sessions] = await Promise.all([
     getTalksByEvent(eventId),
     getFeedbackCampaignByEventStore(eventId, c),
+    getQuizSessionsByEvent(eventId),
   ]);
   const feedbackWindow = campaign ? feedbackCampaignWindow(event, campaign) : null;
   const available = campaign ? isFeedbackCampaignOpen(event, campaign) : false;
@@ -2011,6 +2033,12 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, PUBLIC_EVENT_ARCHIVE_ITEM_LIMIT);
 
+  const learningSession = sessions.find((session) => session.purpose === 'system_design_learning');
+  const scheduleSession = (event.schedule ?? []).find((item) => isSystemDesignSessionItem(item));
+  const recapQuestions = learningSession && isSystemDesignArchived(event)
+    ? await getQuestionsBySession(learningSession.id)
+    : [];
+
   return {
     event: toPublicArchiveEvent(event),
     talks: archiveItems,
@@ -2020,6 +2048,37 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
       closes_at: feedbackWindow?.closes_at ?? null,
       public_url: available ? `${publicAppOrigin(c)}/feedback/${eventId}` : null,
     },
+    system_design_recap: scheduleSession && isSystemDesignArchived(event) ? {
+      title: systemDesignDisplayTitle(scheduleSession),
+      facilitators: scheduleSession.facilitators ?? (scheduleSession.lead ? scheduleSession.lead.split(',').map((name) => name.trim()).filter(Boolean) : []),
+      docs_url: findSystemDesignSource([scheduleSession])?.url ?? null,
+      description: scheduleSession.description ?? null,
+      questions: recapQuestions.map((question) => ({
+        question_text: question.question_text,
+        options: question.options,
+        correct_index: question.correct_index,
+        explanation: question.explanation ?? null,
+        difficulty: question.difficulty ?? 'intermediate',
+        category: question.category ?? null,
+      })),
+    } : null,
+  };
+}
+
+async function publicSystemDesignRecapPayload(eventId: string, c: Context) {
+  const event = await getEventById(eventId, c);
+  if (!event || !event.publish_to_website || event.publication_status === 'draft' || !isSystemDesignArchived(event)) return null;
+  const scheduleSession = (event.schedule ?? []).find((item) => isSystemDesignSessionItem(item));
+  const learningSession = (await getQuizSessionsByEvent(event.id)).find((session) => session.purpose === 'system_design_learning');
+  if (!scheduleSession || !learningSession) return null;
+  const questions = await getQuestionsBySession(learningSession.id);
+  return {
+    event: { id: event.id, name: event.name, event_date: event.event_date },
+    title: systemDesignDisplayTitle(scheduleSession),
+    facilitators: scheduleSession.facilitators ?? (scheduleSession.lead ? scheduleSession.lead.split(',').map((name) => name.trim()).filter(Boolean) : []),
+    docs_url: findSystemDesignSource([scheduleSession])?.url ?? null,
+    description: scheduleSession.description ?? null,
+    questions: questions.map((question) => ({ question_text: question.question_text, options: question.options, correct_index: question.correct_index, explanation: question.explanation ?? null, difficulty: question.difficulty ?? 'intermediate', category: question.category ?? null })),
   };
 }
 
@@ -5482,6 +5541,35 @@ app.get('/api/admin/audit-log', async (c) => {
   }
 });
 
+app.get('/api/admin/email-previews', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const catalog = emailPreviewCatalog();
+
+  return c.json({
+    ...catalog,
+    previews: catalog.previews.map(({ html: _html, ...preview }) => preview),
+  }, 200, {
+    'Cache-Control': 'private, no-store',
+  });
+});
+
+app.get('/api/admin/email-previews/:previewId/html', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const previewId = z.string().regex(/^[a-z0-9_]+$/).safeParse(c.req.param('previewId'));
+  if (!previewId.success) return c.json({ error: 'Email preview not found.' }, 404);
+  const preview = emailPreviewCatalog().previews.find((candidate) => candidate.id === previewId.data);
+  if (!preview) return c.json({ error: 'Email preview not found.' }, 404);
+
+  return c.html(preview.html, 200, {
+    'Cache-Control': 'private, no-store',
+    'Content-Disposition': 'inline',
+  });
+});
+
 app.get('/api/admin/archived-events', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
   if (adminError) return adminError;
@@ -6112,6 +6200,13 @@ app.post('/api/public/event-submissions/with-cover', async (c) => {
 app.get('/api/public/archive', async (c) => {
   setPublicApiCache(c);
   return c.json(await publicArchivePayload(c));
+});
+
+app.get('/api/public/system-design/:eventId', async (c) => {
+  setPublicApiCache(c);
+  const payload = await publicSystemDesignRecapPayload(c.req.param('eventId'), c);
+  if (!payload) return c.json({ error: 'System Design recap not available' }, 404);
+  return c.json(payload);
 });
 
 app.get('/api/public/archive/:eventId', async (c) => {
@@ -7191,22 +7286,31 @@ app.post('/api/events/:eventId/system-design/learning-room/questions/generate', 
   if (!session || session.event_id !== event.id || session.purpose !== 'system_design_learning') {
     return c.json({ error: 'This learning room does not belong to the selected System Design session.' }, 409);
   }
+  const mutationError = systemDesignMutationError(event, session);
+  if (mutationError) return c.json({ error: mutationError }, 409);
   if (session.status === 'waiting' || session.status === 'active') {
     return c.json({ error: 'Finish the current presentation before changing its question set.' }, 409);
   }
   const source = findSystemDesignSource(event.schedule ?? []);
-  if (!source) return c.json({ error: 'Add the related System Design prompt link first.' }, 422);
+  if (!source) return c.json({ error: 'Add the related System Design docs URL first.' }, 422);
 
   try {
     const existing = await getQuestionsBySession(session.id);
-    const remainingCount = Math.max(0, 5 - existing.length);
-    if (remainingCount === 0) return c.json({ questions: [], source_title: source.title });
-    const existingText = new Set(existing.map((question) => question.question_text.trim().toLowerCase()));
+    const generatedCount = session.generated_question_count ?? existing.filter((question) => question.authoring_source === 'generated').length;
+    const remainingCount = Math.max(0, 10 - generatedCount);
+    if (remainingCount === 0) return c.json({ questions: [], source_title: source.title, remaining_generation_count: 0 });
+    const existingText = new Set(existing.map((question) => normalizeQuestionConceptKey(question.question_text)));
     const draft = await fetchSystemDesignSourceText(source.url, source.title);
-    const questions = generateQuestionDraftsFromText(draft.content, 8)
-      .filter((question) => !existingText.has(question.question_text.trim().toLowerCase()))
+    const newConcepts = new Set(existingText);
+    const questions = generateQuestionDraftsFromText(draft.content, 24)
+      .filter((question) => {
+        const concept = normalizeQuestionConceptKey(question.question_text);
+        if (!concept || newConcepts.has(concept)) return false;
+        newConcepts.add(concept);
+        return true;
+      })
       .slice(0, remainingCount);
-    if (questions.length < remainingCount) return c.json({ error: 'The linked prompt did not contain enough distinct concepts to complete this five-question set.' }, 422);
+    if (questions.length === 0) return c.json({ error: 'The linked docs do not contain a new concept that is distinct from your existing questions.' }, 422);
     const created = await Promise.all(questions.map((question, index) => createQuestion({
       quiz_session_id: session.id,
       question_text: question.question_text,
@@ -7214,12 +7318,18 @@ app.post('/api/events/:eventId/system-design/learning-room/questions/generate', 
       correct_index: question.correct_index,
       explanation: question.explanation,
       source_url: source.url,
+      authoring_source: 'generated',
+      difficulty: 'intermediate',
+      category: inferSystemDesignCategory(question.question_text),
       order_index: existing.length + index,
       time_limit_seconds: 20,
       points: 1000,
     })));
-    await auditAdminAction(c, { action: 'system_design.learning_room.generate_questions', targetType: 'quiz_session', targetId: session.id, metadata: { source_url: source.url, created_question_count: created.length } });
-    return c.json({ questions: created, source_title: source.title }, 201);
+    const updatedSession = isSupabaseRuntimeEnabled(c)
+      ? await getQuizSessionById(session.id)
+      : await updateQuizSession(session.id, { generated_question_count: generatedCount + created.length });
+    await auditAdminAction(c, { action: 'system_design.learning_room.generate_questions', targetType: 'quiz_session', targetId: session.id, metadata: { source_url: source.url, created_question_count: created.length, generated_question_count: updatedSession?.generated_question_count ?? generatedCount + created.length } });
+    return c.json({ questions: created, source_title: source.title, remaining_generation_count: 10 - (updatedSession?.generated_question_count ?? generatedCount + created.length) }, 201);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Could not read the related System Design source.' }, 422);
   }
@@ -7476,6 +7586,13 @@ app.patch('/api/events/:eventId', async (c) => {
 
     if (!event) {
       return c.json({ error: 'Event not found' }, 404);
+    }
+
+    if (body.schedule !== undefined) {
+      const learningRooms = (await getQuizSessionsByEvent(event.id)).filter((session) => session.purpose === 'system_design_learning');
+      if (learningRooms.some((session) => systemDesignMutationError(event, session))) {
+        return c.json({ error: 'The System Design session is locked or archived, so its brief cannot be changed.' }, 409);
+      }
     }
 
     if (body.status === 'cfp_open' && !canOpenCfpForEvent(event)) {
@@ -9178,6 +9295,41 @@ async function expireQuizSessionIfNeeded(session: QuizSession, c: Context) {
   });
 }
 
+function eventEndOfDayMs(event: Pick<Event, 'event_date' | 'end_date' | 'timezone'>): number {
+  const timezone = event.timezone || 'Africa/Accra';
+  const raw = event.end_date || event.event_date;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const parts = dateOnly ? { year: dateOnly[1]!, month: dateOnly[2]!, day: dateOnly[3]! } : new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date(raw)).reduce<Record<string, string>>((result, part) => {
+    result[part.type] = part.value;
+    return result;
+  }, {});
+  const year = Number(parts.year);
+  const month = Number(parts.month);
+  const day = Number(parts.day) + 1;
+  let utc = Date.UTC(year, month - 1, day, 0, 0, 0);
+  // Convert the following local midnight to UTC without assuming a fixed offset.
+  const local = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(utc)).reduce<Record<string, string>>((result, part) => {
+    result[part.type] = part.value;
+    return result;
+  }, {});
+  const offset = Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day), Number(local.hour), Number(local.minute), Number(local.second)) - utc;
+  utc -= offset;
+  return utc;
+}
+
+function isSystemDesignArchived(event: Pick<Event, 'event_date' | 'end_date' | 'timezone'>, nowMs = Date.now()): boolean {
+  return nowMs >= eventEndOfDayMs(event);
+}
+
+function systemDesignMutationError(event: Event, session?: QuizSession): string | null {
+  if (isSystemDesignArchived(event)) return 'This System Design session is archived after the event day and is now read-only.';
+  return null;
+}
+
 app.get('/api/quiz/sessions', async (c) => {
   const eventId = c.req.query('eventId');
   const purpose = c.req.query('purpose');
@@ -9203,6 +9355,9 @@ app.post('/api/quiz/sessions', async (c) => {
     if (!systemDesignSource) {
       return c.json({ error: 'Add the related System Design prompt link before creating the learning room.' }, 422);
     }
+    if (isSystemDesignArchived(event)) {
+      return c.json({ error: 'This System Design session is archived after the event day and is now read-only.' }, 409);
+    }
   }
   const session = await createQuizSession({
     event_id,
@@ -9226,11 +9381,15 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
   }
   const questions = await getQuestionsBySession(session.id);
   const participants = await getQuizParticipantsBySession(session.id);
+  const event = session.purpose === 'system_design_learning'
+    ? await getEventById(session.event_id, c)
+    : null;
   return c.json({
     ...session,
     session,
     questions,
     participantCount: participants.length,
+    system_design_archived: Boolean(event && isSystemDesignArchived(event)),
   });
 });
 
@@ -9240,6 +9399,11 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
 
   try {
     const sessionId = c.req.param('sessionId');
+    const existingSession = await getQuizSessionById(sessionId);
+    if (existingSession?.purpose === 'system_design_learning') {
+      const event = await getEventById(existingSession.event_id, c);
+      if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and read-only.' }, 409);
+    }
     const parsed = quizSessionUpdateSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Invalid quiz session update.' }, 400);
@@ -9267,9 +9431,13 @@ app.post('/api/quiz/sessions/:sessionId/presentation', async (c) => {
     return c.json({ error: 'Only System Design learning rooms can use this presentation flow.' }, 409);
   }
 
+  const event = await getEventById(session.event_id, c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  if (isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
+
   const questions = await getQuestionsBySession(session.id);
-  if (questions.length !== 5) {
-    return c.json({ error: 'Review a complete set of five questions before opening the presentation view.' }, 409);
+  if (questions.length === 0) {
+    return c.json({ error: 'Add at least one reviewed question before opening the presentation view.' }, 409);
   }
 
   if (session.status === 'waiting' || session.status === 'active') {
@@ -9293,6 +9461,10 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
   const existing = await getQuizSessionById(c.req.param('sessionId'));
   if (!existing) return c.json({ error: 'Session not found' }, 404);
   const session = await expireQuizSessionIfNeeded(existing, c);
+  if (session.purpose === 'system_design_learning') {
+    const event = await getEventById(session.event_id, c);
+    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
+  }
   if (session.status === 'finished') return c.json({ error: 'This live session has ended.' }, 409);
 
   try {
@@ -9320,7 +9492,7 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
 
   const questions = await getQuestionsBySession(session.id);
   const releasedQuestionIds = session.released_question_ids ?? [];
-  const question = nextUnreleasedLearningQuestion(questions, releasedQuestionIds);
+  const question = nextUnreleasedLearningQuestion(questions, [...releasedQuestionIds, ...(session.skipped_question_ids ?? [])]);
   if (!question) return c.json({ error: 'All prepared questions have been released.' }, 409);
 
   const updated = await updateQuizSession(session.id, {
@@ -9339,12 +9511,52 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
   return c.json(updated);
 });
 
+app.post('/api/quiz/sessions/:sessionId/skip', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const session = await getQuizSessionById(c.req.param('sessionId'));
+  if (!session || session.purpose !== 'system_design_learning') return c.json({ error: 'System Design learning room not found.' }, 404);
+  const event = await getEventById(session.event_id, c);
+  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is no longer live.' }, 409);
+  const questions = await getQuestionsBySession(session.id);
+  try {
+    const skipped = await skipSystemDesignQuestion(session, questions);
+    if (!isSupabaseRuntimeEnabled(c)) await rebuildSystemDesignScores(session.id, questions);
+    await auditAdminAction(c, { action: 'system_design.learning_room.skip_question', targetType: 'quiz_session', targetId: session.id, metadata: { question_index: session.current_question_index } });
+    return c.json(skipped);
+  } catch (error) {
+    return c.json({ error: 'There is no active question to skip.' }, 409);
+  }
+});
+
+app.post('/api/quiz/sessions/:sessionId/reopen-skipped/:questionId', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+  const session = await getQuizSessionById(c.req.param('sessionId'));
+  if (!session || session.purpose !== 'system_design_learning') return c.json({ error: 'System Design learning room not found.' }, 404);
+  const event = await getEventById(session.event_id, c);
+  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is no longer live.' }, 409);
+  const question = await getQuestionById(c.req.param('questionId'));
+  if (!question || question.quiz_session_id !== session.id) return c.json({ error: 'Question not found.' }, 404);
+  try {
+    const reopened = await reopenSystemDesignQuestion(session, question);
+    await auditAdminAction(c, { action: 'system_design.learning_room.reopen_skipped_question', targetType: 'quiz_session', targetId: session.id, metadata: { question_id: question.id } });
+    return c.json(reopened);
+  } catch {
+    return c.json({ error: 'Only a skipped question can be reopened.' }, 409);
+  }
+});
+
 app.post('/api/quiz/sessions/:sessionId/reveal', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
   const existing = await getQuizSessionById(c.req.param('sessionId'));
   if (!existing) return c.json({ error: 'Session not found' }, 404);
   const session = await expireQuizSessionIfNeeded(existing, c);
+  if (session.purpose === 'system_design_learning') {
+    const event = await getEventById(session.event_id, c);
+    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
+  }
   if (session.status !== 'active' || session.question_phase !== 'answering') {
     return c.json({ error: 'There is no question ready to reveal.' }, 409);
   }
@@ -9375,6 +9587,12 @@ app.post('/api/quiz/questions', async (c) => {
 
   const targetSession = await getQuizSessionById(String(quiz_session_id));
   if (!targetSession) return c.json({ error: 'Session not found' }, 404);
+  if (targetSession.purpose === 'system_design_learning') {
+    const event = await getEventById(targetSession.event_id, c);
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+    const mutationError = systemDesignMutationError(event, targetSession);
+    if (mutationError) return c.json({ error: mutationError }, 409);
+  }
   const explanationRequired = targetSession.purpose === 'system_design_learning';
   const validationError = validateQuestionPayload(
     question_text,
@@ -9396,6 +9614,9 @@ app.post('/api/quiz/questions', async (c) => {
     time_limit_seconds,
     points,
     explanation: explanation === undefined ? null : String(explanation).trim(),
+    authoring_source: targetSession.purpose === 'system_design_learning' ? 'manual' : undefined,
+    difficulty: body.difficulty === 'foundational' || body.difficulty === 'advanced' ? body.difficulty : 'intermediate',
+    category: typeof body.category === 'string' ? body.category.trim().slice(0, 80) || null : null,
   });
   await auditAdminAction(c, {
     action: 'quiz.question.create',
@@ -9528,6 +9749,12 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     const body = await c.req.json();
     const updates: Partial<Omit<Question, 'id' | 'created_at'>> = {};
     const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
+    if (targetSession?.purpose === 'system_design_learning') {
+      const event = await getEventById(targetSession.event_id, c);
+      if (!event) return c.json({ error: 'Event not found' }, 404);
+      const mutationError = systemDesignMutationError(event, targetSession);
+      if (mutationError) return c.json({ error: mutationError }, 409);
+    }
     const explanationRequired = targetSession?.purpose === 'system_design_learning';
 
     if (body.quiz_session_id !== undefined) updates.quiz_session_id = String(body.quiz_session_id);
@@ -9552,6 +9779,11 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     }
     if (body.points !== undefined) updates.points = Number(body.points);
     if (body.explanation !== undefined) updates.explanation = String(body.explanation).trim();
+    if (body.difficulty !== undefined) {
+      if (!['foundational', 'intermediate', 'advanced'].includes(body.difficulty)) return c.json({ error: 'difficulty must be foundational, intermediate, or advanced' }, 400);
+      updates.difficulty = body.difficulty;
+    }
+    if (body.category !== undefined) updates.category = String(body.category).trim().slice(0, 80) || null;
 
     if (body.question_text !== undefined || body.options !== undefined || body.correct_index !== undefined || body.explanation !== undefined) {
       const validationError = validateQuestionPayload(
@@ -9586,6 +9818,15 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
   try {
     const questionId = c.req.param('questionId');
     const existingQuestion = await getQuestionById(questionId);
+    if (existingQuestion) {
+      const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
+      if (targetSession?.purpose === 'system_design_learning') {
+        const event = await getEventById(targetSession.event_id, c);
+        if (!event) return c.json({ error: 'Event not found' }, 404);
+        const mutationError = systemDesignMutationError(event, targetSession);
+        if (mutationError) return c.json({ error: mutationError }, 409);
+      }
+    }
     await deleteQuestion(questionId);
     await auditAdminAction(c, {
       action: 'quiz.question.delete',
@@ -9606,6 +9847,13 @@ app.post('/api/quiz/questions/reorder', async (c) => {
   const { session_id, question_ids } = await c.req.json();
   if (!session_id || !Array.isArray(question_ids)) {
     return c.json({ error: 'session_id and question_ids are required' }, 400);
+  }
+  const targetSession = await getQuizSessionById(String(session_id));
+  if (targetSession?.purpose === 'system_design_learning') {
+    const event = await getEventById(targetSession.event_id, c);
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+    const mutationError = systemDesignMutationError(event, targetSession);
+    if (mutationError) return c.json({ error: mutationError }, 409);
   }
   await reorderQuestions(session_id, question_ids);
   await auditAdminAction(c, {
@@ -9803,6 +10051,10 @@ app.post('/api/quiz/answer', async (c) => {
 
   const foundSession = await getQuizSessionById(session_id);
   const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
+  if (session?.purpose === 'system_design_learning') {
+    const event = await getEventById(session.event_id, c);
+    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived.' }, 409);
+  }
   if (!session || session.status !== 'active') {
     return c.json({ error: 'Quiz is not active' }, 400);
   }
@@ -9815,7 +10067,7 @@ app.post('/api/quiz/answer', async (c) => {
     const atomicResult = await submitQuizAnswerAtomically(session_id, user_id, answer_index);
     if (atomicResult) {
       const user = await getUserById(user_id);
-      if (user && !user.merged_into_user_id) {
+      if (session.purpose !== 'system_design_learning' && user && !user.merged_into_user_id) {
         await updateUser(user.id, { total_points: user.total_points + atomicResult.points_awarded });
       }
       return c.json(session.purpose === 'system_design_learning'
@@ -9882,7 +10134,7 @@ app.post('/api/quiz/answer', async (c) => {
     current_streak: newStreak,
   });
   const user = await getUserById(user_id);
-  if (user && !user.merged_into_user_id) {
+  if (session.purpose !== 'system_design_learning' && user && !user.merged_into_user_id) {
     await updateUser(user.id, {
       total_points: user.total_points + totalPoints,
     });
@@ -10170,7 +10422,25 @@ function normalizeExtractedText(text: string): string {
 
 type QuestionDraft = Pick<Question, 'question_text' | 'options' | 'correct_index' | 'explanation'>;
 
-function generateQuestionDraftsFromText(text: string, requestedCount: number): QuestionDraft[] {
+function normalizeQuestionConceptKey(question: string): string {
+  return question.toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word))
+    .slice(0, 18)
+    .sort()
+    .join(' ');
+}
+
+function inferSystemDesignCategory(question: string): string {
+  const value = question.toLowerCase();
+  if (/lock|transaction|concurrent|atomic|seat/.test(value)) return 'Consistency';
+  if (/cache|replica|scale|load/.test(value)) return 'Scalability';
+  if (/model|schema|relationship|data/.test(value)) return 'Data modelling';
+  return 'Architecture trade-offs';
+}
+
+export function generateQuestionDraftsFromText(text: string, requestedCount: number): QuestionDraft[] {
   const drafts = generateSystemDesignConceptDrafts(text).slice(0, requestedCount);
   const terms = extractTerms(text, 80);
   const sentences = splitCandidateSentences(text)
@@ -10184,7 +10454,21 @@ function generateQuestionDraftsFromText(text: string, requestedCount: number): Q
 
   const usedAnswers = new Set<string>();
 
-  for (const candidate of sentences) {
+  const sentenceOptions = (correctSentence: string, candidates: typeof sentences): string[] => {
+    const unique = [truncateText(correctSentence, 150)];
+    const seen = new Set(unique.map((sentence) => sentence.toLowerCase()));
+    for (const candidate of candidates) {
+      const sentence = truncateText(candidate.sentence, 150);
+      if (!seen.has(sentence.toLowerCase())) {
+        unique.push(sentence);
+        seen.add(sentence.toLowerCase());
+      }
+      if (unique.length === 4) break;
+    }
+    return unique.length === 4 ? stableShuffle(unique) : [];
+  };
+
+  for (const [candidateIndex, candidate] of sentences.entries()) {
     if (drafts.length >= requestedCount) {
       break;
     }
@@ -10209,12 +10493,50 @@ function generateQuestionDraftsFromText(text: string, requestedCount: number): Q
       continue;
     }
 
-    drafts.push({
-      question_text: `Which concept best completes this statement? "${blankSentence(candidate.sentence, answer)}"`,
-      options,
-      correct_index: correctIndex,
-      explanation: `${answer} is the concept identified in the source material: ${truncateText(candidate.sentence, 240)}`,
-    });
+    const relatedTerm = candidate.terms.find((term) => normalizeTermKey(term) !== normalizeTermKey(answer));
+    const format = candidateIndex % 4;
+
+    if (format === 1) {
+      const evidenceOptions = sentenceOptions(candidate.sentence, sentences.filter((entry) => entry.sentence !== candidate.sentence));
+      const evidenceIndex = evidenceOptions.findIndex((option) => option === truncateText(candidate.sentence, 150));
+      if (evidenceIndex >= 0) {
+        drafts.push({
+          question_text: `Which detail from the source most directly supports the use of ${answer}?`,
+          options: evidenceOptions,
+          correct_index: evidenceIndex,
+          explanation: `This is the source detail that identifies ${answer}: ${truncateText(candidate.sentence, 240)}`,
+        });
+      } else {
+        continue;
+      }
+    } else if (format === 2 && relatedTerm) {
+      const relationshipOptions = pickOptions(relatedTerm, terms.filter((term) => (
+        normalizeTermKey(term) !== normalizeTermKey(answer)
+        && normalizeTermKey(term) !== normalizeTermKey(relatedTerm)
+      )).slice(0, 16));
+      const relationshipIndex = relationshipOptions.findIndex((option) => normalizeTermKey(option) === normalizeTermKey(relatedTerm));
+      if (relationshipOptions.length !== 4 || relationshipIndex < 0) continue;
+      drafts.push({
+        question_text: `Within the source, ${answer} is most directly connected to which concern?`,
+        options: relationshipOptions,
+        correct_index: relationshipIndex,
+        explanation: `${answer} and ${relatedTerm} are linked in this part of the source: ${truncateText(candidate.sentence, 240)}`,
+      });
+    } else if (format === 3) {
+      drafts.push({
+        question_text: `A team is facing this condition: "${truncateText(candidate.sentence, 210)}" Which source concept is most relevant?`,
+        options,
+        correct_index: correctIndex,
+        explanation: `${answer} is the relevant concept in this situation, as stated in the source: ${truncateText(candidate.sentence, 240)}`,
+      });
+    } else {
+      drafts.push({
+        question_text: `Which concept completes this source statement? "${blankSentence(candidate.sentence, answer)}"`,
+        options,
+        correct_index: correctIndex,
+        explanation: `${answer} is the concept identified in the source material: ${truncateText(candidate.sentence, 240)}`,
+      });
+    }
     usedAnswers.add(normalizeTermKey(answer));
   }
 
@@ -10233,11 +10555,11 @@ function generateSystemDesignConceptDrafts(text: string): QuestionDraft[] {
 
   add(source.includes('schema vs schema-less') || isVcbcScenario,
     'VCBC has students, courses, faculties, slots, and bookings with clear relationships. What is the strongest starting point?',
-    ['A relational schema with explicit relationships', 'A single unstructured text field', 'One spreadsheet per student', 'No stored data'], 0,
+    ['A relational schema with explicit relationships', 'A document model with embedded bookings and duplicated seat state', 'An event log with projections as the only read model', 'A key-value model keyed by student with denormalized slot fields'], 0,
     'The source describes stable entities and relationships. An explicit schema makes constraints and joins enforceable.');
   add((source.includes('10 seats') && source.includes('4800 students')) || isVcbcScenario,
     '4,800 students try to claim a favourite slot with only 10 seats. What must the booking write guarantee?',
-    ['The seat count cannot go below zero', 'Every student sees the same cached page', 'Faculty names are hidden', 'Slots are created monthly'], 0,
+    ['The seat count cannot go below zero', 'The booking API is idempotent but permits a short oversell window', 'The cached availability view refreshes before every booking', 'The slot is partitioned by faculty before accepting a booking'], 0,
     'The scarce resource is the seat count. The write must be atomic so concurrent requests cannot oversell a slot.');
   add(source.includes('select') && source.includes('for update'),
     'Which database tool from the deck is most relevant when two students try to take the final seat at once?',
@@ -10245,7 +10567,7 @@ function generateSystemDesignConceptDrafts(text: string): QuestionDraft[] {
     'A row lock lets the booking transaction serialize access to the scarce slot before it confirms a seat.');
   add(source.includes('ephemeral or persistent'),
     'A student starts selecting a slot but has not confirmed it. How should that temporary choice be treated?',
-    ['Ephemeral until a confirmed booking is made', 'A permanent booking immediately', 'A faculty profile', 'A deleted record'], 0,
+    ['Ephemeral until a confirmed booking is made', 'Persisted as a provisional booking with a compensating expiry job', 'Written to the booking table and hidden from availability queries', 'Recorded as an immutable selection event before confirmation'], 0,
     'A temporary selection should not consume a real seat permanently; persistence belongs to the confirmed booking.');
   add(source.includes('students don’t pick a faculty') || isVcbcScenario,
     'Students choose a time, then discover the faculty. Which model best matches that rule?',

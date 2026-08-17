@@ -21,6 +21,9 @@ function fromSupabaseRow(row: QuestionRow): Question {
     created_at: row.created_at,
     explanation: row.explanation,
     source_url: row.source_url,
+    authoring_source: row.authoring_source ?? 'manual',
+    difficulty: row.difficulty ?? 'intermediate',
+    category: row.category,
   };
 }
 

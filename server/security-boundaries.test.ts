@@ -31,7 +31,7 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('content-security-policy')).toContain("style-src-attr 'none'");
     expect(response.headers.get('content-security-policy')).not.toContain("style-src 'self' 'unsafe-inline'");
     expect(response.headers.get('content-security-policy')).toContain(
-      'frame-src https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com',
+      "frame-src 'self' https://challenges.cloudflare.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com",
     );
     expect(response.headers.get('strict-transport-security')).toContain('max-age=63072000');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
@@ -40,6 +40,18 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('x-permitted-cross-domain-policies')).toBe('none');
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('x-request-id')).toBeTruthy();
+  });
+
+  it('allows Vite development style and bootstrap injection without weakening production CSP', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost:5173/organizer-console/login');
+    const policy = response.headers.get('content-security-policy');
+
+    expect(policy).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com");
+    expect(policy).toContain("style-src 'self' 'unsafe-inline' https://api.fontshare.com");
+    expect(policy).toContain("style-src-attr 'none'");
+    expect(response.headers.get('strict-transport-security')).toBeNull();
   });
 
   it('returns credentialed CORS preflights and rejects untrusted origins in production', async () => {

@@ -18,7 +18,7 @@ pnpm seed
 pnpm dev
 ```
 
-The dev server runs Vite and the Hono API on the same origin. Open the local URL printed by Vite, usually `http://localhost:5173`.
+The dev server runs Vite and the Hono API on the same origin at `http://localhost:5173`. `pnpm dev` explicitly selects the Supabase data source and refuses to move to another port, so local launchers can discover one stable organizer-capable entry point from `package.json`.
 
 ## Environment Variables
 
@@ -46,7 +46,9 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 
 | Command | Purpose |
 |---|---|
-| `pnpm dev` | Start Vite and same-origin Hono API |
+| `pnpm dev` | Start the Supabase-backed Vite and same-origin Hono API on strict port `5173` |
+| `pnpm atlas` | Start the local-only Scenario Atlas on `127.0.0.1:4178` |
+| `pnpm atlas:test` | Validate Atlas catalog completeness, status propagation, and production isolation |
 | `pnpm seed` | Reset JSON mock data |
 | `pnpm cleanup:test-events` | Preview hosted submissions and events marked with `[TEST]`; deletion requires the documented explicit confirmation |
 | `pnpm cleanup:private-beta-events` | Preview every closed-beta public submission and promoted event; use only before public launch and require the documented private-beta confirmation to delete |
@@ -55,6 +57,10 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 | `pnpm start` | Serve `dist/` and `/api/*` with Bun |
 | `pnpm test` | Run Vitest tests |
 | `pnpm verify:public-api` | Validate public meetup API shape and headers |
+
+### Scenario Atlas
+
+Scenario Atlas is a separate local companion, not an EMS route. `pnpm atlas` creates mutable run state in ignored `.scenario-atlas/atlas.sqlite`; workflow definitions remain reviewable in `tools/scenario-atlas/catalog/workflows.json`. The process refuses production/Cloudflare environments and accepts mutations only from its own loopback origin.
 
 ## Organizer Login
 
@@ -72,6 +78,10 @@ Bootstrap the first owner as described in [Admin Auth](../auth.md). There is no 
 Set `VITE_SHOW_ORGANIZER_LINK=false` in public deployments when you want to hide the Organizer button from the public header. This is only a visibility toggle; organizer routes remain directly reachable and require auth.
 
 ## Common Troubleshooting
+
+### The local app shows an enormous logo with no layout
+
+The application has mounted, but Vite's generated development styles were blocked. Current local responses allow Vite's inline bootstrap and style elements only in `NODE_ENV=development`; production keeps the strict CSP. Restart `pnpm dev` after updating so the server picks up the corrected response policy.
 
 ### Google sign-in returns to the wrong origin
 

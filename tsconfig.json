@@ -16,6 +16,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "server/**/*.ts", "lib/**/*.ts", "types/**/*.ts", "data/**/*.ts", "vite.config.ts", "vitest.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.vue", "server/**/*.ts", "lib/**/*.ts", "types/**/*.ts", "data/**/*.ts", "tools/scenario-atlas/**/*.ts", "vite.config.ts", "vitest.config.ts"],
   "exclude": ["node_modules", "app", "components", "hooks", "next-env.d.ts"]
 }

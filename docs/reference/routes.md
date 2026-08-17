@@ -49,7 +49,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/annual-conference/:year/volunteers` | Capability-derived volunteer team, intake sharing, and private application review sections |
 | `/organizer-console/annual-conference/:year/volunteers/display` | TV-safe QR display requiring the edition's volunteer-intake sharing responsibility |
 | `/organizer-console/organizers` | People & Access allowlist plus Owner-only, edition-scoped Conference responsibilities; volunteers cannot open this route |
-| `/organizer-console/audit-log` | Owner-only organizer mutation and sign-in audit ledger |
+| `/organizer-console/audit-log` | Owner-only operations ledger with Activity, Email delivery, Email previews, Short links, and Archived events subsections; previews render every active EMS email scenario with safe sample content |
 | `/organizer-console/events/:eventId` | Event overview and checklist |
 | `/organizer-console/events/:eventId/registrations` | Five-part registration workspace for capacity summary, public-link/settings, private guest operations, atomic cancellation/promotion, transactional delivery retries, on-site registration QR access, local-development test-guest removal, or an explicit not-managed-internally state for historical events without a campaign |
 | `/organizer-console/events/:eventId/talks` | Compatibility URL that redirects to the Event Archive CFP step |
@@ -113,5 +113,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Organizer email allowlist management; re-enable and permanent removal endpoints are Owner-only, and permanent removal requires a disabled membership |
 | `/api/admin/audit-log` | Owner-only audit log read API, including the latest Resend quota observation and transactional outbox recovery summary |
+| `GET /api/admin/email-previews` | Owner-only, non-cacheable email scenario catalog rendered from the production template functions with safe sample data |
+| `GET /api/admin/email-previews/:previewId/html` | Owner-only sandbox document for one rendered email; uses a narrow preview-specific CSP and remains frameable only by same-origin EMS pages |
 | `/api/health` and `/api/health/supabase` | Minimal public readiness checks without internal error detail |
 | `/api/health/data-sources`, `/api/health/supabase/community-events`, `/api/health/supabase/storage` | Owner-only persistence and storage diagnostics |

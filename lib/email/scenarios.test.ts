@@ -22,6 +22,7 @@ describe('email scenario policy', () => {
     expect(emailSubjects.communitySubmissionReceipt('Accra Systems Night')).toBe('We received your event submission: Accra Systems Night');
     expect(emailSubjects.communitySubmissionApproved('Accra Systems Night')).toBe('Your event is now listed: Accra Systems Night');
     expect(emailSubjects.communitySubmissionRejected('Accra Systems Night')).toBe('Update on your event submission: Accra Systems Night');
+    expect(emailSubjects.communitySubmissionWithdrawn('Accra Systems Night')).toBe('Your event listing was removed: Accra Systems Night');
     expect(EMAIL_SCENARIOS.filter((scenario) => scenario.id.startsWith('community_submission_')).every((scenario) => scenario.status === 'active')).toBe(true);
   });
 
@@ -34,6 +35,8 @@ describe('email scenario policy', () => {
       .toBe('[TEST] Your event is now listed: Community workshop');
     expect(emailSubjects.communitySubmissionRejected('[TEST] Community workshop'))
       .toBe('[TEST] Update on your event submission: Community workshop');
+    expect(emailSubjects.communitySubmissionWithdrawn('[TEST] Community workshop'))
+      .toBe('[TEST] Your event listing was removed: Community workshop');
   });
 
   it('normalizes header controls and bounds every generated subject', () => {

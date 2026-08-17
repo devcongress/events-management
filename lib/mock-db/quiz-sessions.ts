@@ -23,6 +23,8 @@ export function quizSessionFromRow(row: QuizSessionRow): QuizSession {
     expires_at: row.expires_at,
     released_question_ids: row.released_question_ids,
     purpose: row.purpose,
+    generated_question_count: row.generated_question_count ?? 0,
+    skipped_question_ids: row.skipped_question_ids ?? [],
   };
 }
 
@@ -90,6 +92,8 @@ export async function createQuizSession(
         expires_at: data.expires_at ?? null,
         released_question_ids: [],
         purpose: data.purpose,
+        generated_question_count: 0,
+        skipped_question_ids: [],
         created_at: now(),
       };
       const { data: stored, error } = await getSupabaseAdminClient()
@@ -118,6 +122,8 @@ export async function createQuizSession(
       expires_at: data.expires_at ?? null,
       released_question_ids: [],
       purpose: data.purpose,
+      generated_question_count: 0,
+      skipped_question_ids: [],
       created_at: now(),
     };
     return { data: [...sessions, newSession], result: newSession };

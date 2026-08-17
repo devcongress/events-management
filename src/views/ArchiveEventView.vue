@@ -5,7 +5,7 @@ import { canonicalizeSystemDesignSchedule, isSystemDesignSessionItem, systemDesi
 import { fetchPublicArchiveEvent } from '@/src/lib/api';
 import ArchiveEventPageSkeleton from '@/src/components/ui/page-skeletons/ArchiveEventPageSkeleton.vue';
 import { summarizeText, wordCount } from '@/src/lib/text-summary';
-import type { PublicArchiveEvent, PublicArchiveTalk, PublicMeetupScheduleItem } from '@/types';
+import type { PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicMeetupScheduleItem } from '@/types';
 
 const route = useRoute();
 const event = ref<PublicArchiveEvent | null>(null);
@@ -27,6 +27,7 @@ const sharedLinks = computed(() => (
   isQuarterlyArchive.value ? scheduleItems.value.flatMap((item) => item.shared_links ?? []) : []
 ));
 const PUBLIC_TALK_SUMMARY_WORDS = 38;
+const systemDesignRecap = ref<PublicArchiveEventResponse['system_design_recap']>(null);
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', {
@@ -105,6 +106,7 @@ onMounted(async () => {
     const payload = await fetchPublicArchiveEvent(eventId);
     event.value = payload.event;
     talks.value = payload.talks;
+    systemDesignRecap.value = payload.system_design_recap ?? null;
     feedbackAvailable.value = payload.feedback.available;
     feedbackClosesAt.value = payload.feedback.closes_at;
   } catch (caught) {
@@ -207,6 +209,16 @@ onMounted(async () => {
               </div>
             </article>
           </div>
+        </section>
+
+        <section v-if="systemDesignRecap" class="mb-12">
+          <div class="archive-event-section-header mb-5"><p class="editorial-eyebrow mb-2">learning recap</p><h2 class="archive-event-section-title text-2xl font-bold tracking-tight text-dc-ink">{{ systemDesignRecap.title }}</h2></div>
+          <article class="rounded-lg border-2 border-dc-ink bg-dc-paper p-5 shadow-[3px_3px_0_#111111] sm:p-6">
+            <p v-if="systemDesignRecap.facilitators.length" class="text-sm font-medium text-dc-gray">Facilitated by {{ systemDesignRecap.facilitators.join(', ') }}</p>
+            <p v-if="systemDesignRecap.description" class="mt-4 whitespace-pre-line leading-7 text-dc-gray">{{ systemDesignRecap.description }}</p>
+            <a v-if="systemDesignRecap.docs_url" :href="systemDesignRecap.docs_url" target="_blank" rel="noopener noreferrer" class="editorial-secondary-action mt-5">Open session docs ↗</a>
+            <div class="mt-7 grid gap-4 border-t-2 border-dc-border pt-6"><article v-for="(question, index) in systemDesignRecap.questions" :key="`${question.question_text}-${index}`" class="rounded-md border border-dc-border p-4"><p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-pink">Question {{ index + 1 }} · {{ question.difficulty }}<span v-if="question.category"> · {{ question.category }}</span></p><h3 class="mt-2 font-semibold leading-7 text-dc-ink">{{ question.question_text }}</h3><ol class="mt-3 grid gap-2 sm:grid-cols-2"><li v-for="(option, optionIndex) in question.options" :key="option" class="rounded border px-3 py-2 text-sm" :class="optionIndex === question.correct_index ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border text-dc-gray'">{{ ['A', 'B', 'C', 'D'][optionIndex] }}. {{ option }}</li></ol><p v-if="question.explanation" class="mt-3 text-sm leading-6 text-dc-gray"><strong class="text-dc-ink">Why:</strong> {{ question.explanation }}</p></article></div>
+          </article>
         </section>
 
         <section v-if="imagePhotos.length > 0 || folderPhotos.length > 0" class="archive-event-gallery mb-12">

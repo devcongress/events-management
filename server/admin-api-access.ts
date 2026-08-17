@@ -14,6 +14,8 @@ const LOGOUT_PATH = '/api/auth/logout';
 const EVENT_DELETE_PATH = /^\/api\/events\/[^/]+$/;
 const EVENT_RESTORE_PATH = /^\/api\/events\/[^/]+\/restore$/;
 const ARCHIVED_EVENTS_PATH = '/api/admin/archived-events';
+const EMAIL_PREVIEWS_PATH = '/api/admin/email-previews';
+const EMAIL_PREVIEW_DOCUMENT_PATH = /^\/api\/admin\/email-previews\/[^/]+\/html$/;
 const EVENT_REGISTRATION_PERMANENT_REMOVE_PATH = /^\/api\/events\/[^/]+\/registrations\/[^/]+$/;
 const MONTHLY_MEETUP_FINANCE_READ_PATH = /^\/api\/events\/[^/]+\/finance$/;
 const MONTHLY_MEETUP_FINANCE_CATEGORY_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/categories$/;
@@ -30,6 +32,10 @@ export function adminRolesForApiRequest(path: string, method: string): AdminRole
   }
 
   if (method === 'GET' && path === ARCHIVED_EVENTS_PATH) {
+    return OWNER_ROLES;
+  }
+
+  if (method === 'GET' && (path === EMAIL_PREVIEWS_PATH || EMAIL_PREVIEW_DOCUMENT_PATH.test(path))) {
     return OWNER_ROLES;
   }
 
