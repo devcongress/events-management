@@ -588,6 +588,9 @@ function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
       title: stringValue(item.title, 'Untitled session'),
       type: scheduleType(item.type),
       lead: typeof item.lead === 'string' ? item.lead : null,
+      facilitators: Array.isArray(item.facilitators)
+        ? item.facilitators.filter((facilitator): facilitator is string => typeof facilitator === 'string' && facilitator.trim().length > 0).map((facilitator) => facilitator.trim()).slice(0, 12)
+        : undefined,
       description: typeof item.description === 'string' ? item.description : null,
       system_design_title: typeof item.system_design_title === 'string' ? item.system_design_title : null,
       resources: Array.isArray(item.resources)

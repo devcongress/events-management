@@ -6,20 +6,20 @@ Active organizer workflow built on the saved System Design artifact.
 
 ## Overview
 
-Every meetup with a saved System Design source link can prepare a reusable set of five learning questions. The questions live on the existing System Design workspace beside the saved scenario and recap; they do not replace that artifact or move organizers into a second setup area.
+Every meetup has one System Design session brief: title, one or more facilitators, a docs URL, and a description. Its questions live on the existing System Design workspace beside that brief; they do not replace it or move organizers into a second setup area.
 
-Meetup completion does not close this capability. Past, current, and upcoming meetups can generate, review, and present their saved material. A live presentation is a temporary run of the persistent question set, not the lifecycle of the meetup itself.
+At the end of the event day in the event timezone (falling back to Africa/Accra), the brief and questions become read-only. The archive publishes the brief, docs link, questions, correct answers, and explanations, never participant identities, answers, or scores.
 
 A saved System Design source link also keeps the event's System Design tab available even if an older checklist record marked the monthly workflow unavailable. Persisted content is stronger evidence than that historical planning choice.
 
 ## Organizer Flow
 
-1. Save a System Design scenario with a supported public Google Slides or Google Docs link.
-2. Generate a five-question teaching sequence from the source.
-3. Review and edit question wording, answers, order, and reveal explanations on the same System Design page. Set each question's answer timer directly on its review card before presenting.
-4. Open the separate presentation view in a new browser tab. The System Design workspace remains open in the original tab.
+1. Save the System Design brief with its docs URL and comma-separated facilitators.
+2. Generate up to ten questions over the lifetime of the session, or add unlimited manual questions. Generated questions append only and never replace authored ones.
+3. Review each multiple-choice question, its ideal-answer explanation, difficulty, category, and answer timer. The set stays editable through the event day and locks automatically when the event-day archive begins.
+4. Open the separate presentation view in a new browser tab as soon as the room has a question. The System Design workspace remains open in the original tab.
 5. Share the QR code or join code. Every attendee immediately receives a default room name and fixed Navii avatar, and may edit the name on their phone while the lobby is open.
-6. Start when the room is ready, release one question at a time, and reveal the answer and teaching explanation for discussion.
+6. Start when the room is ready, release one question at a time, then either reveal the answer and teaching explanation or skip it. Skips discard attempts and may be reopened fresh before the room ends.
 7. Finish the run. The presenter shows the final leaderboard, while each phone shows only that participant's Navii avatar, room name, and position. Top-five participants receive a reduced-motion-safe confetti celebration.
 8. The saved scenario and five questions remain available for another presentation.
 
@@ -54,7 +54,8 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 
 ## Current Constraints
 
-- The first release uses exactly five questions.
+- Generated questions are capped at ten per session lifetime; deleting one does not restore the generation allowance. Manual questions are unlimited.
+- End-of-day archival is server-enforced for brief and question mutations; it is the only lock boundary for the System Design session.
 - Source generation supports publicly readable Google Slides and Google Docs links.
 - Live state uses polling rather than a production realtime channel.
 - Room-scoped participant identities and responses from the previous run are cleared when a completed room starts again; historical run reporting is not yet retained.

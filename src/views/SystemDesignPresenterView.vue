@@ -27,6 +27,7 @@ const currentQuestion = computed(() => session.value?.questions.find((question) 
 const participantsCount = computed(() => liveState.value?.participants_count ?? session.value?.participantCount ?? 0);
 const releasedCount = computed(() => session.value?.released_question_ids?.length ?? 0);
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
+const skippedQuestions = computed(() => session.value?.questions.filter((question) => (session.value?.skipped_question_ids ?? []).includes(question.id)) ?? []);
 const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIndex) => (
   liveState.value?.answer_distribution?.find((result) => result.option_index === optionIndex) ?? {
     option_index: optionIndex,
@@ -90,6 +91,14 @@ async function releaseQuestion() {
 
 async function revealAnswer() {
   await runAction(`/api/quiz/sessions/${sessionId.value}/reveal`);
+}
+
+async function skipQuestion() {
+  await runAction(`/api/quiz/sessions/${sessionId.value}/skip`);
+}
+
+async function reopenSkippedQuestion(questionId: string) {
+  await runAction(`/api/quiz/sessions/${sessionId.value}/reopen-skipped/${questionId}`);
 }
 
 async function finishRoom() {
@@ -237,12 +246,19 @@ onUnmounted(() => {
             </div>
 
             <footer class="presenter-controls">
-              <button v-if="session.question_phase === 'answering'" type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
+              <template v-if="session.question_phase === 'answering'">
+                <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
+                <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+              </template>
               <button v-else-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Releasing...' : 'Release next question' }}</button>
               <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
               <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
             </footer>
             <p v-if="error" class="presenter-error">{{ error }}</p>
+            <aside v-if="skippedQuestions.length" class="presenter-skipped-note" aria-live="polite">
+              <p><strong>{{ skippedQuestions.length }} skipped question{{ skippedQuestions.length === 1 ? '' : 's' }}.</strong> Answers were discarded and will not score. Reopen one before ending if you want the room to try it.</p>
+              <div class="presenter-skipped-actions"><button v-for="question in skippedQuestions" :key="question.id" type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="reopenSkippedQuestion(question.id)">Reopen Q{{ question.order_index + 1 }}</button></div>
+            </aside>
           </article>
 
           <aside class="presenter-results-panel">
@@ -608,6 +624,21 @@ onUnmounted(() => {
   margin-top: auto;
   padding-top: 1.5rem;
 }
+
+.presenter-skipped-note {
+  margin-top: 1rem;
+  border: 1px solid var(--color-dc-border, #d7d0c2);
+  border-left: 3px solid var(--color-dc-pink, #e8117f);
+  background: rgba(255, 255, 255, 0.55);
+  padding: 0.875rem 1rem;
+  color: #4a463e;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.presenter-skipped-note p { margin: 0; }
+.presenter-skipped-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+@media (prefers-reduced-motion: reduce) { .presenter-skipped-note { transition: none; } }
 
 .presenter-end-action {
   min-height: 2.75rem;

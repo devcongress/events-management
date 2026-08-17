@@ -1610,6 +1610,8 @@ export interface Database {
           expires_at: string | null;
           released_question_ids: string[];
           purpose: QuizPurpose;
+          generated_question_count: number;
+          skipped_question_ids: string[];
         };
         Insert: {
           id?: string;
@@ -1626,6 +1628,8 @@ export interface Database {
           expires_at?: string | null;
           released_question_ids?: string[];
           purpose?: QuizPurpose;
+          generated_question_count?: number;
+          skipped_question_ids?: string[];
         };
         Update: Partial<Database['public']['Tables']['quiz_sessions']['Insert']>;
         Relationships: [];
@@ -1643,6 +1647,9 @@ export interface Database {
           created_at: string;
           explanation: string | null;
           source_url: string | null;
+          authoring_source: 'manual' | 'generated';
+          difficulty: 'foundational' | 'intermediate' | 'advanced';
+          category: string | null;
         };
         Insert: {
           id?: string;
@@ -1656,6 +1663,9 @@ export interface Database {
           created_at?: string;
           explanation?: string | null;
           source_url?: string | null;
+          authoring_source?: 'manual' | 'generated';
+          difficulty?: 'foundational' | 'intermediate' | 'advanced';
+          category?: string | null;
         };
         Update: Partial<Database['public']['Tables']['quiz_questions']['Insert']>;
         Relationships: [];
@@ -2029,6 +2039,10 @@ export interface Database {
         Returns: Database['public']['Tables']['quiz_sessions']['Row'];
       };
       reveal_system_design_question: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
+      skip_system_design_question: {
         Args: { p_session_id: string };
         Returns: Database['public']['Tables']['quiz_sessions']['Row'];
       };

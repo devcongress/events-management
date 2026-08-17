@@ -80,6 +80,20 @@ describe('System Design presentation runs', () => {
     await expect(readData<Response>('responses')).resolves.toEqual([responses[1]]);
   });
 
+  it('skips without revealing, discards current attempts, and permits a fresh reopen', async () => {
+    const { readData, writeData } = await import('./index');
+    const { reopenSystemDesignQuestion, skipSystemDesignQuestion } = await import('./system-design-learning-room');
+    const session: QuizSession = { id: 'room-1', event_id: 'event-1', join_code: 'ABC234', purpose: 'system_design_learning', status: 'active', current_question_index: 0, question_phase: 'answering', started_at: '2026-07-01T10:00:00.000Z', finished_at: null, created_at: '2026-07-01T09:00:00.000Z', question_started_at: '2026-07-01T10:00:00.000Z', phase_started_at: null, expires_at: null, released_question_ids: ['question-1'], skipped_question_ids: [] };
+    const question: Question = { id: 'question-1', quiz_session_id: session.id, question_text: 'Question', options: ['A', 'B', 'C', 'D'], correct_index: 0, time_limit_seconds: 20, points: 1000, order_index: 0, created_at: '2026-07-01T09:00:00.000Z', explanation: 'Hidden until reveal.' };
+    await writeData('quiz-sessions', [session]);
+    await writeData('questions', [question]);
+    await writeData<Response>('responses', [{ id: 'response-1', question_id: question.id, user_id: 'user-1', answer_index: 0, answered_at: '2026-07-01T10:00:05.000Z', time_taken_ms: 5000, points_awarded: 900, is_correct: true, created_at: '2026-07-01T10:00:05.000Z' }]);
+    const skipped = await skipSystemDesignQuestion(session, [question]);
+    expect(skipped).toMatchObject({ question_phase: null, current_question_index: -1, skipped_question_ids: [question.id], released_question_ids: [] });
+    await expect(readData<Response>('responses')).resolves.toEqual([]);
+    await expect(reopenSystemDesignQuestion(skipped, question)).resolves.toMatchObject({ question_phase: 'answering', current_question_index: 0, skipped_question_ids: [] });
+  });
+
   it('renames only the selected session participant and rejects duplicate room names', async () => {
     const { readData, writeData } = await import('./index');
     const { renameQuizParticipant } = await import('./quiz-participants');

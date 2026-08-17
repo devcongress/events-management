@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { findSystemDesignSource, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
 import SystemDesignLearningRoomPanel from '@/src/components/SystemDesignLearningRoomPanel.vue';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import { adminPath } from '@/src/admin-routes';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, PublicMeetupScheduleItem } from '@/types';
@@ -10,7 +11,8 @@ import type { Event as CommunityEvent, PublicMeetupScheduleItem } from '@/types'
 type SystemDesignDraft = {
   time: string;
   title: string;
-  lead: string;
+  facilitators: string[];
+  facilitatorInput: string;
   description: string;
   promptUrl: string;
 };
@@ -29,6 +31,7 @@ const loading = ref(true);
 const saving = ref(false);
 const generatingIndex = ref<number | null>(null);
 const removingIndex = ref<number | null>(null);
+const pendingRemovalIndex = ref<number | null>(null);
 const editing = ref(false);
 const error = ref('');
 const saveError = ref('');
@@ -47,6 +50,7 @@ const systemDesignSessions = computed(() => {
       {
         ...primarySlot,
         lead: primaryExplicit.lead ?? primarySlot.lead,
+        facilitators: primaryExplicit.facilitators ?? primarySlot.facilitators,
         description: primaryExplicit.description ?? primarySlot.description,
         system_design_title: primaryExplicit.system_design_title?.trim() || primaryExplicit.title.trim(),
         resources: primaryExplicit.resources.length > 0 ? primaryExplicit.resources : primarySlot.resources,
@@ -77,6 +81,13 @@ const hasSavedDrafts = computed(() => systemDesignSessions.value.some((item) => 
   || Boolean(item.resources[0]?.url?.trim())
   || Boolean(item.lead?.trim())
 )));
+const pendingRemovalScenario = computed(() => (
+  pendingRemovalIndex.value === null ? null : systemDesignSessions.value[pendingRemovalIndex.value] ?? null
+));
+const pendingRemovalMessage = computed(() => {
+  if (!pendingRemovalScenario.value) return '';
+  return `Remove “${systemDesignDisplayTitle(pendingRemovalScenario.value)}” and its saved brief from this event? Learning questions stay in storage, but will no longer appear in this event workspace or public recap.`;
+});
 const mutatingDrafts = computed(() => saving.value || generatingIndex.value !== null || removingIndex.value !== null);
 
 function draftFromSession(session?: PublicMeetupScheduleItem): SystemDesignDraft {
@@ -89,10 +100,30 @@ function draftFromSession(session?: PublicMeetupScheduleItem): SystemDesignDraft
   return {
     time: session?.time ?? '',
     title: explicitScenarioTitle,
-    lead: session?.lead ?? '',
+    facilitators: session?.facilitators ?? session?.lead?.split(',').map((name) => name.trim()).filter(Boolean) ?? [],
+    facilitatorInput: '',
     description: session?.description ?? '',
     promptUrl: promptResource?.url ?? '',
   };
+}
+
+function addFacilitator(draft: SystemDesignDraft) {
+  const name = draft.facilitatorInput.trim();
+  if (!name) return;
+  if (name.length > 120) {
+    notify.error('Keep facilitator names under 120 characters.');
+    return;
+  }
+  if (draft.facilitators.some((facilitator) => facilitator.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0)) {
+    notify.error('That facilitator is already listed.');
+    return;
+  }
+  draft.facilitators.push(name);
+  draft.facilitatorInput = '';
+}
+
+function removeFacilitator(draft: SystemDesignDraft, facilitator: string) {
+  draft.facilitators = draft.facilitators.filter((name) => name !== facilitator);
 }
 
 function syncDrafts() {
@@ -109,17 +140,18 @@ function normalizeDrafts(): PublicMeetupScheduleItem[] {
 
     if (!title && !promptUrl && !draft.description.trim()) return [];
     if (!title) {
-      throw new Error('Add a scenario title before saving.');
+      throw new Error('Add a session title before saving.');
     }
     if (promptUrl && !URL.canParse(promptUrl)) {
-      throw new Error('Use a valid URL for the system design prompt.');
+      throw new Error('Use a valid URL for the system design docs.');
     }
 
     return [{
       time: time || 'TBD',
       title,
       type: 'system_design',
-      lead: draft.lead.trim() || null,
+      lead: draft.facilitators.join(', ') || null,
+      facilitators: draft.facilitators,
       description: draft.description.trim() || null,
       system_design_title: title,
       resources: promptUrl ? [{ title, url: promptUrl }] : [],
@@ -233,11 +265,11 @@ function removeDraft(index: number) {
 
 function generatedDraftDescription(draft: SystemDesignDraft): string {
   const title = draft.title.trim();
-  const facilitator = draft.lead.trim();
+  const facilitator = draft.facilitators.join(', ');
   const promptUrl = draft.promptUrl.trim();
   const subject = title
-    ? `${title} is the monthly architecture scenario for this meetup.`
-    : 'This monthly system design session uses the linked prompt deck as its architecture scenario.';
+    ? `${title} is the monthly architecture session for this meetup.`
+    : 'This monthly System Design session uses the linked docs as its teaching brief.';
   const promptCopy = promptUrl
     ? 'The linked prompt deck is the source artifact for the exercise.'
     : 'Add the prompt deck link before publishing so attendees can review the source artifact.';
@@ -256,13 +288,13 @@ function generateDraftDescription(draft: SystemDesignDraft) {
   if (generatingIndex.value !== null) return;
 
   if (!draft.title.trim() && !draft.promptUrl.trim()) {
-    notify.error('Add a scenario title or prompt URL before generating a draft.');
+    notify.error('Add a session title or docs URL before generating a draft.');
     return;
   }
 
   if (!draft.promptUrl.trim()) {
     draft.description = generatedDraftDescription(draft);
-    notify.success('Draft generated from the scenario details.');
+    notify.success('Draft generated from the session details.');
     return;
   }
 }
@@ -285,7 +317,7 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
       body: JSON.stringify({
         prompt_url: promptUrl,
         title: draft.title.trim() || undefined,
-        lead: draft.lead.trim() || undefined,
+        lead: draft.facilitators.join(', ') || undefined,
       }),
     });
     const payload = await response.json().catch(() => ({})) as Partial<GeneratedSystemDesignDraft> & { error?: string };
@@ -350,14 +382,19 @@ async function saveSystemDesign() {
   }
 }
 
-async function removeSavedScenario(index: number) {
+function requestSavedScenarioRemoval(index: number) {
+  if (mutatingDrafts.value || !systemDesignSessions.value[index]) return;
+  pendingRemovalIndex.value = index;
+}
+
+async function confirmSavedScenarioRemoval() {
   if (!event.value || mutatingDrafts.value) return;
+
+  const index = pendingRemovalIndex.value;
+  if (index === null) return;
 
   const scenario = systemDesignSessions.value[index];
   if (!scenario) return;
-
-  const confirmed = window.confirm(`Remove "${systemDesignDisplayTitle(scenario)}" from the saved monthly system design section?`);
-  if (!confirmed) return;
 
   removingIndex.value = index;
   saveError.value = '';
@@ -372,15 +409,16 @@ async function removeSavedScenario(index: number) {
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(payload.error ?? 'Unable to remove this system design scenario');
+      throw new Error(payload.error ?? 'Unable to remove this System Design session');
     }
 
     event.value = payload;
     syncDrafts();
     editing.value = remainingItems.length === 0;
-    notify.success(remainingItems.length > 0 ? 'Scenario removed' : 'System design section removed');
+    pendingRemovalIndex.value = null;
+    notify.success(remainingItems.length > 0 ? 'Session removed' : 'System Design section removed');
   } catch (caught) {
-    saveError.value = caught instanceof Error ? caught.message : 'Unable to remove this system design scenario';
+    saveError.value = caught instanceof Error ? caught.message : 'Unable to remove this System Design session';
     notify.error(saveError.value);
   } finally {
     removingIndex.value = null;
@@ -400,7 +438,7 @@ onMounted(async () => {
         <p class="editorial-eyebrow">monthly session</p>
         <h1 class="editorial-title">System Design</h1>
         <p class="editorial-subtitle max-w-3xl">
-          Keep the monthly architecture scenario public-ready. Add the prompt link and a short recap so people who missed the room can still follow the discussion.
+          Prepare a public-ready System Design session: its brief, facilitators, docs, and the teaching questions attendees will revisit after the meetup.
         </p>
       </section>
 
@@ -433,41 +471,15 @@ onMounted(async () => {
       </section>
 
       <section v-else-if="!editing && hasSavedDrafts" class="grid gap-5">
-        <article class="editorial-panel p-6 sm:p-8">
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p class="editorial-eyebrow">saved artifact</p>
-              <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">Monthly system design is saved</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">
-                {{ systemDesignSessions.length }} scenario{{ systemDesignSessions.length === 1 ? '' : 's' }} saved for this event. Use edit when you want to revise the recap, swap the prompt deck, or add another scenario.
-              </p>
-            </div>
-            <div class="flex flex-col gap-3 sm:flex-row">
-              <button type="button" class="editorial-action" :disabled="mutatingDrafts" @click="startEditing">
-                Edit scenario{{ systemDesignSessions.length === 1 ? '' : 's' }}
-              </button>
-              <button type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="addScenarioFromSavedState">
-                Add Scenario
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <SystemDesignLearningRoomPanel
-          v-if="primaryLearningSource"
-          :event-id="String(route.params.eventId)"
-          :source-title="primaryLearningSource.title"
-          :source-url="primaryLearningSource.url"
-        />
-
         <article
           v-for="(item, index) in systemDesignSessions"
           :key="`${item.time}-${item.title}-${index}`"
-          class="editorial-panel p-6 sm:p-8"
+          class="editorial-panel overflow-hidden"
         >
-          <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div class="min-w-0">
-              <p class="editorial-eyebrow">scenario {{ index + 1 }}</p>
+          <div class="p-6 sm:p-8">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div class="min-w-0">
+              <p class="editorial-eyebrow">session {{ index + 1 }}</p>
               <component
                 :is="item.resources[0] ? 'a' : 'h2'"
                 v-bind="item.resources[0] ? {
@@ -486,26 +498,35 @@ onMounted(async () => {
               <p v-if="item.time" class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">
                 {{ item.time }}
               </p>
+              </div>
+
+              <div class="flex flex-col gap-3 sm:flex-row">
+                <button type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="startEditing">
+                  Edit session
+                </button>
+                <button
+                  type="button"
+                  class="font-mono text-xs font-semibold uppercase tracking-wide text-red-600 hover:text-red-700"
+                  :disabled="mutatingDrafts"
+                  @click="requestSavedScenarioRemoval(index)"
+                >
+                  {{ removingIndex === index ? 'REMOVING...' : 'Remove' }}
+                </button>
+              </div>
             </div>
 
-            <div class="flex flex-col gap-3 sm:flex-row">
-              <button type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="startEditing">
-                Edit
-              </button>
-              <button
-                type="button"
-                class="font-mono text-xs font-semibold uppercase tracking-wide text-red-600 hover:text-red-700"
-                :disabled="mutatingDrafts"
-                @click="removeSavedScenario(index)"
-              >
-                {{ removingIndex === index ? 'REMOVING...' : 'Remove' }}
-              </button>
-            </div>
+            <p v-if="item.description" class="mt-5 max-w-4xl whitespace-pre-line text-base leading-8 text-dc-gray">
+              {{ item.description }}
+            </p>
           </div>
 
-          <p v-if="item.description" class="mt-5 max-w-4xl whitespace-pre-line text-base leading-8 text-dc-gray">
-            {{ item.description }}
-          </p>
+          <SystemDesignLearningRoomPanel
+            v-if="index === 0 && primaryLearningSource"
+            embedded
+            :event-id="String(route.params.eventId)"
+            :source-title="primaryLearningSource.title"
+            :source-url="primaryLearningSource.url"
+          />
         </article>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -527,7 +548,7 @@ onMounted(async () => {
         >
           <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p class="editorial-eyebrow">scenario {{ index + 1 }}</p>
+              <p class="editorial-eyebrow">session {{ index + 1 }}</p>
               <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">Monthly system design artifact</h2>
             </div>
             <button
@@ -543,25 +564,37 @@ onMounted(async () => {
 
           <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <label>
-              <span class="editorial-label">Scenario title</span>
+              <span class="editorial-label">Title</span>
               <input
                 v-model="draft.title"
-                class="editorial-input mt-2"
+                class="editorial-input min-h-[50px]"
                 placeholder="Design a resilient ticketing queue"
               />
             </label>
-            <label>
-              <span class="editorial-label">Expert / facilitator</span>
-              <input
-                v-model="draft.lead"
-                class="editorial-input mt-2"
-                placeholder="Optional"
-              />
-            </label>
+            <div>
+              <span class="editorial-label">Facilitators</span>
+              <div class="flex gap-2">
+                <input
+                  v-model="draft.facilitatorInput"
+                  class="editorial-input min-h-[50px]"
+                  placeholder="Add a facilitator by name"
+                  @keydown.enter.prevent="addFacilitator(draft)"
+                />
+                <button type="button" class="editorial-secondary-action shrink-0" :disabled="!draft.facilitatorInput.trim()" @click="addFacilitator(draft)">
+                  Add
+                </button>
+              </div>
+              <div v-if="draft.facilitators.length" class="mt-3 flex flex-wrap gap-2" aria-label="Selected facilitators">
+                <span v-for="facilitator in draft.facilitators" :key="facilitator" class="inline-flex items-center gap-2 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-1.5 text-sm font-medium text-dc-ink">
+                  {{ facilitator }}
+                  <button type="button" class="motion-press text-dc-gray hover:text-red-600" :aria-label="`Remove ${facilitator}`" @click="removeFacilitator(draft, facilitator)">×</button>
+                </span>
+              </div>
+            </div>
           </div>
 
           <label class="mt-4 block">
-            <span class="editorial-label">Prompt URL</span>
+            <span class="editorial-label">Docs URL</span>
             <input
               v-model="draft.promptUrl"
               class="editorial-input mt-2"
@@ -570,11 +603,11 @@ onMounted(async () => {
           </label>
 
           <label class="mt-4 block">
-            <span class="editorial-label">Public scenario / recap notes</span>
+            <span class="editorial-label">Description</span>
             <textarea
               v-model="draft.description"
               class="system-design-notes-textarea mt-2"
-              placeholder="Generate a draft from the prompt deck, then replace it after the meetup with what the room actually discussed."
+              placeholder="Explain the problem, context, and the decisions the room should explore."
             />
           </label>
           <button
@@ -595,9 +628,6 @@ onMounted(async () => {
           <button type="submit" class="editorial-action" :disabled="mutatingDrafts">
             {{ saving ? 'SAVING...' : 'SAVE SYSTEM DESIGN' }}
           </button>
-          <button type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="addDraft">
-            Add Scenario
-          </button>
           <button v-if="hasSavedDrafts" type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="cancelEditing">
             Cancel
           </button>
@@ -607,5 +637,18 @@ onMounted(async () => {
         </div>
       </form>
     </div>
+
+    <ConfirmDialog
+      :open="Boolean(pendingRemovalScenario)"
+      title="Remove System Design session?"
+      :message="pendingRemovalMessage"
+      confirm-label="Remove session"
+      busy-label="Removing…"
+      cancel-label="Keep session"
+      :busy="removingIndex !== null"
+      danger
+      @cancel="pendingRemovalIndex = null"
+      @confirm="confirmSavedScenarioRemoval"
+    />
   </div>
 </template>

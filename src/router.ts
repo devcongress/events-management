@@ -91,6 +91,7 @@ const AdminSpeakersView = () => import('./views/admin/AdminSpeakersView.vue');
 const AdminQuizView = () => import('./views/admin/AdminQuizView.vue');
 const AdminSystemDesignView = () => import('./views/admin/AdminSystemDesignView.vue');
 const SystemDesignPresenterView = () => import('./views/SystemDesignPresenterView.vue');
+const SystemDesignRecapView = () => import('./views/SystemDesignRecapView.vue');
 const AdminRegistrationsView = () => import('./views/admin/AdminRegistrationsView.vue');
 
 function storedAdminOAuthRedirect(): string {
@@ -153,6 +154,7 @@ export const router = createRouter({
     { path: '/event-amendments', name: 'event-amendment', component: EventAmendmentView },
     { path: '/event-amendments/:capability', name: 'event-amendment-legacy', component: EventAmendmentView },
     systemDesignParticipantRoute,
+    { path: '/system-design/:eventId', name: 'system-design-recap', component: SystemDesignRecapView },
     {
       path: '/present/system-design/:sessionId',
       name: SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,

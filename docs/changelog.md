@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-17 — System Design session lifecycle
+
+- Reframed System Design as one event-scoped session brief with multiple facilitators, docs URL, description, manual MCQ authoring, and a ten-question lifetime generation allowance.
+- Made end-of-event-day archival the only System Design lock boundary: presenters can open a prepared room without a manual lock, while the organizer workspace becomes read-only and its public recap becomes available automatically after the event day.
+
 ## 2026-08-17 — Discoverable Supabase local entry point
 
 - Made `pnpm dev` explicitly start EMS in Supabase mode on strict port `5173`, giving Runway and other package-script-aware launchers one stable organizer-capable command to discover; the Atlas script now advertises its fixed `4178` port as well.

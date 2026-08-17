@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-074: System Design is one event-scoped learning session
+
+**Date:** 2026-08-17
+**Why:** System Design has one shared participant room, score stream, and public recap per event. Binding independent quiz sessions to schedule rows would make archive ownership and participant state ambiguous.
+**Decision:** Keep one System Design session per event, with automatic end-of-day archival as its only lock boundary. A prepared room can be presented without a manual question lock; generic quizzes retain their existing lifecycle.
+
+---
+
 ## ADR-073: Keep Scenario Atlas as a Loopback-Only Companion
 
 **Date:** 2026-08-16

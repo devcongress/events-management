@@ -353,6 +353,7 @@ export interface PublicMeetupScheduleItem {
   title: string;
   type: 'networking' | 'talk' | 'product_demo' | 'panel' | 'workshop' | 'system_design' | 'open_discussion' | 'break';
   lead: string | null;
+  facilitators?: string[];
   description?: string | null;
   system_design_title?: string | null;
   resources: {
@@ -471,6 +472,13 @@ export interface PublicArchiveEventResponse {
     closes_at: string | null;
     public_url: string | null;
   };
+  system_design_recap?: {
+    title: string;
+    facilitators: string[];
+    docs_url: string | null;
+    description: string | null;
+    questions: Pick<Question, 'question_text' | 'options' | 'correct_index' | 'explanation' | 'difficulty' | 'category'>[];
+  } | null;
 }
 
 export interface PublicHomeRegular {
@@ -524,6 +532,9 @@ export interface QuizSession {
   expires_at?: string | null;
   released_question_ids?: string[];
   purpose?: 'quiz' | 'system_design_learning';
+  /** System Design-only: immutable lifetime budget consumed by generation. */
+  generated_question_count?: number;
+  skipped_question_ids?: string[];
 }
 
 export interface Question {
@@ -538,6 +549,9 @@ export interface Question {
   created_at: string;
   explanation?: string | null;
   source_url?: string | null;
+  authoring_source?: 'manual' | 'generated';
+  difficulty?: 'foundational' | 'intermediate' | 'advanced';
+  category?: string | null;
 }
 
 export interface Response {
