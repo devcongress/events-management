@@ -1,8 +1,8 @@
-# Scenario Atlas Prototype
+# Scenario Atlas Local Tool
 
 ## Overview
 
-Scenario Atlas is a standalone interaction prototype for exploring exhaustive application workflows before release. It is intentionally not wired into the EMS organizer console yet.
+Scenario Atlas is a local-only companion for exploring and recording exhaustive application workflows before release. It is intentionally not wired into the EMS organizer console or production build.
 
 The prototype focuses on two seed workflows:
 
@@ -25,10 +25,22 @@ The prototype focuses on two seed workflows:
 - The default theme is a restrained white Linear/Notion-style workspace, with an optional dark theme.
 - Navigation transitions animate only opacity and transforms, remain under 300ms, and respect reduced-motion preferences.
 
-## Prototype file
+## Run locally
 
-Open [`prototypes/scenario-atlas.html`](../../prototypes/scenario-atlas.html) directly in a browser. The file contains its sample workflow data and interactions so it can be reviewed without running the EMS application.
+```bash
+pnpm atlas
+```
+
+Open `http://127.0.0.1:4178`. Set `SCENARIO_ATLAS_PORT` only when that local port is unavailable.
+
+Workflow definitions live in `tools/scenario-atlas/catalog/workflows.json`. The catalog declares required coverage dimensions; validation fails if a declared actor, state, boundary, failure mode, or terminal outcome is neither covered nor explicitly excluded.
+
+Scenario status and notes are stored in `.scenario-atlas/atlas.sqlite`. That directory is ignored and never becomes part of a commit or production build.
+
+The approved static interaction study remains available at [`prototypes/scenario-atlas.html`](../../prototypes/scenario-atlas.html).
 
 ## Known boundary
 
-This branch packages the approved proof of concept alongside the owner email preview work. Turning the Atlas into a production EMS feature still requires durable workflow/scenario storage, generation rules, authentication and permissions, evidence capture, test delegation, and execution integrations.
+The current implementation provides a tracked catalog, local SQLite state, first-unresolved propagation, Coverage, and manual result notes. Automatic code-impact generation, authenticated browser execution, evidence attachments, delegation, and safe email/Slack capture adapters remain later phases.
+
+The server binds to `127.0.0.1`, refuses production and Cloudflare execution, rejects cross-origin mutations, and is absent from the EMS Vite and Bun production entrypoints.

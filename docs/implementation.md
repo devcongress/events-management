@@ -40,6 +40,8 @@
 | `server/index.ts` | Bun production server — serves `dist/` and `/api/*` on one port |
 | `vite.config.ts` | Vite + Vue + Hono dev-server wiring |
 | `data/seed.ts` | Seed script — run via `pnpm seed` |
+| `tools/scenario-atlas/server.ts` | Loopback-only Atlas server and narrow local JSON API; never imported by production entrypoints |
+| `tools/scenario-atlas/catalog/workflows.json` | Tracked workflow, checkpoint, scenario, expectation, and completeness contracts |
 
 ---
 

@@ -42,6 +42,18 @@ describe('HTTP security boundaries', () => {
     expect(response.headers.get('x-request-id')).toBeTruthy();
   });
 
+  it('allows Vite development style and bootstrap injection without weakening production CSP', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost:5173/organizer-console/login');
+    const policy = response.headers.get('content-security-policy');
+
+    expect(policy).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com");
+    expect(policy).toContain("style-src 'self' 'unsafe-inline' https://api.fontshare.com");
+    expect(policy).toContain("style-src-attr 'none'");
+    expect(response.headers.get('strict-transport-security')).toBeNull();
+  });
+
   it('returns credentialed CORS preflights and rejects untrusted origins in production', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('PUBLIC_FRONTEND_ORIGIN', 'https://events.example.com');

@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-073: Keep Scenario Atlas as a Loopback-Only Companion
+
+**Date:** 2026-08-16
+**Why:** Scenario Atlas needs to inspect and record exhaustive workflow coverage during development without creating a hidden production surface or gaining access to deployed credentials and integrations. Keep its UI, catalog engine, and SQLite run state under `tools/scenario-atlas`, launched by an explicit local command and absent from the EMS Vite and Bun production entrypoints.
+**Tradeoffs:** The Atlas does not share the organizer session or production runtime, so authenticated automation and integration capture require dedicated safe adapters later. Catalog definitions are reviewable in Git, while results and evidence remain machine-local and are not automatically shared between developers.
+**Alternatives considered:** An owner-only organizer route (rejected because hidden routes are still bundled and deployed), a separate repository (rejected because workflow definitions must evolve atomically with EMS code), and browser-only localStorage (rejected because durable run history and later evidence need a queryable local store).
+**Revisit when:** The team needs shared run history or hosted collaboration; any hosted form requires a new threat model, explicit authentication, isolated non-production infrastructure, and a separate deployment decision.
+
+---
+
 ## ADR-072: In-Process Email Preflight Without Ownership Verification
 
 Date: 2026-08-14

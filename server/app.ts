@@ -269,6 +269,7 @@ app.use('*', async (c, next) => {
     && c.res.status === 200
     && c.res.headers.get('content-type')?.startsWith('text/html')
   );
+  const isDevelopment = envValue('NODE_ENV', c) === 'development';
 
   c.header('X-Request-ID', requestId);
   c.header('X-Content-Type-Options', 'nosniff');
@@ -296,8 +297,8 @@ app.use('*', async (c, next) => {
       "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      "script-src 'self' https://challenges.cloudflare.com",
-      "style-src 'self' https://api.fontshare.com",
+      `script-src 'self'${isDevelopment ? " 'unsafe-inline'" : ''} https://challenges.cloudflare.com`,
+      `style-src 'self'${isDevelopment ? " 'unsafe-inline'" : ''} https://api.fontshare.com`,
       "style-src-attr 'none'",
       "font-src 'self' data: https://cdn.fontshare.com",
       "img-src 'self' data: blob: https:",

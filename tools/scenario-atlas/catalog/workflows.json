@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "workflows": [
+    {
+      "id": "external-submission",
+      "index": "01",
+      "actor": "External person",
+      "title": "Submit an event for organizer review",
+      "description": "A valid public submission becomes Pending and visible to an organizer.",
+      "coverageContract": {
+        "required": {
+          "actor": ["external-user", "organizer"],
+          "state": ["form-open", "pending-stored", "pending-visible"],
+          "boundary": ["validation", "bot-check", "upload", "persistence", "organizer-read"],
+          "failure": ["invalid-input", "invalid-location", "bot-rejection", "invalid-upload", "duplicate-retry", "storage-unavailable", "queue-missing"],
+          "terminal": ["rejected-before-persist", "pending-visible", "failed-at-organizer-read"]
+        },
+        "excluded": []
+      },
+      "checkpoints": [
+        {
+          "id": "submission-form",
+          "stage": 1,
+          "label": "CP 01",
+          "title": "Complete submission form",
+          "description": "Public intake and client-side validation.",
+          "scenarios": [
+            {"id":"SUB-03","title":"Missing required fields","description":"Form and API reject input; nothing is stored.","precondition":"Open a blank public event form.","action":"Submit with one required field missing.","expected":"The request is rejected and no proposal or upload is stored.","initialStatus":"verified","covers":["actor:external-user","state:form-open","boundary:validation","failure:invalid-input","terminal:rejected-before-persist"]},
+            {"id":"SUB-05","title":"Invalid venue combination","description":"Location type conflicts with venue fields.","precondition":"Choose a location type with incompatible venue fields.","action":"Submit an otherwise valid proposal.","expected":"Validation identifies the conflict before persistence.","initialStatus":"untested","covers":["actor:external-user","state:form-open","boundary:validation","failure:invalid-location","terminal:rejected-before-persist"]},
+            {"id":"SUB-08","title":"Bot verification fails","description":"Request fails closed before persistence.","precondition":"Prepare a complete proposal with a rejected bot token.","action":"Submit the public form.","expected":"The request fails closed and stores nothing.","initialStatus":"verified","covers":["actor:external-user","state:form-open","boundary:bot-check","failure:bot-rejection","terminal:rejected-before-persist"]}
+          ]
+        },
+        {
+          "id": "create-pending",
+          "stage": 2,
+          "label": "CP 02",
+          "title": "Create Pending proposal",
+          "description": "API validation, storage, retries and idempotency.",
+          "scenarios": [
+            {"id":"SUB-10","title":"Duplicate submission retry","description":"At most one logical proposal should exist.","precondition":"A complete submission has reached the persistence boundary.","action":"Retry the same logical request.","expected":"Only one Pending proposal and one upload set exist.","initialStatus":"untested","covers":["actor:external-user","state:pending-stored","boundary:persistence","failure:duplicate-retry","terminal:pending-visible"]},
+            {"id":"SUB-06","title":"Invalid cover upload","description":"No partial upload or proposal remains.","precondition":"Attach an invalid event cover to a valid proposal.","action":"Submit the public form.","expected":"The upload is rejected and no partial proposal remains.","initialStatus":"untested","covers":["actor:external-user","state:form-open","boundary:upload","failure:invalid-upload","terminal:rejected-before-persist"]},
+            {"id":"SUB-12","title":"Storage is unavailable","description":"Failure leaves no partial event data.","precondition":"Make the proposal store unavailable.","action":"Submit a validated proposal.","expected":"The failure is visible and no partial proposal is committed.","initialStatus":"untested","covers":["actor:external-user","state:pending-stored","boundary:persistence","failure:storage-unavailable","terminal:rejected-before-persist"]}
+          ]
+        },
+        {
+          "id": "organizer-queue",
+          "stage": 3,
+          "label": "CP 03",
+          "title": "Show in organizer queue",
+          "description": "Authenticated organizers must see the stored Pending proposal.",
+          "scenarios": [
+            {"id":"SUB-14","title":"Proposal missing from organizer queue","description":"Persistence passed, but authenticated UI evidence failed.","precondition":"A Pending proposal exists and an organizer is authenticated.","action":"Open the organizer submission queue.","expected":"The exact Pending proposal is visible once with current submitted facts.","initialStatus":"failed","covers":["actor:organizer","state:pending-visible","boundary:organizer-read","failure:queue-missing","terminal:failed-at-organizer-read"]}
+          ]
+        },
+        {"id":"ready-review","stage":4,"label":"Outcome","title":"Ready for organizer review","description":"The happy-path terminal outcome.","terminal":true,"scenarios":[]}
+      ]
+    },
+    {
+      "id": "organizer-moderation",
+      "index": "02",
+      "actor": "Organizer",
+      "title": "Review and decide on a Pending event",
+      "description": "An authenticated organizer reaches exactly one durable decision outcome.",
+      "coverageContract": {
+        "required": {
+          "actor": ["organizer", "external-user"],
+          "state": ["pending", "approved", "declined"],
+          "boundary": ["authorization", "review-read", "decision-transaction", "event-publish", "email-outbox"],
+          "failure": ["access-denied", "stale-review", "concurrent-decision", "transaction-failure", "stale-action", "missing-reason", "approval-email-failure", "decline-email-failure"],
+          "terminal": ["approved-once", "declined-once", "decision-rejected", "decision-durable-email-delayed"]
+        },
+        "excluded": []
+      },
+      "checkpoints": [
+        {"id":"open-proposal","stage":1,"label":"CP 01","title":"Open Pending proposal","description":"Authentication and proposal access.","scenarios":[
+          {"id":"MOD-02","title":"Organizer lacks access","description":"UI and API must deny access without exposing data.","precondition":"Use an unauthenticated or unauthorized organizer session.","action":"Open a Pending proposal.","expected":"Access is denied without leaking proposal facts.","initialStatus":"untested","covers":["actor:organizer","state:pending","boundary:authorization","failure:access-denied","terminal:decision-rejected"]}
+        ]},
+        {"id":"review-facts","stage":2,"label":"CP 02","title":"Review event facts","description":"The decision workspace must show current proposal data.","scenarios":[
+          {"id":"MOD-05","title":"Event facts are stale","description":"Review must display current proposal data.","precondition":"A Pending proposal contains recently updated facts.","action":"Open the organizer review workspace.","expected":"Every decision-relevant fact matches the current proposal.","initialStatus":"untested","covers":["actor:organizer","state:pending","boundary:review-read","failure:stale-review","terminal:decision-rejected"]}
+        ]},
+        {"id":"record-decision","stage":3,"label":"CP 03","title":"Record one decision","description":"Decision integrity, retries and concurrency.","scenarios":[
+          {"id":"MOD-17","title":"Concurrent organizer decisions","description":"Only the first valid decision commits.","precondition":"Two organizers open the same Pending proposal.","action":"Submit conflicting decisions concurrently.","expected":"Exactly one durable decision wins and the other receives current state.","initialStatus":"untested","covers":["actor:organizer","state:pending","boundary:decision-transaction","failure:concurrent-decision","terminal:decision-rejected"]},
+          {"id":"MOD-07","title":"Decision transaction fails","description":"No event or email is partially created.","precondition":"Force the decision transaction to fail.","action":"Approve or decline the proposal.","expected":"No partial event, status, audit or email state is committed.","initialStatus":"untested","covers":["actor:organizer","state:pending","boundary:decision-transaction","failure:transaction-failure","terminal:decision-rejected"]},
+          {"id":"MOD-18","title":"Organizer acts on stale state","description":"Return the durable current outcome.","precondition":"Another organizer has already decided the proposal.","action":"Submit a decision from a stale review page.","expected":"The existing durable outcome is returned without mutation.","initialStatus":"untested","covers":["actor:organizer","state:pending","boundary:decision-transaction","failure:stale-action","terminal:decision-rejected"]},
+          {"id":"MOD-10","title":"Decline reason is missing","description":"UI and API reject the decision.","precondition":"Open a Pending proposal and choose Decline.","action":"Submit without a reason.","expected":"Validation rejects the decision and the proposal stays Pending.","initialStatus":"verified","covers":["actor:organizer","state:pending","boundary:decision-transaction","failure:missing-reason","terminal:decision-rejected"]}
+        ]},
+        {"id":"approve-outcome","stage":4,"label":"Approve","title":"Approve event","description":"Canonical event and approval notification.","scenarios":[
+          {"id":"MOD-03A","title":"Approve event","description":"Create one canonical event transactionally.","precondition":"A valid Pending proposal is ready for approval.","action":"Approve the proposal once.","expected":"One approved event is published and linked to the proposal.","initialStatus":"untested","covers":["actor:organizer","actor:external-user","state:approved","boundary:event-publish","terminal:approved-once"]},
+          {"id":"MOD-14A","title":"Approval email fails","description":"Decision remains durable and email can retry.","precondition":"The email provider rejects an approval notification.","action":"Approve a valid Pending proposal.","expected":"Approval commits once and the email remains safely retryable.","initialStatus":"untested","covers":["actor:external-user","state:approved","boundary:email-outbox","failure:approval-email-failure","terminal:decision-durable-email-delayed"]}
+        ]},
+        {"id":"decline-outcome","stage":4,"label":"Decline","title":"Decline event","description":"Private outcome and reason notification.","scenarios":[
+          {"id":"MOD-03B","title":"Decline event","description":"Keep the event private and record the reason.","precondition":"A valid Pending proposal has a decline reason.","action":"Decline the proposal once.","expected":"The proposal is declined once and no public event is created.","initialStatus":"failed","covers":["actor:organizer","actor:external-user","state:declined","boundary:decision-transaction","terminal:declined-once"]},
+          {"id":"MOD-14B","title":"Decline email fails","description":"Decision remains durable and email can retry.","precondition":"The email provider rejects a decline notification.","action":"Decline a valid Pending proposal.","expected":"Decline commits once and the reason email remains retryable.","initialStatus":"untested","covers":["actor:external-user","state:declined","boundary:email-outbox","failure:decline-email-failure","terminal:decision-durable-email-delayed"]}
+        ]}
+      ]
+    }
+  ]
+}

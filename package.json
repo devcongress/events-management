@@ -5,10 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@10.24.0",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "APP_DATA_SOURCE=supabase vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vue-tsc --noEmit && vite build",
     "deploy:worker": "wrangler deploy",
     "start": "bun run server/index.ts",
+    "atlas": "SCENARIO_ATLAS_PORT=4178 bun run tools/scenario-atlas/server.ts",
+    "atlas:test": "vitest run tools/scenario-atlas && bun test tools/scenario-atlas/engine/database.bun.test.ts",
     "typecheck": "vue-tsc --noEmit",
     "seed": "tsx data/seed.ts",
     "cleanup:test-events": "bun run scripts/cleanup-test-event-data.ts",

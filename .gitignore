@@ -55,3 +55,6 @@ next-env.d.ts
 /.codebase-indexer/
 /.sentinel/
 /.codex/
+
+# local Scenario Atlas state and evidence
+/.scenario-atlas/

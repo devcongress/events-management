@@ -15,7 +15,7 @@ Feature docs explain user-facing behavior, key files, and follow-up work. Add a 
 | Quiz | Preview | [quiz.md](quiz.md) |
 | Speaker Email Delivery with Resend | Active — program multi-send pilot | [speaker-link-email.md](speaker-link-email.md) |
 | Owner Email Previews | Active — read-only owner tool | [email-previews.md](email-previews.md) |
-| Scenario Atlas | Prototype — standalone workflow explorer | [scenario-atlas-prototype.md](scenario-atlas-prototype.md) |
+| Scenario Atlas | Local tool — tracked catalog and persisted test state | [scenario-atlas-prototype.md](scenario-atlas-prototype.md) |
 | Annual Conference Finance | Active — private GHS budget and income lifecycle | [annual-conference-finance.md](annual-conference-finance.md) |
 | Short Links | Active — owned opaque marketing redirects | [short-links.md](short-links.md) |
 
