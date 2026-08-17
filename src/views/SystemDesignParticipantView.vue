@@ -36,6 +36,11 @@ const remaining = computed(() => {
   const elapsed = Math.floor((now.value - new Date(state.value.question_started_at).getTime()) / 1000);
   return Math.max(0, state.value.current_question.time_limit_seconds - elapsed);
 });
+const secondsUntilStart = computed(() => {
+  if (!state.value?.question_started_at || state.value.session.question_phase !== 'answering') return null;
+  return Math.max(0, Math.ceil((new Date(state.value.question_started_at).getTime() - now.value) / 1000));
+});
+const questionIsOpen = computed(() => secondsUntilStart.value === null || secondsUntilStart.value <= 0);
 
 const progress = computed(() => {
   const limit = state.value?.current_question?.time_limit_seconds ?? 20;
@@ -134,7 +139,7 @@ async function pollState() {
 }
 
 async function submitAnswer(answerIndex: number) {
-  if (!sessionId.value || !userId.value || submitting.value || state.value?.player_result || remaining.value <= 0) return;
+  if (!sessionId.value || !userId.value || submitting.value || state.value?.player_result || remaining.value <= 0 || !questionIsOpen.value) return;
 
   submitting.value = true;
   answerError.value = null;
@@ -222,6 +227,25 @@ onUnmounted(() => {
       </div>
     </section>
 
+    <section v-else-if="state.session.question_phase === 'presenting'" class="flex min-h-screen items-center justify-center p-6">
+      <div class="w-full max-w-md text-center">
+        <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="112" class="mx-auto" />
+        <p class="mt-7 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Question {{ state.session.current_question_index + 1 }}</p>
+        <h1 class="mt-4 text-5xl font-extrabold tracking-tight">Look to the presenter.</h1>
+        <p class="mt-4 text-base leading-7 text-dc-gray">The facilitator is introducing the next question. Your answer timer has not started.</p>
+      </div>
+    </section>
+
+    <section v-else-if="state.session.question_phase === 'answering' && !questionIsOpen" class="flex min-h-screen items-center justify-center p-6">
+      <div class="w-full max-w-md text-center">
+        <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="112" class="mx-auto" />
+        <p class="mt-7 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Question {{ state.session.current_question_index + 1 }}</p>
+        <p class="mt-4 font-mono text-7xl font-bold tabular-nums">{{ secondsUntilStart }}</p>
+        <p class="mt-1 font-mono text-xs uppercase tracking-wider text-dc-gray">starting together</p>
+        <p class="mt-6 text-sm leading-6 text-dc-gray">Keep watching the shared screen. Answer choices will open when the question timer begins.</p>
+      </div>
+    </section>
+
     <section v-else-if="state.session.question_phase === 'revealing'" class="flex min-h-screen items-center justify-center p-5">
       <div class="w-full max-w-lg text-center">
         <p class="font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Answer revealed</p>
@@ -240,7 +264,7 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section v-else-if="state.session.question_phase === 'answering' && remaining <= 0" class="flex min-h-screen items-center justify-center p-6">
+    <section v-else-if="state.session.question_phase === 'answering' && questionIsOpen && remaining <= 0" class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-md text-center">
         <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="112" class="mx-auto" />
         <p class="mt-7 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Question {{ state.session.current_question_index + 1 }}</p>
@@ -285,7 +309,7 @@ onUnmounted(() => {
             :key="label"
             class="quiz-answer-tile flex aspect-square min-h-[132px] items-center justify-center border-2 border-dc-ink font-mono text-5xl font-bold text-white shadow-[3px_3px_0_#111111] disabled:cursor-not-allowed disabled:opacity-40"
             :class="[index === 0 ? 'bg-quiz-red' : index === 1 ? 'bg-quiz-blue' : index === 2 ? 'bg-quiz-yellow' : 'bg-quiz-green', selectedAnswer === index ? 'scale-95 ring-4 ring-dc-ink' : '']"
-            :disabled="remaining <= 0 || selectedAnswer !== null || submitting || state.session.question_phase !== 'answering' || !state.current_question || index >= state.current_question.options.length"
+            :disabled="remaining <= 0 || !questionIsOpen || selectedAnswer !== null || submitting || state.session.question_phase !== 'answering' || !state.current_question || index >= state.current_question.options.length"
             @click="submitAnswer(index)"
           >
             {{ label }}

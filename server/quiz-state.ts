@@ -12,6 +12,7 @@ export interface QuizAdvanceResult {
 export interface QuizStateOptions {
   includeAnswerDistribution?: boolean;
   includePresenterLeaderboard?: boolean;
+  includePresenterQuestion?: boolean;
 }
 
 export async function advanceQuizSessionState(sessionId: string): Promise<QuizAdvanceResult> {
@@ -71,7 +72,8 @@ export async function buildQuizStateResponse(
   let questionStartedAt: string | null = null;
   let fullCurrentQuestion: Question | null = null;
 
-  if (hasCurrentQuestion) {
+  const mayViewCurrentQuestion = session.question_phase !== 'presenting' || options.includePresenterQuestion;
+  if (hasCurrentQuestion && mayViewCurrentQuestion) {
     const question = questions.find((candidate) => candidate.order_index === session.current_question_index) ?? null;
 
     if (question) {

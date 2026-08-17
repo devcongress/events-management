@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-17 — System Design presenter-first question start
+
+- Split the live-question flow into a private presenter preview and a separate **Start timer** action, so attendees cannot see a question or answer choices before the shared screen does.
+- Made the server schedule every opened question three seconds ahead, giving polling phones a short common runway before that question's own configured timer begins; early answer submissions are rejected.
+- Restricted the detailed learning-room session API to organizers, preventing a participant who knows a room ID from bypassing the presenter-preview boundary.
+
 ## 2026-08-17 — System Design removal and presenter stability
 
 - Made removal of a saved System Design session delete its linked learning-room record, ending any live presentation and cascading its questions, responses, and room participants so a later brief starts fresh.

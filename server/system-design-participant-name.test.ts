@@ -70,6 +70,9 @@ describe('System Design participant name endpoint', () => {
     );
     expect(missingDeviceState.status).toBe(403);
 
+    const privatePresenterSession = await app.request(`http://localhost/api/quiz/sessions/${sessionId}`);
+    expect(privatePresenterSession.status).toBe(401);
+
     const wrongDeviceState = await app.request(
       `http://localhost/api/quiz/state?sessionId=${sessionId}&userId=${userId}`,
       { headers: { 'X-Quiz-Device-ID': '77777777-7777-4777-8777-777777777777' } },

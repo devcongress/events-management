@@ -30,8 +30,13 @@ const participantsCount = computed(() => liveState.value?.participants_count ?? 
 const releasedCount = computed(() => session.value?.released_question_ids?.length ?? 0);
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
 const skippedQuestions = computed(() => session.value?.questions.filter((question) => (session.value?.skipped_question_ids ?? []).includes(question.id)) ?? []);
+const secondsUntilStart = computed(() => {
+  if (session.value?.question_phase !== 'answering' || !session.value.question_started_at) return null;
+  return Math.max(0, Math.ceil((new Date(session.value.question_started_at).getTime() - nowMs.value) / 1000));
+});
 const secondsRemaining = computed(() => {
   if (session.value?.question_phase !== 'answering' || !currentQuestion.value || !session.value.question_started_at) return null;
+  if (secondsUntilStart.value && secondsUntilStart.value > 0) return currentQuestion.value.time_limit_seconds;
   const endsAt = new Date(session.value.question_started_at).getTime() + (currentQuestion.value.time_limit_seconds * 1000);
   return Math.max(0, Math.ceil((endsAt - nowMs.value) / 1000));
 });
@@ -99,6 +104,10 @@ async function runAction(path: string, body?: Record<string, unknown>) {
 
 async function releaseQuestion() {
   await runAction(`/api/quiz/sessions/${sessionId.value}/release`);
+}
+
+async function startQuestion() {
+  await runAction(`/api/quiz/sessions/${sessionId.value}/start`);
 }
 
 async function revealAnswer() {
@@ -177,7 +186,7 @@ onUnmounted(() => {
                 <span>{{ participantsCount === 1 ? 'person joined' : 'people joined' }}</span>
               </div>
               <button type="button" class="editorial-action presenter-primary-action motion-press" :disabled="participantsCount === 0 || actionPending" @click="releaseQuestion">
-                {{ actionPending ? 'Starting...' : 'Start first question' }}
+                {{ actionPending ? 'Showing...' : 'Show first question' }}
               </button>
             </div>
             <p v-if="error" class="presenter-error">{{ error }}</p>
@@ -252,7 +261,11 @@ onUnmounted(() => {
                 <p class="presenter-kicker">Think through the trade-off</p>
                 <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
               </div>
-              <div v-if="presenterTimer !== null" class="presenter-timer" :class="{ 'presenter-timer--urgent': secondsRemaining !== null && secondsRemaining <= 5 }" aria-live="off">
+              <div v-if="secondsUntilStart !== null && secondsUntilStart > 0" class="presenter-timer" aria-live="polite">
+                <span>Starting in</span>
+                <strong>{{ secondsUntilStart }}</strong>
+              </div>
+              <div v-else-if="presenterTimer !== null" class="presenter-timer" :class="{ 'presenter-timer--urgent': secondsRemaining !== null && secondsRemaining <= 5 }" aria-live="off">
                 <span>Time left</span>
                 <strong>{{ presenterTimer }}</strong>
               </div>
@@ -277,11 +290,15 @@ onUnmounted(() => {
             </div>
 
             <footer class="presenter-controls">
-              <template v-if="session.question_phase === 'answering'">
+              <template v-if="session.question_phase === 'presenting'">
+                <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="startQuestion">{{ actionPending ? 'Starting...' : 'Start timer' }}</button>
+                <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+              </template>
+              <template v-else-if="session.question_phase === 'answering'">
                 <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
                 <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
               </template>
-              <button v-else-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Releasing...' : 'Release next question' }}</button>
+              <button v-else-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Showing...' : 'Show next question' }}</button>
               <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
               <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
             </footer>

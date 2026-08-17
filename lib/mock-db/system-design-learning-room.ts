@@ -4,6 +4,9 @@ import { quizSessionFromRow, updateQuizSession } from './quiz-sessions';
 import { deleteResponsesByQuestionIds, getResponsesByQuestion } from './responses';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 
+/** Gives connected phones a small, shared runway before answers open. */
+export const SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS = 3;
+
 export function nextUnreleasedLearningQuestion(
   questions: Question[],
   releasedQuestionIds: string[],
@@ -57,12 +60,21 @@ export async function prepareSystemDesignPresentationRun(
   };
 }
 
-export async function releaseNextSystemDesignQuestion(sessionId: string): Promise<QuizSession | null> {
+export async function presentNextSystemDesignQuestion(sessionId: string): Promise<QuizSession | null> {
   if (!isSupabaseRuntimeEnabled()) return null;
-  const { data, error } = await getSupabaseAdminClient().rpc('release_system_design_question', {
+  const { data, error } = await getSupabaseAdminClient().rpc('present_system_design_question', {
     p_session_id: sessionId,
   });
-  if (error || !data) throw new Error(error?.message ?? 'Unable to release System Design question');
+  if (error || !data) throw new Error(error?.message ?? 'Unable to present System Design question');
+  return quizSessionFromRow(data);
+}
+
+export async function startSystemDesignQuestion(sessionId: string): Promise<QuizSession | null> {
+  if (!isSupabaseRuntimeEnabled()) return null;
+  const { data, error } = await getSupabaseAdminClient().rpc('start_system_design_question', {
+    p_session_id: sessionId,
+  });
+  if (error || !data) throw new Error(error?.message ?? 'Unable to start System Design question');
   return quizSessionFromRow(data);
 }
 
@@ -84,7 +96,7 @@ export async function skipSystemDesignQuestion(session: QuizSession, questions: 
     return quizSessionFromRow(data);
   }
   const current = questions.find((question) => question.order_index === session.current_question_index);
-  if (!current || session.status !== 'active' || session.question_phase !== 'answering') {
+  if (!current || session.status !== 'active' || !['presenting', 'answering'].includes(session.question_phase ?? '')) {
     throw new Error('question_not_ready_to_skip');
   }
   await deleteResponsesByQuestionIds([current.id]);
@@ -107,8 +119,8 @@ export async function reopenSystemDesignQuestion(session: QuizSession, question:
   return updateQuizSession(session.id, {
     status: 'active',
     current_question_index: question.order_index,
-    question_phase: 'answering',
-    question_started_at: transitionAt,
+    question_phase: 'presenting',
+    question_started_at: null,
     phase_started_at: transitionAt,
     started_at: session.started_at ?? transitionAt,
     released_question_ids: [...(session.released_question_ids ?? []), question.id],

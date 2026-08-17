@@ -158,6 +158,22 @@ describe('quiz state helpers', () => {
     });
   });
 
+  it('keeps a presenter-preview question private until its timer is opened', async () => {
+    const { buildQuizStateResponse } = await import('./quiz-state');
+    getQuizSessionById.mockResolvedValue({ ...activeSession, question_phase: 'presenting', question_started_at: null });
+
+    const participantState = await buildQuizStateResponse('session-1', 'user-1');
+    expect(participantState?.session.question_phase).toBe('presenting');
+    expect(participantState?.current_question).toBeNull();
+    expect(participantState?.question_started_at).toBeNull();
+
+    const presenterState = await buildQuizStateResponse('session-1', null, {
+      includePresenterQuestion: true,
+    });
+    expect(presenterState?.current_question).toEqual(expect.objectContaining({ question_text: question.question_text }));
+    expect(presenterState?.current_question).not.toEqual(expect.objectContaining({ correct_index: expect.any(Number) }));
+  });
+
   it('returns the final leaderboard to the presenter and only the requesting player standing publicly', async () => {
     const { buildQuizStateResponse } = await import('./quiz-state');
     getQuizSessionById.mockResolvedValue({ ...activeSession, status: 'finished', question_phase: null });

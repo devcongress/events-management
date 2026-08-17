@@ -21,7 +21,7 @@ Removing that saved System Design session removes its linked learning room as we
 3. Review each multiple-choice question, its ideal-answer explanation, difficulty, category, and answer timer. The set stays editable through the event day and locks automatically when the event-day archive begins.
 4. Open the separate presentation view in a new browser tab as soon as the room has a question. The System Design workspace remains open in the original tab.
 5. Share the QR code or join code. Every attendee immediately receives a default room name and fixed Navii avatar, and may edit the name on their phone while the lobby is open.
-6. Start when the room is ready, release one question at a time, then either reveal the answer and teaching explanation or skip it. Skips discard attempts and may be reopened fresh before the room ends.
+6. Show each question to the presenter first. When the facilitator chooses **Start timer**, attendee phones receive a three-second shared runway and then begin that question's configured answer timer together. The facilitator can then reveal the answer and teaching explanation or skip the question. Skips discard attempts and may be reopened fresh before the room ends.
 7. Finish the run. The presenter shows the final leaderboard, while each phone shows only that participant's Navii avatar, room name, and position. Top-five participants receive a reduced-motion-safe confetti celebration.
 8. The saved scenario and five questions remain available for another presentation.
 
@@ -31,7 +31,7 @@ The QR code opens the public standalone `/learn/system-design/:code` attendee pa
 
 Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During each question, the presenter summary uses four compact vertical columns showing the option, number of people, and percentage. The revealed correct answer is distinguished with the System Design yellow accent; the chart does not render or return an unbounded respondent list.
 
-While answers are open, the presenter sees the same server-timed countdown as participants. The final presenter board shows each participant's correct answers out of the authored total beside their points, with a legend explaining speed-weighted points and correct-streak bonuses.
+Before answers open, the presenter alone can see the prepared question while attendee state withholds its text, choices, and timer. Starting it creates one server-owned timestamp three seconds ahead, giving polling clients a shared runway; after that runway, presenter and attendees count down from the question's own configured limit. Direct session-detail reads are organizer-only, so attendee devices cannot bypass the private-presenter state. The final presenter board shows each participant's correct answers out of the authored total beside their points, with a legend explaining speed-weighted points and correct-streak bonuses.
 
 At completion, the authenticated presenter receives the top-ten final leaderboard. Each attendee request receives only that attendee's own final standing, so their phone can show their avatar, name, and position without exposing the rest of the leaderboard. Confetti runs once for positions one through five and becomes a static celebratory treatment when reduced motion is enabled.
 
@@ -53,6 +53,7 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 | `supabase/migrations/20260801000000_quiz_participants.sql` | Participant backfill and room-scoped uniqueness constraints |
 | `lib/mock-db/quiz-sessions.ts`, `questions.ts`, `responses.ts` | Relational hosted runtime repositories with local JSON fallbacks |
 | `supabase/migrations/20260801010000_relational_quiz_runtime.sql` | Session/question/response backfill, constraints, atomic transitions, scoring, and aggregate state |
+| `supabase/migrations/20260817010000_system_design_presenter_gate.sql` | Presenter-only question state and server-owned delayed answer start |
 | `lib/mock-db/system-design-learning-room.ts` | Prepares a fresh presentation run without changing the questions |
 | `server/app.ts` | Generation, presentation, join, release, reveal, and answer API routes |
 
@@ -69,7 +70,7 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 - Join and answer payloads use the public 64 KiB limit and distributed rate-limit buckets. The limits are deliberately sized for many attendees sharing one venue network.
 - The presenter leaderboard is capped at ten visible participants; attendee phones receive only their own standing.
 - Hosted answer acceptance and scoring are one PostgreSQL transaction. One response per user/question, room phase, deadline, participant membership, score, and streak are checked together even when requests reach different Worker isolates.
-- Presenter reset, release, reveal, and question ordering are database-owned transitions. Aggregate chart and leaderboard data are computed in PostgreSQL; direct anonymous Realtime table access remains disabled until participant-scoped authorization exists.
+- Presenter reset, private presentation, timer start, reveal, and question ordering are database-owned transitions. Aggregate chart and leaderboard data are computed in PostgreSQL; direct anonymous Realtime table access remains disabled until participant-scoped authorization exists.
 - The standalone presenter route is organizer-protected even though it intentionally renders outside the admin shell. Facilitator mutations still require the HTTP-only organizer session.
 
 ## Verification

@@ -44,7 +44,7 @@ export type AnnualConferenceWorkstream =
   | 'feedback_reporting';
 export type AnnualConferenceTaskPriority = 'high' | 'medium' | 'low';
 export type QuizStatus = 'draft' | 'waiting' | 'active' | 'finished';
-export type QuizQuestionPhase = 'answering' | 'revealing' | 'scoreboard';
+export type QuizQuestionPhase = 'presenting' | 'answering' | 'revealing' | 'scoreboard';
 export type QuizPurpose = 'quiz' | 'system_design_learning';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -2035,6 +2035,14 @@ export interface Database {
         Returns: Database['public']['Tables']['quiz_sessions']['Row'];
       };
       release_system_design_question: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
+      present_system_design_question: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
+      start_system_design_question: {
         Args: { p_session_id: string };
         Returns: Database['public']['Tables']['quiz_sessions']['Row'];
       };

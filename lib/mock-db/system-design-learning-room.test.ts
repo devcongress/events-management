@@ -91,7 +91,7 @@ describe('System Design presentation runs', () => {
     const skipped = await skipSystemDesignQuestion(session, [question]);
     expect(skipped).toMatchObject({ question_phase: null, current_question_index: -1, skipped_question_ids: [question.id], released_question_ids: [] });
     await expect(readData<Response>('responses')).resolves.toEqual([]);
-    await expect(reopenSystemDesignQuestion(skipped, question)).resolves.toMatchObject({ question_phase: 'answering', current_question_index: 0, skipped_question_ids: [] });
+    await expect(reopenSystemDesignQuestion(skipped, question)).resolves.toMatchObject({ question_phase: 'presenting', current_question_index: 0, question_started_at: null, skipped_question_ids: [] });
   });
 
   it('renames only the selected session participant and rejects duplicate room names', async () => {
