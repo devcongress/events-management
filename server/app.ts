@@ -109,7 +109,7 @@ import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFee
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
 import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, mergeQuizParticipantUsers, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
-import { createQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
+import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, rebuildSystemDesignScores, releaseNextSystemDesignQuestion, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
@@ -7646,6 +7646,35 @@ app.patch('/api/events/:eventId', async (c) => {
     return c.json(updatedEvent);
   } catch (error) {
     return internalErrorResponse(c, 'event_update_failed', error, 'Unable to update the event.');
+  }
+});
+
+app.delete('/api/events/:eventId/system-design', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  if (isSystemDesignArchived(event)) {
+    return c.json({ error: 'This System Design session is archived after the event day and is now read-only.' }, 409);
+  }
+
+  const learningRooms = (await getQuizSessionsByEvent(event.id))
+    .filter((session) => session.purpose === 'system_design_learning');
+  const schedule = (event.schedule ?? []).filter((item) => !isSystemDesignSessionItem(item));
+
+  try {
+    await Promise.all(learningRooms.map((session) => deleteQuizSession(session.id)));
+    const updatedEvent = await updateEvent(event.id, { schedule: normalizePublicSchedule(schedule) }, c);
+    await auditAdminAction(c, {
+      action: 'event.system_design.remove',
+      targetType: 'event',
+      targetId: event.id,
+      metadata: { deleted_learning_room_count: learningRooms.length },
+    });
+    return c.json(updatedEvent);
+  } catch (error) {
+    return internalErrorResponse(c, 'system_design_remove_failed', error, 'Unable to remove the System Design session.');
   }
 });
 

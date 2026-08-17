@@ -86,7 +86,7 @@ const pendingRemovalScenario = computed(() => (
 ));
 const pendingRemovalMessage = computed(() => {
   if (!pendingRemovalScenario.value) return '';
-  return `Remove “${systemDesignDisplayTitle(pendingRemovalScenario.value)}” and its saved brief from this event? Learning questions stay in storage, but will no longer appear in this event workspace or public recap.`;
+  return `Remove “${systemDesignDisplayTitle(pendingRemovalScenario.value)}” and its learning questions from this event? This ends any live presentation and cannot be undone.`;
 });
 const mutatingDrafts = computed(() => saving.value || generatingIndex.value !== null || removingIndex.value !== null);
 
@@ -401,11 +401,7 @@ async function confirmSavedScenarioRemoval() {
 
   try {
     const remainingItems = systemDesignSessions.value.filter((_, itemIndex) => itemIndex !== index);
-    const response = await fetch(`/api/events/${route.params.eventId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schedule: mergeSystemDesignSchedule(remainingItems) }),
-    });
+    const response = await fetch(`/api/events/${route.params.eventId}/system-design`, { method: 'DELETE' });
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -416,7 +412,7 @@ async function confirmSavedScenarioRemoval() {
     syncDrafts();
     editing.value = remainingItems.length === 0;
     pendingRemovalIndex.value = null;
-    notify.success(remainingItems.length > 0 ? 'Session removed' : 'System Design section removed');
+    notify.success('System Design session and learning room removed');
   } catch (caught) {
     saveError.value = caught instanceof Error ? caught.message : 'Unable to remove this System Design session';
     notify.error(saveError.value);

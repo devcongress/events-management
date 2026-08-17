@@ -138,6 +138,7 @@ describe('quiz state helpers', () => {
       { option_index: 3, count: 0, percentage: 0 },
     ]);
     expect(presenterState?.leaderboard[0]?.nickname).toBe('Ada');
+    expect(presenterState?.leaderboard[0]?.correct_answers).toBe(1);
 
     getQuizSessionById.mockResolvedValue({ ...activeSession, question_phase: 'revealing' });
     const revealedState = await buildQuizStateResponse('session-1', 'user-1');
@@ -175,7 +176,7 @@ describe('quiz state helpers', () => {
       includePresenterLeaderboard: true,
     });
     expect(presenterState?.leaderboard).toEqual([
-      expect.objectContaining({ user_id: 'user-1', nickname: 'Ada', rank: 1, total_score: 500 }),
+      expect.objectContaining({ user_id: 'user-1', nickname: 'Ada', rank: 1, total_score: 500, correct_answers: 0 }),
     ]);
     expect(presenterState?.player_standing).toBeUndefined();
   });

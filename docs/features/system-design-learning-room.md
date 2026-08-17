@@ -12,6 +12,8 @@ At the end of the event day in the event timezone (falling back to Africa/Accra)
 
 A saved System Design source link also keeps the event's System Design tab available even if an older checklist record marked the monthly workflow unavailable. Persisted content is stronger evidence than that historical planning choice.
 
+Removing that saved System Design session removes its linked learning room as well, including any live presentation, questions, responses, and room participants. A later System Design brief starts with a new empty learning room; it cannot inherit the removed room's state.
+
 ## Organizer Flow
 
 1. Save the System Design brief with its docs URL and comma-separated facilitators.
@@ -28,6 +30,8 @@ Opening a completed room starts a fresh run: old participant labels and response
 The QR code opens the public standalone `/learn/system-design/:code` attendee page. That route accepts only System Design learning-room codes, never requires an organizer session, and never renders organizer navigation; only the separate presenter and facilitator controls remain protected. Joining immediately creates a validated, unique default room name and fixed avatar. The attendee may keep or edit that name before the facilitator starts; no account is created and the organizer has no naming-mode setting. PostgreSQL reserves normalized names per room, so simultaneous joins and edits cannot produce labels that differ only by case. Generated-name collisions retry automatically; an edited duplicate remains on the phone with a clear conflict message.
 
 Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. During each question, the presenter summary uses four compact vertical columns showing the option, number of people, and percentage. The revealed correct answer is distinguished with the System Design yellow accent; the chart does not render or return an unbounded respondent list.
+
+While answers are open, the presenter sees the same server-timed countdown as participants. The final presenter board shows each participant's correct answers out of the authored total beside their points, with a legend explaining speed-weighted points and correct-streak bonuses.
 
 At completion, the authenticated presenter receives the top-ten final leaderboard. Each attendee request receives only that attendee's own final standing, so their phone can show their avatar, name, and position without exposing the rest of the leaderboard. Confetti runs once for positions one through five and becomes a static celebratory treatment when reduced motion is enabled.
 
@@ -56,6 +60,7 @@ When a question timer reaches zero, the phone removes the answer controls and sh
 
 - Generated questions are capped at ten per session lifetime; deleting one does not restore the generation allowance. Manual questions are unlimited.
 - End-of-day archival is server-enforced for brief and question mutations; it is the only lock boundary for the System Design session.
+- Removing a pre-archive System Design session is destructive: it deletes the linked learning-room runtime and its cascaded room data, rather than retaining orphaned questions or a live presentation.
 - Source generation supports publicly readable Google Slides and Google Docs links.
 - Live state uses polling rather than a production realtime channel.
 - Room-scoped participant identities and responses from the previous run are cleared when a completed room starts again; historical run reporting is not yet retained.

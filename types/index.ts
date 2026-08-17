@@ -771,6 +771,7 @@ export interface LeaderboardEntry {
   total_score: number;
   rank: number;
   streak_count: number;                                       // display streak indicator
+  correct_answers?: number;                                  // presenter-only System Design progress
   avatar_seed?: string;                                       // session participant identity for Navii
   previous_rank?: number;                                     // for animation
 }
