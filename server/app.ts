@@ -111,7 +111,7 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, mergeQuizParticipantUsers, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
-import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, rebuildSystemDesignScores, releaseNextSystemDesignQuestion, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion } from '@/lib/mock-db/system-design-learning-room';
+import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, startSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
@@ -909,7 +909,7 @@ const quizAnswerSchema = z.object({
 const quizSessionUpdateSchema = z.object({
   status: z.enum(['draft', 'waiting', 'active', 'finished']).optional(),
   current_question_index: z.number().int().min(-1).max(500).optional(),
-  question_phase: z.enum(['answering', 'revealing', 'scoreboard']).nullable().optional(),
+  question_phase: z.enum(['presenting', 'answering', 'revealing', 'scoreboard']).nullable().optional(),
   started_at: z.string().datetime().nullable().optional(),
   finished_at: z.string().datetime().nullable().optional(),
   question_started_at: z.string().datetime().nullable().optional(),
@@ -9403,6 +9403,9 @@ app.post('/api/quiz/sessions', async (c) => {
 });
 
 app.get('/api/quiz/sessions/:sessionId', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
   const existing = await getQuizSessionById(c.req.param('sessionId'));
   const session = existing ? await expireQuizSessionIfNeeded(existing, c) : undefined;
   if (!session) {
@@ -9498,12 +9501,12 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
 
   try {
     const hostedSession = session.purpose === 'system_design_learning'
-      ? await releaseNextSystemDesignQuestion(session.id)
+      ? await presentNextSystemDesignQuestion(session.id)
       : null;
     if (hostedSession) {
       const latestQuestionId = hostedSession.released_question_ids?.at(-1) ?? null;
       await auditAdminAction(c, {
-        action: 'quiz.question.release', targetType: 'quiz_session', targetId: session.id,
+        action: 'quiz.question.present', targetType: 'quiz_session', targetId: session.id,
         metadata: { question_id: latestQuestionId, released_count: hostedSession.released_question_ids?.length ?? 0 },
       });
       return c.json(hostedSession);
@@ -9527,17 +9530,47 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
   const updated = await updateQuizSession(session.id, {
     status: 'active',
     current_question_index: question.order_index,
-    question_phase: 'answering',
-    question_started_at: new Date().toISOString(),
+    question_phase: 'presenting',
+    question_started_at: null,
     phase_started_at: new Date().toISOString(),
     started_at: session.started_at ?? new Date().toISOString(),
     released_question_ids: [...releasedQuestionIds, question.id],
   });
   await auditAdminAction(c, {
-    action: 'quiz.question.release', targetType: 'quiz_session', targetId: session.id,
+    action: 'quiz.question.present', targetType: 'quiz_session', targetId: session.id,
     metadata: { question_id: question.id, released_count: updated.released_question_ids?.length ?? 0 },
   });
   return c.json(updated);
+});
+
+app.post('/api/quiz/sessions/:sessionId/start', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const existing = await getQuizSessionById(c.req.param('sessionId'));
+  if (!existing || existing.purpose !== 'system_design_learning') return c.json({ error: 'System Design learning room not found.' }, 404);
+  const session = await expireQuizSessionIfNeeded(existing, c);
+  const event = await getEventById(session.event_id, c);
+  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
+  if (session.status !== 'active' || session.question_phase !== 'presenting') {
+    return c.json({ error: 'Show a question to the presenter before starting its timer.' }, 409);
+  }
+
+  const hostedSession = await startSystemDesignQuestion(session.id);
+  const startAt = new Date(Date.now() + (SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS * 1000)).toISOString();
+  const started = hostedSession ?? await updateQuizSession(session.id, {
+    question_phase: 'answering',
+    question_started_at: startAt,
+    phase_started_at: new Date().toISOString(),
+    started_at: session.started_at ?? new Date().toISOString(),
+  });
+  await auditAdminAction(c, {
+    action: 'system_design.learning_room.start_question',
+    targetType: 'quiz_session',
+    targetId: session.id,
+    metadata: { question_index: started.current_question_index, start_delay_seconds: SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS },
+  });
+  return c.json(started);
 });
 
 app.post('/api/quiz/sessions/:sessionId/skip', async (c) => {
@@ -10091,6 +10124,9 @@ app.post('/api/quiz/answer', async (c) => {
   if (session.question_phase !== 'answering') {
     return c.json({ error: 'Question is not accepting answers' }, 400);
   }
+  if (!session.question_started_at || Date.now() < new Date(session.question_started_at).getTime()) {
+    return c.json({ error: 'The question timer has not started yet' }, 400);
+  }
 
   try {
     const atomicResult = await submitQuizAnswerAtomically(session_id, user_id, answer_index);
@@ -10208,6 +10244,7 @@ app.get('/api/quiz/state', async (c) => {
   const stateResponse = await buildQuizStateResponse(sessionId, userId, {
     includeAnswerDistribution: presenterStateRequested,
     includePresenterLeaderboard: presenterStateRequested,
+    includePresenterQuestion: presenterStateRequested,
   });
   if (!stateResponse) {
     return c.json({ error: 'Session not found' }, 404);
