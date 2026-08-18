@@ -78,8 +78,15 @@ export async function buildQuizStateResponse(
   // Fetch the session-scoped collections in parallel; each read is a full
   // document fetch and this runs on every 1.5s poll per connected client.
   const hasCurrentQuestion = session.current_question_index >= 0;
+  // A finished System Design run can have no active question (for example after
+  // a skip). The presenter still needs the full question set to calculate each
+  // participant's correct-answer total for the final board.
+  const needsSystemDesignLeaderboardQuestions = session.purpose === 'system_design_learning'
+    && options.includePresenterLeaderboard;
   const [questions, hostedAnalytics] = await Promise.all([
-    hasCurrentQuestion ? getQuestionsBySession(sessionId) : Promise.resolve([]),
+    hasCurrentQuestion || needsSystemDesignLeaderboardQuestions
+      ? getQuestionsBySession(sessionId)
+      : Promise.resolve([]),
     getHostedQuizStateAnalytics(sessionId, userId),
   ]);
   const participants = hostedAnalytics ? [] : await getQuizParticipantsBySession(sessionId);

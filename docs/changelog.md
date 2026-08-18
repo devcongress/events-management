@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-18
+
+- Fixed the finished System Design presenter leaderboard so a participant's correct-answer total is retained even when the room has no active question. This prevents a scored answer from appearing as `0 / total` after the room ends.
+
 ## 2026-08-18 — System Design reveal stability and skip progression
 
 - Kept the presenter question stage fixed across answer reveal: the teaching explanation now fades into reserved space, while the response chart alone slides in and out at the right edge.
