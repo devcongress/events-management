@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-18 — System Design reveal stability and skip progression
+
+- Kept the presenter question stage fixed across answer reveal: the teaching explanation now fades into reserved space, while the response chart alone slides in and out at the right edge.
+- Gave post-reveal chart columns distinct option colours and legible matching labels, while retaining the yellow correct-answer cue.
+- Made **Skip question** atomically discard its answers and immediately schedule the next prepared question through the same three-second shared runway, without a separate start action.
+- Added an application-clock anchor to live quiz state so the presenter and attendee timers count down against the same server time instead of their individual device clocks.
+
 ## 2026-08-18 — System Design draft saving and presenter state clarity
 
 - Made **Generate draft** persist the generated brief and recap immediately, removing the redundant separate Save action.

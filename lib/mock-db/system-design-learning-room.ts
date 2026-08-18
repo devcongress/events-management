@@ -100,15 +100,24 @@ export async function skipSystemDesignQuestion(session: QuizSession, questions: 
     throw new Error('question_not_ready_to_skip');
   }
   await deleteResponsesByQuestionIds([current.id]);
-  const released = (session.released_question_ids ?? []).filter((id) => id !== current.id);
+  const skippedQuestionIds = [...new Set([...(session.skipped_question_ids ?? []), current.id])];
+  const nextQuestion = nextUnreleasedLearningQuestion(questions, [
+    ...(session.released_question_ids ?? []),
+    ...skippedQuestionIds,
+  ]);
+  const transitionAt = new Date();
   return updateQuizSession(session.id, {
     status: 'active',
-    current_question_index: -1,
-    question_phase: null,
-    question_started_at: null,
-    phase_started_at: new Date().toISOString(),
-    released_question_ids: released,
-    skipped_question_ids: [...new Set([...(session.skipped_question_ids ?? []), current.id])],
+    current_question_index: nextQuestion?.order_index ?? -1,
+    question_phase: nextQuestion ? 'presenting' : null,
+    question_started_at: nextQuestion
+      ? new Date(transitionAt.getTime() + (SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS * 1000)).toISOString()
+      : null,
+    phase_started_at: transitionAt.toISOString(),
+    released_question_ids: nextQuestion
+      ? [...(session.released_question_ids ?? []), nextQuestion.id]
+      : session.released_question_ids ?? [],
+    skipped_question_ids: skippedQuestionIds,
   });
 }
 

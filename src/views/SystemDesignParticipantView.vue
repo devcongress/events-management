@@ -22,6 +22,7 @@ const nameSaved = ref(false);
 const selectedAnswer = ref<number | null>(null);
 const answerError = ref<string | null>(null);
 const submitting = ref(false);
+const clockOffsetMs = ref(0);
 const now = ref(Date.now());
 
 let pollTimer: number | undefined;
@@ -49,6 +50,11 @@ const progress = computed(() => {
 const playerStanding = computed(() => state.value?.player_standing ?? null);
 const avatarSeed = computed(() => playerStanding.value?.avatar_seed ?? participantId.value ?? userId.value ?? displayName.value ?? 'participant');
 const isTopFive = computed(() => Boolean(playerStanding.value && playerStanding.value.rank <= 5));
+
+function syncToLiveClock(serverNow: string) {
+  const serverNowMs = new Date(serverNow).getTime();
+  if (Number.isFinite(serverNowMs)) clockOffsetMs.value = serverNowMs - Date.now();
+}
 
 async function joinLearningRoom() {
   joining.value = true;
@@ -129,6 +135,7 @@ async function pollState() {
         answerError.value = null;
       }
       state.value = nextState;
+      syncToLiveClock(nextState.server_now);
       return;
     }
 
@@ -168,7 +175,7 @@ async function submitAnswer(answerIndex: number) {
 
 onMounted(async () => {
   clockTimer = window.setInterval(() => {
-    now.value = Date.now();
+    now.value = Date.now() + clockOffsetMs.value;
   }, 250);
 
   await joinLearningRoom();

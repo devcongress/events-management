@@ -742,6 +742,7 @@ export interface QuizStateResponse {
   session: Pick<QuizSession, 'id' | 'status' | 'current_question_index' | 'join_code' | 'question_phase' | 'purpose'>;
   current_question: Omit<Question, 'correct_index'> | null;  // hide answer from player
   question_started_at: string | null;                         // when this question was shown
+  server_now: string;                                         // app clock used for the live-state transition
   participants_count: number;
   answers_count: number;                                      // how many answered current Q
   leaderboard: LeaderboardEntry[];                            // top 10

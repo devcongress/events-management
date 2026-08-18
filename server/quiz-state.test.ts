@@ -124,6 +124,7 @@ describe('quiz state helpers', () => {
 
     expect(updateQuizSession).not.toHaveBeenCalled();
     expect(answeringState?.current_question).toEqual(expect.not.objectContaining({ correct_index: expect.any(Number) }));
+    expect(answeringState?.server_now).toBe('2026-06-15T10:00:25.000Z');
     expect(answeringState?.player_result).toBeUndefined();
     expect(answeringState?.answer_distribution).toBeUndefined();
 
