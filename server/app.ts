@@ -111,7 +111,7 @@ import { readData, writeData } from '@/lib/mock-db';
 import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, mergeQuizParticipantUsers, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
-import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, startSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
+import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
@@ -9407,7 +9407,11 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
   if (adminError) return adminError;
 
   const existing = await getQuizSessionById(c.req.param('sessionId'));
-  const session = existing ? await expireQuizSessionIfNeeded(existing, c) : undefined;
+  if (existing?.purpose === 'system_design_learning' && existing.question_phase === 'presenting') {
+    await advanceQuizSessionState(existing.id);
+  }
+  const current = await getQuizSessionById(c.req.param('sessionId'));
+  const session = current ? await expireQuizSessionIfNeeded(current, c) : undefined;
   if (!session) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -9531,7 +9535,7 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
     status: 'active',
     current_question_index: question.order_index,
     question_phase: 'presenting',
-    question_started_at: null,
+    question_started_at: new Date(Date.now() + (SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS * 1000)).toISOString(),
     phase_started_at: new Date().toISOString(),
     started_at: session.started_at ?? new Date().toISOString(),
     released_question_ids: [...releasedQuestionIds, question.id],
@@ -9541,36 +9545,6 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
     metadata: { question_id: question.id, released_count: updated.released_question_ids?.length ?? 0 },
   });
   return c.json(updated);
-});
-
-app.post('/api/quiz/sessions/:sessionId/start', async (c) => {
-  const adminError = await requireAdmin(c);
-  if (adminError) return adminError;
-
-  const existing = await getQuizSessionById(c.req.param('sessionId'));
-  if (!existing || existing.purpose !== 'system_design_learning') return c.json({ error: 'System Design learning room not found.' }, 404);
-  const session = await expireQuizSessionIfNeeded(existing, c);
-  const event = await getEventById(session.event_id, c);
-  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
-  if (session.status !== 'active' || session.question_phase !== 'presenting') {
-    return c.json({ error: 'Show a question to the presenter before starting its timer.' }, 409);
-  }
-
-  const hostedSession = await startSystemDesignQuestion(session.id);
-  const startAt = new Date(Date.now() + (SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS * 1000)).toISOString();
-  const started = hostedSession ?? await updateQuizSession(session.id, {
-    question_phase: 'answering',
-    question_started_at: startAt,
-    phase_started_at: new Date().toISOString(),
-    started_at: session.started_at ?? new Date().toISOString(),
-  });
-  await auditAdminAction(c, {
-    action: 'system_design.learning_room.start_question',
-    targetType: 'quiz_session',
-    targetId: session.id,
-    metadata: { question_index: started.current_question_index, start_delay_seconds: SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS },
-  });
-  return c.json(started);
 });
 
 app.post('/api/quiz/sessions/:sessionId/skip', async (c) => {
@@ -10240,6 +10214,9 @@ app.get('/api/quiz/state', async (c) => {
 
   const foundSession = await getQuizSessionById(sessionId);
   if (!foundSession) return c.json({ error: 'Session not found' }, 404);
+  if (foundSession.purpose === 'system_design_learning' && foundSession.question_phase === 'presenting') {
+    await advanceQuizSessionState(sessionId);
+  }
   await expireQuizSessionIfNeeded(foundSession, c);
   const stateResponse = await buildQuizStateResponse(sessionId, userId, {
     includeAnswerDistribution: presenterStateRequested,

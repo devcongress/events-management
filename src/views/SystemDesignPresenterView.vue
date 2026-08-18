@@ -31,8 +31,9 @@ const releasedCount = computed(() => session.value?.released_question_ids?.lengt
 const allQuestionsReleased = computed(() => Boolean(session.value && releasedCount.value >= session.value.questions.length));
 const skippedQuestions = computed(() => session.value?.questions.filter((question) => (session.value?.skipped_question_ids ?? []).includes(question.id)) ?? []);
 const secondsUntilStart = computed(() => {
-  if (session.value?.question_phase !== 'answering' || !session.value.question_started_at) return null;
-  return Math.max(0, Math.ceil((new Date(session.value.question_started_at).getTime() - nowMs.value) / 1000));
+  const activeSession = session.value;
+  if (!activeSession || !['presenting', 'answering'].includes(activeSession.question_phase ?? '') || !activeSession.question_started_at) return null;
+  return Math.max(0, Math.ceil((new Date(activeSession.question_started_at).getTime() - nowMs.value) / 1000));
 });
 const secondsRemaining = computed(() => {
   if (session.value?.question_phase !== 'answering' || !currentQuestion.value || !session.value.question_started_at) return null;
@@ -52,6 +53,8 @@ const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIn
     percentage: 0,
   }
 )));
+const answersRemaining = computed(() => Math.max(0, participantsCount.value - (liveState.value?.answers_count ?? 0)));
+const answersComplete = computed(() => participantsCount.value > 0 && answersRemaining.value === 0);
 
 async function fetchPresenterState() {
   if (pollInFlight || document.hidden) return;
@@ -104,10 +107,6 @@ async function runAction(path: string, body?: Record<string, unknown>) {
 
 async function releaseQuestion() {
   await runAction(`/api/quiz/sessions/${sessionId.value}/release`);
-}
-
-async function startQuestion() {
-  await runAction(`/api/quiz/sessions/${sessionId.value}/start`);
 }
 
 async function revealAnswer() {
@@ -257,7 +256,7 @@ onUnmounted(() => {
         <div class="presenter-question-layout">
           <article class="presenter-question-panel">
             <div class="presenter-question-heading">
-              <div>
+              <div class="presenter-question-prompt">
                 <p class="presenter-kicker">Think through the trade-off</p>
                 <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
               </div>
@@ -291,7 +290,7 @@ onUnmounted(() => {
 
             <footer class="presenter-controls">
               <template v-if="session.question_phase === 'presenting'">
-                <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="startQuestion">{{ actionPending ? 'Starting...' : 'Start timer' }}</button>
+                <p class="presenter-starting-note">The timer opens automatically after the shared three-second countdown.</p>
                 <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
               </template>
               <template v-else-if="session.question_phase === 'answering'">
@@ -312,8 +311,8 @@ onUnmounted(() => {
           <aside class="presenter-results-panel">
             <div class="presenter-results-heading">
               <div>
-                <p class="presenter-eyebrow">Room response</p>
-                <h2>How people answered</h2>
+                <p class="presenter-eyebrow">Live room</p>
+                <h2>{{ session.question_phase === 'revealing' ? 'How people answered' : 'Answer progress' }}</h2>
               </div>
               <div class="presenter-answer-count">
                 <strong>{{ liveState?.answers_count ?? 0 }}</strong>
@@ -321,7 +320,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="presenter-chart" role="img" :aria-label="`Vertical bar chart of ${liveState?.answers_count ?? 0} answers from ${participantsCount} participants`">
+            <div v-if="session.question_phase === 'revealing'" class="presenter-chart" role="img" :aria-label="`Vertical bar chart of ${liveState?.answers_count ?? 0} answers from ${participantsCount} participants`">
               <div v-for="result in answerDistribution" :key="result.option_index" class="presenter-chart-column">
                 <div class="presenter-chart-value">
                   <strong>{{ result.percentage }}%</strong>
@@ -338,8 +337,19 @@ onUnmounted(() => {
               </div>
             </div>
 
+            <div v-else class="presenter-vote-progress" aria-live="polite">
+              <div class="presenter-vote-progress-orbit" aria-hidden="true">
+                <span>{{ liveState?.answers_count ?? 0 }}</span>
+              </div>
+              <p class="presenter-vote-progress-title">{{ answersComplete ? 'Everyone has voted.' : `${answersRemaining} ${answersRemaining === 1 ? 'person is' : 'people are'} still deciding.` }}</p>
+              <p class="presenter-vote-progress-copy">Vote choices stay hidden until you reveal the answer.</p>
+              <div class="presenter-vote-progress-rail" aria-hidden="true">
+                <span :style="{ transform: `scaleX(${participantsCount ? (liveState?.answers_count ?? 0) / participantsCount : 0})` }" />
+              </div>
+            </div>
+
             <p class="presenter-chart-note">
-              {{ session.question_phase === 'revealing' ? 'Answer revealed · use the explanation to discuss the trade-off.' : 'Live aggregate only · participant identities stay private.' }}
+              {{ session.question_phase === 'revealing' ? 'Answer revealed · use the explanation to discuss the trade-off.' : 'Live progress only · participant identities and choices stay private.' }}
             </p>
           </aside>
         </div>
@@ -353,6 +363,7 @@ onUnmounted(() => {
   min-height: 100vh;
   min-height: 100svh;
   overflow: auto;
+  overflow-x: clip;
   background: #f5f2e8;
   color: #111111;
 }
@@ -376,7 +387,7 @@ onUnmounted(() => {
 
 .presenter-frame {
   display: flex;
-  width: min(100%, 90rem);
+  width: min(100%, 100rem);
   min-height: calc(100svh - clamp(2rem, 5vw, 5rem));
   flex-direction: column;
   margin: 0 auto;
@@ -567,9 +578,10 @@ onUnmounted(() => {
 .presenter-question-layout {
   display: grid;
   flex: 1;
-  grid-template-columns: minmax(0, 1.55fr) minmax(24rem, 0.75fr);
-  gap: clamp(1rem, 2vw, 1.75rem);
-  padding-top: clamp(1rem, 2vw, 1.75rem);
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  gap: clamp(0.9rem, 1.6vw, 1.5rem);
+  padding-top: clamp(0.9rem, 1.6vw, 1.5rem);
 }
 
 .presenter-question-panel,
@@ -584,25 +596,34 @@ onUnmounted(() => {
 }
 
 .presenter-question-panel {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
-  padding: clamp(1.5rem, 3vw, 2.5rem);
+  grid-template-rows: auto auto 10rem auto auto;
+  align-content: start;
+  gap: clamp(0.8rem, 1.4vw, 1.2rem);
+  padding: clamp(1.25rem, 2.25vw, 2rem);
 }
 
 .presenter-question-panel h1 {
-  max-width: 26ch;
-  font-size: clamp(1.55rem, 2.35vw, 2.75rem);
+  max-width: 34ch;
+  font-size: clamp(1.4rem, 2.15vw, 2.5rem);
   font-weight: var(--font-weight-emphasis);
-  letter-spacing: -0.035em;
-  line-height: 1.16;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
 }
 
 .presenter-question-heading {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.25rem;
+  border-bottom: 1px solid #e0ddd4;
+  padding-bottom: clamp(0.9rem, 1.4vw, 1.2rem);
+}
+
+.presenter-question-prompt {
+  min-width: 0;
 }
 
 .presenter-timer {
@@ -641,14 +662,14 @@ onUnmounted(() => {
 .presenter-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-  margin-top: clamp(1.5rem, 3vw, 2.5rem);
+  gap: 0.7rem;
+  margin: 0;
 }
 
 .presenter-option {
   display: grid;
-  min-height: 5rem;
-  grid-template-columns: 3rem minmax(0, 1fr);
+  min-height: 4.25rem;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
   align-items: stretch;
   overflow: hidden;
   border: 1px solid #e0ddd4;
@@ -673,8 +694,8 @@ onUnmounted(() => {
 .presenter-option p {
   align-self: center;
   margin: 0;
-  padding: 1rem;
-  font-size: clamp(0.95rem, 1.3vw, 1.15rem);
+  padding: 0.75rem 0.85rem;
+  font-size: clamp(0.88rem, 1.15vw, 1.05rem);
   font-weight: var(--font-weight-emphasis);
   line-height: 1.45;
 }
@@ -691,23 +712,24 @@ onUnmounted(() => {
 }
 
 .presenter-explanation {
-  display: flex;
-  min-height: clamp(8.5rem, 12vw, 10.5rem);
-  max-height: clamp(8.5rem, 12vw, 10.5rem);
+  display: block;
+  height: 10rem;
+  min-height: 10rem;
+  max-height: 10rem;
   flex-direction: column;
-  margin-top: 1rem;
+  margin: 0;
   overflow: auto;
   border: 2px solid #111111;
   border-radius: 8px;
-  padding: 1.1rem 1.25rem;
-  background: #ffffff;
+  padding: 1rem 1.1rem;
+  background: #fefce8;
   transition:
     background-color 180ms var(--motion-fast),
     border-color 180ms var(--motion-fast);
 }
 
 .presenter-explanation--revealed {
-  background: #fefce8;
+  background: #fff8c9;
 }
 
 .presenter-explanation > p:last-child {
@@ -725,8 +747,14 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: auto;
-  padding-top: 1.5rem;
+  margin: 0;
+  padding-top: 0.2rem;
+}
+.presenter-starting-note {
+  margin: 0;
+  color: #5b5b5b;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .presenter-skipped-note {
@@ -764,7 +792,8 @@ onUnmounted(() => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  padding: clamp(1.25rem, 2vw, 1.75rem);
+  padding: clamp(1.15rem, 1.75vw, 1.5rem);
+  background: #fefce8;
 }
 
 .presenter-results-heading {
@@ -805,12 +834,75 @@ onUnmounted(() => {
 
 .presenter-chart {
   display: grid;
-  min-height: 22rem;
+  min-height: 16.5rem;
   flex: 1;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: clamp(0.5rem, 1.2vw, 0.9rem);
   align-items: end;
   padding-top: 1.25rem;
+}
+
+.presenter-vote-progress {
+  display: grid;
+  min-height: 16.5rem;
+  flex: 1;
+  align-content: center;
+  justify-items: center;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.presenter-vote-progress-orbit {
+  display: grid;
+  width: clamp(6.5rem, 10vw, 8.5rem);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid #111111;
+  border-radius: 50%;
+  background: #f5e642;
+  box-shadow: 4px 4px 0 #e8117f;
+}
+
+.presenter-vote-progress-orbit span {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(2.25rem, 4vw, 3.5rem);
+  font-weight: var(--font-weight-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.presenter-vote-progress-title {
+  margin: 1.5rem 0 0;
+  font-size: 1.1rem;
+  font-weight: var(--font-weight-heading);
+}
+
+.presenter-vote-progress-copy {
+  max-width: 19rem;
+  margin: 0.45rem 0 0;
+  color: #555555;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.presenter-vote-progress-rail {
+  width: min(100%, 18rem);
+  height: 0.6rem;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border: 1px solid #e0ddd4;
+  border-radius: 999px;
+  background: #f5f2e8;
+}
+
+.presenter-vote-progress-rail span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #e8117f;
+  transform-origin: left;
+  transition: transform 220ms var(--motion-smooth);
 }
 
 .presenter-chart-column {
@@ -1057,7 +1149,7 @@ onUnmounted(() => {
   }
 
   .presenter-results-panel {
-    min-height: 34rem;
+    min-height: 20rem;
   }
 }
 
@@ -1110,6 +1202,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .presenter-option,
   .presenter-chart-fill,
+  .presenter-vote-progress-rail span,
   .presenter-explanation,
   .presenter-end-action {
     transition: none;
