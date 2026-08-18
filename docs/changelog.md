@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-18 — System Design automatic shared countdown
+
+- Removed the second **Start timer** action: showing a question now schedules one server-owned three-second runway immediately.
+- Made presenter and attendee countdowns derive from the same scheduled timestamp, then transition automatically into the question's configured answer timer.
+- Replaced the live answer split on the shared presenter screen with neutral voting progress; option-by-option bars now appear only after the facilitator reveals the answer, preventing late voters from being influenced.
+- Redesigned the presenter stage into a bounded question workspace and compact live-status rail, reserving identical answer-progress, chart, and explanation regions so reveal state does not reflow the presentation.
+
 ## 2026-08-17 — System Design presenter-first question start
 
 - Split the live-question flow into a private presenter preview and a separate **Start timer** action, so attendees cannot see a question or answer choices before the shared screen does.

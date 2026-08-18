@@ -2046,6 +2046,10 @@ export interface Database {
         Args: { p_session_id: string };
         Returns: Database['public']['Tables']['quiz_sessions']['Row'];
       };
+      advance_system_design_question: {
+        Args: { p_session_id: string };
+        Returns: Database['public']['Tables']['quiz_sessions']['Row'];
+      };
       reveal_system_design_question: {
         Args: { p_session_id: string };
         Returns: Database['public']['Tables']['quiz_sessions']['Row'];

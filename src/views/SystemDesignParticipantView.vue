@@ -37,10 +37,10 @@ const remaining = computed(() => {
   return Math.max(0, state.value.current_question.time_limit_seconds - elapsed);
 });
 const secondsUntilStart = computed(() => {
-  if (!state.value?.question_started_at || state.value.session.question_phase !== 'answering') return null;
+  if (!state.value?.question_started_at || !['presenting', 'answering'].includes(state.value.session.question_phase ?? '')) return null;
   return Math.max(0, Math.ceil((new Date(state.value.question_started_at).getTime() - now.value) / 1000));
 });
-const questionIsOpen = computed(() => secondsUntilStart.value === null || secondsUntilStart.value <= 0);
+const questionIsOpen = computed(() => state.value?.session.question_phase === 'answering' && (secondsUntilStart.value === null || secondsUntilStart.value <= 0));
 
 const progress = computed(() => {
   const limit = state.value?.current_question?.time_limit_seconds ?? 20;
@@ -231,8 +231,9 @@ onUnmounted(() => {
       <div class="w-full max-w-md text-center">
         <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="112" class="mx-auto" />
         <p class="mt-7 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Question {{ state.session.current_question_index + 1 }}</p>
-        <h1 class="mt-4 text-5xl font-extrabold tracking-tight">Look to the presenter.</h1>
-        <p class="mt-4 text-base leading-7 text-dc-gray">The facilitator is introducing the next question. Your answer timer has not started.</p>
+        <p class="mt-4 font-mono text-7xl font-bold tabular-nums">{{ secondsUntilStart ?? 3 }}</p>
+        <p class="mt-1 font-mono text-xs uppercase tracking-wider text-dc-gray">starting together</p>
+        <p class="mt-6 text-base leading-7 text-dc-gray">The facilitator is introducing the next question. Answer choices open when this shared countdown reaches zero.</p>
       </div>
     </section>
 
@@ -294,9 +295,9 @@ onUnmounted(() => {
           <p class="mt-1 font-mono text-xs uppercase tracking-wider text-dc-gray">seconds remaining</p>
         </div>
 
-        <div v-if="selectedAnswer !== null" class="mb-7 text-center">
+        <div v-if="selectedAnswer !== null" class="mb-7 text-center" aria-live="polite">
           <p class="inline-block rounded-md border-2 border-dc-ink bg-dc-yellow px-7 py-4 font-mono text-lg font-semibold shadow-[2px_2px_0_#111111]">ANSWER LOCKED IN</p>
-          <p class="mt-3 font-mono text-sm text-dc-gray">{{ state.answers_count }} of {{ state.participants_count }} people answered</p>
+          <p class="mt-3 font-mono text-sm text-dc-gray">You are in. The room is still voting.</p>
         </div>
 
         <p v-if="answerError" class="mx-auto mb-5 w-full max-w-xl rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-700">

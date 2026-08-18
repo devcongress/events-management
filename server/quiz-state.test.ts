@@ -131,12 +131,7 @@ describe('quiz state helpers', () => {
       includeAnswerDistribution: true,
       includePresenterLeaderboard: true,
     });
-    expect(presenterState?.answer_distribution).toEqual([
-      { option_index: 0, count: 0, percentage: 0 },
-      { option_index: 1, count: 0, percentage: 0 },
-      { option_index: 2, count: 1, percentage: 100 },
-      { option_index: 3, count: 0, percentage: 0 },
-    ]);
+    expect(presenterState?.answer_distribution).toBeUndefined();
     expect(presenterState?.leaderboard[0]?.nickname).toBe('Ada');
     expect(presenterState?.leaderboard[0]?.correct_answers).toBe(1);
 
@@ -172,6 +167,22 @@ describe('quiz state helpers', () => {
     });
     expect(presenterState?.current_question).toEqual(expect.objectContaining({ question_text: question.question_text }));
     expect(presenterState?.current_question).not.toEqual(expect.objectContaining({ correct_index: expect.any(Number) }));
+  });
+
+  it('automatically opens a presenter-preview question at its server-scheduled start time', async () => {
+    const { advanceQuizSessionState } = await import('./quiz-state');
+    getQuizSessionById.mockResolvedValue({
+      ...activeSession,
+      question_phase: 'presenting',
+      question_started_at: '2026-06-15T10:00:24.000Z',
+    });
+
+    const result = await advanceQuizSessionState('session-1');
+
+    expect(result.advanced).toBe(true);
+    expect(updateQuizSession).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      question_phase: 'answering',
+    }));
   });
 
   it('returns the final leaderboard to the presenter and only the requesting player standing publicly', async () => {

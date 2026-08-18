@@ -69,12 +69,12 @@ export async function presentNextSystemDesignQuestion(sessionId: string): Promis
   return quizSessionFromRow(data);
 }
 
-export async function startSystemDesignQuestion(sessionId: string): Promise<QuizSession | null> {
+export async function advanceSystemDesignQuestion(sessionId: string): Promise<QuizSession | null> {
   if (!isSupabaseRuntimeEnabled()) return null;
-  const { data, error } = await getSupabaseAdminClient().rpc('start_system_design_question', {
+  const { data, error } = await getSupabaseAdminClient().rpc('advance_system_design_question', {
     p_session_id: sessionId,
   });
-  if (error || !data) throw new Error(error?.message ?? 'Unable to start System Design question');
+  if (error || !data) throw new Error(error?.message ?? 'Unable to advance System Design question');
   return quizSessionFromRow(data);
 }
 

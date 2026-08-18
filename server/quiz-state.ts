@@ -1,6 +1,7 @@
 import { getQuestionsBySession } from '@/lib/mock-db/questions';
 import { getQuizParticipantsBySession } from '@/lib/mock-db/quiz-participants';
 import { advanceHostedQuizSessionState, getQuizSessionById, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
+import { advanceSystemDesignQuestion } from '@/lib/mock-db/system-design-learning-room';
 import { getHostedQuizStateAnalytics, getResponsesByQuestion } from '@/lib/mock-db/responses';
 import type { Question, QuizSession, QuizStateResponse, Response } from '@/types';
 
@@ -16,11 +17,26 @@ export interface QuizStateOptions {
 }
 
 export async function advanceQuizSessionState(sessionId: string): Promise<QuizAdvanceResult> {
-  const hostedResult = await advanceHostedQuizSessionState(sessionId);
-  if (hostedResult) return hostedResult;
-
   let session = await getQuizSessionById(sessionId);
   if (!session) return { session: null, advanced: false };
+
+  if (session.purpose === 'system_design_learning' && session.question_phase === 'presenting') {
+    if (!session.question_started_at || Date.now() < new Date(session.question_started_at).getTime()) {
+      return { session, advanced: false };
+    }
+    const hostedSession = await advanceSystemDesignQuestion(sessionId);
+    if (hostedSession) {
+      return { session: hostedSession, advanced: hostedSession.question_phase === 'answering' };
+    }
+    session = await updateQuizSession(sessionId, {
+      question_phase: 'answering',
+      phase_started_at: new Date().toISOString(),
+    });
+    return { session, advanced: true };
+  }
+
+  const hostedResult = await advanceHostedQuizSessionState(sessionId);
+  if (hostedResult) return hostedResult;
 
   // System Design is discussion-led; the separate presenter controls reveal.
   // The original quiz keeps its timed/all-answered transition behavior.
@@ -69,7 +85,9 @@ export async function buildQuizStateResponse(
   const participants = hostedAnalytics ? [] : await getQuizParticipantsBySession(sessionId);
 
   let currentQuestion: QuizStateResponse['current_question'] = null;
-  let questionStartedAt: string | null = null;
+  let questionStartedAt: string | null = session.question_phase === 'presenting'
+    ? session.question_started_at || null
+    : null;
   let fullCurrentQuestion: Question | null = null;
 
   const mayViewCurrentQuestion = session.question_phase !== 'presenting' || options.includePresenterQuestion;
@@ -120,8 +138,11 @@ export async function buildQuizStateResponse(
     ? []
     : fullLeaderboard.slice(0, 10);
 
+  // A shared presenter screen is visible to people still deciding. Keep the
+  // live response split private until the facilitator reveals the answer for
+  // System Design rooms; a visible distribution would steer late votes.
   const answerDistribution = fullCurrentQuestion && (
-    options.includeAnswerDistribution
+    (session.purpose !== 'system_design_learning' && options.includeAnswerDistribution)
     || session.question_phase === 'revealing'
     || session.question_phase === 'scoreboard'
   )
