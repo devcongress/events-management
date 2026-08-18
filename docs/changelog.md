@@ -6,6 +6,11 @@
 - Made presenter and attendee countdowns derive from the same scheduled timestamp, then transition automatically into the question's configured answer timer.
 - Replaced the live answer split on the shared presenter screen with neutral voting progress; option-by-option bars now appear only after the facilitator reveals the answer, preventing late voters from being influenced.
 - Redesigned the presenter stage into a bounded question workspace and compact live-status rail, reserving identical answer-progress, chart, and explanation regions so reveal state does not reflow the presentation.
+- Removed the manually editable System Design description field; generated material remains the saved session and recap description.
+- Simplified the System Design setup card to a single **Session** label and removed its redundant program-outline link.
+- Let the live question span the presenter stage and use Inter at a calmer reading weight instead of the display-heavy treatment.
+- Made the final leaderboard scroll within its own table instead of overflowing the presentation, and award gold, silver, and bronze only to the first three participants with points.
+- Replaced the oversized points banner on the final board with a compact scoring note that separates speed-based answer points from the streak scale.
 
 ## 2026-08-17 — System Design presenter-first question start
 

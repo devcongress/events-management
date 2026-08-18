@@ -55,6 +55,20 @@ const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIn
 )));
 const answersRemaining = computed(() => Math.max(0, participantsCount.value - (liveState.value?.answers_count ?? 0)));
 const answersComplete = computed(() => participantsCount.value > 0 && answersRemaining.value === 0);
+const rankedLeaderboard = computed(() => {
+  let scoredRank = 0;
+  return (liveState.value?.leaderboard ?? []).map((entry) => {
+    const scoreRank = entry.total_score > 0 ? ++scoredRank : null;
+    return { ...entry, scoreRank };
+  });
+});
+
+function medalForRank(rank: number | null): { label: string; symbol: string; tone: string } | null {
+  if (rank === 1) return { label: 'Gold medal', symbol: '🥇', tone: 'gold' };
+  if (rank === 2) return { label: 'Silver medal', symbol: '🥈', tone: 'silver' };
+  if (rank === 3) return { label: 'Bronze medal', symbol: '🥉', tone: 'bronze' };
+  return null;
+}
 
 async function fetchPresenterState() {
   if (pollInFlight || document.hidden) return;
@@ -219,24 +233,51 @@ onUnmounted(() => {
           <p>The strongest decisions across the complete learning sequence.</p>
         </div>
 
-        <aside class="presenter-score-legend" aria-label="How System Design points are calculated">
-          <p class="presenter-eyebrow">How points work</p>
-          <p><strong>Correct answers</strong> earn 50–100% of that question’s points, based on speed.</p>
-          <p><strong>Correct streaks</strong> add: 2 → +100 · 3 → +200 · 4 → +300 · 5+ → +500.</p>
+        <aside class="presenter-score-summary" aria-label="How System Design points are calculated">
+          <div class="presenter-score-summary-intro">
+            <p class="presenter-eyebrow">Scoring</p>
+            <p>Fast, correct answers move you up.</p>
+          </div>
+          <div class="presenter-score-rule">
+            <span>Correct answer</span>
+            <strong>50–100%</strong>
+            <p>of the question’s points, based on speed.</p>
+          </div>
+          <div class="presenter-score-rule presenter-score-rule--streak">
+            <span>Streak bonus</span>
+            <div class="presenter-streak-scale" aria-label="Two correct answers in a row add 100 points, three add 200, four add 300, and five or more add 500.">
+              <span><b>2</b> +100</span>
+              <span><b>3</b> +200</span>
+              <span><b>4</b> +300</span>
+              <span><b>5+</b> +500</span>
+            </div>
+          </div>
         </aside>
 
-        <div v-if="liveState?.leaderboard.length" class="presenter-leaderboard">
-          <div class="presenter-leaderboard-header" aria-hidden="true">
-            <span>Rank</span><span>Participant</span><span>Correct / total</span><span>Points</span>
-          </div>
-          <div v-for="entry in liveState.leaderboard" :key="entry.user_id" class="presenter-leaderboard-row" :class="{ 'presenter-leaderboard-row--podium': entry.rank <= 3 }">
-            <span class="presenter-rank">#{{ entry.rank }}</span>
-            <div class="presenter-player">
-              <NaviiAvatar :seed="entry.avatar_seed ?? entry.user_id" :title="`${entry.nickname} avatar`" :size="entry.rank <= 3 ? 56 : 46" />
-              <span>{{ entry.nickname }}</span>
+        <div v-if="rankedLeaderboard.length" class="presenter-leaderboard">
+          <div class="presenter-leaderboard-scroll" tabindex="0" aria-label="Final leaderboard. Scroll horizontally to view every column.">
+            <div class="presenter-leaderboard-table">
+              <div class="presenter-leaderboard-header" aria-hidden="true">
+                <span>Rank</span><span>Participant</span><span>Correct / total</span><span>Points</span>
+              </div>
+              <div v-for="entry in rankedLeaderboard" :key="entry.user_id" class="presenter-leaderboard-row" :class="{ 'presenter-leaderboard-row--podium': entry.scoreRank !== null && entry.scoreRank <= 3 }">
+                <span class="presenter-rank">
+                  <template v-if="entry.scoreRank !== null">
+                    <span v-if="medalForRank(entry.scoreRank)" class="presenter-medal" :class="`presenter-medal--${medalForRank(entry.scoreRank)?.tone}`" :aria-label="medalForRank(entry.scoreRank)?.label">
+                      {{ medalForRank(entry.scoreRank)?.symbol }}
+                    </span>
+                    <span v-else>#{{ entry.scoreRank }}</span>
+                  </template>
+                  <span v-else class="presenter-rank--unscored">—</span>
+                </span>
+                <div class="presenter-player">
+                  <NaviiAvatar :seed="entry.avatar_seed ?? entry.user_id" :title="`${entry.nickname} avatar`" :size="entry.scoreRank !== null && entry.scoreRank <= 3 ? 56 : 46" />
+                  <span>{{ entry.nickname }}</span>
+                </div>
+                <span class="presenter-correct-count">{{ entry.correct_answers ?? 0 }} / {{ session.questions.length }}</span>
+                <span class="presenter-score">{{ entry.total_score }} pts</span>
+              </div>
             </div>
-            <span class="presenter-correct-count">{{ entry.correct_answers ?? 0 }} / {{ session.questions.length }}</span>
-            <span class="presenter-score">{{ entry.total_score }} pts</span>
           </div>
         </div>
         <p v-else class="presenter-empty-state">No answers were submitted in this run.</p>
@@ -254,22 +295,22 @@ onUnmounted(() => {
         </header>
 
         <div class="presenter-question-layout">
-          <article class="presenter-question-panel">
-            <div class="presenter-question-heading">
-              <div class="presenter-question-prompt">
-                <p class="presenter-kicker">Think through the trade-off</p>
-                <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
-              </div>
-              <div v-if="secondsUntilStart !== null && secondsUntilStart > 0" class="presenter-timer" aria-live="polite">
-                <span>Starting in</span>
-                <strong>{{ secondsUntilStart }}</strong>
-              </div>
-              <div v-else-if="presenterTimer !== null" class="presenter-timer" :class="{ 'presenter-timer--urgent': secondsRemaining !== null && secondsRemaining <= 5 }" aria-live="off">
-                <span>Time left</span>
-                <strong>{{ presenterTimer }}</strong>
-              </div>
+          <div class="presenter-question-heading">
+            <div class="presenter-question-prompt">
+              <p class="presenter-kicker">Think through the trade-off</p>
+              <h1>{{ currentQuestion?.question_text ?? 'Preparing the next question' }}</h1>
             </div>
+            <div v-if="secondsUntilStart !== null && secondsUntilStart > 0" class="presenter-timer" aria-live="polite">
+              <span>Starting in</span>
+              <strong>{{ secondsUntilStart }}</strong>
+            </div>
+            <div v-else-if="presenterTimer !== null" class="presenter-timer" :class="{ 'presenter-timer--urgent': secondsRemaining !== null && secondsRemaining <= 5 }" aria-live="off">
+              <span>Time left</span>
+              <strong>{{ presenterTimer }}</strong>
+            </div>
+          </div>
 
+          <article class="presenter-question-panel">
             <div class="presenter-options">
               <div
                 v-for="(option, index) in currentQuestion?.options ?? []"
@@ -291,15 +332,23 @@ onUnmounted(() => {
             <footer class="presenter-controls">
               <template v-if="session.question_phase === 'presenting'">
                 <p class="presenter-starting-note">The timer opens automatically after the shared three-second countdown.</p>
-                <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+                <div class="presenter-control-actions">
+                  <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+                  <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+                </div>
               </template>
               <template v-else-if="session.question_phase === 'answering'">
-                <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
-                <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+                <div class="presenter-control-actions">
+                  <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
+                  <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+                  <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+                </div>
               </template>
-              <button v-else-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Showing...' : 'Show next question' }}</button>
-              <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
-              <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+              <div v-else class="presenter-control-actions presenter-control-actions--solo">
+                <button v-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Showing...' : 'Show next question' }}</button>
+                <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
+                <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+              </div>
             </footer>
             <p v-if="error" class="presenter-error">{{ error }}</p>
             <aside v-if="skippedQuestions.length" class="presenter-skipped-note" aria-live="polite">
@@ -580,6 +629,7 @@ onUnmounted(() => {
   flex: 1;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: clamp(0.9rem, 1.6vw, 1.5rem);
   padding-top: clamp(0.9rem, 1.6vw, 1.5rem);
 }
@@ -598,22 +648,26 @@ onUnmounted(() => {
 .presenter-question-panel {
   display: grid;
   min-width: 0;
-  grid-template-rows: auto auto 10rem auto auto;
+  grid-template-rows: auto 10rem auto auto;
   align-content: start;
   gap: clamp(0.8rem, 1.4vw, 1.2rem);
   padding: clamp(1.25rem, 2.25vw, 2rem);
 }
 
-.presenter-question-panel h1 {
-  max-width: 34ch;
-  font-size: clamp(1.4rem, 2.15vw, 2.5rem);
-  font-weight: var(--font-weight-emphasis);
-  letter-spacing: -0.03em;
-  line-height: 1.12;
+.presenter-question-heading h1 {
+  margin: 0.55rem 0 0;
+  color: #111111;
+  max-width: none;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(1.45rem, 2.2vw, 2.75rem);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .presenter-question-heading {
   display: flex;
+  grid-column: 1 / -1;
   min-width: 0;
   align-items: flex-start;
   justify-content: space-between;
@@ -745,11 +799,25 @@ onUnmounted(() => {
 
 .presenter-controls {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin: 0;
   padding-top: 0.2rem;
 }
+
+.presenter-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.presenter-control-actions--solo {
+  margin-left: auto;
+}
+
 .presenter-starting-note {
   margin: 0;
   color: #5b5b5b;
@@ -998,29 +1066,106 @@ onUnmounted(() => {
   font-size: 1.1rem;
 }
 
-.presenter-score-legend {
+.presenter-score-summary {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem 2rem;
-  align-items: start;
-  margin-bottom: 1.25rem;
+  width: min(100%, 62rem);
+  grid-template-columns: minmax(11rem, 0.8fr) minmax(10rem, 0.65fr) minmax(17rem, 1fr);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin: 0 0 1.5rem;
   border: 1px solid #e0ddd4;
-  border-left: 3px solid #e8117f;
-  padding: 1rem 1.25rem;
-  background: #fefce8;
+  border-left: 4px solid #e8117f;
+  padding: 1.15rem 1.25rem;
+  background: rgba(255, 255, 255, 0.58);
 }
 
-.presenter-score-legend p {
+.presenter-score-summary-intro p:last-child {
   margin: 0;
   color: #555555;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
-.presenter-score-legend strong { color: #111111; }
+.presenter-score-summary-intro .presenter-eyebrow {
+  margin-bottom: 0.35rem;
+}
+
+.presenter-score-rule {
+  display: grid;
+  align-content: start;
+  gap: 0.18rem;
+  border-left: 1px solid #e0ddd4;
+  padding-left: 1.25rem;
+}
+
+.presenter-score-rule > span {
+  color: #6b655c;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.presenter-score-rule strong {
+  color: #111111;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.presenter-score-rule p {
+  margin: 0;
+  color: #6b655c;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.presenter-streak-scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.presenter-streak-scale span {
+  border: 1px solid #e0ddd4;
+  border-radius: 999px;
+  padding: 0.28rem 0.48rem;
+  background: #fefce8;
+  color: #555555;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.presenter-streak-scale b {
+  color: #111111;
+}
 
 .presenter-leaderboard {
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
+}
+
+.presenter-leaderboard-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+}
+
+.presenter-leaderboard-scroll:focus-visible {
+  outline: 3px solid #e8117f;
+  outline-offset: 3px;
+}
+
+.presenter-leaderboard-table {
+  min-width: 44rem;
 }
 
 .presenter-leaderboard-row {
@@ -1074,6 +1219,24 @@ onUnmounted(() => {
 .presenter-rank {
   color: #e8117f;
   font-size: 1.4rem;
+}
+
+.presenter-medal {
+  display: inline-grid;
+  min-width: 2rem;
+  min-height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.presenter-medal--gold { background: #fff4a3; }
+.presenter-medal--silver { background: #eef0f2; }
+.presenter-medal--bronze { background: #f7d4be; }
+
+.presenter-rank--unscored {
+  color: #a29b90;
 }
 
 .presenter-player {
@@ -1154,6 +1317,18 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
+  .presenter-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .presenter-control-actions,
+  .presenter-control-actions--solo {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
   .presenter-stage,
   .presenter-centred-state {
     padding: 0.8rem;
@@ -1181,22 +1356,18 @@ onUnmounted(() => {
     justify-items: start;
   }
 
-  .presenter-score-legend {
+  .presenter-score-summary {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
 
-  .presenter-leaderboard-row {
-    grid-template-columns: 3rem minmax(0, 1fr) auto;
+  .presenter-score-rule {
+    border-top: 1px solid #e0ddd4;
+    border-left: 0;
+    padding: 0.75rem 0 0;
   }
 
-  .presenter-leaderboard-header { display: none; }
-
-  .presenter-score {
-    grid-column: 2 / -1;
-  }
-
-  .presenter-correct-count { grid-column: 3; }
+  .presenter-leaderboard-table { min-width: 40rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
