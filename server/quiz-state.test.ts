@@ -208,4 +208,38 @@ describe('quiz state helpers', () => {
     ]);
     expect(presenterState?.player_standing).toBeUndefined();
   });
+
+  it('keeps correct-answer totals on the final presenter board when no question is active', async () => {
+    const { buildQuizStateResponse } = await import('./quiz-state');
+    getQuizSessionById.mockResolvedValue({
+      ...activeSession,
+      status: 'finished',
+      current_question_index: -1,
+      question_phase: null,
+    });
+    getHostedQuizStateAnalytics.mockResolvedValue({
+      participants_count: 1,
+      answers_count: 0,
+      leaderboard: [{
+        user_id: 'user-1',
+        nickname: 'Ada',
+        total_score: 743,
+        streak_count: 1,
+        rank: 1,
+        avatar_seed: 'participant-1',
+      }],
+      answer_distribution: [],
+      player_response: null,
+    });
+    getResponsesByQuestion.mockResolvedValue([response]);
+
+    const presenterState = await buildQuizStateResponse('session-1', null, {
+      includePresenterLeaderboard: true,
+    });
+
+    expect(getQuestionsBySession).toHaveBeenCalledWith('session-1');
+    expect(presenterState?.leaderboard).toEqual([
+      expect.objectContaining({ user_id: 'user-1', total_score: 743, correct_answers: 1 }),
+    ]);
+  });
 });
