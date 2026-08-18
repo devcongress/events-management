@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router';
 import { findSystemDesignSource, isSystemDesignSessionItem, systemDesignDisplayTitle } from '@/lib/system-design';
 import SystemDesignLearningRoomPanel from '@/src/components/SystemDesignLearningRoomPanel.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
-import { adminPath } from '@/src/admin-routes';
 import { notify } from '@/src/lib/notify';
 import type { Event as CommunityEvent, PublicMeetupScheduleItem } from '@/types';
 
@@ -36,7 +35,6 @@ const editing = ref(false);
 const error = ref('');
 const saveError = ref('');
 
-const overviewPath = computed(() => adminPath(`events/${route.params.eventId}`));
 const systemDesignSessions = computed(() => {
   const schedule = event.value?.schedule ?? [];
   const outlineSlots = schedule.filter((item): item is PublicMeetupScheduleItem => item.type !== 'system_design' && isSystemDesignSessionItem(item));
@@ -475,7 +473,7 @@ onMounted(async () => {
           <div class="p-6 sm:p-8">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div class="min-w-0">
-              <p class="editorial-eyebrow">session {{ index + 1 }}</p>
+              <p class="editorial-eyebrow">session</p>
               <component
                 :is="item.resources[0] ? 'a' : 'h2'"
                 v-bind="item.resources[0] ? {
@@ -525,12 +523,6 @@ onMounted(async () => {
           />
         </article>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <RouterLink :to="overviewPath" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink">
-            Edit full program outline
-          </RouterLink>
-        </div>
-
         <p v-if="saveError" class="rounded-md border-2 border-red-500 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
           {{ saveError }}
         </p>
@@ -544,7 +536,7 @@ onMounted(async () => {
         >
           <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p class="editorial-eyebrow">session {{ index + 1 }}</p>
+              <p class="editorial-eyebrow">session</p>
               <h2 class="mt-2 text-2xl font-bold tracking-tight text-dc-ink">Monthly system design artifact</h2>
             </div>
             <button
@@ -598,17 +590,9 @@ onMounted(async () => {
             />
           </label>
 
-          <label class="mt-4 block">
-            <span class="editorial-label">Description</span>
-            <textarea
-              v-model="draft.description"
-              class="system-design-notes-textarea mt-2"
-              placeholder="Explain the problem, context, and the decisions the room should explore."
-            />
-          </label>
           <button
             type="button"
-            class="editorial-secondary-action mt-3 w-full"
+            class="editorial-secondary-action mt-4 w-full"
             :disabled="mutatingDrafts"
             @click="generateDraftFromPrompt(draft, index)"
           >
@@ -627,9 +611,6 @@ onMounted(async () => {
           <button v-if="hasSavedDrafts" type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="cancelEditing">
             Cancel
           </button>
-          <RouterLink :to="overviewPath" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink">
-            Edit full program outline
-          </RouterLink>
         </div>
       </form>
     </div>

@@ -6,7 +6,7 @@ Active organizer workflow built on the saved System Design artifact.
 
 ## Overview
 
-Every meetup has one System Design session brief: title, one or more facilitators, a docs URL, and a description. Its questions live on the existing System Design workspace beside that brief; they do not replace it or move organizers into a second setup area.
+Every meetup has one System Design session brief: title, one or more facilitators, and a docs URL. Its description is generated from the linked material and retained for the saved recap, rather than manually edited during setup. Its questions live on the existing System Design workspace beside that brief; they do not replace it or move organizers into a second setup area.
 
 At the end of the event day in the event timezone (falling back to Africa/Accra), the brief and questions become read-only. The archive publishes the brief, docs link, questions, correct answers, and explanations, never participant identities, answers, or scores.
 
