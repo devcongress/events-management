@@ -231,9 +231,15 @@ onUnmounted(() => {
       <div class="w-full max-w-md text-center">
         <NaviiAvatar :seed="avatarSeed" :title="`${displayName} avatar`" :size="112" class="mx-auto" />
         <p class="mt-7 font-mono text-xs font-semibold uppercase tracking-[0.22em] text-dc-pink">Question {{ state.session.current_question_index + 1 }}</p>
-        <p class="mt-4 font-mono text-7xl font-bold tabular-nums">{{ secondsUntilStart ?? 3 }}</p>
-        <p class="mt-1 font-mono text-xs uppercase tracking-wider text-dc-gray">starting together</p>
-        <p class="mt-6 text-base leading-7 text-dc-gray">The facilitator is introducing the next question. Answer choices open when this shared countdown reaches zero.</p>
+        <template v-if="secondsUntilStart !== null">
+          <p class="mt-4 font-mono text-7xl font-bold tabular-nums">{{ secondsUntilStart }}</p>
+          <p class="mt-1 font-mono text-xs uppercase tracking-wider text-dc-gray">starting together</p>
+          <p class="mt-6 text-base leading-7 text-dc-gray">The facilitator is introducing the next question. Answer choices open when this shared countdown reaches zero.</p>
+        </template>
+        <template v-else>
+          <h1 class="mt-5 text-4xl font-extrabold tracking-tight">Question is being prepared.</h1>
+          <p class="mt-4 text-base leading-7 text-dc-gray">Waiting for the shared question timer to begin.</p>
+        </template>
       </div>
     </section>
 
