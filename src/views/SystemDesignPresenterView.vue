@@ -17,6 +17,7 @@ const error = ref('');
 let pollTimer: number | undefined;
 let clockTimer: number | undefined;
 let pollInFlight = false;
+const clockOffsetMs = ref(0);
 const nowMs = ref(Date.now());
 
 const sessionId = computed(() => String(route.params.sessionId ?? ''));
@@ -46,6 +47,11 @@ const presenterTimer = computed(() => {
   const minutes = Math.floor(secondsRemaining.value / 60);
   return `${minutes}:${String(secondsRemaining.value % 60).padStart(2, '0')}`;
 });
+
+function syncToLiveClock(serverNow: string) {
+  const serverNowMs = new Date(serverNow).getTime();
+  if (Number.isFinite(serverNowMs)) clockOffsetMs.value = serverNowMs - Date.now();
+}
 const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIndex) => (
   liveState.value?.answer_distribution?.find((result) => result.option_index === optionIndex) ?? {
     option_index: optionIndex,
@@ -70,6 +76,14 @@ function medalForRank(rank: number | null): { label: string; symbol: string; ton
   return null;
 }
 
+function chartTone(optionIndex: number): string {
+  return ['#e8117f', '#7057d8', '#149a7a', '#d26a1c'][optionIndex] ?? '#e8117f';
+}
+
+function chartLabelColor(optionIndex: number): string {
+  return optionIndex === 0 || optionIndex === 1 ? '#ffffff' : '#111111';
+}
+
 async function fetchPresenterState() {
   if (pollInFlight || document.hidden) return;
   pollInFlight = true;
@@ -83,7 +97,11 @@ async function fetchPresenterState() {
 
     session.value = await response.json();
     const stateResponse = await fetch(`/api/quiz/state?sessionId=${sessionId.value}&presenter=true`);
-    if (stateResponse.ok) liveState.value = await stateResponse.json();
+    if (stateResponse.ok) {
+      const nextState = await stateResponse.json() as QuizStateResponse;
+      liveState.value = nextState;
+      syncToLiveClock(nextState.server_now);
+    }
     if (!qrCodeUrl.value && session.value) await buildQrCode();
     loading.value = false;
   } finally {
@@ -146,7 +164,7 @@ async function finishRoom() {
 onMounted(async () => {
   await fetchPresenterState();
   pollTimer = window.setInterval(fetchPresenterState, 1500);
-  clockTimer = window.setInterval(() => { nowMs.value = Date.now(); }, 250);
+  clockTimer = window.setInterval(() => { nowMs.value = Date.now() + clockOffsetMs.value; }, 250);
 });
 
 onUnmounted(() => {
@@ -324,7 +342,7 @@ onUnmounted(() => {
                 </div>
               </div>
 
-              <div v-if="session.question_phase === 'revealing'" class="presenter-explanation presenter-explanation--revealed">
+              <div class="presenter-explanation" :class="{ 'presenter-explanation--revealed': session.question_phase === 'revealing', 'presenter-explanation--hidden': session.question_phase !== 'revealing' }" :aria-hidden="session.question_phase !== 'revealing'">
                 <p class="presenter-eyebrow">Why this answer</p>
                 <p>{{ currentQuestion?.explanation }}</p>
               </div>
@@ -372,7 +390,8 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div v-if="session.question_phase === 'revealing'" class="presenter-chart" role="img" :aria-label="`Vertical bar chart of ${liveState?.answers_count ?? 0} answers from ${participantsCount} participants`">
+            <Transition name="presenter-results" mode="out-in">
+              <div v-if="session.question_phase === 'revealing'" class="presenter-chart" role="img" :aria-label="`Vertical bar chart of ${liveState?.answers_count ?? 0} answers from ${participantsCount} participants`">
               <div v-for="result in answerDistribution" :key="result.option_index" class="presenter-chart-column">
                 <div class="presenter-chart-value">
                   <strong>{{ result.percentage }}%</strong>
@@ -382,10 +401,10 @@ onUnmounted(() => {
                   <div
                     class="presenter-chart-fill"
                     :class="{ 'presenter-chart-fill--correct': session.question_phase === 'revealing' && result.option_index === currentQuestion?.correct_index }"
-                    :style="{ transform: `scaleY(${result.percentage / 100})` }"
+                    :style="{ '--chart-color': chartTone(result.option_index), transform: `scaleY(${result.percentage / 100})` }"
                   />
                 </div>
-                <span class="presenter-chart-label">{{ ['A', 'B', 'C', 'D'][result.option_index] }}</span>
+                <span class="presenter-chart-label" :style="{ '--chart-color': chartTone(result.option_index), color: chartLabelColor(result.option_index) }">{{ ['A', 'B', 'C', 'D'][result.option_index] }}</span>
               </div>
             </div>
 
@@ -399,6 +418,7 @@ onUnmounted(() => {
                 <span :style="{ transform: `scaleX(${participantsCount ? (liveState?.answers_count ?? 0) / participantsCount : 0})` }" />
               </div>
             </div>
+            </Transition>
 
             <p class="presenter-chart-note">
               {{ session.question_phase === 'revealing' ? 'Answer revealed · use the explanation to discuss the trade-off.' : 'Live progress only · participant identities and choices stay private.' }}
@@ -772,7 +792,6 @@ onUnmounted(() => {
 .presenter-option--correct {
   border-color: #111111;
   background: #f5e642;
-  transform: translateY(-2px);
 }
 
 .presenter-option--correct > span {
@@ -792,11 +811,20 @@ onUnmounted(() => {
   background: #fefce8;
   transition:
     background-color 180ms var(--motion-fast),
-    border-color 180ms var(--motion-fast);
+    border-color 180ms var(--motion-fast),
+    opacity 180ms var(--motion-smooth),
+    transform 180ms var(--motion-smooth);
 }
 
 .presenter-explanation--revealed {
   background: #fff8c9;
+}
+
+.presenter-explanation--hidden {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(0.4rem);
 }
 
 .presenter-explanation > p:last-child {
@@ -1029,7 +1057,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   border-radius: 7px 7px 3px 3px;
-  background: #e8117f;
+  background: var(--chart-color, #e8117f);
   transform-origin: bottom;
   transition:
     background-color 180ms var(--motion-fast),
@@ -1047,8 +1075,7 @@ onUnmounted(() => {
   place-items: center;
   border: 2px solid #111111;
   border-radius: 6px;
-  background: #111111;
-  color: #ffffff;
+  background: var(--chart-color, #111111);
   font-family: var(--font-mono), monospace;
   font-size: 1rem;
   font-weight: var(--font-weight-heading);
@@ -1059,6 +1086,19 @@ onUnmounted(() => {
   color: #555555;
   font-size: 0.75rem;
   line-height: 1.5;
+}
+
+.presenter-results-enter-active,
+.presenter-results-leave-active {
+  transition:
+    opacity 180ms var(--motion-smooth),
+    transform 180ms var(--motion-smooth);
+}
+
+.presenter-results-enter-from,
+.presenter-results-leave-to {
+  opacity: 0;
+  transform: translateX(0.75rem);
 }
 
 .presenter-finish-heading {
@@ -1384,6 +1424,8 @@ onUnmounted(() => {
   .presenter-chart-fill,
   .presenter-vote-progress-rail span,
   .presenter-explanation,
+  .presenter-results-enter-active,
+  .presenter-results-leave-active,
   .presenter-end-action {
     transition: none;
   }

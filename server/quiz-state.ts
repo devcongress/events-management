@@ -200,6 +200,7 @@ export async function buildQuizStateResponse(
     },
     current_question: currentQuestion,
     question_started_at: questionStartedAt,
+    server_now: new Date().toISOString(),
     participants_count: hostedAnalytics?.participants_count ?? participants.length,
     answers_count: answersCount,
     leaderboard,
