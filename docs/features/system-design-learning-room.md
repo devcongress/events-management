@@ -16,7 +16,7 @@ Removing that saved System Design session removes its linked learning room as we
 
 ## Organizer Flow
 
-1. Save the System Design brief with its docs URL and comma-separated facilitators.
+1. Enter the System Design brief with its docs URL and facilitators, then select **Generate draft**. Generation also saves the brief, so there is no separate Save action to repeat.
 2. Generate up to ten questions over the lifetime of the session, or add unlimited manual questions. Generated questions append only and never replace authored ones.
 3. Review each multiple-choice question, its ideal-answer explanation, difficulty, category, and answer timer. The set stays editable through the event day and locks automatically when the event-day archive begins.
 4. Open the separate presentation view in a new browser tab as soon as the room has a question. The System Design workspace remains open in the original tab.
@@ -31,7 +31,7 @@ The QR code opens the public standalone `/learn/system-design/:code` attendee pa
 
 Every participant receives a deterministic Navii avatar tied to their session participant record, not to the room or their display-name text. While people vote, the presenter sees only neutral completion progress so the shared screen cannot steer late choices. After reveal, the summary switches to four compact vertical columns showing the option, number of people, and percentage; the correct answer is distinguished with the System Design yellow accent. The chart does not render or return an unbounded respondent list.
 
-Before answers open, the presenter alone can see the prepared question while attendee state withholds its text and choices. Showing it creates one server-owned timestamp three seconds ahead, giving polling clients a shared runway; both views derive their countdown from that timestamp, then count down from the question's own configured limit. Direct session-detail reads are organizer-only, so attendee devices cannot bypass the private-presenter state. The final presenter board shows each participant's correct answers out of the authored total beside their points, with a legend explaining speed-weighted points and correct-streak bonuses.
+Before answers open, the presenter alone can see the prepared question while attendee state withholds its text and choices. Showing it creates one server-owned timestamp three seconds ahead, giving polling clients a shared runway; both views derive their countdown from that timestamp, then count down from the question's own configured limit. If a scheduled timestamp is unavailable, the phone reports that the question is being prepared rather than showing a false countdown. Direct session-detail reads are organizer-only, so attendee devices cannot bypass the private-presenter state. The final presenter board shows each participant's correct answers out of the authored total beside their points, with a legend explaining speed-weighted points and correct-streak bonuses.
 
 At completion, the authenticated presenter receives the top-ten final leaderboard. Each attendee request receives only that attendee's own final standing, so their phone can show their avatar, name, and position without exposing the rest of the leaderboard. Confetti runs once for positions one through five and becomes a static celebratory treatment when reduced motion is enabled.
 

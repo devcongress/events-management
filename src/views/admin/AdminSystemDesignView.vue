@@ -282,33 +282,24 @@ function generatedDraftDescription(draft: SystemDesignDraft): string {
   ].join('\n\n');
 }
 
-function generateDraftDescription(draft: SystemDesignDraft) {
-  if (generatingIndex.value !== null) return;
-
-  if (!draft.title.trim() && !draft.promptUrl.trim()) {
-    notify.error('Add a session title or docs URL before generating a draft.');
-    return;
-  }
-
-  if (!draft.promptUrl.trim()) {
-    draft.description = generatedDraftDescription(draft);
-    notify.success('Draft generated from the session details.');
-    return;
-  }
-}
-
 async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) {
   if (generatingIndex.value !== null) return;
 
   const promptUrl = draft.promptUrl.trim();
-  if (!promptUrl) {
-    generateDraftDescription(draft);
+  if (!draft.title.trim() && !promptUrl) {
+    notify.error('Add a session title or docs URL before generating a draft.');
     return;
   }
 
   generatingIndex.value = index;
 
   try {
+    if (!promptUrl) {
+      draft.description = generatedDraftDescription(draft);
+      await saveSystemDesign('Draft generated and saved.');
+      return;
+    }
+
     const response = await fetch(`/api/events/${route.params.eventId}/system-design/draft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -333,7 +324,7 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
       draft.description = generatedDraftDescription(draft);
     }
 
-    notify.success('Draft generated from the prompt deck.');
+    await saveSystemDesign('Draft generated and saved.');
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : 'Unable to generate a draft from this prompt deck.';
     notify.error(message);
@@ -342,15 +333,15 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
   }
 }
 
-async function saveSystemDesign() {
-  if (!event.value || saving.value) return;
+async function saveSystemDesign(successMessage = 'System design notes saved'): Promise<boolean> {
+  if (!event.value || saving.value) return false;
 
   let systemDesignItems: PublicMeetupScheduleItem[];
   try {
     systemDesignItems = normalizeDrafts();
   } catch (caught) {
     saveError.value = caught instanceof Error ? caught.message : 'Check the system design details.';
-    return;
+    return false;
   }
 
   saving.value = true;
@@ -371,10 +362,12 @@ async function saveSystemDesign() {
     event.value = payload;
     syncDrafts();
     editing.value = systemDesignItems.length === 0;
-    notify.success(systemDesignItems.length > 0 ? 'System design notes saved' : 'System design section cleared');
+    notify.success(systemDesignItems.length > 0 ? successMessage : 'System design section cleared');
+    return true;
   } catch (caught) {
     saveError.value = caught instanceof Error ? caught.message : 'Unable to save system design notes';
     notify.error(saveError.value);
+    return false;
   } finally {
     saving.value = false;
   }
@@ -528,7 +521,7 @@ onMounted(async () => {
         </p>
       </section>
 
-      <form v-else class="grid gap-5" @submit.prevent="saveSystemDesign">
+      <section v-else class="grid gap-5">
         <article
           v-for="(draft, index) in drafts"
           :key="index"
@@ -604,15 +597,12 @@ onMounted(async () => {
           {{ saveError }}
         </p>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button type="submit" class="editorial-action" :disabled="mutatingDrafts">
-            {{ saving ? 'SAVING...' : 'SAVE SYSTEM DESIGN' }}
-          </button>
-          <button v-if="hasSavedDrafts" type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="cancelEditing">
+        <div v-if="hasSavedDrafts" class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <button type="button" class="editorial-secondary-action" :disabled="mutatingDrafts" @click="cancelEditing">
             Cancel
           </button>
         </div>
-      </form>
+      </section>
     </div>
 
     <ConfirmDialog

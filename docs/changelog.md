@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-18 — System Design draft saving and presenter state clarity
+
+- Made **Generate draft** persist the generated brief and recap immediately, removing the redundant separate Save action.
+- Removed the misleading fixed `3` from attendee phones when no shared question-start timestamp exists; the waiting state now accurately says the question is being prepared.
+- Kept the presenter explanation out of view until the answer is revealed, and anchored the runtime controls directly above the skipped-question recovery area at the bottom of the question panel.
+
 ## 2026-08-18 — System Design automatic shared countdown
 
 - Removed the second **Start timer** action: showing a question now schedules one server-owned three-second runway immediately.

@@ -311,50 +311,53 @@ onUnmounted(() => {
           </div>
 
           <article class="presenter-question-panel">
-            <div class="presenter-options">
-              <div
-                v-for="(option, index) in currentQuestion?.options ?? []"
-                :key="`${index}-${option}`"
-                class="presenter-option"
-                :class="{ 'presenter-option--correct': session.question_phase === 'revealing' && index === currentQuestion?.correct_index }"
-              >
-                <span>{{ ['A', 'B', 'C', 'D'][index] }}</span>
-                <p>{{ option }}</p>
+            <div class="presenter-question-content">
+              <div class="presenter-options">
+                <div
+                  v-for="(option, index) in currentQuestion?.options ?? []"
+                  :key="`${index}-${option}`"
+                  class="presenter-option"
+                  :class="{ 'presenter-option--correct': session.question_phase === 'revealing' && index === currentQuestion?.correct_index }"
+                >
+                  <span>{{ ['A', 'B', 'C', 'D'][index] }}</span>
+                  <p>{{ option }}</p>
+                </div>
+              </div>
+
+              <div v-if="session.question_phase === 'revealing'" class="presenter-explanation presenter-explanation--revealed">
+                <p class="presenter-eyebrow">Why this answer</p>
+                <p>{{ currentQuestion?.explanation }}</p>
               </div>
             </div>
 
-            <div class="presenter-explanation" :class="{ 'presenter-explanation--revealed': session.question_phase === 'revealing' }">
-              <p class="presenter-eyebrow">Why this answer</p>
-              <p v-if="session.question_phase === 'revealing'">{{ currentQuestion?.explanation }}</p>
-              <p v-else class="presenter-explanation-placeholder">The explanation will appear here when the answer is revealed.</p>
+            <div class="presenter-question-footer">
+              <footer class="presenter-controls">
+                <template v-if="session.question_phase === 'presenting'">
+                  <p class="presenter-starting-note">The timer opens automatically after the shared three-second countdown.</p>
+                  <div class="presenter-control-actions">
+                    <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+                    <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+                  </div>
+                </template>
+                <template v-else-if="session.question_phase === 'answering'">
+                  <div class="presenter-control-actions">
+                    <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
+                    <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
+                    <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+                  </div>
+                </template>
+                <div v-else class="presenter-control-actions presenter-control-actions--solo">
+                  <button v-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Showing...' : 'Show next question' }}</button>
+                  <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
+                  <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
+                </div>
+              </footer>
+              <p v-if="error" class="presenter-error">{{ error }}</p>
+              <aside v-if="skippedQuestions.length" class="presenter-skipped-note" aria-live="polite">
+                <p><strong>{{ skippedQuestions.length }} skipped question{{ skippedQuestions.length === 1 ? '' : 's' }}.</strong> Answers were discarded and will not score. Reopen one before ending if you want the room to try it.</p>
+                <div class="presenter-skipped-actions"><button v-for="question in skippedQuestions" :key="question.id" type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="reopenSkippedQuestion(question.id)">Reopen Q{{ question.order_index + 1 }}</button></div>
+              </aside>
             </div>
-
-            <footer class="presenter-controls">
-              <template v-if="session.question_phase === 'presenting'">
-                <p class="presenter-starting-note">The timer opens automatically after the shared three-second countdown.</p>
-                <div class="presenter-control-actions">
-                  <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
-                  <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
-                </div>
-              </template>
-              <template v-else-if="session.question_phase === 'answering'">
-                <div class="presenter-control-actions">
-                  <button type="button" class="editorial-action motion-press" :disabled="actionPending" @click="revealAnswer">{{ actionPending ? 'Revealing...' : 'Reveal answer' }}</button>
-                  <button type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="skipQuestion">Skip question</button>
-                  <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
-                </div>
-              </template>
-              <div v-else class="presenter-control-actions presenter-control-actions--solo">
-                <button v-if="!allQuestionsReleased" type="button" class="editorial-action motion-press" :disabled="actionPending" @click="releaseQuestion">{{ actionPending ? 'Showing...' : 'Show next question' }}</button>
-                <button v-else type="button" class="editorial-action motion-press" :disabled="actionPending" @click="finishRoom">Finish room</button>
-                <button v-if="!allQuestionsReleased" type="button" class="presenter-end-action motion-press" :disabled="actionPending" @click="finishRoom">End room</button>
-              </div>
-            </footer>
-            <p v-if="error" class="presenter-error">{{ error }}</p>
-            <aside v-if="skippedQuestions.length" class="presenter-skipped-note" aria-live="polite">
-              <p><strong>{{ skippedQuestions.length }} skipped question{{ skippedQuestions.length === 1 ? '' : 's' }}.</strong> Answers were discarded and will not score. Reopen one before ending if you want the room to try it.</p>
-              <div class="presenter-skipped-actions"><button v-for="question in skippedQuestions" :key="question.id" type="button" class="editorial-secondary-action motion-press" :disabled="actionPending" @click="reopenSkippedQuestion(question.id)">Reopen Q{{ question.order_index + 1 }}</button></div>
-            </aside>
           </article>
 
           <aside class="presenter-results-panel">
@@ -646,12 +649,24 @@ onUnmounted(() => {
 }
 
 .presenter-question-panel {
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-rows: auto 10rem auto auto;
-  align-content: start;
+  min-height: 0;
+  flex-direction: column;
   gap: clamp(0.8rem, 1.4vw, 1.2rem);
   padding: clamp(1.25rem, 2.25vw, 2rem);
+}
+
+.presenter-question-content {
+  display: grid;
+  min-width: 0;
+  gap: clamp(0.8rem, 1.4vw, 1.2rem);
+}
+
+.presenter-question-footer {
+  display: grid;
+  margin-top: auto;
+  gap: 1rem;
 }
 
 .presenter-question-heading h1 {
@@ -767,10 +782,8 @@ onUnmounted(() => {
 
 .presenter-explanation {
   display: block;
-  height: 10rem;
   min-height: 10rem;
   max-height: 10rem;
-  flex-direction: column;
   margin: 0;
   overflow: auto;
   border: 2px solid #111111;
@@ -791,10 +804,6 @@ onUnmounted(() => {
   color: #555555;
   font-size: 1rem;
   line-height: 1.6;
-}
-
-.presenter-explanation-placeholder {
-  color: #8c877d !important;
 }
 
 .presenter-controls {
@@ -826,7 +835,7 @@ onUnmounted(() => {
 }
 
 .presenter-skipped-note {
-  margin-top: 1rem;
+  margin: 0;
   border: 1px solid var(--color-dc-border, #d7d0c2);
   border-left: 3px solid var(--color-dc-pink, #e8117f);
   background: rgba(255, 255, 255, 0.55);
