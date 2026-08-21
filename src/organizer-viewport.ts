@@ -7,6 +7,8 @@ export const ORGANIZER_PHONE_ROUTE_NAME = 'admin-mobile';
 export const ORGANIZER_PHONE_ROUTE_PATH = adminPath('mobile');
 export const ORGANIZER_PHONE_EVENTS_ROUTE_NAME = 'admin-mobile-events';
 export const ORGANIZER_PHONE_EVENTS_ROUTE_PATH = adminPath('mobile/events');
+export const ORGANIZER_PHONE_EVENT_ROUTE_NAME = 'admin-mobile-event';
+export const ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME = 'admin-mobile-event-blasts';
 export const ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME = 'admin-mobile-check-in';
 export const ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME = 'admin-mobile-annual-conference';
 
@@ -33,9 +35,19 @@ export function organizerPhoneCheckInPath(eventId: string): string {
   return adminPath(`mobile/events/${encodeURIComponent(eventId)}/check-in`);
 }
 
+export function organizerPhoneEventPath(eventId: string): string {
+  return adminPath(`mobile/events/${encodeURIComponent(eventId)}`);
+}
+
+export function organizerPhoneEventBlastsPath(eventId: string): string {
+  return adminPath(`mobile/events/${encodeURIComponent(eventId)}/blasts`);
+}
+
 export function isOrganizerPhoneRouteName(routeName: string | symbol | null | undefined): boolean {
   return routeName === ORGANIZER_PHONE_ROUTE_NAME
     || routeName === ORGANIZER_PHONE_EVENTS_ROUTE_NAME
+    || routeName === ORGANIZER_PHONE_EVENT_ROUTE_NAME
+    || routeName === ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME
     || routeName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
     || routeName === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME;
 }
@@ -74,6 +86,14 @@ export function organizerViewportRedirect({
     }
 
     return ORGANIZER_PHONE_ROUTE_PATH;
+  }
+
+  if (normalizedRouteName === ORGANIZER_PHONE_EVENT_ROUTE_NAME && eventId) {
+    return adminPath(`events/${encodeURIComponent(eventId)}`);
+  }
+
+  if (normalizedRouteName === ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME && eventId) {
+    return adminPath(`events/${encodeURIComponent(eventId)}/registrations`);
   }
 
   if (normalizedRouteName === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME && eventId) {

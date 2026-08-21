@@ -5,7 +5,7 @@ import { RouterLink } from 'vue-router';
 import { eventSeriesBadgeLabel } from '@/lib/event-series';
 import { adminPath } from '@/src/admin-routes';
 import { fetchEvents, queryKeys } from '@/src/lib/api';
-import { organizerPhoneCheckInPath } from '@/src/organizer-viewport';
+import { organizerPhoneCheckInPath, organizerPhoneEventPath } from '@/src/organizer-viewport';
 import type { Event as CommunityEvent, EventStatus } from '@/types';
 
 interface MobileEventAction {
@@ -52,9 +52,11 @@ function eventStatusClass(status: EventStatus): string {
 }
 
 function eventActions(event: CommunityEvent): MobileEventAction[] {
-  const actions: MobileEventAction[] = [];
+  const actions: MobileEventAction[] = [
+    { label: 'Manage event', href: organizerPhoneEventPath(event.id), primary: true },
+  ];
   if (event.registration_url && event.external_source !== 'luma') {
-    actions.push({ label: 'Check in guests', href: organizerPhoneCheckInPath(event.id), primary: true });
+    actions.push({ label: 'Check in guests', href: organizerPhoneCheckInPath(event.id) });
   }
   if (event.registration_url && event.status !== 'completed') {
     actions.push({ label: 'Open registration', href: event.registration_url, external: true });
@@ -75,7 +77,7 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
       <header class="mobile-events-intro">
         <span>Event operations</span>
         <div><h1>Events</h1><strong v-if="!eventsQuery.isPending.value">{{ events.length }}</strong></div>
-        <p>Event-day links and guest check-in, ready from your phone.</p>
+        <p>Guest lists, presentation proposals, and event-day actions from your phone.</p>
       </header>
 
       <div v-if="eventsQuery.isPending.value" class="mobile-ops-panel p-4">
@@ -92,7 +94,7 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
             <span class="mobile-ops-status" :class="eventStatusClass(event.status)">{{ EVENT_STATUS_LABELS[event.status] }}</span>
             <span v-if="eventSeriesBadgeLabel(event)" class="mobile-ops-kind">{{ eventSeriesBadgeLabel(event) }}</span>
           </div>
-          <h2>{{ event.name }}</h2>
+          <h2><RouterLink :to="organizerPhoneEventPath(event.id)">{{ event.name }}</RouterLink></h2>
           <p class="mobile-ops-meta">{{ formatDate(event.event_date) }}</p>
           <p v-if="event.location?.label || event.location?.name" class="mobile-ops-location">{{ event.location?.label ?? event.location?.name }}</p>
 
