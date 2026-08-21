@@ -27,7 +27,7 @@ import {
 import { isAnnualConferenceTaskAssignedTo } from '@/lib/annual-conference-access';
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
-  DECEMBER_2026_VOLUNTEER_PUBLIC_PATH,
+  VOLUNTEER_PUBLIC_PATH,
   annualConferencePath,
 } from '@/src/annual-conference';
 import {
@@ -39,6 +39,7 @@ import {
   fetchAnnualConferenceEditions,
   fetchAnnualConferenceVolunteerTeam,
   fetchVolunteerApplications,
+  ensureAdminShortLink,
   queryKeys,
   reorderAnnualConferencePhases,
   updateAnnualConferencePhase,
@@ -70,6 +71,7 @@ const phaseEditorOpen = ref(false);
 const editingPhaseId = ref<string | null>(null);
 const pendingDeletePhase = ref<AnnualConferencePhase | null>(null);
 const copiedVolunteerLink = ref(false);
+const volunteerShortLinkUrl = ref<string | null>(null);
 const selectedVolunteerApplication = ref<VolunteerApplication | null>(null);
 
 const editionForm = reactive({
@@ -204,7 +206,7 @@ const canEditSelectedTask = computed(() => {
   return permissions.value?.can_edit_assigned_tasks === true
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
 });
-const volunteerPublicUrl = `${window.location.origin}${DECEMBER_2026_VOLUNTEER_PUBLIC_PATH}`;
+const volunteerPublicUrl = `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`;
 
 watch(availableTabs, (tabs) => {
   if (!tabs.some((tab) => tab.id === activeTab.value)) activeTab.value = tabs[0]?.id ?? 'overview';
@@ -425,7 +427,17 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
 
 async function copyVolunteerLink() {
   try {
-    await navigator.clipboard.writeText(volunteerPublicUrl);
+    let shareUrl = volunteerShortLinkUrl.value ?? volunteerPublicUrl;
+    if (!volunteerShortLinkUrl.value) {
+      try {
+        const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+        volunteerShortLinkUrl.value = shortLink.url;
+        shareUrl = shortLink.url;
+      } catch {
+        // Keep the canonical form URL available if short-link storage is unavailable.
+      }
+    }
+    await navigator.clipboard.writeText(shareUrl);
     copiedVolunteerLink.value = true;
     window.setTimeout(() => { copiedVolunteerLink.value = false; }, 1800);
   } catch {

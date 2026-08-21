@@ -17,7 +17,7 @@ export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
 export type EventBlastStatus = 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
-export type ShortLinkDestination = 'monthly_cfp' | 'event_registration' | 'conference_cfp';
+export type ShortLinkDestination = 'monthly_cfp' | 'event_registration' | 'conference_cfp' | 'volunteer_intake';
 export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 export type AdminMembershipStatus = 'active' | 'disabled';
@@ -1001,6 +1001,71 @@ export interface Database {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      event_page_monitors: {
+        Row: {
+          event_id: string;
+          enabled: boolean;
+          source_url: string;
+          status: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+          baseline: Json;
+          last_observed: Json | null;
+          differences: Json;
+          consecutive_failures: number;
+          last_http_status: number | null;
+          last_error: string | null;
+          last_checked_at: string | null;
+          next_check_at: string | null;
+          last_change_fingerprint: string | null;
+          last_alerted_fingerprint: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          event_id: string;
+          enabled?: boolean;
+          source_url: string;
+          status?: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+          baseline?: Json;
+          last_observed?: Json | null;
+          differences?: Json;
+          consecutive_failures?: number;
+          last_http_status?: number | null;
+          last_error?: string | null;
+          last_checked_at?: string | null;
+          next_check_at?: string | null;
+          last_change_fingerprint?: string | null;
+          last_alerted_fingerprint?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          event_id?: string;
+          enabled?: boolean;
+          source_url?: string;
+          status?: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+          baseline?: Json;
+          last_observed?: Json | null;
+          differences?: Json;
+          consecutive_failures?: number;
+          last_http_status?: number | null;
+          last_error?: string | null;
+          last_checked_at?: string | null;
+          next_check_at?: string | null;
+          last_change_fingerprint?: string | null;
+          last_alerted_fingerprint?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_page_monitors_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'community_events';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       event_submissions: {
         Row: {

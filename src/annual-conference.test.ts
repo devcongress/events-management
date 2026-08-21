@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AnnualConferenceEdition } from '@/lib/annual-conference-work-plan';
 import {
+  LEGACY_DECEMBER_2026_VOLUNTEER_PUBLIC_PATH,
+  VOLUNTEER_PUBLIC_PATH,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
   currentAnnualConferenceYear,
@@ -23,6 +25,11 @@ const edition = (year: number): AnnualConferenceEdition => ({
 });
 
 describe('volunteer organizer routes', () => {
+  it('uses an evergreen volunteer form path while retaining the distributed legacy path', () => {
+    expect(VOLUNTEER_PUBLIC_PATH).toBe('/volunteer');
+    expect(LEGACY_DECEMBER_2026_VOLUNTEER_PUBLIC_PATH).toBe('/volunteer/december-mega-meetup');
+  });
+
   it('allows only the conference overview and assigned work plan', () => {
     expect(volunteerCanAccessOrganizerPath(annualConferencePath())).toBe(true);
     expect(volunteerCanAccessOrganizerPath(annualConferencePath('work-plan'))).toBe(true);

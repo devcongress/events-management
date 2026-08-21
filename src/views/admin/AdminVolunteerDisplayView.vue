@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import QRCode from 'qrcode';
-import { DECEMBER_2026_VOLUNTEER_PUBLIC_PATH } from '@/src/annual-conference';
+import { VOLUNTEER_PUBLIC_PATH } from '@/src/annual-conference';
+import { ensureAdminShortLink } from '@/src/lib/api';
 
 const qrCodeUrl = ref<string | null>(null);
 const error = ref('');
-const publicUrl = computed(() => `${window.location.origin}${DECEMBER_2026_VOLUNTEER_PUBLIC_PATH}`);
+const publicUrl = computed(() => `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`);
 
 onMounted(async () => {
   try {
-    qrCodeUrl.value = await QRCode.toDataURL(publicUrl.value, {
+    let qrDestination = publicUrl.value;
+    try {
+      const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+      qrDestination = shortLink.url;
+    } catch {
+      // The canonical form remains scannable if short-link storage is unavailable.
+    }
+    qrCodeUrl.value = await QRCode.toDataURL(qrDestination, {
       margin: 1,
       width: 520,
       color: {
@@ -35,10 +43,10 @@ onMounted(async () => {
       <template v-else>
         <main class="volunteer-display-layout">
           <section class="volunteer-display-intro" aria-labelledby="volunteer-display-title">
-            <p class="volunteer-display-context">DevCongress <span aria-hidden="true">/</span> December Mega Meetup <span aria-hidden="true">/</span> 2026</p>
-            <h1 id="volunteer-display-title">Volunteer for December.</h1>
-            <p class="volunteer-display-lead">A few good hands make the day feel effortless.</p>
-            <p class="volunteer-display-support">Scan the code to tell us how you’d like to help. We’ll be in touch with the next step.</p>
+            <p class="volunteer-display-context">DevCongress <span aria-hidden="true">/</span> Volunteer team</p>
+            <h1 id="volunteer-display-title">Volunteer with DevCongress.</h1>
+            <p class="volunteer-display-lead">Help us create welcoming, well-run community events.</p>
+            <p class="volunteer-display-support">Scan the code to join the volunteer list. We’ll contact you when there’s an opportunity to get involved.</p>
           </section>
 
           <section class="volunteer-display-qr-stage" aria-label="Volunteer sign-up QR code">
@@ -46,7 +54,7 @@ onMounted(async () => {
             <Transition v-if="qrCodeUrl" name="volunteer-display-qr">
               <img
                 :src="qrCodeUrl"
-                alt="QR code for the DevCongress December Mega Meetup volunteer form"
+                alt="QR code for the DevCongress volunteer form"
                 class="volunteer-display-qr"
               >
             </Transition>

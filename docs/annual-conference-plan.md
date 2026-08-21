@@ -132,12 +132,13 @@ The current December 2026 volunteer form is already public and must survive the 
 | Contract | Requirement |
 | --- | --- |
 | Existing public path | Keep `/volunteer/december-mega-meetup` working for December 2026 |
+| Canonical public path | Use the evergreen `/volunteer` route and redirect the existing path to it |
 | Existing submission API | Keep `POST /api/volunteer-applications` compatible until a versioned replacement is available |
 | Existing campaign | Treat `december-mega-meetup` as the legacy identifier for the December 2026 volunteer campaign |
-| New 2026 link | If introduced, make it an alias for the same edition/campaign so both links update the same volunteer list |
+| Owned short link | Keep one active opaque `go.devcongress.org` code for the evergreen form; both direct routes update the same legacy campaign list |
 | Existing submissions | Migrate IDs, contact data, and creation timestamps; do not start the annual workspace with an empty list |
 | Organizer location | Move the working view to Annual Conference → December 2026 → Volunteers, while preserving the current organizer route as a redirect or alias |
-| Existing QR codes | Keep them valid through the compatibility route |
+| Existing QR codes | Keep them valid through the compatibility redirect; new displays prefer the owned short link |
 | Future editions | Give December 2027 and later editions distinct campaign IDs and links; never silently reuse the 2026 campaign |
 
 The intended result is one December 2026 volunteer dataset regardless of which valid 2026 link an applicant follows.

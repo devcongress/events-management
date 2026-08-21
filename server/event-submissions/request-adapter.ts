@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import type { Event, EventSubmissionEmailKind } from '@/types';
+import type { Event, EventSubmissionAmendment, EventSubmissionEmailKind } from '@/types';
+import type { EventSubmissionManagement } from '@/lib/supabase/event-submissions';
 import { createEventSubmissionLifecycle } from './lifecycle';
 import { createEventSubmissionRepository } from './repository';
 
@@ -16,6 +17,10 @@ export function createEventSubmissionRequestAdapter(
     queueEmail(input: { submissionId: string; kind: EventSubmissionEmailKind }): Promise<void>;
     findEvent(eventId: string): Promise<Event | null>;
     announcePublished(event: Event): Promise<void>;
+    notifyAmendmentSubmitted(input: {
+      management: EventSubmissionManagement;
+      amendment: EventSubmissionAmendment;
+    }): Promise<void>;
   },
 ) {
   return createEventSubmissionLifecycle({
@@ -27,5 +32,6 @@ export function createEventSubmissionRequestAdapter(
       const event = await dependencies.findEvent(submission.approved_event_id);
       if (event) await dependencies.announcePublished(event);
     },
+    notifyAmendmentSubmitted: dependencies.notifyAmendmentSubmitted,
   });
 }

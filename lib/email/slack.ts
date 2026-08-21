@@ -191,6 +191,84 @@ export async function sendEventSubmissionReceivedToSlack(input: {
   await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
 }
 
+export async function sendEventSubmissionAmendmentToSlack(input: {
+  webhookUrl: string;
+  eventTitle: string;
+  organizerName: string;
+  organizerEmail: string;
+  startsAt: string;
+  location: string;
+  dashboardUrl: string;
+  fetcher?: typeof fetch;
+}): Promise<void> {
+  const payload = {
+    text: `Community event update requested: ${input.eventTitle}`,
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: 'Community event update requested' },
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*Event*\n${slackText(input.eventTitle)}` },
+          { type: 'mrkdwn', text: `*Requested schedule*\n${slackText(formatEventDateForSlack(input.startsAt))}` },
+          { type: 'mrkdwn', text: `*Requested location*\n${slackText(input.location.trim() || 'Location to be announced')}` },
+          { type: 'mrkdwn', text: `*Requested by*\n${slackText(input.organizerName)} · ${slackText(input.organizerEmail)}` },
+        ],
+      },
+      {
+        type: 'actions',
+        elements: [{
+          type: 'button',
+          text: { type: 'plain_text', text: 'Review update →' },
+          style: 'primary',
+          url: input.dashboardUrl,
+        }],
+      },
+    ],
+  };
+
+  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
+}
+
+export async function sendEventPageMonitoringAlertToSlack(input: {
+  webhookUrl: string;
+  eventTitle: string;
+  status: 'changed' | 'unavailable' | 'unmonitorable';
+  detail: string;
+  sourceUrl: string;
+  dashboardUrl: string;
+  fetcher?: typeof fetch;
+}): Promise<void> {
+  const headline = input.status === 'changed'
+    ? 'Registration page details changed'
+    : input.status === 'unavailable'
+      ? 'Registration page is unavailable'
+      : 'Registration page cannot be monitored';
+  const payload = {
+    text: `${headline}: ${input.eventTitle}`,
+    blocks: [
+      { type: 'header', text: { type: 'plain_text', text: headline } },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*Event*\n${slackText(input.eventTitle)}` },
+          { type: 'mrkdwn', text: `*Signal*\n${slackText(input.detail)}` },
+        ],
+      },
+      {
+        type: 'actions',
+        elements: [
+          { type: 'button', text: { type: 'plain_text', text: 'Review in EMS →' }, style: 'primary', url: input.dashboardUrl },
+          { type: 'button', text: { type: 'plain_text', text: 'Open source page ↗' }, url: input.sourceUrl },
+        ],
+      },
+    ],
+  };
+  await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
+}
+
 export async function sendEventAddedToSlack(input: {
   webhookUrl: string;
   eventName: string;

@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import {
-  DECEMBER_2026_VOLUNTEER_PUBLIC_PATH,
+  VOLUNTEER_PUBLIC_PATH,
   annualConferencePath,
 } from '@/src/annual-conference';
 import {
   fetchAnnualConferenceVolunteerTeam,
   fetchAnnualConferenceWorkPlan,
   fetchVolunteerApplications,
+  ensureAdminShortLink,
   queryKeys,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
@@ -85,7 +86,8 @@ const volunteerDirectoryError = computed(() => (
   (canViewTeam.value && teamQuery.isError.value)
   || (canReviewApplications.value && volunteerQuery.isError.value)
 ));
-const publicUrl = `${window.location.origin}${DECEMBER_2026_VOLUNTEER_PUBLIC_PATH}`;
+const publicUrl = `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`;
+const shortLinkUrl = ref<string | null>(null);
 const copied = ref(false);
 
 function formatDate(value: string) {
@@ -100,13 +102,38 @@ function formatDate(value: string) {
 
 async function copyPublicUrl() {
   try {
-    await navigator.clipboard.writeText(publicUrl);
+    let shareUrl = shortLinkUrl.value ?? publicUrl;
+    if (!shortLinkUrl.value) {
+      try {
+        const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+        shortLinkUrl.value = shortLink.url;
+        shareUrl = shortLink.url;
+      } catch {
+        // Keep the canonical form URL available if short-link storage is unavailable.
+      }
+    }
+    await navigator.clipboard.writeText(shareUrl);
     copied.value = true;
     window.setTimeout(() => { copied.value = false; }, 1800);
   } catch {
     notify.error('Unable to copy the volunteer form link.');
   }
 }
+
+async function prepareVolunteerShareLink() {
+  shortLinkUrl.value = null;
+  if (!canShareIntake.value) return;
+  try {
+    const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+    if (canShareIntake.value) shortLinkUrl.value = shortLink.url;
+  } catch {
+    // The canonical form URL remains available for narrow volunteer roles and service outages.
+  }
+}
+
+watch(canShareIntake, () => {
+  void prepareVolunteerShareLink();
+}, { immediate: true });
 
 function openVolunteerDisplay() {
   window.open(annualConferencePath('volunteers/display', year.value), '_blank', 'noopener,noreferrer');

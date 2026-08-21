@@ -17,7 +17,7 @@ import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcas
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
-import { sendEventAddedToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
+import { sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
 import { EMAIL_SENDERS } from '@/lib/email/scenarios';
 import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
@@ -148,10 +148,24 @@ import {
   type EventSlackAnnouncement,
 } from '@/lib/supabase/event-slack-announcements';
 import {
+  ensureEventPageMonitor,
+  listDueEventPageMonitors,
+  saveEventPageMonitor,
+  type EventPageMonitor,
+} from '@/lib/supabase/event-page-monitors';
+import {
+  compareEventPageSnapshots,
+  EVENT_PAGE_MONITOR_MANUAL_COOLDOWN_MS,
+  inspectEventPage,
+  monitorDifferenceFingerprint,
+  nextEventPageCheckAt,
+} from '@/lib/event-page-monitor';
+import {
   EventSubmissionStorageError,
   getEventSubmissionReply,
   getPendingEventSubmissionEmails,
   insertEventSubmissionReply,
+  type EventSubmissionManagement,
   updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
@@ -219,8 +233,10 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionAmendment, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
+import { VOLUNTEER_PUBLIC_PATH } from '@/lib/volunteer-intake-routes';
+import { staticShortLinkDestinationPath } from '@/lib/short-link-destinations';
 import { publicRegistrationOrigin } from './public-registration-origin';
 import { secureSharedSecret, sharedSecretStatus } from '@/lib/security/shared-secret';
 
@@ -694,7 +710,7 @@ const adminCreateTalkSchema = z.object({
   publish: z.boolean().optional().default(false),
 }).strict();
 const shortLinkCreateSchema = z.object({
-  destination: z.enum(['monthly_cfp', 'event_registration', 'conference_cfp']),
+  destination: z.enum(['monthly_cfp', 'event_registration', 'conference_cfp', 'volunteer_intake']),
   event_id: z.string().uuid().optional(),
   conference_year: z.number().int().min(2020).max(3000).optional(),
 }).strict();
@@ -820,8 +836,8 @@ const speakerBackfillDetailsSchema = speakerTalkIntakeSchema.omit({
 const volunteerApplicationSchema = z.object({
   name: z.string().trim().min(1, 'Please enter your name.').max(120),
   email: z.string().trim().toLowerCase().email('Please enter a valid email address.').max(254),
-  x_handle: z.string().trim().min(1, 'Please enter your X handle.').max(100),
-  slack_name: z.string().trim().min(1, 'Please enter your Slack name.').max(120),
+  x_handle: z.string().trim().max(100).optional().default(''),
+  slack_name: z.string().trim().max(120).optional().default(''),
   turnstile_action: z.string().trim().max(80).optional(),
   turnstile_token: z.string().trim().max(4096).optional(),
 }).strict();
@@ -1251,7 +1267,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
-    || (method === 'POST' && path === '/api/internal/slack-announcements/retry')
+    || (method === 'POST' && (path === '/api/internal/slack-announcements/retry' || path === '/api/internal/event-page-monitors/check-due'))
     || (method === 'GET' && /^\/api\/internal\/short-links\/[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/.test(path))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
     || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
@@ -1267,7 +1283,7 @@ function shortLinkResolverAuthorized(c: Context): boolean {
   return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
-function scheduledSlackRetryAuthorized(c: Context): boolean {
+function scheduledJobAuthorized(c: Context): boolean {
   const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
   const received = c.req.header('x-scheduled-job-secret')?.trim();
   if (!expected || !received) return false;
@@ -1286,6 +1302,9 @@ async function shortLinkDestinationPath(link: {
   event_id: string | null;
   conference_edition_id: string | null;
 }, c: Context): Promise<string | null> {
+  const staticDestinationPath = staticShortLinkDestinationPath(link.destination);
+  if (staticDestinationPath) return staticDestinationPath;
+
   if (link.destination === 'conference_cfp') {
     if (!link.conference_edition_id) return null;
     const repository = createAnnualConferenceRepository(c);
@@ -1314,7 +1333,9 @@ async function prepareShortLinkTarget(input: z.infer<typeof shortLinkCreateSchem
 }> {
   let eventId: string | null = null;
   let conferenceEditionId: string | null = null;
-  if (input.destination === 'conference_cfp') {
+  if (input.destination === 'volunteer_intake') {
+    // The evergreen volunteer form is a single global public destination.
+  } else if (input.destination === 'conference_cfp') {
     if (!input.conference_year) throw new ShortLinkStorageError('Choose an open conference Call for Speakers.', 'not_found');
     const edition = await getAnnualConferenceEditionByYear(input.conference_year, c);
     if (!edition || edition.speaker_call_status !== 'open') throw new ShortLinkStorageError('That conference Call for Speakers is not open.', 'not_found');
@@ -1360,6 +1381,7 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
     events,
     editions,
     targets: [
+      { destination: 'volunteer_intake' as const, eventId: null, conferenceEditionId: null, destinationPath: VOLUNTEER_PUBLIC_PATH },
       ...events
         .filter((event) => Boolean(event.slug) && event.series_type === 'monthly' && event.status === 'cfp_open')
         .map((event) => ({ destination: 'monthly_cfp' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/cfp/${event.slug}` })),
@@ -2428,6 +2450,118 @@ async function retryEligibleEventSlackAnnouncements(c: Context) {
   return { checked, sent, waiting_for_website: waitingForWebsite, failed };
 }
 
+function eventPageMonitorDashboardUrl(eventId: string, c: Context): string {
+  return new URL(`/organizer-console/events/${encodeURIComponent(eventId)}/community`, publicAppOrigin(c)).toString();
+}
+
+function monitorAlertDetail(monitor: EventPageMonitor): string {
+  if (monitor.status === 'changed') {
+    return monitor.differences.map((difference) => difference.field.replace(/_/g, ' ')).join(', ') || 'Page details changed';
+  }
+  return monitor.last_error || 'The source page needs review.';
+}
+
+async function alertEventPageMonitor(event: Event, monitor: EventPageMonitor, c: Context): Promise<EventPageMonitor> {
+  const fingerprint = monitor.last_change_fingerprint;
+  if (!fingerprint || monitor.last_alerted_fingerprint === fingerprint || monitor.status === 'warning' || monitor.status === 'unchanged' || monitor.status === 'pending') return monitor;
+  const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+  if (!webhookUrl) return monitor;
+  try {
+    await sendEventPageMonitoringAlertToSlack({
+      webhookUrl,
+      eventTitle: event.name,
+      status: monitor.status,
+      detail: monitorAlertDetail(monitor),
+      sourceUrl: monitor.source_url,
+      dashboardUrl: eventPageMonitorDashboardUrl(event.id, c),
+    });
+    return saveEventPageMonitor(event.id, { last_alerted_fingerprint: fingerprint }, c);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_page_monitor_slack_alert_failed',
+      event_id: event.id,
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return monitor;
+  }
+}
+
+async function checkEventPage(event: Event, c: Context): Promise<EventPageMonitor | null> {
+  const current = await ensureEventPageMonitor(event, c);
+  if (!current) return null;
+  const checkedAt = new Date();
+  const nextCheckAt = nextEventPageCheckAt(event.event_date, event.end_date, checkedAt);
+  const inspection = await inspectEventPage(current.source_url);
+  let saved: EventPageMonitor;
+  if (inspection.ok && inspection.snapshot) {
+    const differences = compareEventPageSnapshots(current.baseline, inspection.snapshot);
+    const fingerprint = monitorDifferenceFingerprint(differences);
+    saved = await saveEventPageMonitor(event.id, {
+      status: differences.length > 0 ? 'changed' : 'unchanged',
+      last_observed: inspection.snapshot,
+      differences,
+      consecutive_failures: 0,
+      last_http_status: inspection.http_status,
+      last_error: null,
+      last_checked_at: checkedAt.toISOString(),
+      next_check_at: nextCheckAt,
+      last_change_fingerprint: fingerprint,
+    }, c);
+  } else {
+    const failures = current.consecutive_failures + 1;
+    const status = inspection.kind === 'unmonitorable' ? 'unmonitorable' : failures >= 2 ? 'unavailable' : 'warning';
+    const retryAt = inspection.kind === 'unavailable'
+      ? new Date(checkedAt.getTime() + (failures === 1 ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000)).toISOString()
+      : nextCheckAt;
+    const fingerprint = status === 'warning' ? null : monitorDifferenceFingerprint([{
+      field: 'final_url', expected: current.source_url, observed: `${status}:${inspection.http_status ?? 'network'}:${inspection.error ?? ''}`,
+    }]);
+    saved = await saveEventPageMonitor(event.id, {
+      status,
+      differences: [],
+      consecutive_failures: failures,
+      last_http_status: inspection.http_status,
+      last_error: inspection.error,
+      last_checked_at: checkedAt.toISOString(),
+      next_check_at: retryAt,
+      last_change_fingerprint: fingerprint,
+    }, c);
+  }
+  return alertEventPageMonitor(event, saved, c);
+}
+
+async function checkDueEventPages(c: Context) {
+  const events = await getAllEvents(c);
+  for (const event of events) await ensureEventPageMonitor(event, c);
+  const due = await listDueEventPageMonitors(8, c);
+  let checked = 0;
+  let changed = 0;
+  let unavailable = 0;
+  let failed = 0;
+  for (const monitor of due) {
+    const event = events.find((candidate) => candidate.id === monitor.event_id);
+    if (!event) {
+      await saveEventPageMonitor(monitor.event_id, { enabled: false, next_check_at: null }, c).catch(() => undefined);
+      continue;
+    }
+    try {
+      const result = await checkEventPage(event, c);
+      if (!result) {
+        await saveEventPageMonitor(event.id, { enabled: false, next_check_at: null }, c).catch(() => undefined);
+        continue;
+      }
+      checked += 1;
+      if (result.status === 'changed') changed += 1;
+      if (result.status === 'unavailable' || result.status === 'unmonitorable') unavailable += 1;
+    } catch (error) {
+      failed += 1;
+      console.warn(JSON.stringify({ event: 'event_page_monitor_check_failed', event_id: event.id, error_name: safeErrorName(error) }));
+    }
+  }
+  return { checked, changed, unavailable, failed };
+}
+
 async function notifyEventSubmissionChannel(submission: EventSubmission, c: Context): Promise<void> {
   const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
   if (!webhookUrl) return;
@@ -2450,6 +2584,35 @@ async function notifyEventSubmissionChannel(submission: EventSubmission, c: Cont
       event: 'event_submission_slack_notification_failed',
       request_id: c.get('requestId') ?? null,
       submission_id: submission.id,
+      error_name: safeErrorName(error),
+    }));
+  }
+}
+
+async function notifyEventSubmissionAmendmentChannel(
+  management: EventSubmissionManagement,
+  amendment: EventSubmissionAmendment,
+  c: Context,
+): Promise<void> {
+  const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+  if (!webhookUrl) return;
+
+  try {
+    await sendEventSubmissionAmendmentToSlack({
+      webhookUrl,
+      eventTitle: management.submission.title,
+      organizerName: management.submission.organizer_name,
+      organizerEmail: management.submission.organizer_email,
+      startsAt: amendment.starts_at,
+      location: amendment.venue_name ?? (amendment.location_type === 'online' ? 'Online event' : 'Location to be announced'),
+      dashboardUrl: eventSubmissionDashboardUrl(management.submission.id, c),
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_submission_amendment_slack_notification_failed',
+      request_id: c.get('requestId') ?? null,
+      submission_id: management.submission.id,
+      amendment_id: amendment.id,
       error_name: safeErrorName(error),
     }));
   }
@@ -2831,6 +2994,9 @@ function eventSubmissionLifecycleForRequest(c: Context) {
     findEvent: async (eventId) => (await getEventById(eventId, c)) ?? null,
     announcePublished: async (event) => {
       await notifyEventsChannel(event, 'public submission', c);
+    },
+    notifyAmendmentSubmitted: async ({ management, amendment }) => {
+      await notifyEventSubmissionAmendmentChannel(management, amendment, c);
     },
   });
 }
@@ -5625,9 +5791,11 @@ app.get('/api/admin/short-links', async (c) => {
       links: links.map((link) => ({
         ...link,
         url: shortLinkPublicUrl(link.code, c),
-        label: link.destination === 'conference_cfp'
-          ? (editionById.get(link.conference_edition_id ?? '')?.name ?? 'Conference Call for Speakers')
-          : (eventById.get(link.event_id ?? '')?.name ?? 'Event'),
+        label: link.destination === 'volunteer_intake'
+          ? 'Volunteer form'
+          : link.destination === 'conference_cfp'
+            ? (editionById.get(link.conference_edition_id ?? '')?.name ?? 'Conference Call for Speakers')
+            : (eventById.get(link.event_id ?? '')?.name ?? 'Event'),
       })),
     });
   } catch (error) {
@@ -6640,8 +6808,48 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
   });
 });
 
+app.get('/api/events/:eventId/page-monitor', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  try {
+    const monitor = await ensureEventPageMonitor(event, c);
+    return c.json({ monitor, eligible: Boolean(monitor) });
+  } catch (error) {
+    return internalErrorResponse(c, 'event_page_monitor_read_failed', error, 'Unable to load registration page monitoring.');
+  }
+});
+
+app.post('/api/events/:eventId/page-monitor/check', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer']);
+  if (adminError) return adminError;
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  try {
+    const current = await ensureEventPageMonitor(event, c);
+    if (!current) return c.json({ error: 'Monitoring requires a future, published external event with a public HTTPS registration page.' }, 409);
+    if (current.last_checked_at) {
+      const canCheckAt = Date.parse(current.last_checked_at) + EVENT_PAGE_MONITOR_MANUAL_COOLDOWN_MS;
+      if (canCheckAt > Date.now()) {
+        return c.json({ error: 'This page was checked recently. Wait a few minutes before checking again.', can_check_at: new Date(canCheckAt).toISOString() }, 429);
+      }
+    }
+    const monitor = await checkEventPage(event, c);
+    await auditAdminAction(c, {
+      action: 'event.registration_page.check',
+      targetType: 'event',
+      targetId: event.id,
+      metadata: { status: monitor?.status ?? 'not_eligible', differences: monitor?.differences.map((difference) => difference.field) ?? [] },
+    });
+    return c.json({ monitor, eligible: Boolean(monitor) });
+  } catch (error) {
+    return internalErrorResponse(c, 'event_page_monitor_manual_check_failed', error, 'Unable to check the registration page.');
+  }
+});
+
 app.post('/api/internal/slack-announcements/retry', async (c) => {
-  if (!scheduledSlackRetryAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
 
   try {
     const result = await retryEligibleEventSlackAnnouncements(c);
@@ -6654,6 +6862,22 @@ app.post('/api/internal/slack-announcements/retry', async (c) => {
       request_id: c.get('requestId') ?? null,
     }));
     return c.json({ error: 'Slack announcement retry failed.' }, 500);
+  }
+});
+
+app.post('/api/internal/event-page-monitors/check-due', async (c) => {
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+  try {
+    const result = await checkDueEventPages(c);
+    console.info(JSON.stringify({ event: 'scheduled_event_page_monitor_checks', ...result }));
+    return c.json({ ok: true, ...result });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'scheduled_event_page_monitor_checks_failed',
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return c.json({ error: 'Event page monitoring failed.' }, 500);
   }
 });
 
@@ -7631,6 +7855,9 @@ app.patch('/api/events/:eventId', async (c) => {
     };
 
     const updatedEvent = await updateEvent(eventId, updates, c);
+    await ensureEventPageMonitor(updatedEvent, c).catch((monitorError) => {
+      console.warn(JSON.stringify({ event: 'event_page_monitor_refresh_failed', event_id: eventId, error_name: safeErrorName(monitorError) }));
+    });
     await auditAdminAction(c, {
       action: 'event.update',
       targetType: 'event',

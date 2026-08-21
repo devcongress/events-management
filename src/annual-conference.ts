@@ -6,6 +6,11 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 
+export {
+  LEGACY_DECEMBER_2026_VOLUNTEER_PUBLIC_PATH,
+  VOLUNTEER_PUBLIC_PATH,
+} from '@/lib/volunteer-intake-routes';
+
 export function currentAnnualConferenceYear(date = new Date()): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Africa/Accra',
@@ -20,8 +25,6 @@ export const ACTIVE_ANNUAL_CONFERENCE_EDITION = {
   label: `December ${currentYear}`,
   name: 'DevCongress Annual Conference',
 } as const;
-
-export const DECEMBER_2026_VOLUNTEER_PUBLIC_PATH = '/volunteer/december-mega-meetup';
 
 export function mobileAnnualConferencePath(year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year): string {
   return adminPath(`mobile/annual-conference/${encodeURIComponent(year)}`);

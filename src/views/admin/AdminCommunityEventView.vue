@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
-import { fetchEventById, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventSlackAnnouncement } from '@/src/lib/api';
+import { checkEventPageNow, fetchEventById, fetchEventPageMonitor, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventPageMonitor, type EventSlackAnnouncement } from '@/src/lib/api';
 import { compressMeetupImageForUpload, uploadEventMedia, validateMeetupImageFile } from '@/src/lib/meetup-media-client';
 import { notify } from '@/src/lib/notify';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
@@ -21,6 +21,9 @@ const slackAnnouncement = ref<EventSlackAnnouncement | null>(null);
 const slackEligible = ref(false);
 const slackWebsiteReady = ref(true);
 const slackLoading = ref(false);
+const pageMonitor = ref<EventPageMonitor | null>(null);
+const monitorEligible = ref(false);
+const monitorLoading = ref(false);
 const error = ref('');
 const draft = reactive({
   name: '', description: '', format: 'meetup' as EventFormat, starts_at: '', ends_at: '',
@@ -86,10 +89,57 @@ async function load() {
       slackEligible.value = false;
       slackWebsiteReady.value = true;
     }
+    try {
+      const monitoring = await fetchEventPageMonitor(loaded.id);
+      pageMonitor.value = monitoring.monitor;
+      monitorEligible.value = monitoring.eligible;
+    } catch {
+      pageMonitor.value = null;
+      monitorEligible.value = false;
+    }
   } catch {
     error.value = 'This community event could not be loaded.';
   } finally {
     loading.value = false;
+  }
+}
+const monitorStatus = computed(() => {
+  if (!monitorEligible.value) return 'Not monitored';
+  if (!pageMonitor.value || pageMonitor.value.status === 'pending') return 'Waiting for first check';
+  if (pageMonitor.value.status === 'unchanged') return 'No changes detected';
+  if (pageMonitor.value.status === 'changed') return 'Changes need review';
+  if (pageMonitor.value.status === 'warning') return 'Temporary check warning';
+  if (pageMonitor.value.status === 'unavailable') return 'Page unavailable';
+  return 'Page cannot be monitored';
+});
+const monitorStatusClass = computed(() => {
+  if (pageMonitor.value?.status === 'changed' || pageMonitor.value?.status === 'unavailable' || pageMonitor.value?.status === 'unmonitorable') return 'text-red-700';
+  if (pageMonitor.value?.status === 'warning') return 'text-amber-700';
+  if (pageMonitor.value?.status === 'unchanged') return 'text-green-700';
+  return 'text-dc-ink';
+});
+function monitorTimestamp(value: string | null | undefined) {
+  if (!value) return 'Not yet';
+  const date = new Date(value);
+  return `${accraDate.format(date)} · ${accraTime.format(date)}`;
+}
+function monitorFieldLabel(field: string) {
+  return ({ final_url: 'Page destination', name: 'Event name', starts_at: 'Start time', ends_at: 'End time', location: 'Venue', event_status: 'Event status', registration_url: 'Registration destination' } as Record<string, string>)[field] ?? field.replace(/_/g, ' ');
+}
+async function checkRegistrationPage() {
+  if (!event.value || monitorLoading.value) return;
+  monitorLoading.value = true;
+  try {
+    const result = await checkEventPageNow(event.value.id);
+    pageMonitor.value = result.monitor;
+    monitorEligible.value = result.eligible;
+    if (result.monitor?.status === 'changed') notify.error('The registration page has changes that need review.');
+    else if (result.monitor?.status === 'unavailable' || result.monitor?.status === 'unmonitorable') notify.error(result.monitor.last_error || 'The registration page needs review.');
+    else notify.success('Registration page checked. No changes detected.');
+  } catch (cause) {
+    notify.error(cause instanceof Error ? cause.message : 'The registration page could not be checked.');
+  } finally {
+    monitorLoading.value = false;
   }
 }
 const slackActionLabel = computed(() => slackAnnouncement.value?.status === 'failed' ? 'RETRY SLACK' : 'SEND TO SLACK');
@@ -209,6 +259,32 @@ onMounted(load);
             <div class="px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">SLACK EVENTS CHANNEL</dt><dd class="mt-2 text-sm font-semibold" :class="slackAnnouncement?.status === 'failed' ? 'text-red-700' : 'text-dc-ink'">{{ slackStatus }}</dd><p v-if="slackAnnouncement?.status === 'sent' && slackAnnouncement.sent_at" class="mt-1 text-xs text-dc-gray">{{ accraDate.format(new Date(slackAnnouncement.sent_at)) }} · {{ accraTime.format(new Date(slackAnnouncement.sent_at)) }}</p><p v-if="slackAnnouncement?.status === 'failed' && slackAnnouncement.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ slackAnnouncement.last_error }}</p><p v-if="slackEligible" class="mt-2 text-xs leading-5 text-dc-gray">This event will be posted to Slack as soon as its public page is available on devcongress.org. The website refresh runs daily; the scheduled retry will check again after the update.</p><button v-if="slackEligible && slackAnnouncement?.status !== 'sent'" class="motion-press mt-3 rounded border-2 border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="slackLoading || slackAnnouncement?.status === 'pending'" @click="sendSlackAnnouncement">{{ slackLoading ? 'SENDING…' : slackActionLabel }}</button></div>
           </dl>
         </aside>
+        <section class="rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111] lg:col-span-2">
+          <div class="flex flex-wrap items-start justify-between gap-4 border-b border-dc-line bg-dc-paper-warm px-5 py-4">
+            <div><p class="font-mono text-xs font-bold tracking-[0.14em] text-dc-pink">REGISTRATION PAGE MONITOR</p><p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Read-only checks compare the organizer’s registration page with the approved listing. EMS never changes or unpublishes the event automatically.</p></div>
+            <button v-if="monitorEligible" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60" type="button" :disabled="monitorLoading" @click="checkRegistrationPage">{{ monitorLoading ? 'CHECKING…' : 'CHECK NOW →' }}</button>
+          </div>
+          <div v-if="monitorEligible && pageMonitor" class="grid gap-px bg-dc-line sm:grid-cols-3">
+            <div class="bg-dc-paper px-5 py-5"><p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-gray">STATUS</p><p class="mt-2 text-sm font-semibold" :class="monitorStatusClass">{{ monitorStatus }}</p><p v-if="pageMonitor.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ pageMonitor.last_error }}</p></div>
+            <div class="bg-dc-paper px-5 py-5"><p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-gray">LAST CHECKED</p><p class="mt-2 text-sm font-semibold">{{ monitorTimestamp(pageMonitor.last_checked_at) }}</p></div>
+            <div class="bg-dc-paper px-5 py-5"><p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-gray">NEXT CHECK</p><p class="mt-2 text-sm font-semibold">{{ monitorTimestamp(pageMonitor.next_check_at) }}</p></div>
+          </div>
+          <div v-if="pageMonitor?.differences.length" class="border-t border-dc-line px-5 py-5">
+            <p class="font-mono text-[11px] font-bold tracking-[0.12em] text-red-700">DETECTED DIFFERENCES</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div v-for="difference in pageMonitor.differences" :key="difference.field" class="rounded border border-dc-line bg-dc-paper-warm p-4">
+                <p class="font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{{ monitorFieldLabel(difference.field) }}</p>
+                <p class="mt-2 text-xs text-dc-gray">Approved: {{ difference.expected || 'Not set' }}</p>
+                <p class="mt-1 text-sm font-semibold text-red-700">Page now: {{ difference.observed || 'Not found' }}</p>
+              </div>
+            </div>
+            <p class="mt-4 text-xs leading-5 text-dc-gray">Open the source page to verify the signal, then use Edit listing if the organizer’s change should be reflected publicly.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 border-t border-dc-line px-5 py-4">
+            <a v-if="pageMonitor?.source_url" :href="pageMonitor.source_url" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">OPEN SOURCE PAGE ↗</a>
+            <p v-if="!monitorEligible" class="text-sm text-dc-gray">Monitoring starts for a future, published external event once it has a public HTTPS registration page.</p>
+          </div>
+        </section>
       </div>
 
       <form v-else class="mt-7 overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111]" @submit.prevent="save">

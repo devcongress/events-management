@@ -16,6 +16,39 @@ const linkId = '33333333-3333-4333-8333-333333333333';
 afterEach(() => rpc.mockReset());
 
 describe('canonical short-link storage', () => {
+  it('creates the evergreen volunteer destination without event or conference identifiers', async () => {
+    rpc.mockResolvedValueOnce({
+      data: [{
+        id: linkId,
+        code: 'V6L8R',
+        destination: 'volunteer_intake',
+        event_id: null,
+        conference_edition_id: null,
+        status: 'active',
+        created_by_membership_id: sessionMembershipId,
+        redirect_count: 0,
+        last_redirected_at: null,
+        created_at: '2026-08-20T00:00:00.000Z',
+        updated_at: '2026-08-20T00:00:00.000Z',
+      }],
+      error: null,
+    });
+
+    await expect(ensureActiveShortLink({
+      destination: 'volunteer_intake',
+      createdByMembershipId: sessionMembershipId,
+    })).resolves.toMatchObject({
+      created: false,
+      link: { code: 'V6L8R', destination: 'volunteer_intake' },
+    });
+
+    expect(rpc).toHaveBeenCalledWith('ensure_active_short_link', expect.objectContaining({
+      input_destination: 'volunteer_intake',
+      input_event_id: null,
+      input_conference_edition_id: null,
+    }));
+  });
+
   it('retries a generated code collision and returns the database-owned canonical link', async () => {
     rpc
       .mockResolvedValueOnce({ data: null, error: { code: '23505' } })

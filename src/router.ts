@@ -25,6 +25,7 @@ import {
   systemDesignParticipantRoute,
 } from './system-design-participant-route';
 import { SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
+import { volunteerIntakeRoutes } from './volunteer-intake-route';
 import {
   matchesOrganizerPhoneViewport,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
@@ -56,7 +57,6 @@ const ownerOnlyPaths = new Set([adminPath('audit-log')]);
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
 const CfpView = () => import('./views/CfpView.vue');
-const VolunteerIntakeView = () => import('./views/VolunteerIntakeView.vue');
 const EventRegistrationView = () => import('./views/EventRegistrationView.vue');
 const EventAmendmentView = () => import('./views/EventAmendmentView.vue');
 const EventsView = () => import('./views/EventsView.vue');
@@ -163,7 +163,7 @@ export const router = createRouter({
     },
     speakerTalkIntakeRoute,
     conferenceSpeakerIntakeRoute,
-    { path: '/volunteer/december-mega-meetup', name: 'volunteer-intake', component: VolunteerIntakeView },
+    ...volunteerIntakeRoutes,
     { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
     { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
     { path: adminPath(), redirect: adminPath('events') },
