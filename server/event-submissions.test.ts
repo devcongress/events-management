@@ -124,6 +124,26 @@ const currentManagedEvent = {
   cover_url: null,
 };
 
+const submittedAmendment = {
+  id: '40000000-0000-4000-8000-000000000001',
+  submission_id: submission.id,
+  status: 'submitted' as const,
+  starts_at: '2099-09-20T10:00:00.000Z',
+  ends_at: '2099-09-20T14:00:00.000Z',
+  location_type: 'in_person' as const,
+  venue_name: 'Accra Digital Centre',
+  venue_address: 'Ringway Estates, Accra',
+  online_url: null,
+  registration_url: 'https://example.com/register',
+  cover_url: null,
+  organizer_note: null,
+  reviewed_by: null,
+  reviewed_at: null,
+  decision_message: null,
+  created_at: '2099-08-02T10:00:00.000Z',
+  updated_at: '2099-08-02T10:00:00.000Z',
+};
+
 function validPayload() {
   return {
     title: submission.title,
@@ -197,7 +217,7 @@ beforeEach(() => {
     expires_at: '2099-09-20T13:00:00.000Z',
   });
   mocks.saveAmendment.mockResolvedValue(undefined);
-  mocks.submitAmendment.mockResolvedValue(undefined);
+  mocks.submitAmendment.mockResolvedValue(submittedAmendment);
 });
 
 afterEach(() => {
@@ -434,6 +454,66 @@ describe('community event submissions', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.getManagement).toHaveBeenCalledWith(linkId, expect.anything());
+  });
+
+  it('alerts the private submission channel when an amendment is submitted without queuing email', async () => {
+    const linkId = '30000000-0000-4000-8000-000000000001';
+    const secret = 'management-link-secret-for-tests-2026';
+    const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+    vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
+    mocks.getManagement.mockResolvedValue({
+      link_id: linkId,
+      expires_at: '2099-09-20T13:00:00.000Z',
+      submission,
+      current_event: currentManagedEvent,
+      amendment: submittedAmendment,
+    });
+    const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions/management/submit', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${linkId}.${signature}` },
+    });
+
+    expect(response.status).toBe(202);
+    expect(slackFetch).toHaveBeenCalledTimes(1);
+    const slackPayload = JSON.parse(String(slackFetch.mock.calls[0]?.[1]?.body)) as {
+      text: string;
+      blocks: Array<{ type: string; elements?: Array<{ url?: string }> }>;
+    };
+    expect(slackPayload.text).toBe(`Community event update requested: ${submission.title}`);
+    expect(slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0]?.url)
+      .toBe(`http://localhost/organizer-console/events/submissions?submission=${submission.id}`);
+    expect(mocks.pendingEmails).not.toHaveBeenCalled();
+  });
+
+  it('keeps the submitted amendment accepted when the Slack channel is unavailable', async () => {
+    const linkId = '30000000-0000-4000-8000-000000000001';
+    const secret = 'management-link-secret-for-tests-2026';
+    const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+    vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
+    vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
+    mocks.getManagement.mockResolvedValue({
+      link_id: linkId,
+      expires_at: '2099-09-20T13:00:00.000Z',
+      submission,
+      current_event: currentManagedEvent,
+      amendment: submittedAmendment,
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unavailable', { status: 503 })));
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/public/event-submissions/management/submit', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${linkId}.${signature}` },
+    });
+
+    expect(response.status).toBe(202);
+    expect(mocks.submitAmendment).toHaveBeenCalledWith(submission.id, expect.anything());
+    expect(mocks.pendingEmails).not.toHaveBeenCalled();
   });
 
   it('stages a replacement cover through a valid management link for later review', async () => {

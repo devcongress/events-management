@@ -16,7 +16,8 @@ This deployment is a protected operations console, with full organizer access an
 | `/register/:eventId` | Backward-compatible free-event registration link retained for previously shared UUID URLs. |
 | `/speaker-talks/:eventId/:token` | Standalone private Archive completion form opened by selected-proposal and manual Archive Request links. The token locks the presenter identity, event, and archive-item kind. |
 | `/conference-speakers/:year/:token` | Standalone private Annual Conference presenter form. It creates an edition-owned conference session, never a normal Event archive item. |
-| `/volunteer/december-mega-meetup` | Standalone December 2026 annual-conference volunteer form for name, email, X handle, and Slack name. This compatibility path remains the canonical public link for the active campaign. |
+| `/volunteer` | Canonical standalone DevCongress volunteer form with required name/email and optional X/Slack details. Organizer copy and QR actions prefer its owned `go.devcongress.org` short link. |
+| `/volunteer/december-mega-meetup` | Legacy distributed volunteer URL. It redirects to `/volunteer` so existing QR codes and bookmarks remain valid while submissions continue feeding the existing campaign dataset. |
 | `/learn/system-design/:code` | Public standalone anonymous System Design learning-room join and answer surface. It bypasses organizer routing/authentication and rejects codes belonging to the separate Quiz feature. |
 | `/present/system-design/:sessionId` | Organizer-protected, standalone System Design presenter opened in a new tab without organizer navigation or editing controls. |
 
@@ -109,6 +110,9 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST /api/public/email-preflight` | Rate-limited, non-persistent syntax/typo/disposable/mail-domain check used for the public forms' two-stage submit state; inconclusive DNS results are accepted and final submission endpoints recheck policy |
 | `POST /api/public/event-submissions` | Runtime-gated public proposal intake with strict schema and organizer-email preflight, purpose-specific Turnstile hostname validation, and distributed client/email limits |
 | `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, idempotent failed-email retry, and one-reply-at-a-time Slack notification retry with bounded provider diagnostics |
+| `GET /api/events/:eventId/page-monitor` | Owner/Organizer-only registration-page monitoring status, including Last checked, Next check, latest availability, and detected structured differences |
+| `POST /api/events/:eventId/page-monitor/check` | Owner/Organizer-only audited manual page check with a five-minute cooldown; the result is advisory and never rewrites the event |
+| `POST /api/internal/event-page-monitors/check-due` | Shared-secret scheduled drain for due external registration-page checks; called by the existing 15-minute Worker cron |
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Organizer email allowlist management; re-enable and permanent removal endpoints are Owner-only, and permanent removal requires a disabled membership |

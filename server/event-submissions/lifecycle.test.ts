@@ -16,6 +16,11 @@ const amendment = {
   status: 'approved',
 } as any;
 
+const submittedAmendment = {
+  ...amendment,
+  status: 'submitted',
+};
+
 const currentEvent = {
   starts_at: '2099-01-01T10:00:00.000Z',
   ends_at: '2099-01-01T12:00:00.000Z',
@@ -37,7 +42,7 @@ function repository(): EventSubmissionLifecycleRepository {
     management: vi.fn(async () => ({ link_id: 'link-1', expires_at: '2099-01-01T00:00:00.000Z', submission, current_event: currentEvent, amendment: null })),
     activeManagementLink: vi.fn(async () => ({ id: 'link-1', expires_at: '2099-01-01T00:00:00.000Z' })),
     saveAmendment: vi.fn(async () => amendment),
-    submitAmendment: vi.fn(async () => amendment),
+    submitAmendment: vi.fn(async () => submittedAmendment),
     reviewAmendment: vi.fn(async () => amendment),
   };
 }
@@ -114,7 +119,8 @@ describe('community event submission lifecycle', () => {
 
   it('checks management capability before saving or submitting an amendment', async () => {
     const repo = repository();
-    const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail });
+    const notifyAmendmentSubmitted = vi.fn(async () => undefined);
+    const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail, notifyAmendmentSubmitted });
 
     await lifecycle.management.saveDraft({
       linkId: 'link-1',
@@ -129,6 +135,11 @@ describe('community event submission lifecycle', () => {
     expect(repo.management).toHaveBeenCalledTimes(2);
     expect(repo.saveAmendment).toHaveBeenCalledWith('submission-1', expect.any(Object));
     expect(repo.submitAmendment).toHaveBeenCalledWith('submission-1');
+    expect(notifyAmendmentSubmitted).toHaveBeenCalledWith({
+      management: expect.objectContaining({ submission }),
+      amendment: submittedAmendment,
+    });
+    expect(queueEmail).not.toHaveBeenCalled();
   });
 
   it('records an amendment decision and schedules only its matching result email', async () => {

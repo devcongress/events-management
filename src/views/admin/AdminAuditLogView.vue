@@ -401,7 +401,8 @@ function selectSection(section: AuditLogSection) {
   activeSection.value = section;
 }
 
-function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registration' | 'conference_cfp'): string {
+function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registration' | 'conference_cfp' | 'volunteer_intake'): string {
+  if (destination === 'volunteer_intake') return 'Volunteer form';
   if (destination === 'conference_cfp') return 'Conference CFP';
   if (destination === 'monthly_cfp') return 'Monthly CFP';
   return 'Registration';
@@ -1959,6 +1960,10 @@ onUnmounted(() => {
 
 .audit-log-short-links__type--event_registration::before {
   background: #197343;
+}
+
+.audit-log-short-links__type--volunteer_intake::before {
+  background: #e8117f;
 }
 
 .audit-log-short-links__actions {

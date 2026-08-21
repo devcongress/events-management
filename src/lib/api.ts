@@ -279,7 +279,7 @@ export interface AdminEmailPreviewsResponse {
 export interface AdminShortLink {
   id: string;
   code: string;
-  destination: 'monthly_cfp' | 'event_registration' | 'conference_cfp';
+  destination: 'monthly_cfp' | 'event_registration' | 'conference_cfp' | 'volunteer_intake';
   status: 'active' | 'revoked';
   redirect_count: number;
   last_redirected_at: string | null;
@@ -920,6 +920,36 @@ export function sendEventSlackAnnouncement(eventId: string) {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
+  });
+}
+
+export type EventPageMonitorDifference = {
+  field: 'source_url' | 'final_url' | 'name' | 'starts_at' | 'ends_at' | 'location' | 'event_status' | 'registration_url';
+  expected: string | null;
+  observed: string | null;
+};
+
+export type EventPageMonitor = {
+  event_id: string;
+  source_url: string;
+  status: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+  differences: EventPageMonitorDifference[];
+  consecutive_failures: number;
+  last_http_status: number | null;
+  last_error: string | null;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+};
+
+export type EventPageMonitorResponse = { monitor: EventPageMonitor | null; eligible: boolean };
+
+export function fetchEventPageMonitor(eventId: string) {
+  return fetchJson<EventPageMonitorResponse>(`/api/events/${eventId}/page-monitor`, { credentials: 'include' });
+}
+
+export function checkEventPageNow(eventId: string) {
+  return fetchJson<EventPageMonitorResponse>(`/api/events/${eventId}/page-monitor/check`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
   });
 }
 

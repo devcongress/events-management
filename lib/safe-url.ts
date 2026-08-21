@@ -1,6 +1,6 @@
 const MAX_PUBLIC_URL_LENGTH = 2048;
 
-function isLocalOrPrivateHostname(hostname: string): boolean {
+export function isLocalOrPrivateHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
 
   return normalized === 'localhost'

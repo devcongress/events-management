@@ -1,5 +1,25 @@
 # Architectural Decisions
 
+## ADR-076: Treat External Registration Pages as Advisory Monitoring Signals
+
+**Date:** 2026-08-21
+**Why:** An approved external organizer can change or remove the registration page without submitting an EMS amendment, leaving the team unaware until someone happens to register. The submitted public page is useful evidence, but it remains controlled by the organizer and cannot safely become the canonical event record.
+**Decision:** Persist one service-role-only monitor per eligible future published external event. Inspect the supplied public HTTPS registration page with an ordinary bounded Worker fetch, validate each redirect manually, and extract only structured JSON-LD/Open Graph details available without executing JavaScript. Compare observed non-empty fields with the approved EMS record, surface Last checked/Next check/differences in the Community event overview, and send a deduplicated best-effort private Slack alert when structured details change or the page is persistently unavailable. Use a date-aware cadence of 14 days beyond 30 days, three days from 8–30 days, 12 hours from 2–7 days, and two hours in the final day; stop after the event and retry the first transient failure after one hour. Manual checks are authenticated, audited, and cooled down for five minutes. Never automatically trust the page, modify the canonical listing, or unpublish an event.
+**Tradeoffs:** Static HTML checks are inexpensive and avoid Browser Rendering charges, but JavaScript-only pages may be marked unmonitorable and metadata quality varies by organizer platform. Conservative comparison can produce review work, while the two-failure availability rule delays an outage alert by one retry in exchange for fewer false alarms.
+**Revisit when:** A material share of registration providers expose no useful server-rendered metadata; add provider-specific APIs or an explicitly budgeted browser tier only after measuring missed coverage and setting per-provider cost limits.
+
+---
+
+## ADR-075: Evergreen Volunteer Route With One Global Short Link
+
+**Date:** 2026-08-20
+**Why:** The volunteer intake is now a year-round DevCongress form, so a December campaign slug is misleading. Previously distributed QR codes and bookmarks must continue working, while organizers need one compact owned link that does not change when the form copy changes.
+**Decision:** Make `/volunteer` the canonical public route and redirect `/volunteer/december-mega-meetup` to it. Keep `december-mega-meetup` only as the internal legacy campaign identifier so existing applications and deduplication remain intact. Add `volunteer_intake` as a global short-link destination with no event or conference foreign key, enforce one active code through a partial unique index and advisory locking, and resolve it only to `/volunteer`. Volunteer copy and QR surfaces prefer the owned short link and fall back to the canonical route when short-link storage is unavailable.
+**Tradeoffs:** The database enum extension and constraint/function changes require two ordered migrations before the deployed app can create the link. The opaque code remains owner-regenerable through Audit Log; regeneration intentionally changes printed links and should be used only when necessary.
+**Revisit when:** Volunteer intake becomes edition-specific or needs independently tracked campaigns; introduce an explicit volunteer-program entity rather than attaching the evergreen link to an Annual Conference edition.
+
+---
+
 ## ADR-074: System Design is one event-scoped learning session
 
 **Date:** 2026-08-17

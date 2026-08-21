@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-08-21 — External registration-page monitoring
+
+- Added read-only monitoring for future published community events using the organizer-supplied registration page, with public-HTTPS validation, manually validated redirects, bounded HTML reads, and structured event metadata extraction.
+- Added date-aware checks (fortnightly beyond 30 days, every three days from 8–30 days, every 12 hours from 2–7 days, and every two hours in the final day), with an earlier retry after transient failures and no checks after the event ends.
+- Added the Community event overview status panel with **Last checked**, **Next check**, detected field differences, source-page access, and an audited **Check now** action with a five-minute cooldown.
+- Added deduplicated private submission-channel Slack alerts for detected changes or persistent availability problems without automatically editing or unpublishing the canonical event.
+
+## 2026-08-21 — Community amendment Slack alerts
+
+- Alerted the existing private submission/review Slack channel as soon as an approved community organizer submits an event amendment, with the requested schedule, location, organizer identity, and a direct Updates-review link.
+- Kept amendment submission independent of Slack availability and deliberately added no email notification or new deployment variable.
+
+## 2026-08-20 — Evergreen volunteer sign-up
+
+- Repositioned the public intake and QR display as a simple, year-round invitation to volunteer with DevCongress, removing December Mega Meetup and conference campaign language and adding the established DevCongress wordmark above the form.
+- Reduced the public form to a calmer single-column page with one clear action, while retaining its responsive contact-field grid and accessible submission states; on wider screens, the human check and submit button now share one aligned action row.
+- Made X and DevCongress Slack names optional so people can join with only their name and email.
+- Kept the public logo on its runtime asset URL so the Vite/Hono development stack no longer rewrites it as a JavaScript import and leaves the volunteer route blank.
+- Made `/volunteer` the canonical form URL, kept `/volunteer/december-mega-meetup` as a compatibility redirect, and added one database-backed `go.devcongress.org` short link used by volunteer copy and QR actions.
+- Kept the shared volunteer paths independent of frontend-only Vite configuration so the Cloudflare Worker can validate and upload the server bundle.
+- Preserved the submission API, legacy `december-mega-meetup` campaign identity, existing applications, Turnstile verification, rate limits, and Annual Conference organizer directory.
+
 ## 2026-08-18
 
 - Fixed the finished System Design presenter leaderboard so a participant's correct-answer total is retained even when the room has no active question. This prevents a scored answer from appearing as `0 / total` after the room ends.

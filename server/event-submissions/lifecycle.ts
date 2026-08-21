@@ -77,6 +77,10 @@ export type EventSubmissionLifecycleDependencies = {
   audit(event: EventSubmissionAuditEvent): Promise<void>;
   queueEmail(input: { submissionId: string; kind: EventSubmissionEmailKind }): Promise<void>;
   announcePublished?(submission: EventSubmission): Promise<void>;
+  notifyAmendmentSubmitted?(input: {
+    management: EventSubmissionManagement;
+    amendment: EventSubmissionAmendment;
+  }): Promise<void>;
 };
 
 export function createEventSubmissionLifecycle(dependencies: EventSubmissionLifecycleDependencies) {
@@ -174,7 +178,11 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
 
       async submit(input: { linkId: string }): Promise<EventSubmissionAmendment> {
         const management = await repository.management(input.linkId);
-        return repository.submitAmendment(management.submission.id);
+        const amendment = await repository.submitAmendment(management.submission.id);
+        if (dependencies.notifyAmendmentSubmitted) {
+          await dependencies.notifyAmendmentSubmitted({ management, amendment });
+        }
+        return amendment;
       },
 
       async review(input: {

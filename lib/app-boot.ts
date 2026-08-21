@@ -33,7 +33,7 @@ export function appBootVariantForPathname(pathname: string): AppBootVariant {
   if (path.startsWith('/feedback/')) return 'feedback';
   if (path.startsWith('/speaker-talks/')) return 'speaker';
   if (path === '/event-amendments' || path.startsWith('/event-amendments/')) return 'speaker';
-  if (path.startsWith('/volunteer/')) return 'volunteer';
+  if (path === '/volunteer' || path.startsWith('/volunteer/')) return 'volunteer';
   if (path.startsWith('/learn/system-design/')) return 'learning-room';
 
   return 'organizer';
