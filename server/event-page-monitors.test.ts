@@ -67,7 +67,11 @@ describe('event registration page monitor API', () => {
     const { default: app } = await import('./app');
 
     const initial = await app.request(`http://localhost/api/events/${event.id}/page-monitor`);
-    await expect(initial.json()).resolves.toMatchObject({ eligible: true, monitor: { status: 'pending', last_checked_at: null } });
+    await expect(initial.json()).resolves.toMatchObject({
+      eligible: true,
+      organizer_contact: null,
+      monitor: { status: 'pending', last_checked_at: null },
+    });
 
     const checked = await app.request(`http://localhost/api/events/${event.id}/page-monitor/check`, { method: 'POST' });
     const checkedBody = await checked.json() as { monitor: { status: string; last_checked_at: string | null; next_check_at: string | null } };

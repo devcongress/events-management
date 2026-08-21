@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./server', () => mocks);
 
-import { getEventSubmissionManagement } from './event-submissions';
+import { getEventSubmissionManagement, getEventSubmissionOrganizerContact } from './event-submissions';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type EventSubmissionRow = Database['public']['Tables']['event_submissions']['Row'];
@@ -97,6 +97,22 @@ beforeEach(() => {
 });
 
 describe('event submission management storage', () => {
+  it('returns the approved submission contact only for its linked event', async () => {
+    const contactQuery = queryReturning({
+      organizer_name: submissionRow.organizer_name,
+      organizer_email: submissionRow.organizer_email,
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => contactQuery) });
+
+    await expect(getEventSubmissionOrganizerContact(submissionRow.id, submissionRow.approved_event_id!)).resolves.toEqual({
+      name: 'Community Builders Ghana',
+      email: 'hello@example.com',
+    });
+    expect(contactQuery.eq).toHaveBeenNthCalledWith(1, 'id', submissionRow.id);
+    expect(contactQuery.eq).toHaveBeenNthCalledWith(2, 'approved_event_id', submissionRow.approved_event_id);
+    expect(contactQuery.eq).toHaveBeenNthCalledWith(3, 'review_status', 'approved');
+  });
+
   it('returns the current approved event values instead of the original submitted venue', async () => {
     const linkQuery = queryReturning(linkRow);
     const submissionQuery = queryReturning(submissionRow);

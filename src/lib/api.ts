@@ -941,7 +941,13 @@ export type EventPageMonitor = {
   next_check_at: string | null;
 };
 
-export type EventPageMonitorResponse = { monitor: EventPageMonitor | null; eligible: boolean };
+export type EventPageMonitorOrganizerContact = { name: string; email: string };
+
+export type EventPageMonitorResponse = {
+  monitor: EventPageMonitor | null;
+  eligible: boolean;
+  organizer_contact: EventPageMonitorOrganizerContact | null;
+};
 
 export function fetchEventPageMonitor(eventId: string) {
   return fetchJson<EventPageMonitorResponse>(`/api/events/${eventId}/page-monitor`, { credentials: 'include' });

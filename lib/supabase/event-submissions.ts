@@ -68,6 +68,11 @@ export type ActiveEventSubmissionManagementLink = {
   expires_at: string;
 };
 
+export type EventSubmissionOrganizerContact = {
+  name: string;
+  email: string;
+};
+
 export type CreateEventSubmissionInput = {
   title: string;
   summary: string;
@@ -95,6 +100,23 @@ export class EventSubmissionStorageError extends Error {
     super(message);
     this.name = 'EventSubmissionStorageError';
   }
+}
+
+export async function getEventSubmissionOrganizerContact(
+  submissionId: string,
+  eventId: string,
+  c?: Context,
+): Promise<EventSubmissionOrganizerContact | null> {
+  if (!isSupabaseServerConfigured(c)) return null;
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('event_submissions')
+    .select('organizer_name, organizer_email')
+    .eq('id', submissionId)
+    .eq('approved_event_id', eventId)
+    .eq('review_status', 'approved')
+    .maybeSingle();
+  if (error) throw new EventSubmissionStorageError('Unable to load the event organizer.', 'unavailable');
+  return data ? { name: data.organizer_name, email: data.organizer_email } : null;
 }
 
 function requireStorage(c?: Context) {
