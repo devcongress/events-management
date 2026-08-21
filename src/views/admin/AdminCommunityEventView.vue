@@ -3,8 +3,9 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
-import { checkEventPageNow, fetchEventById, fetchEventPageMonitor, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventPageMonitor, type EventSlackAnnouncement } from '@/src/lib/api';
+import { checkEventPageNow, fetchEventById, fetchEventPageMonitor, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventPageMonitor, type EventPageMonitorOrganizerContact, type EventSlackAnnouncement } from '@/src/lib/api';
 import { compressMeetupImageForUpload, uploadEventMedia, validateMeetupImageFile } from '@/src/lib/meetup-media-client';
 import { notify } from '@/src/lib/notify';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
@@ -22,8 +23,11 @@ const slackEligible = ref(false);
 const slackWebsiteReady = ref(true);
 const slackLoading = ref(false);
 const pageMonitor = ref<EventPageMonitor | null>(null);
+const organizerContact = ref<EventPageMonitorOrganizerContact | null>(null);
 const monitorEligible = ref(false);
 const monitorLoading = ref(false);
+const unpublishConfirmOpen = ref(false);
+const unpublishing = ref(false);
 const error = ref('');
 const draft = reactive({
   name: '', description: '', format: 'meetup' as EventFormat, starts_at: '', ends_at: '',
@@ -93,9 +97,11 @@ async function load() {
       const monitoring = await fetchEventPageMonitor(loaded.id);
       pageMonitor.value = monitoring.monitor;
       monitorEligible.value = monitoring.eligible;
+      organizerContact.value = monitoring.organizer_contact;
     } catch {
       pageMonitor.value = null;
       monitorEligible.value = false;
+      organizerContact.value = null;
     }
   } catch {
     error.value = 'This community event could not be loaded.';
@@ -118,6 +124,7 @@ const monitorStatusClass = computed(() => {
   if (pageMonitor.value?.status === 'unchanged') return 'text-green-700';
   return 'text-dc-ink';
 });
+const monitorNeedsReview = computed(() => ['changed', 'unavailable', 'unmonitorable'].includes(pageMonitor.value?.status ?? ''));
 function monitorTimestamp(value: string | null | undefined) {
   if (!value) return 'Not yet';
   const date = new Date(value);
@@ -126,6 +133,29 @@ function monitorTimestamp(value: string | null | undefined) {
 function monitorFieldLabel(field: string) {
   return ({ final_url: 'Page destination', name: 'Event name', starts_at: 'Start time', ends_at: 'End time', location: 'Venue', event_status: 'Event status', registration_url: 'Registration destination' } as Record<string, string>)[field] ?? field.replace(/_/g, ' ');
 }
+const organizerMailto = computed(() => {
+  if (!event.value || !organizerContact.value || !monitorNeedsReview.value) return null;
+  const subject = `DevCongress listing check: ${event.value.name}`;
+  const differences = pageMonitor.value?.differences.map((difference) => (
+    `- ${monitorFieldLabel(difference.field)}: EMS has "${difference.expected || 'not set'}"; the registration page shows "${difference.observed || 'not found'}".`
+  )) ?? [];
+  const issue = differences.length
+    ? differences
+    : [`- ${pageMonitor.value?.last_error || 'The registration page could not be verified.'}`];
+  const body = [
+    `Hi ${organizerContact.value.name || 'there'},`,
+    '',
+    `Our monitoring noticed that the registration page for ${event.value.name} may no longer match the event details published on the DevCongress community calendar.`,
+    '',
+    ...issue,
+    '',
+    'Please reply to confirm the current details. You can also submit the official changes using the private event-management link from your approval email.',
+    '',
+    'Thank you,',
+    'DevCongress',
+  ].join('\n');
+  return `mailto:${encodeURIComponent(organizerContact.value.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+});
 async function checkRegistrationPage() {
   if (!event.value || monitorLoading.value) return;
   monitorLoading.value = true;
@@ -133,6 +163,7 @@ async function checkRegistrationPage() {
     const result = await checkEventPageNow(event.value.id);
     pageMonitor.value = result.monitor;
     monitorEligible.value = result.eligible;
+    organizerContact.value = result.organizer_contact;
     if (result.monitor?.status === 'changed') notify.error('The registration page has changes that need review.');
     else if (result.monitor?.status === 'unavailable' || result.monitor?.status === 'unmonitorable') notify.error(result.monitor.last_error || 'The registration page needs review.');
     else notify.success('Registration page checked. No changes detected.');
@@ -140,6 +171,20 @@ async function checkRegistrationPage() {
     notify.error(cause instanceof Error ? cause.message : 'The registration page could not be checked.');
   } finally {
     monitorLoading.value = false;
+  }
+}
+async function unpublishListing() {
+  if (!event.value || unpublishing.value) return;
+  unpublishing.value = true;
+  try {
+    event.value = await updateEventById(event.value.id, { publish_to_website: false });
+    monitorEligible.value = false;
+    unpublishConfirmOpen.value = false;
+    notify.success('Community listing unpublished. The organizer event itself is unchanged.');
+  } catch (cause) {
+    notify.error(cause instanceof Error ? cause.message : 'The listing could not be unpublished.');
+  } finally {
+    unpublishing.value = false;
   }
 }
 const slackActionLabel = computed(() => slackAnnouncement.value?.status === 'failed' ? 'RETRY SLACK' : 'SEND TO SLACK');
@@ -280,6 +325,16 @@ onMounted(load);
             </div>
             <p class="mt-4 text-xs leading-5 text-dc-gray">Open the source page to verify the signal, then use Edit listing if the organizer’s change should be reflected publicly.</p>
           </div>
+          <div v-if="monitorNeedsReview" class="border-t border-dc-line bg-dc-paper-warm px-5 py-5">
+            <p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-pink">REVIEW ACTIONS</p>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">Confirm the change with the organizer before updating the canonical listing. If the public information may mislead attendees, temporarily remove the listing while it is reviewed.</p>
+            <div class="mt-4 flex flex-wrap gap-3">
+              <a v-if="organizerMailto" :href="organizerMailto" class="motion-press rounded border-2 border-dc-ink bg-dc-pink px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] text-white shadow-[2px_2px_0_#111111]">MESSAGE ORGANIZER →</a>
+              <button type="button" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em]" @click="beginEdit">EDIT LISTING →</button>
+              <button v-if="event.publish_to_website !== false" type="button" class="motion-press rounded border border-red-700 bg-white px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] text-red-700" @click="unpublishConfirmOpen = true">TEMPORARILY UNPUBLISH</button>
+            </div>
+            <p v-if="!organizerMailto" class="mt-3 text-xs leading-5 text-dc-gray">No linked organizer email is available for this listing. Use the source page or submission record to find the organizer’s contact details.</p>
+          </div>
           <div class="flex flex-wrap items-center gap-3 border-t border-dc-line px-5 py-4">
             <a v-if="pageMonitor?.source_url" :href="pageMonitor.source_url" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">OPEN SOURCE PAGE ↗</a>
             <p v-if="!monitorEligible" class="text-sm text-dc-gray">Monitoring starts for a future, published external event once it has a public HTTPS registration page.</p>
@@ -295,4 +350,17 @@ onMounted(load);
     </section>
     </div>
   </div>
+
+  <ConfirmDialog
+    :open="unpublishConfirmOpen"
+    title="Temporarily unpublish this listing?"
+    message="The event will disappear from the public DevCongress calendar while you verify the organizer’s changes. This does not cancel the organizer’s event, and you can publish the listing again after updating it."
+    confirm-label="Unpublish listing"
+    busy-label="Unpublishing…"
+    cancel-label="Keep published"
+    :busy="unpublishing"
+    danger
+    @cancel="unpublishConfirmOpen = false"
+    @confirm="unpublishListing"
+  />
 </template>

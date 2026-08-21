@@ -162,6 +162,7 @@ import {
 } from '@/lib/event-page-monitor';
 import {
   EventSubmissionStorageError,
+  getEventSubmissionOrganizerContact,
   getEventSubmissionReply,
   getPendingEventSubmissionEmails,
   insertEventSubmissionReply,
@@ -2452,6 +2453,21 @@ async function retryEligibleEventSlackAnnouncements(c: Context) {
 
 function eventPageMonitorDashboardUrl(eventId: string, c: Context): string {
   return new URL(`/organizer-console/events/${encodeURIComponent(eventId)}/community`, publicAppOrigin(c)).toString();
+}
+
+async function eventPageMonitorOrganizerContact(event: Event, c: Context) {
+  if (!event.source_submission_id) return null;
+  try {
+    return await getEventSubmissionOrganizerContact(event.source_submission_id, event.id, c);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_page_monitor_organizer_contact_failed',
+      event_id: event.id,
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return null;
+  }
 }
 
 function monitorAlertDetail(monitor: EventPageMonitor): string {
@@ -6814,8 +6830,11 @@ app.get('/api/events/:eventId/page-monitor', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   if (!event) return c.json({ error: 'Event not found' }, 404);
   try {
-    const monitor = await ensureEventPageMonitor(event, c);
-    return c.json({ monitor, eligible: Boolean(monitor) });
+    const [monitor, organizerContact] = await Promise.all([
+      ensureEventPageMonitor(event, c),
+      eventPageMonitorOrganizerContact(event, c),
+    ]);
+    return c.json({ monitor, eligible: Boolean(monitor), organizer_contact: organizerContact });
   } catch (error) {
     return internalErrorResponse(c, 'event_page_monitor_read_failed', error, 'Unable to load registration page monitoring.');
   }
@@ -6836,13 +6855,14 @@ app.post('/api/events/:eventId/page-monitor/check', async (c) => {
       }
     }
     const monitor = await checkEventPage(event, c);
+    const organizerContact = await eventPageMonitorOrganizerContact(event, c);
     await auditAdminAction(c, {
       action: 'event.registration_page.check',
       targetType: 'event',
       targetId: event.id,
       metadata: { status: monitor?.status ?? 'not_eligible', differences: monitor?.differences.map((difference) => difference.field) ?? [] },
     });
-    return c.json({ monitor, eligible: Boolean(monitor) });
+    return c.json({ monitor, eligible: Boolean(monitor), organizer_contact: organizerContact });
   } catch (error) {
     return internalErrorResponse(c, 'event_page_monitor_manual_check_failed', error, 'Unable to check the registration page.');
   }

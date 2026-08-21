@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-21 — Registration-page monitor review actions
+
+- Added a visible review-action area for changed or unavailable external registration pages, with a prefilled organizer message, direct listing edit, and confirmed temporary unpublish choices.
+- Restricted organizer contact lookup to authenticated monitor endpoints and the approved submission linked to the canonical event.
+
 ## 2026-08-21 — External registration-page monitoring
 
 - Added read-only monitoring for future published community events using the organizer-supplied registration page, with public-HTTPS validation, manually validated redirects, bounded HTML reads, and structured event metadata extraction.
