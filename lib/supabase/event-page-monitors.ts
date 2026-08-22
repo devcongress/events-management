@@ -42,16 +42,17 @@ function sameSnapshot(left: EventPageMonitorSnapshot, right: EventPageMonitorSna
   return fields.every((field) => left[field] === right[field]);
 }
 
-export async function ensureEventPageMonitor(event: Event, c?: Context): Promise<EventPageMonitor | null> {
+async function configureEventPageMonitor(event: Event, forceReset: boolean, c?: Context): Promise<EventPageMonitor | null> {
   if (!eligible(event)) return null;
   const baseline = baselineForEvent(event)!;
-  const now = new Date().toISOString();
-  const nextCheckAt = nextEventPageCheckAt(event.event_date, event.end_date, new Date());
+  const checkedAt = new Date();
+  const now = checkedAt.toISOString();
+  const nextCheckAt = nextEventPageCheckAt(event.event_date, event.end_date, checkedAt);
   if (!nextCheckAt) return null;
 
   if (!isSupabaseRuntimeEnabled(c)) {
     const existing = localMonitors.get(event.id);
-    if (existing && existing.source_url === baseline.source_url && sameSnapshot(existing.baseline, baseline)) return { ...existing };
+    if (!forceReset && existing && existing.source_url === baseline.source_url && sameSnapshot(existing.baseline, baseline)) return { ...existing };
     const monitor: EventPageMonitor = {
       event_id: event.id,
       enabled: true,
@@ -63,8 +64,8 @@ export async function ensureEventPageMonitor(event: Event, c?: Context): Promise
       consecutive_failures: 0,
       last_http_status: null,
       last_error: null,
-      last_checked_at: null,
-      next_check_at: now,
+      last_checked_at: existing?.last_checked_at ?? null,
+      next_check_at: nextCheckAt,
       last_change_fingerprint: null,
       last_alerted_fingerprint: null,
       created_at: existing?.created_at ?? now,
@@ -77,7 +78,7 @@ export async function ensureEventPageMonitor(event: Event, c?: Context): Promise
   const client = getSupabaseAdminClient(c) as any;
   const { data: existing, error: readError } = await client.from('event_page_monitors').select('*').eq('event_id', event.id).maybeSingle();
   if (readError) throw new Error('Unable to load event page monitoring.');
-  if (existing && existing.source_url === baseline.source_url && sameSnapshot(existing.baseline, baseline)) return existing as EventPageMonitor;
+  if (!forceReset && existing && existing.source_url === baseline.source_url && sameSnapshot(existing.baseline, baseline)) return existing as EventPageMonitor;
 
   const row = {
     event_id: event.id,
@@ -90,8 +91,8 @@ export async function ensureEventPageMonitor(event: Event, c?: Context): Promise
     consecutive_failures: 0,
     last_http_status: null,
     last_error: null,
-    last_checked_at: null,
-    next_check_at: now,
+    last_checked_at: existing?.last_checked_at ?? null,
+    next_check_at: nextCheckAt,
     last_change_fingerprint: null,
     last_alerted_fingerprint: null,
     updated_at: now,
@@ -99,6 +100,14 @@ export async function ensureEventPageMonitor(event: Event, c?: Context): Promise
   const { data, error } = await client.from('event_page_monitors').upsert(row, { onConflict: 'event_id' }).select('*').single();
   if (error || !data) throw new Error('Unable to configure event page monitoring.');
   return data as EventPageMonitor;
+}
+
+export function ensureEventPageMonitor(event: Event, c?: Context): Promise<EventPageMonitor | null> {
+  return configureEventPageMonitor(event, false, c);
+}
+
+export function rebaselineEventPageMonitor(event: Event, c?: Context): Promise<EventPageMonitor | null> {
+  return configureEventPageMonitor(event, true, c);
 }
 
 export async function getEventPageMonitor(eventId: string, c?: Context): Promise<EventPageMonitor | null> {

@@ -90,13 +90,25 @@ describe('event registration page monitor API', () => {
     expect(rejected.status).toBe(404);
   });
 
-  it('checks due registration pages through the existing scheduled-job secret', async () => {
+  it('waits for the cadence before scheduled checks and checks once a monitor is due', async () => {
     const event = await createExternalEvent();
     vi.stubGlobal('fetch', vi.fn(async () => new Response(`<script type="application/ld+json">${JSON.stringify({
       '@type': 'Event', name: event.name, startDate: event.event_date, endDate: event.end_date,
       location: { name: 'Impact Hub', address: 'Accra' }, offers: { url: event.registration_url },
     })}</script>`, { status: 200, headers: { 'content-type': 'text/html' } })));
     const { default: app } = await import('./app');
+
+    const initialized = await app.request(`http://localhost/api/events/${event.id}/page-monitor`);
+    const initializedBody = await initialized.json() as { monitor: { next_check_at: string | null } };
+    expect(Date.parse(initializedBody.monitor.next_check_at ?? '')).toBeGreaterThan(Date.now());
+
+    const notDue = await app.request('http://localhost/api/internal/event-page-monitors/check-due', {
+      method: 'POST', headers: { 'x-scheduled-job-secret': 'scheduled-monitor-secret-for-tests-2026' },
+    });
+    await expect(notDue.json()).resolves.toMatchObject({ ok: true, checked: 0, changed: 0, unavailable: 0, failed: 0 });
+
+    const { saveEventPageMonitor } = await import('@/lib/supabase/event-page-monitors');
+    await saveEventPageMonitor(event.id, { next_check_at: new Date(Date.now() - 1_000).toISOString() });
 
     const response = await app.request('http://localhost/api/internal/event-page-monitors/check-due', {
       method: 'POST', headers: { 'x-scheduled-job-secret': 'scheduled-monitor-secret-for-tests-2026' },
