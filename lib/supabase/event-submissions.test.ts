@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./server', () => mocks);
 
-import { getEventSubmissionManagement, getEventSubmissionOrganizerContact } from './event-submissions';
+import { getApprovedEventIdForSubmission, getEventSubmissionManagement, getEventSubmissionOrganizerContact } from './event-submissions';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type EventSubmissionRow = Database['public']['Tables']['event_submissions']['Row'];
@@ -97,6 +97,15 @@ beforeEach(() => {
 });
 
 describe('event submission management storage', () => {
+  it('resolves the canonical event only from an approved submission', async () => {
+    const submissionQuery = queryReturning({ approved_event_id: submissionRow.approved_event_id });
+    mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => submissionQuery) });
+
+    await expect(getApprovedEventIdForSubmission(submissionRow.id)).resolves.toBe(submissionRow.approved_event_id);
+    expect(submissionQuery.eq).toHaveBeenNthCalledWith(1, 'id', submissionRow.id);
+    expect(submissionQuery.eq).toHaveBeenNthCalledWith(2, 'review_status', 'approved');
+  });
+
   it('returns the approved submission contact only for its linked event', async () => {
     const contactQuery = queryReturning({
       organizer_name: submissionRow.organizer_name,

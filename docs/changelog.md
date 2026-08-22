@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-22 — Approved amendment monitor refresh
+
+- Rebased registration-page monitoring on the newly approved canonical schedule, location, and registration URL, then queued an immediate best-effort comparison against the organizer page.
+- Kept amendment approval independent of page availability and prevented approved updates from reposting the event announcement to the public Slack channel; only a newly detected mismatch can alert the private review channel.
+
 ## 2026-08-22 — App-styled blast draft confirmation
 
 - Replaced the browser-native confirmation shown during in-app navigation away from an unsent mobile blast with the shared EMS confirmation dialog.
