@@ -119,6 +119,17 @@ export async function getEventSubmissionOrganizerContact(
   return data ? { name: data.organizer_name, email: data.organizer_email } : null;
 }
 
+export async function getApprovedEventIdForSubmission(submissionId: string, c?: Context): Promise<string | null> {
+  const { data, error } = await requireStorage(c)
+    .from('event_submissions')
+    .select('approved_event_id')
+    .eq('id', submissionId)
+    .eq('review_status', 'approved')
+    .maybeSingle();
+  if (error) throw new EventSubmissionStorageError('Unable to resolve the approved event.', 'unavailable');
+  return data?.approved_event_id ?? null;
+}
+
 function requireStorage(c?: Context) {
   if (!isSupabaseServerConfigured(c)) {
     throw new EventSubmissionStorageError('Event submission storage is unavailable.', 'not_configured');

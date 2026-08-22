@@ -144,7 +144,9 @@ describe('community event submission lifecycle', () => {
 
   it('records an amendment decision and schedules only its matching result email', async () => {
     const repo = repository();
-    const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail });
+    const refreshApprovedEventMonitor = vi.fn(async () => undefined);
+    const announcePublished = vi.fn(async () => undefined);
+    const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail, refreshApprovedEventMonitor, announcePublished });
 
     await expect(lifecycle.management.review({
       amendmentId: 'amendment-1',
@@ -164,5 +166,25 @@ describe('community event submission lifecycle', () => {
       targetId: 'amendment-1',
     }));
     expect(queueEmail).toHaveBeenCalledWith({ submissionId: 'submission-1', kind: 'amendment_rejected' });
+    expect(refreshApprovedEventMonitor).not.toHaveBeenCalled();
+    expect(announcePublished).not.toHaveBeenCalled();
+  });
+
+  it('refreshes monitoring after approval without republishing or rolling back on monitor failure', async () => {
+    const repo = repository();
+    const refreshApprovedEventMonitor = vi.fn(async () => { throw new Error('registration page unavailable'); });
+    const announcePublished = vi.fn(async () => undefined);
+    const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail, refreshApprovedEventMonitor, announcePublished });
+
+    await expect(lifecycle.management.review({
+      amendmentId: 'amendment-1',
+      actor: { email: 'owner@devcongress.org', role: 'owner' },
+      approve: true,
+      organizerMessage: 'Approved.',
+    })).resolves.toBe(amendment);
+
+    expect(refreshApprovedEventMonitor).toHaveBeenCalledWith({ submissionId: 'submission-1' });
+    expect(queueEmail).toHaveBeenCalledWith({ submissionId: 'submission-1', kind: 'amendment_approved' });
+    expect(announcePublished).not.toHaveBeenCalled();
   });
 });

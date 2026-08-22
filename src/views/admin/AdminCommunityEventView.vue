@@ -133,11 +133,19 @@ function monitorTimestamp(value: string | null | undefined) {
 function monitorFieldLabel(field: string) {
   return ({ final_url: 'Page destination', name: 'Event name', starts_at: 'Start time', ends_at: 'End time', location: 'Venue', event_status: 'Event status', registration_url: 'Registration destination' } as Record<string, string>)[field] ?? field.replace(/_/g, ' ');
 }
+function monitorDifferenceValue(field: string, value: string | null, fallback: string) {
+  if (!value) return fallback;
+  if (field === 'starts_at' || field === 'ends_at') {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return `${accraDate.format(date)} · ${accraTime.format(date)}`;
+  }
+  return value;
+}
 const organizerMailto = computed(() => {
   if (!event.value || !organizerContact.value || !monitorNeedsReview.value) return null;
   const subject = `DevCongress listing check: ${event.value.name}`;
   const differences = pageMonitor.value?.differences.map((difference) => (
-    `- ${monitorFieldLabel(difference.field)}: EMS has "${difference.expected || 'not set'}"; the registration page shows "${difference.observed || 'not found'}".`
+    `- ${monitorFieldLabel(difference.field)}: EMS has "${monitorDifferenceValue(difference.field, difference.expected, 'not set')}"; the registration page shows "${monitorDifferenceValue(difference.field, difference.observed, 'not found')}".`
   )) ?? [];
   const issue = differences.length
     ? differences
@@ -304,39 +312,102 @@ onMounted(load);
             <div class="px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">SLACK EVENTS CHANNEL</dt><dd class="mt-2 text-sm font-semibold" :class="slackAnnouncement?.status === 'failed' ? 'text-red-700' : 'text-dc-ink'">{{ slackStatus }}</dd><p v-if="slackAnnouncement?.status === 'sent' && slackAnnouncement.sent_at" class="mt-1 text-xs text-dc-gray">{{ accraDate.format(new Date(slackAnnouncement.sent_at)) }} · {{ accraTime.format(new Date(slackAnnouncement.sent_at)) }}</p><p v-if="slackAnnouncement?.status === 'failed' && slackAnnouncement.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ slackAnnouncement.last_error }}</p><p v-if="slackEligible" class="mt-2 text-xs leading-5 text-dc-gray">This event will be posted to Slack as soon as its public page is available on devcongress.org. The website refresh runs daily; the scheduled retry will check again after the update.</p><button v-if="slackEligible && slackAnnouncement?.status !== 'sent'" class="motion-press mt-3 rounded border-2 border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="slackLoading || slackAnnouncement?.status === 'pending'" @click="sendSlackAnnouncement">{{ slackLoading ? 'SENDING…' : slackActionLabel }}</button></div>
           </dl>
         </aside>
-        <section class="rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111] lg:col-span-2">
-          <div class="flex flex-wrap items-start justify-between gap-4 border-b border-dc-line bg-dc-paper-warm px-5 py-4">
-            <div><p class="font-mono text-xs font-bold tracking-[0.14em] text-dc-pink">REGISTRATION PAGE MONITOR</p><p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Read-only checks compare the organizer’s registration page with the approved listing. EMS never changes or unpublishes the event automatically.</p></div>
-            <button v-if="monitorEligible" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60" type="button" :disabled="monitorLoading" @click="checkRegistrationPage">{{ monitorLoading ? 'CHECKING…' : 'CHECK NOW →' }}</button>
-          </div>
-          <div v-if="monitorEligible && pageMonitor" class="grid gap-px bg-dc-line sm:grid-cols-3">
-            <div class="bg-dc-paper px-5 py-5"><p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-gray">STATUS</p><p class="mt-2 text-sm font-semibold" :class="monitorStatusClass">{{ monitorStatus }}</p><p v-if="pageMonitor.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ pageMonitor.last_error }}</p></div>
-            <div class="bg-dc-paper px-5 py-5"><p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-gray">LAST CHECKED</p><p class="mt-2 text-sm font-semibold">{{ monitorTimestamp(pageMonitor.last_checked_at) }}</p></div>
-            <div class="bg-dc-paper px-5 py-5"><p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-gray">NEXT CHECK</p><p class="mt-2 text-sm font-semibold">{{ monitorTimestamp(pageMonitor.next_check_at) }}</p></div>
-          </div>
-          <div v-if="pageMonitor?.differences.length" class="border-t border-dc-line px-5 py-5">
-            <p class="font-mono text-[11px] font-bold tracking-[0.12em] text-red-700">DETECTED DIFFERENCES</p>
-            <div class="mt-3 grid gap-3 sm:grid-cols-2">
-              <div v-for="difference in pageMonitor.differences" :key="difference.field" class="rounded border border-dc-line bg-dc-paper-warm p-4">
-                <p class="font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{{ monitorFieldLabel(difference.field) }}</p>
-                <p class="mt-2 text-xs text-dc-gray">Approved: {{ difference.expected || 'Not set' }}</p>
-                <p class="mt-1 text-sm font-semibold text-red-700">Page now: {{ difference.observed || 'Not found' }}</p>
+        <section class="overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper shadow-[3px_3px_0_#111111] lg:col-span-2">
+          <header class="flex flex-col gap-4 border-b border-dc-line bg-dc-paper-warm px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+            <div>
+              <p class="font-mono text-xs font-bold tracking-[0.14em] text-dc-pink">REGISTRATION PAGE MONITOR</p>
+              <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Read-only monitoring compares the organizer’s source page with this listing. Nothing changes automatically.</p>
+            </div>
+            <button v-if="monitorEligible" class="motion-press w-full rounded-md border border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto" type="button" :disabled="monitorLoading" @click="checkRegistrationPage">{{ monitorLoading ? 'CHECKING…' : 'CHECK NOW ↻' }}</button>
+          </header>
+
+          <dl v-if="monitorEligible && pageMonitor" class="grid border-b border-dc-line bg-dc-paper sm:grid-cols-3 sm:divide-x sm:divide-dc-line">
+            <div class="border-b border-dc-line px-5 py-4 sm:border-b-0 sm:px-6">
+              <dt class="font-mono text-[10px] font-bold tracking-[0.12em] text-dc-gray">STATUS</dt>
+              <dd class="mt-2 flex items-center gap-2 text-sm font-semibold" :class="monitorStatusClass" aria-live="polite">
+                <span class="size-2 shrink-0 rounded-full" :class="monitorNeedsReview ? 'bg-red-600' : pageMonitor.status === 'warning' ? 'bg-amber-500' : pageMonitor.status === 'unchanged' ? 'bg-green-600' : 'bg-dc-gray'" aria-hidden="true" />
+                {{ monitorStatus }}
+              </dd>
+              <p v-if="pageMonitor.last_error" class="mt-2 text-xs leading-5 text-dc-gray">{{ pageMonitor.last_error }}</p>
+            </div>
+            <div class="border-b border-dc-line px-5 py-4 sm:border-b-0 sm:px-6">
+              <dt class="font-mono text-[10px] font-bold tracking-[0.12em] text-dc-gray">LAST CHECKED</dt>
+              <dd class="mt-2 text-sm font-semibold">{{ monitorTimestamp(pageMonitor.last_checked_at) }}</dd>
+            </div>
+            <div class="px-5 py-4 sm:px-6">
+              <dt class="font-mono text-[10px] font-bold tracking-[0.12em] text-dc-gray">NEXT CHECK</dt>
+              <dd class="mt-2 text-sm font-semibold">{{ monitorTimestamp(pageMonitor.next_check_at) }}</dd>
+            </div>
+          </dl>
+
+          <div v-if="monitorNeedsReview" class="grid lg:grid-cols-[minmax(0,1fr)_21rem]">
+            <section class="min-w-0 px-5 py-6 sm:px-6">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p class="font-mono text-[11px] font-bold tracking-[0.12em] text-red-700">DETECTED DIFFERENCES</p>
+                  <h2 class="mt-1 text-lg font-bold">What changed on the source page</h2>
+                </div>
+                <span v-if="pageMonitor?.differences.length" class="rounded-full bg-red-50 px-3 py-1 font-mono text-[10px] font-bold tracking-[0.08em] text-red-700">{{ pageMonitor.differences.length }} {{ pageMonitor.differences.length === 1 ? 'CHANGE' : 'CHANGES' }}</span>
               </div>
-            </div>
-            <p class="mt-4 text-xs leading-5 text-dc-gray">Open the source page to verify the signal, then use Edit listing if the organizer’s change should be reflected publicly.</p>
+
+              <div v-if="pageMonitor?.differences.length" class="mt-5 divide-y divide-dc-line border-y border-dc-line">
+                <article v-for="difference in pageMonitor.differences" :key="difference.field" class="grid gap-3 py-4 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-5">
+                  <p class="font-mono text-[11px] font-bold uppercase tracking-[0.08em]">{{ monitorFieldLabel(difference.field) }}</p>
+                  <dl class="grid min-w-0 gap-2 sm:grid-cols-2">
+                    <div class="min-w-0 rounded-md bg-dc-paper-warm px-3 py-3">
+                      <dt class="font-mono text-[9px] font-bold tracking-[0.1em] text-dc-gray">APPROVED LISTING</dt>
+                      <dd class="mt-1 break-words text-sm font-medium leading-5">{{ monitorDifferenceValue(difference.field, difference.expected, 'Not set') }}</dd>
+                    </div>
+                    <div class="min-w-0 rounded-md border border-red-200 bg-red-50 px-3 py-3">
+                      <dt class="font-mono text-[9px] font-bold tracking-[0.1em] text-red-700">SOURCE PAGE NOW</dt>
+                      <dd class="mt-1 break-words text-sm font-semibold leading-5 text-red-700">{{ monitorDifferenceValue(difference.field, difference.observed, 'Not found') }}</dd>
+                    </div>
+                  </dl>
+                </article>
+              </div>
+
+              <div v-else class="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-4">
+                <p class="text-sm font-semibold text-red-700">The source page could not be verified.</p>
+                <p class="mt-1 text-sm leading-6 text-dc-gray">{{ pageMonitor?.last_error || 'Open the source page to confirm whether the event details are still available.' }}</p>
+              </div>
+            </section>
+
+            <aside class="border-t border-dc-line bg-dc-paper-warm px-5 py-6 sm:px-6 lg:border-l lg:border-t-0">
+              <p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-pink">NEXT STEPS</p>
+              <h2 class="mt-1 text-lg font-bold">Review before publishing changes</h2>
+
+              <ol class="mt-5 space-y-6">
+                <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
+                  <span class="grid size-7 place-items-center rounded-full bg-dc-ink font-mono text-[11px] font-bold text-dc-paper">1</span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold">Verify the source</p>
+                    <p class="mt-1 text-xs leading-5 text-dc-gray">Confirm the organizer’s page really shows these details.</p>
+                    <a v-if="pageMonitor?.source_url" :href="pageMonitor.source_url" target="_blank" rel="noreferrer" class="motion-press mt-3 inline-flex w-full items-center justify-center rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] shadow-[2px_2px_0_#111111]">OPEN SOURCE PAGE ↗</a>
+                  </div>
+                </li>
+                <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
+                  <span class="grid size-7 place-items-center rounded-full bg-dc-ink font-mono text-[11px] font-bold text-dc-paper">2</span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold">Resolve the listing</p>
+                    <p class="mt-1 text-xs leading-5 text-dc-gray">Confirm with the organizer, or update the public listing if the change is correct.</p>
+                    <div class="mt-3 grid gap-2">
+                      <a v-if="organizerMailto" :href="organizerMailto" class="motion-press inline-flex w-full items-center justify-center rounded-md border-2 border-dc-ink bg-dc-pink px-4 py-3 text-center font-mono text-[11px] font-bold tracking-[0.06em] text-white shadow-[2px_2px_0_#111111]">MESSAGE ORGANIZER →</a>
+                      <button type="button" class="motion-press w-full rounded-md border border-dc-ink bg-dc-paper px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em]" @click="beginEdit">EDIT LISTING →</button>
+                    </div>
+                    <p v-if="!organizerMailto" class="mt-3 text-xs leading-5 text-dc-gray">No organizer email is linked to this listing. Use the source page or submission record to find their contact details.</p>
+                  </div>
+                </li>
+              </ol>
+
+              <div v-if="event.publish_to_website !== false" class="mt-6 border-t border-dc-line pt-5">
+                <p class="text-xs leading-5 text-dc-gray">If the listing could mislead attendees, remove it temporarily while you verify the details.</p>
+                <button type="button" class="motion-press mt-3 w-full rounded-md border border-red-700 bg-dc-paper px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] text-red-700" @click="unpublishConfirmOpen = true">TEMPORARILY UNPUBLISH</button>
+              </div>
+            </aside>
           </div>
-          <div v-if="monitorNeedsReview" class="border-t border-dc-line bg-dc-paper-warm px-5 py-5">
-            <p class="font-mono text-[11px] font-bold tracking-[0.12em] text-dc-pink">REVIEW ACTIONS</p>
-            <p class="mt-2 max-w-3xl text-sm leading-6 text-dc-gray">Confirm the change with the organizer before updating the canonical listing. If the public information may mislead attendees, temporarily remove the listing while it is reviewed.</p>
-            <div class="mt-4 flex flex-wrap gap-3">
-              <a v-if="organizerMailto" :href="organizerMailto" class="motion-press rounded border-2 border-dc-ink bg-dc-pink px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] text-white shadow-[2px_2px_0_#111111]">MESSAGE ORGANIZER →</a>
-              <button type="button" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em]" @click="beginEdit">EDIT LISTING →</button>
-              <button v-if="event.publish_to_website !== false" type="button" class="motion-press rounded border border-red-700 bg-white px-4 py-3 font-mono text-[11px] font-bold tracking-[0.06em] text-red-700" @click="unpublishConfirmOpen = true">TEMPORARILY UNPUBLISH</button>
-            </div>
-            <p v-if="!organizerMailto" class="mt-3 text-xs leading-5 text-dc-gray">No linked organizer email is available for this listing. Use the source page or submission record to find the organizer’s contact details.</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-3 border-t border-dc-line px-5 py-4">
-            <a v-if="pageMonitor?.source_url" :href="pageMonitor.source_url" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">OPEN SOURCE PAGE ↗</a>
+
+          <div v-else class="flex flex-wrap items-center gap-3 px-5 py-4 sm:px-6">
+            <a v-if="pageMonitor?.source_url" :href="pageMonitor.source_url" target="_blank" rel="noreferrer" class="motion-press rounded-md border border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">OPEN SOURCE PAGE ↗</a>
             <p v-if="!monitorEligible" class="text-sm text-dc-gray">Monitoring starts for a future, published external event once it has a public HTTPS registration page.</p>
           </div>
         </section>

@@ -17,7 +17,7 @@ import {
   filterRegistrationsForCheckIn,
   registrationInitials,
 } from '@/src/lib/registration-checkin';
-import { ORGANIZER_PHONE_ROUTE_PATH } from '@/src/organizer-viewport';
+import { organizerPhoneEventPath } from '@/src/organizer-viewport';
 import type { EventRegistration } from '@/types';
 
 const EVENT_DATE_FORMATTER = new Intl.DateTimeFormat('en', {
@@ -123,9 +123,9 @@ watch(availableInitials, (initials) => {
   <section class="mobile-ops-page mobile-checkin-page">
     <div class="mobile-ops-wrap mobile-checkin-wrap">
       <div class="mobile-checkin-back-bar">
-        <RouterLink :to="ORGANIZER_PHONE_ROUTE_PATH" class="mobile-checkin-back">
+        <RouterLink :to="organizerPhoneEventPath(eventId)" class="mobile-checkin-back">
           <span aria-hidden="true">←</span>
-          Back to events
+          Event overview
         </RouterLink>
       </div>
 

@@ -29,7 +29,7 @@ import { adminPath } from '@/src/admin-routes';
 import { registrationAvailability } from '@/lib/event-registration';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { notify } from '@/src/lib/notify';
-import { emailSubjects } from '@/lib/email/scenarios';
+import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
 import {
   ALL_REGISTRATION_INITIALS,
   registrationInitials,
@@ -195,26 +195,7 @@ const blastTemplates = computed(() => {
   const eventDate = data.value?.event.event_date
     ? formatDateTime(data.value.event.event_date)
     : 'the event day';
-  return [
-    {
-      id: 'update',
-      label: 'Event update',
-      subject: emailSubjects.eventUpdate(eventName),
-      body: `Hi,\n\nHere’s a quick update about ${eventName}.\n\n[Add your update]\n\nSee you there,\nDevCongress`,
-    },
-    {
-      id: 'reminder',
-      label: 'Reminder',
-      subject: emailSubjects.eventReminder(eventName),
-      body: `Hi,\n\nA quick reminder that ${eventName} is happening ${eventDate}.\n\n[Add any final details]\n\nSee you there,\nDevCongress`,
-    },
-    {
-      id: 'venue',
-      label: 'Venue change',
-      subject: emailSubjects.eventVenueChange(eventName),
-      body: `Hi,\n\nThe venue for ${eventName} has changed.\n\n[Add the new venue and any arrival details]\n\nSee you there,\nDevCongress`,
-    },
-  ];
+  return eventBlastStarters(eventName, eventDate);
 });
 const registrationOverviewPhase = computed<RegistrationOverviewPhase>(() => {
   const summary = workspaceSummary.value;

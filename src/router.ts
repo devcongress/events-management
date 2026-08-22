@@ -29,6 +29,8 @@ import { volunteerIntakeRoutes } from './volunteer-intake-route';
 import {
   matchesOrganizerPhoneViewport,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENT_ROUTE_NAME,
   ORGANIZER_PHONE_EVENTS_ROUTE_NAME,
   ORGANIZER_PHONE_EVENTS_ROUTE_PATH,
   ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
@@ -65,6 +67,8 @@ const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.
 const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
 const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
 const AdminMobileEventsView = () => import('./views/admin/AdminMobileEventsView.vue');
+const AdminMobileEventView = () => import('./views/admin/AdminMobileEventView.vue');
+const AdminMobileEventBlastsView = () => import('./views/admin/AdminMobileEventBlastsView.vue');
 const AdminMobileCheckInView = () => import('./views/admin/AdminMobileCheckInView.vue');
 const AdminMobileAnnualConferenceView = () => import('./views/admin/AdminMobileAnnualConferenceView.vue');
 const AdminEventsWorkspaceView = () => import('./views/admin/AdminEventsWorkspaceView.vue');
@@ -169,6 +173,16 @@ export const router = createRouter({
     { path: adminPath(), redirect: adminPath('events') },
     { path: ORGANIZER_PHONE_ROUTE_PATH, name: 'admin-mobile', component: AdminMobileOrganizerView },
     { path: ORGANIZER_PHONE_EVENTS_ROUTE_PATH, name: ORGANIZER_PHONE_EVENTS_ROUTE_NAME, component: AdminMobileEventsView },
+    {
+      path: adminPath('mobile/events/:eventId'),
+      name: ORGANIZER_PHONE_EVENT_ROUTE_NAME,
+      component: AdminMobileEventView,
+    },
+    {
+      path: adminPath('mobile/events/:eventId/blasts'),
+      name: ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME,
+      component: AdminMobileEventBlastsView,
+    },
     {
       path: adminPath('mobile/events/:eventId/check-in'),
       name: ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,

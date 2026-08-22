@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-08-22 — Approved amendment monitor refresh
+
+- Rebased registration-page monitoring on the newly approved canonical schedule, location, and registration URL, then queued an immediate best-effort comparison against the organizer page.
+- Kept amendment approval independent of page availability and prevented approved updates from reposting the event announcement to the public Slack channel; only a newly detected mismatch can alert the private review channel.
+
+## 2026-08-22 — App-styled blast draft confirmation
+
+- Replaced the browser-native confirmation shown during in-app navigation away from an unsent mobile blast with the shared EMS confirmation dialog.
+- Retained the required browser-native safeguard for refreshes, tab closes, and navigation away from EMS, where browsers do not permit an app-styled prompt.
+
+## 2026-08-21 — Phone event operations workspace
+
+- Added a dedicated phone event drill-down with **Overview**, **Guests**, and **Submissions**, so organizers can open the full event context instead of being redirected to the limited Mobile Ops landing screen.
+- Exposed the authoritative internal guest list with search, lifecycle filters, check-in, and confirmed undo actions, while preserving an honest outside-EMS state for externally managed registration.
+- Added full speaker and product-demo proposal details with pending/selected/not-selected filters, presenter contact and supporting links, plus confirmation-safe select and not-select actions.
+- Kept advanced setup, bulk operations, guest cancellation, and destructive administration on tablet/desktop; the phone workspace uses 44px targets, safe-area padding, and reduced-motion-aware tab transitions.
+- Standardized every phone quick-action row on the same right-arrow treatment so internal and externally opened actions scan as one consistent control family.
+- Added a dedicated phone **Email guests** flow with the shared Reminder/Event update/Venue change starters, optional scheduling, mandatory rendered preview, capacity protection, delivery history, prepared-failure retry, and a warning before abandoning an unsent draft.
+
+## 2026-08-21 — Registration-page review workspace
+
+- Reorganized monitor findings into a compact status strip, a readable approved-versus-source comparison, and an ordered next-steps rail so evidence and actions no longer compete across the page.
+- Formatted detected event dates in Accra time, grouped source verification with organizer/listing actions, and made every review control consistently full-width on mobile.
+
 ## 2026-08-21 — Registration-page monitor review actions
 
 - Added a visible review-action area for changed or unavailable external registration pages, with a prefilled organizer message, direct listing edit, and confirmed temporary unpublish choices.

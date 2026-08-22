@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
   ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME,
+  ORGANIZER_PHONE_EVENT_ROUTE_NAME,
   ORGANIZER_PHONE_EVENTS_ROUTE_NAME,
   ORGANIZER_PHONE_EVENTS_ROUTE_PATH,
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerPhoneCheckInPath,
+  organizerPhoneEventBlastsPath,
+  organizerPhoneEventPath,
   matchesOrganizerPhoneViewport,
   organizerViewportRedirect,
 } from './organizer-viewport';
@@ -44,6 +48,8 @@ describe('organizer viewport policy', () => {
       'admin-public-event-preview',
       'admin-mobile',
       ORGANIZER_PHONE_EVENTS_ROUTE_NAME,
+      ORGANIZER_PHONE_EVENT_ROUTE_NAME,
+      ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME,
       'admin-mobile-check-in',
       ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
     ]) {
@@ -93,6 +99,22 @@ describe('organizer viewport policy', () => {
       authenticated: true,
       isAdminRoute: true,
       isPhone: false,
+      routeName: ORGANIZER_PHONE_EVENT_ROUTE_NAME,
+      eventId: 'event-one',
+    })).toBe('/organizer-console/events/event-one');
+
+    expect(organizerViewportRedirect({
+      authenticated: true,
+      isAdminRoute: true,
+      isPhone: false,
+      routeName: ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME,
+      eventId: 'event-one',
+    })).toBe('/organizer-console/events/event-one/registrations');
+
+    expect(organizerViewportRedirect({
+      authenticated: true,
+      isAdminRoute: true,
+      isPhone: false,
       routeName: 'admin-mobile-check-in',
       eventId: 'event-one',
     })).toBe('/organizer-console/events/event-one/registrations');
@@ -102,6 +124,12 @@ describe('organizer viewport policy', () => {
     expect(ORGANIZER_PHONE_EVENTS_ROUTE_PATH).toBe('/organizer-console/mobile/events');
     expect(organizerPhoneCheckInPath('event / one')).toBe(
       '/organizer-console/mobile/events/event%20%2F%20one/check-in',
+    );
+    expect(organizerPhoneEventPath('event / one')).toBe(
+      '/organizer-console/mobile/events/event%20%2F%20one',
+    );
+    expect(organizerPhoneEventBlastsPath('event / one')).toBe(
+      '/organizer-console/mobile/events/event%20%2F%20one/blasts',
     );
   });
 

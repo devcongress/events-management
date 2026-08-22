@@ -81,6 +81,7 @@ export type EventSubmissionLifecycleDependencies = {
     management: EventSubmissionManagement;
     amendment: EventSubmissionAmendment;
   }): Promise<void>;
+  refreshApprovedEventMonitor?(input: { submissionId: string }): Promise<void>;
 };
 
 export function createEventSubmissionLifecycle(dependencies: EventSubmissionLifecycleDependencies) {
@@ -207,6 +208,9 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
           submissionId: amendment.submission_id,
           kind: input.approve ? 'amendment_approved' : 'amendment_rejected',
         });
+        if (input.approve && dependencies.refreshApprovedEventMonitor) {
+          await dependencies.refreshApprovedEventMonitor({ submissionId: amendment.submission_id }).catch(() => undefined);
+        }
         return amendment;
       },
     },

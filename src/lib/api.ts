@@ -16,6 +16,7 @@ import type {
   PublicHomeResponse,
   PublicMeetup,
   QuizSession,
+  SpeakerSubmission,
   Talk,
   VolunteerApplication,
 } from '@/types';
@@ -497,6 +498,7 @@ export const queryKeys = {
   event: (eventId: string) => ['events', eventId] as const,
   eventChecklist: (eventId: string) => ['event-checklist', eventId] as const,
   eventRegistrations: (eventId: string) => ['event-registrations', eventId] as const,
+  eventSpeakerSubmissions: (eventId: string) => ['event-speaker-submissions', eventId] as const,
   eventBlasts: (eventId: string) => ['event-blasts', eventId] as const,
   publicEventRegistration: (eventId: string) => ['public-event-registration', eventId] as const,
 };
@@ -1058,6 +1060,31 @@ export function submitEventRegistration(
 export function fetchEventRegistrations(eventId: string) {
   return fetchJson<AdminEventRegistrationsResponse>(`/api/events/${eventId}/registrations`, {
     credentials: 'include',
+  });
+}
+
+export type EventSpeakerSubmissionsResponse = {
+  event_id: string;
+  counts: Record<string, number>;
+  submissions: SpeakerSubmission[];
+};
+
+export function fetchEventSpeakerSubmissions(eventId: string) {
+  return fetchJson<EventSpeakerSubmissionsResponse>(`/api/events/${eventId}/speaker-submissions`, {
+    cache: 'no-store',
+    credentials: 'include',
+  });
+}
+
+export function decideEventSpeakerSubmission(
+  submissionId: string,
+  status: 'selected' | 'not_selected',
+) {
+  return fetchJson<{ submission: SpeakerSubmission; token: string | null }>(`/api/speaker-submissions/${submissionId}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, expires_in_days: 7 }),
   });
 }
 

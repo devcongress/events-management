@@ -162,6 +162,7 @@ import {
 } from '@/lib/event-page-monitor';
 import {
   EventSubmissionStorageError,
+  getApprovedEventIdForSubmission,
   getEventSubmissionOrganizerContact,
   getEventSubmissionReply,
   getPendingEventSubmissionEmails,
@@ -2547,6 +2548,33 @@ async function checkEventPage(event: Event, c: Context): Promise<EventPageMonito
   return alertEventPageMonitor(event, saved, c);
 }
 
+async function refreshApprovedAmendmentMonitor(submissionId: string, c: Context): Promise<void> {
+  const eventId = await getApprovedEventIdForSubmission(submissionId, c);
+  if (!eventId) return;
+  const event = await getEventById(eventId, c);
+  if (!event) return;
+  const monitor = await ensureEventPageMonitor(event, c);
+  if (!monitor) return;
+  await checkEventPage(event, c);
+}
+
+async function dispatchApprovedAmendmentMonitorRefresh(submissionId: string, c: Context): Promise<void> {
+  const task = refreshApprovedAmendmentMonitor(submissionId, c).catch((error) => {
+    console.warn(JSON.stringify({
+      event: 'event_submission_amendment_monitor_refresh_failed',
+      submission_id: submissionId,
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+  });
+
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
+  }
+}
+
 async function checkDueEventPages(c: Context) {
   const events = await getAllEvents(c);
   for (const event of events) await ensureEventPageMonitor(event, c);
@@ -3013,6 +3041,9 @@ function eventSubmissionLifecycleForRequest(c: Context) {
     },
     notifyAmendmentSubmitted: async ({ management, amendment }) => {
       await notifyEventSubmissionAmendmentChannel(management, amendment, c);
+    },
+    refreshApprovedEventMonitor: async ({ submissionId }) => {
+      await dispatchApprovedAmendmentMonitorRefresh(submissionId, c);
     },
   });
 }
