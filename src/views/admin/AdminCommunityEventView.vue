@@ -111,7 +111,8 @@ async function load() {
 }
 const monitorStatus = computed(() => {
   if (!monitorEligible.value) return 'Not monitored';
-  if (!pageMonitor.value || pageMonitor.value.status === 'pending') return 'Waiting for first check';
+  if (!pageMonitor.value) return 'Not scheduled';
+  if (pageMonitor.value.status === 'pending') return pageMonitor.value.last_checked_at ? 'Waiting for next scheduled check' : 'First check scheduled';
   if (pageMonitor.value.status === 'unchanged') return 'No changes detected';
   if (pageMonitor.value.status === 'changed') return 'Changes need review';
   if (pageMonitor.value.status === 'warning') return 'Temporary check warning';

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-22 — Cadence-safe amendment monitor reset
+
+- Changed approved amendments to clear reviewed registration-page findings, rebaseline against the updated canonical listing, and wait for the event's next scheduled monitoring interval instead of checking and alerting immediately.
+- Scheduled newly created or reconciled monitors from the event-date cadence so deployments and ordinary reads do not make every upcoming event immediately due; **Check now** remains available for explicit early verification.
+- Preserved the previous **Last checked** time while the monitor waits, and clarified that waiting state in the Community event overview.
+
 ## 2026-08-22 — Approved amendment monitor refresh
 
 - Rebased registration-page monitoring on the newly approved canonical schedule, location, and registration URL, then queued an immediate best-effort comparison against the organizer page.

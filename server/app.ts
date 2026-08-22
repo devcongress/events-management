@@ -150,6 +150,7 @@ import {
 import {
   ensureEventPageMonitor,
   listDueEventPageMonitors,
+  rebaselineEventPageMonitor,
   saveEventPageMonitor,
   type EventPageMonitor,
 } from '@/lib/supabase/event-page-monitors';
@@ -2548,20 +2549,18 @@ async function checkEventPage(event: Event, c: Context): Promise<EventPageMonito
   return alertEventPageMonitor(event, saved, c);
 }
 
-async function refreshApprovedAmendmentMonitor(submissionId: string, c: Context): Promise<void> {
+async function rebaselineApprovedAmendmentMonitor(submissionId: string, c: Context): Promise<void> {
   const eventId = await getApprovedEventIdForSubmission(submissionId, c);
   if (!eventId) return;
   const event = await getEventById(eventId, c);
   if (!event) return;
-  const monitor = await ensureEventPageMonitor(event, c);
-  if (!monitor) return;
-  await checkEventPage(event, c);
+  await rebaselineEventPageMonitor(event, c);
 }
 
-async function dispatchApprovedAmendmentMonitorRefresh(submissionId: string, c: Context): Promise<void> {
-  const task = refreshApprovedAmendmentMonitor(submissionId, c).catch((error) => {
+async function dispatchApprovedAmendmentMonitorRebaseline(submissionId: string, c: Context): Promise<void> {
+  const task = rebaselineApprovedAmendmentMonitor(submissionId, c).catch((error) => {
     console.warn(JSON.stringify({
-      event: 'event_submission_amendment_monitor_refresh_failed',
+      event: 'event_submission_amendment_monitor_rebaseline_failed',
       submission_id: submissionId,
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
@@ -3042,8 +3041,8 @@ function eventSubmissionLifecycleForRequest(c: Context) {
     notifyAmendmentSubmitted: async ({ management, amendment }) => {
       await notifyEventSubmissionAmendmentChannel(management, amendment, c);
     },
-    refreshApprovedEventMonitor: async ({ submissionId }) => {
-      await dispatchApprovedAmendmentMonitorRefresh(submissionId, c);
+    rebaselineApprovedEventMonitor: async ({ submissionId }) => {
+      await dispatchApprovedAmendmentMonitorRebaseline(submissionId, c);
     },
   });
 }

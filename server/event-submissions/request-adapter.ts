@@ -21,7 +21,7 @@ export function createEventSubmissionRequestAdapter(
       management: EventSubmissionManagement;
       amendment: EventSubmissionAmendment;
     }): Promise<void>;
-    refreshApprovedEventMonitor(input: { submissionId: string }): Promise<void>;
+    rebaselineApprovedEventMonitor(input: { submissionId: string }): Promise<void>;
   },
 ) {
   return createEventSubmissionLifecycle({
@@ -34,6 +34,6 @@ export function createEventSubmissionRequestAdapter(
       if (event) await dependencies.announcePublished(event);
     },
     notifyAmendmentSubmitted: dependencies.notifyAmendmentSubmitted,
-    refreshApprovedEventMonitor: dependencies.refreshApprovedEventMonitor,
+    rebaselineApprovedEventMonitor: dependencies.rebaselineApprovedEventMonitor,
   });
 }
