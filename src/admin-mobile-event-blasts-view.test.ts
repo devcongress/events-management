@@ -24,7 +24,11 @@ describe('phone event blasts workspace', () => {
   });
 
   it('warns before abandoning a draft and preserves phone ergonomics', () => {
-    expect(viewSource).toContain('Leave without sending? Your blast draft will be discarded.');
+    expect(viewSource).toContain('<ConfirmDialog');
+    expect(viewSource).toContain('title="Discard this draft?"');
+    expect(viewSource).toContain('@confirm="finishPendingLeave(true)"');
+    expect(viewSource).toContain('@cancel="finishPendingLeave(false)"');
+    expect(viewSource).not.toContain('window.confirm(');
     expect(viewSource).toContain("window.addEventListener('beforeunload', warnBeforeBrowserExit)");
     expect(viewSource).toContain('min-height: 2.75rem');
     expect(viewSource).toContain('env(safe-area-inset-bottom)');

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-22 — App-styled blast draft confirmation
+
+- Replaced the browser-native confirmation shown during in-app navigation away from an unsent mobile blast with the shared EMS confirmation dialog.
+- Retained the required browser-native safeguard for refreshes, tab closes, and navigation away from EMS, where browsers do not permit an app-styled prompt.
+
 ## 2026-08-21 — Phone event operations workspace
 
 - Added a dedicated phone event drill-down with **Overview**, **Guests**, and **Submissions**, so organizers can open the full event context instead of being redirected to the limited Mobile Ops landing screen.

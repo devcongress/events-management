@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { onBeforeRouteLeave, RouterLink, useRoute } from 'vue-router';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import {
   createEventBlast,
   fetchEventBlasts,
@@ -26,6 +27,8 @@ const blastRetryId = ref<string | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
 const blastScheduledFor = ref('');
+const leaveConfirmationOpen = ref(false);
+let resolvePendingLeave: ((shouldLeave: boolean) => void) | null = null;
 
 const registrationQuery = useQuery({
   queryKey: computed(() => queryKeys.eventRegistrations(eventId.value)),
@@ -171,12 +174,25 @@ function warnBeforeBrowserExit(event: BeforeUnloadEvent) {
   event.returnValue = '';
 }
 
+function finishPendingLeave(shouldLeave: boolean) {
+  leaveConfirmationOpen.value = false;
+  const resolve = resolvePendingLeave;
+  resolvePendingLeave = null;
+  resolve?.(shouldLeave);
+}
+
 onMounted(() => window.addEventListener('beforeunload', warnBeforeBrowserExit));
 onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeBrowserExit));
 
-onBeforeRouteLeave(() => (
-  !hasDraft.value || window.confirm('Leave without sending? Your blast draft will be discarded.')
-));
+onBeforeRouteLeave(() => {
+  if (!hasDraft.value) return true;
+  if (resolvePendingLeave) return false;
+
+  leaveConfirmationOpen.value = true;
+  return new Promise<boolean>((resolve) => {
+    resolvePendingLeave = resolve;
+  });
+});
 </script>
 
 <template>
@@ -302,6 +318,17 @@ onBeforeRouteLeave(() => (
       :busy="blastPending"
       @close="previewOpen = false"
       @confirm="sendBlast"
+    />
+
+    <ConfirmDialog
+      :open="leaveConfirmationOpen"
+      title="Discard this draft?"
+      message="Your unsent blast will be discarded if you leave this page."
+      confirm-label="Discard draft"
+      cancel-label="Keep editing"
+      danger
+      @confirm="finishPendingLeave(true)"
+      @cancel="finishPendingLeave(false)"
     />
   </section>
 </template>
