@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { legacySelectedSpeakerShortCode } from '../lib/speaker-intake-short-links';
 
 const mockAdminRole = vi.hoisted(() => ({ value: 'owner' as 'owner' | 'organizer' }));
 
@@ -137,7 +138,7 @@ describe('selected-speaker email workflow', () => {
     });
     expect(selectResponse.status).toBe(200);
     const selected = await selectResponse.json() as { link: { short_url: string; token: null } };
-    expect(selected.link.short_url).toMatch(/^https:\/\/go\.devcongress\.org\/P_/);
+    expect(selected.link.short_url).toMatch(/^https:\/\/go\.devcongress\.org\/P_[A-Za-z0-9_-]{22}$/);
     expect(selected.link.token).toBeNull();
 
     const code = selected.link.short_url.split('/').at(-1)!;
@@ -224,6 +225,37 @@ describe('selected-speaker email workflow', () => {
     const payload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
     expect(payload).toHaveLength(1);
     expect(payload[0]).toMatchObject({ to: ['kojo@example.com'] });
+  });
+
+  it('continues resolving already-issued long selected-speaker capabilities', async () => {
+    const { app, links, submissions, submission } = await setup();
+    const linkId = 'd82e328d-9bd8-446a-9bec-2fd0605f67fc';
+    const code = legacySelectedSpeakerShortCode(linkId, event.id, 'test-speaker-intake-link-secret-2026');
+    await links.createSpeakerIntakeLink({
+      id: linkId,
+      token: code,
+      event_id: event.id,
+      event_month: '2026-08',
+      expires_at: '2099-01-01T00:00:00.000Z',
+      purpose: 'selected_speaker_confirmation',
+      speaker_submission_id: submission.id,
+      speaker_name: submission.speaker_name,
+      speaker_email: submission.speaker_email,
+      talk_title: submission.title,
+    });
+    await submissions.updateSpeakerSubmission(submission.id, {
+      status: 'selected',
+      selected_intake_link_id: linkId,
+    });
+
+    const response = await app.request(`http://localhost/api/internal/short-links/${code}`, {
+      headers: { 'x-short-link-resolver-token': 'test-short-link-resolver-token-2026' },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      destination_path: `/speaker-talks/${event.id}/${code}`,
+    });
   });
 
   it('keeps a rejection final', async () => {

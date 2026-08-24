@@ -112,7 +112,7 @@ import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySess
 import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
-import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkById, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
+import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByCapability, getSpeakerIntakeLinkById, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, decideSpeakerSubmission as decideSpeakerSubmissionRecord, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, SpeakerSubmissionDecisionFinalError, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
@@ -240,8 +240,8 @@ import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, 
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 import { VOLUNTEER_PUBLIC_PATH } from '@/lib/volunteer-intake-routes';
 import { staticShortLinkDestinationPath } from '@/lib/short-link-destinations';
-import { isSupportedShortLinkCode, MARKETING_SHORT_LINK_CODE_PATTERN, SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN } from '@/short-links/code-patterns';
-import { selectedSpeakerLinkIdFromShortCode, selectedSpeakerShortCode, speakerIntakeTokenHash, verifySelectedSpeakerShortCode } from '@/lib/speaker-intake-short-links';
+import { isSupportedShortLinkCode, LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN, MARKETING_SHORT_LINK_CODE_PATTERN, SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN } from '@/short-links/code-patterns';
+import { legacySelectedSpeakerShortCode, selectedSpeakerLinkIdFromShortCode, selectedSpeakerShortCode, speakerIntakeTokenHash, verifyLegacySelectedSpeakerShortCode, verifySelectedSpeakerShortCode } from '@/lib/speaker-intake-short-links';
 import { publicRegistrationOrigin } from './public-registration-origin';
 import { secureSharedSecret, sharedSecretStatus } from '@/lib/security/shared-secret';
 
@@ -5936,16 +5936,27 @@ app.get('/api/internal/short-links/:code', async (c) => {
       return c.json({ destination_path: destinationPath }, 200, { 'Cache-Control': 'no-store' });
     }
 
-    const linkId = selectedSpeakerLinkIdFromShortCode(code);
     const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
-    if (!linkId || !secret || !SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) {
-      return c.json({ error: 'Not found.' }, 404);
+    if (!secret) return c.json({ error: 'Not found.' }, 404);
+
+    let link: SpeakerIntakeLink | undefined;
+    if (SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) {
+      link = await getSpeakerIntakeLinkByCapability(code);
+      if (!link || !verifySelectedSpeakerShortCode(code, link.id, link.event_id, secret)) {
+        return c.json({ error: 'Not found.' }, 404);
+      }
+    } else if (LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) {
+      const linkId = selectedSpeakerLinkIdFromShortCode(code);
+      if (!linkId) return c.json({ error: 'Not found.' }, 404);
+      link = await getSpeakerIntakeLinkById(linkId);
+      if (!link || !verifyLegacySelectedSpeakerShortCode(code, link.id, link.event_id, secret)) {
+        return c.json({ error: 'Not found.' }, 404);
+      }
     }
-    const link = await getSpeakerIntakeLinkById(linkId);
+
     if (
       !link
       || link.purpose !== 'selected_speaker_confirmation'
-      || !verifySelectedSpeakerShortCode(code, link.id, link.event_id, secret)
       || speakerIntakeTokenHash(code) !== link.token_hash
       || speakerIntakeLinkError(link)
     ) {
@@ -8131,8 +8142,11 @@ function selectedSpeakerShortUrlForLink(link: SpeakerIntakeLink, c: Context): st
   if (!secret) return null;
 
   const code = selectedSpeakerShortCode(link.id, link.event_id, secret);
-  return speakerIntakeTokenHash(code) === link.token_hash
-    ? shortLinkPublicUrl(code, c)
+  if (speakerIntakeTokenHash(code) === link.token_hash) return shortLinkPublicUrl(code, c);
+
+  const legacyCode = legacySelectedSpeakerShortCode(link.id, link.event_id, secret);
+  return speakerIntakeTokenHash(legacyCode) === link.token_hash
+    ? shortLinkPublicUrl(legacyCode, c)
     : null;
 }
 

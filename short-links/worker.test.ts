@@ -41,8 +41,10 @@ describe('short-link Worker', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
-  it('resolves a private selected-speaker capability through EMS', async () => {
-    const code = 'P_AAAAAAAAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAA';
+  it.each([
+    'P_AAAAAAAAAAAAAAAAAAAAAA',
+    'P_AAAAAAAAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAA',
+  ])('resolves the private selected-speaker capability %s through EMS', async (code) => {
     const resolver = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe(`https://em.devcongress.org/api/internal/short-links/${code}`);
       return new Response(JSON.stringify({ destination_path: `/speaker-talks/event-1/${code}` }), { status: 200 });

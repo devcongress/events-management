@@ -1,7 +1,11 @@
 import crypto from 'crypto';
-import { SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN } from '@/short-links/code-patterns';
+import {
+  LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN,
+  SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN,
+} from '@/short-links/code-patterns';
 
-const SIGNATURE_BYTES = 12;
+const SHORT_CAPABILITY_BYTES = 16;
+const LEGACY_SIGNATURE_BYTES = 12;
 
 function uuidBytes(id: string): Buffer {
   const hex = id.replaceAll('-', '');
@@ -15,22 +19,26 @@ function uuidFromBytes(value: Buffer): string | null {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-function signature(linkId: string, eventId: string, secret: string): string {
+function signature(linkId: string, eventId: string, secret: string, bytes: number, version = ''): string {
   return crypto
     .createHmac('sha256', secret)
-    .update(`selected-speaker:${linkId}:${eventId}`)
+    .update(`selected-speaker${version}:${linkId}:${eventId}`)
     .digest()
-    .subarray(0, SIGNATURE_BYTES)
+    .subarray(0, bytes)
     .toString('base64url');
 }
 
 export function selectedSpeakerShortCode(linkId: string, eventId: string, secret: string): string {
+  return `P_${signature(linkId, eventId, secret, SHORT_CAPABILITY_BYTES, '-v2')}`;
+}
+
+export function legacySelectedSpeakerShortCode(linkId: string, eventId: string, secret: string): string {
   const encodedId = uuidBytes(linkId).toString('base64url');
-  return `P_${encodedId}_${signature(linkId, eventId, secret)}`;
+  return `P_${encodedId}_${signature(linkId, eventId, secret, LEGACY_SIGNATURE_BYTES)}`;
 }
 
 export function selectedSpeakerLinkIdFromShortCode(code: string): string | null {
-  if (!SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) return null;
+  if (!LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) return null;
   const encodedId = code.slice(2, 24);
 
   try {
@@ -47,6 +55,18 @@ export function verifySelectedSpeakerShortCode(
   secret: string,
 ): boolean {
   const expected = selectedSpeakerShortCode(linkId, eventId, secret);
+  if (code.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected));
+}
+
+export function verifyLegacySelectedSpeakerShortCode(
+  code: string,
+  linkId: string,
+  eventId: string,
+  secret: string,
+): boolean {
+  if (!LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) return false;
+  const expected = legacySelectedSpeakerShortCode(linkId, eventId, secret);
   if (code.length !== expected.length) return false;
   return crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected));
 }

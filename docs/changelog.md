@@ -13,6 +13,7 @@
 - Added a pre-decision warning for approval and rejection in the desktop and phone review flows; desktop uses an app modal, while phone confirmation rises as a safe-area-aware bottom drawer and focuses **Go back** first.
 - Reissued only unsent legacy, expired, or failed links during preview preparation; added resolver validation, request-path redaction, deployment-secret health reporting, and selected-speaker scenario parity in the owner email catalog.
 - Fixed private selected-speaker short-link resolution when the base64url-encoded link identity itself contains underscores.
+- Shortened newly generated selected-speaker codes to a 128-bit opaque capability resolved by its existing unique stored hash, while retaining resolution for already-issued longer links.
 
 ## 2026-08-24 — Presentation proposal table and mobile counters
 

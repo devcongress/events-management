@@ -27,6 +27,7 @@ describe('speaker intake links', () => {
     const {
       consumeSpeakerIntakeLink,
       createSpeakerIntakeLink,
+      getSpeakerIntakeLinkByCapability,
       getSpeakerIntakeLinkByToken,
       speakerIntakeLinkExpired,
     } = await importLinksStore();
@@ -49,6 +50,7 @@ describe('speaker intake links', () => {
       speaker_email: 'ama@example.com',
       used_at: null,
     });
+    await expect(getSpeakerIntakeLinkByCapability(token)).resolves.toMatchObject({ id: link.id });
     expect(speakerIntakeLinkExpired(link)).toBe(false);
 
     await expect(consumeSpeakerIntakeLink('event-june', token, 'talk-1')).resolves.toMatchObject({

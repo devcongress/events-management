@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-079: Resolve Compact Selected-Speaker Capabilities by Stored Hash
+
+**Date:** 2026-08-24
+**Why:** The UUID-bearing selected-speaker capability introduced in ADR-077 preserved strong bearer security but produced unnecessarily long `go.devcongress.org` links. Simply truncating its signature would reduce security, while the existing `speaker_intake_links.token_hash` column is already unique, service-role-only, and indexed by its uniqueness constraint.
+**Decision:** Generate new selected-speaker codes as `P_` plus a 128-bit HMAC capability derived from the intake-link ID, event ID, and the existing server-only secret. Store only the SHA-256 capability hash and resolve the incoming code through that unique hash before verifying the HMAC, link purpose, event binding, expiry, and selected submission. Continue recognizing and verifying the UUID-bearing ADR-077 format so already-issued links remain valid; generate only the compact format going forward.
+**Tradeoffs:** Resolution now performs a unique hash lookup before it knows the intake-link ID, but the existing unique index keeps that bounded and no migration is required. The code remains longer than a public marketing slug because it grants private one-time access, but it drops from roughly 41 characters to 24 without lowering capability strength below 128 bits.
+**Revisit when:** Private capability traffic warrants a dedicated shared resolver table, key rotation needs versioned secrets, or operational telemetry shows meaningful lookup pressure.
+
+---
+
 ## ADR-078: Owner-Only Test Proposals Use an Internal Marker
 
 **Date:** 2026-08-24

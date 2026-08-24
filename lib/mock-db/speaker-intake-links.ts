@@ -379,6 +379,25 @@ export async function getSpeakerIntakeLinkByToken(eventId: string, token: string
   return link ? normalizeSpeakerIntakeLink(link) : undefined;
 }
 
+export async function getSpeakerIntakeLinkByCapability(token: string): Promise<SpeakerIntakeLink | undefined> {
+  const tokenHash = hashSpeakerIntakeToken(token);
+
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from('speaker_intake_links')
+      .select('*')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+
+    if (error) throw new Error('Unable to verify archive request link');
+    return data ? fromSupabaseRow(data) : undefined;
+  }
+
+  const links = await readData<SpeakerIntakeLink>(FILE);
+  const link = links.find((item) => item.token_hash === tokenHash);
+  return link ? normalizeSpeakerIntakeLink(link) : undefined;
+}
+
 export async function claimSpeakerIntakeLink(
   eventId: string,
   token: string,
