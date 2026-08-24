@@ -19,6 +19,9 @@ describe('selected-speaker email controls', () => {
     expect(viewSource).toContain('@click.stop="previewSelectedSpeakerEmails(submission.id)"');
     expect(viewSource).toContain(':disabled="preparingSelectedSpeakerEmailTarget === submission.id"');
     expect(viewSource).toContain("preparingSelectedSpeakerEmailTarget.value = submissionId ?? 'all'");
+    expect(viewSource).toContain('selectedSpeakerEmailReadyCount.value < 2');
+    expect(viewSource).toContain('selectedSpeakerEmailReadyCount < 2 || preparingSelectedSpeakerEmailTarget');
+    expect(viewSource).toContain('Bulk email preview requires at least two ready emails.');
     expect(viewSource).toContain('selectedSpeakerEmailPreviewController?.abort()');
     expect(viewSource).toContain('submission_ids: selectedSpeakerEmailPreviews.value.map');
     expect(previewSource).toContain('Nothing is sent until you confirm below.');

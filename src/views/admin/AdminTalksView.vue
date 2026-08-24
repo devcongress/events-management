@@ -682,6 +682,8 @@ function selectedSpeakerEmailCanPreview(submission: SpeakerSubmission): boolean 
 }
 
 async function previewSelectedSpeakerEmails(submissionId?: string) {
+  if (!submissionId && selectedSpeakerEmailReadyCount.value < 2) return;
+
   selectedSpeakerEmailPreviewController?.abort();
   const controller = new AbortController();
   selectedSpeakerEmailPreviewController = controller;
@@ -1455,7 +1457,15 @@ onUnmounted(() => {
                     @update:model-value="setProposalStatusFilter"
                   />
                 </div>
-                <button v-if="selectedSpeakerEmailReadyCount > 0" type="button" :disabled="preparingSelectedSpeakerEmailTarget === 'all'" :class="proposalActionClass(true)" class="min-h-10" @click="previewSelectedSpeakerEmails()">
+                <button
+                  v-if="selectedSpeakerEmailReadyCount > 0"
+                  type="button"
+                  :disabled="selectedSpeakerEmailReadyCount < 2 || preparingSelectedSpeakerEmailTarget === 'all'"
+                  :aria-label="selectedSpeakerEmailReadyCount < 2 ? 'Bulk email preview requires at least two ready emails. Use the speaker row to preview this email.' : `Preview ${selectedSpeakerEmailReadyCount} selected-speaker emails`"
+                  :class="proposalActionClass(true)"
+                  class="min-h-10 disabled:cursor-not-allowed"
+                  @click="previewSelectedSpeakerEmails()"
+                >
                   {{ preparingSelectedSpeakerEmailTarget === 'all' ? 'Preparing preview…' : `Preview ${selectedSpeakerEmailReadyCount} email${selectedSpeakerEmailReadyCount === 1 ? '' : 's'}` }}
                 </button>
               </div>

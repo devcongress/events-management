@@ -4,6 +4,7 @@
 
 - Prepared a high-entropy, event-bound `go.devcongress.org` private form link automatically when a proposal is selected, removing the separate **Prepare links** action while retaining hash-only token storage.
 - Added authenticated batch and per-speaker email previews that show the exact personalized system content, sender, recipient, subject, and rendered message before any send occurs; a per-speaker send is constrained to the speaker that was previewed.
+- Disabled the batch preview action when fewer than two selected-speaker emails are ready, directing single-speaker previews through the matching proposal row.
 - Kept proposal-row email and link actions compact and on one line, and scoped preview progress to the active speaker. Starting another preview cancels the stale request instead of putting every row into a shared loading state.
 - Added an explicit owner-only test-proposal marker: marked speaker proposals, their counts, decisions, private links, previews, and sends are excluded from every non-owner organizer response while remaining available to the Owner for end-to-end email testing.
 - Added a clear configuration response when selected-speaker preview cannot create private links because `SPEAKER_INTAKE_LINK_TOKEN_SECRET` is missing or too short.
