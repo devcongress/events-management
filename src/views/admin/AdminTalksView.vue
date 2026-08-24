@@ -6,9 +6,13 @@ import { adminPath } from '@/src/admin-routes';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import SelectedSpeakerEmailPreview, { type SelectedSpeakerEmailPreviewItem } from '@/src/components/ui/SelectedSpeakerEmailPreview.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
 import { ensureAdminShortLink, fetchAdminSession, queryKeys } from '@/src/lib/api';
+import {
+  countSpeakerSubmissionsByReviewStatus,
+} from '@/src/lib/speaker-submission-counts';
 import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 import {
   isArchiveRequestsChecklistItem,
@@ -40,6 +44,7 @@ type AdminSpeakerIntakeLink = {
   requested_fields: ArchiveMaterialField[];
   kind?: ArchiveItemKind;
   token: string | null;
+  short_url: string | null;
   email_status: SpeakerIntakeEmailStatus | null;
   email_provider_id: string | null;
   email_sent_at: string | null;
@@ -56,6 +61,10 @@ type TalkPreview = {
   source: 'proposal' | 'archive';
   item: SpeakerSubmission | Talk;
 };
+type PendingProposalDecision = {
+  submission: SpeakerSubmission;
+  status: 'selected' | 'not_selected';
+};
 const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
@@ -63,12 +72,17 @@ const speakerIntakeLinks = ref<AdminSpeakerIntakeLink[]>([]);
 const checklistItems = ref<EventChecklistItem[]>([]);
 const loading = ref(true);
 const creatingSpeakerLink = ref(false);
+const preparingSelectedSpeakerEmailTarget = ref<'all' | string | null>(null);
+const sendingSelectedSpeakerEmails = ref(false);
+const selectedSpeakerEmailPreviewOpen = ref(false);
+const selectedSpeakerEmailPreviews = ref<SelectedSpeakerEmailPreviewItem[]>([]);
 const enablingArchiveRequests = ref(false);
 const deletingSpeakerLinkId = ref<string | null>(null);
 const decidingSubmissionId = ref<string | null>(null);
 const updatingCfp = ref(false);
 const refreshingSubmissions = ref(false);
 const closeCfpDialogOpen = ref(false);
+const pendingProposalDecision = ref<PendingProposalDecision | null>(null);
 const cfpLinkCopied = ref(false);
 const cfpShortLinkUrl = ref<string | null>(null);
 const copiedSpeakerLinkId = ref<string | null>(null);
@@ -81,11 +95,19 @@ const talkPreviewCloseButton = ref<HTMLButtonElement | null>(null);
 let talkPreviewTrigger: HTMLElement | null = null;
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
+let selectedSpeakerEmailPreviewController: AbortController | null = null;
 const speakerLinkExpiresInDays = ref(7);
 const backfillProgramItemValues = ref<string[]>([]);
 const backfillProgramItemEmails = ref<Record<string, string>>({});
 const error = ref<string | null>(null);
-const proposalStatusFilter = ref<'submitted' | 'selected' | 'not_selected'>('submitted');
+type ProposalStatusFilter = 'all' | 'submitted' | 'selected' | 'not_selected';
+const proposalStatusFilter = ref<ProposalStatusFilter>('all');
+const proposalStatusOptions: Array<{ value: ProposalStatusFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'submitted', label: 'Pending' },
+  { value: 'selected', label: 'Approved' },
+  { value: 'not_selected', label: 'Rejected' },
+];
 const proposalPage = ref(1);
 // Keep the review queue deliberately short so larger CFPs do not turn the
 // workspace into an endlessly scrolling list. AppPagination carries the rest.
@@ -102,18 +124,23 @@ const groupedTalks = computed(() => groups.map((group) => ({
   talks: talks.value.filter((talk) => group.statuses.includes(talk.status)),
 })));
 const canUnpublishArchiveItem = computed(() => adminSessionQuery.data.value?.user?.role === 'owner');
-const pendingSubmissionCount = computed(() => speakerSubmissions.value.filter((submission) => submission.status === 'submitted').length);
+const proposalCounts = computed(() => countSpeakerSubmissionsByReviewStatus(speakerSubmissions.value));
+const pendingSubmissionCount = computed(() => proposalCounts.value.submitted);
 const confirmedTalkCount = computed(() => talks.value.length);
 const archiveBackfillLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'archive_backfill'));
 const selectedSpeakerPendingSubmissions = computed(() => speakerSubmissions.value.filter((submission) => (
   submission.status === 'selected' && !submission.selected_talk_id
 )));
-const visibleProposalSubmissions = computed(() => speakerSubmissions.value.filter((submission) => submission.status === proposalStatusFilter.value));
+const visibleProposalSubmissions = computed(() => (
+  proposalStatusFilter.value === 'all'
+    ? speakerSubmissions.value
+    : speakerSubmissions.value.filter((submission) => submission.status === proposalStatusFilter.value)
+));
 const proposalPageCount = computed(() => Math.max(1, Math.ceil(visibleProposalSubmissions.value.length / PROPOSALS_PAGE_SIZE)));
 const proposalPageStart = computed(() => visibleProposalSubmissions.value.length ? (proposalPage.value - 1) * PROPOSALS_PAGE_SIZE + 1 : 0);
 const proposalPageEnd = computed(() => Math.min(visibleProposalSubmissions.value.length, proposalPage.value * PROPOSALS_PAGE_SIZE));
 const paginatedProposalSubmissions = computed(() => visibleProposalSubmissions.value.slice((proposalPage.value - 1) * PROPOSALS_PAGE_SIZE, proposalPage.value * PROPOSALS_PAGE_SIZE));
-const proposalFilterLabel = computed(() => ({ submitted: 'pending', selected: 'approved', not_selected: 'rejected' })[proposalStatusFilter.value]);
+const proposalFilterLabel = computed(() => ({ all: '', submitted: 'pending', selected: 'approved', not_selected: 'rejected' })[proposalStatusFilter.value]);
 const selectedSpeakerLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'selected_speaker_confirmation'));
 const materialsFollowUpLinks = computed(() => speakerIntakeLinks.value.filter((link) => link.purpose === 'archive_materials_follow_up'));
 // Latest-active link per submission, built once per links change. The template
@@ -133,10 +160,9 @@ const selectedSpeakerLinkBySubmissionId = computed(() => {
 
   return map;
 });
-const missingSelectedSpeakerLinkCount = computed(() => selectedSpeakerPendingSubmissions.value.filter((submission) => {
-  const link = selectedSpeakerLinkForSubmission(submission.id);
-  return !link || link.status !== 'active' || !link.token;
-}).length);
+const selectedSpeakerEmailReadyCount = computed(() => selectedSpeakerPendingSubmissions.value.filter((submission) => (
+  selectedSpeakerLinkForSubmission(submission.id)?.email_status !== 'accepted'
+)).length);
 const activeArchiveBackfillLinkCount = computed(() => archiveBackfillLinks.value.filter((link) => link.status === 'active').length);
 const archiveRequestsChecklistItem = computed(() => (
   checklistItems.value.find(isArchiveRequestsChecklistItem) ?? null
@@ -163,6 +189,20 @@ const activeTalkSectionIndicatorStyle = computed(() => ({
 const previewProposal = computed<SpeakerSubmission | null>(() => (
   talkPreview.value?.source === 'proposal' ? talkPreview.value.item as SpeakerSubmission : null
 ));
+const proposalDecisionTitle = computed(() => {
+  if (!pendingProposalDecision.value) return '';
+  return pendingProposalDecision.value.status === 'selected'
+    ? 'Approve this proposal?'
+    : 'Reject this proposal?';
+});
+const proposalDecisionMessage = computed(() => {
+  const decision = pendingProposalDecision.value;
+  if (!decision) return '';
+  const proposal = `“${decision.submission.title}” by ${decision.submission.speaker_name}`;
+  return decision.status === 'selected'
+    ? `${proposal} will be approved and a private speaker form link will be prepared. No email is sent yet. This decision cannot be undone.`
+    : `${proposal} will be rejected and removed from the pending review queue. This decision cannot be undone.`;
+});
 const previewProposalResourceUrl = computed(() => safePublicResourceUrl(previewProposal.value?.resource_url));
 const previewArchiveItem = computed<Talk | null>(() => (
   talkPreview.value?.source === 'archive' ? talkPreview.value.item as Talk : null
@@ -324,11 +364,11 @@ async function fetchArchiveRequestAvailability() {
 }
 
 function rememberIssuedSpeakerLink(payload: { link?: AdminSpeakerIntakeLink | null; token?: string | null }) {
-  if (!payload.link || !payload.token) return;
+  if (!payload.link) return;
 
   const issuedLink: AdminSpeakerIntakeLink = {
     ...payload.link,
-    token: payload.token,
+    token: payload.token ?? payload.link.token ?? null,
   };
   const index = speakerIntakeLinks.value.findIndex((link) => link.id === issuedLink.id);
   if (index === -1) {
@@ -575,7 +615,7 @@ async function enableArchiveRequests() {
   }
 }
 
-async function decideSpeakerSubmission(submissionId: string, status: 'selected' | 'not_selected') {
+async function decideSpeakerSubmission(submissionId: string, status: 'selected' | 'not_selected'): Promise<boolean> {
   decidingSubmissionId.value = submissionId;
   error.value = null;
 
@@ -593,62 +633,115 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
     if (response.ok) {
       await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
       if (previewProposal.value?.id === submissionId) closeTalkPreview();
-      if (status === 'selected' && data.token) {
+      if (status === 'selected') {
         rememberIssuedSpeakerLink(data);
         resetSpeakerIntakeLinkCopied();
-        notify.success('Private archive completion link generated.');
+        notify.success('Speaker selected. Their private form link is ready.');
       } else {
         notify.success('Presenter marked as not selected.');
       }
+      return true;
     } else {
-      error.value = data.error || 'Failed to update presentation proposal';
+      const message = data.error || 'Failed to update presentation proposal';
+      error.value = message;
+      notify.error(message);
     }
   } catch {
-    error.value = 'Failed to update presentation proposal';
+    const message = 'Failed to update presentation proposal';
+    error.value = message;
+    notify.error(message);
   } finally {
     decidingSubmissionId.value = null;
   }
+
+  return false;
 }
 
-async function generateSelectedSpeakerLinks() {
-  const submissionsNeedingLinks = selectedSpeakerPendingSubmissions.value.filter((submission) => {
-    const link = selectedSpeakerLinkForSubmission(submission.id);
-    return !link || link.status !== 'active' || !link.token;
-  });
+function requestProposalDecision(submission: SpeakerSubmission, status: 'selected' | 'not_selected') {
+  if (submission.status !== 'submitted' || decidingSubmissionId.value) return;
+  pendingProposalDecision.value = { submission, status };
+}
 
-  if (submissionsNeedingLinks.length === 0) return;
+async function confirmProposalDecision() {
+  const decision = pendingProposalDecision.value;
+  if (!decision || decidingSubmissionId.value) return;
+  const decided = await decideSpeakerSubmission(decision.submission.id, decision.status);
+  if (decided) pendingProposalDecision.value = null;
+}
 
-  creatingSpeakerLink.value = true;
+function setProposalStatusFilter(value: string | number) {
+  if (value === 'all' || value === 'submitted' || value === 'selected' || value === 'not_selected') {
+    proposalStatusFilter.value = value;
+  }
+}
+
+function selectedSpeakerEmailCanPreview(submission: SpeakerSubmission): boolean {
+  return submission.status === 'selected'
+    && !submission.selected_talk_id
+    && selectedSpeakerLinkForSubmission(submission.id)?.email_status !== 'accepted';
+}
+
+async function previewSelectedSpeakerEmails(submissionId?: string) {
+  if (!submissionId && selectedSpeakerEmailReadyCount.value < 2) return;
+
+  selectedSpeakerEmailPreviewController?.abort();
+  const controller = new AbortController();
+  selectedSpeakerEmailPreviewController = controller;
+  preparingSelectedSpeakerEmailTarget.value = submissionId ?? 'all';
   error.value = null;
-
   try {
-    // Independent mutations: run them concurrently instead of paying one
-    // round trip per selected speaker.
-    const issuedLinks = await Promise.all(submissionsNeedingLinks.map(async (submission) => {
-      const response = await fetch(`/api/speaker-submissions/${submission.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'selected',
-          expires_in_days: speakerLinkExpiresInDays.value,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || `Could not generate an archive completion link for ${submission.speaker_name}.`);
-      }
-      return data as { link?: AdminSpeakerIntakeLink | null; token?: string | null };
-    }));
-
+    const response = await fetch(`/api/events/${route.params.eventId}/selected-speaker-emails/preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(submissionId ? { submission_ids: [submissionId] } : {}),
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (controller.signal.aborted || selectedSpeakerEmailPreviewController !== controller) return;
+    if (!response.ok) throw new Error(data.error || 'Could not prepare selected-speaker emails.');
     await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
-    issuedLinks.forEach(rememberIssuedSpeakerLink);
-    resetSpeakerIntakeLinkCopied();
-    notify.success(submissionsNeedingLinks.length === 1 ? 'Archive completion link generated.' : 'Selected presenter links generated.');
+    if (controller.signal.aborted || selectedSpeakerEmailPreviewController !== controller) return;
+    selectedSpeakerEmailPreviews.value = data.previews ?? [];
+    if (selectedSpeakerEmailPreviews.value.length === 0) {
+      notify.info(data.already_sent_count > 0 ? 'All selected-speaker emails have already been sent.' : 'No selected speakers are waiting for an email.');
+      return;
+    }
+    selectedSpeakerEmailPreviewOpen.value = true;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Could not generate selected presenter links.';
+    if (caught instanceof DOMException && caught.name === 'AbortError') return;
+    error.value = caught instanceof Error ? caught.message : 'Could not prepare selected-speaker emails.';
+    notify.error(error.value);
   } finally {
-    creatingSpeakerLink.value = false;
+    if (selectedSpeakerEmailPreviewController === controller) {
+      selectedSpeakerEmailPreviewController = null;
+      preparingSelectedSpeakerEmailTarget.value = null;
+    }
+  }
+}
+
+async function sendSelectedSpeakerEmails() {
+  if (sendingSelectedSpeakerEmails.value || selectedSpeakerEmailPreviews.value.length === 0) return;
+  sendingSelectedSpeakerEmails.value = true;
+  error.value = null;
+  try {
+    const response = await fetch(`/api/events/${route.params.eventId}/selected-speaker-emails/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        submission_ids: selectedSpeakerEmailPreviews.value.map((preview) => preview.submission_id),
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Could not send selected-speaker emails.');
+    selectedSpeakerEmailPreviewOpen.value = false;
+    selectedSpeakerEmailPreviews.value = [];
+    await fetchSpeakerIntakeLinks();
+    notify.success(data.sent_count === 1 ? 'Selected-speaker email sent.' : `${data.sent_count} selected-speaker emails sent.`);
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'Could not send selected-speaker emails.';
+    notify.error(error.value);
+  } finally {
+    sendingSelectedSpeakerEmails.value = false;
   }
 }
 
@@ -958,6 +1051,12 @@ function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
   return 'Pending';
 }
 
+function proposalStatusClass(status: SpeakerSubmissionStatus): string {
+  if (status === 'selected') return 'border-dc-pink bg-dc-pink text-white';
+  if (status === 'not_selected') return 'border-[#fda4af] bg-[#fff1f2] text-[#be123c]';
+  return 'border-[#e4cf21] bg-dc-yellow text-dc-ink';
+}
+
 function actionClass(isPrimary = false): string {
   return isPrimary
     ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
@@ -978,6 +1077,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (cfpLinkCopiedResetTimer) clearTimeout(cfpLinkCopiedResetTimer);
   if (speakerIntakeLinkCopiedResetTimer) clearTimeout(speakerIntakeLinkCopiedResetTimer);
+  selectedSpeakerEmailPreviewController?.abort();
   window.removeEventListener('keydown', handleTalkPreviewKeydown);
 });
 </script>
@@ -1342,56 +1442,85 @@ onUnmounted(() => {
             <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border bg-dc-paper-warm px-4 py-3 sm:px-6">
               <div>
                 <p class="ops-label">Review queue</p>
-                <p class="mt-1 text-sm font-medium text-dc-gray">{{ visibleProposalSubmissions.length }} {{ proposalFilterLabel }} proposal{{ visibleProposalSubmissions.length === 1 ? '' : 's' }}</p>
+                <p class="mt-1 text-sm font-medium text-dc-gray">{{ visibleProposalSubmissions.length }}{{ proposalFilterLabel ? ` ${proposalFilterLabel}` : '' }} proposal{{ visibleProposalSubmissions.length === 1 ? '' : 's' }}</p>
               </div>
-              <div class="flex flex-wrap items-center justify-end gap-2">
-                <nav class="flex flex-wrap gap-2" aria-label="Filter presentation proposals by status">
-                  <button v-for="filter in ([{ value: 'submitted', label: 'Pending' }, { value: 'selected', label: 'Approved' }, { value: 'not_selected', label: 'Rejected' }] as const)" :key="filter.value" type="button" class="motion-press relative min-h-9 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="proposalStatusFilter === filter.value ? 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[1px_1px_0_#111111]' : 'border-dc-border bg-white text-dc-gray hover:border-dc-ink hover:text-dc-ink'" :aria-pressed="proposalStatusFilter === filter.value" @click="proposalStatusFilter = filter.value">
-                    {{ filter.label }}
-                    <Transition v-if="filter.value === 'submitted'" name="submission-count"><span v-if="pendingSubmissionCount" class="submission-filter-count" :class="pendingSubmissionCount > 99 ? 'text-[7px]' : 'text-[9px]'" :aria-label="`${pendingSubmissionCount} pending proposals`">{{ pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount }}</span></Transition>
-                  </button>
-                </nav>
-                <button v-if="proposalStatusFilter === 'selected' && selectedSpeakerPendingSubmissions.length > 0" type="button" :disabled="creatingSpeakerLink || missingSelectedSpeakerLinkCount === 0" :class="proposalActionClass()" @click="generateSelectedSpeakerLinks">
-                  {{ creatingSpeakerLink ? 'Generating...' : missingSelectedSpeakerLinkCount === 0 ? 'Links ready' : `Prepare ${missingSelectedSpeakerLinkCount} link${missingSelectedSpeakerLinkCount === 1 ? '' : 's'}` }}
+              <div class="flex flex-wrap items-end justify-end gap-2">
+                <div class="w-40">
+                  <AppDropdown
+                    :model-value="proposalStatusFilter"
+                    label="Status"
+                    :options="proposalStatusOptions"
+                    density="compact"
+                    menu-align="right"
+                    menu-class="min-w-40"
+                    teleport
+                    @update:model-value="setProposalStatusFilter"
+                  />
+                </div>
+                <button
+                  v-if="selectedSpeakerEmailReadyCount > 0"
+                  type="button"
+                  :disabled="selectedSpeakerEmailReadyCount < 2 || preparingSelectedSpeakerEmailTarget === 'all'"
+                  :aria-label="selectedSpeakerEmailReadyCount < 2 ? 'Bulk email preview requires at least two ready emails. Use the speaker row to preview this email.' : `Preview ${selectedSpeakerEmailReadyCount} selected-speaker emails`"
+                  :class="proposalActionClass(true)"
+                  class="min-h-10 disabled:cursor-not-allowed"
+                  @click="previewSelectedSpeakerEmails()"
+                >
+                  {{ preparingSelectedSpeakerEmailTarget === 'all' ? 'Preparing preview…' : `Preview ${selectedSpeakerEmailReadyCount} email${selectedSpeakerEmailReadyCount === 1 ? '' : 's'}` }}
                 </button>
               </div>
             </div>
-            <div v-if="visibleProposalSubmissions.length === 0" class="p-8 text-center">
-              <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ proposalStatusFilter === 'submitted' ? 'Inbox clear' : `No ${proposalFilterLabel} proposals` }}</p>
-              <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-dc-gray">{{ proposalStatusFilter === 'submitted' ? 'New CFP submissions will arrive here for review.' : 'There are no proposals in this view yet.' }}</p>
-            </div>
-            <div v-else class="overflow-hidden">
-              <table class="w-full table-fixed border-collapse text-left">
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[1080px] table-fixed border-collapse text-left">
                 <caption class="sr-only">Presentation proposals</caption>
                 <thead class="border-b border-dc-border bg-dc-paper font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">
                   <tr>
-                    <th scope="col" class="w-[36%] px-5 py-3 sm:px-6">Proposal</th>
-                    <th scope="col" class="w-[19%] px-4 py-3">Speaker</th>
-                    <th scope="col" class="w-[11%] px-4 py-3">Type</th>
-                    <th scope="col" class="w-[14%] px-4 py-3">Submitted</th>
-                    <th scope="col" class="w-[8%] px-4 py-3"><span class="sr-only">Status</span></th>
-                    <th scope="col" class="w-[12%] px-5 py-3 text-right sm:px-6"><span class="sr-only">Proposal actions</span></th>
+                    <th scope="col" class="w-[22%] px-5 py-3 sm:px-6">Proposal</th>
+                    <th scope="col" class="w-[16%] px-4 py-3">Speaker</th>
+                    <th scope="col" class="w-[9%] px-4 py-3">Type</th>
+                    <th scope="col" class="w-[11%] px-4 py-3">Submitted</th>
+                    <th scope="col" class="w-[12%] px-4 py-3">Status</th>
+                    <th scope="col" class="w-[30%] px-5 py-3 text-right sm:px-6">Action</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-dc-border bg-white">
+                  <tr v-if="visibleProposalSubmissions.length === 0">
+                    <td colspan="6" class="px-6 py-8 text-center">
+                      <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ proposalStatusFilter === 'all' ? 'No proposals yet' : proposalStatusFilter === 'submitted' ? 'Inbox clear' : `No ${proposalFilterLabel} proposals` }}</p>
+                      <p class="mt-2 text-sm leading-6 text-dc-gray">{{ proposalStatusFilter === 'all' || proposalStatusFilter === 'submitted' ? 'New CFP submissions will arrive here for review.' : 'There are no proposals with this status yet.' }}</p>
+                    </td>
+                  </tr>
                   <tr v-for="submission in paginatedProposalSubmissions" :key="submission.id" tabindex="0" class="h-14 cursor-pointer outline-none hover:bg-dc-paper-warm/40 focus-visible:bg-dc-paper-warm focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dc-pink" :aria-label="`Open proposal: ${submission.title}`" @click="openTalkPreview('proposal', submission, $event)" @keydown.enter.prevent="openTalkPreview('proposal', submission)" @keydown.space.prevent="openTalkPreview('proposal', submission)">
                     <th scope="row" class="truncate px-5 py-2 text-sm font-semibold text-dc-ink sm:px-6" :title="submission.title">{{ submission.title }}</th>
                     <td class="truncate px-4 py-2 text-sm text-dc-gray" :title="`${submission.speaker_name} · ${submission.speaker_email}`">{{ submission.speaker_name }}</td>
                     <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ submission.kind === 'product_demo' ? 'Demo' : 'Talk' }}</td>
                     <td class="whitespace-nowrap px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray" :title="formatDateTime(submission.created_at)">{{ formatProposalSubmittedDate(submission.created_at) }}</td>
-                    <td class="px-4 py-2"><span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)"><svg v-if="submission.status === 'selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m7.5 12.5 3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg><svg v-else-if="submission.status === 'not_selected'" viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><path d="m8.5 8.5 7 7m0-7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg><svg v-else viewBox="0 0 24 24" fill="none" class="size-4" aria-hidden="true"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.8" /><path d="M12 8.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg></span></td>
+                    <td class="px-4 py-2">
+                      <span class="inline-flex rounded-md border px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em]" :class="proposalStatusClass(submission.status)">
+                        {{ proposalStatusLabel(submission.status) }}
+                      </span>
+                    </td>
                     <td class="px-5 py-2 text-right sm:px-6">
-                      <div class="flex items-center justify-end gap-2">
+                      <div class="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
                         <button
-                          v-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.token"
+                          v-if="selectedSpeakerEmailCanPreview(submission)"
+                          type="button"
+                          :disabled="preparingSelectedSpeakerEmailTarget === submission.id"
+                          :class="proposalActionClass()"
+                          @click.stop="previewSelectedSpeakerEmails(submission.id)"
+                        >
+                          {{ preparingSelectedSpeakerEmailTarget === submission.id ? 'Preparing…' : 'Preview email' }}
+                        </button>
+                        <button
+                          v-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.short_url"
                           type="button"
                           :class="proposalActionClass()"
                           :aria-label="copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'Presenter completion link copied' : 'Copy presenter completion link'"
-                          @click.stop="copySpeakerIntakeLink(speakerIntakeUrlForToken(selectedSpeakerLinkForSubmission(submission.id)?.token ?? null), selectedSpeakerLinkForSubmission(submission.id)?.id ?? '')"
+                          @click.stop="copySpeakerIntakeLink(selectedSpeakerLinkForSubmission(submission.id)?.short_url ?? '', selectedSpeakerLinkForSubmission(submission.id)?.id ?? '')"
                         >
                           {{ copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'Copied' : 'Copy link' }}
                         </button>
-                        <span aria-hidden="true" class="font-mono text-sm text-dc-gray">→</span>
+                        <span class="whitespace-nowrap font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">Open <span aria-hidden="true">→</span></span>
                       </div>
                     </td>
                   </tr>
@@ -1450,6 +1579,13 @@ onUnmounted(() => {
         </section>
       </template>
     </div>
+    <SelectedSpeakerEmailPreview
+      :open="selectedSpeakerEmailPreviewOpen"
+      :previews="selectedSpeakerEmailPreviews"
+      :busy="sendingSelectedSpeakerEmails"
+      @close="selectedSpeakerEmailPreviewOpen = false"
+      @send="sendSelectedSpeakerEmails"
+    />
     <Teleport to="body">
       <Transition name="talk-preview-drawer">
         <div v-if="talkPreview" class="talk-preview-drawer-shell">
@@ -1595,26 +1731,27 @@ onUnmounted(() => {
             <footer class="talk-preview-drawer__footer">
               <template v-if="previewProposal">
                 <p class="talk-preview-drawer__footer-label">Decision</p>
-                <div class="flex flex-wrap gap-2">
+                <div v-if="previewProposal.status === 'submitted'" class="flex flex-wrap gap-2">
                   <button
-                    v-if="previewProposal.status !== 'selected'"
                     type="button"
                     :disabled="decidingSubmissionId === previewProposal.id"
                     :class="proposalActionClass(true)"
-                    @click="decideSpeakerSubmission(previewProposal.id, 'selected')"
+                    @click="requestProposalDecision(previewProposal, 'selected')"
                   >
-                    {{ decidingSubmissionId === previewProposal.id ? 'Saving...' : 'Select presenter' }}
+                    {{ decidingSubmissionId === previewProposal.id ? 'Saving...' : 'Approve proposal' }}
                   </button>
                   <button
-                    v-if="previewProposal.status !== 'not_selected'"
                     type="button"
                     :disabled="decidingSubmissionId === previewProposal.id"
                     :class="proposalActionClass()"
-                    @click="decideSpeakerSubmission(previewProposal.id, 'not_selected')"
+                    @click="requestProposalDecision(previewProposal, 'not_selected')"
                   >
-                    Not selected
+                    Reject proposal
                   </button>
                 </div>
+                <p v-else class="text-sm font-semibold text-dc-gray">
+                  {{ previewProposal.status === 'selected' ? 'Approved' : 'Rejected' }} · This decision is final.
+                </p>
               </template>
               <template v-else-if="previewArchiveItem">
                 <p class="talk-preview-drawer__footer-label">Archive action</p>
@@ -1653,6 +1790,20 @@ onUnmounted(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <ConfirmDialog
+      :open="Boolean(pendingProposalDecision)"
+      :title="proposalDecisionTitle"
+      :message="proposalDecisionMessage"
+      :confirm-label="pendingProposalDecision?.status === 'selected' ? 'Approve proposal' : 'Reject proposal'"
+      busy-label="Saving..."
+      cancel-label="Go back"
+      :busy="Boolean(decidingSubmissionId)"
+      :danger="pendingProposalDecision?.status === 'not_selected'"
+      mobile-sheet
+      @cancel="pendingProposalDecision = null"
+      @confirm="confirmProposalDecision"
+    />
 
     <ConfirmDialog
       :open="closeCfpDialogOpen"

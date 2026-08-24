@@ -16,6 +16,11 @@ import {
 import { notify } from '@/src/lib/notify';
 import { ALL_REGISTRATION_INITIALS } from '@/src/lib/registration-checkin';
 import {
+  countSpeakerSubmissionsByReviewStatus,
+  formatSpeakerSubmissionCount,
+  totalReviewableSpeakerSubmissions,
+} from '@/src/lib/speaker-submission-counts';
+import {
   filterRegistrationGuests,
   registrationEventHasEnded,
   type RegistrationGuestFilter,
@@ -30,6 +35,10 @@ import type { EventRegistration, EventStatus, SpeakerSubmission } from '@/types'
 
 type MobileEventSection = 'overview' | 'guests' | 'submissions';
 type SubmissionFilter = 'submitted' | 'selected' | 'not_selected';
+type PendingProposalDecision = {
+  submission: SpeakerSubmission;
+  status: 'selected' | 'not_selected';
+};
 
 const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
   draft: 'Draft',
@@ -79,7 +88,7 @@ const expandedSubmissionId = ref<string | null>(null);
 const actionRegistrationId = ref<string | null>(null);
 const decidingSubmissionId = ref<string | null>(null);
 const pendingCheckInUndo = ref<EventRegistration | null>(null);
-const pendingNotSelected = ref<SpeakerSubmission | null>(null);
+const pendingProposalDecision = ref<PendingProposalDecision | null>(null);
 
 const eventQuery = useQuery({
   queryKey: computed(() => queryKeys.event(eventId.value)),
@@ -107,7 +116,9 @@ const registrations = computed(() => registrationsQuery.data.value?.registration
 const registrationSummary = computed(() => registrationsQuery.data.value?.summary ?? null);
 const registrationUrl = computed(() => registrationsQuery.data.value?.public_url || event.value?.registration_url || null);
 const submissions = computed(() => submissionsQuery.data.value?.submissions ?? []);
-const pendingSubmissionCount = computed(() => submissions.value.filter((submission) => submission.status === 'submitted').length);
+const submissionCounts = computed(() => countSpeakerSubmissionsByReviewStatus(submissions.value));
+const submissionTotalCount = computed(() => totalReviewableSpeakerSubmissions(submissionCounts.value));
+const pendingSubmissionCount = computed(() => submissionCounts.value.submitted);
 const eventHasEnded = computed(() => event.value ? registrationEventHasEnded(event.value) : false);
 const filteredGuests = computed(() => filterRegistrationGuests(registrations.value, {
   query: guestSearch.value,
@@ -129,6 +140,20 @@ const eventStatusClass = computed(() => {
   if (event.value?.status === 'completed') return 'mobile-event-status--done';
   if (event.value?.status === 'draft') return 'mobile-event-status--draft';
   return 'mobile-event-status--upcoming';
+});
+const proposalDecisionTitle = computed(() => {
+  if (!pendingProposalDecision.value) return '';
+  return pendingProposalDecision.value.status === 'selected'
+    ? 'Approve this proposal?'
+    : 'Reject this proposal?';
+});
+const proposalDecisionMessage = computed(() => {
+  const decision = pendingProposalDecision.value;
+  if (!decision) return '';
+  const proposal = `“${decision.submission.title}” by ${decision.submission.speaker_name}`;
+  return decision.status === 'selected'
+    ? `${proposal} will be approved and a private speaker form link will be prepared. No email is sent yet. This decision cannot be undone.`
+    : `${proposal} will be rejected and removed from the pending review queue. This decision cannot be undone.`;
 });
 
 function selectSection(section: MobileEventSection) {
@@ -193,22 +218,35 @@ async function undoCheckInGuest() {
   }
 }
 
-async function decideSubmission(submission: SpeakerSubmission, status: 'selected' | 'not_selected') {
-  if (decidingSubmissionId.value) return;
+async function decideSubmission(submission: SpeakerSubmission, status: 'selected' | 'not_selected'): Promise<boolean> {
+  if (decidingSubmissionId.value) return false;
   decidingSubmissionId.value = submission.id;
   try {
     await decideEventSpeakerSubmission(submission.id, status);
     await queryClient.invalidateQueries({ queryKey: queryKeys.eventSpeakerSubmissions(eventId.value) });
-    pendingNotSelected.value = null;
     expandedSubmissionId.value = null;
     notify.success(status === 'selected'
       ? 'Proposal selected and private archive link prepared.'
       : 'Proposal marked as not selected.');
+    return true;
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to update this proposal.');
+    return false;
   } finally {
     decidingSubmissionId.value = null;
   }
+}
+
+function requestProposalDecision(submission: SpeakerSubmission, status: 'selected' | 'not_selected') {
+  if (submission.status !== 'submitted' || decidingSubmissionId.value) return;
+  pendingProposalDecision.value = { submission, status };
+}
+
+async function confirmProposalDecision() {
+  const decision = pendingProposalDecision.value;
+  if (!decision || decidingSubmissionId.value) return;
+  const decided = await decideSubmission(decision.submission, decision.status);
+  if (decided) pendingProposalDecision.value = null;
 }
 </script>
 
@@ -252,11 +290,13 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
           <button type="button" :aria-current="activeSection === 'overview' ? 'page' : undefined" @click="selectSection('overview')">Overview</button>
           <button type="button" :aria-current="activeSection === 'guests' ? 'page' : undefined" @click="selectSection('guests')">
             Guests
-            <span v-if="managedInternally">{{ registrationSummary?.total ?? registrations.length }}</span>
+            <span v-if="managedInternally" class="mobile-event-tab-count">{{ registrationSummary?.total ?? registrations.length }}</span>
           </button>
-          <button type="button" :aria-current="activeSection === 'submissions' ? 'page' : undefined" @click="selectSection('submissions')">
+          <button type="button" :aria-current="activeSection === 'submissions' ? 'page' : undefined" :aria-label="`Submissions, ${submissionTotalCount} proposals`" @click="selectSection('submissions')">
             Submissions
-            <span v-if="pendingSubmissionCount">{{ pendingSubmissionCount > 99 ? '99+' : pendingSubmissionCount }}</span>
+            <Transition name="submission-count">
+              <span v-if="submissionTotalCount" class="mobile-event-tab-count" aria-hidden="true">{{ formatSpeakerSubmissionCount(submissionTotalCount) }}</span>
+            </Transition>
           </button>
         </nav>
 
@@ -358,7 +398,20 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
                 </div>
                 <template v-else>
                   <div class="mobile-event-filter-row" aria-label="Filter submissions">
-                    <button v-for="filter in submissionFilters" :key="filter.value" type="button" :aria-pressed="submissionFilter === filter.value" @click="submissionFilter = filter.value">{{ filter.label }}</button>
+                    <button
+                      v-for="filter in submissionFilters"
+                      :key="filter.value"
+                      type="button"
+                      :class="{ 'has-count': submissionCounts[filter.value] > 0 }"
+                      :aria-label="`${filter.label}, ${submissionCounts[filter.value]} proposals`"
+                      :aria-pressed="submissionFilter === filter.value"
+                      @click="submissionFilter = filter.value"
+                    >
+                      {{ filter.label }}
+                      <Transition name="submission-count">
+                        <span v-if="submissionCounts[filter.value]" class="mobile-event-filter-count" aria-hidden="true">{{ formatSpeakerSubmissionCount(submissionCounts[filter.value]) }}</span>
+                      </Transition>
+                    </button>
                   </div>
                   <p class="mobile-event-result-count">{{ filteredSubmissions.length }} {{ submissionFilters.find((filter) => filter.value === submissionFilter)?.label.toLowerCase() }} proposals</p>
 
@@ -381,8 +434,8 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
                         <div v-if="submission.bio"><span>Presenter bio</span><p>{{ submission.bio }}</p></div>
                         <a v-if="safePublicResourceUrl(submission.resource_url)" :href="safePublicResourceUrl(submission.resource_url) || undefined" target="_blank" rel="noreferrer" class="mobile-event-resource">Open supporting link ↗</a>
                         <div v-if="submission.status === 'submitted'" class="mobile-event-decision-actions">
-                          <button type="button" :disabled="Boolean(decidingSubmissionId)" @click="decideSubmission(submission, 'selected')">{{ decidingSubmissionId === submission.id ? 'Saving…' : 'Select proposal' }}</button>
-                          <button type="button" class="is-negative" :disabled="Boolean(decidingSubmissionId)" @click="pendingNotSelected = submission">Not select</button>
+                          <button type="button" :disabled="Boolean(decidingSubmissionId)" @click="requestProposalDecision(submission, 'selected')">{{ decidingSubmissionId === submission.id ? 'Saving…' : 'Approve proposal' }}</button>
+                          <button type="button" class="is-negative" :disabled="Boolean(decidingSubmissionId)" @click="requestProposalDecision(submission, 'not_selected')">Reject proposal</button>
                         </div>
                       </div>
                     </li>
@@ -407,15 +460,17 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
       @cancel="pendingCheckInUndo = null"
     />
     <ConfirmDialog
-      :open="Boolean(pendingNotSelected)"
-      title="Mark this proposal as not selected?"
-      :message="pendingNotSelected ? `${pendingNotSelected.speaker_name}'s ${submissionKindLabel(pendingNotSelected).toLowerCase()} will move out of the pending review queue.` : ''"
-      confirm-label="Not select"
+      :open="Boolean(pendingProposalDecision)"
+      :title="proposalDecisionTitle"
+      :message="proposalDecisionMessage"
+      :confirm-label="pendingProposalDecision?.status === 'selected' ? 'Approve proposal' : 'Reject proposal'"
       busy-label="Saving…"
-      cancel-label="Keep pending"
+      cancel-label="Go back"
       :busy="Boolean(decidingSubmissionId)"
-      @confirm="pendingNotSelected && decideSubmission(pendingNotSelected, 'not_selected')"
-      @cancel="pendingNotSelected = null"
+      :danger="pendingProposalDecision?.status === 'not_selected'"
+      mobile-sheet
+      @confirm="confirmProposalDecision"
+      @cancel="pendingProposalDecision = null"
     />
   </section>
 </template>
@@ -442,7 +497,7 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
 .mobile-event-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid #d9d5cc; border-radius: 10px; background: #fff; padding: 3px; }
 .mobile-event-tabs button { position: relative; display: flex; min-width: 0; min-height: 2.75rem; align-items: center; justify-content: center; gap: .3rem; border: 0; border-radius: 7px; background: transparent; padding: .45rem .3rem; color: #69645c; font-family: var(--font-mono), monospace; font-size: clamp(.54rem, 2.6vw, .65rem); font-weight: 700; text-transform: uppercase; transition: transform 100ms cubic-bezier(.4,0,.2,1), background-color 150ms cubic-bezier(.4,0,.2,1), color 150ms cubic-bezier(.4,0,.2,1); }
 .mobile-event-tabs button[aria-current=page] { background: #f5e642; color: #111; }
-.mobile-event-tabs button > span { display: grid; min-width: 1.15rem; min-height: 1.15rem; place-items: center; border-radius: 999px; background: #e8117f; padding: 0 .25rem; color: #fff; font-size: .52rem; }
+.mobile-event-tab-count { display: grid; min-width: 1.15rem; min-height: 1.15rem; place-items: center; border-radius: 999px; background: #e8117f; padding: 0 .25rem; color: #fff; font-size: .52rem; }
 .mobile-event-content { display: grid; gap: .75rem; }
 .mobile-event-section-heading { padding: 1rem; }
 .mobile-event-section-heading h2 { margin: .3rem 0 0; font-size: 1.15rem; letter-spacing: -.02em; line-height: 1.15; }
@@ -464,8 +519,10 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
 .mobile-event-search input:focus { border-color: #e8117f; box-shadow: 0 0 0 3px rgba(232,17,127,.12); }
 .mobile-event-filter-row { display: flex; gap: .45rem; overflow-x: auto; border-top: 1px solid #e1ddd4; padding: .75rem 1rem; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .mobile-event-filter-row::-webkit-scrollbar { display: none; }
-.mobile-event-filter-row button { min-height: 2.75rem; flex: 0 0 auto; border: 1px solid #b8b3a9; border-radius: 7px; background: #fff; padding: 0 .75rem; color: #5f5b54; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
+.mobile-event-filter-row button { position: relative; min-height: 2.75rem; flex: 0 0 auto; border: 1px solid #b8b3a9; border-radius: 7px; background: #fff; padding: 0 .75rem; color: #5f5b54; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
+.mobile-event-filter-row button.has-count { padding-right: 2.2rem; }
 .mobile-event-filter-row button[aria-pressed=true] { border-color: #111; background: #f5e642; color: #111; }
+.mobile-event-filter-count { position: absolute; top: .25rem; right: .25rem; display: grid; min-width: 1.2rem; min-height: 1.2rem; place-items: center; border-radius: 999px; background: #e8117f; padding: 0 .22rem; color: #fff; font-size: .5rem; line-height: 1; }
 .mobile-event-result-count { margin: 0; border-top: 1px solid #e1ddd4; padding: .65rem 1rem; color: #77736b; font-family: var(--font-mono), monospace; font-size: .6rem; font-weight: 700; text-transform: uppercase; }
 .mobile-event-list { margin: 0; border-top: 1px solid #e1ddd4; padding: 0; list-style: none; }
 .mobile-event-list > li + li { border-top: 1px solid #e1ddd4; }

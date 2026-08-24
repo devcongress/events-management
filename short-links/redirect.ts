@@ -1,10 +1,11 @@
+import { isSupportedShortLinkCode } from './code-patterns';
+
 export interface ShortLinkEnv {
   PUBLIC_APP_ORIGIN: string;
   EMS_RESOLVER_ORIGIN: string;
   SHORT_LINK_RESOLVER_TOKEN: string;
 }
 
-const CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/;
 const MINIMUM_SHARED_SECRET_BYTES = 32;
 
 function secureResolverToken(value: string): string | null {
@@ -75,7 +76,7 @@ export async function resolveShortLinkRequest(request: Request, env: ShortLinkEn
   if (request.method !== 'GET' && request.method !== 'HEAD') return unavailable();
   const url = new URL(request.url);
   const segments = url.pathname.split('/').filter(Boolean);
-  if (segments.length !== 1 || !CODE_PATTERN.test(segments[0])) return unavailable();
+  if (segments.length !== 1 || !isSupportedShortLinkCode(segments[0])) return unavailable();
   const resolverToken = secureResolverToken(env.SHORT_LINK_RESOLVER_TOKEN);
   if (!resolverToken) return unavailable();
 

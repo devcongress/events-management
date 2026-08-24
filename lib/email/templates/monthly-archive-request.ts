@@ -22,13 +22,19 @@ function firstName(value: string): string {
   return value.trim().split(/\s+/)[0] || 'there';
 }
 
-export function monthlyArchiveRequestEmail(input: {
+type SpeakerPrivateFormEmailInput = {
   eventName: string;
   speakerName: string;
   talkTitle: string;
   privateUrl: string;
   expiresAt: string;
-}): { subject: string; html: string; text: string } {
+};
+
+function speakerPrivateFormEmail(
+  input: SpeakerPrivateFormEmailInput,
+  intent: 'archive_request' | 'selected_confirmation',
+): { subject: string; html: string; text: string } {
+  const selectedConfirmation = intent === 'selected_confirmation';
   const safeEventName = escapeHtml(input.eventName);
   const speakerFirstName = firstName(input.speakerName);
   const safeSpeakerFirstName = escapeHtml(speakerFirstName);
@@ -62,7 +68,25 @@ export function monthlyArchiveRequestEmail(input: {
     year: 'numeric',
   }).format(new Date(input.expiresAt));
   const safeExpiryLabel = escapeHtml(expiryLabel);
-  const subject = emailSubjects.speakerArchiveRequest(input.eventName);
+  const subject = selectedConfirmation
+    ? emailSubjects.speakerSelectedConfirmation(input.eventName)
+    : emailSubjects.speakerArchiveRequest(input.eventName);
+  const preheader = selectedConfirmation
+    ? `Your presentation was selected. Complete your speaker details by ${safeExpiryLabel}.`
+    : `Add the archive details for ${safeCardTitle} by ${safeExpiryLabel}.`;
+  const brandMeta = selectedConfirmation
+    ? 'Speaker selection<br>Private next step'
+    : 'Speaker archive<br>Private request';
+  const eyebrow = selectedConfirmation
+    ? `Selected speaker / ${safeEventName}`
+    : `Archive request / ${safeEventName}`;
+  const lead = selectedConfirmation
+    ? 'Great news&mdash;your presentation has been selected for the DevCongress programme.'
+    : 'Let&rsquo;s give your session a permanent home in the DevCongress community archive.';
+  const instruction = selectedConfirmation
+    ? 'Confirm your speaker details and public resource using the private link below. It is secured to you and will close after a successful submission.'
+    : 'Add your presentation details and public resource using the private link below. It is secured to you and will close after a successful submission.';
+  const cta = selectedConfirmation ? 'Complete speaker details' : 'Open your private form';
 
   const html = `<!doctype html>
 <html lang="en">
@@ -212,7 +236,7 @@ export function monthlyArchiveRequestEmail(input: {
   </head>
   <body class="email-body" style="margin:0;background:#F5F2E8;color:#111111;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-      Add the archive details for ${safeCardTitle} by ${safeExpiryLabel}.
+      ${preheader}
     </div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5F2E8" class="email-canvas" style="width:100%;background:#F5F2E8;">
       <tr>
@@ -233,7 +257,7 @@ export function monthlyArchiveRequestEmail(input: {
                       >
                     </td>
                     <td align="right" valign="middle" class="email-brand-meta" style="padding-left:16px;color:#FFFFFF;-webkit-text-fill-color:#FFFFFF;font-family:'IBM Plex Mono','Courier New',monospace;font-size:10px;font-weight:700;line-height:1.5;letter-spacing:.14em;text-transform:uppercase;">
-                      Speaker archive<br>Private request
+                      ${brandMeta}
                     </td>
                   </tr>
                 </table>
@@ -244,9 +268,9 @@ export function monthlyArchiveRequestEmail(input: {
             </tr>
             <tr>
               <td bgcolor="#FFFFFF" class="email-pad email-content" style="padding:38px 40px 36px;background:#FFFFFF;">
-                <p class="email-eyebrow" style="margin:0 0 10px;color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Archive request / ${safeEventName}</p>
+                <p class="email-eyebrow" style="margin:0 0 10px;color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">${eyebrow}</p>
                 <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;letter-spacing:-.02em;">Hi ${safeSpeakerFirstName},</h1>
-                <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:17px;line-height:1.6;">Let&rsquo;s give your session a permanent home in the DevCongress community archive.</p>
+                <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:17px;line-height:1.6;">${lead}</p>
 
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#F5F2E8" class="email-session-card" style="width:100%;margin:0 0 24px;background:#F5F2E8;border:1px solid #D8D2C4;border-radius:8px;">
                   <tr>
@@ -261,9 +285,9 @@ export function monthlyArchiveRequestEmail(input: {
                   </tr>
                 </table>
 
-                <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:16px;line-height:1.65;">Add your presentation details and public resource using the private link below. It is secured to you and will close after a successful submission.</p>
+                <p class="email-copy" style="margin:0 0 24px;color:#444444;font-size:16px;line-height:1.65;">${instruction}</p>
                 <p style="margin:0;">
-                  <a href="${safePrivateUrl}" class="email-cta" style="color:#C80D68;-webkit-text-fill-color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:13px;font-weight:700;letter-spacing:.03em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;text-transform:uppercase;">Open your private form&nbsp;&nbsp;&rarr;</a>
+                  <a href="${safePrivateUrl}" class="email-cta" style="color:#C80D68;-webkit-text-fill-color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:13px;font-weight:700;letter-spacing:.03em;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px;text-transform:uppercase;">${cta}&nbsp;&nbsp;&rarr;</a>
                 </p>
               </td>
             </tr>
@@ -282,17 +306,37 @@ export function monthlyArchiveRequestEmail(input: {
   </body>
 </html>`;
 
-  const text = [
-    `Hi ${speakerFirstName},`,
-    '',
-    `Thanks for being part of ${input.eventName}. We are completing the community archive for "${input.talkTitle}".`,
-    '',
-    `Add your presentation details using this private link: ${input.privateUrl}`,
-    '',
-    `This unique link expires on ${expiryLabel}. Please do not forward it.`,
-    '',
-    'If you have a question, reply to this email and the DevCongress team will help.',
-  ].join('\n');
+  const text = selectedConfirmation
+    ? [
+        `Hi ${speakerFirstName},`,
+        '',
+        `Great news—your presentation "${input.talkTitle}" was selected for ${input.eventName}.`,
+        '',
+        `Complete your speaker details using this private link: ${input.privateUrl}`,
+        '',
+        `This unique link expires on ${expiryLabel}. Please do not forward it.`,
+        '',
+        'If you have a question, reply to this email and the DevCongress team will help.',
+      ].join('\n')
+    : [
+        `Hi ${speakerFirstName},`,
+        '',
+        `Thanks for being part of ${input.eventName}. We are completing the community archive for "${input.talkTitle}".`,
+        '',
+        `Add your presentation details using this private link: ${input.privateUrl}`,
+        '',
+        `This unique link expires on ${expiryLabel}. Please do not forward it.`,
+        '',
+        'If you have a question, reply to this email and the DevCongress team will help.',
+      ].join('\n');
 
   return { subject, html, text };
+}
+
+export function monthlyArchiveRequestEmail(input: SpeakerPrivateFormEmailInput) {
+  return speakerPrivateFormEmail(input, 'archive_request');
+}
+
+export function selectedSpeakerConfirmationEmail(input: SpeakerPrivateFormEmailInput) {
+  return speakerPrivateFormEmail(input, 'selected_confirmation');
 }

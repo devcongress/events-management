@@ -9,6 +9,10 @@ const listSource = readFileSync(
   new URL('./views/admin/AdminMobileEventsView.vue', import.meta.url),
   'utf8',
 );
+const confirmDialogSource = readFileSync(
+  new URL('./components/ui/ConfirmDialog.vue', import.meta.url),
+  'utf8',
+);
 
 describe('phone event workspace', () => {
   it('gives organizers focused event, guest, and submission views', () => {
@@ -24,9 +28,19 @@ describe('phone event workspace', () => {
   it('keeps phone actions focused and confirmation-safe', () => {
     expect(detailSource).toContain('Check in');
     expect(detailSource).toContain('Undo check-in?');
-    expect(detailSource).toContain('Select proposal');
-    expect(detailSource).toContain('Mark this proposal as not selected?');
+    expect(detailSource).toContain('Approve proposal');
+    expect(detailSource).toContain('Reject proposal');
+    expect(detailSource).toContain('This decision cannot be undone.');
+    expect(detailSource).toContain('mobile-sheet');
     expect(detailSource).toContain('Open supporting link');
+  });
+
+  it('presents final proposal decisions as an accessible mobile bottom drawer', () => {
+    expect(confirmDialogSource).toContain("mobileSheet ? 'items-end p-0");
+    expect(confirmDialogSource).toContain('transform: translateY(100%)');
+    expect(confirmDialogSource).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(confirmDialogSource).toContain("event.key === 'Escape'");
+    expect(confirmDialogSource).toContain('previouslyFocusedElement?.focus()');
   });
 
   it('uses one consistent arrow across the quick-action rows', () => {
@@ -45,7 +59,11 @@ describe('phone event workspace', () => {
   });
 
   it('uses the branded pink count badges with white text', () => {
-    expect(detailSource).toMatch(/\.mobile-event-tabs button > span \{[^}]*background: #e8117f;[^}]*color: #fff;/);
+    expect(detailSource).toContain('submissionTotalCount');
+    expect(detailSource).toContain('submissionCounts[filter.value]');
+    expect(detailSource).toContain('v-if="managedInternally" class="mobile-event-tab-count"');
+    expect(detailSource).toMatch(/\.mobile-event-tab-count \{[^}]*background: #e8117f;[^}]*color: #fff;/);
+    expect(detailSource).toMatch(/\.mobile-event-filter-count \{[^}]*top: \.25rem;[^}]*right: \.25rem;[^}]*background: #e8117f;[^}]*color: #fff;/);
   });
 
   it('links every event card into the phone workspace', () => {

@@ -25,7 +25,7 @@ import {
   eventRegistrationConfirmationEmail,
 } from '@/lib/email/templates/event-registration-confirmation';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
-import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
+import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
 import { assessPublicEmail, type PublicEmailPreflightResult } from '@/lib/email/public-email-preflight';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
 import { attendanceRecordsFromRegistrations } from '@/lib/native-attendance';
@@ -112,8 +112,8 @@ import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySess
 import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
-import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
-import { createSpeakerSubmission, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
+import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkById, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
+import { createSpeakerSubmission, decideSpeakerSubmission as decideSpeakerSubmissionRecord, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, SpeakerSubmissionDecisionFinalError, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
@@ -240,6 +240,8 @@ import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, 
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 import { VOLUNTEER_PUBLIC_PATH } from '@/lib/volunteer-intake-routes';
 import { staticShortLinkDestinationPath } from '@/lib/short-link-destinations';
+import { isSupportedShortLinkCode, MARKETING_SHORT_LINK_CODE_PATTERN, SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN } from '@/short-links/code-patterns';
+import { selectedSpeakerLinkIdFromShortCode, selectedSpeakerShortCode, speakerIntakeTokenHash, verifySelectedSpeakerShortCode } from '@/lib/speaker-intake-short-links';
 import { publicRegistrationOrigin } from './public-registration-origin';
 import { secureSharedSecret, sharedSecretStatus } from '@/lib/security/shared-secret';
 
@@ -753,6 +755,10 @@ const speakerSubmissionDecisionSchema = z.object({
   internal_note: z.string().trim().max(1000).optional().default(''),
   expires_in_days: z.coerce.number().int().min(1).max(31).optional().default(7),
 });
+const selectedSpeakerEmailSelectionSchema = z.object({
+  submission_ids: z.array(z.string().trim().min(1)).min(1).max(100).optional(),
+}).strict();
+const OWNER_ONLY_TEST_SPEAKER_NOTE = 'owner-only:test-speaker';
 const conferenceSpeakerSubmissionCreateSchema = speakerSubmissionCreateSchema.omit({ event_id: true });
 const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
 const selectedSpeakerDetailsSchema = z.object({
@@ -1271,7 +1277,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
     || (method === 'POST' && (path === '/api/internal/slack-announcements/retry' || path === '/api/internal/event-page-monitors/check-due'))
-    || (method === 'GET' && /^\/api\/internal\/short-links\/[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/.test(path))
+    || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
     || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
     || (method === 'PATCH' && /^\/api\/quiz\/participants\/[^/]+\/name$/.test(path));
@@ -3684,6 +3690,7 @@ app.get('/api/health/data-sources', async (c) => {
       shared_secrets: {
         event_submission_management: sharedSecretStatus(envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c)),
         event_submission_reply_routing: sharedSecretStatus(envValue('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', c)),
+        speaker_intake_links: sharedSecretStatus(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c)),
         short_link_resolver: sharedSecretStatus(envValue('SHORT_LINK_RESOLVER_TOKEN', c)),
         slack_events_retry: sharedSecretStatus(envValue('SLACK_EVENTS_RETRY_SECRET', c)),
       },
@@ -5918,13 +5925,39 @@ app.delete('/api/admin/short-links/:linkId', async (c) => {
 
 app.get('/api/internal/short-links/:code', async (c) => {
   if (!shortLinkResolverAuthorized(c)) return c.json({ error: 'Not found.' }, 404);
-  const code = z.string().regex(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5,8}$/).safeParse(c.req.param('code'));
-  if (!code.success) return c.json({ error: 'Not found.' }, 404);
+  const code = c.req.param('code');
+  if (!isSupportedShortLinkCode(code)) return c.json({ error: 'Not found.' }, 404);
   try {
-    const link = await resolveShortLink(code.data, c);
-    if (!link) return c.json({ error: 'Not found.' }, 404);
-    const destinationPath = await shortLinkDestinationPath(link, c);
-    if (!destinationPath) return c.json({ error: 'Not found.' }, 404);
+    if (MARKETING_SHORT_LINK_CODE_PATTERN.test(code)) {
+      const link = await resolveShortLink(code, c);
+      if (!link) return c.json({ error: 'Not found.' }, 404);
+      const destinationPath = await shortLinkDestinationPath(link, c);
+      if (!destinationPath) return c.json({ error: 'Not found.' }, 404);
+      return c.json({ destination_path: destinationPath }, 200, { 'Cache-Control': 'no-store' });
+    }
+
+    const linkId = selectedSpeakerLinkIdFromShortCode(code);
+    const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+    if (!linkId || !secret || !SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) {
+      return c.json({ error: 'Not found.' }, 404);
+    }
+    const link = await getSpeakerIntakeLinkById(linkId);
+    if (
+      !link
+      || link.purpose !== 'selected_speaker_confirmation'
+      || !verifySelectedSpeakerShortCode(code, link.id, link.event_id, secret)
+      || speakerIntakeTokenHash(code) !== link.token_hash
+      || speakerIntakeLinkError(link)
+    ) {
+      return c.json({ error: 'Not found.' }, 404);
+    }
+    const submission = link.speaker_submission_id
+      ? await getSpeakerSubmissionById(link.speaker_submission_id)
+      : null;
+    if (selectedSpeakerIntakeLinkError(link, submission, link.event_id)) {
+      return c.json({ error: 'Not found.' }, 404);
+    }
+    const destinationPath = `/speaker-talks/${encodeURIComponent(link.event_id)}/${encodeURIComponent(code)}`;
     return c.json({ destination_path: destinationPath }, 200, { 'Cache-Control': 'no-store' });
   } catch (error) {
     return internalErrorResponse(c, 'short_link_resolve_failed', error, 'Not found.');
@@ -8092,6 +8125,24 @@ function serializeSpeakerIntakeLink(link: Pick<
   };
 }
 
+function selectedSpeakerShortUrlForLink(link: SpeakerIntakeLink, c: Context): string | null {
+  if (link.purpose !== 'selected_speaker_confirmation') return null;
+  const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+  if (!secret) return null;
+
+  const code = selectedSpeakerShortCode(link.id, link.event_id, secret);
+  return speakerIntakeTokenHash(code) === link.token_hash
+    ? shortLinkPublicUrl(code, c)
+    : null;
+}
+
+function serializeAdminSpeakerIntakeLink(link: SpeakerIntakeLink, c: Context) {
+  return {
+    ...serializeSpeakerIntakeLink(link),
+    short_url: selectedSpeakerShortUrlForLink(link, c),
+  };
+}
+
 function speakerIntakeLinkError(link: SpeakerIntakeLink | undefined): { error: string; status: 404 | 410 } | null {
   if (!link) {
     return { error: 'Archive request link is invalid', status: 404 };
@@ -8284,12 +8335,21 @@ async function createSelectedSpeakerLinkForSubmission(
   c: Context,
 ): Promise<{ link: SpeakerIntakeLink; token: string }> {
   const event = await getEventById(submission.event_id, c);
+  const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
 
   if (!event) {
     throw new Error('Event not found');
   }
+  if (!secret) {
+    throw new Error('Selected-speaker short links are not configured');
+  }
+
+  const linkId = crypto.randomUUID();
+  const token = selectedSpeakerShortCode(linkId, submission.event_id, secret);
 
   return createSpeakerIntakeLink({
+    id: linkId,
+    token,
     event_id: submission.event_id,
     event_month: eventMonthKey(event.event_date),
     expires_at: addDays(new Date(), expiresInDays).toISOString(),
@@ -8300,6 +8360,94 @@ async function createSelectedSpeakerLinkForSubmission(
     speaker_email: submission.speaker_email,
     talk_title: submission.title,
   });
+}
+
+type SelectedSpeakerEmailPreview = {
+  submission_id: string;
+  link_id: string;
+  speaker_name: string;
+  speaker_email: string;
+  talk_title: string;
+  short_url: string;
+  expires_at: string;
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+};
+
+async function prepareSelectedSpeakerEmailPreviews(
+  event: Event,
+  c: Context,
+  submissionIds?: readonly string[],
+  includeOwnerOnlyTestSpeaker = false,
+): Promise<{ previews: SelectedSpeakerEmailPreview[]; alreadySentCount: number; completedCount: number }> {
+  const [submissions, existingLinks] = await Promise.all([
+    getSpeakerSubmissionsByEvent(event.id),
+    getSpeakerIntakeLinksByEvent(event.id),
+  ]);
+  const linksById = new Map(existingLinks.map((link) => [link.id, link]));
+  const previews: SelectedSpeakerEmailPreview[] = [];
+  const requestedSubmissionIds = submissionIds ? new Set(submissionIds) : null;
+  let alreadySentCount = 0;
+  let completedCount = 0;
+
+  for (const submission of submissions.filter((item) => (
+    item.status === 'selected'
+    && (!requestedSubmissionIds || requestedSubmissionIds.has(item.id))
+    && (includeOwnerOnlyTestSpeaker || item.internal_note !== OWNER_ONLY_TEST_SPEAKER_NOTE)
+  ))) {
+    if (submission.selected_talk_id) {
+      completedCount += 1;
+      continue;
+    }
+
+    let link = submission.selected_intake_link_id
+      ? linksById.get(submission.selected_intake_link_id) ?? null
+      : null;
+    if (link?.email_status === 'accepted') {
+      alreadySentCount += 1;
+      continue;
+    }
+
+    let shortUrl = link && speakerIntakeLinkStatus(link) === 'active'
+      ? selectedSpeakerShortUrlForLink(link, c)
+      : null;
+
+    // Older selected-speaker links used unrecoverable random bearer tokens.
+    // Reissue only unsent links so previewing never duplicates a delivered email.
+    if (!link || !shortUrl || speakerIntakeLinkStatus(link) !== 'active' || link.email_status === 'failed') {
+      const created = await createSelectedSpeakerLinkForSubmission(submission, 7, c);
+      link = created.link;
+      shortUrl = selectedSpeakerShortUrlForLink(link, c);
+      await updateSpeakerSubmission(submission.id, { selected_intake_link_id: link.id });
+      await deleteActiveSpeakerIntakeLinksBySubmission(event.id, submission.id, link.id);
+    }
+
+    if (!shortUrl) throw new Error('Selected-speaker short links are not configured');
+    const content = selectedSpeakerConfirmationEmail({
+      eventName: event.name,
+      speakerName: submission.speaker_name,
+      talkTitle: submission.title,
+      privateUrl: shortUrl,
+      expiresAt: link.expires_at,
+    });
+    previews.push({
+      submission_id: submission.id,
+      link_id: link.id,
+      speaker_name: submission.speaker_name,
+      speaker_email: submission.speaker_email,
+      talk_title: submission.title,
+      short_url: shortUrl,
+      expires_at: link.expires_at,
+      from: EMAIL_SENDERS.speakers.from,
+      to: `${submission.speaker_name} <${submission.speaker_email}>`,
+      ...content,
+    });
+  }
+
+  return { previews, alreadySentCount, completedCount };
 }
 
 app.get('/api/events/:eventId/talks', async (c) => {
@@ -8317,7 +8465,11 @@ app.get('/api/events/:eventId/speaker-submissions', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const submissions = await getSpeakerSubmissionsByEvent(eventId);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  const submissions = (await getSpeakerSubmissionsByEvent(eventId)).filter((submission) => (
+    session.authenticated
+    && (session.role === 'owner' || submission.internal_note !== OWNER_ONLY_TEST_SPEAKER_NOTE)
+  ));
 
   return c.json({
     event_id: eventId,
@@ -8342,18 +8494,26 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
   if (!existing) {
     return c.json({ error: 'Presentation proposal not found' }, 404);
   }
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (
+    existing.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE
+    && (!session.authenticated || session.role !== 'owner')
+  ) {
+    return c.json({ error: 'Presentation proposal not found' }, 404);
+  }
+  if (existing.status !== 'submitted') {
+    return c.json({ error: 'This proposal already has a final decision and cannot be changed.' }, 409);
+  }
 
+  let selectedLink: SpeakerIntakeLink | null = null;
   try {
-    let selectedLink: SpeakerIntakeLink | null = null;
-    let token: string | null = null;
 
     if (parsed.data.status === 'selected') {
       const result = await createSelectedSpeakerLinkForSubmission(existing, parsed.data.expires_in_days, c);
       selectedLink = result.link;
-      token = result.token;
     }
 
-    const submission = await updateSpeakerSubmission(existing.id, {
+    const submission = await decideSpeakerSubmissionRecord(existing.id, {
       status: parsed.data.status,
       internal_note: parsed.data.internal_note || null,
       selected_intake_link_id: parsed.data.status === 'selected' ? selectedLink?.id ?? null : null,
@@ -8379,12 +8539,18 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
     return c.json({
       submission: serializeSpeakerSubmission(submission),
       link: selectedLink ? {
-        ...serializeSpeakerIntakeLink(selectedLink),
-        token,
+        ...serializeAdminSpeakerIntakeLink(selectedLink, c),
+        token: null,
       } : null,
-      token,
+      token: null,
     });
   } catch (error) {
+    if (error instanceof SpeakerSubmissionDecisionFinalError) {
+      if (selectedLink) {
+        await deleteSpeakerIntakeLink(existing.event_id, selectedLink.id).catch(() => undefined);
+      }
+      return c.json({ error: error.message }, 409);
+    }
     return c.json({ error: error instanceof Error ? error.message : 'Failed to update presentation proposal' }, 400);
   }
 });
@@ -8400,11 +8566,169 @@ app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const links = await getSpeakerIntakeLinksByEvent(eventId);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  const [links, speakerSubmissions] = await Promise.all([
+    getSpeakerIntakeLinksByEvent(eventId),
+    getSpeakerSubmissionsByEvent(eventId),
+  ]);
+  const visibleLinks = session.authenticated && session.role === 'owner'
+    ? links
+    : links.filter((link) => !link.speaker_submission_id || !speakerSubmissions.some((submission) => (
+        submission.id === link.speaker_submission_id
+        && submission.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE
+      )));
   return c.json({
     event_month: eventMonthKey(event.event_date),
-    links: links.map((link) => serializeSpeakerIntakeLink(link)),
+    links: visibleLinks.map((link) => serializeAdminSpeakerIntakeLink(link, c)),
   });
+});
+
+app.post('/api/events/:eventId/selected-speaker-emails/preview', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  if (!secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c))) {
+    return c.json({
+      error: 'Selected-speaker email links are not configured. Add a SPEAKER_INTAKE_LINK_TOKEN_SECRET of at least 32 characters.',
+    }, 503);
+  }
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  const selection = selectedSpeakerEmailSelectionSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!selection.success) {
+    return c.json({ error: selection.error.issues[0]?.message ?? 'Check the selected speakers' }, 400);
+  }
+
+  const release = await acquireSpeakerIntakeSubmissionLock(`selected-speaker-email:${eventId}`);
+  try {
+    const prepared = await prepareSelectedSpeakerEmailPreviews(
+      event,
+      c,
+      selection.data.submission_ids,
+      session.authenticated && session.role === 'owner',
+    );
+    return c.json({
+      ready_count: prepared.previews.length,
+      already_sent_count: prepared.alreadySentCount,
+      completed_count: prepared.completedCount,
+      previews: prepared.previews,
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'selected_speaker_email_preview_failed', error, 'Unable to prepare selected-speaker emails.');
+  } finally {
+    release();
+  }
+});
+
+app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  const selection = selectedSpeakerEmailSelectionSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!selection.success) {
+    return c.json({ error: selection.error.issues[0]?.message ?? 'Check the selected speakers' }, 400);
+  }
+
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    return c.json({ error: 'Speaker email sending is not configured.' }, 503);
+  }
+
+  const release = await acquireSpeakerIntakeSubmissionLock(`selected-speaker-email:${eventId}`);
+  try {
+    const prepared = await prepareSelectedSpeakerEmailPreviews(
+      event,
+      c,
+      selection.data.submission_ids,
+      session.authenticated && session.role === 'owner',
+    );
+    if (prepared.previews.length === 0) {
+      return c.json({
+        sent_count: 0,
+        already_sent_count: prepared.alreadySentCount,
+        completed_count: prepared.completedCount,
+      });
+    }
+
+    const linkIds = prepared.previews.map((preview) => preview.link_id).sort();
+    const idempotencyDigest = crypto.createHash('sha256')
+      .update(`${eventId}:${linkIds.join(':')}`)
+      .digest('hex');
+    const idempotencyKey = `speaker-selected-${idempotencyDigest}`;
+    await updateSpeakerIntakeLinkEmailDeliveries(eventId, prepared.previews.map((preview) => ({
+      id: preview.link_id,
+      status: 'pending',
+      idempotency_key: idempotencyKey,
+    })));
+
+    let providerIds: string[];
+    try {
+      const result = await sendResendEmailBatch({
+        apiKey: resendApiKey,
+        idempotencyKey,
+        emails: prepared.previews.map((preview) => ({
+          from: preview.from,
+          to: [preview.speaker_email],
+          reply_to: emailReplyTo,
+          subject: preview.subject,
+          html: preview.html,
+          text: preview.text,
+        })),
+      });
+      await recordResendEmailHealth(c, result.quota);
+      providerIds = result.ids;
+    } catch (error) {
+      await updateSpeakerIntakeLinkEmailDeliveries(eventId, prepared.previews.map((preview) => ({
+        id: preview.link_id,
+        status: 'failed',
+        idempotency_key: idempotencyKey,
+        error: 'Resend did not accept this email.',
+      })));
+      console.warn(JSON.stringify({
+        event: 'selected_speaker_email_failed',
+        event_id: eventId,
+        recipient_count: prepared.previews.length,
+        provider_status: error instanceof ResendBatchError ? error.status : null,
+      }));
+      return c.json({ error: 'The email provider did not accept the selected-speaker email. You can preview and retry.', sent_count: 0 }, 502);
+    }
+
+    const acceptedLinks = await updateSpeakerIntakeLinkEmailDeliveries(eventId, prepared.previews.map((preview, index) => ({
+      id: preview.link_id,
+      status: 'accepted',
+      provider_id: providerIds[index] ?? null,
+      idempotency_key: idempotencyKey,
+    })));
+    await auditAdminAction(c, {
+      action: 'speaker_selected_email.batch_send',
+      targetType: 'event',
+      targetId: eventId,
+      metadata: {
+        sent_count: acceptedLinks.length,
+        already_sent_count: prepared.alreadySentCount,
+        speaker_intake_link_ids: acceptedLinks.map((link) => link.id),
+      },
+    });
+
+    return c.json({
+      sent_count: acceptedLinks.length,
+      already_sent_count: prepared.alreadySentCount,
+      completed_count: prepared.completedCount,
+      links: acceptedLinks.map((link) => serializeAdminSpeakerIntakeLink(link, c)),
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'selected_speaker_email_send_failed', error, 'Unable to send selected-speaker emails.');
+  } finally {
+    release();
+  }
 });
 
 app.post('/api/events/:eventId/speaker-intake-links', async (c) => {

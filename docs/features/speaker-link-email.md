@@ -42,8 +42,8 @@ flowchart LR
 
 ### Organizer review and archive preview
 
-- **Talks review** uses the same compact review-table pattern as Community submissions: **Pending** is the default queue, with **Approved** and **Rejected** filters, pagination, and a row that opens the right-side **Review proposal** drawer. The drawer contains the submitted abstract or demo summary, presenter bio, topic, contact details, and submission time before an organizer selects or declines a presenter.
-- The Approved view keeps selected-presenter completion links close to their proposal: organizers can prepare missing links in that filtered view and copy a newly issued link from its row without reopening a separate queue.
+- **Talks review** uses a compact, paginated all-status table with one app-styled **All / Pending / Approved / Rejected** dropdown and a row that opens the right-side **Review proposal** drawer. The drawer contains the submitted abstract or demo summary, presenter bio, topic, contact details, and submission time before an organizer selects or declines a presenter.
+- Approved rows keep the selected-presenter completion link and individual email preview close to the proposal. The private link is prepared automatically at approval, so organizers can copy it or preview and send only that speaker's email without reopening a separate queue.
 - **Talks Archive** uses the same drawer for every archive state, including published items. It preserves a full internal record of the content submitted through the CFP or completion link, rather than leaving organizers with a title-only row.
 - Archive status changes (accept, publish, exclude, and reminder) live in the archive preview drawer, so an organizer reads the record before taking an irreversible decision. An Owner can also unpublish a published item there, returning it to its appropriate internal ready state; Organizers cannot reverse public visibility.
 - The existing public archive remains a separate visibility rule: a published archive item is only returned publicly when its event meets the public completed-archive conditions. The organizer preview is always available to authenticated organizers and does not depend on that public condition.
@@ -157,23 +157,25 @@ This link is for you only and expires {{ expiresAt }}.
 Questions? Reply to this email.
 ```
 
-The raw private URL is hidden behind the HTML call-to-action instead of passing the token through an external URL shortener. The plain-text fallback includes the URL so the message remains usable in text-only clients.
+The private capability uses the owned `go.devcongress.org` resolver. Selected-speaker codes remain high entropy and are bound to the event and intake-link ID; only their SHA-256 hash is stored. The plain-text fallback includes the short URL so the message remains usable in text-only clients.
 
 ## Phase 2: Selected-Speaker Multi-Send
 
-After the July single-send flow is stable:
+Implemented flow:
 
-1. Add checkboxes to the selected-participant list.
-2. Let the organizer choose one, many, or `Select all eligible` selected participants.
-3. Show a confirmation summary with eligible, already completed, expired-link, and missing-email counts.
-4. Create one fresh link per eligible speaker while suppressing already accepted identities.
-5. Render one personalized email per speaker.
-6. Send the set through Resend's Batch API.
-7. Show a per-person result instead of one ambiguous “batch sent” message.
+1. The organizer reviews a cannot-be-undone confirmation before approval or rejection. Desktop uses an app modal; phone review uses a safe-area-aware bottom drawer. Confirmed approval immediately prepares the proposal's one-time, event-bound `go.devcongress.org` link; there is no separate Prepare links action.
+2. The review table exposes both a batch **Preview email(s)** action and **Preview email** on each eligible approved speaker row. Speakers who completed the form or already received the email are excluded.
+3. Preview renders the exact system-generated message per recipient in a sandboxed frame, including sender, recipient, subject, and private short link.
+4. Nothing is sent on selection or preview. The organizer explicitly confirms **Send N emails** from the batch preview, while a row preview sends only that previewed speaker's email.
+5. Resend's Batch API receives one personalized message per speaker. Accepted sends are persisted and suppressed on later attempts.
+6. An unsent expired, failed, or legacy unrecoverable link is reissued automatically before preview; a successfully sent link is never silently replaced.
+7. Approval and rejection are terminal proposal decisions. The server rejects every later attempt to reverse or repeat the decision, preventing accidental link replacement or email-state drift.
 
 Important rules:
 
 - The action remains manual. No automatic send on selection and no reminders or scheduler in this phase.
+- Temporary email-delivery test proposals may use the exact internal note `owner-only:test-speaker`. The server excludes these records, their counts, decisions, private links, previews, and sends for every non-owner organizer; ordinary public proposals never receive this marker.
+- The first release targets all eligible selected speakers in the event; per-recipient selection can be added later if organizers need partial sends.
 - Never put several speakers in one `to`, `cc`, or `bcc` list.
 - Never send the same private token to more than one person.
 - Derive and lock each selected proposal's event, recipient identity, and archive-item kind on the server.

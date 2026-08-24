@@ -18,6 +18,12 @@ describe('security log redaction', () => {
     );
   });
 
+  it('removes private short-link capabilities from resolver paths', () => {
+    expect(securitySafeRequestPath(
+      '/api/internal/short-links/P_AAAAAAAAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAA',
+    )).toBe('/api/internal/short-links/[redacted]');
+  });
+
   it('retains useful non-sensitive path and error classification', () => {
     expect(securitySafeRequestPath('/api/events/event-1/registrations')).toBe(
       '/api/events/event-1/registrations',
