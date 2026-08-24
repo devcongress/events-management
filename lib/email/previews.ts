@@ -3,6 +3,7 @@ import { eventBlastEmail } from '@/lib/email/templates/event-blast';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { eventRegistrationConfirmationEmail } from '@/lib/email/templates/event-registration-confirmation';
 import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
+import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
 import type { EventSubmissionEmailKind } from '@/types';
 
 export type EmailPreviewCategory = 'Registration' | 'Event updates' | 'Community listings' | 'Speaker archive';
@@ -246,6 +247,20 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
       talkTitle: 'Designing Reliable Event-Driven Systems',
       intent: 'selected_confirmation',
     }),
+    {
+      id: 'speaker_proposal_rejected',
+      label: 'Speaker proposal not selected',
+      category: 'Speaker archive',
+      recipient: 'Speaker whose proposal was not selected',
+      trigger: 'Sent automatically when an organizer confirms the final rejection decision.',
+      from: EMAIL_SENDERS.speakers.from,
+      to: 'Efua Owusu <efua@example.com>',
+      ...speakerProposalRejectionEmail({
+        eventName: sampleEvent.name,
+        speakerName: 'Efua Owusu',
+        talkTitle: 'Designing Reliable Event-Driven Systems',
+      }),
+    },
     speakerPreview({
       id: 'speaker_archive_request',
       label: 'Speaker archive request',

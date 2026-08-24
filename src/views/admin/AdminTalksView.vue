@@ -65,6 +65,14 @@ type PendingProposalDecision = {
   submission: SpeakerSubmission;
   status: 'selected' | 'not_selected';
 };
+type SpeakerRejectionEmailPreview = {
+  submission_id: string;
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+};
 const event = ref<Event | null>(null);
 const talks = ref<Talk[]>([]);
 const speakerSubmissions = ref<SpeakerSubmission[]>([]);
@@ -83,6 +91,9 @@ const updatingCfp = ref(false);
 const refreshingSubmissions = ref(false);
 const closeCfpDialogOpen = ref(false);
 const pendingProposalDecision = ref<PendingProposalDecision | null>(null);
+const speakerRejectionEmailPreview = ref<SpeakerRejectionEmailPreview | null>(null);
+const speakerRejectionEmailPreviewLoading = ref(false);
+const speakerRejectionEmailPreviewError = ref<string | null>(null);
 const cfpLinkCopied = ref(false);
 const cfpShortLinkUrl = ref<string | null>(null);
 const copiedSpeakerLinkId = ref<string | null>(null);
@@ -96,6 +107,7 @@ let talkPreviewTrigger: HTMLElement | null = null;
 let cfpLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let speakerIntakeLinkCopiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 let selectedSpeakerEmailPreviewController: AbortController | null = null;
+let speakerRejectionEmailPreviewController: AbortController | null = null;
 const speakerLinkExpiresInDays = ref(7);
 const backfillProgramItemValues = ref<string[]>([]);
 const backfillProgramItemEmails = ref<Record<string, string>>({});
@@ -201,7 +213,7 @@ const proposalDecisionMessage = computed(() => {
   const proposal = `“${decision.submission.title}” by ${decision.submission.speaker_name}`;
   return decision.status === 'selected'
     ? `${proposal} will be approved and a private speaker form link will be prepared. No email is sent yet. This decision cannot be undone.`
-    : `${proposal} will be rejected and removed from the pending review queue. This decision cannot be undone.`;
+    : `${proposal} will be rejected and removed from the pending review queue. Confirming will automatically send the speaker a rejection email. This decision and email cannot be undone.`;
 });
 const previewProposalResourceUrl = computed(() => safePublicResourceUrl(previewProposal.value?.resource_url));
 const previewArchiveItem = computed<Talk | null>(() => (
@@ -638,7 +650,7 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
         resetSpeakerIntakeLinkCopied();
         notify.success('Speaker selected. Their private form link is ready.');
       } else {
-        notify.success('Presenter marked as not selected.');
+        notify.success('Proposal rejected. The speaker rejection email is being sent automatically.');
       }
       return true;
     } else {
@@ -657,16 +669,58 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
   return false;
 }
 
+async function loadSpeakerRejectionEmailPreview(submissionId: string) {
+  speakerRejectionEmailPreviewController?.abort();
+  const controller = new AbortController();
+  speakerRejectionEmailPreviewController = controller;
+  speakerRejectionEmailPreview.value = null;
+  speakerRejectionEmailPreviewError.value = null;
+  speakerRejectionEmailPreviewLoading.value = true;
+
+  try {
+    const response = await fetch(`/api/speaker-submissions/${submissionId}/rejection-email/preview`, {
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (controller.signal.aborted || speakerRejectionEmailPreviewController !== controller) return;
+    if (!response.ok) throw new Error(data.error || 'Could not preview the rejection email.');
+    speakerRejectionEmailPreview.value = data as SpeakerRejectionEmailPreview;
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === 'AbortError') return;
+    speakerRejectionEmailPreviewError.value = caught instanceof Error
+      ? caught.message
+      : 'Could not preview the rejection email.';
+  } finally {
+    if (speakerRejectionEmailPreviewController === controller) {
+      speakerRejectionEmailPreviewController = null;
+      speakerRejectionEmailPreviewLoading.value = false;
+    }
+  }
+}
+
+function cancelProposalDecision() {
+  if (decidingSubmissionId.value) return;
+  speakerRejectionEmailPreviewController?.abort();
+  speakerRejectionEmailPreviewController = null;
+  speakerRejectionEmailPreview.value = null;
+  speakerRejectionEmailPreviewError.value = null;
+  speakerRejectionEmailPreviewLoading.value = false;
+  pendingProposalDecision.value = null;
+}
+
 function requestProposalDecision(submission: SpeakerSubmission, status: 'selected' | 'not_selected') {
   if (submission.status !== 'submitted' || decidingSubmissionId.value) return;
+  cancelProposalDecision();
   pendingProposalDecision.value = { submission, status };
+  if (status === 'not_selected') void loadSpeakerRejectionEmailPreview(submission.id);
 }
 
 async function confirmProposalDecision() {
   const decision = pendingProposalDecision.value;
   if (!decision || decidingSubmissionId.value) return;
+  if (decision.status === 'not_selected' && !speakerRejectionEmailPreview.value) return;
   const decided = await decideSpeakerSubmission(decision.submission.id, decision.status);
-  if (decided) pendingProposalDecision.value = null;
+  if (decided) cancelProposalDecision();
 }
 
 function setProposalStatusFilter(value: string | number) {
@@ -685,6 +739,7 @@ async function previewSelectedSpeakerEmails(submissionId?: string) {
   if (!submissionId && selectedSpeakerEmailReadyCount.value < 2) return;
 
   selectedSpeakerEmailPreviewController?.abort();
+  speakerRejectionEmailPreviewController?.abort();
   const controller = new AbortController();
   selectedSpeakerEmailPreviewController = controller;
   preparingSelectedSpeakerEmailTarget.value = submissionId ?? 'all';
@@ -1796,14 +1851,39 @@ onUnmounted(() => {
       :title="proposalDecisionTitle"
       :message="proposalDecisionMessage"
       :confirm-label="pendingProposalDecision?.status === 'selected' ? 'Approve proposal' : 'Reject proposal'"
-      busy-label="Saving..."
+      :busy-label="pendingProposalDecision?.status === 'not_selected' ? 'Rejecting & emailing...' : 'Saving...'"
       cancel-label="Go back"
       :busy="Boolean(decidingSubmissionId)"
+      :confirm-disabled="pendingProposalDecision?.status === 'not_selected' && !speakerRejectionEmailPreview"
       :danger="pendingProposalDecision?.status === 'not_selected'"
       mobile-sheet
-      @cancel="pendingProposalDecision = null"
+      @cancel="cancelProposalDecision"
       @confirm="confirmProposalDecision"
-    />
+    >
+      <section v-if="pendingProposalDecision?.status === 'not_selected'" class="rounded-lg border border-dc-border bg-dc-paper p-3">
+        <div class="flex items-center justify-between gap-3">
+          <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-pink">Email sent on confirmation</p>
+          <button
+            v-if="speakerRejectionEmailPreviewError"
+            type="button"
+            class="motion-press rounded-md border border-dc-ink bg-white px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink"
+            @click="loadSpeakerRejectionEmailPreview(pendingProposalDecision.submission.id)"
+          >
+            Retry preview
+          </button>
+        </div>
+        <p v-if="speakerRejectionEmailPreviewLoading" class="mt-3 text-sm text-dc-gray">Preparing the exact rejection email…</p>
+        <p v-else-if="speakerRejectionEmailPreviewError" class="mt-3 text-sm leading-5 text-red-700">{{ speakerRejectionEmailPreviewError }}</p>
+        <div v-else-if="speakerRejectionEmailPreview" class="mt-3 space-y-3">
+          <dl class="grid gap-2 text-xs">
+            <div class="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2"><dt class="font-mono font-semibold uppercase text-dc-gray">From</dt><dd class="break-words text-dc-ink">{{ speakerRejectionEmailPreview.from }}</dd></div>
+            <div class="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2"><dt class="font-mono font-semibold uppercase text-dc-gray">To</dt><dd class="break-words text-dc-ink">{{ speakerRejectionEmailPreview.to }}</dd></div>
+            <div class="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2"><dt class="font-mono font-semibold uppercase text-dc-gray">Subject</dt><dd class="break-words font-semibold text-dc-ink">{{ speakerRejectionEmailPreview.subject }}</dd></div>
+          </dl>
+          <pre class="max-h-52 overflow-y-auto whitespace-pre-wrap rounded-md border border-dc-border bg-white p-3 font-sans text-xs leading-5 text-dc-ink">{{ speakerRejectionEmailPreview.text }}</pre>
+        </div>
+      </section>
+    </ConfirmDialog>
 
     <ConfirmDialog
       :open="closeCfpDialogOpen"

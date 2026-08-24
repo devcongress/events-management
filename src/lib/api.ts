@@ -224,7 +224,7 @@ export interface EmailOutboxSummary {
 
 export interface RecentEmailDelivery {
   id: string;
-  source: 'registration' | 'community_submission' | 'speaker_archive';
+  source: 'registration' | 'community_submission' | 'speaker_archive' | 'speaker_proposal';
   label: string;
   status: 'pending' | 'accepted' | 'failed';
   attempts: number;

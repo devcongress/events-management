@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-080: Queue Rejection Email State with the Final Speaker Decision
+
+**Date:** 2026-08-24
+**Why:** Rejection is an irreversible proposal decision, so a best-effort provider call after changing the status could leave the speaker uninformed with no safe way for the organizer to repeat the action. Sending before persistence has the opposite failure mode: the speaker could receive a rejection that EMS failed to record.
+**Decision:** Store the automatic rejection email's pending, accepted, or failed state and stable provider idempotency key on the speaker submission. Write the pending intent in the same guarded update that changes a submitted proposal to `not_selected`, then dispatch through Resend after the decision commits. Refuse to finalize rejection when required speaker-email configuration is absent. Let the existing 15-minute Worker schedule retry pending and failed records without reopening the proposal decision. Keep selection email manual and preview-first.
+**Tradeoffs:** The proposal row carries delivery metadata for one fixed decision email instead of using a generalized outbox table. This keeps the transition atomic and bounded at the current one-email-per-rejection scale, while the scheduled drain and provider key prevent repeated delivery. A future workflow with several decision-email kinds should move this state into a dedicated relational outbox.
+**Revisit when:** Rejections need editable reasons, multiple messages, owner-visible manual retries, provider delivery webhooks, or a shared speaker-correspondence timeline.
+
+---
+
 ## ADR-079: Resolve Compact Selected-Speaker Capabilities by Stored Hash
 
 **Date:** 2026-08-24

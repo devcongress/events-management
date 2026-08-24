@@ -112,9 +112,11 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST /api/public/email-preflight` | Rate-limited, non-persistent syntax/typo/disposable/mail-domain check used for the public forms' two-stage submit state; inconclusive DNS results are accepted and final submission endpoints recheck policy |
 | `POST /api/public/event-submissions` | Runtime-gated public proposal intake with strict schema and organizer-email preflight, purpose-specific Turnstile hostname validation, and distributed client/email limits |
 | `/api/admin/event-submissions*` | Organizer-only proposal inbox, transactional approve/reject actions, email delivery state, idempotent failed-email retry, and one-reply-at-a-time Slack notification retry with bounded provider diagnostics |
+| `GET /api/speaker-submissions/:submissionId/rejection-email/preview` | Organizer-only exact personalized preview of the automatic rejection email for a still-pending speaker proposal |
 | `GET /api/events/:eventId/page-monitor` | Owner/Organizer-only registration-page monitoring status, including Last checked, Next check, latest availability, and detected structured differences |
 | `POST /api/events/:eventId/page-monitor/check` | Owner/Organizer-only audited manual page check with a five-minute cooldown; the result is advisory and never rewrites the event |
 | `POST /api/internal/event-page-monitors/check-due` | Shared-secret scheduled drain for due external registration-page checks; called by the existing 15-minute Worker cron |
+| `POST /api/internal/speaker-rejection-emails/retry` | Shared-secret scheduled retry for pending or failed automatic speaker-proposal rejection emails |
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Organizer email allowlist management; re-enable and permanent removal endpoints are Owner-only, and permanent removal requires a disabled membership |

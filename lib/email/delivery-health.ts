@@ -30,7 +30,7 @@ export type EmailOutboxSummary = {
 
 export type RecentEmailDelivery = {
   id: string;
-  source: 'registration' | 'community_submission' | 'speaker_archive';
+  source: 'registration' | 'community_submission' | 'speaker_archive' | 'speaker_proposal';
   label: string;
   status: 'pending' | 'accepted' | 'failed';
   attempts: number;
@@ -104,19 +104,22 @@ export async function getEmailDeliveryHealth(c?: Context): Promise<EmailDelivery
 export async function getEmailOutboxSummary(c?: Context): Promise<EmailOutboxSummary | null> {
   if (!isSupabaseServerConfigured(c)) return null;
   const client = getSupabaseAdminClient(c);
-  const [registrationResult, submissionResult, speakerResult] = await Promise.all([
+  const [registrationResult, submissionResult, speakerResult, speakerProposalResult] = await Promise.all([
     client.from('registration_email_deliveries').select('status'),
     client.from('event_submission_email_deliveries').select('status'),
     client.from('speaker_intake_links').select('email_status').not('email_status', 'is', null),
+    client.from('speaker_submissions').select('decision_email_status').not('decision_email_status', 'is', null),
   ]);
   if (registrationResult.error) throw new Error(registrationResult.error.message);
   if (submissionResult.error) throw new Error(submissionResult.error.message);
   if (speakerResult.error) throw new Error(speakerResult.error.message);
+  if (speakerProposalResult.error) throw new Error(speakerProposalResult.error.message);
 
   const statuses = [
     ...registrationResult.data.map((delivery) => delivery.status),
     ...submissionResult.data.map((delivery) => delivery.status),
     ...speakerResult.data.map((delivery) => delivery.email_status),
+    ...speakerProposalResult.data.map((delivery) => delivery.decision_email_status),
   ];
   return {
     pending: statuses.filter((status) => status === 'pending').length,
@@ -133,12 +136,16 @@ function recentDeliveryTimestamp(input: {
   last_attempt_at?: string | null;
   email_sent_at?: string | null;
   email_last_attempt_at?: string | null;
+  decision_email_sent_at?: string | null;
+  decision_email_last_attempt_at?: string | null;
   updated_at: string;
 }): string {
   return input.accepted_at
     ?? input.email_sent_at
+    ?? input.decision_email_sent_at
     ?? input.last_attempt_at
     ?? input.email_last_attempt_at
+    ?? input.decision_email_last_attempt_at
     ?? input.updated_at;
 }
 
@@ -161,7 +168,7 @@ function speakerDeliveryLabel(purpose: string): string {
 export async function getRecentEmailDeliveries(c?: Context): Promise<RecentEmailDelivery[] | null> {
   if (!isSupabaseServerConfigured(c)) return null;
   const client = getSupabaseAdminClient(c);
-  const [registrationResult, submissionResult, speakerResult] = await Promise.all([
+  const [registrationResult, submissionResult, speakerResult, speakerProposalResult] = await Promise.all([
     client
       .from('registration_email_deliveries')
       .select('id, kind, status, attempts, last_error, last_attempt_at, accepted_at, updated_at')
@@ -178,10 +185,17 @@ export async function getRecentEmailDeliveries(c?: Context): Promise<RecentEmail
       .not('email_status', 'is', null)
       .order('updated_at', { ascending: false })
       .limit(RECENT_DELIVERY_LIMIT),
+    client
+      .from('speaker_submissions')
+      .select('id, decision_email_status, decision_email_last_error, decision_email_last_attempt_at, decision_email_sent_at, updated_at')
+      .not('decision_email_status', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(RECENT_DELIVERY_LIMIT),
   ]);
   if (registrationResult.error) throw new Error(registrationResult.error.message);
   if (submissionResult.error) throw new Error(submissionResult.error.message);
   if (speakerResult.error) throw new Error(speakerResult.error.message);
+  if (speakerProposalResult.error) throw new Error(speakerProposalResult.error.message);
 
   const registrationDeliveries: RecentEmailDelivery[] = registrationResult.data.map((delivery) => ({
     id: `registration:${delivery.id}`,
@@ -214,11 +228,25 @@ export async function getRecentEmailDeliveries(c?: Context): Promise<RecentEmail
     });
     return deliveries;
   }, []);
+  const speakerProposalDeliveries = speakerProposalResult.data.reduce<RecentEmailDelivery[]>((deliveries, delivery) => {
+    if (!isEmailDeliveryStatus(delivery.decision_email_status)) return deliveries;
+    deliveries.push({
+      id: `speaker_proposal:${delivery.id}`,
+      source: 'speaker_proposal',
+      label: 'Proposal not selected',
+      status: delivery.decision_email_status,
+      attempts: 1,
+      occurred_at: recentDeliveryTimestamp(delivery),
+      last_error: delivery.decision_email_last_error,
+    });
+    return deliveries;
+  }, []);
 
   return sortRecentEmailDeliveries([
     ...registrationDeliveries,
     ...submissionDeliveries,
     ...speakerDeliveries,
+    ...speakerProposalDeliveries,
   ]).slice(0, RECENT_DELIVERY_LIMIT);
 }
 

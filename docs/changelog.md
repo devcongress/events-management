@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-24 — Automatic speaker proposal rejection emails
+
+- Updated the irreversible rejection confirmation modal and mobile bottom drawer to state that confirming immediately emails the speaker and that neither action can be undone.
+- Added the exact personalized sender, recipient, subject, and rejection message to that confirmation surface; the final action remains disabled until the production template preview loads successfully.
+- Added a system-generated speaker rejection template to the owner email-preview catalog and sends it automatically through the existing DevCongress Speakers sender after the proposal decision commits.
+- Persisted pending, accepted, and failed delivery state directly on each rejected proposal with a stable idempotency key, while preventing rejection when speaker email delivery is not configured.
+- Added a scheduled retry drain to the existing 15-minute Worker cron so transient provider failures do not require repeating or reversing the final proposal decision.
+- Included automatic proposal rejection messages in Audit Log email delivery totals and recent delivery history.
+- Added migration `20260824113000_speaker_rejection_email_delivery.sql` for the durable proposal decision-email fields and retry index.
+
 ## 2026-08-24 — Selected-speaker short links and email preview
 
 - Prepared a high-entropy, event-bound `go.devcongress.org` private form link automatically when a proposal is selected, removing the separate **Prepare links** action while retaining hash-only token storage.

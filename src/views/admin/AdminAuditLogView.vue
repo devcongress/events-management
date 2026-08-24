@@ -295,6 +295,7 @@ function healthTone(level: EmailHealthLevel): string {
 function deliverySourceLabel(source: RecentEmailDelivery['source']): string {
   if (source === 'community_submission') return 'Community listing';
   if (source === 'speaker_archive') return 'Speaker archive';
+  if (source === 'speaker_proposal') return 'Speaker proposal';
   return 'Registration';
 }
 
