@@ -1,5 +1,5 @@
 import { readData, updateData } from './index';
-import type { ArchiveItemKind, SpeakerSubmission, SpeakerSubmissionStatus } from '@/types';
+import type { ArchiveItemKind, SpeakerSubmission, SpeakerSubmissionDecisionEmailStatus, SpeakerSubmissionStatus } from '@/types';
 import type { Database } from '@/types/supabase';
 import { generateId, now } from '@/lib/utils';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
@@ -23,6 +23,12 @@ function normalizeSpeakerSubmission(submission: SpeakerSubmission): SpeakerSubmi
     ...submission,
     kind: normalizeArchiveItemKind(submission.kind),
     resource_url: submission.resource_url ?? null,
+    decision_email_status: submission.decision_email_status ?? null,
+    decision_email_provider_id: submission.decision_email_provider_id ?? null,
+    decision_email_idempotency_key: submission.decision_email_idempotency_key ?? null,
+    decision_email_sent_at: submission.decision_email_sent_at ?? null,
+    decision_email_last_attempt_at: submission.decision_email_last_attempt_at ?? null,
+    decision_email_last_error: submission.decision_email_last_error ?? null,
   };
 }
 
@@ -83,6 +89,12 @@ export async function createSpeakerSubmission(
     | 'selected_intake_link_id'
     | 'selected_talk_id'
     | 'decided_at'
+    | 'decision_email_status'
+    | 'decision_email_provider_id'
+    | 'decision_email_idempotency_key'
+    | 'decision_email_sent_at'
+    | 'decision_email_last_attempt_at'
+    | 'decision_email_last_error'
     | 'created_at'
     | 'updated_at'
     | 'resource_url'
@@ -99,6 +111,12 @@ export async function createSpeakerSubmission(
     selected_intake_link_id: null,
     selected_talk_id: null,
     decided_at: null,
+    decision_email_status: null,
+    decision_email_provider_id: null,
+    decision_email_idempotency_key: null,
+    decision_email_sent_at: null,
+    decision_email_last_attempt_at: null,
+    decision_email_last_error: null,
     created_at: createdAt,
     updated_at: createdAt,
   };
@@ -123,6 +141,12 @@ export async function createSpeakerSubmission(
         selected_intake_link_id: submission.selected_intake_link_id,
         selected_talk_id: submission.selected_talk_id,
         decided_at: submission.decided_at,
+        decision_email_status: submission.decision_email_status,
+        decision_email_provider_id: submission.decision_email_provider_id,
+        decision_email_idempotency_key: submission.decision_email_idempotency_key,
+        decision_email_sent_at: submission.decision_email_sent_at,
+        decision_email_last_attempt_at: submission.decision_email_last_attempt_at,
+        decision_email_last_error: submission.decision_email_last_error,
         created_at: submission.created_at,
         updated_at: submission.updated_at,
       })
@@ -219,7 +243,15 @@ export async function updateSpeakerSubmission(
 
 export async function decideSpeakerSubmission(
   id: string,
-  updates: Pick<SpeakerSubmission, 'status' | 'internal_note' | 'selected_intake_link_id'>,
+  updates: Pick<SpeakerSubmission, 'status' | 'internal_note' | 'selected_intake_link_id'> & Partial<Pick<
+    SpeakerSubmission,
+    | 'decision_email_status'
+    | 'decision_email_provider_id'
+    | 'decision_email_idempotency_key'
+    | 'decision_email_sent_at'
+    | 'decision_email_last_attempt_at'
+    | 'decision_email_last_error'
+  >>,
 ): Promise<SpeakerSubmission> {
   if (!isDecisionStatus(updates.status)) throw new Error('A final proposal decision is required');
   const decidedAt = now();
@@ -231,6 +263,12 @@ export async function decideSpeakerSubmission(
         status: updates.status,
         internal_note: updates.internal_note,
         selected_intake_link_id: updates.selected_intake_link_id,
+        decision_email_status: updates.decision_email_status,
+        decision_email_provider_id: updates.decision_email_provider_id,
+        decision_email_idempotency_key: updates.decision_email_idempotency_key,
+        decision_email_sent_at: updates.decision_email_sent_at,
+        decision_email_last_attempt_at: updates.decision_email_last_attempt_at,
+        decision_email_last_error: updates.decision_email_last_error,
         decided_at: decidedAt,
         updated_at: decidedAt,
       })
@@ -260,6 +298,57 @@ export async function decideSpeakerSubmission(
     const nextSubmissions = [...normalizedSubmissions];
     nextSubmissions[index] = next;
     return { data: nextSubmissions, result: next };
+  });
+}
+
+export async function getPendingSpeakerRejectionEmails(options: {
+  submissionId?: string;
+  statuses?: SpeakerSubmissionDecisionEmailStatus[];
+  limit?: number;
+} = {}): Promise<SpeakerSubmission[]> {
+  const statuses = options.statuses ?? ['pending', 'failed'];
+  const limit = Math.max(1, Math.min(options.limit ?? 20, 100));
+
+  if (isSupabaseRuntimeEnabled()) {
+    let query = getSupabaseAdminClient()
+      .from('speaker_submissions')
+      .select('*')
+      .eq('status', 'not_selected')
+      .in('decision_email_status', statuses)
+      .order('decision_email_last_attempt_at', { ascending: true, nullsFirst: true })
+      .limit(limit);
+    if (options.submissionId) query = query.eq('id', options.submissionId);
+    const { data, error } = await query;
+    if (error) throw new Error('Unable to load pending speaker decision emails');
+    return (data ?? []).map(fromSupabaseRow);
+  }
+
+  const submissions = (await readData<SpeakerSubmission>(FILE)).map(normalizeSpeakerSubmission);
+  return submissions
+    .filter((submission) => (
+      submission.status === 'not_selected'
+      && Boolean(submission.decision_email_status && statuses.includes(submission.decision_email_status))
+      && (!options.submissionId || submission.id === options.submissionId)
+    ))
+    .sort((a, b) => (a.decision_email_last_attempt_at ?? '').localeCompare(b.decision_email_last_attempt_at ?? ''))
+    .slice(0, limit);
+}
+
+export async function updateSpeakerDecisionEmailDelivery(
+  id: string,
+  update: {
+    status: SpeakerSubmissionDecisionEmailStatus;
+    providerId?: string | null;
+    lastError?: string | null;
+  },
+): Promise<SpeakerSubmission> {
+  const attemptedAt = now();
+  return updateSpeakerSubmission(id, {
+    decision_email_status: update.status,
+    decision_email_provider_id: update.providerId ?? null,
+    decision_email_sent_at: update.status === 'accepted' ? attemptedAt : null,
+    decision_email_last_attempt_at: attemptedAt,
+    decision_email_last_error: update.lastError ?? null,
   });
 }
 

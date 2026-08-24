@@ -11,6 +11,7 @@ export default {
     const jobs = [
       { path: '/api/internal/slack-announcements/retry', event: 'scheduled_event_slack_announcement_retry_http_failed' },
       { path: '/api/internal/event-page-monitors/check-due', event: 'scheduled_event_page_monitor_http_failed' },
+      { path: '/api/internal/speaker-rejection-emails/retry', event: 'scheduled_speaker_rejection_email_retry_http_failed' },
     ];
     for (const job of jobs) {
       const response = await app.fetch(new Request(`https://events-management.internal${job.path}`, {

@@ -1837,6 +1837,12 @@ export interface Database {
           selected_intake_link_id: string | null;
           selected_talk_id: string | null;
           decided_at: string | null;
+          decision_email_status: 'pending' | 'accepted' | 'failed' | null;
+          decision_email_provider_id: string | null;
+          decision_email_idempotency_key: string | null;
+          decision_email_sent_at: string | null;
+          decision_email_last_attempt_at: string | null;
+          decision_email_last_error: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1857,6 +1863,12 @@ export interface Database {
           selected_intake_link_id?: string | null;
           selected_talk_id?: string | null;
           decided_at?: string | null;
+          decision_email_status?: 'pending' | 'accepted' | 'failed' | null;
+          decision_email_provider_id?: string | null;
+          decision_email_idempotency_key?: string | null;
+          decision_email_sent_at?: string | null;
+          decision_email_last_attempt_at?: string | null;
+          decision_email_last_error?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -1877,6 +1889,12 @@ export interface Database {
           selected_intake_link_id?: string | null;
           selected_talk_id?: string | null;
           decided_at?: string | null;
+          decision_email_status?: 'pending' | 'accepted' | 'failed' | null;
+          decision_email_provider_id?: string | null;
+          decision_email_idempotency_key?: string | null;
+          decision_email_sent_at?: string | null;
+          decision_email_last_attempt_at?: string | null;
+          decision_email_last_error?: string | null;
           created_at?: string;
           updated_at?: string;
         };

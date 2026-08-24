@@ -9,6 +9,7 @@ const props = withDefaults(defineProps<{
   busyLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
+  confirmDisabled?: boolean;
   danger?: boolean;
   mobileSheet?: boolean;
 }>(), {
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
   busyLabel: 'Working...',
   cancelLabel: 'Cancel',
   busy: false,
+  confirmDisabled: false,
   danger: false,
   mobileSheet: false,
 });
@@ -118,7 +120,7 @@ onBeforeUnmount(() => {
               type="button"
               class="motion-press rounded-md border-2 border-dc-ink px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wide text-white shadow-[3px_3px_0_#111111] disabled:cursor-not-allowed disabled:opacity-60"
               :class="danger ? 'bg-red-600' : 'bg-dc-pink'"
-              :disabled="busy"
+              :disabled="busy || confirmDisabled"
               @click="emit('confirm')"
             >
               {{ busy ? busyLabel : confirmLabel }}
@@ -139,6 +141,11 @@ onBeforeUnmount(() => {
   border-radius: 12px 12px 0 0;
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
   box-shadow: 0 -8px 30px rgb(17 17 17 / 18%);
+}
+
+.confirm-dialog-panel {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
 }
 
 .confirm-dialog-handle {

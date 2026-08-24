@@ -4,6 +4,7 @@ export type EventChecklistPhase = 'setup' | 'cfp' | 'program' | 'event_day' | 'p
 export type TalkStatus = 'submitted' | 'accepted' | 'rejected' | 'slides_received' | 'published';
 export type ArchiveItemKind = 'talk' | 'product_demo';
 export type SpeakerSubmissionStatus = 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
+export type SpeakerSubmissionDecisionEmailStatus = 'pending' | 'accepted' | 'failed';
 export type SpeakerIntakeLinkPurpose = 'archive_backfill' | 'selected_speaker_confirmation' | 'archive_materials_follow_up';
 export type ArchiveMaterialField = 'abstract' | 'bio' | 'slides_url';
 export type SpeakerIntakeEmailStatus = 'pending' | 'accepted' | 'failed';
@@ -326,6 +327,12 @@ export interface SpeakerSubmission {
   selected_intake_link_id: string | null;
   selected_talk_id: string | null;
   decided_at: string | null;
+  decision_email_status: SpeakerSubmissionDecisionEmailStatus | null;
+  decision_email_provider_id: string | null;
+  decision_email_idempotency_key: string | null;
+  decision_email_sent_at: string | null;
+  decision_email_last_attempt_at: string | null;
+  decision_email_last_error: string | null;
   created_at: string;
   updated_at: string;
 }

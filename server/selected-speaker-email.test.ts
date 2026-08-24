@@ -51,6 +51,7 @@ beforeEach(async () => {
   vi.stubEnv('NODE_ENV', 'test');
   vi.stubEnv('RESEND_API_KEY', 're_test');
   vi.stubEnv('SPEAKER_EMAIL_REPLY_TO', 'hello@devcongress.org');
+  vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'test-scheduled-speaker-email-job-secret-2026');
   vi.stubEnv('SHORT_LINK_PUBLIC_ORIGIN', 'https://go.devcongress.org');
   vi.stubEnv('SHORT_LINK_RESOLVER_TOKEN', 'test-short-link-resolver-token-2026');
   vi.stubEnv('SPEAKER_INTAKE_LINK_TOKEN_SECRET', 'test-speaker-intake-link-secret-2026');
@@ -258,14 +259,54 @@ describe('selected-speaker email workflow', () => {
     });
   });
 
-  it('keeps a rejection final', async () => {
+  it('previews the exact personalized rejection message without sending it', async () => {
+    const resendFetch = vi.fn();
+    vi.stubGlobal('fetch', resendFetch);
     const { app, submission } = await setup();
+
+    const response = await app.request(`http://localhost/api/speaker-submissions/${submission.id}/rejection-email/preview`);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      submission_id: submission.id,
+      from: 'DevCongress Speakers <speakers@updates.devcongress.org>',
+      to: 'Ama Boateng <ama@example.com>',
+      subject: 'Update on your presentation proposal for DevCongress August Meetup',
+      text: expect.stringContaining('Thank you for submitting “Designing Reliable Systems”'),
+      html: expect.stringContaining('we will not be moving forward with this proposal'),
+    });
+    expect(resendFetch).not.toHaveBeenCalled();
+  });
+
+  it('automatically sends the rejection email once and keeps the decision final', async () => {
+    const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ data: [{ id: 'resend-rejected-1' }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', resendFetch);
+    const { app, submissions, submission } = await setup();
     const reject = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'not_selected' }),
     });
     expect(reject.status).toBe(200);
+    await expect(reject.json()).resolves.toMatchObject({
+      submission: { status: 'not_selected' },
+      decision_email: { status: 'pending' },
+    });
+    expect(resendFetch).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
+    expect(payload).toEqual([expect.objectContaining({
+      from: 'DevCongress Speakers <speakers@updates.devcongress.org>',
+      to: ['ama@example.com'],
+      reply_to: 'hello@devcongress.org',
+      subject: 'Update on your presentation proposal for DevCongress August Meetup',
+    })]);
+    await expect(submissions.getSpeakerSubmissionById(submission.id)).resolves.toMatchObject({
+      decision_email_status: 'accepted',
+      decision_email_provider_id: 'resend-rejected-1',
+      decision_email_idempotency_key: `speaker-rejected-${submission.id}`,
+    });
 
     const approve = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
       method: 'PATCH',
@@ -273,6 +314,63 @@ describe('selected-speaker email workflow', () => {
       body: JSON.stringify({ status: 'selected' }),
     });
     expect(approve.status).toBe(409);
+  });
+
+  it('does not finalize a rejection when speaker email is not configured', async () => {
+    vi.stubEnv('RESEND_API_KEY', '');
+    const { app, submissions, submission } = await setup();
+    const response = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'not_selected' }),
+    });
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Speaker email sending is not configured. The proposal was not rejected.',
+    });
+    await expect(submissions.getSpeakerSubmissionById(submission.id)).resolves.toMatchObject({
+      status: 'submitted',
+      decision_email_status: null,
+    });
+  });
+
+  it('retries a failed automatic rejection email from the scheduled drain', async () => {
+    const resendFetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: 'Temporary provider failure' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'resend-rejected-retry' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    vi.stubGlobal('fetch', resendFetch);
+    const { app, submissions, submission } = await setup();
+    const rejected = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'not_selected' }),
+    });
+    expect(rejected.status).toBe(200);
+    await expect(submissions.getSpeakerSubmissionById(submission.id)).resolves.toMatchObject({
+      decision_email_status: 'failed',
+    });
+
+    const retry = await app.request('http://localhost/api/internal/speaker-rejection-emails/retry', {
+      method: 'POST',
+      headers: { 'x-scheduled-job-secret': 'test-scheduled-speaker-email-job-secret-2026' },
+    });
+    expect(retry.status).toBe(200);
+    await expect(retry.json()).resolves.toMatchObject({
+      ok: true,
+      accepted: [submission.id],
+      failed: [],
+    });
+    expect(resendFetch).toHaveBeenCalledTimes(2);
+    await expect(submissions.getSpeakerSubmissionById(submission.id)).resolves.toMatchObject({
+      decision_email_status: 'accepted',
+      decision_email_provider_id: 'resend-rejected-retry',
+    });
   });
 
   it('sends the previewed email once and suppresses a duplicate send', async () => {

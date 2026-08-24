@@ -163,17 +163,18 @@ The private capability uses the owned `go.devcongress.org` resolver. New selecte
 
 Implemented flow:
 
-1. The organizer reviews a cannot-be-undone confirmation before approval or rejection. Desktop uses an app modal; phone review uses a safe-area-aware bottom drawer. Confirmed approval immediately prepares the proposal's one-time, event-bound `go.devcongress.org` link; there is no separate Prepare links action.
+1. The organizer reviews a cannot-be-undone confirmation before approval or rejection. Desktop uses an app modal; phone review uses a safe-area-aware bottom drawer. The rejection confirmation loads the exact personalized sender, recipient, subject, and plain-text message from the production template and remains disabled if that preview cannot be prepared. Confirmed approval immediately prepares the proposal's one-time, event-bound `go.devcongress.org` link; there is no separate Prepare links action. Confirmed rejection finalizes the decision and automatically queues the previewed system-generated rejection email.
 2. The review table exposes both a batch **Preview email(s)** action and **Preview email** on each eligible approved speaker row. Speakers who completed the form or already received the email are excluded.
 3. Preview renders the exact system-generated message per recipient in a sandboxed frame, including sender, recipient, subject, and private short link.
 4. Nothing is sent on selection or preview. The organizer explicitly confirms **Send N emails** from the batch preview, while a row preview sends only that previewed speaker's email.
 5. Resend's Batch API receives one personalized message per speaker. Accepted sends are persisted and suppressed on later attempts.
 6. An unsent expired, failed, or legacy unrecoverable link is reissued automatically before preview; a successfully sent link is never silently replaced.
 7. Approval and rejection are terminal proposal decisions. The server rejects every later attempt to reverse or repeat the decision, preventing accidental link replacement or email-state drift.
+8. Rejection email state is stored on the proposal with a stable idempotency key. The initial send runs after the final decision, and the existing 15-minute Worker schedule retries pending or failed deliveries without requiring the organizer to repeat the irreversible action.
 
 Important rules:
 
-- The action remains manual. No automatic send on selection and no reminders or scheduler in this phase.
+- Selected-speaker acceptance mail remains manual and requires preview confirmation. Proposal rejection mail is automatic after the organizer confirms the final warning; it uses the same Speakers sender and reply-to configuration.
 - Temporary email-delivery test proposals may use the exact internal note `owner-only:test-speaker`. The server excludes these records, their counts, decisions, private links, previews, and sends for every non-owner organizer; ordinary public proposals never receive this marker.
 - The first release targets all eligible selected speakers in the event; per-recipient selection can be added later if organizers need partial sends.
 - Never put several speakers in one `to`, `cc`, or `bcc` list.

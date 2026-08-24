@@ -9,6 +9,10 @@ const previewSource = readFileSync(
   new URL('./components/ui/SelectedSpeakerEmailPreview.vue', import.meta.url),
   'utf8',
 );
+const confirmDialogSource = readFileSync(
+  new URL('./components/ui/ConfirmDialog.vue', import.meta.url),
+  'utf8',
+);
 
 describe('selected-speaker email controls', () => {
   it('previews system-generated content before an explicit send', () => {
@@ -35,5 +39,12 @@ describe('selected-speaker email controls', () => {
     expect(viewSource).not.toContain('generateSelectedSpeakerLinks');
     expect(viewSource).toContain("previewProposal.status === 'submitted'");
     expect(viewSource).toContain('This decision is final.');
+    expect(viewSource).toContain('Confirming will automatically send the speaker a rejection email.');
+    expect(viewSource).toContain("'Rejecting & emailing...'");
+    expect(viewSource).toContain('/rejection-email/preview');
+    expect(viewSource).toContain('Email sent on confirmation');
+    expect(viewSource).toContain(':confirm-disabled="pendingProposalDecision?.status === \'not_selected\' && !speakerRejectionEmailPreview"');
+    expect(viewSource).toContain('{{ speakerRejectionEmailPreview.text }}');
+    expect(confirmDialogSource).toContain(':disabled="busy || confirmDisabled"');
   });
 });

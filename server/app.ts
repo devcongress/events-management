@@ -26,6 +26,7 @@ import {
 } from '@/lib/email/templates/event-registration-confirmation';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
+import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
 import { assessPublicEmail, type PublicEmailPreflightResult } from '@/lib/email/public-email-preflight';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
 import { attendanceRecordsFromRegistrations } from '@/lib/native-attendance';
@@ -113,7 +114,7 @@ import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessio
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByCapability, getSpeakerIntakeLinkById, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
-import { createSpeakerSubmission, decideSpeakerSubmission as decideSpeakerSubmissionRecord, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, SpeakerSubmissionDecisionFinalError, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
+import { createSpeakerSubmission, decideSpeakerSubmission as decideSpeakerSubmissionRecord, getPendingSpeakerRejectionEmails, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, SpeakerSubmissionDecisionFinalError, updateSpeakerDecisionEmailDelivery, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
 import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
@@ -1276,7 +1277,11 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
-    || (method === 'POST' && (path === '/api/internal/slack-announcements/retry' || path === '/api/internal/event-page-monitors/check-due'))
+    || (method === 'POST' && (
+      path === '/api/internal/slack-announcements/retry'
+      || path === '/api/internal/event-page-monitors/check-due'
+      || path === '/api/internal/speaker-rejection-emails/retry'
+    ))
     || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
     || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
@@ -3014,6 +3019,96 @@ async function dispatchEventSubmissionEmails(
   const task = sendPendingEventSubmissionEmails(c, options).catch((error) => {
     console.error(JSON.stringify({
       event: 'event_submission_email_dispatch_failed',
+      submission_id: options?.submissionId ?? null,
+      error_name: safeErrorName(error),
+    }));
+  });
+
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
+  }
+}
+
+async function sendPendingSpeakerRejectionEmails(
+  c: Context,
+  options: {
+    submissionId?: string;
+    statuses?: Array<'pending' | 'failed'>;
+    limit?: number;
+  } = {},
+): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    return { configured: false, accepted: [], failed: [] };
+  }
+
+  const pending = await getPendingSpeakerRejectionEmails(options);
+  const accepted: string[] = [];
+  const failed: string[] = [];
+
+  for (const submission of pending) {
+    const event = await getEventById(submission.event_id, c);
+    if (!event) {
+      await updateSpeakerDecisionEmailDelivery(submission.id, {
+        status: 'failed',
+        lastError: 'The proposal event could not be loaded; delivery will be retried.',
+      });
+      failed.push(submission.id);
+      continue;
+    }
+
+    const content = speakerProposalRejectionEmail({
+      eventName: event.name,
+      speakerName: submission.speaker_name,
+      talkTitle: submission.title,
+    });
+    const idempotencyKey = submission.decision_email_idempotency_key ?? `speaker-rejected-${submission.id}`;
+    await updateSpeakerDecisionEmailDelivery(submission.id, { status: 'pending' });
+
+    try {
+      const result = await sendResendEmailBatch({
+        apiKey: resendApiKey,
+        idempotencyKey,
+        emails: [{
+          from: EMAIL_SENDERS.speakers.from,
+          to: [submission.speaker_email],
+          reply_to: emailReplyTo,
+          ...content,
+        }],
+      });
+      await recordResendEmailHealth(c, result.quota);
+      await updateSpeakerDecisionEmailDelivery(submission.id, {
+        status: 'accepted',
+        providerId: result.ids[0] ?? null,
+      });
+      accepted.push(submission.id);
+    } catch (error) {
+      await updateSpeakerDecisionEmailDelivery(submission.id, {
+        status: 'failed',
+        lastError: eventSubmissionEmailFailureMessage(error),
+      });
+      failed.push(submission.id);
+      console.warn(JSON.stringify({
+        event: 'speaker_rejection_email_delayed',
+        submission_id: submission.id,
+        provider_status: error instanceof ResendBatchError ? error.status : null,
+      }));
+    }
+  }
+
+  return { configured: true, accepted, failed };
+}
+
+async function dispatchSpeakerRejectionEmails(
+  c: Context,
+  options: Parameters<typeof sendPendingSpeakerRejectionEmails>[1],
+): Promise<void> {
+  const task = sendPendingSpeakerRejectionEmails(c, options).catch((error) => {
+    console.error(JSON.stringify({
+      event: 'speaker_rejection_email_dispatch_failed',
       submission_id: options?.submissionId ?? null,
       error_name: safeErrorName(error),
     }));
@@ -6975,6 +7070,25 @@ app.post('/api/internal/event-page-monitors/check-due', async (c) => {
   }
 });
 
+app.post('/api/internal/speaker-rejection-emails/retry', async (c) => {
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+  try {
+    const result = await sendPendingSpeakerRejectionEmails(c, {
+      statuses: ['pending', 'failed'],
+      limit: 20,
+    });
+    console.info(JSON.stringify({ event: 'scheduled_speaker_rejection_email_retry', ...result }));
+    return c.json({ ok: true, ...result });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'scheduled_speaker_rejection_email_retry_failed',
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return c.json({ error: 'Speaker rejection email retry failed.' }, 500);
+  }
+});
+
 app.post('/api/events/:eventId/slack-announcement', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
   if (adminError) return adminError;
@@ -8492,6 +8606,39 @@ app.get('/api/events/:eventId/speaker-submissions', async (c) => {
   });
 });
 
+app.get('/api/speaker-submissions/:submissionId/rejection-email/preview', async (c) => {
+  const adminError = await requireAdmin(c);
+  if (adminError) return adminError;
+
+  const submission = await getSpeakerSubmissionById(c.req.param('submissionId'));
+  if (!submission) return c.json({ error: 'Presentation proposal not found' }, 404);
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (
+    submission.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE
+    && (!session.authenticated || session.role !== 'owner')
+  ) {
+    return c.json({ error: 'Presentation proposal not found' }, 404);
+  }
+  if (submission.status !== 'submitted') {
+    return c.json({ error: 'Only a pending proposal can preview a rejection email.' }, 409);
+  }
+
+  const event = await getEventById(submission.event_id, c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const content = speakerProposalRejectionEmail({
+    eventName: event.name,
+    speakerName: submission.speaker_name,
+    talkTitle: submission.title,
+  });
+
+  return c.json({
+    submission_id: submission.id,
+    from: EMAIL_SENDERS.speakers.from,
+    to: `${submission.speaker_name} <${submission.speaker_email}>`,
+    ...content,
+  });
+});
+
 app.patch('/api/speaker-submissions/:submissionId', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
@@ -8518,6 +8665,13 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
   if (existing.status !== 'submitted') {
     return c.json({ error: 'This proposal already has a final decision and cannot be changed.' }, 409);
   }
+  if (parsed.data.status === 'not_selected') {
+    const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+    const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+    if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+      return c.json({ error: 'Speaker email sending is not configured. The proposal was not rejected.' }, 503);
+    }
+  }
 
   let selectedLink: SpeakerIntakeLink | null = null;
   try {
@@ -8531,6 +8685,14 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
       status: parsed.data.status,
       internal_note: parsed.data.internal_note || null,
       selected_intake_link_id: parsed.data.status === 'selected' ? selectedLink?.id ?? null : null,
+      ...(parsed.data.status === 'not_selected' ? {
+        decision_email_status: 'pending' as const,
+        decision_email_provider_id: null,
+        decision_email_idempotency_key: `speaker-rejected-${existing.id}`,
+        decision_email_sent_at: null,
+        decision_email_last_attempt_at: null,
+        decision_email_last_error: null,
+      } : {}),
     });
     await deleteActiveSpeakerIntakeLinksBySubmission(
       existing.event_id,
@@ -8550,12 +8712,23 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
       },
     });
 
+    if (submission.status === 'not_selected') {
+      await dispatchSpeakerRejectionEmails(c, {
+        submissionId: submission.id,
+        statuses: ['pending'],
+        limit: 1,
+      });
+    }
+
     return c.json({
       submission: serializeSpeakerSubmission(submission),
       link: selectedLink ? {
         ...serializeAdminSpeakerIntakeLink(selectedLink, c),
         token: null,
       } : null,
+      decision_email: submission.status === 'not_selected'
+        ? { status: submission.decision_email_status }
+        : null,
       token: null,
     });
   } catch (error) {
