@@ -1,17 +1,26 @@
 # Changelog
 
+## 2026-08-24 — Organizer session continuation
+
+- Fixed the idle-warning revalidation race that could redirect the page to sign-in underneath the still-visible session modal.
+- **Stay signed in** now resumes the current organizer screen in place when the server confirms the session, while temporary connection failures remain retryable in the warning.
+- A genuinely expired session now opens the normal sign-in screen with the original destination preserved, without layering a second **Welcome back** modal over it.
+
 ## 2026-08-24 — Automatic speaker proposal rejection emails
 
+- Unified approved and rejected speaker messages on one responsive branded email shell: hosted DevCongress wordmark, pink divider, presentation card, dark-mode treatment, mobile spacing, and footer. The rejection remains action-free while the approval keeps its private next-step link.
 - Updated the irreversible rejection confirmation modal and mobile bottom drawer to state that confirming immediately emails the speaker and that neither action can be undone.
 - Added the exact personalized sender, recipient, subject, and rejection message to that confirmation surface; the final action remains disabled until the production template preview loads successfully.
 - Added a system-generated speaker rejection template to the owner email-preview catalog and sends it automatically through the existing DevCongress Speakers sender after the proposal decision commits.
 - Persisted pending, accepted, and failed delivery state directly on each rejected proposal with a stable idempotency key, while preventing rejection when speaker email delivery is not configured.
 - Added a scheduled retry drain to the existing 15-minute Worker cron so transient provider failures do not require repeating or reversing the final proposal decision.
 - Included automatic proposal rejection messages in Audit Log email delivery totals and recent delivery history.
+- Added a compact **Sent** tag to proposal rows once either the selected-speaker or rejection email has been accepted by the provider, with the send time available on hover.
 - Added migration `20260824113000_speaker_rejection_email_delivery.sql` for the durable proposal decision-email fields and retry index.
 
 ## 2026-08-24 — Selected-speaker short links and email preview
 
+- Pinned speaker-email logos, illustrations, and fonts to the EMS asset host so `go.devcongress.org` private links no longer generate broken email image URLs, while the short-link deployment redirects the legacy asset paths so already-sent messages recover after deployment.
 - Prepared a high-entropy, event-bound `go.devcongress.org` private form link automatically when a proposal is selected, removing the separate **Prepare links** action while retaining hash-only token storage.
 - Added authenticated batch and per-speaker email previews that show the exact personalized system content, sender, recipient, subject, and rendered message before any send occurs; a per-speaker send is constrained to the speaker that was previewed.
 - Disabled the batch preview action when fewer than two selected-speaker emails are ready, directing single-speaker previews through the matching proposal row.

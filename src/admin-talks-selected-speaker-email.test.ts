@@ -47,4 +47,12 @@ describe('selected-speaker email controls', () => {
     expect(viewSource).toContain('{{ speakerRejectionEmailPreview.text }}');
     expect(confirmDialogSource).toContain(':disabled="busy || confirmDisabled"');
   });
+
+  it('marks accepted proposal emails as sent in the review table', () => {
+    expect(viewSource).toContain('v-if="proposalEmailWasSent(submission)"');
+    expect(viewSource).toContain("selectedSpeakerLinkForSubmission(submission.id)?.email_status === 'accepted'");
+    expect(viewSource).toContain("submission.decision_email_status === 'accepted'");
+    expect(viewSource).toContain(':title="proposalEmailSentTitle(submission)"');
+    expect(viewSource).toContain('Sent');
+  });
 });
