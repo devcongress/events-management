@@ -14,6 +14,9 @@ describe('monthly archive request email', () => {
     expect(result.subject).toBe('Your presentation was selected for DevCongress August Meetup');
     expect(result.html).toContain('Great news&mdash;your presentation has been selected');
     expect(result.html).toContain('https://go.devcongress.org/P_example');
+    expect(result.html).toContain('src="https://em.devcongress.org/brand/dev-con-logo.png"');
+    expect(result.html).toContain('src="https://em.devcongress.org/brand/speaker-archive-illustration.png"');
+    expect(result.html).not.toContain('src="https://go.devcongress.org/brand/');
     expect(result.text).toContain('was selected for DevCongress August Meetup');
   });
 

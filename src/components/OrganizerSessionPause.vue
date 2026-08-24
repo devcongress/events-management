@@ -2,13 +2,13 @@
 import { computed } from 'vue';
 
 const props = defineProps<{
-  state: 'warning' | 'locked';
   remainingSeconds?: number;
+  busy?: boolean;
+  error?: string | null;
 }>();
 
 const emit = defineEmits<{
   stay: [];
-  signIn: [];
   signOut: [];
 }>();
 
@@ -21,21 +21,16 @@ const remaining = computed(() => {
 <template>
   <section class="organizer-session-pause" role="dialog" aria-modal="true" aria-labelledby="organizer-session-pause-title">
     <div class="organizer-session-pause__card">
-      <template v-if="state === 'warning'">
-        <h2 id="organizer-session-pause-title">Still working?</h2>
-        <p>Your session will pause soon. Keep working if you’re still here.</p>
-        <p class="organizer-session-pause__timer">Pausing in <strong>{{ remaining }}</strong></p>
-        <div class="organizer-session-pause__actions">
-          <button class="organizer-session-pause__primary motion-press" type="button" @click="emit('stay')">Stay signed in</button>
-          <button class="organizer-session-pause__secondary" type="button" @click="emit('signOut')">Sign out now</button>
-        </div>
-      </template>
-
-      <template v-else>
-        <h2 id="organizer-session-pause-title">Welcome back.</h2>
-        <p>Sign in to pick up where you left off.</p>
-        <button class="organizer-session-pause__primary motion-press organizer-session-pause__sign-in" type="button" @click="emit('signIn')">Sign in</button>
-      </template>
+      <h2 id="organizer-session-pause-title">Still working?</h2>
+      <p>Your session will pause soon. Keep working if you’re still here.</p>
+      <p class="organizer-session-pause__timer">Pausing in <strong>{{ remaining }}</strong></p>
+      <p v-if="error" class="organizer-session-pause__error" role="alert">{{ error }}</p>
+      <div class="organizer-session-pause__actions">
+        <button class="organizer-session-pause__primary motion-press" type="button" :disabled="busy" @click="emit('stay')">
+          {{ busy ? 'Checking session…' : 'Stay signed in' }}
+        </button>
+        <button class="organizer-session-pause__secondary" type="button" :disabled="busy" @click="emit('signOut')">Sign out now</button>
+      </div>
     </div>
   </section>
 </template>
@@ -109,6 +104,11 @@ const remaining = computed(() => {
 
 .organizer-session-pause__timer strong { color: #e8117f; }
 
+.organizer-session-pause__error {
+  color: #b42318 !important;
+  font-size: 0.82rem !important;
+}
+
 .organizer-session-pause__actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -135,6 +135,12 @@ const remaining = computed(() => {
     background 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.organizer-session-pause__primary:disabled,
+.organizer-session-pause__secondary:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .organizer-session-pause__primary:hover { background: #ffe900; }
   .organizer-session-pause__secondary:hover { color: #111111; }
@@ -152,11 +158,6 @@ const remaining = computed(() => {
   text-decoration: underline;
   text-underline-offset: 3px;
   text-transform: uppercase;
-}
-
-.organizer-session-pause__sign-in {
-  width: 100%;
-  margin-top: 1.45rem;
 }
 
 @media (max-width: 40rem) {

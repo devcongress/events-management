@@ -10,6 +10,7 @@ import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admi
 import { annualConferencePath, mobileAnnualConferencePath } from './annual-conference';
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { notify } from './lib/notify';
+import { shouldRedirectUnauthenticatedOrganizer } from './lib/organizer-session-continuation';
 import { queryClient } from './lib/query';
 import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from './system-design-participant-route';
 import {
@@ -55,8 +56,10 @@ const logoSrc = '/brand/dev-con-logo.png';
 const ORGANIZER_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ORGANIZER_IDLE_WARNING_MS = 2 * 60 * 1000;
 const ORGANIZER_SESSION_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const organizerSessionPauseState = ref<'warning' | 'locked' | null>(null);
+const organizerSessionPauseState = ref<'warning' | null>(null);
 const organizerWarningSeconds = ref(120);
+const organizerStayBusy = ref(false);
+const organizerStayError = ref<string | null>(null);
 let keyboardFocusTimer: number | undefined;
 let adminEventTabsResizeObserver: ResizeObserver | undefined;
 let organizerIdleWarningTimer: number | undefined;
@@ -366,17 +369,26 @@ function clearLocalSupabaseSession() {
 
 function lockOrganizerSession() {
   if (organizerSessionEnding) return;
+  const redirectPath = isLoginRoute.value ? adminPath('events') : route.fullPath;
   organizerSessionEnding = true;
   clearOrganizerSessionTimers();
+  organizerSessionPauseState.value = null;
+  organizerStayBusy.value = false;
+  organizerStayError.value = null;
   clearOrganizerCachedData();
   window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
   clearLocalSupabaseSession();
-  organizerSessionPauseState.value = 'locked';
   void fetch('/api/auth/logout', {
     method: 'POST',
     credentials: 'include',
     keepalive: true,
   }).catch(() => undefined);
+  if (!isLoginRoute.value) {
+    void router.replace({
+      path: adminPath('login'),
+      query: { redirect: redirectPath },
+    });
+  }
 }
 
 function updateOrganizerWarningCountdown() {
@@ -387,6 +399,8 @@ function showOrganizerIdleWarning() {
   if (!isOrganizerAuthenticated.value || organizerSessionEnding) return;
   organizerWarningDeadlineMs = Date.now() + ORGANIZER_IDLE_WARNING_MS;
   updateOrganizerWarningCountdown();
+  organizerStayBusy.value = false;
+  organizerStayError.value = null;
   organizerSessionPauseState.value = 'warning';
   organizerWarningTicker = window.setInterval(updateOrganizerWarningCountdown, 1000);
 }
@@ -427,6 +441,9 @@ async function revalidateOrganizerSession() {
 }
 
 async function staySignedIn() {
+  if (organizerStayBusy.value) return;
+  organizerStayBusy.value = true;
+  organizerStayError.value = null;
   try {
     const session = await queryClient.fetchQuery({
       queryKey: queryKeys.adminSession,
@@ -444,7 +461,9 @@ async function staySignedIn() {
     scheduleOrganizerIdleExpiry();
     scheduleOrganizerAbsoluteExpiry(session.expires_at);
   } catch {
-    lockOrganizerSession();
+    organizerStayError.value = 'We could not confirm your session. Check your connection and try again.';
+  } finally {
+    organizerStayBusy.value = false;
   }
 }
 
@@ -465,15 +484,6 @@ function handleOrganizerActivity() {
 
 function handleOrganizerVisibilityChange() {
   if (document.visibilityState === 'visible') recordOrganizerActivity(true);
-}
-
-function signInAfterSessionPause() {
-  organizerSessionPauseState.value = null;
-  organizerSessionEnding = false;
-  void router.replace({
-    path: adminPath('login'),
-    query: { redirect: route.fullPath },
-  });
 }
 
 function returnToOrganizerSignIn() {
@@ -672,7 +682,11 @@ watch(
       return;
     }
 
-    if (authenticated === false && organizerSessionPauseState.value !== 'locked') {
+    if (shouldRedirectUnauthenticatedOrganizer({
+      authenticated,
+      warningOpen: organizerSessionPauseState.value === 'warning',
+      sessionEnding: organizerSessionEnding,
+    })) {
       void router.replace({
         path: adminPath('login'),
         query: { redirect: routeFullPath },
@@ -690,10 +704,10 @@ watch(() => ({
 }), ({ authenticated, expiresAt }) => {
   if (!authenticated) {
     clearOrganizerSessionTimers();
-    if (organizerSessionPauseState.value !== 'locked') organizerSessionEnding = false;
     return;
   }
 
+  organizerSessionEnding = false;
   organizerLastActivityAt = Date.now();
   organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
   scheduleOrganizerIdleExpiry();
@@ -910,10 +924,10 @@ onUnmounted(() => {
     <Transition name="organizer-session-pause">
       <OrganizerSessionPause
         v-if="organizerSessionPauseState"
-        :state="organizerSessionPauseState"
         :remaining-seconds="organizerWarningSeconds"
+        :busy="organizerStayBusy"
+        :error="organizerStayError"
         @stay="staySignedIn"
-        @sign-in="signInAfterSessionPause"
         @sign-out="logout"
       />
     </Transition>

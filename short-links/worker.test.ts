@@ -28,6 +28,24 @@ describe('short-link Worker', () => {
     expect(await response.text()).toBe('static asset');
   });
 
+  it.each([
+    '/brand/dev-con-logo.png',
+    '/brand/speaker-archive-illustration.png',
+    '/fonts/inter-800.woff2',
+  ])('keeps previously sent speaker-email assets working at %s', async (pathname) => {
+    const next = vi.fn();
+    const response = await onRequest({
+      request: new Request(`https://go.devcongress.org${pathname}`),
+      env: env(),
+      next,
+    });
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.status).toBe(301);
+    expect(response.headers.get('location')).toBe(`https://em.devcongress.org${pathname}`);
+    expect(response.headers.get('cache-control')).toBe('public, max-age=86400');
+  });
+
   it('resolves an opaque code through EMS and uses a mutable redirect', async () => {
     const resolver = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('https://em.devcongress.org/api/internal/short-links/K7M4P');

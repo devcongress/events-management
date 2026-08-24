@@ -1112,6 +1112,22 @@ function proposalStatusClass(status: SpeakerSubmissionStatus): string {
   return 'border-[#e4cf21] bg-dc-yellow text-dc-ink';
 }
 
+function proposalEmailWasSent(submission: SpeakerSubmission): boolean {
+  if (submission.status === 'selected') {
+    return selectedSpeakerLinkForSubmission(submission.id)?.email_status === 'accepted';
+  }
+
+  return submission.status === 'not_selected' && submission.decision_email_status === 'accepted';
+}
+
+function proposalEmailSentTitle(submission: SpeakerSubmission): string {
+  const sentAt = submission.status === 'selected'
+    ? selectedSpeakerLinkForSubmission(submission.id)?.email_sent_at
+    : submission.decision_email_sent_at;
+
+  return sentAt ? `Email sent ${formatDateTime(sentAt)}` : 'Email sent';
+}
+
 function actionClass(isPrimary = false): string {
   return isPrimary
     ? 'motion-press rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-40'
@@ -1557,6 +1573,13 @@ onUnmounted(() => {
                     </td>
                     <td class="px-5 py-2 text-right sm:px-6">
                       <div class="flex flex-nowrap items-center justify-end gap-2 whitespace-nowrap">
+                        <span
+                          v-if="proposalEmailWasSent(submission)"
+                          class="inline-flex rounded-md border border-dc-pink bg-dc-pink px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-white"
+                          :title="proposalEmailSentTitle(submission)"
+                        >
+                          Sent
+                        </span>
                         <button
                           v-if="selectedSpeakerEmailCanPreview(submission)"
                           type="button"
