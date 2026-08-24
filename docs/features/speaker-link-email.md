@@ -157,7 +157,7 @@ This link is for you only and expires {{ expiresAt }}.
 Questions? Reply to this email.
 ```
 
-The private capability uses the owned `go.devcongress.org` resolver. Selected-speaker codes remain high entropy and are bound to the event and intake-link ID; only their SHA-256 hash is stored. The plain-text fallback includes the short URL so the message remains usable in text-only clients.
+The private capability uses the owned `go.devcongress.org` resolver. New selected-speaker codes are compact 128-bit HMAC capabilities bound to the event and intake-link ID; only their SHA-256 hash is stored and indexed for resolution. Already-issued UUID-bearing codes remain valid. The plain-text fallback includes the short URL so the message remains usable in text-only clients.
 
 ## Phase 2: Selected-Speaker Multi-Send
 

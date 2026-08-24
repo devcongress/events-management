@@ -23,7 +23,8 @@ describe('presentation proposal table filters', () => {
   it('keeps the status dropdown above a readable proposal table', () => {
     expect(source).toContain('label="Status"');
     expect(source).toContain('class="flex flex-wrap items-end justify-end gap-2"');
-    expect(source).toContain(':class="proposalActionClass(true)" class="min-h-10"');
+    expect(source).toContain(':class="proposalActionClass(true)"');
+    expect(source).toContain('class="min-h-10 disabled:cursor-not-allowed"');
     expect(source).toContain('<table class="w-full min-w-[1080px] table-fixed border-collapse text-left">');
     expect(source).toContain('>Status</th>');
     expect(source).toContain('proposalStatusClass(submission.status)');
