@@ -1,5 +1,25 @@
 # Architectural Decisions
 
+## ADR-078: Owner-Only Test Proposals Use an Internal Marker
+
+**Date:** 2026-08-24
+**Why:** The Owner needs to exercise the real proposal approval, private-link, rendered-preview, and Resend delivery lifecycle with a controlled recipient without adding fabricated proposals to every organizer's operational queue or changing their counts.
+**Decision:** Reserve the exact service-written `speaker_submissions.internal_note` value `owner-only:test-speaker` for temporary delivery-test records. Filter marked proposals before returning non-owner lists and counts, return not found for non-owner decision attempts, hide their generated intake links, and exclude them from non-owner batch or targeted previews and sends. Do not expose this marker through public submission forms and do not add a separate schema field for this narrow testing convention.
+**Tradeoffs:** This avoids a migration and exercises the production-shaped workflow, but the convention depends on one reserved internal value and test records require deliberate cleanup. Because the record uses a real address and can send real mail, only the Owner may operate it.
+**Revisit when:** Delivery testing becomes frequent, needs multiple testers, or must be self-cleaning; replace the sentinel with a first-class test-mode entity and retention policy.
+
+---
+
+## ADR-077: Reproducible High-Entropy Short Capabilities for Selected Speakers
+
+**Date:** 2026-08-24
+**Why:** Selecting a proposal already created a one-time speaker form token, but EMS correctly retained only its hash. After a reload, the organizer could not recover the URL and had to issue a replacement through a misleading Prepare links action. A normal 5–8 character marketing short code does not carry enough entropy for a private bearer capability.
+**Decision:** Give selected-speaker links an application-owned `go.devcongress.org` capability containing the intake-link UUID plus a truncated 96-bit HMAC bound to that UUID and event ID. Store only the SHA-256 capability hash in the existing speaker-intake row; derive the same URL server-side with a dedicated 32-byte-or-longer `SPEAKER_INTAKE_LINK_TOKEN_SECRET`. The isolated short-link Worker passes the capability to EMS, which verifies the HMAC, stored hash, expiry, selected submission, and event binding before returning the private intake route. Prepare this link during a one-time final approval, render exact system-generated email previews in an authenticated sandboxed UI, and require a separate explicit send confirmation. Rejection is final too, so neither decision can later replace or revoke the private-link and email lifecycle.
+**Tradeoffs:** Private codes are longer than public marketing short codes because they remain bearer credentials, and rotating the dedicated secret invalidates every incomplete selected-speaker link. The resolver gains a second code family, but raw capabilities still never enter persistence or application logs, and accepted sends remain durably suppressible.
+**Revisit when:** Selected-speaker invitations need individual revocation history beyond the intake row, per-recipient partial batch selection, or a dedicated capability service shared by more private workflows.
+
+---
+
 ## ADR-076: Treat External Registration Pages as Advisory Monitoring Signals
 
 **Date:** 2026-08-21

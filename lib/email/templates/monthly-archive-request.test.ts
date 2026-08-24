@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { monthlyArchiveRequestEmail } from './monthly-archive-request';
+import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from './monthly-archive-request';
 
 describe('monthly archive request email', () => {
+  it('renders selected-speaker copy with the prepared short link', () => {
+    const result = selectedSpeakerConfirmationEmail({
+      eventName: 'DevCongress August Meetup',
+      speakerName: 'Ama Boateng',
+      talkTitle: 'Designing Reliable Systems',
+      privateUrl: 'https://go.devcongress.org/P_example',
+      expiresAt: '2026-08-31T12:00:00.000Z',
+    });
+
+    expect(result.subject).toBe('Your presentation was selected for DevCongress August Meetup');
+    expect(result.html).toContain('Great news&mdash;your presentation has been selected');
+    expect(result.html).toContain('https://go.devcongress.org/P_example');
+    expect(result.text).toContain('was selected for DevCongress August Meetup');
+  });
+
   it('embeds the private URL behind a CTA and escapes dynamic HTML', () => {
     const result = monthlyArchiveRequestEmail({
       eventName: 'DevCongress <July>',

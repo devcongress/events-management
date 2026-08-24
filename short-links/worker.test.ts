@@ -41,6 +41,19 @@ describe('short-link Worker', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
+  it('resolves a private selected-speaker capability through EMS', async () => {
+    const code = 'P_AAAAAAAAAAAAAAAAAAAAAA_AAAAAAAAAAAAAAAA';
+    const resolver = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe(`https://em.devcongress.org/api/internal/short-links/${code}`);
+      return new Response(JSON.stringify({ destination_path: `/speaker-talks/event-1/${code}` }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', resolver);
+
+    const response = await resolveShortLinkRequest(new Request(`https://go.devcongress.org/${code}`), env());
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe(`https://em.devcongress.org/speaker-talks/event-1/${code}`);
+  });
+
   it('does not become an open redirect or accept a code-shaped path with extra segments', async () => {
     vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ destination_path: '//evil.example' }), { status: 200 }));
     const unsafe = await resolveShortLinkRequest(new Request('https://go.devcongress.org/K7M4P'), env());

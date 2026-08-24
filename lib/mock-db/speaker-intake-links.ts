@@ -80,6 +80,8 @@ export async function getSpeakerIntakeLinksByEvent(eventId: string): Promise<Spe
 }
 
 export async function createSpeakerIntakeLink(data: {
+  id?: string;
+  token?: string;
   event_id: string;
   event_month: string;
   expires_at: string;
@@ -92,11 +94,12 @@ export async function createSpeakerIntakeLink(data: {
   talk_id?: string | null;
   requested_fields?: ArchiveMaterialField[];
 }): Promise<{ link: SpeakerIntakeLink; token: string }> {
-  const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+  const token = data.token ?? crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+  if (!token || token.length > 128) throw new Error('Archive request token is invalid');
   const tokenHash = hashSpeakerIntakeToken(token);
   const createdAt = now();
   const link: SpeakerIntakeLink = {
-    id: generateId(),
+    id: data.id ?? generateId(),
     event_id: data.event_id,
     event_month: data.event_month,
     kind: normalizeArchiveItemKind(data.kind),
@@ -163,6 +166,23 @@ export async function createSpeakerIntakeLink(data: {
   }));
 
   return { link, token };
+}
+
+export async function getSpeakerIntakeLinkById(linkId: string): Promise<SpeakerIntakeLink | undefined> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from('speaker_intake_links')
+      .select('*')
+      .eq('id', linkId)
+      .maybeSingle();
+
+    if (error) throw new Error('Unable to verify archive request link');
+    return data ? fromSupabaseRow(data) : undefined;
+  }
+
+  const links = await readData<SpeakerIntakeLink>(FILE);
+  const link = links.find((item) => item.id === linkId);
+  return link ? normalizeSpeakerIntakeLink(link) : undefined;
 }
 
 export async function updateSpeakerIntakeLinkEmailDeliveries(

@@ -2,7 +2,7 @@ import { EMAIL_SCENARIOS, EMAIL_SENDERS, emailSubjects } from '@/lib/email/scena
 import { eventBlastEmail } from '@/lib/email/templates/event-blast';
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { eventRegistrationConfirmationEmail } from '@/lib/email/templates/event-registration-confirmation';
-import { monthlyArchiveRequestEmail } from '@/lib/email/templates/monthly-archive-request';
+import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
 import type { EventSubmissionEmailKind } from '@/types';
 
 export type EmailPreviewCategory = 'Registration' | 'Event updates' | 'Community listings' | 'Speaker archive';
@@ -118,12 +118,16 @@ function speakerPreview(input: {
   label: string;
   trigger: string;
   talkTitle: string;
+  intent?: 'archive_request' | 'selected_confirmation';
 }): RenderedEmailPreview {
-  const content = monthlyArchiveRequestEmail({
+  const render = input.intent === 'selected_confirmation'
+    ? selectedSpeakerConfirmationEmail
+    : monthlyArchiveRequestEmail;
+  const content = render({
     eventName: sampleEvent.name,
     speakerName: 'Efua Owusu',
     talkTitle: input.talkTitle,
-    privateUrl: 'https://em.devcongress.org/speaker-talks/sample-event/sample-token',
+    privateUrl: 'https://go.devcongress.org/P_sample-private-speaker-link',
     expiresAt: '2026-10-10T23:59:59.000Z',
   });
 
@@ -236,9 +240,16 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
       kind: 'withdrawn',
     }),
     speakerPreview({
+      id: 'speaker_selected_confirmation',
+      label: 'Speaker selected',
+      trigger: 'Prepared when an organizer selects a proposal, then sent only after the organizer previews and confirms the email.',
+      talkTitle: 'Designing Reliable Event-Driven Systems',
+      intent: 'selected_confirmation',
+    }),
+    speakerPreview({
       id: 'speaker_archive_request',
       label: 'Speaker archive request',
-      trigger: 'Sent to a selected meetup speaker to collect the final talk resources for the archive.',
+      trigger: 'Sent to a past program presenter to collect missing talk resources for the archive.',
       talkTitle: 'Designing Reliable Event-Driven Systems',
     }),
     speakerPreview({

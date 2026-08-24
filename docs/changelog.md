@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-08-24 — Selected-speaker short links and email preview
+
+- Prepared a high-entropy, event-bound `go.devcongress.org` private form link automatically when a proposal is selected, removing the separate **Prepare links** action while retaining hash-only token storage.
+- Added authenticated batch and per-speaker email previews that show the exact personalized system content, sender, recipient, subject, and rendered message before any send occurs; a per-speaker send is constrained to the speaker that was previewed.
+- Kept proposal-row email and link actions compact and on one line, and scoped preview progress to the active speaker. Starting another preview cancels the stale request instead of putting every row into a shared loading state.
+- Added an explicit owner-only test-proposal marker: marked speaker proposals, their counts, decisions, private links, previews, and sends are excluded from every non-owner organizer response while remaining available to the Owner for end-to-end email testing.
+- Added a clear configuration response when selected-speaker preview cannot create private links because `SPEAKER_INTAKE_LINK_TOKEN_SECRET` is missing or too short.
+- Kept delivery explicitly organizer-confirmed, sent one personalized email per eligible speaker through the existing Resend batch path, and suppressed speakers whose email was already accepted or whose form is complete.
+- Made approval and rejection final at the API boundary so a later state change cannot revoke, replace, or unexpectedly re-email a selected speaker.
+- Added a pre-decision warning for approval and rejection in the desktop and phone review flows; desktop uses an app modal, while phone confirmation rises as a safe-area-aware bottom drawer and focuses **Go back** first.
+- Reissued only unsent legacy, expired, or failed links during preview preparation; added resolver validation, request-path redaction, deployment-secret health reporting, and selected-speaker scenario parity in the owner email catalog.
+
+## 2026-08-24 — Presentation proposal table and mobile counters
+
+- Added a stable total proposal count to the phone event **Submissions** tab while keeping pending, selected, and not-selected counts attached to their matching filter buttons.
+- Replaced the desktop Pending, Approved, and Rejected tabs with one compact app-styled status dropdown. The normal table shows all proposals by default and can be narrowed to Pending, Approved, or Rejected.
+- Bottom-aligned the status dropdown and batch email-preview action and matched their control heights, so they share one visual baseline despite the dropdown label.
+- Kept the proposal table visible even for an empty filter and replaced the icon-only state with a labelled **Status** column.
+- Kept withdrawn proposals outside the reviewable total and capped only the displayed badge copy at `99+` without changing the underlying counts.
+
 ## 2026-08-22 — Cadence-safe amendment monitor reset
 
 - Changed approved amendments to clear reviewed registration-page findings, rebaseline against the updated canonical listing, and wait for the event's next scheduled monitoring interval instead of checking and alerting immediately.

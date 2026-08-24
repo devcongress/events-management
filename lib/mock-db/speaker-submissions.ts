@@ -7,6 +7,13 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase
 const FILE = 'speaker-submissions';
 type SpeakerSubmissionRow = Database['public']['Tables']['speaker_submissions']['Row'];
 
+export class SpeakerSubmissionDecisionFinalError extends Error {
+  constructor() {
+    super('This proposal already has a final decision and cannot be changed.');
+    this.name = 'SpeakerSubmissionDecisionFinalError';
+  }
+}
+
 function normalizeArchiveItemKind(value: SpeakerSubmission['kind']): ArchiveItemKind {
   return value === 'product_demo' ? 'product_demo' : 'talk';
 }
@@ -207,6 +214,52 @@ export async function updateSpeakerSubmission(
       data: nextSubmissions,
       result: next,
     };
+  });
+}
+
+export async function decideSpeakerSubmission(
+  id: string,
+  updates: Pick<SpeakerSubmission, 'status' | 'internal_note' | 'selected_intake_link_id'>,
+): Promise<SpeakerSubmission> {
+  if (!isDecisionStatus(updates.status)) throw new Error('A final proposal decision is required');
+  const decidedAt = now();
+
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient()
+      .from('speaker_submissions')
+      .update({
+        status: updates.status,
+        internal_note: updates.internal_note,
+        selected_intake_link_id: updates.selected_intake_link_id,
+        decided_at: decidedAt,
+        updated_at: decidedAt,
+      })
+      .eq('id', id)
+      .eq('status', 'submitted')
+      .select('*')
+      .maybeSingle();
+
+    if (error) throw new Error('Unable to update presentation proposal');
+    if (data) return fromSupabaseRow(data);
+    if (await getSpeakerSubmissionById(id)) throw new SpeakerSubmissionDecisionFinalError();
+    throw new Error(`Speaker submission ${id} not found`);
+  }
+
+  return updateData<SpeakerSubmission, SpeakerSubmission>(FILE, (submissions) => {
+    const normalizedSubmissions = submissions.map(normalizeSpeakerSubmission);
+    const index = normalizedSubmissions.findIndex((submission) => submission.id === id);
+    if (index === -1) throw new Error(`Speaker submission ${id} not found`);
+    if (normalizedSubmissions[index].status !== 'submitted') throw new SpeakerSubmissionDecisionFinalError();
+
+    const next: SpeakerSubmission = {
+      ...normalizedSubmissions[index],
+      ...updates,
+      decided_at: decidedAt,
+      updated_at: decidedAt,
+    };
+    const nextSubmissions = [...normalizedSubmissions];
+    nextSubmissions[index] = next;
+    return { data: nextSubmissions, result: next };
   });
 }
 

@@ -18,6 +18,7 @@ describe('email scenario policy', () => {
     expect(emailSubjects.registrationConfirmed('DevCongress August Meetup')).toBe('You are registered for DevCongress August Meetup');
     expect(emailSubjects.registrationWaitlisted('DevCongress August Meetup')).toBe('You are on the waitlist for DevCongress August Meetup');
     expect(emailSubjects.registrationPromoted('DevCongress August Meetup')).toBe('A place opened up for DevCongress August Meetup');
+    expect(emailSubjects.speakerSelectedConfirmation('DevCongress August Meetup')).toBe('Your presentation was selected for DevCongress August Meetup');
     expect(emailSubjects.speakerArchiveRequest('DevCongress August Meetup')).toBe('Share your talk resources: DevCongress August Meetup');
     expect(emailSubjects.communitySubmissionReceipt('Accra Systems Night')).toBe('We received your event submission: Accra Systems Night');
     expect(emailSubjects.communitySubmissionApproved('Accra Systems Night')).toBe('Your event is now listed: Accra Systems Night');

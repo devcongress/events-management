@@ -1,0 +1,57 @@
+import crypto from 'crypto';
+import { SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN } from '@/short-links/code-patterns';
+
+const SIGNATURE_BYTES = 12;
+
+function uuidBytes(id: string): Buffer {
+  const hex = id.replaceAll('-', '');
+  if (!/^[0-9a-f]{32}$/i.test(hex)) throw new Error('Speaker intake link ID is invalid.');
+  return Buffer.from(hex, 'hex');
+}
+
+function uuidFromBytes(value: Buffer): string | null {
+  if (value.byteLength !== 16) return null;
+  const hex = value.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function signature(linkId: string, eventId: string, secret: string): string {
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`selected-speaker:${linkId}:${eventId}`)
+    .digest()
+    .subarray(0, SIGNATURE_BYTES)
+    .toString('base64url');
+}
+
+export function selectedSpeakerShortCode(linkId: string, eventId: string, secret: string): string {
+  const encodedId = uuidBytes(linkId).toString('base64url');
+  return `P_${encodedId}_${signature(linkId, eventId, secret)}`;
+}
+
+export function selectedSpeakerLinkIdFromShortCode(code: string): string | null {
+  if (!SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) return null;
+  const encodedId = code.split('_')[1];
+  if (!encodedId) return null;
+
+  try {
+    return uuidFromBytes(Buffer.from(encodedId, 'base64url'));
+  } catch {
+    return null;
+  }
+}
+
+export function verifySelectedSpeakerShortCode(
+  code: string,
+  linkId: string,
+  eventId: string,
+  secret: string,
+): boolean {
+  const expected = selectedSpeakerShortCode(linkId, eventId, secret);
+  if (code.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected));
+}
+
+export function speakerIntakeTokenHash(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
