@@ -31,8 +31,7 @@ export function selectedSpeakerShortCode(linkId: string, eventId: string, secret
 
 export function selectedSpeakerLinkIdFromShortCode(code: string): string | null {
   if (!SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) return null;
-  const encodedId = code.split('_')[1];
-  if (!encodedId) return null;
+  const encodedId = code.slice(2, 24);
 
   try {
     return uuidFromBytes(Buffer.from(encodedId, 'base64url'));
