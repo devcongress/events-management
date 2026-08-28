@@ -35,6 +35,7 @@ export async function createSupabaseRegistrationCampaign(
     status?: EventRegistrationCampaignStatus;
     description?: string | null;
     capacity: number;
+    blast_transactional_reserve?: number | null;
     opens_at?: string | null;
     closes_at?: string | null;
     waitlist_enabled: boolean;

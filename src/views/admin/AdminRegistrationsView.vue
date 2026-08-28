@@ -116,6 +116,9 @@ const blastComposerOpen = ref(false);
 const blastPreviewOpen = ref(false);
 const blastPending = ref(false);
 const blastRetryId = ref<string | null>(null);
+const blastReserve = ref('');
+const blastReservePending = ref(false);
+const savedBlastReserve = ref<string | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
 const blastScheduledFor = ref('');
@@ -183,6 +186,7 @@ const workspaceSummary = computed(() => (
 const emailSummary = computed(() => summarizeRegistrationEmails(displayedRegistrations.value));
 const blasts = computed(() => blastsQuery.data.value?.blasts ?? []);
 const blastCapacity = computed(() => blastsQuery.data.value?.capacity ?? null);
+const latestBlast = computed(() => blasts.value[0] ?? null);
 const confirmedBlastRecipients = computed(() => displayedRegistrations.value.filter((registration) => registration.status === 'confirmed').length);
 const canCreateBlast = computed(() => (
   confirmedBlastRecipients.value > 0
@@ -486,6 +490,11 @@ watch(() => data.value?.campaign, (campaign) => {
   };
   Object.assign(settings, snapshot);
   savedSettings.value = { ...snapshot };
+  const nextReserve = campaign.blast_transactional_reserve?.toString() ?? '';
+  if (savedBlastReserve.value !== nextReserve) {
+    blastReserve.value = nextReserve;
+    savedBlastReserve.value = nextReserve;
+  }
 }, { immediate: true });
 
 watch(() => data.value?.event, (event) => {
@@ -757,6 +766,27 @@ async function retryBlast(blast: EventBlast) {
     notify.error(error instanceof Error ? error.message : 'Unable to retry this blast.');
   } finally {
     blastRetryId.value = null;
+  }
+}
+
+async function saveBlastReserve() {
+  if (blastReservePending.value) return;
+  const trimmed = blastReserve.value.trim();
+  const reserve = trimmed === '' ? null : Number(trimmed);
+  if (reserve !== null && (!Number.isInteger(reserve) || reserve < 0 || reserve > 10_000)) {
+    notify.error('Enter a whole-number reserve from 0 to 10,000, or clear it to use the default.');
+    return;
+  }
+
+  blastReservePending.value = true;
+  try {
+    await updateEventRegistrationCampaign(eventId.value, { blast_transactional_reserve: reserve });
+    await refresh();
+    notify.success(reserve === null ? 'Blast reserve reset to the delivery default.' : `Blast reserve set to ${reserve} sends for this event.`);
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to save the event blast reserve.');
+  } finally {
+    blastReservePending.value = false;
   }
 }
 
@@ -1641,6 +1671,26 @@ async function retryEmails() {
                 <span v-else class="rounded-sm border border-amber-300 bg-amber-50 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-900">
                   Capacity awaiting provider update
                 </span>
+              </div>
+              <div class="mt-4 grid gap-4 border-t border-dc-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:items-end">
+                <div>
+                  <p class="editorial-label">Latest delivery</p>
+                  <p v-if="latestBlast" class="mt-1 text-sm font-semibold text-dc-ink">
+                    {{ blastStatusLabel(latestBlast.status) }}
+                    <span class="font-normal text-dc-gray">· {{ latestBlast.sent_at ? formatDateTime(latestBlast.sent_at) : latestBlast.scheduled_for ? formatDateTime(latestBlast.scheduled_for) : 'not delivered yet' }}</span>
+                  </p>
+                  <p v-else class="mt-1 text-sm text-dc-gray">No blast has been sent or scheduled for this event.</p>
+                </div>
+                <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" @submit.prevent="saveBlastReserve">
+                  <label for="event-blast-reserve" class="grid gap-1">
+                    <span class="editorial-label">Keep available for this event</span>
+                    <input id="event-blast-reserve" v-model="blastReserve" type="number" min="0" max="10000" step="1" inputmode="numeric" class="editorial-input min-h-10" placeholder="Use delivery default">
+                  </label>
+                  <button type="submit" class="editorial-secondary-action min-h-10 px-3 text-[10px]" :disabled="blastReservePending">
+                    {{ blastReservePending ? 'SAVING…' : 'SAVE RESERVE' }}
+                  </button>
+                  <p class="sm:col-span-2 text-xs leading-5 text-dc-gray">Safe today updates from provider capacity, queued email, and this event’s reserve. Clear this field to use the delivery default.</p>
+                </form>
               </div>
             </div>
 

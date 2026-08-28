@@ -82,6 +82,10 @@ const loading = ref(true);
 const creatingSpeakerLink = ref(false);
 const preparingSelectedSpeakerEmailTarget = ref<'all' | string | null>(null);
 const sendingSelectedSpeakerEmails = ref(false);
+const sendingSelectedSpeakerTestEmail = ref(false);
+const selectedSpeakerTestRequestId = ref<string | null>(null);
+const creatingOwnerTestSpeaker = ref(false);
+const ownerTestSpeakerRequestId = ref<string | null>(null);
 const selectedSpeakerEmailPreviewOpen = ref(false);
 const selectedSpeakerEmailPreviews = ref<SelectedSpeakerEmailPreviewItem[]>([]);
 const enablingArchiveRequests = ref(false);
@@ -136,6 +140,10 @@ const groupedTalks = computed(() => groups.map((group) => ({
   talks: talks.value.filter((talk) => group.statuses.includes(talk.status)),
 })));
 const canUnpublishArchiveItem = computed(() => adminSessionQuery.data.value?.user?.role === 'owner');
+const canSendSelectedSpeakerTestEmail = computed(() => (
+  adminSessionQuery.data.value?.user?.role === 'owner'
+  && Boolean(adminSessionQuery.data.value?.user?.email)
+));
 const proposalCounts = computed(() => countSpeakerSubmissionsByReviewStatus(speakerSubmissions.value));
 const pendingSubmissionCount = computed(() => proposalCounts.value.submitted);
 const confirmedTalkCount = computed(() => talks.value.length);
@@ -648,7 +656,7 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
       if (status === 'selected') {
         rememberIssuedSpeakerLink(data);
         resetSpeakerIntakeLinkCopied();
-        notify.success('Speaker selected. Their private form link is ready.');
+        notify.success('Speaker selected. Their private form link and acceptance email are being sent automatically.');
       } else {
         notify.success('Proposal rejected. The speaker rejection email is being sent automatically.');
       }
@@ -667,6 +675,32 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
   }
 
   return false;
+}
+
+async function createOwnerTestSpeakerSubmission() {
+  if (creatingOwnerTestSpeaker.value || !canSendSelectedSpeakerTestEmail.value) return;
+  creatingOwnerTestSpeaker.value = true;
+  error.value = null;
+  try {
+    ownerTestSpeakerRequestId.value ??= crypto.randomUUID();
+    const response = await fetch(`/api/events/${route.params.eventId}/speaker-submissions/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: ownerTestSpeakerRequestId.value }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Could not create the test proposal.');
+    ownerTestSpeakerRequestId.value = null;
+    proposalStatusFilter.value = 'submitted';
+    proposalPage.value = 1;
+    await refreshSpeakerSubmissions();
+    notify.success(data.created ? 'Owner-only test proposal is ready for review.' : 'Your existing owner-only test proposal is ready for review.');
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'Could not create the test proposal.';
+    notify.error(error.value);
+  } finally {
+    creatingOwnerTestSpeaker.value = false;
+  }
 }
 
 async function loadSpeakerRejectionEmailPreview(submissionId: string) {
@@ -797,6 +831,29 @@ async function sendSelectedSpeakerEmails() {
     notify.error(error.value);
   } finally {
     sendingSelectedSpeakerEmails.value = false;
+  }
+}
+
+async function sendSelectedSpeakerTestEmail() {
+  if (sendingSelectedSpeakerTestEmail.value || !canSendSelectedSpeakerTestEmail.value) return;
+  sendingSelectedSpeakerTestEmail.value = true;
+  error.value = null;
+  try {
+    selectedSpeakerTestRequestId.value ??= crypto.randomUUID();
+    const response = await fetch(`/api/events/${route.params.eventId}/selected-speaker-emails/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: selectedSpeakerTestRequestId.value }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Could not send the test speaker email.');
+    selectedSpeakerTestRequestId.value = null;
+    notify.success(`Test speaker email accepted for ${data.recipient}.`);
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'Could not send the test speaker email.';
+    notify.error(error.value);
+  } finally {
+    sendingSelectedSpeakerTestEmail.value = false;
   }
 }
 
@@ -1529,15 +1586,24 @@ onUnmounted(() => {
                   />
                 </div>
                 <button
-                  v-if="selectedSpeakerEmailReadyCount > 0"
+                  v-if="canSendSelectedSpeakerTestEmail"
                   type="button"
-                  :disabled="selectedSpeakerEmailReadyCount < 2 || preparingSelectedSpeakerEmailTarget === 'all'"
-                  :aria-label="selectedSpeakerEmailReadyCount < 2 ? 'Bulk email preview requires at least two ready emails. Use the speaker row to preview this email.' : `Preview ${selectedSpeakerEmailReadyCount} selected-speaker emails`"
-                  :class="proposalActionClass(true)"
+                  :disabled="creatingOwnerTestSpeaker || sendingSelectedSpeakerTestEmail"
+                  :class="proposalActionClass()"
                   class="min-h-10 disabled:cursor-not-allowed"
-                  @click="previewSelectedSpeakerEmails()"
+                  @click="createOwnerTestSpeakerSubmission"
                 >
-                  {{ preparingSelectedSpeakerEmailTarget === 'all' ? 'Preparing preview…' : `Preview ${selectedSpeakerEmailReadyCount} email${selectedSpeakerEmailReadyCount === 1 ? '' : 's'}` }}
+                  {{ creatingOwnerTestSpeaker ? 'Creating test…' : 'Create test proposal' }}
+                </button>
+                <button
+                  v-if="canSendSelectedSpeakerTestEmail"
+                  type="button"
+                  :disabled="sendingSelectedSpeakerTestEmail || creatingOwnerTestSpeaker"
+                  :class="proposalActionClass()"
+                  class="min-h-10 disabled:cursor-not-allowed"
+                  @click="sendSelectedSpeakerTestEmail"
+                >
+                  {{ sendingSelectedSpeakerTestEmail ? 'Sending test…' : 'Send test to me' }}
                 </button>
               </div>
             </div>
@@ -1580,15 +1646,15 @@ onUnmounted(() => {
                         >
                           Sent
                         </span>
-                        <button
-                          v-if="selectedSpeakerEmailCanPreview(submission)"
-                          type="button"
-                          :disabled="preparingSelectedSpeakerEmailTarget === submission.id"
-                          :class="proposalActionClass()"
-                          @click.stop="previewSelectedSpeakerEmails(submission.id)"
-                        >
-                          {{ preparingSelectedSpeakerEmailTarget === submission.id ? 'Preparing…' : 'Preview email' }}
-                        </button>
+                        <span
+                          v-else-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.email_status === 'pending'"
+                          class="inline-flex rounded-md border border-dc-yellow bg-dc-yellow px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-ink"
+                        >Sending</span>
+                        <span
+                          v-else-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.email_status === 'failed'"
+                          class="inline-flex rounded-md border border-red-600 bg-red-50 px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-red-700"
+                          title="Automatic delivery will retry on the next scheduled run."
+                        >Retrying</span>
                         <button
                           v-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.short_url"
                           type="button"
@@ -1661,6 +1727,7 @@ onUnmounted(() => {
       :open="selectedSpeakerEmailPreviewOpen"
       :previews="selectedSpeakerEmailPreviews"
       :busy="sendingSelectedSpeakerEmails"
+      :error="error"
       @close="selectedSpeakerEmailPreviewOpen = false"
       @send="sendSelectedSpeakerEmails"
     />

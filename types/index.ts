@@ -184,6 +184,8 @@ export interface EventRegistrationCampaign {
   status: EventRegistrationCampaignStatus;
   description: string | null;
   capacity: number;
+  /** Event-specific email capacity held back from immediate guest blasts. Null uses the deployment default. */
+  blast_transactional_reserve: number | null;
   opens_at: string | null;
   closes_at: string | null;
   waitlist_enabled: boolean;

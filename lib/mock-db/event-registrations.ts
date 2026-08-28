@@ -35,6 +35,7 @@ export async function createMockRegistrationCampaign(input: {
   status?: EventRegistrationCampaignStatus;
   description?: string | null;
   capacity: number;
+  blast_transactional_reserve?: number | null;
   opens_at?: string | null;
   closes_at?: string | null;
   waitlist_enabled: boolean;
@@ -48,6 +49,7 @@ export async function createMockRegistrationCampaign(input: {
     status: input.status ?? 'draft',
     description: input.description ?? null,
     capacity: input.capacity,
+    blast_transactional_reserve: input.blast_transactional_reserve ?? null,
     opens_at: input.opens_at ?? null,
     closes_at: input.closes_at ?? null,
     waitlist_enabled: input.waitlist_enabled,
@@ -61,8 +63,9 @@ export async function createMockRegistrationCampaign(input: {
 }
 
 export async function getMockRegistrationCampaign(eventId: string): Promise<EventRegistrationCampaign | undefined> {
-  return (await readData<EventRegistrationCampaign>(CAMPAIGNS_FILE))
-    .find((campaign) => campaign.event_id === eventId);
+  const campaign = (await readData<EventRegistrationCampaign>(CAMPAIGNS_FILE))
+    .find((item) => item.event_id === eventId);
+  return campaign ? { ...campaign, blast_transactional_reserve: campaign.blast_transactional_reserve ?? null } : undefined;
 }
 
 export async function updateMockRegistrationCampaign(

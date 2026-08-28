@@ -87,6 +87,9 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `GET /api/admin/venues/search?q=...` | Authenticated, rate-limited Ghana venue autocomplete backed by server-side Google Places (New) |
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
 | `POST /api/events/:eventId/speaker-intake-emails` | Authenticated Resend Batch send using stored program identities and validated one-off recipient emails; successful identities are suppressed from repeat UI/API sends |
+| `POST /api/events/:eventId/selected-speaker-emails/test` | Owner-only synthetic selected-speaker sample sent to the authenticated Owner email; accepts no recipient or speaker data and does not mutate speaker delivery state |
+| `POST /api/events/:eventId/speaker-submissions/test` | Owner-only submitted test proposal, hidden from other organizers, for exercising the actual approval and automatic acceptance-email flow |
+| `POST /api/internal/selected-speaker-emails/retry` | Scheduled retry for pending or failed selected-speaker acceptance emails; reuses each link's stable provider idempotency key |
 | `GET /api/cfp/events/:eventId` | Minimal public event context for an open monthly CFP; avoids exposing organizer event records |
 | `/api/cfp` and `/api/speaker-submissions*` | Turnstile/rate-limited, email-preflighted public talk/product-demo proposals and organizer selection decisions |
 | `/api/speakers*` | Speaker access workflows |
