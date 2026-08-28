@@ -43,6 +43,10 @@ export type ResendEmail = {
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+// Resend rejects direct API requests that do not identify a client. Keep this
+// code-owned rather than trusting the runtime to synthesize the header.
+const RESEND_USER_AGENT = 'devcongress-events-management/1.0';
+
 export class ResendBatchError extends Error {
   constructor(
     message: string,
@@ -98,6 +102,7 @@ async function resendRequest(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'User-Agent': RESEND_USER_AGENT,
         ...init.headers,
       },
       signal: AbortSignal.timeout(15_000),
@@ -253,6 +258,7 @@ export async function sendResendEmailBatch(input: {
         Authorization: `Bearer ${input.apiKey}`,
         'Content-Type': 'application/json',
         'Idempotency-Key': input.idempotencyKey,
+        'User-Agent': RESEND_USER_AGENT,
       },
       body: JSON.stringify(input.emails),
       signal: AbortSignal.timeout(15_000),
@@ -307,7 +313,10 @@ export async function retrieveResendReceivedEmail(input: {
       `https://api.resend.com/emails/receiving/${encodeURIComponent(input.emailId)}`,
       {
         method: 'GET',
-        headers: { Authorization: `Bearer ${input.apiKey}` },
+        headers: {
+          Authorization: `Bearer ${input.apiKey}`,
+          'User-Agent': RESEND_USER_AGENT,
+        },
         signal: AbortSignal.timeout(15_000),
       },
     );

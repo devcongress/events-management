@@ -123,6 +123,7 @@ describe('Resend broadcast client', () => {
     expect(broadcastCall?.[1]).toEqual(expect.objectContaining({
       method: 'POST',
       body: expect.stringContaining('"segment_id":"segment-1"'),
+      headers: expect.objectContaining({ 'User-Agent': 'devcongress-events-management/1.0' }),
     }));
     expect(broadcastCall?.[1]?.body).toContain('"send":false');
     expect(broadcastCall?.[1]?.body).toContain('"subject":"Venue update Bcc: attacker@example.com"');
@@ -148,6 +149,7 @@ describe('Resend broadcast client', () => {
       expect.objectContaining({
         method: 'POST',
         body: '{"scheduled_at":"2026-08-01T12:00:00.000Z"}',
+        headers: expect.objectContaining({ 'User-Agent': 'devcongress-events-management/1.0' }),
       }),
     );
   });
