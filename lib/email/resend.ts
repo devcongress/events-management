@@ -126,6 +126,26 @@ async function requireResendId(response: Response): Promise<string> {
   return parsed.data.id;
 }
 
+async function resendBroadcastResponseError(message: string, response: Response): Promise<ResendBroadcastError> {
+  const payload = await response.json().catch(() => null);
+  const providerError = resendErrorResponseSchema.safeParse(payload);
+  return new ResendBroadcastError(
+    message,
+    response.status,
+    providerError.success ? safeProviderMessage(providerError.data.message) : undefined,
+  );
+}
+
+function resendRetryAfterMilliseconds(response: Response): number {
+  const retryAfter = Number.parseFloat(response.headers.get('retry-after') ?? '');
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) return Math.min(retryAfter * 1_000, 10_000);
+  return 1_000;
+}
+
+function waitForResend(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function recipientName(name: string): { first_name?: string; last_name?: string } {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return {};
@@ -141,6 +161,56 @@ async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T
     }
   });
   await Promise.all(workers);
+}
+
+async function addRecipientToResendSegment(input: {
+  apiKey: string;
+  segmentId: string;
+  recipient: ResendBroadcastRecipient;
+  fetcher: Fetcher;
+}): Promise<void> {
+  // Rate limits are shared by the whole Resend team, so do not burst this
+  // import. Retry just the guest request that Resend asks us to delay.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const createResponse = await resendRequest(input.apiKey, '/contacts', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: input.recipient.email,
+        ...recipientName(input.recipient.name),
+        segments: [{ id: input.segmentId }],
+      }),
+    }, input.fetcher);
+    if (createResponse.ok) return;
+    if (createResponse.status === 429 && attempt < 4) {
+      await waitForResend(resendRetryAfterMilliseconds(createResponse));
+      continue;
+    }
+
+    if (createResponse.status === 409) {
+      const addResponse = await resendRequest(
+        input.apiKey,
+        `/contacts/${encodeURIComponent(input.recipient.email)}/segments/${encodeURIComponent(input.segmentId)}`,
+        { method: 'POST', body: JSON.stringify({}) },
+        input.fetcher,
+      );
+      if (addResponse.ok || addResponse.status === 409) return;
+      if (addResponse.status === 429 && attempt < 4) {
+        await waitForResend(resendRetryAfterMilliseconds(addResponse));
+        continue;
+      }
+      throw await resendBroadcastResponseError('The email provider did not accept the guest list.', addResponse);
+    }
+
+    throw await resendBroadcastResponseError('The email provider did not accept the guest list.', createResponse);
+  }
+}
+
+async function discardResendSegment(apiKey: string, segmentId: string, fetcher: Fetcher): Promise<void> {
+  try {
+    await resendRequest(apiKey, `/segments/${encodeURIComponent(segmentId)}`, { method: 'DELETE' }, fetcher);
+  } catch {
+    // Keep the meaningful import error when cleanup cannot reach the provider.
+  }
 }
 
 export async function prepareResendBroadcast(input: {
@@ -169,60 +239,43 @@ export async function prepareResendBroadcast(input: {
     body: JSON.stringify({ name: `DevCongress · ${input.eventName}`.slice(0, 120) }),
   }, fetcher));
 
-  await runWithConcurrency(input.recipients, 8, async (recipient) => {
-    const createResponse = await resendRequest(input.apiKey, '/contacts', {
+  try {
+    await runWithConcurrency(input.recipients, 1, async (recipient) => {
+      await addRecipientToResendSegment({ apiKey: input.apiKey, segmentId, recipient, fetcher });
+    });
+
+    const subject = emailSubjects.customEventBlast(input.subject);
+    const content = eventBlastEmail({
+      subject,
+      body: input.body,
+      unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
+      eventName: input.eventName,
+      eventDate: input.eventDate,
+      eventEndDate: input.eventEndDate,
+      locationName: input.locationName,
+      locationUrl: input.locationUrl,
+      eventUrl: input.eventUrl,
+      calendarDownloadUrl: input.calendarDownloadUrl,
+    });
+    const response = await resendRequest(input.apiKey, '/broadcasts', {
       method: 'POST',
       body: JSON.stringify({
-        email: recipient.email,
-        ...recipientName(recipient.name),
-        segments: [{ id: segmentId }],
+        name: `DevCongress · ${input.eventName}`.slice(0, 120),
+        segment_id: segmentId,
+        from: input.from,
+        reply_to: input.replyTo,
+        subject,
+        html: content.html,
+        text: content.text,
+        send: false,
       }),
     }, fetcher);
-    if (createResponse.ok) return;
-
-    // Contacts are global in Resend. A duplicate is still eligible for this
-    // event's new segment, so add it directly instead of failing the blast.
-    if (createResponse.status === 409) {
-      const addResponse = await resendRequest(
-        input.apiKey,
-        `/contacts/${encodeURIComponent(recipient.email)}/segments/${encodeURIComponent(segmentId)}`,
-        { method: 'POST', body: JSON.stringify({}) },
-        fetcher,
-      );
-      if (addResponse.ok || addResponse.status === 409) return;
-      throw new ResendBroadcastError('The email provider did not accept the guest list.', addResponse.status);
-    }
-    throw new ResendBroadcastError('The email provider did not accept the guest list.', createResponse.status);
-  });
-
-  const subject = emailSubjects.customEventBlast(input.subject);
-  const content = eventBlastEmail({
-    subject,
-    body: input.body,
-    unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
-    eventName: input.eventName,
-    eventDate: input.eventDate,
-    eventEndDate: input.eventEndDate,
-    locationName: input.locationName,
-    locationUrl: input.locationUrl,
-    eventUrl: input.eventUrl,
-    calendarDownloadUrl: input.calendarDownloadUrl,
-  });
-  const response = await resendRequest(input.apiKey, '/broadcasts', {
-    method: 'POST',
-    body: JSON.stringify({
-      name: `DevCongress · ${input.eventName}`.slice(0, 120),
-      segment_id: segmentId,
-      from: input.from,
-      reply_to: input.replyTo,
-      subject,
-      html: content.html,
-      text: content.text,
-      send: false,
-    }),
-  }, fetcher);
-  const broadcastId = await requireResendId(response);
-  return { broadcastId, segmentId };
+    const broadcastId = await requireResendId(response);
+    return { broadcastId, segmentId };
+  } catch (error) {
+    await discardResendSegment(input.apiKey, segmentId, fetcher);
+    throw error;
+  }
 }
 
 export async function sendResendBroadcast(input: {

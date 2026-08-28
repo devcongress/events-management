@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-28 — Rate-safe event blast audiences
+
+- Replaced the eight-at-once Resend contact import with a sequential, rate-limit-aware importer that retries only the guest request Resend throttles.
+- Cleans up a newly created Resend segment when guest-list preparation cannot finish, preventing incomplete attempts from consuming the limited segment allowance.
+
 ## 2026-08-28 — Resend Broadcast prerequisites
 
 - Added the required outbound `User-Agent` header to direct Resend API calls, including the Contacts, Segments, and Broadcasts sequence used for event blasts.
