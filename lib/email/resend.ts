@@ -61,6 +61,7 @@ function safeProviderMessage(value: unknown): string | undefined {
   return normalized
     .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
     .replace(/\b(?:re|sk|key)_[A-Za-z0-9_-]+\b/gi, '[redacted]')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email redacted]')
     .slice(0, 240);
 }
 
@@ -68,6 +69,7 @@ export class ResendBroadcastError extends Error {
   constructor(
     message: string,
     readonly status: number | null = null,
+    readonly providerMessage?: string,
   ) {
     super(message);
     this.name = 'ResendBroadcastError';
@@ -106,9 +108,15 @@ async function resendRequest(
 }
 
 async function requireResendId(response: Response): Promise<string> {
-  const parsed = resendIdResponseSchema.safeParse(await response.json().catch(() => null));
+  const payload = await response.json().catch(() => null);
+  const parsed = resendIdResponseSchema.safeParse(payload);
   if (!response.ok || !parsed.success) {
-    throw new ResendBroadcastError('The email provider did not accept the blast.', response.status);
+    const providerError = resendErrorResponseSchema.safeParse(payload);
+    throw new ResendBroadcastError(
+      'The email provider did not accept the blast.',
+      response.status,
+      providerError.success ? safeProviderMessage(providerError.data.message) : undefined,
+    );
   }
   return parsed.data.id;
 }

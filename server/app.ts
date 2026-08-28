@@ -7437,6 +7437,14 @@ app.get('/api/events/:eventId/blasts', async (c) => {
   }
 });
 
+function eventBlastFailureMessage(error: unknown): string {
+  if (error instanceof ResendBroadcastError) {
+    const providerDetail = error.providerMessage ? ` Resend says: ${error.providerMessage}` : '';
+    return `${error.message}${providerDetail} The blast was saved as Needs attention and can be retried.`;
+  }
+  return 'The blast could not be delivered. It was saved as Needs attention and can be retried.';
+}
+
 app.post('/api/events/:eventId/blasts', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
@@ -7570,6 +7578,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     return c.json({ blast: updated ?? blast, delivery: status, capacity }, 201);
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
+    const providerMessage = error instanceof ResendBroadcastError ? error.providerMessage : undefined;
     const status = providerStatus === 402 || providerStatus === 403 || providerStatus === 429
       ? 'needs_capacity'
       : 'failed';
@@ -7578,7 +7587,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       action: status === 'needs_capacity' ? 'event.blast.needs_capacity' : 'event.blast.failed',
       targetType: 'event_blast',
       targetId: blast.id,
-      metadata: { event_id: event.id, recipient_count: recipients.length, provider_status: providerStatus },
+      metadata: { event_id: event.id, recipient_count: recipients.length, provider_status: providerStatus, provider_message: providerMessage ?? null },
     });
     console.warn(JSON.stringify({
       event: 'event_blast_delayed',
@@ -7586,10 +7595,12 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       blast_id: blast.id,
       recipient_count: recipients.length,
       provider_status: providerStatus,
+      provider_message: providerMessage,
     }));
     return c.json({
       blast: updated ?? blast,
       delivery: status, capacity,
+      error: eventBlastFailureMessage(error),
     }, status === 'needs_capacity' ? 202 : 502);
   }
 });
@@ -7628,14 +7639,20 @@ app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
     return c.json({ blast: updated ?? blast, delivery: status }, 201);
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
+    const providerMessage = error instanceof ResendBroadcastError ? error.providerMessage : undefined;
     const updated = await updateEventBlast(blast.id, { status: 'failed' }, c);
     console.warn(JSON.stringify({
       event: 'event_blast_retry_delayed',
       event_id: event.id,
       blast_id: blast.id,
       provider_status: providerStatus,
+      provider_message: providerMessage,
     }));
-    return c.json({ blast: updated ?? blast, delivery: 'failed' as const }, 502);
+    return c.json({
+      blast: updated ?? blast,
+      delivery: 'failed' as const,
+      error: eventBlastFailureMessage(error),
+    }, 502);
   }
 });
 

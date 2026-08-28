@@ -503,8 +503,10 @@ describe('native event registration API', () => {
       body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.' }),
     });
     expect(failed.status).toBe(502);
-    const failedPayload = await failed.json() as { blast: { id: string; status: string; provider_broadcast_id: string } };
+    const failedPayload = await failed.json() as { blast: { id: string; status: string; provider_broadcast_id: string }; error: string };
     expect(failedPayload.blast).toMatchObject({ status: 'failed', provider_broadcast_id: 'broadcast-1' });
+    expect(failedPayload.error).toContain('could not be reached');
+    expect(failedPayload.error).toContain('Needs attention');
 
     const retried = await app.request(
       `http://localhost/api/events/${created.event.id}/blasts/${failedPayload.blast.id}/retry`,

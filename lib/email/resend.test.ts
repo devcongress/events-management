@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { prepareResendBroadcast, ResendBatchError, sendResendBroadcast, sendResendEmailBatch } from './resend';
+import { prepareResendBroadcast, ResendBatchError, ResendBroadcastError, sendResendBroadcast, sendResendEmailBatch } from './resend';
 
 const email = {
   from: 'DevCongress <speakers@updates.devcongress.org>',
@@ -81,6 +81,18 @@ describe('Resend batch client', () => {
 });
 
 describe('Resend broadcast client', () => {
+  it('keeps a provider rejection safe to show to an owner', async () => {
+    await expect(sendResendBroadcast({
+      apiKey: 're_broadcast_test',
+      broadcastId: 'broadcast-1',
+      fetcher: async () => new Response(JSON.stringify({ message: 'Broadcasts are not enabled for this account.' }), { status: 403 }),
+    })).rejects.toMatchObject({
+      name: 'ResendBroadcastError',
+      status: 403,
+      providerMessage: 'Broadcasts are not enabled for this account.',
+    } satisfies Partial<ResendBroadcastError>);
+  });
+
   it('isolates recipients in a new segment and asks Resend to schedule the blast', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);

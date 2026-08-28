@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-28 — Actionable event-blast delivery failures
+
+- Replaced the opaque event-blast `502` response with a safe, actionable provider failure message that tells organizers whether Resend was unreachable or rejected the broadcast, while confirming that the blast is preserved for retry.
+- Record the sanitized Resend explanation with the Owner audit event and redact credentials and email addresses before it can reach the UI or logs.
+
 ## 2026-08-28 — Coupled daily blast allocation
 
 - Replaced the one-way event blast reserve field with linked **Safe to send today** and **Keep available** controls. Changing either immediately recalculates the other from today’s remaining provider quota.
