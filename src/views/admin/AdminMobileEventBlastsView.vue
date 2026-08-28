@@ -49,6 +49,7 @@ const blastsQuery = useQuery({
   enabled: computed(() => Boolean(eventId.value) && registrationQuery.data.value?.managed_internally === true),
   retry: false,
   refetchOnWindowFocus: true,
+  refetchInterval: (query) => query.state.data?.blasts.some((blast) => blast.status === 'preparing') ? 3_000 : false,
 });
 
 const registrationData = computed(() => registrationQuery.data.value ?? null);
@@ -221,7 +222,9 @@ async function sendBlast() {
     blastBody.value = '';
     blastScheduledFor.value = '';
     notify.success(
-      result.delivery === 'scheduled'
+      result.delivery === 'preparing'
+        ? `Preparing ${result.blast.recipient_count} guests safely. Delivery will start automatically when the audience is ready.`
+        : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
         : result.delivery === 'sent'
           ? `Blast sent to ${result.blast.recipient_count} confirmed guests.`
@@ -241,7 +244,9 @@ async function retryBlast(blast: EventBlast) {
     const result = await retryEventBlast(eventId.value, blast.id);
     await refreshBlasts();
     notify.success(
-      result.delivery === 'scheduled'
+      result.delivery === 'preparing'
+        ? `Resuming audience preparation at ${result.blast.prepared_recipient_count}/${result.blast.recipient_count} guests.`
+        : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
         : `Blast sent to ${result.blast.recipient_count} confirmed guests.`,
     );
@@ -411,7 +416,7 @@ onBeforeRouteLeave(() => {
           <p v-else-if="blasts.length === 0" class="mobile-blasts-history-state">No event updates yet.</p>
           <ul v-else>
             <li v-for="blast in blasts" :key="blast.id">
-              <div><strong>{{ blast.subject }}</strong><span>{{ blast.recipient_count }} guests · {{ blast.scheduled_for ? formatDateTime(blast.scheduled_for) : blast.sent_at ? formatDateTime(blast.sent_at) : 'Not sent' }}</span></div>
+              <div><strong>{{ blast.subject }}</strong><span>{{ blast.recipient_count }} guests<span v-if="blast.status === 'preparing'"> · {{ blast.prepared_recipient_count }}/{{ blast.recipient_count }} ready</span> · {{ blast.scheduled_for ? formatDateTime(blast.scheduled_for) : blast.sent_at ? formatDateTime(blast.sent_at) : 'Not sent' }}</span><span v-if="blast.preparation_error">{{ blast.preparation_error }}</span></div>
               <div class="mobile-blasts-history-actions">
                 <span class="mobile-blasts-status" :class="`mobile-blasts-status--${blast.status}`">{{ blastStatusLabel(blast.status) }}</span>
                 <button v-if="blast.status === 'failed' && blast.provider_broadcast_id" type="button" :disabled="blastRetryId === blast.id" @click="retryBlast(blast)">{{ blastRetryId === blast.id ? 'Retrying…' : 'Retry send' }}</button>

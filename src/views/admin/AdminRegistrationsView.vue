@@ -71,6 +71,7 @@ const blastsQuery = useQuery({
   queryKey: computed(() => queryKeys.eventBlasts(eventId.value)),
   queryFn: () => fetchEventBlasts(eventId.value),
   enabled: computed(() => Boolean(eventId.value) && registrationQuery.data.value?.managed_internally === true),
+  refetchInterval: (query) => query.state.data?.blasts.some((blast) => blast.status === 'preparing') ? 3_000 : false,
 });
 const settings = reactive({
   status: 'draft' as 'draft' | 'open' | 'closed',
@@ -751,7 +752,9 @@ async function sendBlast() {
     blastBody.value = '';
     blastScheduledFor.value = '';
     notify.success(
-      result.delivery === 'scheduled'
+      result.delivery === 'preparing'
+        ? `Preparing ${result.blast.recipient_count} guests safely. Delivery will start automatically when the audience is ready.`
+        : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
         : result.delivery === 'sent'
           ? `Blast sent to ${result.blast.recipient_count} confirmed guests.`
@@ -771,7 +774,9 @@ async function retryBlast(blast: EventBlast) {
     const result = await retryEventBlast(eventId.value, blast.id);
     await refresh();
     notify.success(
-      result.delivery === 'scheduled'
+      result.delivery === 'preparing'
+        ? `Resuming audience preparation at ${result.blast.prepared_recipient_count}/${result.blast.recipient_count} guests.`
+        : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
         : `Blast sent to ${result.blast.recipient_count} confirmed guests.`,
     );
@@ -1839,6 +1844,7 @@ async function retryEmails() {
                   <p class="truncate font-bold text-dc-ink">{{ blast.subject }}</p>
                   <p class="mt-1 text-sm text-dc-gray">
                     {{ blast.recipient_count }} confirmed guest{{ blast.recipient_count === 1 ? '' : 's' }}
+                    <span v-if="blast.status === 'preparing'"> · {{ blast.prepared_recipient_count }}/{{ blast.recipient_count }} ready</span>
                     <span v-if="blast.scheduled_for"> · {{ formatDateTime(blast.scheduled_for) }}</span>
                     <span v-else-if="blast.sent_at"> · {{ formatDateTime(blast.sent_at) }}</span>
                   </p>
@@ -1847,6 +1853,7 @@ async function retryEmails() {
                   <span class="rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold uppercase" :class="blastStatusClass(blast.status)">
                     {{ blastStatusLabel(blast.status) }}
                   </span>
+                  <span v-if="blast.preparation_error" class="text-xs text-red-700">{{ blast.preparation_error }}</span>
                   <button
                     v-if="blast.status === 'failed' && blast.provider_broadcast_id"
                     type="button"

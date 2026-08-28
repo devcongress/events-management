@@ -213,6 +213,73 @@ async function discardResendSegment(apiKey: string, segmentId: string, fetcher: 
   }
 }
 
+export async function createResendBroadcastSegment(input: {
+  apiKey: string;
+  eventName: string;
+  fetcher?: Fetcher;
+}): Promise<string> {
+  return requireResendId(await resendRequest(input.apiKey, '/segments', {
+    method: 'POST',
+    body: JSON.stringify({ name: `DevCongress · ${input.eventName}`.slice(0, 120) }),
+  }, input.fetcher ?? fetch));
+}
+
+export async function addResendBroadcastRecipients(input: {
+  apiKey: string;
+  segmentId: string;
+  recipients: ResendBroadcastRecipient[];
+  fetcher?: Fetcher;
+}): Promise<void> {
+  const fetcher = input.fetcher ?? fetch;
+  await runWithConcurrency(input.recipients, 1, async (recipient) => {
+    await addRecipientToResendSegment({ apiKey: input.apiKey, segmentId: input.segmentId, recipient, fetcher });
+  });
+}
+
+export async function createResendBroadcastDraft(input: {
+  apiKey: string;
+  segmentId: string;
+  eventName: string;
+  eventDate: string;
+  eventEndDate?: string | null;
+  locationName: string;
+  locationUrl?: string | null;
+  eventUrl?: string | null;
+  calendarDownloadUrl?: string | null;
+  subject: string;
+  body: string;
+  from: string;
+  replyTo?: string;
+  fetcher?: Fetcher;
+}): Promise<string> {
+  const subject = emailSubjects.customEventBlast(input.subject);
+  const content = eventBlastEmail({
+    subject,
+    body: input.body,
+    unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
+    eventName: input.eventName,
+    eventDate: input.eventDate,
+    eventEndDate: input.eventEndDate,
+    locationName: input.locationName,
+    locationUrl: input.locationUrl,
+    eventUrl: input.eventUrl,
+    calendarDownloadUrl: input.calendarDownloadUrl,
+  });
+  return requireResendId(await resendRequest(input.apiKey, '/broadcasts', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: `DevCongress · ${input.eventName}`.slice(0, 120),
+      segment_id: input.segmentId,
+      from: input.from,
+      reply_to: input.replyTo,
+      subject,
+      html: content.html,
+      text: content.text,
+      send: false,
+    }),
+  }, input.fetcher ?? fetch));
+}
+
 export async function prepareResendBroadcast(input: {
   apiKey: string;
   eventName: string;
@@ -234,21 +301,22 @@ export async function prepareResendBroadcast(input: {
   }
 
   const fetcher = input.fetcher ?? fetch;
-  const segmentId = await requireResendId(await resendRequest(input.apiKey, '/segments', {
-    method: 'POST',
-    body: JSON.stringify({ name: `DevCongress · ${input.eventName}`.slice(0, 120) }),
-  }, fetcher));
+  const segmentId = await createResendBroadcastSegment({
+    apiKey: input.apiKey,
+    eventName: input.eventName,
+    fetcher,
+  });
 
   try {
-    await runWithConcurrency(input.recipients, 1, async (recipient) => {
-      await addRecipientToResendSegment({ apiKey: input.apiKey, segmentId, recipient, fetcher });
+    await addResendBroadcastRecipients({
+      apiKey: input.apiKey,
+      segmentId,
+      recipients: input.recipients,
+      fetcher,
     });
-
-    const subject = emailSubjects.customEventBlast(input.subject);
-    const content = eventBlastEmail({
-      subject,
-      body: input.body,
-      unsubscribeUrl: '{{{RESEND_UNSUBSCRIBE_URL}}}',
+    const broadcastId = await createResendBroadcastDraft({
+      apiKey: input.apiKey,
+      segmentId,
       eventName: input.eventName,
       eventDate: input.eventDate,
       eventEndDate: input.eventEndDate,
@@ -256,21 +324,12 @@ export async function prepareResendBroadcast(input: {
       locationUrl: input.locationUrl,
       eventUrl: input.eventUrl,
       calendarDownloadUrl: input.calendarDownloadUrl,
+      subject: input.subject,
+      body: input.body,
+      from: input.from,
+      replyTo: input.replyTo,
+      fetcher,
     });
-    const response = await resendRequest(input.apiKey, '/broadcasts', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: `DevCongress · ${input.eventName}`.slice(0, 120),
-        segment_id: segmentId,
-        from: input.from,
-        reply_to: input.replyTo,
-        subject,
-        html: content.html,
-        text: content.text,
-        send: false,
-      }),
-    }, fetcher);
-    const broadcastId = await requireResendId(response);
     return { broadcastId, segmentId };
   } catch (error) {
     await discardResendSegment(input.apiKey, segmentId, fetcher);

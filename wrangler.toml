@@ -25,3 +25,18 @@ enabled = true
 
 [triggers]
 crons = ["*/15 * * * *"]
+
+# Broadcast preparation is deliberately asynchronous. One queue delivery imports
+# only a small audience slice, avoiding the per-request outbound-fetch ceiling
+# before Resend receives the final broadcast request.
+[[queues.producers]]
+queue = "event-blast-preparation"
+binding = "EVENT_BLAST_PREPARATION_QUEUE"
+
+[[queues.consumers]]
+queue = "event-blast-preparation"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 5
+dead_letter_queue = "event-blast-preparation-dead-letter"
+max_concurrency = 1

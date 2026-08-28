@@ -229,6 +229,9 @@ export interface EventBlast {
   sent_at: string | null;
   provider_broadcast_id: string | null;
   provider_segment_id: string | null;
+  recipient_snapshot: Array<{ email: string; name: string }>;
+  prepared_recipient_count: number;
+  preparation_error: string | null;
   created_by_email: string | null;
   created_at: string;
   updated_at: string;

@@ -1145,7 +1145,7 @@ export function createEventBlast(
   eventId: string,
   input: { subject: string; body: string; scheduled_for?: string | null },
 ) {
-  return fetchJson<{ blast: EventBlast; delivery: 'scheduled' | 'sent' | 'needs_capacity' | 'failed'; capacity: BlastCapacity; error?: string }>(
+  return fetchJson<{ blast: EventBlast; delivery: 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed'; capacity: BlastCapacity; error?: string }>(
     `/api/events/${eventId}/blasts`,
     {
       method: 'POST',
@@ -1157,7 +1157,7 @@ export function createEventBlast(
 }
 
 export function retryEventBlast(eventId: string, blastId: string) {
-  return fetchJson<{ blast: EventBlast; delivery: 'scheduled' | 'sent' | 'failed' }>(
+  return fetchJson<{ blast: EventBlast; delivery: 'preparing' | 'scheduled' | 'sent' | 'failed' }>(
     `/api/events/${eventId}/blasts/${blastId}/retry`,
     {
       method: 'POST',
