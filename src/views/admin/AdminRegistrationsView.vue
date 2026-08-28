@@ -117,8 +117,10 @@ const blastPreviewOpen = ref(false);
 const blastPending = ref(false);
 const blastRetryId = ref<string | null>(null);
 const blastReserve = ref('');
+const blastSafeToSend = ref('');
 const blastReservePending = ref(false);
 const savedBlastReserve = ref<string | null>(null);
+const blastReserveSaveSummary = ref<string | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
 const blastScheduledFor = ref('');
@@ -186,6 +188,11 @@ const workspaceSummary = computed(() => (
 const emailSummary = computed(() => summarizeRegistrationEmails(displayedRegistrations.value));
 const blasts = computed(() => blastsQuery.data.value?.blasts ?? []);
 const blastCapacity = computed(() => blastsQuery.data.value?.capacity ?? null);
+const blastAllocatableToday = computed(() => (
+  blastCapacity.value?.known
+    ? blastCapacity.value.allocatable_recipients_today ?? 0
+    : null
+));
 const latestBlast = computed(() => blasts.value[0] ?? null);
 const confirmedBlastRecipients = computed(() => displayedRegistrations.value.filter((registration) => registration.status === 'confirmed').length);
 const canCreateBlast = computed(() => (
@@ -479,7 +486,11 @@ const paginatedEmailRegistrations = computed(() => {
   return emailRegistrations.value.slice(start, start + REGISTRATION_EMAIL_PAGE_SIZE);
 });
 
-watch(() => data.value?.campaign, (campaign) => {
+watch([
+  () => data.value?.campaign,
+  () => blastCapacity.value?.known ? blastCapacity.value.protected_reserve : null,
+  () => blastAllocatableToday.value,
+], ([campaign, protectedReserve, allocatable]) => {
   if (!campaign) return;
   const snapshot: RegistrationSettingsDraft = {
     status: campaign.status,
@@ -490,10 +501,12 @@ watch(() => data.value?.campaign, (campaign) => {
   };
   Object.assign(settings, snapshot);
   savedSettings.value = { ...snapshot };
-  const nextReserve = campaign.blast_transactional_reserve?.toString() ?? '';
-  if (savedBlastReserve.value !== nextReserve) {
-    blastReserve.value = nextReserve;
-    savedBlastReserve.value = nextReserve;
+  const effectiveReserve = protectedReserve ?? campaign.blast_transactional_reserve ?? 0;
+  const allocationSnapshot = `${campaign.blast_transactional_reserve ?? 'default'}:${effectiveReserve}:${allocatable ?? 'unknown'}`;
+  if (savedBlastReserve.value !== allocationSnapshot) {
+    blastReserve.value = effectiveReserve.toString();
+    blastSafeToSend.value = allocatable === null ? '' : Math.max(0, allocatable - effectiveReserve).toString();
+    savedBlastReserve.value = allocationSnapshot;
   }
 }, { immediate: true });
 
@@ -772,22 +785,59 @@ async function retryBlast(blast: EventBlast) {
 async function saveBlastReserve() {
   if (blastReservePending.value) return;
   const trimmed = blastReserve.value.trim();
-  const reserve = trimmed === '' ? null : Number(trimmed);
-  if (reserve !== null && (!Number.isInteger(reserve) || reserve < 0 || reserve > 10_000)) {
-    notify.error('Enter a whole-number reserve from 0 to 10,000, or clear it to use the default.');
+  const reserve = Number(trimmed);
+  const allocatable = blastAllocatableToday.value;
+  if (!Number.isInteger(reserve) || reserve < 0 || (allocatable !== null && reserve > allocatable)) {
+    notify.error(allocatable === null
+      ? 'Wait for provider capacity before saving this allocation.'
+      : `Reserve must be a whole number between 0 and ${allocatable} today.`);
     return;
   }
 
   blastReservePending.value = true;
+  blastReserveSaveSummary.value = null;
   try {
-    await updateEventRegistrationCampaign(eventId.value, { blast_transactional_reserve: reserve });
-    await refresh();
-    notify.success(reserve === null ? 'Blast reserve reset to the delivery default.' : `Blast reserve set to ${reserve} sends for this event.`);
+    const campaign = await updateEventRegistrationCampaign(eventId.value, { blast_transactional_reserve: reserve });
+    queryClient.setQueryData(queryKeys.eventRegistrations(eventId.value), (current: typeof data.value) => (
+      current ? { ...current, campaign } : current
+    ));
+    await Promise.all([registrationQuery.refetch(), blastsQuery.refetch()]);
+    const capacity = blastsQuery.data.value?.capacity;
+    const effectiveReserve = capacity?.protected_reserve ?? campaign.blast_transactional_reserve;
+    const safeToday = capacity?.safe_recipients_today;
+    blastReserveSaveSummary.value = capacity?.known && effectiveReserve !== null && effectiveReserve !== undefined && safeToday !== null && safeToday !== undefined
+      ? `Saved: ${effectiveReserve} held back · ${safeToday} safe to send today.`
+      : `Saved: ${effectiveReserve ?? 'delivery default'} held back. Safe-send capacity is awaiting the provider.`;
+    notify.success(blastReserveSaveSummary.value);
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to save the event blast reserve.');
   } finally {
     blastReservePending.value = false;
   }
+}
+
+function draftAllocationSummary(reserve: number, safeToday: number): string {
+  return `Ready to save: ${reserve} held back · ${safeToday} safe to send today.`;
+}
+
+function updateReserveAllocation() {
+  const allocatable = blastAllocatableToday.value;
+  if (allocatable === null) return;
+  const reserve = Math.min(allocatable, Math.max(0, Number.parseInt(blastReserve.value, 10) || 0));
+  const safeToday = allocatable - reserve;
+  blastReserve.value = reserve.toString();
+  blastSafeToSend.value = safeToday.toString();
+  blastReserveSaveSummary.value = draftAllocationSummary(reserve, safeToday);
+}
+
+function updateSafeAllocation() {
+  const allocatable = blastAllocatableToday.value;
+  if (allocatable === null) return;
+  const safeToday = Math.min(allocatable, Math.max(0, Number.parseInt(blastSafeToSend.value, 10) || 0));
+  const reserve = allocatable - safeToday;
+  blastSafeToSend.value = safeToday.toString();
+  blastReserve.value = reserve.toString();
+  blastReserveSaveSummary.value = draftAllocationSummary(reserve, safeToday);
 }
 
 async function handleRegistrationOverviewAction() {
@@ -1658,7 +1708,7 @@ async function retryEmails() {
                   CREATE BLAST
                 </button>
               </div>
-              <div class="mt-4 flex flex-wrap gap-2">
+              <div class="mt-4 flex flex-wrap gap-2" aria-label="Blast capacity summary">
                 <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
                   {{ confirmedBlastRecipients }} confirmed guest{{ confirmedBlastRecipients === 1 ? '' : 's' }}
                 </span>
@@ -1666,13 +1716,19 @@ async function retryEmails() {
                   100 recipient limit
                 </span>
                 <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                  {{ blastCapacity.safe_recipients_today }} safe today · {{ blastCapacity.protected_reserve }} reserved
+                  {{ blastCapacity.daily_quota_remaining }} quota left today
+                </span>
+                <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-ink bg-dc-yellow px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink">
+                  {{ blastCapacity.safe_recipients_today }} safe today
+                </span>
+                <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+                  {{ blastCapacity.protected_reserve }} held back
                 </span>
                 <span v-else class="rounded-sm border border-amber-300 bg-amber-50 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-900">
                   Capacity awaiting provider update
                 </span>
               </div>
-              <div class="mt-4 grid gap-4 border-t border-dc-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:items-end">
+              <div class="mt-4 grid gap-4 border-t border-dc-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)] lg:items-stretch">
                 <div>
                   <p class="editorial-label">Latest delivery</p>
                   <p v-if="latestBlast" class="mt-1 text-sm font-semibold text-dc-ink">
@@ -1681,15 +1737,31 @@ async function retryEmails() {
                   </p>
                   <p v-else class="mt-1 text-sm text-dc-gray">No blast has been sent or scheduled for this event.</p>
                 </div>
-                <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" @submit.prevent="saveBlastReserve">
-                  <label for="event-blast-reserve" class="grid gap-1">
-                    <span class="editorial-label">Keep available for this event</span>
-                    <input id="event-blast-reserve" v-model="blastReserve" type="number" min="0" max="10000" step="1" inputmode="numeric" class="editorial-input min-h-10" placeholder="Use delivery default">
-                  </label>
-                  <button type="submit" class="editorial-secondary-action min-h-10 px-3 text-[10px]" :disabled="blastReservePending">
-                    {{ blastReservePending ? 'SAVING…' : 'SAVE RESERVE' }}
-                  </button>
-                  <p class="sm:col-span-2 text-xs leading-5 text-dc-gray">Safe today updates from provider capacity, queued email, and this event’s reserve. Clear this field to use the delivery default.</p>
+                <form class="rounded-md border border-dc-border bg-white p-3" @submit.prevent="saveBlastReserve">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <span class="editorial-label">Allocate today's quota</span>
+                    <span v-if="blastCapacity?.known" class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ blastCapacity.daily_quota_remaining }} left after {{ blastCapacity.daily_used }} sent</span>
+                  </div>
+                  <div v-if="blastCapacity?.known" class="mt-2 grid gap-2 sm:grid-cols-2">
+                    <label for="event-blast-safe" class="grid gap-1">
+                      <span class="text-xs font-semibold text-dc-ink">Safe to send today</span>
+                      <input id="event-blast-safe" v-model="blastSafeToSend" type="number" min="0" :max="blastAllocatableToday ?? 0" step="1" inputmode="numeric" class="editorial-input min-h-10" aria-describedby="event-blast-reserve-help event-blast-reserve-result" @input="updateSafeAllocation">
+                    </label>
+                    <label for="event-blast-reserve" class="grid gap-1">
+                      <span class="text-xs font-semibold text-dc-ink">Keep available</span>
+                      <input id="event-blast-reserve" v-model="blastReserve" type="number" min="0" :max="blastAllocatableToday ?? 0" step="1" inputmode="numeric" class="editorial-input min-h-10" aria-describedby="event-blast-reserve-help event-blast-reserve-result" @input="updateReserveAllocation">
+                    </label>
+                  </div>
+                  <div v-else class="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Provider capacity has not been observed yet, so today’s allocation cannot be changed safely.</div>
+                  <div class="mt-2 flex justify-end">
+                    <button type="submit" class="editorial-secondary-action min-h-10 px-3 text-[10px]" :disabled="blastReservePending || !blastCapacity?.known">
+                      {{ blastReservePending ? 'SAVING…' : 'SAVE RESERVE' }}
+                    </button>
+                  </div>
+                  <p id="event-blast-reserve-help" class="mt-2 text-xs leading-5 text-dc-gray">{{ blastCapacity?.known ? `${blastCapacity.allocatable_recipients_today} remain after ${blastCapacity.queued_transactional} queued transactional email. Adjust either field; the other updates immediately.` : 'We will show the allocation controls when provider quota is available.' }}</p>
+                  <p id="event-blast-reserve-result" class="mt-1 min-h-5 text-xs font-semibold text-dc-ink" role="status" aria-live="polite">
+                    {{ blastReserveSaveSummary ?? (blastCapacity?.known ? `${blastCapacity.protected_reserve} held back · ${blastCapacity.safe_recipients_today} safe to send today.` : '') }}
+                  </p>
                 </form>
               </div>
             </div>
