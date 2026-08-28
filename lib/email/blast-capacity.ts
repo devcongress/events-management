@@ -6,8 +6,10 @@ export type BlastCapacity = {
   known: boolean;
   daily_limit: number;
   daily_used: number | null;
+  daily_quota_remaining: number | null;
   protected_reserve: number;
   queued_transactional: number;
+  allocatable_recipients_today: number | null;
   safe_recipients_today: number | null;
   can_send_now: boolean;
   reason: 'capacity_unknown' | 'within_safe_capacity' | 'protect_transactional_email' | 'daily_quota_exhausted';
@@ -31,22 +33,28 @@ export function assessBlastCapacity(input: {
       known: false,
       daily_limit: input.health?.daily_quota_limit ?? 100,
       daily_used: null,
+      daily_quota_remaining: null,
       protected_reserve: input.protectedReserve,
       queued_transactional: input.outbox?.pending ?? 0,
+      allocatable_recipients_today: null,
       safe_recipients_today: null,
       can_send_now: true,
       reason: 'capacity_unknown',
     };
   }
   const queued = input.outbox?.pending ?? 0;
-  const safe = Math.max(0, input.health.daily_quota_limit - input.health.daily_quota_used - input.protectedReserve - queued);
+  const dailyRemaining = Math.max(0, input.health.daily_quota_limit - input.health.daily_quota_used);
+  const allocatable = Math.max(0, dailyRemaining - queued);
+  const safe = Math.max(0, allocatable - input.protectedReserve);
   const exhausted = input.health.daily_quota_used >= input.health.daily_quota_limit;
   return {
     known: true,
     daily_limit: input.health.daily_quota_limit,
     daily_used: input.health.daily_quota_used,
+    daily_quota_remaining: dailyRemaining,
     protected_reserve: input.protectedReserve,
     queued_transactional: queued,
+    allocatable_recipients_today: allocatable,
     safe_recipients_today: safe,
     can_send_now: input.recipientCount <= safe,
     reason: exhausted ? 'daily_quota_exhausted' : input.recipientCount <= safe ? 'within_safe_capacity' : 'protect_transactional_email',

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-08-28 — Coupled daily blast allocation
+
+- Replaced the one-way event blast reserve field with linked **Safe to send today** and **Keep available** controls. Changing either immediately recalculates the other from today’s remaining provider quota.
+- Added transparent quota accounting for the provider daily limit, deliveries already sent today, queued transactional email, and the resulting allocatable total before a blast is allowed to consume it.
+
+## 2026-08-28 — Blast reserve confirmation and capacity feedback
+
+- Reworked the event-blast capacity header so the actionable safe-today and held-back values are distinct, rather than compressed into one ambiguous badge.
+- Saving an event-specific reserve now updates the registration and blast queries immediately and leaves an in-panel live confirmation with the effective reserve and recalculated safe-send count.
+- Applied the same deterministic refresh and accessible result feedback to the dedicated phone blast workspace.
+
 ## 2026-08-28 — Event-specific blast capacity reserve
 
 - Made the transactional email reserve configurable for each event, while retaining the deployment default whenever the event setting is blank.

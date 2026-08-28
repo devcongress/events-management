@@ -442,8 +442,10 @@ export interface BlastCapacity {
   known: boolean;
   daily_limit: number;
   daily_used: number | null;
+  daily_quota_remaining: number | null;
   protected_reserve: number;
   queued_transactional: number;
+  allocatable_recipients_today: number | null;
   safe_recipients_today: number | null;
   can_send_now: boolean;
   reason: 'capacity_unknown' | 'within_safe_capacity' | 'protect_transactional_email' | 'daily_quota_exhausted';
