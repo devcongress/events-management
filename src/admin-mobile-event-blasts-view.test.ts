@@ -11,6 +11,7 @@ describe('phone event blasts workspace', () => {
     expect(viewSource).toContain('fetchEventBlasts');
     expect(viewSource).toContain('createEventBlast');
     expect(viewSource).toContain('retryEventBlast');
+    expect(viewSource).toContain('updateEventRegistrationCampaign');
     expect(viewSource).toContain('<BlastEmailPreview');
     expect(viewSource).toContain('confirmedRecipients.value <= 100');
   });
@@ -21,6 +22,8 @@ describe('phone event blasts workspace', () => {
     expect(viewSource).toContain('Preview email');
     expect(viewSource).toContain('Recent blasts');
     expect(viewSource).toContain('Retry send');
+    expect(viewSource).toContain('Keep available for this event');
+    expect(viewSource).toContain('Latest delivery');
   });
 
   it('warns before abandoning a draft and preserves phone ergonomics', () => {

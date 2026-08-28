@@ -18,7 +18,7 @@ import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries
 import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import { sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
-import { EMAIL_SENDERS } from '@/lib/email/scenarios';
+import { EMAIL_SENDERS, emailSubjects } from '@/lib/email/scenarios';
 import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
   eventRegistrationCalendarFile,
@@ -88,6 +88,7 @@ import {
   publicEventSubmissionsPublicDiscoveryEnabled,
 } from '@/lib/public-event-submissions';
 import { EVENT_FORMATS } from '@/lib/event-format';
+import { markTestEventTitle } from '@/lib/event-test-mode';
 import { GooglePlacesSearchError, searchGhanaVenues } from '@/lib/google-places';
 import {
   canChangeChecklistItemAvailability,
@@ -423,6 +424,7 @@ const eventRegistrationCampaignUpdateSchema = z.object({
   status: z.enum(['draft', 'open', 'closed']).optional(),
   description: z.string().trim().max(2000).nullable().optional(),
   capacity: z.coerce.number().int().min(1).max(5000).optional(),
+  blast_transactional_reserve: z.coerce.number().int().min(0).max(10_000).nullable().optional(),
   opens_at: z.string().datetime().nullable().optional(),
   closes_at: z.string().datetime().nullable().optional(),
 }).strict().superRefine((value, ctx) => {
@@ -758,6 +760,12 @@ const speakerSubmissionDecisionSchema = z.object({
 });
 const selectedSpeakerEmailSelectionSchema = z.object({
   submission_ids: z.array(z.string().trim().min(1)).min(1).max(100).optional(),
+}).strict();
+const selectedSpeakerEmailTestSchema = z.object({
+  request_id: z.string().uuid(),
+}).strict();
+const ownerTestSpeakerSubmissionSchema = z.object({
+  request_id: z.string().uuid(),
 }).strict();
 const OWNER_ONLY_TEST_SPEAKER_NOTE = 'owner-only:test-speaker';
 const conferenceSpeakerSubmissionCreateSchema = speakerSubmissionCreateSchema.omit({ event_id: true });
@@ -1281,6 +1289,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
       path === '/api/internal/slack-announcements/retry'
       || path === '/api/internal/event-page-monitors/check-due'
       || path === '/api/internal/speaker-rejection-emails/retry'
+      || path === '/api/internal/selected-speaker-emails/retry'
     ))
     || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
@@ -3114,6 +3123,144 @@ async function dispatchSpeakerRejectionEmails(
     }));
   });
 
+  try {
+    c.executionCtx.waitUntil(task);
+  } catch {
+    await task;
+  }
+}
+
+function selectedSpeakerEmailIdempotencyKey(eventId: string, linkId: string): string {
+  return `speaker-selected-${crypto.createHash('sha256').update(`${eventId}:${linkId}`).digest('hex')}`;
+}
+
+async function sendPendingSelectedSpeakerEmails(
+  c: Context,
+  options: {
+    eventId?: string;
+    submissionId?: string;
+    statuses?: Array<'pending' | 'failed'>;
+    limit?: number;
+  } = {},
+): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  const secret = envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c);
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success || !secureSharedSecret(secret)) {
+    return { configured: false, accepted: [], failed: [] };
+  }
+
+  const allowedStatuses = new Set(options.statuses ?? ['pending', 'failed']);
+  const events = options.eventId
+    ? [await getEventById(options.eventId, c)].filter((event): event is Event => Boolean(event))
+    : await getAllEvents(c);
+  const accepted: string[] = [];
+  const failed: string[] = [];
+  const limit = Math.max(1, Math.min(options.limit ?? 20, 50));
+
+  for (const event of events) {
+    if (accepted.length + failed.length >= limit) break;
+    const [submissions, links] = await Promise.all([
+      getSpeakerSubmissionsByEvent(event.id),
+      getSpeakerIntakeLinksByEvent(event.id),
+    ]);
+    const linksById = new Map(links.map((link) => [link.id, link]));
+
+    for (const submission of submissions) {
+      if (accepted.length + failed.length >= limit) break;
+      if (
+        submission.status !== 'selected'
+        || submission.selected_talk_id
+        || (options.submissionId && submission.id !== options.submissionId)
+        || !submission.selected_intake_link_id
+      ) continue;
+      const link = linksById.get(submission.selected_intake_link_id);
+      if (
+        !link
+        || link.purpose !== 'selected_speaker_confirmation'
+        || !link.email_status
+        || !allowedStatuses.has(link.email_status)
+        || link.used_at
+        || speakerIntakeLinkExpired(link)
+      ) continue;
+
+      const idempotencyKey = link.email_idempotency_key ?? selectedSpeakerEmailIdempotencyKey(event.id, link.id);
+      const shortUrl = selectedSpeakerShortUrlForLink(link, c);
+      if (!shortUrl) {
+        await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
+          id: link.id,
+          status: 'failed',
+          idempotency_key: idempotencyKey,
+          error: 'The selected-speaker link could not be prepared.',
+        }]);
+        failed.push(submission.id);
+        continue;
+      }
+      const content = selectedSpeakerConfirmationEmail({
+        eventName: event.name,
+        speakerName: submission.speaker_name,
+        talkTitle: submission.title,
+        privateUrl: shortUrl,
+        expiresAt: link.expires_at,
+      });
+      await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
+        id: link.id,
+        status: 'pending',
+        idempotency_key: idempotencyKey,
+      }]);
+      try {
+        const result = await sendResendEmailBatch({
+          apiKey: resendApiKey,
+          idempotencyKey,
+          emails: [{
+            from: EMAIL_SENDERS.speakers.from,
+            to: [submission.speaker_email],
+            reply_to: emailReplyTo,
+            ...content,
+          }],
+        });
+        try {
+          await recordResendEmailHealth(c, result.quota);
+        } catch (error) {
+          console.warn(JSON.stringify({ event: 'selected_speaker_email_health_record_failed', submission_id: submission.id, error_name: safeErrorName(error) }));
+        }
+        await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
+          id: link.id,
+          status: 'accepted',
+          provider_id: result.ids[0] ?? null,
+          idempotency_key: idempotencyKey,
+        }]);
+        accepted.push(submission.id);
+      } catch (error) {
+        await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
+          id: link.id,
+          status: 'failed',
+          idempotency_key: idempotencyKey,
+          error: eventSubmissionEmailFailureMessage(error),
+        }]);
+        failed.push(submission.id);
+        console.warn(JSON.stringify({
+          event: 'selected_speaker_email_delayed',
+          submission_id: submission.id,
+          provider_status: error instanceof ResendBatchError ? error.status : null,
+        }));
+      }
+    }
+  }
+  return { configured: true, accepted, failed };
+}
+
+async function dispatchSelectedSpeakerEmails(
+  c: Context,
+  options: Parameters<typeof sendPendingSelectedSpeakerEmails>[1],
+): Promise<void> {
+  const task = sendPendingSelectedSpeakerEmails(c, options).catch((error) => {
+    console.error(JSON.stringify({
+      event: 'selected_speaker_email_dispatch_failed',
+      submission_id: options?.submissionId ?? null,
+      error_name: safeErrorName(error),
+    }));
+  });
   try {
     c.executionCtx.waitUntil(task);
   } catch {
@@ -7089,6 +7236,25 @@ app.post('/api/internal/speaker-rejection-emails/retry', async (c) => {
   }
 });
 
+app.post('/api/internal/selected-speaker-emails/retry', async (c) => {
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+  try {
+    const result = await sendPendingSelectedSpeakerEmails(c, {
+      statuses: ['pending', 'failed'],
+      limit: 20,
+    });
+    console.info(JSON.stringify({ event: 'scheduled_selected_speaker_email_retry', ...result }));
+    return c.json({ ok: true, ...result });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'scheduled_selected_speaker_email_retry_failed',
+      error_name: safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return c.json({ error: 'Selected-speaker email retry failed.' }, 500);
+  }
+});
+
 app.post('/api/events/:eventId/slack-announcement', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
   if (adminError) return adminError;
@@ -7255,7 +7421,7 @@ app.get('/api/events/:eventId/blasts', async (c) => {
     const [blasts, health, outbox] = await Promise.all([getEventBlasts(event.id, c), getEmailDeliveryHealth(c), getEmailOutboxSummary(c)]);
     return c.json({
       blasts,
-      capacity: assessBlastCapacity({ recipientCount: 0, health, outbox, protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)) }),
+      capacity: assessBlastCapacity({ recipientCount: 0, health, outbox, protectedReserve: campaign.blast_transactional_reserve ?? blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)) }),
     });
   } catch (error) {
     if (!(error instanceof EventBlastStorageError)) throw error;
@@ -7301,7 +7467,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     recipientCount: recipients.length,
     health,
     outbox,
-    protectedReserve: blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
+    protectedReserve: campaign.blast_transactional_reserve ?? blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
   });
   if (!scheduledFor && !capacity.can_send_now) {
     const deferred = await createEventBlast({
@@ -8606,6 +8772,65 @@ app.get('/api/events/:eventId/speaker-submissions', async (c) => {
   });
 });
 
+app.post('/api/events/:eventId/speaker-submissions/test', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (!session.authenticated || session.role !== 'owner' || !session.email || !z.string().email().safeParse(session.email).success) {
+    return c.json({ error: 'Owner session email is unavailable.' }, 403);
+  }
+  const parsed = ownerTestSpeakerSubmissionSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the test proposal request.' }, 400);
+
+  const event = await getEventById(c.req.param('eventId'), c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const rateLimit = await consumePublicRateLimit(c, {
+    action: 'speaker_test_proposal_create',
+    clientKey: `${event.id}:${session.membership_id ?? session.user_id ?? session.email}`,
+    maxAttempts: 5,
+    windowSeconds: 10 * 60,
+  });
+  if (!rateLimit.allowed) {
+    c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+    return c.json({ error: rateLimit.unavailable ? 'Test proposal creation is temporarily unavailable.' : 'Wait a few minutes before creating another test proposal.' }, rateLimit.unavailable ? 503 : 429);
+  }
+
+  const existing = (await getSpeakerSubmissionsByEvent(event.id)).find((submission) => (
+    submission.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE && submission.status === 'submitted'
+  ));
+  if (existing) return c.json({ created: false, submission: serializeSpeakerSubmission(existing) });
+
+  try {
+    const created = await createSpeakerSubmission({
+      event_id: event.id,
+      kind: 'talk',
+      speaker_name: `${session.display_name?.trim() || 'Owner'} Test Speaker`,
+      speaker_email: session.email,
+      github_username: null,
+      title: `Owner-only acceptance email test ${parsed.data.request_id.slice(0, 8)}`,
+      topic: 'Email delivery testing',
+      abstract: 'A private test proposal for verifying the selected-speaker email delivery flow.',
+      bio: 'This owner-only record is hidden from all other organizers.',
+      resource_url: null,
+    });
+    const submission = await updateSpeakerSubmission(created.id, { internal_note: OWNER_ONLY_TEST_SPEAKER_NOTE });
+    try {
+      await auditAdminAction(c, {
+        action: 'speaker_submission.owner_test_created',
+        targetType: 'speaker_submission',
+        targetId: submission.id,
+        metadata: { event_id: event.id },
+      });
+    } catch (error) {
+      console.warn(JSON.stringify({ event: 'speaker_test_proposal_audit_failed', submission_id: submission.id, error_name: safeErrorName(error) }));
+    }
+    return c.json({ created: true, submission: serializeSpeakerSubmission(submission) }, 201);
+  } catch (error) {
+    return internalErrorResponse(c, 'speaker_test_proposal_create_failed', error, 'Unable to create the owner-only test proposal.');
+  }
+});
+
 app.get('/api/speaker-submissions/:submissionId/rejection-email/preview', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
@@ -8665,20 +8890,30 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
   if (existing.status !== 'submitted') {
     return c.json({ error: 'This proposal already has a final decision and cannot be changed.' }, 409);
   }
-  if (parsed.data.status === 'not_selected') {
+  if (parsed.data.status === 'not_selected' || parsed.data.status === 'selected') {
     const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
     const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
     if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
-      return c.json({ error: 'Speaker email sending is not configured. The proposal was not rejected.' }, 503);
+      return c.json({ error: `Speaker email sending is not configured. The proposal was not ${parsed.data.status === 'selected' ? 'selected' : 'rejected'}.` }, 503);
+    }
+    if (parsed.data.status === 'selected' && !secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c))) {
+      return c.json({ error: 'Selected-speaker links are not configured. The proposal was not selected.' }, 503);
     }
   }
 
   let selectedLink: SpeakerIntakeLink | null = null;
+  let decisionCommitted = false;
   try {
 
     if (parsed.data.status === 'selected') {
       const result = await createSelectedSpeakerLinkForSubmission(existing, parsed.data.expires_in_days, c);
       selectedLink = result.link;
+      const [pendingLink] = await updateSpeakerIntakeLinkEmailDeliveries(existing.event_id, [{
+        id: selectedLink.id,
+        status: 'pending',
+        idempotency_key: selectedSpeakerEmailIdempotencyKey(existing.event_id, selectedLink.id),
+      }]);
+      selectedLink = pendingLink ?? selectedLink;
     }
 
     const submission = await decideSpeakerSubmissionRecord(existing.id, {
@@ -8694,26 +8929,38 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
         decision_email_last_error: null,
       } : {}),
     });
+    decisionCommitted = true;
     await deleteActiveSpeakerIntakeLinksBySubmission(
       existing.event_id,
       existing.id,
       submission.selected_intake_link_id,
     );
 
-    await auditAdminAction(c, {
-      action: 'speaker_submission.decision',
-      targetType: 'speaker_submission',
-      targetId: submission.id,
-      metadata: {
-        event_id: submission.event_id,
-        kind: normalizeArchiveItemKind(submission.kind),
-        status: submission.status,
-        selected_intake_link_id: submission.selected_intake_link_id,
-      },
-    });
+    try {
+      await auditAdminAction(c, {
+        action: 'speaker_submission.decision',
+        targetType: 'speaker_submission',
+        targetId: submission.id,
+        metadata: {
+          event_id: submission.event_id,
+          kind: normalizeArchiveItemKind(submission.kind),
+          status: submission.status,
+          selected_intake_link_id: submission.selected_intake_link_id,
+        },
+      });
+    } catch (error) {
+      console.warn(JSON.stringify({ event: 'speaker_submission_decision_audit_failed', submission_id: submission.id, error_name: safeErrorName(error) }));
+    }
 
     if (submission.status === 'not_selected') {
       await dispatchSpeakerRejectionEmails(c, {
+        submissionId: submission.id,
+        statuses: ['pending'],
+        limit: 1,
+      });
+    } else if (submission.status === 'selected') {
+      await dispatchSelectedSpeakerEmails(c, {
+        eventId: submission.event_id,
         submissionId: submission.id,
         statuses: ['pending'],
         limit: 1,
@@ -8737,6 +8984,9 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
         await deleteSpeakerIntakeLink(existing.event_id, selectedLink.id).catch(() => undefined);
       }
       return c.json({ error: error.message }, 409);
+    }
+    if (selectedLink && !decisionCommitted) {
+      await deleteSpeakerIntakeLink(existing.event_id, selectedLink.id).catch(() => undefined);
     }
     return c.json({ error: error instanceof Error ? error.message : 'Failed to update presentation proposal' }, 400);
   }
@@ -8808,6 +9058,124 @@ app.post('/api/events/:eventId/selected-speaker-emails/preview', async (c) => {
   } finally {
     release();
   }
+});
+
+app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+  if (adminError) return adminError;
+
+  const session = c.get('adminSession') ?? await getAdminSession(c);
+  if (
+    !session.authenticated
+    || session.role !== 'owner'
+    || !session.email
+    || !z.string().email().safeParse(session.email).success
+  ) {
+    return c.json({ error: 'Owner session email is unavailable.' }, 403);
+  }
+
+  const parsed = selectedSpeakerEmailTestSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the test email request.' }, 400);
+  }
+
+  const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+
+  const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+  const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+  if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    return c.json({ error: 'Speaker email sending is not configured.' }, 503);
+  }
+
+  const rateLimit = await consumePublicRateLimit(c, {
+    action: 'speaker_selected_email_test',
+    clientKey: `${eventId}:${session.membership_id ?? session.user_id ?? session.email}`,
+    maxAttempts: 5,
+    windowSeconds: 10 * 60,
+  });
+  if (!rateLimit.allowed) {
+    c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+    return c.json({
+      error: rateLimit.unavailable
+        ? 'Test email sending is temporarily unavailable. Please try again shortly.'
+        : 'Wait a few minutes before sending another test email.',
+      retry_after_seconds: rateLimit.retryAfterSeconds,
+    }, rateLimit.unavailable ? 503 : 429);
+  }
+
+  const expiresAt = addDays(new Date(), 7).toISOString();
+  const content = selectedSpeakerConfirmationEmail({
+    eventName: event.name,
+    speakerName: session.display_name?.trim() || 'DevCongress owner',
+    talkTitle: 'Designing Reliable Event-Driven Systems',
+    privateUrl: 'https://go.devcongress.org/P_sample-private-speaker-link',
+    expiresAt,
+  });
+  const subject = emailSubjects.customEventBlast(markTestEventTitle(content.subject, true));
+  const actorId = session.membership_id ?? session.user_id ?? session.email;
+  const idempotencyDigest = crypto.createHash('sha256')
+    .update(`${eventId}:${actorId}:${parsed.data.request_id}`)
+    .digest('hex');
+
+  let result: Awaited<ReturnType<typeof sendResendEmailBatch>>;
+  try {
+    result = await sendResendEmailBatch({
+      apiKey: resendApiKey,
+      idempotencyKey: `speaker-selected-test-${idempotencyDigest}`,
+      emails: [{
+        from: EMAIL_SENDERS.speakers.from,
+        to: [session.email],
+        reply_to: emailReplyTo,
+        subject,
+        html: content.html,
+        text: content.text,
+      }],
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'selected_speaker_test_email_failed',
+      event_id: eventId,
+      provider_status: error instanceof ResendBatchError ? error.status : null,
+    }));
+    return c.json({ error: 'The email provider did not accept the test email. Try again.' }, 502);
+  }
+
+  try {
+    await recordResendEmailHealth(c, result.quota);
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'selected_speaker_test_email_health_record_failed',
+      event_id: eventId,
+      error_name: safeErrorName(error),
+    }));
+  }
+
+  try {
+    await auditAdminAction(c, {
+      action: 'speaker_selected_email.test_send',
+      targetType: 'event',
+      targetId: eventId,
+      metadata: {
+        accepted: true,
+        provider_id: result.ids[0] ?? null,
+      },
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'selected_speaker_test_email_audit_failed',
+      event_id: eventId,
+      error_name: safeErrorName(error),
+    }));
+  }
+
+  return c.json({
+    accepted: true,
+    recipient: session.email,
+    provider_id: result.ids[0] ?? null,
+    subject,
+  });
 });
 
 app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {

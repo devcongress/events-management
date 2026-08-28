@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-28 — Event-specific blast capacity reserve
+
+- Made the transactional email reserve configurable for each event, while retaining the deployment default whenever the event setting is blank.
+- Added a visible latest-delivery status to the Blasts workspace so capacity badges are not mistaken for confirmation that an update was sent.
+
+## 2026-08-28 — Automatic selected-speaker email delivery and Owner test
+
+- Selecting a proposal now queues and sends its acceptance email immediately after persisting its private link. Pending and failed deliveries retain a stable provider idempotency key and are retried by the scheduled worker without sending duplicates.
+- Replaced the normal manual send action with visible **Sending**, **Sent**, and **Retrying** delivery states in the proposal table.
+- Added an Owner-only **Create test proposal** action that creates one hidden pending proposal per event so the complete approval and delivery flow can be tested safely.
+- Replaced the centered rendered-email modal with a focus-trapped right-side drawer that shows the generated sender, recipient, subject, and readable plain-text message; the branded HTML remains the server-owned delivery payload.
+- Added one Owner-only **Send test to me** action at proposal-table level. It creates a synthetic selected-speaker sample for the current event, sends only to the authenticated Owner email, rejects browser-supplied recipients, and leaves all real proposals, private links, and delivery tags untouched.
+- Added provider idempotency, a five-per-ten-minute Owner/event limit, safe audit metadata, owner-role policy coverage, and regression tests for the non-mutating sample path.
+
 ## 2026-08-24 — Organizer session continuation
 
 - Fixed the idle-warning revalidation race that could redirect the page to sign-in underneath the still-visible session modal.

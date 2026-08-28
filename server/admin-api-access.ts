@@ -21,8 +21,14 @@ const MONTHLY_MEETUP_FINANCE_READ_PATH = /^\/api\/events\/[^/]+\/finance$/;
 const MONTHLY_MEETUP_FINANCE_CATEGORY_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/categories$/;
 const MONTHLY_MEETUP_FINANCE_CREATE_PATH = /^\/api\/events\/[^/]+\/finance\/expenses$/;
 const MONTHLY_MEETUP_FINANCE_UPDATE_PATH = /^\/api\/events\/[^/]+\/finance\/expenses\/[^/]+$/;
+const SELECTED_SPEAKER_EMAIL_TEST_PATH = /^\/api\/events\/[^/]+\/selected-speaker-emails\/test$/;
+const OWNER_TEST_SPEAKER_SUBMISSION_PATH = /^\/api\/events\/[^/]+\/speaker-submissions\/test$/;
 
 export function adminRolesForApiRequest(path: string, method: string): AdminRole[] {
+  if (method === 'POST' && (SELECTED_SPEAKER_EMAIL_TEST_PATH.test(path) || OWNER_TEST_SPEAKER_SUBMISSION_PATH.test(path))) {
+    return OWNER_ROLES;
+  }
+
   if (method === 'DELETE' && EVENT_DELETE_PATH.test(path)) {
     return OWNER_ROLES;
   }

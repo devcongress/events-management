@@ -12,6 +12,7 @@ const campaign: EventRegistrationCampaign = {
   status: 'open',
   description: null,
   capacity: 2,
+  blast_transactional_reserve: null,
   opens_at: null,
   closes_at: null,
   waitlist_enabled: true,

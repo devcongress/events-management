@@ -383,6 +383,45 @@ describe('native event registration API', () => {
     });
   });
 
+  it('uses an event-specific blast reserve while preserving the deployment default as a reset option', async () => {
+    const { default: app } = await import('./app');
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Capacity policy meetup',
+        description: 'An event with its own sending buffer.',
+        event_date: '2026-09-20',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+
+    const updated = await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blast_transactional_reserve: 12 }),
+    });
+    expect(updated.status).toBe(200);
+    await expect(updated.json()).resolves.toMatchObject({ blast_transactional_reserve: 12 });
+
+    const reset = await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blast_transactional_reserve: null }),
+    });
+    expect(reset.status).toBe(200);
+    await expect(reset.json()).resolves.toMatchObject({ blast_transactional_reserve: null });
+
+    const invalid = await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ blast_transactional_reserve: -1 }),
+    });
+    expect(invalid.status).toBe(400);
+  });
+
   it('does not create a registration when the final endpoint receives a disposable email', async () => {
     const { default: app } = await import('./app');
     const createdResponse = await app.request('http://localhost/api/events', {

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { legacySelectedSpeakerShortCode } from '../lib/speaker-intake-short-links';
 
 const mockAdminRole = vi.hoisted(() => ({ value: 'owner' as 'owner' | 'organizer' }));
+const mockAdminAuditFailure = vi.hoisted(() => ({ value: false }));
 
 vi.mock('../lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('../lib/supabase/admin-auth')>('../lib/supabase/admin-auth');
@@ -24,7 +25,9 @@ vi.mock('../lib/supabase/admin-auth', async () => {
       c.set('adminSession', { ...session, role: mockAdminRole.value });
       return null;
     }),
-    recordAdminAudit: vi.fn(async () => undefined),
+    recordAdminAudit: vi.fn(async () => {
+      if (mockAdminAuditFailure.value) throw new Error('audit unavailable');
+    }),
   };
 });
 
@@ -56,6 +59,7 @@ beforeEach(async () => {
   vi.stubEnv('SHORT_LINK_RESOLVER_TOKEN', 'test-short-link-resolver-token-2026');
   vi.stubEnv('SPEAKER_INTAKE_LINK_TOKEN_SECRET', 'test-speaker-intake-link-secret-2026');
   mockAdminRole.value = 'owner';
+  mockAdminAuditFailure.value = false;
 });
 
 afterEach(async () => {
@@ -115,6 +119,28 @@ describe('selected-speaker email workflow', () => {
     expect(organizerDecision.status).toBe(404);
   });
 
+  it('creates one owner-only pending proposal for the real approval flow', async () => {
+    const { app } = await setup();
+    const requestId = '33f6ca43-e7b6-4f43-93d5-361974e95dc9';
+    const created = await app.request(`http://localhost/api/events/${event.id}/speaker-submissions/test`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: requestId }),
+    });
+    expect(created.status).toBe(201);
+    await expect(created.json()).resolves.toMatchObject({
+      created: true,
+      submission: { status: 'submitted', speaker_email: 'admin@devcongress.org', internal_note: 'owner-only:test-speaker' },
+    });
+    const retry = await app.request(`http://localhost/api/events/${event.id}/speaker-submissions/test`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: requestId }),
+    });
+    expect(retry.status).toBe(200);
+    await expect(retry.json()).resolves.toMatchObject({ created: false, submission: { status: 'submitted' } });
+    mockAdminRole.value = 'organizer';
+    const hidden = await app.request(`http://localhost/api/events/${event.id}/speaker-submissions`);
+    const hiddenBody = await hidden.json() as { submissions: Array<{ internal_note: string | null }> };
+    expect(hiddenBody.submissions).not.toContainEqual(expect.objectContaining({ internal_note: 'owner-only:test-speaker' }));
+  });
+
   it('reports the missing private-link secret before preparing previews', async () => {
     const { app } = await setup();
 
@@ -130,7 +156,102 @@ describe('selected-speaker email workflow', () => {
     });
   });
 
-  it('prepares a private short link on selection and previews before sending', async () => {
+  it('sends one synthetic sample to the owner without touching any speaker record', async () => {
+    const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ data: [{ id: 'resend-owner-test-1' }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', resendFetch);
+    vi.stubEnv('SPEAKER_INTAKE_LINK_TOKEN_SECRET', '');
+    const { app, links, submissions, submission } = await setup();
+
+    const response = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: '33f6ca43-e7b6-4f43-93d5-361974e95dc9' }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: true,
+      recipient: 'admin@devcongress.org',
+      provider_id: 'resend-owner-test-1',
+      subject: '[TEST] Your presentation was selected for DevCongress August Meetup',
+    });
+    expect(resendFetch).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
+    expect(payload).toEqual([expect.objectContaining({
+      from: 'DevCongress Speakers <speakers@updates.devcongress.org>',
+      to: ['admin@devcongress.org'],
+      reply_to: 'hello@devcongress.org',
+      subject: '[TEST] Your presentation was selected for DevCongress August Meetup',
+      html: expect.stringContaining('Designing Reliable Event-Driven Systems'),
+      text: expect.stringContaining('https://go.devcongress.org/P_sample-private-speaker-link'),
+    })]);
+    expect(payload[0].html).toContain('DevCongress August Meetup');
+    expect(payload[0].html).not.toContain('ama@example.com');
+    expect((resendFetch.mock.calls[0]?.[1]?.headers as Record<string, string>)['Idempotency-Key']).toMatch(/^speaker-selected-test-[a-f0-9]{64}$/);
+    await expect(submissions.getSpeakerSubmissionById(submission.id)).resolves.toMatchObject({
+      status: 'submitted',
+      selected_intake_link_id: null,
+    });
+    await expect(links.getSpeakerIntakeLinksByEvent(event.id)).resolves.toEqual([]);
+  });
+
+  it('rejects non-owner and browser-supplied test recipients before sending', async () => {
+    const resendFetch = vi.fn();
+    vi.stubGlobal('fetch', resendFetch);
+    const { app } = await setup();
+
+    const arbitraryRecipient = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request_id: '0f43b857-b6ba-4fba-8ff4-051f020c40db',
+        recipient: 'someone-else@example.com',
+      }),
+    });
+    expect(arbitraryRecipient.status).toBe(400);
+
+    mockAdminRole.value = 'organizer';
+    const organizer = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: 'c5b64d55-012b-47ec-8acb-0158c9772df3' }),
+    });
+    expect(organizer.status).toBe(403);
+    expect(resendFetch).not.toHaveBeenCalled();
+  });
+
+  it('reports provider acceptance even when the post-send audit is unavailable', async () => {
+    const resendFetch = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'resend-owner-test-audit' }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', resendFetch);
+    const { app } = await setup();
+    mockAdminAuditFailure.value = true;
+
+    const response = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request_id: 'd70db989-f926-4801-97b8-ddf94c3355b7' }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: true,
+      provider_id: 'resend-owner-test-audit',
+    });
+    expect(resendFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('prepares a private short link and automatically sends on selection', async () => {
+    const resendFetch = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'resend-selected-auto' }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', resendFetch);
     const { app, links, submissions, submission } = await setup();
     const selectResponse = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
       method: 'PATCH',
@@ -156,14 +277,15 @@ describe('selected-speaker email workflow', () => {
 
     const previewResponse = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/preview`, { method: 'POST' });
     expect(previewResponse.status).toBe(200);
-    const preview = await previewResponse.json() as { ready_count: number; previews: Array<{ subject: string; short_url: string; html: string }> };
-    expect(preview.ready_count).toBe(1);
-    expect(preview.previews[0]).toMatchObject({
-      subject: 'Your presentation was selected for DevCongress August Meetup',
-      short_url: selected.link.short_url,
+    const preview = await previewResponse.json() as { ready_count: number; already_sent_count: number; previews: Array<{ subject: string; short_url: string; html: string }> };
+    expect(preview.ready_count).toBe(0);
+    expect(preview.already_sent_count).toBe(1);
+    expect(resendFetch).toHaveBeenCalledTimes(1);
+    expect((await links.getSpeakerIntakeLinksByEvent(event.id))[0]).toMatchObject({
+      token: null,
+      email_status: 'accepted',
+      email_provider_id: 'resend-selected-auto',
     });
-    expect(preview.previews[0]?.html).toContain(selected.link.short_url);
-    expect((await links.getSpeakerIntakeLinksByEvent(event.id))[0]).toMatchObject({ token: null, email_status: null });
 
     const reverseDecision = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
       method: 'PATCH',
@@ -176,7 +298,7 @@ describe('selected-speaker email workflow', () => {
     });
   });
 
-  it('previews and sends only the requested selected speaker', async () => {
+  it('automatically sends only the approved speakers', async () => {
     const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ data: [{ id: 'resend-selected-single' }] }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -211,10 +333,7 @@ describe('selected-speaker email workflow', () => {
       body: JSON.stringify(selection),
     });
     expect(previewResponse.status).toBe(200);
-    await expect(previewResponse.json()).resolves.toMatchObject({
-      ready_count: 1,
-      previews: [{ submission_id: secondSubmission.id, speaker_email: 'kojo@example.com' }],
-    });
+    await expect(previewResponse.json()).resolves.toMatchObject({ ready_count: 0, already_sent_count: 1 });
 
     const sendResponse = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/send`, {
       method: 'POST',
@@ -222,10 +341,38 @@ describe('selected-speaker email workflow', () => {
       body: JSON.stringify(selection),
     });
     expect(sendResponse.status).toBe(200);
-    await expect(sendResponse.json()).resolves.toMatchObject({ sent_count: 1 });
-    const payload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
+    await expect(sendResponse.json()).resolves.toMatchObject({ sent_count: 0, already_sent_count: 1 });
+    expect(resendFetch).toHaveBeenCalledTimes(2);
+    const payload = JSON.parse(String(resendFetch.mock.calls[1]?.[1]?.body));
     expect(payload).toHaveLength(1);
     expect(payload[0]).toMatchObject({ to: ['kojo@example.com'] });
+  });
+
+  it('keeps a selected proposal final and retries a failed acceptance email with the same link', async () => {
+    let attempts = 0;
+    const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      attempts += 1;
+      return attempts === 1
+        ? new Response(JSON.stringify({ message: 'unavailable' }), { status: 503, headers: { 'Content-Type': 'application/json' } })
+        : new Response(JSON.stringify({ data: [{ id: 'resend-selected-retry' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', resendFetch);
+    const { app, links, submission } = await setup();
+    const selected = await app.request(`http://localhost/api/speaker-submissions/${submission.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
+    });
+    expect(selected.status).toBe(200);
+    const [failedLink] = await links.getSpeakerIntakeLinksByEvent(event.id);
+    expect(failedLink).toMatchObject({ email_status: 'failed' });
+    const retry = await app.request('http://localhost/api/internal/selected-speaker-emails/retry', {
+      method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-speaker-email-job-secret-2026' },
+    });
+    expect(retry.status).toBe(200);
+    await expect(retry.json()).resolves.toMatchObject({ ok: true, accepted: [submission.id], failed: [] });
+    const [acceptedLink] = await links.getSpeakerIntakeLinksByEvent(event.id);
+    expect(acceptedLink).toMatchObject({ id: failedLink.id, email_status: 'accepted', email_provider_id: 'resend-selected-retry' });
+    expect(resendFetch.mock.calls[0]?.[1]?.headers).toMatchObject({ 'Idempotency-Key': acceptedLink.email_idempotency_key });
+    expect(resendFetch.mock.calls[1]?.[1]?.headers).toMatchObject({ 'Idempotency-Key': acceptedLink.email_idempotency_key });
   });
 
   it('continues resolving already-issued long selected-speaker capabilities', async () => {
@@ -373,7 +520,7 @@ describe('selected-speaker email workflow', () => {
     });
   });
 
-  it('sends the previewed email once and suppresses a duplicate send', async () => {
+  it('sends automatically once and suppresses a later manual duplicate', async () => {
     const resendFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ data: [{ id: 'resend-selected-1' }] }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -388,7 +535,7 @@ describe('selected-speaker email workflow', () => {
 
     const first = await app.request(`http://localhost/api/events/${event.id}/selected-speaker-emails/send`, { method: 'POST' });
     expect(first.status).toBe(200);
-    await expect(first.json()).resolves.toMatchObject({ sent_count: 1, already_sent_count: 0 });
+    await expect(first.json()).resolves.toMatchObject({ sent_count: 0, already_sent_count: 1 });
     expect(resendFetch).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
     expect(payload[0]).toMatchObject({

@@ -64,6 +64,12 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/admin/email-previews', 'POST')).toEqual(['owner', 'organizer']);
   });
 
+  it('keeps synthetic selected-speaker test emails owner-only', () => {
+    expect(adminRolesForApiRequest('/api/events/event-1/selected-speaker-emails/test', 'POST')).toEqual(['owner']);
+    expect(adminRolesForApiRequest('/api/events/event-1/selected-speaker-emails/test', 'POST')).not.toContain('organizer');
+    expect(adminRolesForApiRequest('/api/events/event-1/selected-speaker-emails/test', 'GET')).toEqual(['owner', 'organizer']);
+  });
+
   it('does not admit similarly prefixed or malformed paths', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/export', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/current/work-plan', 'GET')).not.toContain('volunteer');

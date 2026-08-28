@@ -1090,7 +1090,7 @@ export function decideEventSpeakerSubmission(
 
 export function updateEventRegistrationCampaign(
   eventId: string,
-  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'description' | 'capacity' | 'opens_at' | 'closes_at'>>,
+  input: Partial<Pick<EventRegistrationCampaign, 'status' | 'description' | 'capacity' | 'blast_transactional_reserve' | 'opens_at' | 'closes_at'>>,
 ) {
   return fetchJson<EventRegistrationCampaign>(`/api/events/${eventId}/registrations`, {
     method: 'PATCH',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, RouterLink, useRoute } from 'vue-router';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
@@ -11,6 +11,7 @@ import {
   fetchEventRegistrations,
   queryKeys,
   retryEventBlast,
+  updateEventRegistrationCampaign,
 } from '@/src/lib/api';
 import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
 import { notify } from '@/src/lib/notify';
@@ -24,6 +25,9 @@ const composerOpen = ref(false);
 const previewOpen = ref(false);
 const blastPending = ref(false);
 const blastRetryId = ref<string | null>(null);
+const blastReserve = ref('');
+const blastReservePending = ref(false);
+const savedBlastReserve = ref<string | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
 const blastScheduledFor = ref('');
@@ -53,6 +57,7 @@ const confirmedRecipients = computed(() => (
 ));
 const blasts = computed(() => blastsQuery.data.value?.blasts ?? []);
 const blastCapacity = computed(() => blastsQuery.data.value?.capacity ?? null);
+const latestBlast = computed(() => blasts.value[0] ?? null);
 const blastTemplates = computed(() => eventBlastStarters(
   event.value?.name ?? 'this event',
   event.value?.event_date ? formatDateTime(event.value.event_date) : 'the event day',
@@ -99,6 +104,15 @@ function blastStatusLabel(status: EventBlast['status']): string {
   return 'Needs attention';
 }
 
+watch(() => registrationData.value?.campaign, (campaign) => {
+  if (!campaign) return;
+  const nextReserve = campaign.blast_transactional_reserve?.toString() ?? '';
+  if (savedBlastReserve.value !== nextReserve) {
+    blastReserve.value = nextReserve;
+    savedBlastReserve.value = nextReserve;
+  }
+}, { immediate: true });
+
 function applyBlastTemplate(templateId: string) {
   const template = blastTemplates.value.find((item) => item.id === templateId);
   if (!template) return;
@@ -119,6 +133,29 @@ function openPreview() {
 
 async function refreshBlasts() {
   await queryClient.invalidateQueries({ queryKey: queryKeys.eventBlasts(eventId.value) });
+}
+
+async function saveBlastReserve() {
+  if (blastReservePending.value) return;
+  const trimmed = blastReserve.value.trim();
+  const reserve = trimmed === '' ? null : Number(trimmed);
+  if (reserve !== null && (!Number.isInteger(reserve) || reserve < 0 || reserve > 10_000)) {
+    notify.error('Enter a whole-number reserve from 0 to 10,000, or clear it to use the default.');
+    return;
+  }
+  blastReservePending.value = true;
+  try {
+    await updateEventRegistrationCampaign(eventId.value, { blast_transactional_reserve: reserve });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.eventRegistrations(eventId.value) }),
+      refreshBlasts(),
+    ]);
+    notify.success(reserve === null ? 'Blast reserve reset to the delivery default.' : `Blast reserve set to ${reserve} sends for this event.`);
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Unable to save the event blast reserve.');
+  } finally {
+    blastReservePending.value = false;
+  }
 }
 
 async function sendBlast() {
@@ -237,6 +274,24 @@ onBeforeRouteLeave(() => {
           </div>
         </section>
 
+        <section class="mobile-blasts-capacity">
+          <div>
+            <span>Latest delivery</span>
+            <strong v-if="latestBlast">{{ blastStatusLabel(latestBlast.status) }}</strong>
+            <strong v-else>No blast yet</strong>
+            <p v-if="latestBlast">{{ latestBlast.sent_at ? formatDateTime(latestBlast.sent_at) : latestBlast.scheduled_for ? formatDateTime(latestBlast.scheduled_for) : 'Not delivered yet' }}</p>
+            <p v-else>Delivery status will appear here after you send or schedule one.</p>
+          </div>
+          <form @submit.prevent="saveBlastReserve">
+            <label for="mobile-event-blast-reserve">Keep available for this event</label>
+            <div>
+              <input id="mobile-event-blast-reserve" v-model="blastReserve" type="number" min="0" max="10000" step="1" inputmode="numeric" placeholder="Use delivery default">
+              <button type="submit" :disabled="blastReservePending">{{ blastReservePending ? 'Saving…' : 'Save' }}</button>
+            </div>
+            <p>Safe today recalculates after this reserve and queued email are accounted for.</p>
+          </form>
+        </section>
+
         <section v-if="confirmedRecipients === 0" class="mobile-blasts-notice">
           A blast becomes available once at least one guest has a confirmed place.
         </section>
@@ -338,7 +393,7 @@ onBeforeRouteLeave(() => {
 .mobile-blasts-wrap { display: grid; width: min(100%, 42rem); margin: 0 auto; gap: .75rem; padding: max(.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
 .mobile-blasts-back-bar { position: sticky; top: env(safe-area-inset-top); z-index: 20; display: flex; padding-block: .2rem; background: rgb(245 242 232 / .95); }
 .mobile-blasts-back { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .45rem; border: 1px solid #b8b3a9; border-radius: 8px; background: #fff; padding: .65rem .8rem; color: #111; font-family: var(--font-mono), monospace; font-size: .7rem; font-weight: 700; text-transform: uppercase; }
-.mobile-blasts-hero, .mobile-blasts-audience, .mobile-blasts-compose, .mobile-blasts-history, .mobile-blasts-state, .mobile-blasts-notice { overflow: hidden; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; }
+.mobile-blasts-hero, .mobile-blasts-audience, .mobile-blasts-capacity, .mobile-blasts-compose, .mobile-blasts-history, .mobile-blasts-state, .mobile-blasts-notice { overflow: hidden; border: 1px solid #d9d5cc; border-radius: 12px; background: #fff; }
 .mobile-blasts-hero { padding: 1rem; }
 .mobile-blasts-hero > span, .mobile-blasts-compose header span, .mobile-blasts-history header span, .mobile-blasts-audience span, .mobile-blasts-compose label > span, .mobile-blasts-compose legend { color: #77736b; font-family: var(--font-mono), monospace; font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .mobile-blasts-hero h1 { margin: .3rem 0 0; font-size: 1.8rem; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
@@ -348,6 +403,16 @@ onBeforeRouteLeave(() => {
 .mobile-blasts-audience > div + div { border-left: 1px solid #e1ddd4; }
 .mobile-blasts-audience strong { color: #e8117f; font-size: 1.75rem; line-height: 1; }
 .mobile-blasts-audience p { margin: 0; color: #5f5b54; font-size: .72rem; line-height: 1.35; }
+.mobile-blasts-capacity { display: grid; gap: 1rem; padding: 1rem; }
+.mobile-blasts-capacity > div { display: grid; gap: .25rem; }
+.mobile-blasts-capacity span, .mobile-blasts-capacity label { color: #77736b; font-family: var(--font-mono), monospace; font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.mobile-blasts-capacity strong { font-size: .95rem; }
+.mobile-blasts-capacity p { margin: 0; color: #5f5b54; font-size: .72rem; line-height: 1.45; }
+.mobile-blasts-capacity form { display: grid; gap: .45rem; border-top: 1px solid #e1ddd4; padding-top: 1rem; }
+.mobile-blasts-capacity form > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+.mobile-blasts-capacity input { min-width: 0; min-height: 2.75rem; border: 1px solid #b8b3a9; border-radius: 8px; background: #fff; padding: .65rem .75rem; color: #111; font-size: .9rem; }
+.mobile-blasts-capacity button { min-height: 2.75rem; border: 2px solid #111; border-radius: 8px; background: #f5e642; padding: .65rem .8rem; color: #111; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
+.mobile-blasts-capacity button:disabled { opacity: .45; }
 .mobile-blasts-state, .mobile-blasts-notice { padding: 1.15rem 1rem; color: #5f5b54; font-size: .84rem; line-height: 1.55; text-align: center; }
 .mobile-blasts-state strong, .mobile-blasts-state p { display: block; margin: 0; }
 .mobile-blasts-state button, .mobile-blasts-history-state button { min-height: 2.75rem; margin-top: .8rem; border: 2px solid #111; border-radius: 8px; background: #f5e642; padding: .65rem .9rem; color: #111; font-family: var(--font-mono), monospace; font-size: .65rem; font-weight: 700; text-transform: uppercase; }
@@ -387,9 +452,9 @@ onBeforeRouteLeave(() => {
 .mobile-blasts-status--needs_capacity { background: #fff7d6; color: #8a5a00; }
 .mobile-blasts-status--failed { background: #feecec; color: #b91c1c; }
 .mobile-blasts-history-actions button { min-height: 2.75rem; border: 1px solid #b91c1c; border-radius: 8px; background: #fff; padding: .65rem .8rem; color: #b91c1c; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; text-transform: uppercase; }
-.mobile-blasts-back:active, .mobile-blasts-state button:active, .mobile-blasts-quiet-action:active, .mobile-blasts-create:active, .mobile-blasts-templates button:active, .mobile-blasts-preview:active, .mobile-blasts-history-state button:active, .mobile-blasts-history-actions button:active { transform: scale(.97); }
-.mobile-blasts-back:focus-visible, .mobile-blasts-state button:focus-visible, .mobile-blasts-quiet-action:focus-visible, .mobile-blasts-create:focus-visible, .mobile-blasts-templates button:focus-visible, .mobile-blasts-preview:focus-visible, .mobile-blasts-history-state button:focus-visible, .mobile-blasts-history-actions button:focus-visible { outline: 2px solid #e8117f; outline-offset: 2px; }
+.mobile-blasts-back:active, .mobile-blasts-state button:active, .mobile-blasts-capacity button:active, .mobile-blasts-quiet-action:active, .mobile-blasts-create:active, .mobile-blasts-templates button:active, .mobile-blasts-preview:active, .mobile-blasts-history-state button:active, .mobile-blasts-history-actions button:active { transform: scale(.97); }
+.mobile-blasts-back:focus-visible, .mobile-blasts-state button:focus-visible, .mobile-blasts-capacity input:focus-visible, .mobile-blasts-capacity button:focus-visible, .mobile-blasts-quiet-action:focus-visible, .mobile-blasts-create:focus-visible, .mobile-blasts-templates button:focus-visible, .mobile-blasts-preview:focus-visible, .mobile-blasts-history-state button:focus-visible, .mobile-blasts-history-actions button:focus-visible { outline: 2px solid #e8117f; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  .mobile-blasts-back, .mobile-blasts-state button, .mobile-blasts-quiet-action, .mobile-blasts-create, .mobile-blasts-templates button, .mobile-blasts-preview, .mobile-blasts-history-state button, .mobile-blasts-history-actions button { transition: none; }
+  .mobile-blasts-back, .mobile-blasts-state button, .mobile-blasts-capacity button, .mobile-blasts-quiet-action, .mobile-blasts-create, .mobile-blasts-templates button, .mobile-blasts-preview, .mobile-blasts-history-state button, .mobile-blasts-history-actions button { transition: none; }
 }
 </style>
