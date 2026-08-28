@@ -131,6 +131,54 @@ describe('Resend broadcast client', () => {
     expect(broadcastCall?.[1]?.body).toContain('RESEND_UNSUBSCRIBE_URL');
   });
 
+  it('retries a rate-limited guest before creating the broadcast', async () => {
+    let contactAttempts = 0;
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 201 });
+      if (url.endsWith('/contacts')) {
+        contactAttempts += 1;
+        if (contactAttempts === 1) {
+          return new Response(JSON.stringify({ message: 'Too many requests.' }), { status: 429, headers: { 'retry-after': '0' } });
+        }
+        return new Response(JSON.stringify({ id: 'contact-1' }), { status: 201 });
+      }
+      if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 201 });
+      return new Response('not found', { status: 404 });
+    });
+
+    await expect(prepareResendBroadcast({
+      apiKey: 're_broadcast_test', eventName: 'August meetup', eventDate: '2026-08-29T10:00:00.000Z',
+      locationName: 'Accra', subject: 'A reminder', body: 'See you soon.',
+      from: 'DevCongress <events@updates.devcongress.org>',
+      recipients: [{ email: 'ama@example.com', name: 'Ama Mensah' }], fetcher,
+    })).resolves.toEqual({ broadcastId: 'broadcast-1', segmentId: 'segment-1' });
+
+    expect(contactAttempts).toBe(2);
+  });
+
+  it('cleans up the new segment if guest-list preparation fails', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/segments') && init?.method === 'POST') return new Response(JSON.stringify({ id: 'segment-1' }), { status: 201 });
+      if (url.endsWith('/contacts')) return new Response(JSON.stringify({ message: 'Invalid contact.' }), { status: 400 });
+      if (url.endsWith('/segments/segment-1') && init?.method === 'DELETE') return new Response('{}', { status: 200 });
+      return new Response('not found', { status: 404 });
+    });
+
+    await expect(prepareResendBroadcast({
+      apiKey: 're_broadcast_test', eventName: 'August meetup', eventDate: '2026-08-29T10:00:00.000Z',
+      locationName: 'Accra', subject: 'A reminder', body: 'See you soon.',
+      from: 'DevCongress <events@updates.devcongress.org>',
+      recipients: [{ email: 'ama@example.com', name: 'Ama Mensah' }], fetcher,
+    })).rejects.toMatchObject({ status: 400 });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://api.resend.com/segments/segment-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('sends a persisted broadcast separately so a retry cannot create another audience', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe('https://api.resend.com/broadcasts/broadcast-1/send');
