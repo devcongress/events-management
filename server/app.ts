@@ -13,7 +13,8 @@ import {
   normalizeEventFeedbackAnswer,
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
-import { prepareResendBroadcast, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
+import { addResendBroadcastRecipients, createResendBroadcastDraft, createResendBroadcastSegment, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
+import { EVENT_BLAST_PREPARATION_BATCH_SIZE, type EventBlastPreparationMessage, type EventBlastPreparationQueue } from '@/lib/event-blast-preparation';
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
@@ -248,6 +249,9 @@ import { publicRegistrationOrigin } from './public-registration-origin';
 import { secureSharedSecret, sharedSecretStatus } from '@/lib/security/shared-secret';
 
 type AppBindings = {
+  Bindings: {
+    EVENT_BLAST_PREPARATION_QUEUE?: EventBlastPreparationQueue;
+  };
   Variables: {
     requestId: string;
     adminSession: AdminSession | undefined;
@@ -1290,6 +1294,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
       || path === '/api/internal/event-page-monitors/check-due'
       || path === '/api/internal/speaker-rejection-emails/retry'
       || path === '/api/internal/selected-speaker-emails/retry'
+      || path === '/api/internal/event-blasts/prepare'
     ))
     || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
@@ -7481,6 +7486,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     const deferred = await createEventBlast({
       event_id: event.id, subject: parsed.data.subject, body: parsed.data.body, status: 'needs_capacity', recipient_count: recipients.length,
       scheduled_for: null, sent_at: null, provider_broadcast_id: null, provider_segment_id: null,
+      recipient_snapshot: recipients, prepared_recipient_count: 0, preparation_error: null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
     await auditAdminAction(c, {
@@ -7504,6 +7510,9 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       sent_at: null,
       provider_broadcast_id: null,
       provider_segment_id: null,
+      recipient_snapshot: recipients,
+      prepared_recipient_count: 0,
+      preparation_error: null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
   } catch (error) {
@@ -7523,7 +7532,10 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   const from = EMAIL_SENDERS.events.from;
   const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
   if (!apiKey || !replyTo || !z.string().email().safeParse(replyTo).success) {
-    const unavailable = await updateEventBlast(blast.id, { status: 'needs_capacity' }, c);
+    const unavailable = await updateEventBlast(blast.id, {
+      status: 'needs_capacity',
+      preparation_error: 'Email broadcasts are not configured. Add the Resend broadcast key and reply-to address, then retry.',
+    }, c);
     await auditAdminAction(c, {
       action: 'event.blast.needs_capacity',
       targetType: 'event_blast',
@@ -7533,56 +7545,38 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     return c.json({ blast: unavailable ?? blast, delivery: 'needs_capacity' as const, capacity }, 202);
   }
 
+  const preparationQueue = c.env.EVENT_BLAST_PREPARATION_QUEUE;
+  if (!preparationQueue) {
+    const unavailable = await updateEventBlast(blast.id, {
+      status: 'failed',
+      preparation_error: 'Background blast preparation is not configured. Deploy the Worker queue binding, then retry.',
+    }, c);
+    return c.json({ blast: unavailable ?? blast, delivery: 'failed' as const, capacity, error: unavailable?.preparation_error }, 503);
+  }
+
   try {
-    // A provider draft is persisted before it can be sent. If the final send
-    // response is interrupted, a retry addresses this exact broadcast instead
-    // of creating a second message for the same guests.
-    const provider = await prepareResendBroadcast({
-      apiKey,
-      eventName: event.name,
-      eventDate: event.event_date,
-      eventEndDate: event.end_date,
-      locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
-      locationUrl: event.location?.url,
-      eventUrl: publicEventDetailsUrl(event, c),
-      calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
-      subject: blast.subject,
-      body: blast.body,
-      from,
-      replyTo,
-      recipients,
-    });
+    const segmentId = await createResendBroadcastSegment({ apiKey, eventName: event.name });
     const prepared = await updateEventBlast(blast.id, {
       status: 'preparing',
-      provider_broadcast_id: provider.broadcastId,
-      provider_segment_id: provider.segmentId,
+      provider_segment_id: segmentId,
+      preparation_error: null,
     }, c);
     if (!prepared) throw new EventBlastStorageError('blast_not_found_after_prepare');
-
-    await sendResendBroadcast({
-      apiKey,
-      broadcastId: provider.broadcastId,
-      scheduledFor,
-    });
-    const status = scheduledFor ? 'scheduled' : 'sent';
-    const updated = await updateEventBlast(blast.id, {
-      status,
-      sent_at: scheduledFor ? null : new Date().toISOString(),
-    }, c);
+    await preparationQueue.send({ event_id: event.id, blast_id: blast.id, offset: 0 });
     await auditAdminAction(c, {
-      action: scheduledFor ? 'event.blast.schedule' : 'event.blast.send',
+      action: 'event.blast.preparation_queued',
       targetType: 'event_blast',
       targetId: blast.id,
-      metadata: { event_id: event.id, recipient_count: recipients.length, scheduled_for: scheduledFor },
+      metadata: { event_id: event.id, recipient_count: recipients.length, batch_size: EVENT_BLAST_PREPARATION_BATCH_SIZE },
     });
-    return c.json({ blast: updated ?? blast, delivery: status, capacity }, 201);
+    return c.json({ blast: prepared, delivery: 'preparing' as const, capacity }, 202);
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
     const providerMessage = error instanceof ResendBroadcastError ? error.providerMessage : undefined;
     const status = providerStatus === 402 || providerStatus === 403 || providerStatus === 429
       ? 'needs_capacity'
       : 'failed';
-    const updated = await updateEventBlast(blast.id, { status }, c);
+    const updated = await updateEventBlast(blast.id, { status, preparation_error: eventBlastFailureMessage(error) }, c);
     await auditAdminAction(c, {
       action: status === 'needs_capacity' ? 'event.blast.needs_capacity' : 'event.blast.failed',
       targetType: 'event_blast',
@@ -7605,6 +7599,116 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   }
 });
 
+const eventBlastPreparationMessageSchema = z.object({
+  event_id: z.string().uuid(),
+  blast_id: z.string().uuid(),
+  offset: z.number().int().min(0),
+});
+
+function eventBlastPreparationError(error: unknown): string {
+  if (error instanceof ResendBroadcastError) {
+    const detail = error.providerMessage ? ` Resend says: ${error.providerMessage}` : '';
+    return `${error.message}${detail}`;
+  }
+  return 'The email audience could not be prepared. No guests were emailed.';
+}
+
+app.post('/api/internal/event-blasts/prepare', async (c) => {
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+  const parsed = eventBlastPreparationMessageSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'Invalid preparation message.' }, 400);
+
+  const message: EventBlastPreparationMessage = parsed.data;
+  const event = await getEventById(message.event_id, c);
+  if (!event) return c.json({ ok: true, skipped: 'event_missing' });
+  const blast = (await getEventBlasts(event.id, c)).find((item) => item.id === message.blast_id);
+  if (!blast || blast.status !== 'preparing') return c.json({ ok: true, skipped: 'not_preparing' });
+  if (!blast.provider_segment_id) {
+    await updateEventBlast(blast.id, {
+      status: 'failed',
+      preparation_error: 'The email audience could not be prepared because its Resend segment is missing. No guests were emailed.',
+    }, c);
+    return c.json({ ok: true, skipped: 'segment_missing' });
+  }
+  // The queue consumer is deliberately serial. Ignore a duplicate or stale message
+  // rather than moving a blast backwards or importing a guest twice.
+  if (message.offset !== blast.prepared_recipient_count) return c.json({ ok: true, skipped: 'stale_message' });
+
+  const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
+  const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
+  const queue = c.env.EVENT_BLAST_PREPARATION_QUEUE;
+  if (!apiKey || !replyTo || !z.string().email().safeParse(replyTo).success || !queue) {
+    await updateEventBlast(blast.id, {
+      status: 'failed',
+      preparation_error: 'Background blast preparation is not configured. No guests were emailed.',
+    }, c);
+    return c.json({ ok: true, skipped: 'not_configured' });
+  }
+
+  try {
+    const recipients = blast.recipient_snapshot.slice(message.offset, message.offset + EVENT_BLAST_PREPARATION_BATCH_SIZE);
+    if (recipients.length > 0) {
+      await addResendBroadcastRecipients({ apiKey, segmentId: blast.provider_segment_id, recipients });
+      const preparedCount = message.offset + recipients.length;
+      await updateEventBlast(blast.id, { prepared_recipient_count: preparedCount, preparation_error: null }, c);
+      if (preparedCount < blast.recipient_snapshot.length) {
+        await queue.send({ event_id: event.id, blast_id: blast.id, offset: preparedCount });
+        return c.json({ ok: true, prepared_recipient_count: preparedCount });
+      }
+    }
+
+    const current = (await getEventBlasts(event.id, c)).find((item) => item.id === blast.id) ?? blast;
+    let broadcastId = current.provider_broadcast_id;
+    if (!broadcastId) {
+      broadcastId = await createResendBroadcastDraft({
+        apiKey,
+        segmentId: current.provider_segment_id!,
+        eventName: event.name,
+        eventDate: event.event_date,
+        eventEndDate: event.end_date,
+        locationName: event.location?.label ?? event.location?.name ?? 'Location to be announced',
+        locationUrl: event.location?.url,
+        eventUrl: publicEventDetailsUrl(event, c),
+        calendarDownloadUrl: publicRegistrationCalendarUrl(event, c),
+        subject: current.subject,
+        body: current.body,
+        from: EMAIL_SENDERS.events.from,
+        replyTo,
+      });
+      await updateEventBlast(blast.id, { provider_broadcast_id: broadcastId, preparation_error: null }, c);
+    }
+
+    await sendResendBroadcast({ apiKey, broadcastId, scheduledFor: current.scheduled_for });
+    const status = current.scheduled_for ? 'scheduled' : 'sent';
+    const updated = await updateEventBlast(blast.id, {
+      status,
+      sent_at: current.scheduled_for ? null : new Date().toISOString(),
+      preparation_error: null,
+    }, c);
+    await auditAdminAction(c, {
+      action: current.scheduled_for ? 'event.blast.schedule' : 'event.blast.send',
+      targetType: 'event_blast',
+      targetId: blast.id,
+      metadata: { event_id: event.id, recipient_count: current.recipient_count, scheduled_for: current.scheduled_for },
+    });
+    console.info(JSON.stringify({ event: 'event_blast_preparation_complete', event_id: event.id, blast_id: blast.id, recipient_count: current.recipient_count, status }));
+    return c.json({ ok: true, status, blast: updated });
+  } catch (error) {
+    const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
+    const status = providerStatus === 402 || providerStatus === 403 || providerStatus === 429 ? 'needs_capacity' : 'failed';
+    const errorMessage = eventBlastPreparationError(error);
+    await updateEventBlast(blast.id, { status, preparation_error: errorMessage }, c);
+    await auditAdminAction(c, {
+      action: status === 'needs_capacity' ? 'event.blast.needs_capacity' : 'event.blast.failed',
+      targetType: 'event_blast',
+      targetId: blast.id,
+      metadata: { event_id: event.id, recipient_count: blast.recipient_count, provider_status: providerStatus },
+    });
+    console.error(JSON.stringify({ event: 'event_blast_preparation_failed', event_id: event.id, blast_id: blast.id, prepared_recipient_count: blast.prepared_recipient_count, provider_status: providerStatus, error: errorMessage }));
+    return c.json({ ok: true, status, error: errorMessage });
+  }
+});
+
 app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
@@ -7612,8 +7716,30 @@ app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
 
   const blast = (await getEventBlasts(event.id, c)).find((item) => item.id === c.req.param('blastId'));
   if (!blast) return c.json({ error: 'Blast not found.' }, 404);
-  if (!blast.provider_broadcast_id || blast.status !== 'failed') {
-    return c.json({ error: 'Only a prepared blast that needs attention can be retried.' }, 409);
+  if (blast.status !== 'failed' && blast.status !== 'needs_capacity') {
+    return c.json({ error: 'Only a blast that needs attention can be retried.' }, 409);
+  }
+
+  if (!blast.provider_broadcast_id) {
+    const queue = c.env.EVENT_BLAST_PREPARATION_QUEUE;
+    const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
+    if (!queue || !apiKey) {
+      return c.json({ error: 'The blast audience cannot be resumed because its background queue or broadcast configuration is unavailable.' }, 503);
+    }
+    let segmentId = blast.provider_segment_id;
+    try {
+      if (!segmentId) segmentId = await createResendBroadcastSegment({ apiKey, eventName: event.name });
+    } catch (error) {
+      const updated = await updateEventBlast(blast.id, { status: 'failed', preparation_error: eventBlastPreparationError(error) }, c);
+      return c.json({ blast: updated ?? blast, delivery: 'failed' as const, error: eventBlastPreparationError(error) }, 502);
+    }
+    const resumed = await updateEventBlast(blast.id, {
+      status: 'preparing',
+      provider_segment_id: segmentId,
+      preparation_error: null,
+    }, c);
+    await queue.send({ event_id: event.id, blast_id: blast.id, offset: blast.prepared_recipient_count });
+    return c.json({ blast: resumed ?? blast, delivery: 'preparing' as const }, 202);
   }
 
   const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();

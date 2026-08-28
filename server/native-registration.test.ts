@@ -458,6 +458,7 @@ describe('native event registration API', () => {
   it('retries a persisted provider draft without creating another blast audience', async () => {
     vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
     let sendAttempts = 0;
     const providerFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -497,25 +498,34 @@ describe('native event registration API', () => {
       body: JSON.stringify({ name: 'Ama Mensah', email: 'ama@example.com' }),
     });
 
-    const failed = await app.request(`http://localhost/api/events/${created.event.id}/blasts`, {
+    const queuedMessages: Array<{ event_id: string; blast_id: string; offset: number }> = [];
+    const queue = { send: vi.fn(async (message: { event_id: string; blast_id: string; offset: number }) => { queuedMessages.push(message); }) };
+    const failed = await app.fetch(new Request(`http://localhost/api/events/${created.event.id}/blasts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.' }),
-    });
-    expect(failed.status).toBe(502);
-    const failedPayload = await failed.json() as { blast: { id: string; status: string; provider_broadcast_id: string }; error: string };
-    expect(failedPayload.blast).toMatchObject({ status: 'failed', provider_broadcast_id: 'broadcast-1' });
-    expect(failedPayload.error).toContain('could not be reached');
-    expect(failedPayload.error).toContain('Needs attention');
+    }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
+    expect(failed.status).toBe(202);
+    expect(queuedMessages).toHaveLength(1);
+    await app.fetch(new Request('http://localhost/api/internal/event-blasts/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+      body: JSON.stringify(queuedMessages[0]),
+    }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
+    const failedHistory = await app.request(`http://localhost/api/events/${created.event.id}/blasts`);
+    const failedPayload = await failedHistory.json() as { blasts: Array<{ id: string; status: string; provider_broadcast_id: string; preparation_error: string }> };
+    const failedBlast = failedPayload.blasts[0];
+    expect(failedBlast).toMatchObject({ status: 'failed', provider_broadcast_id: 'broadcast-1' });
+    expect(failedBlast.preparation_error).toContain('could not be reached');
 
     const retried = await app.request(
-      `http://localhost/api/events/${created.event.id}/blasts/${failedPayload.blast.id}/retry`,
+      `http://localhost/api/events/${created.event.id}/blasts/${failedBlast.id}/retry`,
       { method: 'POST' },
     );
     expect(retried.status).toBe(201);
     await expect(retried.json()).resolves.toMatchObject({
       delivery: 'sent',
-      blast: { id: failedPayload.blast.id, status: 'sent', provider_broadcast_id: 'broadcast-1' },
+      blast: { id: failedBlast.id, status: 'sent', provider_broadcast_id: 'broadcast-1' },
     });
     expect(providerFetch.mock.calls.filter(([url]) => String(url).endsWith('/broadcasts'))).toHaveLength(1);
   });

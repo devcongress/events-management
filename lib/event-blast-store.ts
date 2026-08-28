@@ -42,7 +42,7 @@ export async function createEventBlast(input: CreateEventBlastInput, c?: Context
 
 export async function updateEventBlast(
   id: string,
-  input: Partial<Pick<EventBlast, 'status' | 'sent_at' | 'provider_broadcast_id' | 'provider_segment_id'>>,
+  input: Partial<Pick<EventBlast, 'status' | 'sent_at' | 'provider_broadcast_id' | 'provider_segment_id' | 'prepared_recipient_count' | 'preparation_error'>>,
   c?: Context,
 ): Promise<EventBlast | undefined> {
   const result = await updateSupabaseEventBlast(id, input, c);

@@ -33,7 +33,7 @@ export async function createMockEventBlast(input: Omit<EventBlast, 'id' | 'creat
 
 export async function updateMockEventBlast(
   id: string,
-  input: Partial<Pick<EventBlast, 'status' | 'sent_at' | 'provider_broadcast_id' | 'provider_segment_id'>>,
+  input: Partial<Pick<EventBlast, 'status' | 'sent_at' | 'provider_broadcast_id' | 'provider_segment_id' | 'prepared_recipient_count' | 'preparation_error'>>,
 ): Promise<EventBlast | undefined> {
   return updateData<EventBlast, EventBlast | undefined>(BLASTS_FILE, (blasts) => {
     const index = blasts.findIndex((blast) => blast.id === id);

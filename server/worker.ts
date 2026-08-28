@@ -1,10 +1,15 @@
 import app from './app';
 import type { ExecutionContext } from 'hono';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
+import type { EventBlastPreparationMessage } from '@/lib/event-blast-preparation';
+
+type QueueMessage = { body: EventBlastPreparationMessage };
+type QueueBatch = { messages: QueueMessage[] };
+type WorkerBindings = Record<string, unknown> & { SLACK_EVENTS_RETRY_SECRET?: string };
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller: unknown, env: Record<string, string>, ctx: ExecutionContext) {
+  async scheduled(_controller: unknown, env: WorkerBindings, ctx: ExecutionContext) {
     const secret = secureSharedSecret(env.SLACK_EVENTS_RETRY_SECRET);
     if (!secret) return;
 
@@ -20,6 +25,24 @@ export default {
         headers: { 'x-scheduled-job-secret': secret },
       }), env, ctx);
       if (!response.ok) console.error(JSON.stringify({ event: job.event, status: response.status }));
+    }
+  },
+  async queue(batch: QueueBatch, env: WorkerBindings, ctx: ExecutionContext) {
+    const secret = secureSharedSecret(env.SLACK_EVENTS_RETRY_SECRET);
+    if (!secret) throw new Error('Missing scheduled-job secret for event blast preparation.');
+
+    for (const message of batch.messages) {
+      const response = await app.fetch(new Request('https://events-management.internal/api/internal/event-blasts/prepare', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-scheduled-job-secret': secret,
+        },
+        body: JSON.stringify(message.body),
+      }), env, ctx);
+      if (!response.ok) {
+        throw new Error(`Event blast preparation returned ${response.status}.`);
+      }
     }
   },
 };

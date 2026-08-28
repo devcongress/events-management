@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-28 — Resumable event-blast audience preparation
+
+- Replaced the single long-running contact-import request with a serial Cloudflare Queue workflow that prepares ten recipients at a time and continues automatically.
+- Captures the confirmed audience at send confirmation, records its ready count and safe failure reason, and never creates or sends the Resend broadcast until every saved recipient is in its event-specific segment.
+- Lets an organizer resume a failed preparation after correcting configuration or provider capacity, instead of rebuilding or accidentally changing the reviewed audience.
+- Added migration `20260828211500_event_blast_resumable_preparation.sql` for the immutable audience snapshot and durable preparation progress.
+
 ## 2026-08-28 — Rate-safe event blast audiences
 
 - Replaced the eight-at-once Resend contact import with a sequential, rate-limit-aware importer that retries only the guest request Resend throttles.

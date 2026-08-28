@@ -5,6 +5,19 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
 
 type BlastInsert = Database['public']['Tables']['event_blasts']['Insert'];
 type BlastUpdate = Database['public']['Tables']['event_blasts']['Update'];
+type BlastRow = Database['public']['Tables']['event_blasts']['Row'];
+
+function toEventBlast(row: BlastRow): EventBlast {
+  const recipient_snapshot = Array.isArray(row.recipient_snapshot)
+    ? row.recipient_snapshot.flatMap((recipient) => {
+      if (!recipient || typeof recipient !== 'object' || Array.isArray(recipient)) return [];
+      const email = recipient.email;
+      const name = recipient.name;
+      return typeof email === 'string' && typeof name === 'string' ? [{ email, name }] : [];
+    })
+    : [];
+  return { ...row, recipient_snapshot };
+}
 
 export class EventBlastStorageError extends Error {
   constructor(readonly code: string | null) {
@@ -28,7 +41,7 @@ export async function getSupabaseEventBlasts(
     .eq('event_id', eventId)
     .order('created_at', { ascending: false });
   if (error) throw new EventBlastStorageError(error.code ?? null);
-  return data;
+  return data.map(toEventBlast);
 }
 
 export async function getRecentSupabaseEventBlasts(
@@ -42,7 +55,7 @@ export async function getRecentSupabaseEventBlasts(
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new EventBlastStorageError(error.code ?? null);
-  return data;
+  return data.map(toEventBlast);
 }
 
 export async function createSupabaseEventBlast(
@@ -52,7 +65,7 @@ export async function createSupabaseEventBlast(
   if (!canUseSupabaseEventBlasts(c)) return null;
   const { data, error } = await getSupabaseAdminClient(c).from('event_blasts').insert(input).select('*').single();
   if (error) throw new EventBlastStorageError(error.code ?? null);
-  return data;
+  return toEventBlast(data);
 }
 
 export async function updateSupabaseEventBlast(
@@ -68,5 +81,5 @@ export async function updateSupabaseEventBlast(
     .select('*')
     .maybeSingle();
   if (error) throw new EventBlastStorageError(error.code ?? null);
-  return data;
+  return data ? toEventBlast(data) : data;
 }

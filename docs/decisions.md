@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-081: Prepare event-blast audiences through a bounded Queue
+
+**Date:** 2026-08-28
+**Why:** A single Worker request previously created every Resend contact and segment membership for an event blast. At 74 recipients the request exceeded the platform subrequest budget after only 35 contacts, leaving an incomplete audience and no visible durable progress.
+**Decision:** Capture the reviewed confirmed-recipient audience in `event_blasts`, create the event-specific Resend segment once, and let one Cloudflare Queue consumer import exactly ten recipients per message. Persist the completed count after each batch, enqueue the next offset only after that write, then create and send the Resend broadcast only when the full immutable snapshot is ready. Keep consumer concurrency at one and surface progress and a sanitized failure reason in the organizer UI. A retry resumes from the persisted count or reuses an already-created provider broadcast.
+**Tradeoffs:** Sending becomes asynchronous and a queue resource is part of the Worker deployment, but it avoids the Free-plan subrequest ceiling, limits provider rate pressure, and makes recovery observable. Existing contacts may still receive an idempotent segment-membership request; no recipient email is triggered by audience preparation.
+**Revisit when:** Event audiences routinely exceed the current 100-recipient product limit or need scheduled progressive delivery; move to a dedicated recipient/outbox table and provider webhook reconciliation.
+
+---
+
 ## ADR-080: Queue Rejection Email State with the Final Speaker Decision
 
 **Date:** 2026-08-24
