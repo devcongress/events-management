@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { prepareResendBroadcast, ResendBatchError, sendResendBroadcast, sendResendEmailBatch } from './resend';
+import { prepareResendBroadcast, ResendBatchError, ResendBroadcastError, sendResendBroadcast, sendResendEmailBatch } from './resend';
 
 const email = {
   from: 'DevCongress <speakers@updates.devcongress.org>',
@@ -81,6 +81,18 @@ describe('Resend batch client', () => {
 });
 
 describe('Resend broadcast client', () => {
+  it('keeps a provider rejection safe to show to an owner', async () => {
+    await expect(sendResendBroadcast({
+      apiKey: 're_broadcast_test',
+      broadcastId: 'broadcast-1',
+      fetcher: async () => new Response(JSON.stringify({ message: 'Broadcasts are not enabled for this account.' }), { status: 403 }),
+    })).rejects.toMatchObject({
+      name: 'ResendBroadcastError',
+      status: 403,
+      providerMessage: 'Broadcasts are not enabled for this account.',
+    } satisfies Partial<ResendBroadcastError>);
+  });
+
   it('isolates recipients in a new segment and asks Resend to schedule the blast', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -111,6 +123,7 @@ describe('Resend broadcast client', () => {
     expect(broadcastCall?.[1]).toEqual(expect.objectContaining({
       method: 'POST',
       body: expect.stringContaining('"segment_id":"segment-1"'),
+      headers: expect.objectContaining({ 'User-Agent': 'devcongress-events-management/1.0' }),
     }));
     expect(broadcastCall?.[1]?.body).toContain('"send":false');
     expect(broadcastCall?.[1]?.body).toContain('"subject":"Venue update Bcc: attacker@example.com"');
@@ -136,6 +149,7 @@ describe('Resend broadcast client', () => {
       expect.objectContaining({
         method: 'POST',
         body: '{"scheduled_at":"2026-08-01T12:00:00.000Z"}',
+        headers: expect.objectContaining({ 'User-Agent': 'devcongress-events-management/1.0' }),
       }),
     );
   });

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-28 — Resend Broadcast prerequisites
+
+- Added the required outbound `User-Agent` header to direct Resend API calls, including the Contacts, Segments, and Broadcasts sequence used for event blasts.
+- Corrected the blast-key runbook: `RESEND_BROADCASTS_API_KEY` must be a separate server-only **Full access** Resend key because sending-only keys cannot create the Contacts and Segments required to address a blast.
+
+## 2026-08-28 — Actionable event-blast delivery failures
+
+- Replaced the opaque event-blast `502` response with a safe, actionable provider failure message that tells organizers whether Resend was unreachable or rejected the broadcast, while confirming that the blast is preserved for retry.
+- Record the sanitized Resend explanation with the Owner audit event and redact credentials and email addresses before it can reach the UI or logs.
+
 ## 2026-08-28 — Coupled daily blast allocation
 
 - Replaced the one-way event blast reserve field with linked **Safe to send today** and **Keep available** controls. Changing either immediately recalculates the other from today’s remaining provider quota.
