@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-29 — Unified Audit Log delivery activity
+
+- Consolidated the Audit Log’s transactional-message and event-blast histories into one paginated activity container with a compact **Messages / Event blasts** switch, preserving each view’s counts, provider context, and independent page position.
+- Removed the local-only **Remove test guest** action from the registration workspace; normal check-in and cancellation controls remain available.
+- Replaced the checked-in text tag with a compact accessible checkmark and made **Undo check-in** a distinct secondary action with an undo icon.
+- Stabilized the delivery-activity switch by removing count/range noise and view enter/exit movement; its fixed context strip keeps the table from jumping when changing between messages and blasts.
+
+## 2026-08-29 — Clearer event-blast capacity and delivery activity
+
+- Reworked the desktop Blasts header into a stable daily-capacity summary that distinguishes usable quota, blast allocation, transactional reserve, and audience size without making static values look like actions.
+- Moved the coupled allocation inputs behind an explicit **Manage today’s allocation** action; the balanced editor makes the current total and the blast-versus-transactional trade-off clear before save.
+- Replaced the unbounded delivery list with a ten-row paginated activity table. Selecting a row opens a focus-trapped right drawer with audience progress, timing, provider references, the exact sanitized preparation failure, message body, and an in-context retry when available.
+
 ## 2026-08-28 — Resumable event-blast audience preparation
 
 - Replaced the single long-running contact-import request with a serial Cloudflare Queue workflow that prepares ten recipients at a time and continues automatically.

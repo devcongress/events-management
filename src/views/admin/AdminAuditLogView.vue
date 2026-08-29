@@ -20,6 +20,7 @@ interface AuditLogGroup {
 }
 
 type AuditLogSection = 'activity' | 'email-delivery' | 'email-previews' | 'short-links' | 'archived-events';
+type DeliveryActivityView = 'messages' | 'blasts';
 type ShortLinkStatusFilter = 'active' | 'revoked';
 interface ShortLinkMenuPosition {
   left: number;
@@ -33,6 +34,8 @@ const filters = reactive({
 const groupByActorEmail = ref(false);
 const page = ref(1);
 const deliveryPage = ref(1);
+const blastDeliveryPage = ref(1);
+const deliveryActivityView = ref<DeliveryActivityView>('messages');
 const activeSection = ref<AuditLogSection>('activity');
 const shortLinkMessage = ref('');
 const copiedShortLinkId = ref<string | null>(null);
@@ -155,6 +158,15 @@ const paginatedRecentEmailDeliveries = computed(() => {
   const start = (deliveryPage.value - 1) * DELIVERY_LOG_PAGE_SIZE;
   return recentEmailDeliveries.value.slice(start, start + DELIVERY_LOG_PAGE_SIZE);
 });
+const blastDeliveryPageCount = computed(() => Math.max(1, Math.ceil(recentEventBlasts.value.length / DELIVERY_LOG_PAGE_SIZE)));
+const blastDeliveryPageStart = computed(() => (
+  recentEventBlasts.value.length === 0 ? 0 : (blastDeliveryPage.value - 1) * DELIVERY_LOG_PAGE_SIZE + 1
+));
+const blastDeliveryPageEnd = computed(() => Math.min(recentEventBlasts.value.length, blastDeliveryPage.value * DELIVERY_LOG_PAGE_SIZE));
+const paginatedRecentEventBlasts = computed(() => {
+  const start = (blastDeliveryPage.value - 1) * DELIVERY_LOG_PAGE_SIZE;
+  return recentEventBlasts.value.slice(start, start + DELIVERY_LOG_PAGE_SIZE);
+});
 const paginatedLogs = computed(() => {
   const start = (page.value - 1) * AUDIT_LOG_PAGE_SIZE;
   return orderedLogs.value.slice(start, start + AUDIT_LOG_PAGE_SIZE);
@@ -229,8 +241,18 @@ watch(deliveryPageCount, (nextPageCount) => {
   }
 });
 
+watch(blastDeliveryPageCount, (nextPageCount) => {
+  if (blastDeliveryPage.value > nextPageCount) {
+    blastDeliveryPage.value = nextPageCount;
+  }
+});
+
 watch(recentEmailDeliveries, () => {
   deliveryPage.value = 1;
+});
+
+watch(recentEventBlasts, () => {
+  blastDeliveryPage.value = 1;
 });
 
 watch(logs, (nextLogs) => {
@@ -846,96 +868,118 @@ onUnmounted(() => {
             <div class="audit-log-delivery-history">
               <div class="audit-log-delivery-history__heading">
                 <div>
-                  <p class="editorial-eyebrow mb-1">delivery log</p>
-                  <h3>Recent messages</h3>
+                  <p class="editorial-eyebrow mb-1">delivery activity</p>
+                  <h3>Recent email activity</h3>
                 </div>
-                <div class="audit-log-delivery-history__meta">
-                  <div class="audit-log-delivery-history__legend" aria-label="Delivery status legend">
-                    <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--accepted">
-                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
-                      Accepted
-                    </span>
-                    <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--queued">
-                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
-                      Queued
-                    </span>
-                    <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--failed">
-                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
-                      Failed
-                    </span>
+                <div class="audit-log-delivery-history__controls">
+                  <div class="audit-log-delivery-history__switch" role="tablist" aria-label="Delivery activity type">
+                    <button
+                      id="delivery-activity-tab-messages"
+                      type="button"
+                      role="tab"
+                      :aria-selected="deliveryActivityView === 'messages'"
+                      aria-controls="delivery-activity-panel-messages"
+                      :class="{ 'is-active': deliveryActivityView === 'messages' }"
+                      @click="deliveryActivityView = 'messages'"
+                    >
+                      Messages
+                    </button>
+                    <button
+                      id="delivery-activity-tab-blasts"
+                      type="button"
+                      role="tab"
+                      :aria-selected="deliveryActivityView === 'blasts'"
+                      aria-controls="delivery-activity-panel-blasts"
+                      :class="{ 'is-active': deliveryActivityView === 'blasts' }"
+                      @click="deliveryActivityView = 'blasts'"
+                    >
+                      Event blasts
+                    </button>
                   </div>
-                  <p v-if="recentEmailDeliveries.length > 0">Showing {{ deliveryPageStart }}–{{ deliveryPageEnd }} of {{ recentEmailDeliveries.length }}</p>
                 </div>
               </div>
 
-              <div v-if="recentEmailDeliveries.length === 0" class="audit-log-delivery-history__empty">
-                No transactional delivery records yet. New registration, listing, and speaker messages will appear here.
-              </div>
-              <div v-else class="overflow-x-auto">
-                <table class="audit-log-delivery-history__table">
-                  <thead>
-                    <tr>
-                      <th>When</th>
-                      <th>Source</th>
-                      <th>Message</th>
-                      <th>Status</th>
-                      <th>Detail</th>
-                      <th>Attempts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="delivery in paginatedRecentEmailDeliveries" :key="delivery.id">
-                      <td>{{ formatDateTime(delivery.occurred_at) }}</td>
-                      <td>{{ deliverySourceLabel(delivery.source) }}</td>
-                      <td><strong>{{ delivery.label }}</strong></td>
-                      <td>
-                        <span class="audit-log-delivery-history__status" :class="`audit-log-delivery-history__status--${delivery.status}`" :aria-label="deliveryStatusLabel(delivery.status)" role="img" :title="deliveryStatusLabel(delivery.status)">
-                          <svg v-if="delivery.status === 'accepted'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
-                          <svg v-else-if="delivery.status === 'pending'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
-                          <svg v-else viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
-                        </span>
-                      </td>
-                      <td><span :title="deliveryDetail(delivery)">{{ deliveryDetail(delivery) }}</span></td>
-                      <td>{{ delivery.attempts }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="recentEmailDeliveries.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Email delivery pagination" />
-            </div>
-
-            <div class="audit-log-delivery-history audit-log-broadcast-history">
-              <div class="audit-log-delivery-history__heading">
-                <div>
-                  <p class="editorial-eyebrow mb-1">broadcast log</p>
-                  <h3>Recent event blasts</h3>
+              <div class="audit-log-delivery-history__context" aria-live="polite">
+                <div v-if="deliveryActivityView === 'messages'" class="audit-log-delivery-history__legend" aria-label="Delivery status legend">
+                  <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--accepted">
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
+                    Accepted
+                  </span>
+                  <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--queued">
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
+                    Queued
+                  </span>
+                  <span class="audit-log-delivery-history__legend-item audit-log-delivery-history__legend-item--failed">
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
+                    Failed
+                  </span>
                 </div>
-                <p class="audit-log-delivery-history__caption">Provider acceptance is not inbox delivery.</p>
+                <p v-else class="audit-log-delivery-history__caption">Provider acceptance is not inbox delivery.</p>
               </div>
 
-              <div v-if="recentEventBlasts.length === 0" class="audit-log-delivery-history__empty">
-                No event broadcasts have been created yet.
-              </div>
-              <div v-else class="overflow-x-auto">
-                <table class="audit-log-delivery-history__table audit-log-broadcast-history__table">
-                  <thead>
-                    <tr>
-                      <th>When</th>
-                      <th>Broadcast</th>
-                      <th>Audience</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="blast in recentEventBlasts" :key="blast.id">
-                      <td>{{ formatDateTime(blast.updated_at) }}</td>
-                      <td><strong>{{ blast.subject }}</strong></td>
-                      <td>{{ blast.recipient_count }} recipients</td>
-                      <td><span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <div v-if="deliveryActivityView === 'messages'" id="delivery-activity-panel-messages" role="tabpanel" aria-labelledby="delivery-activity-tab-messages">
+                  <div v-if="recentEmailDeliveries.length === 0" class="audit-log-delivery-history__empty">
+                    No transactional delivery records yet. New registration, listing, and speaker messages will appear here.
+                  </div>
+                  <div v-else class="overflow-x-auto">
+                    <table class="audit-log-delivery-history__table">
+                      <thead>
+                        <tr>
+                          <th>When</th>
+                          <th>Source</th>
+                          <th>Message</th>
+                          <th>Status</th>
+                          <th>Detail</th>
+                          <th>Attempts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="delivery in paginatedRecentEmailDeliveries" :key="delivery.id">
+                          <td>{{ formatDateTime(delivery.occurred_at) }}</td>
+                          <td>{{ deliverySourceLabel(delivery.source) }}</td>
+                          <td><strong>{{ delivery.label }}</strong></td>
+                          <td>
+                            <span class="audit-log-delivery-history__status" :class="`audit-log-delivery-history__status--${delivery.status}`" :aria-label="deliveryStatusLabel(delivery.status)" role="img" :title="deliveryStatusLabel(delivery.status)">
+                              <svg v-if="delivery.status === 'accepted'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.75 10 2.1 2.1 4.35-4.35" /></svg>
+                              <svg v-else-if="delivery.status === 'pending'" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 6.25v4.1l2.75 1.6" /></svg>
+                              <svg v-else viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m7.75 7.75 4.5 4.5m0-4.5-4.5 4.5" /></svg>
+                            </span>
+                          </td>
+                          <td><span :title="deliveryDetail(delivery)">{{ deliveryDetail(delivery) }}</span></td>
+                          <td>{{ delivery.attempts }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <AppPagination v-model:page="deliveryPage" :page-count="deliveryPageCount" :total="recentEmailDeliveries.length" :range-start="deliveryPageStart" :range-end="deliveryPageEnd" item-label="deliveries" aria-label="Email delivery pagination" />
+                </div>
+
+                <div v-else id="delivery-activity-panel-blasts" role="tabpanel" aria-labelledby="delivery-activity-tab-blasts">
+                  <div v-if="recentEventBlasts.length === 0" class="audit-log-delivery-history__empty">
+                    No event broadcasts have been created yet.
+                  </div>
+                  <div v-else class="overflow-x-auto">
+                    <table class="audit-log-delivery-history__table audit-log-broadcast-history__table">
+                      <thead>
+                        <tr>
+                          <th>When</th>
+                          <th>Broadcast</th>
+                          <th>Audience</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="blast in paginatedRecentEventBlasts" :key="blast.id">
+                          <td>{{ formatDateTime(blast.updated_at) }}</td>
+                          <td><strong>{{ blast.subject }}</strong></td>
+                          <td>{{ blast.recipient_count }} recipients</td>
+                          <td><span class="audit-log-broadcast-status" :class="blastStatusTone(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <AppPagination v-model:page="blastDeliveryPage" :page-count="blastDeliveryPageCount" :total="recentEventBlasts.length" :range-start="blastDeliveryPageStart" :range-end="blastDeliveryPageEnd" item-label="blasts" aria-label="Event blast pagination" />
+                </div>
             </div>
           </section>
           <section v-else-if="activeSection === 'email-previews'" id="audit-log-panel-email-previews" key="email-previews" role="tabpanel" aria-labelledby="audit-log-tab-email-previews" class="w-full">
@@ -1584,14 +1628,52 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.audit-log-delivery-history__meta > p {
-  margin: 0;
-  color: #6f6c65;
+.audit-log-delivery-history__controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.audit-log-delivery-history__switch {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #cfc9be;
+  border-radius: 7px;
+  background: #f6f3eb;
+}
+
+.audit-log-delivery-history__switch button {
+  width: 8.75rem;
+  min-height: 2.125rem;
+  border: 0;
+  border-left: 1px solid #e2ded6;
+  background: transparent;
+  padding: 0 0.625rem;
+  color: #716d65;
   font-family: var(--font-mono), monospace;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  transition:
+    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.audit-log-delivery-history__switch button:first-child {
+  border-left: 0;
+}
+
+.audit-log-delivery-history__switch button.is-active {
+  background: #111111;
+  color: #ffffff;
+  box-shadow: inset 0 -2px 0 #ed1685;
+}
+
+.audit-log-delivery-history__switch button:active {
+  transform: scale(0.97);
 }
 
 .audit-log-delivery-history__caption {
@@ -1599,11 +1681,16 @@ onUnmounted(() => {
   color: #6f6c65;
   font-size: 0.75rem;
   line-height: 1.4;
-  text-align: right;
+  text-align: left;
 }
 
-.audit-log-broadcast-history {
+.audit-log-delivery-history__context {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  border-top: 1px solid #e4e0d8;
   background: #fcfbf7;
+  padding: 0.5rem 1.5rem;
 }
 
 .audit-log-broadcast-history__table {
@@ -1805,6 +1892,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
 }
+
 
 .audit-log-short-links__toolbar {
   display: grid;
@@ -2052,6 +2140,11 @@ onUnmounted(() => {
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .audit-log-delivery-history__switch button:not(.is-active):hover {
+    background: #ebe8de;
+    color: #111111;
+  }
+
   .audit-log-short-links__table tbody tr:hover {
     background: #fcfbf7;
   }
@@ -2388,6 +2481,25 @@ onUnmounted(() => {
     gap: 0.5rem;
   }
 
+  .audit-log-delivery-history__controls {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .audit-log-delivery-history__switch {
+    max-width: 100%;
+  }
+
+  .audit-log-delivery-history__switch button {
+    width: 8rem;
+  }
+
+  .audit-log-delivery-history__context {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
   .audit-log-delivery-history__legend {
     gap: 0.625rem;
   }
@@ -2417,6 +2529,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
   .audit-log-tab,
   .audit-log-tab::after,
+  .audit-log-delivery-history__switch button,
   .audit-log-delivery-history__page-button,
   .audit-log-activity-row,
   .audit-log-drawer-enter-active,
@@ -2435,6 +2548,7 @@ onUnmounted(() => {
   }
 
   .audit-log-tab:active,
+  .audit-log-delivery-history__switch button:active,
   .audit-log-panel-forward-enter-from,
   .audit-log-panel-forward-leave-to,
   .audit-log-panel-backward-enter-from,

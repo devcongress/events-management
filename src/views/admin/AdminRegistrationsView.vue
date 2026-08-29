@@ -5,6 +5,7 @@ import { RouterLink, useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import BlastActivityDrawer from '@/src/components/ui/BlastActivityDrawer.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import GhanaVenueAutocomplete from '@/src/components/ui/GhanaVenueAutocomplete.vue';
@@ -19,7 +20,6 @@ import {
   fetchEventRegistrations,
   processEventRegistrationEmails,
   queryKeys,
-  removeEventRegistration,
   retryEventBlast,
   undoCheckInEventRegistration,
   updateEventById,
@@ -51,6 +51,7 @@ type RegistrationWorkspaceTab = 'summary' | 'guests' | 'form' | 'emails' | 'blas
 type RegistrationOverviewPhase = 'before' | 'live' | 'after';
 const REGISTRATION_GUEST_PAGE_SIZE = 8;
 const REGISTRATION_EMAIL_PAGE_SIZE = 8;
+const BLAST_ACTIVITY_PAGE_SIZE = 10;
 
 const route = useRoute();
 const queryClient = useQueryClient();
@@ -122,23 +123,21 @@ const blastSafeToSend = ref('');
 const blastReservePending = ref(false);
 const savedBlastReserve = ref<string | null>(null);
 const blastReserveSaveSummary = ref<string | null>(null);
+const blastAllocationEditorOpen = ref(false);
+const blastActivityPage = ref(1);
+const selectedBlast = ref<EventBlast | null>(null);
 const blastSubject = ref('');
 const blastBody = ref('');
 const blastScheduledFor = ref('');
 const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
 const pendingCheckInUndo = ref<EventRegistration | null>(null);
-const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
 const publicLinkCopied = ref(false);
 const publicShortLinkUrl = ref<string | null>(null);
 const manualRefreshPending = ref(false);
 const reopenRegistrationConfirmationOpen = ref(false);
 const reopenRegistrationPending = ref(false);
-const devRegistrationRemovalEnabled = import.meta.env.DEV;
-const canRemoveTestGuest = computed(() => Boolean(
-  devRegistrationRemovalEnabled && adminSessionQuery.data.value?.user?.role === 'owner',
-));
 let publicLinkFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 const statusOptions = [
@@ -195,6 +194,13 @@ const blastAllocatableToday = computed(() => (
     : null
 ));
 const latestBlast = computed(() => blasts.value[0] ?? null);
+const blastActivityPageCount = computed(() => Math.max(1, Math.ceil(blasts.value.length / BLAST_ACTIVITY_PAGE_SIZE)));
+const blastActivityPageStartIndex = computed(() => blasts.value.length === 0 ? 0 : (blastActivityPage.value - 1) * BLAST_ACTIVITY_PAGE_SIZE + 1);
+const blastActivityPageEndIndex = computed(() => Math.min(blastActivityPage.value * BLAST_ACTIVITY_PAGE_SIZE, blasts.value.length));
+const paginatedBlasts = computed(() => {
+  const start = (blastActivityPage.value - 1) * BLAST_ACTIVITY_PAGE_SIZE;
+  return blasts.value.slice(start, start + BLAST_ACTIVITY_PAGE_SIZE);
+});
 const confirmedBlastRecipients = computed(() => displayedRegistrations.value.filter((registration) => registration.status === 'confirmed').length);
 const canCreateBlast = computed(() => (
   confirmedBlastRecipients.value > 0
@@ -555,6 +561,10 @@ watch(emailPageCount, (pages) => {
   if (emailPage.value > pages) emailPage.value = pages;
 });
 
+watch(blastActivityPageCount, (pages) => {
+  if (blastActivityPage.value > pages) blastActivityPage.value = pages;
+});
+
 onBeforeUnmount(() => {
   if (publicLinkFeedbackTimer) {
     clearTimeout(publicLinkFeedbackTimer);
@@ -612,14 +622,12 @@ function guestStatusLabel(registration: EventRegistration): string | null {
   ) {
     return 'No-show';
   }
-  if (registration.checked_in_at) return 'Checked in';
   if (registration.status === 'waitlisted') return 'Waitlisted';
   if (registration.status === 'cancelled') return 'Cancelled';
   return null;
 }
 
 function guestStatusClass(registration: EventRegistration): string {
-  if (registration.checked_in_at) return 'border-dc-ink bg-dc-ink text-white';
   if (registration.status === 'waitlisted') return 'border-amber-300 bg-amber-50 text-amber-800';
   if (
     workspaceSummary.value?.eventEnded
@@ -785,6 +793,14 @@ async function retryBlast(blast: EventBlast) {
   } finally {
     blastRetryId.value = null;
   }
+}
+
+function openBlastActivity(blast: EventBlast) {
+  selectedBlast.value = blast;
+}
+
+function closeBlastActivity() {
+  if (!blastRetryId.value) selectedBlast.value = null;
 }
 
 async function saveBlastReserve() {
@@ -993,22 +1009,6 @@ async function confirmCancellation() {
     pendingCancellation.value = null;
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to cancel this registration.');
-  } finally {
-    actionRegistrationId.value = null;
-  }
-}
-
-async function confirmRemoval() {
-  const registration = pendingRemoval.value;
-  if (!registration || actionRegistrationId.value || !canRemoveTestGuest.value) return;
-  actionRegistrationId.value = registration.id;
-  try {
-    await removeEventRegistration(eventId.value, registration.id);
-    await refresh();
-    notify.success(`${registration.name} was permanently removed.`);
-    pendingRemoval.value = null;
-  } catch (error) {
-    notify.error(error instanceof Error ? error.message : 'Unable to remove this test guest.');
   } finally {
     actionRegistrationId.value = null;
   }
@@ -1363,6 +1363,15 @@ async function retryEmails() {
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate font-bold text-dc-ink">{{ registration.name }}</p>
                   <span
+                    v-if="registration.checked_in_at"
+                    class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white"
+                    role="img"
+                    aria-label="Checked in"
+                    :title="`Checked in ${formatDateTime(registration.checked_in_at)}`"
+                  >
+                    <svg class="size-3" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3.25 8.25 2.85 2.85 6.65-6.65" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+                  </span>
+                  <span
                     v-if="guestStatusLabel(registration)"
                     class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase"
                     :class="guestStatusClass(registration)"
@@ -1375,14 +1384,7 @@ async function retryEmails() {
                   Registered {{ formatDateTime(registration.created_at) }} · Email {{ emailStatusLabel(registration.email_status) }}
                 </p>
               </div>
-              <div
-                v-if="
-                  (registration.status === 'confirmed' && !registration.checked_in_at)
-                  || registration.status !== 'cancelled'
-                  || devRegistrationRemovalEnabled
-                "
-                class="flex flex-wrap gap-2"
-              >
+              <div class="flex flex-wrap gap-2">
                 <button
                   v-if="registration.status === 'confirmed' && !registration.checked_in_at"
                   type="button"
@@ -1395,10 +1397,11 @@ async function retryEmails() {
                 <button
                   v-if="registration.status === 'confirmed' && registration.checked_in_at"
                   type="button"
-                  class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50"
+                  class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border-2 border-dc-ink bg-white px-4 font-mono text-xs font-semibold uppercase text-dc-ink disabled:opacity-50"
                   :disabled="Boolean(actionRegistrationId)"
                   @click="pendingCheckInUndo = registration"
                 >
+                  <svg class="size-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 5.5 3.75 9.25 7.5 13M4.25 9.25h7a4.75 4.75 0 0 1 0 9.5H9.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" /></svg>
                   UNDO CHECK-IN
                 </button>
                 <button
@@ -1409,15 +1412,6 @@ async function retryEmails() {
                   @click="pendingCancellation = registration"
                 >
                   Cancel
-                </button>
-                <button
-                  v-if="canRemoveTestGuest"
-                  type="button"
-                  class="min-h-11 rounded-md border-2 border-red-600 bg-red-50 px-4 font-mono text-xs font-semibold uppercase text-red-700 disabled:opacity-50"
-                  :disabled="Boolean(actionRegistrationId)"
-                  @click="pendingRemoval = registration"
-                >
-                  Remove test guest
                 </button>
               </div>
             </div>
@@ -1713,62 +1707,25 @@ async function retryEmails() {
                   CREATE BLAST
                 </button>
               </div>
-              <div class="mt-4 flex flex-wrap gap-2" aria-label="Blast capacity summary">
-                <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                  {{ confirmedBlastRecipients }} confirmed guest{{ confirmedBlastRecipients === 1 ? '' : 's' }}
-                </span>
-                <span class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                  100 recipient limit
-                </span>
-                <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                  {{ blastCapacity.daily_quota_remaining }} quota left today
-                </span>
-                <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-ink bg-dc-yellow px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink">
-                  {{ blastCapacity.safe_recipients_today }} safe today
-                </span>
-                <span v-if="blastCapacity?.known" class="rounded-sm border border-dc-border bg-white px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
-                  {{ blastCapacity.protected_reserve }} held back
-                </span>
-                <span v-else class="rounded-sm border border-amber-300 bg-amber-50 px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-900">
-                  Capacity awaiting provider update
-                </span>
+              <div v-if="blastCapacity?.known" class="mt-5 grid border-y border-dc-border bg-white sm:grid-cols-2 lg:grid-cols-4" aria-label="Today's blast capacity">
+                <div class="border-b border-dc-border px-4 py-3 sm:border-r lg:border-b-0"><p class="font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">Usable today</p><p class="mt-1 text-xl font-bold text-dc-ink">{{ blastAllocatableToday }}</p><p class="mt-1 text-xs text-dc-gray">after {{ blastCapacity.daily_used }} sent · {{ blastCapacity.queued_transactional }} queued</p></div>
+                <div class="border-b border-dc-border px-4 py-3 lg:border-b-0 lg:border-r"><p class="font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">Available for blasts</p><p class="mt-1 text-xl font-bold text-dc-ink">{{ blastCapacity.safe_recipients_today }}</p><p class="mt-1 text-xs text-dc-gray">safe to send today</p></div>
+                <div class="border-b border-dc-border px-4 py-3 sm:border-r lg:border-b-0"><p class="font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">Reserved</p><p class="mt-1 text-xl font-bold text-dc-ink">{{ blastCapacity.protected_reserve }}</p><p class="mt-1 text-xs text-dc-gray">for transactional email</p></div>
+                <div class="px-4 py-3"><p class="font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">Audience</p><p class="mt-1 text-xl font-bold text-dc-ink">{{ confirmedBlastRecipients }}</p><p class="mt-1 text-xs text-dc-gray">confirmed guests · max 100</p></div>
               </div>
-              <div class="mt-4 grid gap-4 border-t border-dc-border pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)] lg:items-stretch">
-                <div>
-                  <p class="editorial-label">Latest delivery</p>
-                  <p v-if="latestBlast" class="mt-1 text-sm font-semibold text-dc-ink">
-                    {{ blastStatusLabel(latestBlast.status) }}
-                    <span class="font-normal text-dc-gray">· {{ latestBlast.sent_at ? formatDateTime(latestBlast.sent_at) : latestBlast.scheduled_for ? formatDateTime(latestBlast.scheduled_for) : 'not delivered yet' }}</span>
-                  </p>
-                  <p v-else class="mt-1 text-sm text-dc-gray">No blast has been sent or scheduled for this event.</p>
+              <div v-else class="mt-5 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">Email capacity is awaiting a provider update. You can draft a blast, but today’s allocation will remain unavailable until it is observed.</div>
+              <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-dc-gray"><span class="font-semibold text-dc-ink">Latest:</span> <template v-if="latestBlast">{{ blastStatusLabel(latestBlast.status) }} · {{ latestBlast.sent_at ? formatDateTime(latestBlast.sent_at) : latestBlast.scheduled_for ? formatDateTime(latestBlast.scheduled_for) : 'not delivered yet' }}</template><template v-else>No blast has been sent or scheduled.</template></p>
+                <button type="button" class="editorial-secondary-action min-h-10 px-3 text-[10px]" :disabled="!blastCapacity?.known" @click="blastAllocationEditorOpen = !blastAllocationEditorOpen">{{ blastAllocationEditorOpen ? 'CLOSE ALLOCATION' : 'MANAGE TODAY\'S ALLOCATION' }}</button>
+              </div>
+              <form v-if="blastAllocationEditorOpen" class="mt-4 border-t border-dc-border pt-4" @submit.prevent="saveBlastReserve">
+                <div class="flex flex-wrap items-end justify-between gap-3"><div><p class="editorial-label">Allocate today’s usable capacity</p><p class="mt-1 text-xs text-dc-gray">The two values always add up to {{ blastAllocatableToday }}.</p></div><p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ blastAllocatableToday }} usable today</p></div>
+                <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label for="event-blast-safe" class="grid gap-1"><span class="text-xs font-semibold text-dc-ink">Available for blasts</span><input id="event-blast-safe" v-model="blastSafeToSend" type="number" min="0" :max="blastAllocatableToday ?? 0" step="1" inputmode="numeric" class="editorial-input min-h-11" aria-describedby="event-blast-reserve-result" @input="updateSafeAllocation"></label>
+                  <label for="event-blast-reserve" class="grid gap-1"><span class="text-xs font-semibold text-dc-ink">Reserved for transactional email</span><input id="event-blast-reserve" v-model="blastReserve" type="number" min="0" :max="blastAllocatableToday ?? 0" step="1" inputmode="numeric" class="editorial-input min-h-11" aria-describedby="event-blast-reserve-result" @input="updateReserveAllocation"></label>
                 </div>
-                <form class="rounded-md border border-dc-border bg-white p-3" @submit.prevent="saveBlastReserve">
-                  <div class="flex items-baseline justify-between gap-3">
-                    <span class="editorial-label">Allocate today's quota</span>
-                    <span v-if="blastCapacity?.known" class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink">{{ blastCapacity.daily_quota_remaining }} left after {{ blastCapacity.daily_used }} sent</span>
-                  </div>
-                  <div v-if="blastCapacity?.known" class="mt-2 grid gap-2 sm:grid-cols-2">
-                    <label for="event-blast-safe" class="grid gap-1">
-                      <span class="text-xs font-semibold text-dc-ink">Safe to send today</span>
-                      <input id="event-blast-safe" v-model="blastSafeToSend" type="number" min="0" :max="blastAllocatableToday ?? 0" step="1" inputmode="numeric" class="editorial-input min-h-10" aria-describedby="event-blast-reserve-help event-blast-reserve-result" @input="updateSafeAllocation">
-                    </label>
-                    <label for="event-blast-reserve" class="grid gap-1">
-                      <span class="text-xs font-semibold text-dc-ink">Keep available</span>
-                      <input id="event-blast-reserve" v-model="blastReserve" type="number" min="0" :max="blastAllocatableToday ?? 0" step="1" inputmode="numeric" class="editorial-input min-h-10" aria-describedby="event-blast-reserve-help event-blast-reserve-result" @input="updateReserveAllocation">
-                    </label>
-                  </div>
-                  <div v-else class="mt-2 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Provider capacity has not been observed yet, so today’s allocation cannot be changed safely.</div>
-                  <div class="mt-2 flex justify-end">
-                    <button type="submit" class="editorial-secondary-action min-h-10 px-3 text-[10px]" :disabled="blastReservePending || !blastCapacity?.known">
-                      {{ blastReservePending ? 'SAVING…' : 'SAVE RESERVE' }}
-                    </button>
-                  </div>
-                  <p id="event-blast-reserve-help" class="mt-2 text-xs leading-5 text-dc-gray">{{ blastCapacity?.known ? `${blastCapacity.allocatable_recipients_today} remain after ${blastCapacity.queued_transactional} queued transactional email. Adjust either field; the other updates immediately.` : 'We will show the allocation controls when provider quota is available.' }}</p>
-                  <p id="event-blast-reserve-result" class="mt-1 min-h-5 text-xs font-semibold text-dc-ink" role="status" aria-live="polite">
-                    {{ blastReserveSaveSummary ?? (blastCapacity?.known ? `${blastCapacity.protected_reserve} held back · ${blastCapacity.safe_recipients_today} safe to send today.` : '') }}
-                  </p>
-                </form>
-              </div>
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-3"><p id="event-blast-reserve-result" class="text-xs font-semibold text-dc-ink" role="status" aria-live="polite">{{ blastReserveSaveSummary ?? `${blastCapacity?.safe_recipients_today} for blasts + ${blastCapacity?.protected_reserve} reserved = ${blastAllocatableToday}` }}</p><button type="submit" class="editorial-action min-h-10 px-3 text-[10px]" :disabled="blastReservePending || !blastCapacity?.known">{{ blastReservePending ? 'SAVING…' : 'SAVE ALLOCATION' }}</button></div>
+              </form>
             </div>
 
             <div v-if="confirmedBlastRecipients === 0" class="border-b border-dc-border px-5 py-5 text-sm leading-6 text-dc-gray">
@@ -1838,33 +1795,25 @@ async function retryEmails() {
               <p class="text-sm font-semibold text-dc-ink">No event updates yet.</p>
               <p class="mt-1 text-sm leading-6 text-dc-gray">Use a blast for a pre-event reminder, venue change, or final detail—not a registration receipt.</p>
             </div>
-            <div v-else class="divide-y divide-dc-border">
-              <div v-for="blast in blasts" :key="blast.id" class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div class="min-w-0">
-                  <p class="truncate font-bold text-dc-ink">{{ blast.subject }}</p>
-                  <p class="mt-1 text-sm text-dc-gray">
-                    {{ blast.recipient_count }} confirmed guest{{ blast.recipient_count === 1 ? '' : 's' }}
-                    <span v-if="blast.status === 'preparing'"> · {{ blast.prepared_recipient_count }}/{{ blast.recipient_count }} ready</span>
-                    <span v-if="blast.scheduled_for"> · {{ formatDateTime(blast.scheduled_for) }}</span>
-                    <span v-else-if="blast.sent_at"> · {{ formatDateTime(blast.sent_at) }}</span>
-                  </p>
-                </div>
-                <div class="flex w-fit items-center gap-2">
-                  <span class="rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold uppercase" :class="blastStatusClass(blast.status)">
-                    {{ blastStatusLabel(blast.status) }}
-                  </span>
-                  <span v-if="blast.preparation_error" class="text-xs text-red-700">{{ blast.preparation_error }}</span>
-                  <button
-                    v-if="blast.status === 'failed' && blast.provider_broadcast_id"
-                    type="button"
-                    class="editorial-secondary-action min-h-8 px-2 text-[9px]"
-                    :disabled="blastRetryId === blast.id"
-                    @click="retryBlast(blast)"
-                  >
-                    {{ blastRetryId === blast.id ? 'RETRYING…' : 'RETRY SEND' }}
-                  </button>
-                </div>
+            <div v-else>
+              <div class="flex flex-wrap items-end justify-between gap-3 border-b border-dc-border px-5 py-4">
+                <div><p class="editorial-eyebrow">delivery record</p><h3 class="mt-1 text-lg font-bold text-dc-ink">Blast activity</h3></div>
+                <p class="text-xs text-dc-gray">Select an update to view delivery progress or the exact issue.</p>
               </div>
+              <div class="overflow-x-auto">
+                <table class="w-full min-w-[40rem] text-left">
+                  <thead class="border-b border-dc-border bg-dc-paper-warm font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-pink"><tr><th class="px-5 py-3">Blast</th><th class="px-4 py-3">Audience</th><th class="px-4 py-3">Last updated</th><th class="px-4 py-3">Status</th></tr></thead>
+                  <tbody class="divide-y divide-dc-border">
+                    <tr v-for="blast in paginatedBlasts" :key="blast.id" class="cursor-pointer bg-white transition-colors duration-150 hover:bg-dc-paper-warm focus-within:bg-dc-paper-warm" role="button" tabindex="0" :aria-label="`View delivery details for ${blast.subject}`" @click="openBlastActivity(blast)" @keydown.enter.prevent="openBlastActivity(blast)" @keydown.space.prevent="openBlastActivity(blast)">
+                      <td class="max-w-[22rem] px-5 py-4"><p class="truncate font-bold text-dc-ink">{{ blast.subject }}</p><p v-if="blast.status === 'preparing'" class="mt-1 text-xs text-dc-gray">{{ blast.prepared_recipient_count }}/{{ blast.recipient_count }} recipients ready</p></td>
+                      <td class="px-4 py-4 text-sm text-dc-gray">{{ blast.recipient_count }} guest{{ blast.recipient_count === 1 ? '' : 's' }}</td>
+                      <td class="whitespace-nowrap px-4 py-4 text-sm text-dc-gray">{{ formatDateTime(blast.sent_at ?? blast.scheduled_for ?? blast.updated_at) }}</td>
+                      <td class="px-4 py-4"><span class="rounded-sm border px-2 py-1 font-mono text-[10px] font-semibold uppercase" :class="blastStatusClass(blast.status)">{{ blastStatusLabel(blast.status) }}</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <AppPagination v-model:page="blastActivityPage" :page-count="blastActivityPageCount" :total="blasts.length" :range-start="blastActivityPageStartIndex" :range-end="blastActivityPageEndIndex" item-label="blasts" aria-label="Blast activity pagination" />
             </div>
           </section>
         </Transition>
@@ -1881,6 +1830,8 @@ async function retryEmails() {
       @close="blastPreviewOpen = false"
       @confirm="sendBlast"
     />
+
+    <BlastActivityDrawer :open="Boolean(selectedBlast)" :blast="selectedBlast" :retrying="blastRetryId === selectedBlast?.id" @close="closeBlastActivity" @retry="retryBlast" />
 
     <ConfirmDialog
       :open="reopenRegistrationConfirmationOpen"
@@ -1956,18 +1907,6 @@ async function retryEmails() {
       @confirm="confirmCancellation"
     />
 
-    <ConfirmDialog
-      :open="Boolean(pendingRemoval) && canRemoveTestGuest"
-      title="Remove test guest?"
-      :message="pendingRemoval ? `${pendingRemoval.name} (${pendingRemoval.email}) and their check-in and email-delivery records will be permanently deleted. This cannot be undone.` : ''"
-      confirm-label="Remove guest"
-      busy-label="Removing..."
-      cancel-label="Keep guest"
-      danger
-      :busy="Boolean(actionRegistrationId)"
-      @cancel="pendingRemoval = null"
-      @confirm="confirmRemoval"
-    />
   </div>
 </template>
 

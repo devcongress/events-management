@@ -690,7 +690,7 @@ describe('native event registration API', () => {
       body: JSON.stringify({
         name: 'DevCongress August Meetup',
         description: 'A free community meetup.',
-        event_date: '2026-08-29',
+        event_date: '2099-08-29',
         slug: 'august-2026-meetup',
         series_type: 'monthly',
         location: { name: 'Fido, Accra', label: 'Fido, Accra', url: null },
@@ -801,8 +801,8 @@ describe('native event registration API', () => {
       'attachment; filename="devcongress-august-meetup.ics"',
     );
     const calendar = await calendarResponse.text();
-    expect(calendar).toContain('DTSTART;VALUE=DATE:20260829\r\n');
-    expect(calendar).toContain('DTEND;VALUE=DATE:20260830\r\n');
+    expect(calendar).toContain('DTSTART;VALUE=DATE:20990829\r\n');
+    expect(calendar).toContain('DTEND;VALUE=DATE:20990830\r\n');
     expect(calendar).toContain('LOCATION:Fido\\, Accra\r\n');
 
     const register = (name: string, email: string) => app.request(
