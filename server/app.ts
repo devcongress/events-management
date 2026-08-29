@@ -722,7 +722,7 @@ const adminCreateTalkSchema = z.object({
   publish: z.boolean().optional().default(false),
 }).strict();
 const shortLinkCreateSchema = z.object({
-  destination: z.enum(['monthly_cfp', 'event_registration', 'conference_cfp', 'volunteer_intake']),
+  destination: z.enum(['monthly_cfp', 'event_registration', 'event_feedback', 'conference_cfp', 'volunteer_intake']),
   event_id: z.string().uuid().optional(),
   conference_year: z.number().int().min(2020).max(3000).optional(),
 }).strict();
@@ -1351,6 +1351,10 @@ async function shortLinkDestinationPath(link: {
     const campaign = await getRegistrationCampaign(event.id, c);
     return campaign?.status === 'open' ? `/r/${event.slug}` : null;
   }
+  if (link.destination === 'event_feedback') {
+    const campaign = await getFeedbackCampaignByEventStore(event.id, c);
+    return campaign && isFeedbackCampaignOpen(event, campaign) ? `/feedback/${event.id}` : null;
+  }
   return null;
 }
 
@@ -1401,10 +1405,16 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
     getAllEvents(c),
     createAnnualConferenceRepository(c).listEditions(),
   ]);
-  const registrationCampaigns = await Promise.all(events.map(async (event) => ({
+  const [registrationCampaigns, feedbackCampaigns] = await Promise.all([
+    Promise.all(events.map(async (event) => ({
     event,
     campaign: await getRegistrationCampaign(event.id, c),
-  })));
+    }))),
+    Promise.all(events.map(async (event) => ({
+      event,
+      campaign: await getFeedbackCampaignByEventStore(event.id, c),
+    }))),
+  ]);
   return {
     events,
     editions,
@@ -1416,6 +1426,9 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
       ...registrationCampaigns
         .filter(({ event, campaign }) => Boolean(event.slug) && campaign?.status === 'open')
         .map(({ event }) => ({ destination: 'event_registration' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/r/${event.slug}` })),
+      ...feedbackCampaigns
+        .filter(({ event, campaign }) => campaign && isFeedbackCampaignOpen(event, campaign))
+        .map(({ event }) => ({ destination: 'event_feedback' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` })),
       ...editions
         .filter((edition) => edition.speaker_call_status === 'open')
         .map((edition) => ({ destination: 'conference_cfp' as const, eventId: null, conferenceEditionId: edition.id, destinationPath: `/speak/c/${edition.year}` })),
@@ -6093,7 +6106,9 @@ app.get('/api/admin/short-links', async (c) => {
         url: shortLinkPublicUrl(link.code, c),
         label: link.destination === 'volunteer_intake'
           ? 'Volunteer form'
-          : link.destination === 'conference_cfp'
+          : link.destination === 'event_feedback'
+            ? `${eventById.get(link.event_id ?? '')?.name ?? 'Event'} feedback`
+            : link.destination === 'conference_cfp'
             ? (editionById.get(link.conference_edition_id ?? '')?.name ?? 'Conference Call for Speakers')
             : (eventById.get(link.event_id ?? '')?.name ?? 'Event'),
       })),

@@ -8,6 +8,7 @@ describe('static short-link destinations', () => {
 
   it('leaves event and conference destinations to their runtime availability checks', () => {
     expect(staticShortLinkDestinationPath('event_registration')).toBeNull();
+    expect(staticShortLinkDestinationPath('event_feedback')).toBeNull();
     expect(staticShortLinkDestinationPath('monthly_cfp')).toBeNull();
     expect(staticShortLinkDestinationPath('conference_cfp')).toBeNull();
   });

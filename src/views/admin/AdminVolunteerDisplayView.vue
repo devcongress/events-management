@@ -7,6 +7,7 @@ import { ensureAdminShortLink } from '@/src/lib/api';
 const qrCodeUrl = ref<string | null>(null);
 const error = ref('');
 const publicUrl = computed(() => `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`);
+const DEVCONGRESS_LOGO_PATH = '/brand/dev-con-logo.png';
 
 onMounted(async () => {
   try {
@@ -43,22 +44,28 @@ onMounted(async () => {
       <template v-else>
         <main class="volunteer-display-layout">
           <section class="volunteer-display-intro" aria-labelledby="volunteer-display-title">
+            <div class="volunteer-display-brand">
+              <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress">
+            </div>
             <p class="volunteer-display-context">DevCongress <span aria-hidden="true">/</span> Volunteer team</p>
             <h1 id="volunteer-display-title">Volunteer with DevCongress.</h1>
             <p class="volunteer-display-lead">Help us create welcoming, well-run community events.</p>
             <p class="volunteer-display-support">Scan the code to join the volunteer list. We’ll contact you when there’s an opportunity to get involved.</p>
+            <p class="volunteer-display-manifesto">Make the room better.</p>
           </section>
 
           <section class="volunteer-display-qr-stage" aria-label="Volunteer sign-up QR code">
             <p class="volunteer-display-qr-label"><span aria-hidden="true"></span> Volunteer sign-up</p>
-            <Transition v-if="qrCodeUrl" name="volunteer-display-qr">
-              <img
-                :src="qrCodeUrl"
-                alt="QR code for the DevCongress volunteer form"
-                class="volunteer-display-qr"
-              >
-            </Transition>
-            <div v-if="!qrCodeUrl" class="volunteer-display-qr-loading" aria-live="polite">Preparing your sign-up code…</div>
+            <div class="volunteer-display-qr-frame">
+              <Transition v-if="qrCodeUrl" name="volunteer-display-qr">
+                <img
+                  :src="qrCodeUrl"
+                  alt="QR code for the DevCongress volunteer form"
+                  class="volunteer-display-qr"
+                >
+              </Transition>
+              <div v-if="!qrCodeUrl" class="volunteer-display-qr-loading" aria-live="polite">Preparing your sign-up code…</div>
+            </div>
             <p class="volunteer-display-qr-caption">Open camera, scan code</p>
           </section>
         </main>
