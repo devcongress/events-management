@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import QRCode from 'qrcode';
 import { adminPath } from '@/src/admin-routes';
-import { fetchEventById, fetchFeedbackEventStatus } from '@/src/lib/api';
+import { ensureAdminShortLink, fetchEventById, fetchFeedbackEventStatus } from '@/src/lib/api';
 import type { Event as CommunityEvent } from '@/types';
 
 const route = useRoute();
@@ -13,6 +13,7 @@ const event = ref<CommunityEvent | null>(null);
 const publicUrl = ref<string | null>(null);
 const qrCodeUrl = ref<string | null>(null);
 const available = ref(false);
+const DEVCONGRESS_LOGO_PATH = '/brand/dev-con-logo.png';
 
 const eventId = computed(() => String(route.params.eventId ?? ''));
 const canShowQr = computed(() => (
@@ -59,7 +60,14 @@ async function loadDisplay() {
     publicUrl.value = statusPayload.public_url;
 
     if (statusPayload.available && statusPayload.public_url) {
-      await buildQrCode(statusPayload.public_url);
+      let qrDestination = statusPayload.public_url;
+      try {
+        const shortLink = await ensureAdminShortLink({ destination: 'event_feedback', event_id: eventId.value });
+        qrDestination = shortLink.url;
+      } catch {
+        // The direct event feedback URL stays available if the short-link service is unavailable.
+      }
+      await buildQrCode(qrDestination);
     } else {
       qrCodeUrl.value = null;
     }
@@ -92,6 +100,9 @@ onMounted(() => {
 
       <template v-else-if="event">
         <header class="feedback-display-header">
+          <div class="feedback-display-brand" aria-label="DevCongress">
+            <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress">
+          </div>
           <p class="editorial-eyebrow">feedback display</p>
           <h1>{{ event.name }}</h1>
           <p v-if="canShowQr" class="feedback-display-lead">Scan the QR code to open the live feedback form on your phone.</p>

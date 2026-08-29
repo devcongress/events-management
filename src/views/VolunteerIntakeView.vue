@@ -85,9 +85,18 @@ async function submitApplication() {
         >
           <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress">
         </a>
-        <p class="editorial-eyebrow">DevCongress volunteers</p>
+        <div class="volunteer-intake-brand-rail" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <p class="editorial-eyebrow">Volunteer call / DevCongress</p>
         <h1 id="volunteer-intake-title">Volunteer with DevCongress.</h1>
         <p>Help us create welcoming, well-run community events. Share your details and we’ll contact you when there’s an opportunity to get involved.</p>
+        <div class="volunteer-intake-promise" aria-label="What volunteering supports">
+          <span>Community</span>
+          <span>Care</span>
+          <span>Great events</span>
+        </div>
+        <p class="volunteer-intake-side-note">Bring your time, curiosity, and a willingness to make the room better.</p>
       </div>
 
       <Transition name="volunteer-intake-state" mode="out-in">
@@ -99,7 +108,11 @@ async function submitApplication() {
 
         <form v-else key="form" class="volunteer-intake-form" @submit.prevent="submitApplication">
           <header class="volunteer-intake-form-header">
-            <p class="editorial-eyebrow">Contact details</p>
+            <div class="volunteer-intake-form-heading">
+              <p class="editorial-eyebrow">Join the team</p>
+              <span>Four fields · two minutes</span>
+            </div>
+            <h2>Tell us how to reach you.</h2>
             <p>Share the best way to reach you. X and Slack are optional.</p>
           </header>
 

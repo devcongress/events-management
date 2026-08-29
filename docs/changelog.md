@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-29 — Branded volunteer form and QR display
+
+- Reworked the public volunteer form into a DevCongress volunteer-call page with the shared wordmark, campaign colour rail, concise participation cues, and a stronger editorial form panel—without changing its URL, fields, validation, or submission flow.
+- Turned the organizer’s volunteer QR display into a matching event sign: it now carries the DevCongress mark, campaign framing, and a clearer QR scan target while retaining its existing short-link fallback and QR destination.
+- Added an event-scoped feedback short link for each open feedback form. The feedback QR display now reuses that managed `go.devcongress.org` link before falling back to the existing direct form URL.
+
 ## 2026-08-29 — Unified Audit Log delivery activity
 
 - Consolidated the Audit Log’s transactional-message and event-blast histories into one paginated activity container with a compact **Messages / Event blasts** switch, preserving each view’s counts, provider context, and independent page position.
