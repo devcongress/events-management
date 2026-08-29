@@ -11,6 +11,13 @@ const drawerSource = readFileSync(
 );
 
 describe('event blast activity workspace', () => {
+  it('uses a compact checkmark and secondary undo action for checked-in guests', () => {
+    expect(viewSource).toContain('aria-label="Checked in"');
+    expect(viewSource).toContain('UNDO CHECK-IN');
+    expect(viewSource).toContain('v-if="registration.status === \'confirmed\' && registration.checked_in_at"');
+    expect(viewSource).not.toContain("if (registration.checked_in_at) return 'Checked in';");
+  });
+
   it('separates today’s capacity overview from the allocation editor', () => {
     expect(viewSource).toContain("MANAGE TODAY\\'S ALLOCATION");
     expect(viewSource).toContain('Allocate today’s usable capacity');

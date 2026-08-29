@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-29 — Unified Audit Log delivery activity
+
+- Consolidated the Audit Log’s transactional-message and event-blast histories into one paginated activity container with a compact **Messages / Event blasts** switch, preserving each view’s counts, provider context, and independent page position.
+- Removed the local-only **Remove test guest** action from the registration workspace; normal check-in and cancellation controls remain available.
+- Replaced the checked-in text tag with a compact accessible checkmark and made **Undo check-in** a distinct secondary action with an undo icon.
+- Stabilized the delivery-activity switch by removing count/range noise and view enter/exit movement; its fixed context strip keeps the table from jumping when changing between messages and blasts.
+
 ## 2026-08-29 — Clearer event-blast capacity and delivery activity
 
 - Reworked the desktop Blasts header into a stable daily-capacity summary that distinguishes usable quota, blast allocation, transactional reserve, and audience size without making static values look like actions.

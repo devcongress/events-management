@@ -20,7 +20,6 @@ import {
   fetchEventRegistrations,
   processEventRegistrationEmails,
   queryKeys,
-  removeEventRegistration,
   retryEventBlast,
   undoCheckInEventRegistration,
   updateEventById,
@@ -133,17 +132,12 @@ const blastScheduledFor = ref('');
 const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
 const pendingCheckInUndo = ref<EventRegistration | null>(null);
-const pendingRemoval = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
 const publicLinkCopied = ref(false);
 const publicShortLinkUrl = ref<string | null>(null);
 const manualRefreshPending = ref(false);
 const reopenRegistrationConfirmationOpen = ref(false);
 const reopenRegistrationPending = ref(false);
-const devRegistrationRemovalEnabled = import.meta.env.DEV;
-const canRemoveTestGuest = computed(() => Boolean(
-  devRegistrationRemovalEnabled && adminSessionQuery.data.value?.user?.role === 'owner',
-));
 let publicLinkFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 const statusOptions = [
@@ -628,14 +622,12 @@ function guestStatusLabel(registration: EventRegistration): string | null {
   ) {
     return 'No-show';
   }
-  if (registration.checked_in_at) return 'Checked in';
   if (registration.status === 'waitlisted') return 'Waitlisted';
   if (registration.status === 'cancelled') return 'Cancelled';
   return null;
 }
 
 function guestStatusClass(registration: EventRegistration): string {
-  if (registration.checked_in_at) return 'border-dc-ink bg-dc-ink text-white';
   if (registration.status === 'waitlisted') return 'border-amber-300 bg-amber-50 text-amber-800';
   if (
     workspaceSummary.value?.eventEnded
@@ -1022,22 +1014,6 @@ async function confirmCancellation() {
   }
 }
 
-async function confirmRemoval() {
-  const registration = pendingRemoval.value;
-  if (!registration || actionRegistrationId.value || !canRemoveTestGuest.value) return;
-  actionRegistrationId.value = registration.id;
-  try {
-    await removeEventRegistration(eventId.value, registration.id);
-    await refresh();
-    notify.success(`${registration.name} was permanently removed.`);
-    pendingRemoval.value = null;
-  } catch (error) {
-    notify.error(error instanceof Error ? error.message : 'Unable to remove this test guest.');
-  } finally {
-    actionRegistrationId.value = null;
-  }
-}
-
 async function retryEmails() {
   if (retryPending.value) return;
   retryPending.value = true;
@@ -1387,6 +1363,15 @@ async function retryEmails() {
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate font-bold text-dc-ink">{{ registration.name }}</p>
                   <span
+                    v-if="registration.checked_in_at"
+                    class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-white"
+                    role="img"
+                    aria-label="Checked in"
+                    :title="`Checked in ${formatDateTime(registration.checked_in_at)}`"
+                  >
+                    <svg class="size-3" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3.25 8.25 2.85 2.85 6.65-6.65" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" /></svg>
+                  </span>
+                  <span
                     v-if="guestStatusLabel(registration)"
                     class="rounded-sm border px-2 py-0.5 font-mono text-[10px] font-semibold uppercase"
                     :class="guestStatusClass(registration)"
@@ -1399,14 +1384,7 @@ async function retryEmails() {
                   Registered {{ formatDateTime(registration.created_at) }} · Email {{ emailStatusLabel(registration.email_status) }}
                 </p>
               </div>
-              <div
-                v-if="
-                  (registration.status === 'confirmed' && !registration.checked_in_at)
-                  || registration.status !== 'cancelled'
-                  || devRegistrationRemovalEnabled
-                "
-                class="flex flex-wrap gap-2"
-              >
+              <div class="flex flex-wrap gap-2">
                 <button
                   v-if="registration.status === 'confirmed' && !registration.checked_in_at"
                   type="button"
@@ -1419,10 +1397,11 @@ async function retryEmails() {
                 <button
                   v-if="registration.status === 'confirmed' && registration.checked_in_at"
                   type="button"
-                  class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50"
+                  class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border-2 border-dc-ink bg-white px-4 font-mono text-xs font-semibold uppercase text-dc-ink disabled:opacity-50"
                   :disabled="Boolean(actionRegistrationId)"
                   @click="pendingCheckInUndo = registration"
                 >
+                  <svg class="size-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 5.5 3.75 9.25 7.5 13M4.25 9.25h7a4.75 4.75 0 0 1 0 9.5H9.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" /></svg>
                   UNDO CHECK-IN
                 </button>
                 <button
@@ -1433,15 +1412,6 @@ async function retryEmails() {
                   @click="pendingCancellation = registration"
                 >
                   Cancel
-                </button>
-                <button
-                  v-if="canRemoveTestGuest"
-                  type="button"
-                  class="min-h-11 rounded-md border-2 border-red-600 bg-red-50 px-4 font-mono text-xs font-semibold uppercase text-red-700 disabled:opacity-50"
-                  :disabled="Boolean(actionRegistrationId)"
-                  @click="pendingRemoval = registration"
-                >
-                  Remove test guest
                 </button>
               </div>
             </div>
@@ -1937,18 +1907,6 @@ async function retryEmails() {
       @confirm="confirmCancellation"
     />
 
-    <ConfirmDialog
-      :open="Boolean(pendingRemoval) && canRemoveTestGuest"
-      title="Remove test guest?"
-      :message="pendingRemoval ? `${pendingRemoval.name} (${pendingRemoval.email}) and their check-in and email-delivery records will be permanently deleted. This cannot be undone.` : ''"
-      confirm-label="Remove guest"
-      busy-label="Removing..."
-      cancel-label="Keep guest"
-      danger
-      :busy="Boolean(actionRegistrationId)"
-      @cancel="pendingRemoval = null"
-      @confirm="confirmRemoval"
-    />
   </div>
 </template>
 
