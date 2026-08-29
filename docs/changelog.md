@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-29 — Clearer event-blast capacity and delivery activity
+
+- Reworked the desktop Blasts header into a stable daily-capacity summary that distinguishes usable quota, blast allocation, transactional reserve, and audience size without making static values look like actions.
+- Moved the coupled allocation inputs behind an explicit **Manage today’s allocation** action; the balanced editor makes the current total and the blast-versus-transactional trade-off clear before save.
+- Replaced the unbounded delivery list with a ten-row paginated activity table. Selecting a row opens a focus-trapped right drawer with audience progress, timing, provider references, the exact sanitized preparation failure, message body, and an in-context retry when available.
+
 ## 2026-08-28 — Resumable event-blast audience preparation
 
 - Replaced the single long-running contact-import request with a serial Cloudflare Queue workflow that prepares ten recipients at a time and continues automatically.
