@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-06 — Volunteer intake form polish
+
+- Rebalanced the public volunteer form into a clearer editorial panel: the desktop form now sits in a protected right column, while mobile uses one clean card without nested poster borders or shadows.
+- Matched the form page's volunteer introduction to the QR display's left panel, including its headline scale and wrapping, logo treatment, and spacing.
+- Moved Cloudflare Turnstile into its own responsive, labelled slot so it cannot overlap the submit control at desktop widths. The public URL, fields, validation, and submission flow are unchanged.
+- Pinned the transitive Browserslist toolchain dependency to its patched release after new upstream advisories began failing the required dependency audit.
+
 ## 2026-08-29 — Branded volunteer form and QR display
 
 - Reworked the public volunteer form into a DevCongress volunteer-call page with the shared wordmark, campaign colour rail, concise participation cues, and a stronger editorial form panel—without changing its URL, fields, validation, or submission flow.

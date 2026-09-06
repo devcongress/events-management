@@ -75,89 +75,89 @@ async function submitApplication() {
 <template>
   <main class="volunteer-intake-page">
     <section class="volunteer-intake-shell" aria-labelledby="volunteer-intake-title">
-      <div class="volunteer-intake-intro">
-        <a
-          class="volunteer-intake-logo"
-          href="https://devcongress.org"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Visit DevCongress"
-        >
-          <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress">
-        </a>
-        <div class="volunteer-intake-brand-rail" aria-hidden="true">
-          <span></span><span></span><span></span>
+      <div class="volunteer-intake-layout">
+        <div class="volunteer-intake-intro">
+          <a
+            class="volunteer-intake-logo"
+            href="https://devcongress.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit DevCongress"
+          >
+            <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress">
+          </a>
+          <p class="volunteer-intake-context">DevCongress <span aria-hidden="true">/</span> Volunteer team</p>
+          <h1 id="volunteer-intake-title">Volunteer with DevCongress.</h1>
+          <p class="volunteer-intake-lead">Help us create welcoming, well-run community events.</p>
+          <p class="volunteer-intake-support">Share your details and we’ll contact you when there’s an opportunity to get involved.</p>
+          <p class="volunteer-intake-manifesto">Make the room better.</p>
         </div>
-        <p class="editorial-eyebrow">Volunteer call / DevCongress</p>
-        <h1 id="volunteer-intake-title">Volunteer with DevCongress.</h1>
-        <p>Help us create welcoming, well-run community events. Share your details and we’ll contact you when there’s an opportunity to get involved.</p>
-        <div class="volunteer-intake-promise" aria-label="What volunteering supports">
-          <span>Community</span>
-          <span>Care</span>
-          <span>Great events</span>
-        </div>
-        <p class="volunteer-intake-side-note">Bring your time, curiosity, and a willingness to make the room better.</p>
-      </div>
 
-      <Transition name="volunteer-intake-state" mode="out-in">
-        <section v-if="submitted" key="receipt" class="volunteer-intake-receipt" aria-live="polite">
-          <p class="editorial-eyebrow">You’re on the list</p>
-          <h2>Thanks, {{ form.name }}.</h2>
-          <p>We’ve received your details. We’ll contact you when there’s a volunteer opportunity.</p>
+        <section class="volunteer-intake-form-stage" aria-label="Volunteer sign-up form">
+          <Transition name="volunteer-intake-state" mode="out-in">
+            <section v-if="submitted" key="receipt" class="volunteer-intake-receipt" aria-live="polite">
+              <p class="editorial-eyebrow">You’re on the list</p>
+              <h2>Thanks, {{ form.name }}.</h2>
+              <p>We’ve received your details. We’ll contact you when there’s a volunteer opportunity.</p>
+            </section>
+
+            <form v-else key="form" class="volunteer-intake-form" @submit.prevent="submitApplication">
+              <header class="volunteer-intake-form-header">
+                <div class="volunteer-intake-form-heading">
+                  <p class="editorial-eyebrow">Join the team</p>
+                  <span>Four fields · two minutes</span>
+                </div>
+                <h2>Tell us how to reach you.</h2>
+                <p>Share the best way to reach you. X and Slack are optional.</p>
+              </header>
+
+              <div class="volunteer-intake-fields">
+                <label>
+                  <span>Full name</span>
+                  <input v-model="form.name" name="name" autocomplete="name" maxlength="120" required>
+                </label>
+                <label>
+                  <span>Email address</span>
+                  <input v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" required>
+                </label>
+                <label>
+                  <span>X handle (optional)</span>
+                  <input v-model="form.x_handle" name="x-handle" autocomplete="off" placeholder="@yourhandle" maxlength="100">
+                </label>
+                <label>
+                  <span>DevCongress Slack name (optional)</span>
+                  <input v-model="form.slack_name" name="slack-name" autocomplete="nickname" placeholder="Your display name" maxlength="120">
+                </label>
+              </div>
+
+              <p v-if="error || turnstileError" class="volunteer-intake-error" role="alert">{{ error || turnstileError }}</p>
+
+              <div class="volunteer-intake-actions">
+                <div v-if="turnstileActive" class="volunteer-intake-verification">
+                  <span>Quick human check</span>
+                  <TurnstileWidget
+                    ref="turnstileWidget"
+                    size="flexible"
+                    :action="VOLUNTEER_INTAKE_TURNSTILE_ACTION"
+                    @token-change="turnstileToken = $event"
+                    @error="turnstileError = $event ?? ''"
+                  />
+                </div>
+
+                <button
+                  class="volunteer-intake-submit motion-press"
+                  type="submit"
+                  :disabled="!canSubmit || submitting"
+                  :aria-busy="submitting"
+                >
+                  <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
+                  <template v-else>Join the volunteer list</template>
+                </button>
+              </div>
+            </form>
+          </Transition>
         </section>
-
-        <form v-else key="form" class="volunteer-intake-form" @submit.prevent="submitApplication">
-          <header class="volunteer-intake-form-header">
-            <div class="volunteer-intake-form-heading">
-              <p class="editorial-eyebrow">Join the team</p>
-              <span>Four fields · two minutes</span>
-            </div>
-            <h2>Tell us how to reach you.</h2>
-            <p>Share the best way to reach you. X and Slack are optional.</p>
-          </header>
-
-          <div class="volunteer-intake-fields">
-            <label>
-              <span>Full name</span>
-              <input v-model="form.name" name="name" autocomplete="name" maxlength="120" required>
-            </label>
-            <label>
-              <span>Email address</span>
-              <input v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" required>
-            </label>
-            <label>
-              <span>X handle (optional)</span>
-              <input v-model="form.x_handle" name="x-handle" autocomplete="off" placeholder="@yourhandle" maxlength="100">
-            </label>
-            <label>
-              <span>DevCongress Slack name (optional)</span>
-              <input v-model="form.slack_name" name="slack-name" autocomplete="nickname" placeholder="Your display name" maxlength="120">
-            </label>
-          </div>
-
-          <p v-if="error || turnstileError" class="volunteer-intake-error" role="alert">{{ error || turnstileError }}</p>
-
-          <div class="volunteer-intake-actions">
-            <TurnstileWidget
-              v-if="turnstileActive"
-              ref="turnstileWidget"
-              :action="VOLUNTEER_INTAKE_TURNSTILE_ACTION"
-              @token-change="turnstileToken = $event"
-              @error="turnstileError = $event ?? ''"
-            />
-
-            <button
-              class="volunteer-intake-submit motion-press"
-              type="submit"
-              :disabled="!canSubmit || submitting"
-              :aria-busy="submitting"
-            >
-              <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
-              <template v-else>Join the volunteer list</template>
-            </button>
-          </div>
-        </form>
-      </Transition>
+      </div>
     </section>
   </main>
 </template>

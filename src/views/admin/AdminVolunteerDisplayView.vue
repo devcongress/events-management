@@ -55,7 +55,6 @@ onMounted(async () => {
           </section>
 
           <section class="volunteer-display-qr-stage" aria-label="Volunteer sign-up QR code">
-            <p class="volunteer-display-qr-label"><span aria-hidden="true"></span> Volunteer sign-up</p>
             <div class="volunteer-display-qr-frame">
               <Transition v-if="qrCodeUrl" name="volunteer-display-qr">
                 <img
