@@ -6831,19 +6831,22 @@
 	  }
 
 	  .volunteer-intake-page {
+	    display: grid;
 	    min-height: 100svh;
 	    background:
-      radial-gradient(circle at 8% 12%, rgba(255, 228, 0, 0.38), transparent 18rem),
-      linear-gradient(135deg, #f7f4ec 0%, #f7f4ec 68%, #efebe0 68%, #efebe0 100%);
-	    padding: clamp(1.25rem, 4vw, 4rem) 1.25rem;
+	      radial-gradient(circle at 8% 12%, rgba(255, 228, 0, 0.38), transparent 18rem),
+	      linear-gradient(135deg, #f7f4ec 0%, #f7f4ec 68%, #efebe0 68%, #efebe0 100%);
+	    overflow: hidden;
 	  }
 
 	  .volunteer-intake-shell {
 	    display: grid;
+	    box-sizing: border-box;
 	    gap: clamp(1.5rem, 4vw, 3.5rem);
-	    width: min(100%, 72rem);
+	    width: min(1180px, calc(100vw - 2.5rem));
+	    min-height: 100svh;
 	    margin: 0 auto;
-	    padding-block: clamp(1rem, 5vh, 4rem);
+	    padding: clamp(1.5rem, 5vw, 4.5rem) 0;
 	  }
 
 	  .volunteer-intake-intro {
@@ -6892,7 +6895,7 @@
 	    max-width: 18ch;
 	    color: #111111;
 	    font-size: clamp(2.35rem, 5vw, 3.75rem);
-	    font-weight: var(--font-weight-display);
+	    font-weight: var(--font-weight-heading);
 	    letter-spacing: -0.04em;
 	    line-height: 0.96;
 	  }
@@ -6949,7 +6952,19 @@
 
 	  .volunteer-intake-form {
 	    display: grid;
-	    gap: 1.75rem;
+	    gap: 1.5rem;
+	    position: relative;
+	    overflow: hidden;
+	  }
+
+	  .volunteer-intake-form::before {
+	    position: absolute;
+	    top: 0;
+	    right: 0;
+	    width: clamp(4rem, 12vw, 7rem);
+	    height: 0.42rem;
+	    background: #e8117f;
+	    content: '';
 	  }
 
   .volunteer-intake-form-header {
@@ -6994,7 +7009,7 @@
 
 	  .volunteer-intake-fields {
 	    display: grid;
-	    gap: 1.25rem;
+	    gap: 1.1rem;
 	  }
 
 	  .volunteer-intake-fields label {
@@ -7047,7 +7062,25 @@
 
   .volunteer-intake-actions {
     display: grid;
-    gap: 1rem;
+    gap: 1.1rem;
+    align-items: end;
+    border-top: 1px solid #d8d3c7;
+    padding-top: 1.25rem;
+  }
+
+  .volunteer-intake-verification {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .volunteer-intake-verification > span {
+    color: #67645e;
+    font-family: var(--font-mono), monospace;
+    font-size: 0.62rem;
+    font-weight: var(--font-weight-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
 	  .volunteer-intake-submit {
@@ -7064,6 +7097,10 @@
 	    text-transform: uppercase;
 	    box-shadow: 3px 3px 0 #111111;
 	    transition: transform 100ms var(--motion-fast), box-shadow 150ms var(--motion-fast), opacity 150ms var(--motion-fast), background-color 150ms var(--motion-fast);
+	  }
+
+	  .volunteer-intake-submit:active:not(:disabled) {
+	    transform: scale(0.97);
 	  }
 
   @media (hover: hover) and (pointer: fine) {
@@ -7099,6 +7136,210 @@
 	    color: #4b4b4b;
 	    font-size: 1.1rem;
 	    font-weight: var(--font-weight-emphasis);
+	  }
+
+	  /* The public form deliberately uses the same poster composition as the QR display. */
+	  .volunteer-intake-shell {
+	    align-items: center;
+	  }
+
+	  .volunteer-intake-layout {
+	    display: grid;
+	    align-items: center;
+	    gap: clamp(2rem, 7vw, 6rem);
+	    border: 2px solid #111111;
+	    background: #fffdf7;
+	    box-shadow: 7px 7px 0 #111111;
+	    padding: clamp(1.35rem, 4vw, 3.5rem);
+	  }
+
+	  .volunteer-intake-intro {
+	    align-content: center;
+	    gap: 1.4rem;
+	  }
+
+	  .volunteer-intake-logo {
+	    width: min(15rem, 75vw);
+	    padding: 0.42rem 0.55rem;
+	    box-shadow: none;
+	  }
+
+	  .volunteer-intake-context,
+	  .volunteer-intake-form-label {
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.7rem;
+	    font-weight: var(--font-weight-label);
+	    letter-spacing: 0.13em;
+	    line-height: 1.4;
+	    text-transform: uppercase;
+	  }
+
+	  .volunteer-intake-context {
+	    color: #2a2926;
+	  }
+
+	  .volunteer-intake-intro h1 {
+	    max-width: 9ch;
+	    font-size: clamp(3.1rem, 5.4vw, 5.5rem);
+	    letter-spacing: -0.06em;
+	    line-height: 0.92;
+	  }
+
+	  .volunteer-intake-lead {
+	    max-width: 29ch;
+	    color: #2a2926;
+	    font-size: clamp(1.1rem, 1.55vw, 1.35rem);
+	    font-weight: var(--font-weight-emphasis);
+	    letter-spacing: -0.02em;
+	    line-height: 1.32;
+	  }
+
+	  .volunteer-intake-support {
+	    max-width: 41ch;
+	    color: #67645e;
+	    font-size: 0.98rem;
+	    font-weight: var(--font-weight-body);
+	    line-height: 1.65;
+	  }
+
+	  .volunteer-intake-manifesto {
+	    width: fit-content;
+	    border: 2px solid #111111;
+	    background: #f7e733;
+	    padding: 0.55rem 0.75rem;
+	    color: #111111;
+	    font-family: var(--font-mono), monospace;
+	    font-size: 0.75rem;
+	    font-weight: var(--font-weight-label);
+	    letter-spacing: 0.08em;
+	    text-transform: uppercase;
+	    transform: rotate(-1.5deg);
+	  }
+
+  .volunteer-intake-form-stage {
+    display: grid;
+    width: min(100%, 31rem);
+    justify-self: end;
+  }
+
+	  .volunteer-intake-form,
+	  .volunteer-intake-receipt {
+	    width: 100%;
+	    min-height: auto;
+	    box-sizing: border-box;
+	    border: 2px solid #111111;
+	    border-top: 0.75rem solid #e8117f;
+	    box-shadow: none;
+	  }
+
+	  .volunteer-intake-form {
+	    align-content: start;
+	    overflow: visible;
+	  }
+
+	  .volunteer-intake-form::before {
+	    display: none;
+	  }
+
+	  .volunteer-intake-actions {
+	    grid-template-columns: minmax(0, 1fr);
+	    align-items: stretch;
+	  }
+
+	  .volunteer-intake-actions .volunteer-intake-submit {
+	    width: 100%;
+	    justify-self: stretch;
+	  }
+
+	  @media (max-width: 767px) {
+	    .volunteer-intake-page {
+	      padding-inline: 1rem;
+	      overflow: visible;
+	    }
+
+	    .volunteer-intake-shell {
+	      width: 100%;
+	      gap: 1.5rem;
+	      padding-block: 1rem 1.75rem;
+	    }
+
+	    .volunteer-intake-intro {
+	      gap: 0.9rem;
+	    }
+
+	    .volunteer-intake-layout {
+	      gap: 1.75rem;
+	      border: 0;
+	      background: transparent;
+	      box-shadow: none;
+	      padding: 0;
+	    }
+
+	    .volunteer-intake-logo {
+	      width: min(13rem, 72vw);
+	    }
+
+	    .volunteer-intake-intro h1 {
+	      max-width: 10ch;
+	      font-size: clamp(2.5rem, 12vw, 3.35rem);
+	    }
+
+	    .volunteer-intake-manifesto {
+	      justify-self: center;
+	    }
+
+	    .volunteer-intake-form,
+	    .volunteer-intake-receipt {
+	      border-top-width: 0.5rem;
+	      padding: clamp(1rem, 5vw, 1.25rem);
+	      box-shadow: none;
+	    }
+
+	    .volunteer-intake-form-stage {
+	      width: 100%;
+	      justify-self: stretch;
+	    }
+
+	    .volunteer-intake-form {
+	      gap: 1.25rem;
+	    }
+
+	    .volunteer-intake-form-header {
+	      gap: 0.45rem;
+	      padding-bottom: 1rem;
+	    }
+
+	    .volunteer-intake-form-heading > span {
+	      display: none;
+	    }
+
+	    .volunteer-intake-form-header h2 {
+	      max-width: 13ch;
+	      font-size: clamp(1.85rem, 8vw, 2.2rem);
+	      line-height: 1;
+	    }
+
+	    .volunteer-intake-form-header > p:last-child {
+	      font-size: 0.88rem;
+	      line-height: 1.5;
+	    }
+
+	    .volunteer-intake-fields {
+	      gap: 0.95rem;
+	    }
+
+	    .volunteer-intake-fields input {
+	      min-height: 3.2rem;
+	    }
+
+	    .volunteer-intake-actions {
+	      gap: 0.9rem;
+	      padding-top: 1rem;
+	    }
+
+	    .volunteer-intake-submit {
+	      width: 100%;
+	    }
 	  }
 
   .volunteer-intake-state-enter-active,
@@ -7350,7 +7591,7 @@
     max-width: 9ch;
     color: #111111;
     font-size: clamp(3.1rem, 5.4vw, 5.5rem);
-    font-weight: var(--font-weight-display);
+    font-weight: var(--font-weight-heading);
     letter-spacing: -0.06em;
     line-height: 0.92;
   }
@@ -7395,7 +7636,6 @@
   }
 
   .volunteer-display-context,
-  .volunteer-display-qr-label,
   .volunteer-display-qr-caption {
     font-family: var(--font-mono), monospace;
     font-size: 0.7rem;
@@ -7403,20 +7643,6 @@
     letter-spacing: 0.13em;
     line-height: 1.4;
     text-transform: uppercase;
-  }
-
-  .volunteer-display-qr-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #68655e;
-  }
-
-  .volunteer-display-qr-label span {
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 999px;
-    background: #d70b70;
   }
 
   .volunteer-display-qr-frame {
@@ -7494,28 +7720,29 @@
 
 	  @media (min-width: 768px) {
 	    .volunteer-intake-shell {
-	      grid-template-columns: minmax(0, 0.86fr) minmax(25rem, 1.14fr);
-	      align-items: start;
+	      grid-template-columns: minmax(0, 1fr);
+	      align-items: center;
+	      min-height: 100svh;
+	      padding-block: clamp(2rem, 5vw, 4.5rem);
 	    }
 
-	    .volunteer-intake-intro {
-	      position: sticky;
-	      top: clamp(1.25rem, 4vw, 3rem);
+	    .volunteer-intake-layout {
+	      grid-template-columns: minmax(0, 1fr);
 	    }
 
 	    .volunteer-intake-fields {
 	      grid-template-columns: repeat(2, minmax(0, 1fr));
 	    }
 
-    .volunteer-intake-actions {
-      grid-template-columns: 18.75rem minmax(0, 1fr);
-      align-items: center;
-    }
+	    .volunteer-intake-actions {
+	      grid-template-columns: minmax(0, 1fr);
+	      align-items: stretch;
+	    }
 
-    .volunteer-intake-actions .volunteer-intake-submit {
-      width: 17rem;
-      min-height: 3.25rem;
-      justify-self: end;
+	    .volunteer-intake-actions .volunteer-intake-submit {
+	      width: 100%;
+	      min-height: 3.25rem;
+	      justify-self: stretch;
       padding: 0.72rem 1.2rem;
       font-size: 0.82rem;
       letter-spacing: 0.06em;
@@ -7548,6 +7775,11 @@
 	  }
 
 	  @media (min-width: 1024px) {
+	    .volunteer-intake-layout {
+	      grid-template-columns: minmax(0, 1fr) minmax(0, 31rem);
+	      gap: clamp(3rem, 6vw, 5rem);
+	    }
+
 	    .feedback-section-header {
 	      flex-direction: row;
 	      align-items: flex-end;
