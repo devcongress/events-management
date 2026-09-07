@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { presentEventSubmissionReply } from '@/lib/email/event-submission-reply-presentation';
 import {
@@ -16,6 +17,7 @@ import {
   retryEventSubmissionEmail,
   retryEventSubmissionReplySlackAlert,
 } from '@/src/lib/api';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
 import { amendmentReplacesCover } from '@/src/lib/event-submission-amendment';
 import type {
@@ -42,10 +44,13 @@ const organizerMessage = ref('');
 const internalNote = ref('');
 const amendmentDecisionMessage = ref('');
 const withdrawing = ref(false);
-const copyingManagementLink = ref(false);
+const managementLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
+const managementLinkCopySubmissionId = ref<string | null>(null);
 const retryingEmailKinds = ref<Set<EventSubmissionEmailKind>>(new Set());
 const retryingReplyIds = ref<Set<string>>(new Set());
 let drawerTrigger: HTMLElement | null = null;
+let managementLinkCopyResetTimer: number | undefined;
+let managementLinkCopyOperation = 0;
 const rejectionOptions: Array<{ value: EventSubmissionRejectionCategory; label: string }> = [
   { value: 'calendar_fit', label: 'Event does not fit the community calendar' },
   { value: 'insufficient_information', label: 'Insufficient or unverifiable information' },
@@ -169,7 +174,18 @@ watch([linkedSubmissionId, () => linkedSubmissionsQuery.data.value], ([submissio
 
 watch(selectedId, () => {
   resetRejectionForm();
+  resetManagementLinkCopyFeedback();
 });
+
+function resetManagementLinkCopyFeedback() {
+  managementLinkCopyOperation += 1;
+  managementLinkCopyState.value = 'idle';
+  managementLinkCopySubmissionId.value = null;
+  if (managementLinkCopyResetTimer) {
+    window.clearTimeout(managementLinkCopyResetTimer);
+    managementLinkCopyResetTimer = undefined;
+  }
+}
 
 function openDrawer(submissionId: string, event?: Event) {
   drawerTrigger = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null;
@@ -222,7 +238,10 @@ function handleWindowKeydown(event: KeyboardEvent) {
 }
 
 onMounted(() => window.addEventListener('keydown', handleWindowKeydown));
-onUnmounted(() => window.removeEventListener('keydown', handleWindowKeydown));
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleWindowKeydown);
+  if (managementLinkCopyResetTimer) window.clearTimeout(managementLinkCopyResetTimer);
+});
 
 const approveMutation = useMutation({
   mutationFn: (submission: EventSubmission) => approveEventSubmission(submission.id, true),
@@ -329,27 +348,25 @@ function resetRejectionForm() {
 }
 
 async function copyManagementLink(submissionId: string) {
-  copyingManagementLink.value = true;
+  const operation = ++managementLinkCopyOperation;
+  managementLinkCopySubmissionId.value = submissionId;
+  managementLinkCopyState.value = 'copying';
   try {
     const { management_url: managementUrl } = await fetchEventSubmissionManagementLink(submissionId);
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(managementUrl);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = managementUrl;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await copyTextToClipboard(managementUrl);
+    if (operation !== managementLinkCopyOperation) return;
+    managementLinkCopyState.value = 'copied';
+    if (managementLinkCopyResetTimer) window.clearTimeout(managementLinkCopyResetTimer);
+    managementLinkCopyResetTimer = window.setTimeout(() => {
+      managementLinkCopyState.value = 'idle';
+      managementLinkCopyResetTimer = undefined;
+    }, 1800);
     notify.success('Management link copied. It remains active until the event ends.');
   } catch (error) {
+    if (operation !== managementLinkCopyOperation) return;
+    managementLinkCopyState.value = 'idle';
+    managementLinkCopySubmissionId.value = null;
     notify.error(error instanceof Error ? error.message : 'Unable to copy the management link.');
-  } finally {
-    copyingManagementLink.value = false;
   }
 }
 
@@ -939,15 +956,13 @@ function replyPresentation(reply: EventSubmissionReply) {
                 <span>Reviewed {{ selectedSubmission.reviewed_at ? formatDateTime(selectedSubmission.reviewed_at) : '' }} by {{ selectedSubmission.reviewed_by }}</span>
                 <div class="submission-review-actions">
                   <RouterLink v-if="selectedSubmission.approved_event_id" :to="adminPath(`events/${selectedSubmission.approved_event_id}`)" class="submission-review-action submission-review-action--secondary motion-press" @click="closeDrawer">Open event</RouterLink>
-                  <button
+                  <AppCopyButton
                     v-if="selectedSubmission.review_status === 'approved'"
-                    type="button"
+                    :state="managementLinkCopySubmissionId === selectedSubmission.id ? managementLinkCopyState : 'idle'"
+                    label="Copy management link"
                     class="submission-review-action submission-review-action--primary motion-press"
-                    :disabled="copyingManagementLink"
                     @click="copyManagementLink(selectedSubmission.id)"
-                  >
-                    {{ copyingManagementLink ? 'Copying…' : 'Copy management link' }}
-                  </button>
+                  />
                   <button v-if="selectedSubmission.review_status === 'approved' && !withdrawing" type="button" class="submission-review-action submission-review-action--quiet motion-press" @click="withdrawing = true">Remove listing</button>
                 </div>
               </div>

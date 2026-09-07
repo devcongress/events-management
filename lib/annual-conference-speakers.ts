@@ -2,26 +2,29 @@ import crypto from 'crypto';
 import { readData, updateData } from '@/lib/mock-db';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import { generateId, now } from '@/lib/utils';
-import type { ArchiveItemKind, SpeakerSubmissionStatus } from '@/types';
+import type { SpeakerSubmissionStatus } from '@/types';
 import type { Database } from '@/types/supabase';
+import type { AnnualConferenceSessionType, AnnualConferenceTopicTrack } from '@/lib/annual-conference-cfp';
 
 const SUBMISSIONS_FILE = 'annual-conference-speaker-submissions';
 const LINKS_FILE = 'annual-conference-speaker-intake-links';
 const SESSIONS_FILE = 'annual-conference-sessions';
+const PROFILES_FILE = 'annual-conference-speaker-profiles';
 const TOKEN_BYTES = 32;
 
 export interface AnnualConferenceSpeakerSubmission {
   id: string;
   edition_id: string;
-  kind: ArchiveItemKind;
   speaker_name: string;
   speaker_email: string;
-  github_username: string | null;
+  speaker_profile_id: string | null;
+  proposal_schema_version: 1 | 2;
   title: string;
-  topic: string;
+  topic: AnnualConferenceTopicTrack;
+  session_type: AnnualConferenceSessionType;
+  learning_outcomes: string[];
   abstract: string | null;
   bio: string | null;
-  resource_url: string | null;
   status: SpeakerSubmissionStatus;
   internal_note: string | null;
   selected_intake_link_id: string | null;
@@ -35,7 +38,6 @@ export interface AnnualConferenceSpeakerIntakeLink {
   id: string;
   edition_id: string;
   speaker_submission_id: string | null;
-  kind: ArchiveItemKind;
   speaker_name: string | null;
   speaker_email: string | null;
   talk_title: string | null;
@@ -47,10 +49,8 @@ export interface AnnualConferenceSpeakerIntakeLink {
   email_last_error: string | null;
   token_hash: string;
   expires_at: string;
-  claim_id: string | null;
-  claimed_at: string | null;
-  used_at: string | null;
-  used_session_id: string | null;
+  revoked_at: string | null;
+  workspace_session_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -59,15 +59,22 @@ export interface AnnualConferenceSession {
   id: string;
   edition_id: string;
   speaker_submission_id: string | null;
-  kind: ArchiveItemKind;
   speaker_name: string;
   speaker_email: string;
-  github_username: string | null;
   title: string;
-  topic: string;
+  topic: AnnualConferenceTopicTrack;
+  session_type: AnnualConferenceSessionType;
+  learning_outcomes: string[];
   abstract: string | null;
   bio: string | null;
   slides_url: string | null;
+  availability_confirmed: boolean | null;
+  technical_requirements: string | null;
+  workshop_prerequisites: string | null;
+  required_software_equipment: string | null;
+  participants_need_laptops: boolean | null;
+  preferred_workshop_capacity: number | null;
+  logistics_updated_at: string | null;
   status: 'confirmed' | 'archived';
   created_at: string;
   updated_at: string;
@@ -77,28 +84,46 @@ type SubmissionRow = Database['public']['Tables']['annual_conference_speaker_sub
 type LinkRow = Database['public']['Tables']['annual_conference_speaker_intake_links']['Row'];
 type SessionRow = Database['public']['Tables']['annual_conference_sessions']['Row'];
 
-function kind(value: string): ArchiveItemKind {
-  return value === 'product_demo' ? 'product_demo' : 'talk';
-}
-
 function status(value: string): SpeakerSubmissionStatus {
   return value === 'selected' || value === 'not_selected' || value === 'withdrawn' ? value : 'submitted';
 }
 
 function submissionFromRow(row: SubmissionRow): AnnualConferenceSpeakerSubmission {
-  return { ...row, kind: kind(row.kind), status: status(row.status) };
+  return {
+    ...row,
+    status: status(row.status),
+    topic: row.topic as AnnualConferenceTopicTrack,
+    session_type: row.session_type as AnnualConferenceSessionType,
+    learning_outcomes: Array.isArray(row.learning_outcomes) ? row.learning_outcomes.filter((item): item is string => typeof item === 'string') : [],
+  };
 }
 
 function submissionFromMock(value: AnnualConferenceSpeakerSubmission): AnnualConferenceSpeakerSubmission {
-  return { ...value, resource_url: value.resource_url ?? null };
+  return {
+    ...value,
+    speaker_profile_id: value.speaker_profile_id ?? null,
+    proposal_schema_version: value.proposal_schema_version ?? 1,
+    session_type: value.session_type ?? '40-minute long talk',
+    learning_outcomes: value.learning_outcomes ?? [],
+  };
 }
 
 function linkFromRow(row: LinkRow): AnnualConferenceSpeakerIntakeLink {
-  return { ...row, kind: kind(row.kind) };
+  return row;
+}
+
+function linkFromMock(value: AnnualConferenceSpeakerIntakeLink): AnnualConferenceSpeakerIntakeLink {
+  return { ...value, revoked_at: value.revoked_at ?? null, workspace_session_id: value.workspace_session_id ?? null };
 }
 
 function sessionFromRow(row: SessionRow): AnnualConferenceSession {
-  return { ...row, kind: kind(row.kind), status: row.status === 'archived' ? 'archived' : 'confirmed' };
+  return {
+    ...row,
+    status: row.status === 'archived' ? 'archived' : 'confirmed',
+    topic: row.topic as AnnualConferenceTopicTrack,
+    session_type: row.session_type as AnnualConferenceSessionType,
+    learning_outcomes: Array.isArray(row.learning_outcomes) ? row.learning_outcomes.filter((item): item is string => typeof item === 'string') : [],
+  };
 }
 
 function hashToken(token: string): string {
@@ -128,10 +153,31 @@ export async function getAnnualConferenceSpeakerSubmission(id: string): Promise<
   return submission ? submissionFromMock(submission) : undefined;
 }
 
-export async function createAnnualConferenceSpeakerSubmission(input: Omit<AnnualConferenceSpeakerSubmission, 'id' | 'status' | 'internal_note' | 'selected_intake_link_id' | 'selected_session_id' | 'decided_at' | 'created_at' | 'updated_at' | 'resource_url'> & { resource_url?: string | null }): Promise<AnnualConferenceSpeakerSubmission> {
+export async function createAnnualConferenceSpeakerSubmission(input: Omit<AnnualConferenceSpeakerSubmission, 'id' | 'speaker_profile_id' | 'proposal_schema_version' | 'status' | 'internal_note' | 'selected_intake_link_id' | 'selected_session_id' | 'decided_at' | 'created_at' | 'updated_at'>): Promise<AnnualConferenceSpeakerSubmission> {
   const createdAt = now();
+  let profileId: string | null = null;
+  if (isSupabaseRuntimeEnabled()) {
+    const { data: profile, error: profileError } = await getSupabaseAdminClient()
+      .from('annual_conference_speaker_profiles')
+      .upsert({ email: input.speaker_email, name: input.speaker_name, bio: input.bio ?? '' }, { onConflict: 'email_normalized' })
+      .select('id')
+      .single();
+    if (profileError || !profile) throw new Error('Unable to save the speaker profile.');
+    profileId = profile.id;
+  } else {
+    profileId = await updateData<{ id: string; email: string; name: string; bio: string; created_at: string; updated_at: string }, string>(PROFILES_FILE, (profiles) => {
+      const index = profiles.findIndex((profile) => profile.email.trim().toLowerCase() === input.speaker_email.trim().toLowerCase());
+      if (index >= 0) {
+        const next = [...profiles];
+        next[index] = { ...next[index], email: input.speaker_email, name: input.speaker_name, bio: input.bio ?? '', updated_at: createdAt };
+        return { data: next, result: next[index].id };
+      }
+      const profile = { id: generateId(), email: input.speaker_email, name: input.speaker_name, bio: input.bio ?? '', created_at: createdAt, updated_at: createdAt };
+      return { data: [...profiles, profile], result: profile.id };
+    });
+  }
   const submission: AnnualConferenceSpeakerSubmission = {
-    ...input, id: generateId(), kind: kind(input.kind), resource_url: input.resource_url ?? null, status: 'submitted', internal_note: null,
+    ...input, id: generateId(), speaker_profile_id: profileId, proposal_schema_version: 2, status: 'submitted', internal_note: null,
     selected_intake_link_id: null, selected_session_id: null, decided_at: null, created_at: createdAt, updated_at: createdAt,
   };
   if (isSupabaseRuntimeEnabled()) {
@@ -141,7 +187,7 @@ export async function createAnnualConferenceSpeakerSubmission(input: Omit<Annual
     return submissionFromRow(data);
   }
   return updateData<AnnualConferenceSpeakerSubmission, AnnualConferenceSpeakerSubmission>(SUBMISSIONS_FILE, (items) => {
-    const duplicate = items.some((item) => item.edition_id === submission.edition_id && item.kind === submission.kind
+    const duplicate = items.some((item) => item.edition_id === submission.edition_id
       && item.speaker_email.toLowerCase() === submission.speaker_email.toLowerCase()
       && item.title.trim().toLowerCase() === submission.title.trim().toLowerCase() && item.status !== 'withdrawn');
     if (duplicate) throw new Error('This conference proposal has already been submitted.');
@@ -166,13 +212,108 @@ export async function updateAnnualConferenceSpeakerSubmission(id: string, update
   });
 }
 
-export async function createAnnualConferenceSpeakerIntakeLink(input: Pick<AnnualConferenceSpeakerIntakeLink, 'edition_id' | 'speaker_submission_id' | 'kind' | 'speaker_name' | 'speaker_email' | 'talk_title' | 'expires_at'>): Promise<{ link: AnnualConferenceSpeakerIntakeLink; token: string }> {
+export async function rejectAnnualConferenceSpeakerSubmission(id: string, internalNote: string | null): Promise<AnnualConferenceSpeakerSubmission> {
+  const updatedAt = now();
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_submissions')
+      .update({ status: 'not_selected', internal_note: internalNote, decided_at: updatedAt, updated_at: updatedAt })
+      .eq('id', id).eq('status', 'submitted').select('*').maybeSingle();
+    if (error) throw new Error('Unable to reject conference proposal.');
+    if (!data) throw new Error('This conference proposal has already been decided.');
+    return submissionFromRow(data);
+  }
+  return updateData<AnnualConferenceSpeakerSubmission, AnnualConferenceSpeakerSubmission>(SUBMISSIONS_FILE, (items) => {
+    const index = items.findIndex((item) => item.id === id && item.status === 'submitted');
+    if (index < 0) throw new Error('This conference proposal has already been decided.');
+    const updated = { ...items[index], status: 'not_selected' as const, internal_note: internalNote, decided_at: updatedAt, updated_at: updatedAt };
+    const next = [...items];
+    next[index] = updated;
+    return { data: next, result: updated };
+  });
+}
+
+export async function acceptAnnualConferenceSpeakerSubmission(input: {
+  submission: AnnualConferenceSpeakerSubmission;
+  deadline: string;
+  internalNote: string | null;
+}): Promise<{ submission: AnnualConferenceSpeakerSubmission; session: AnnualConferenceSession; link: AnnualConferenceSpeakerIntakeLink; token: string }> {
+  if (input.submission.proposal_schema_version !== 2) throw new Error('This legacy proposal is incomplete and cannot be accepted.');
+  if (isSupabaseRuntimeEnabled()) {
+    const sessionId = generateId();
+    const linkId = generateId();
+    const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+    const { error } = await getSupabaseAdminClient().rpc('accept_annual_conference_speaker_proposal', {
+      p_submission_id: input.submission.id,
+      p_session_id: sessionId,
+      p_link_id: linkId,
+      p_token_hash: hashToken(token),
+      p_deadline: input.deadline,
+      p_email_idempotency_key: `conference-speaker-accepted-${linkId}`,
+      p_internal_note: input.internalNote ?? '',
+    });
+    if (error) throw new Error(error.message.includes('already been decided') ? error.message : 'Unable to accept conference proposal.');
+    const [submission, session, link] = await Promise.all([
+      getAnnualConferenceSpeakerSubmission(input.submission.id),
+      getAnnualConferenceSession(sessionId),
+      getAnnualConferenceSpeakerIntakeLinkById(linkId),
+    ]);
+    if (!submission || !session || !link) throw new Error('The proposal was accepted, but its workspace delivery needs attention.');
+    return { submission, session, link, token };
+  }
+
+  let session: AnnualConferenceSession | undefined;
+  let link: AnnualConferenceSpeakerIntakeLink | undefined;
+  let createdLinkId: string | null = null;
+  try {
+    session = await createAnnualConferenceSession({
+      edition_id: input.submission.edition_id,
+      speaker_submission_id: input.submission.id,
+      speaker_name: input.submission.speaker_name,
+      speaker_email: input.submission.speaker_email,
+      title: input.submission.title,
+      topic: input.submission.topic,
+      session_type: input.submission.session_type,
+      learning_outcomes: input.submission.learning_outcomes,
+      abstract: input.submission.abstract,
+      bio: input.submission.bio,
+      slides_url: null,
+    });
+    const created = await createAnnualConferenceSpeakerIntakeLink({
+      edition_id: input.submission.edition_id,
+      speaker_submission_id: input.submission.id,
+      speaker_name: input.submission.speaker_name,
+      speaker_email: input.submission.speaker_email,
+      talk_title: input.submission.title,
+      expires_at: input.deadline,
+      workspace_session_id: session.id,
+    });
+    createdLinkId = created.link.id;
+    link = await updateAnnualConferenceSpeakerIntakeLink(created.link.id, {
+      email_status: 'pending',
+      email_idempotency_key: `conference-speaker-accepted-${created.link.id}`,
+      email_last_attempt_at: now(),
+    });
+    const submission = await updateAnnualConferenceSpeakerSubmission(input.submission.id, {
+      status: 'selected',
+      internal_note: input.internalNote,
+      selected_intake_link_id: link.id,
+      selected_session_id: session.id,
+    });
+    return { submission, session, link, token: created.token };
+  } catch (error) {
+    if (createdLinkId) await deleteAnnualConferenceSpeakerIntakeLink(createdLinkId).catch(() => undefined);
+    if (session) await deleteAnnualConferenceSession(session.id).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function createAnnualConferenceSpeakerIntakeLink(input: Pick<AnnualConferenceSpeakerIntakeLink, 'edition_id' | 'speaker_submission_id' | 'speaker_name' | 'speaker_email' | 'talk_title' | 'expires_at'> & { workspace_session_id?: string | null }): Promise<{ link: AnnualConferenceSpeakerIntakeLink; token: string }> {
   const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
   const createdAt = now();
   const link: AnnualConferenceSpeakerIntakeLink = {
-    ...input, id: generateId(), kind: kind(input.kind), token_hash: hashToken(token), claim_id: null, claimed_at: null,
+    ...input, workspace_session_id: input.workspace_session_id ?? null, id: generateId(), token_hash: hashToken(token), revoked_at: null,
     email_status: null, email_provider_id: null, email_idempotency_key: null, email_sent_at: null,
-    email_last_attempt_at: null, email_last_error: null, used_at: null, used_session_id: null, created_at: createdAt, updated_at: createdAt,
+    email_last_attempt_at: null, email_last_error: null, created_at: createdAt, updated_at: createdAt,
   };
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links').insert(link).select('*').single();
@@ -191,43 +332,39 @@ export async function getAnnualConferenceSpeakerIntakeLink(editionId: string, to
     if (error) throw new Error('Unable to load conference presenter link.');
     return data ? linkFromRow(data) : undefined;
   }
-  return (await readData<AnnualConferenceSpeakerIntakeLink>(LINKS_FILE)).find((link) => link.edition_id === editionId && link.token_hash === tokenHash);
+  const link = (await readData<AnnualConferenceSpeakerIntakeLink>(LINKS_FILE)).find((item) => item.edition_id === editionId && item.token_hash === tokenHash);
+  return link ? linkFromMock(link) : undefined;
 }
 
-export async function claimAnnualConferenceSpeakerIntakeLink(editionId: string, token: string): Promise<{ link: AnnualConferenceSpeakerIntakeLink; claimId: string }> {
-  const link = await getAnnualConferenceSpeakerIntakeLink(editionId, token);
-  if (!link || link.used_at || new Date(link.expires_at).getTime() <= Date.now()) throw new Error('This presenter link is no longer available.');
-  const claimId = generateId();
+export async function getAnnualConferenceSpeakerIntakeLinkById(id: string): Promise<AnnualConferenceSpeakerIntakeLink | undefined> {
   if (isSupabaseRuntimeEnabled()) {
-    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links')
-      .update({ claim_id: claimId, claimed_at: now() }).eq('id', link.id).is('claim_id', null).is('used_at', null).gt('expires_at', now()).select('*').maybeSingle();
-    if (error || !data) throw new Error('This presenter link is already being submitted.');
-    return { link: linkFromRow(data), claimId };
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error('Unable to load conference presenter link.');
+    return data ? linkFromRow(data) : undefined;
   }
-  const claimed = await updateData<AnnualConferenceSpeakerIntakeLink, AnnualConferenceSpeakerIntakeLink | undefined>(LINKS_FILE, (items) => {
-    const index = items.findIndex((item) => item.id === link.id && !item.claim_id && !item.used_at);
-    if (index < 0) return { data: items, result: undefined };
-    const next = [...items]; next[index] = { ...next[index], claim_id: claimId, claimed_at: now(), updated_at: now() };
-    return { data: next, result: next[index] };
-  });
-  if (!claimed) throw new Error('This presenter link is already being submitted.');
-  return { link: claimed, claimId };
+  const link = (await readData<AnnualConferenceSpeakerIntakeLink>(LINKS_FILE)).find((item) => item.id === id);
+  return link ? linkFromMock(link) : undefined;
 }
 
-export async function releaseAnnualConferenceSpeakerIntakeClaim(editionId: string, token: string, claimId: string | null): Promise<void> {
-  if (!claimId) return;
-  const link = await getAnnualConferenceSpeakerIntakeLink(editionId, token);
-  if (!link || link.claim_id !== claimId) return;
-  if (isSupabaseRuntimeEnabled()) {
-    await getSupabaseAdminClient().from('annual_conference_speaker_intake_links').update({ claim_id: null, claimed_at: null }).eq('id', link.id).eq('claim_id', claimId);
-    return;
-  }
-  await updateData<AnnualConferenceSpeakerIntakeLink, null>(LINKS_FILE, (items) => ({ data: items.map((item) => item.id === link.id && item.claim_id === claimId ? { ...item, claim_id: null, claimed_at: null, updated_at: now() } : item), result: null }));
-}
-
-export async function createAnnualConferenceSession(input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at'>): Promise<AnnualConferenceSession> {
+export async function createAnnualConferenceSession(
+  input: Omit<AnnualConferenceSession, 'id' | 'status' | 'created_at' | 'updated_at' | 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>
+    & Partial<Pick<AnnualConferenceSession, 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity' | 'logistics_updated_at'>>,
+): Promise<AnnualConferenceSession> {
   const createdAt = now();
-  const session: AnnualConferenceSession = { ...input, id: generateId(), kind: kind(input.kind), status: 'confirmed', created_at: createdAt, updated_at: createdAt };
+  const session: AnnualConferenceSession = {
+    ...input,
+    id: generateId(),
+    availability_confirmed: input.availability_confirmed ?? null,
+    technical_requirements: input.technical_requirements ?? null,
+    workshop_prerequisites: input.workshop_prerequisites ?? null,
+    required_software_equipment: input.required_software_equipment ?? null,
+    participants_need_laptops: input.participants_need_laptops ?? null,
+    preferred_workshop_capacity: input.preferred_workshop_capacity ?? null,
+    logistics_updated_at: input.logistics_updated_at ?? null,
+    status: 'confirmed',
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient().from('annual_conference_sessions').insert(session).select('*').single();
     if (error || !data) throw new Error('Unable to create conference session.');
@@ -237,15 +374,150 @@ export async function createAnnualConferenceSession(input: Omit<AnnualConference
   return session;
 }
 
-export async function consumeAnnualConferenceSpeakerIntakeLink(editionId: string, token: string, sessionId: string, claimId: string): Promise<void> {
-  const link = await getAnnualConferenceSpeakerIntakeLink(editionId, token);
-  if (!link || link.claim_id !== claimId || link.used_at) throw new Error('This presenter link is no longer available.');
+export async function getAnnualConferenceSession(id: string): Promise<AnnualConferenceSession | undefined> {
   if (isSupabaseRuntimeEnabled()) {
-    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links')
-      .update({ used_at: now(), used_session_id: sessionId, claim_id: null, claimed_at: null })
-      .eq('id', link.id).eq('claim_id', claimId).is('used_at', null).select('id').maybeSingle();
-    if (error || !data) throw new Error('This presenter link is no longer available.');
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_sessions').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error('Unable to load conference session.');
+    return data ? sessionFromRow(data) : undefined;
+  }
+  return (await readData<AnnualConferenceSession>(SESSIONS_FILE)).find((session) => session.id === id);
+}
+
+export async function updateAnnualConferenceSessionLogistics(
+  id: string,
+  updates: Pick<AnnualConferenceSession, 'slides_url' | 'availability_confirmed' | 'technical_requirements' | 'workshop_prerequisites' | 'required_software_equipment' | 'participants_need_laptops' | 'preferred_workshop_capacity'>,
+): Promise<AnnualConferenceSession> {
+  const payload = { ...updates, logistics_updated_at: now(), updated_at: now() };
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_sessions').update(payload).eq('id', id).select('*').single();
+    if (error || !data) throw new Error('Unable to save conference logistics.');
+    return sessionFromRow(data);
+  }
+  return updateData<AnnualConferenceSession, AnnualConferenceSession>(SESSIONS_FILE, (items) => {
+    const index = items.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Conference session not found.');
+    const next = [...items];
+    next[index] = { ...next[index], ...payload };
+    return { data: next, result: next[index] };
+  });
+}
+
+export async function updateAnnualConferenceSpeakerIntakeLink(
+  id: string,
+  updates: Partial<Pick<AnnualConferenceSpeakerIntakeLink, 'email_status' | 'email_provider_id' | 'email_idempotency_key' | 'email_sent_at' | 'email_last_attempt_at' | 'email_last_error' | 'expires_at' | 'revoked_at'>>,
+): Promise<AnnualConferenceSpeakerIntakeLink> {
+  const payload = { ...updates, updated_at: now() };
+  if (isSupabaseRuntimeEnabled()) {
+    const { data, error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links').update(payload).eq('id', id).select('*').single();
+    if (error || !data) throw new Error('Unable to update conference presenter link.');
+    return linkFromRow(data);
+  }
+  return updateData<AnnualConferenceSpeakerIntakeLink, AnnualConferenceSpeakerIntakeLink>(LINKS_FILE, (items) => {
+    const index = items.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Conference presenter link not found.');
+    const next = [...items];
+    next[index] = { ...next[index], ...payload };
+    return { data: next, result: next[index] };
+  });
+}
+
+export async function rotateAnnualConferenceSpeakerWorkspace(input: {
+  submission: AnnualConferenceSpeakerSubmission;
+  deadline: string;
+}): Promise<{ submission: AnnualConferenceSpeakerSubmission; link: AnnualConferenceSpeakerIntakeLink; token: string }> {
+  if (input.submission.status !== 'selected' || !input.submission.selected_session_id) {
+    throw new Error('Accepted conference proposal not found.');
+  }
+  if (isSupabaseRuntimeEnabled()) {
+    const linkId = generateId();
+    const token = crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+    const { error } = await getSupabaseAdminClient().rpc('rotate_annual_conference_speaker_workspace', {
+      p_submission_id: input.submission.id,
+      p_expected_link_id: input.submission.selected_intake_link_id,
+      p_link_id: linkId,
+      p_token_hash: hashToken(token),
+      p_deadline: input.deadline,
+      p_email_idempotency_key: `conference-speaker-accepted-${linkId}`,
+    });
+    if (error) throw new Error(error.message.includes('not found') ? error.message : 'Unable to rotate the conference speaker workspace.');
+    const [submission, link] = await Promise.all([
+      getAnnualConferenceSpeakerSubmission(input.submission.id),
+      getAnnualConferenceSpeakerIntakeLinkById(linkId),
+    ]);
+    if (!submission || !link) throw new Error('The workspace was rotated, but its delivery needs attention.');
+    return { submission, link, token };
+  }
+
+  const previousLinkId = input.submission.selected_intake_link_id;
+  const previousLink = previousLinkId ? await getAnnualConferenceSpeakerIntakeLinkById(previousLinkId) : undefined;
+  const revokedByThisAttempt = Boolean(previousLink && !previousLink.revoked_at);
+  let createdLinkId: string | null = null;
+  try {
+    if (previousLinkId && revokedByThisAttempt) await closeAnnualConferenceSpeakerIntakeLink(previousLinkId);
+    const created = await createAnnualConferenceSpeakerIntakeLink({
+      edition_id: input.submission.edition_id,
+      speaker_submission_id: input.submission.id,
+      speaker_name: input.submission.speaker_name,
+      speaker_email: input.submission.speaker_email,
+      talk_title: input.submission.title,
+      expires_at: input.deadline,
+      workspace_session_id: input.submission.selected_session_id,
+    });
+    createdLinkId = created.link.id;
+    const link = await updateAnnualConferenceSpeakerIntakeLink(created.link.id, {
+      email_status: 'pending',
+      email_idempotency_key: `conference-speaker-accepted-${created.link.id}`,
+      email_last_attempt_at: now(),
+    });
+    const submission = await updateAnnualConferenceSpeakerSubmission(input.submission.id, { selected_intake_link_id: created.link.id });
+    return { submission, link, token: created.token };
+  } catch (error) {
+    if (createdLinkId) await deleteAnnualConferenceSpeakerIntakeLink(createdLinkId).catch(() => undefined);
+    if (previousLinkId && revokedByThisAttempt) await updateAnnualConferenceSpeakerIntakeLink(previousLinkId, { revoked_at: null }).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function updateAnnualConferenceSpeakerIntakeDeadlines(editionId: string, expiresAt: string): Promise<void> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links')
+      .update({ expires_at: expiresAt, updated_at: now() }).eq('edition_id', editionId).is('revoked_at', null);
+    if (error) throw new Error('Unable to update conference presenter deadlines.');
     return;
   }
-  await updateData<AnnualConferenceSpeakerIntakeLink, null>(LINKS_FILE, (items) => ({ data: items.map((item) => item.id === link.id && item.claim_id === claimId ? { ...item, used_at: now(), used_session_id: sessionId, claim_id: null, claimed_at: null, updated_at: now() } : item), result: null }));
+  await updateData<AnnualConferenceSpeakerIntakeLink, null>(LINKS_FILE, (items) => ({
+    data: items.map((item) => item.edition_id === editionId && !item.revoked_at ? { ...item, expires_at: expiresAt, updated_at: now() } : item),
+    result: null,
+  }));
+}
+
+export async function closeAnnualConferenceSpeakerIntakeLink(id: string): Promise<void> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links')
+      .update({ revoked_at: now(), updated_at: now() }).eq('id', id).is('revoked_at', null);
+    if (error) throw new Error('Unable to close the previous conference presenter link.');
+    return;
+  }
+  await updateData<AnnualConferenceSpeakerIntakeLink, null>(LINKS_FILE, (items) => ({
+    data: items.map((item) => item.id === id && !item.revoked_at ? { ...item, revoked_at: now(), updated_at: now() } : item),
+    result: null,
+  }));
+}
+
+export async function deleteAnnualConferenceSpeakerIntakeLink(id: string): Promise<void> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { error } = await getSupabaseAdminClient().from('annual_conference_speaker_intake_links').delete().eq('id', id);
+    if (error) throw new Error('Unable to remove conference presenter link.');
+    return;
+  }
+  await updateData<AnnualConferenceSpeakerIntakeLink, null>(LINKS_FILE, (items) => ({ data: items.filter((item) => item.id !== id), result: null }));
+}
+
+export async function deleteAnnualConferenceSession(id: string): Promise<void> {
+  if (isSupabaseRuntimeEnabled()) {
+    const { error } = await getSupabaseAdminClient().from('annual_conference_sessions').delete().eq('id', id);
+    if (error) throw new Error('Unable to remove conference session.');
+    return;
+  }
+  await updateData<AnnualConferenceSession, null>(SESSIONS_FILE, (items) => ({ data: items.filter((item) => item.id !== id), result: null }));
 }

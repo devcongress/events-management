@@ -172,12 +172,43 @@ describe('HTTP security boundaries', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: crypto.randomUUID(), user_id: crypto.randomUUID(), device_id: crypto.randomUUID(), padding: 'x'.repeat(70 * 1024) }),
       }),
+      app.request('http://localhost/api/cfp/conferences/2026', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ padding: 'x'.repeat(70 * 1024) }),
+      }),
+      app.request('http://localhost/api/conferences/2026/speaker-intake/private-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ padding: 'x'.repeat(70 * 1024) }),
+      }),
     ]);
 
-    expect(responses.map((response) => response.status)).toEqual([413, 413, 413, 413]);
+    expect(responses.map((response) => response.status)).toEqual([413, 413, 413, 413, 413, 413]);
     for (const response of responses) {
       await expect(response.json()).resolves.toEqual({ error: 'Request body is too large.' });
     }
+  });
+
+  it('keeps the conference CFP and private speaker workspace outside organizer authentication', async () => {
+    const { default: app } = await import('./app');
+    const responses = await Promise.all([
+      app.request('http://localhost/api/cfp/conferences/2026'),
+      app.request('http://localhost/api/cfp/conferences/2026', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+      app.request('http://localhost/api/conferences/2026/speaker-intake/invalid-token'),
+      app.request('http://localhost/api/conferences/2026/speaker-intake/invalid-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+    ]);
+
+    expect(responses.map((response) => response.status)).not.toContain(401);
+    expect(responses.every((response) => response.status >= 400 && response.status < 500)).toBe(true);
   });
 
   it('keeps the complete System Design participant request flow outside organizer auth', async () => {

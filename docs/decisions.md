@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-082: Separate Annual Conference Proposals from Monthly CFP and Archive Intake
+
+**Date:** 2026-09-07
+**Why:** The monthly CFP is an event/archive workflow with talk-or-product-demo compatibility fields and a short one-time completion form. Annual Conference review needs complete talk proposals, independent decisions when one speaker submits several sessions, and an editable logistics phase after acceptance. Reusing the monthly shape made proposal review incomplete and coupled acceptance to a second proposal-like submission.
+**Decision:** Keep Annual Conference proposals in dedicated relational tables and remove the inherited `kind`, `github_username`, and proposal-time resource columns. Normalize speaker identity and bio by email in `annual_conference_speaker_profiles`; store fixed track, fixed session type, a speaker bio with a recommended 150-word maximum, a 250-word abstract, and three to five learning outcomes on every proposal. An atomic compare-and-set records acceptance and creates one proposal-bound programme session plus one hash-only private workspace capability, then the application immediately attempts the system-owned Resend message. The workspace updates logistics in place until an edition-level organizer deadline. Incomplete acceptance delivery is retryable through an atomic bearer-link rotation that preserves the accepted proposal and session.
+**Tradeoffs:** The annual and monthly CFPs now have deliberately different validation, persistence, and follow-up code. Email acceptance is provider-observable but inbox delivery still requires provider webhooks. Speaker profiles retain the latest submitted name and bio for an email while each proposal keeps its own review-time copy. Already accepted legacy proposals are preserved as sessions; incomplete undecided legacy rows remain visible but cannot be newly accepted.
+**Revisit when:** Co-speakers are required, accepted-session scheduling needs rooms and time slots, speaker-authenticated accounts should replace bearer workspaces, or decision emails move into a generalized transactional outbox.
+
+---
+
 ## ADR-081: Prepare event-blast audiences through a bounded Queue
 
 **Date:** 2026-08-28

@@ -89,6 +89,22 @@ export async function updateSupabaseAnnualConferenceSpeakerCallStatus(
   return data ? toEdition(data) : undefined;
 }
 
+export async function updateSupabaseAnnualConferenceSpeakerLogisticsDeadline(
+  editionId: string,
+  deadline: string | null,
+  c?: Context,
+): Promise<AnnualConferenceEdition | null | undefined> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('annual_conference_editions')
+    .update({ speaker_logistics_deadline: deadline, updated_at: new Date().toISOString() })
+    .eq('id', editionId)
+    .select('*')
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? toEdition(data) : undefined;
+}
+
 export async function getSupabaseAnnualConferenceWorkPlan(
   year: number,
   c?: Context,

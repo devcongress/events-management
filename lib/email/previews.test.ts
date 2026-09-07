@@ -17,7 +17,7 @@ describe('owner email preview catalog', () => {
   it('uses the production renderers and sender identities with safe sample recipients', () => {
     const catalog = emailPreviewCatalog();
 
-    expect(catalog.previews).toHaveLength(14);
+    expect(catalog.previews).toHaveLength(15);
     expect(catalog.previews.every((preview) => preview.html.startsWith('<!doctype html>'))).toBe(true);
     expect(catalog.previews.every((preview) => preview.text.trim().length > 0)).toBe(true);
     expect(catalog.previews.every((preview) => preview.subject.trim().length > 0)).toBe(true);
@@ -35,6 +35,6 @@ describe('owner email preview catalog', () => {
       .sort();
 
     expect(catalog.planned.map((scenario) => scenario.id).sort()).toEqual(plannedIds);
-    expect(catalog.planned).toHaveLength(5);
+    expect(catalog.planned).toHaveLength(4);
   });
 });

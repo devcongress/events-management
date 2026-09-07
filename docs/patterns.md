@@ -96,6 +96,9 @@ Use IBM Plex Mono only for compact operational language, technical values, and l
 ### Toast Notifications
 Use `notify` from `src/lib/notify.ts` for app notifications so all messages target the globally mounted `AppToaster` and inherit the editorial/ops Sonner theme. Do not import `toast` from `vue-sonner` directly inside views unless a feature needs a deliberate separate toaster.
 
+### Copy-Link Feedback
+Use `src/components/ui/AppCopyButton.vue` for organizer actions that copy a public or private link and `src/lib/clipboard.ts` for the write itself. The owning view drives the shared `idle -> copying -> copied -> idle` state only after the helper confirms success. Keep record-scoped feedback keyed to its record, keep the copied result visible briefly, reset failures immediately, and avoid one-off labels, icons, or success colors that cause the control to resize.
+
 ---
 
 ## Testing Conventions

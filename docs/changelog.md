@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-07 — Conference speaker controls and copy-link feedback
+
+- Replaced the browser-native logistics deadline input with the app's shared accessible date-and-time picker.
+- Aligned the deadline field and save action at equal control heights on desktop while retaining a full-width stacked action on smaller screens.
+- Standardized organizer copy-link actions through one shared control with an initial copy icon, a brief copying state, a green checked confirmation, and an automatic reset without changing the button width.
+- Styled the open Annual Conference call's close action as destructive and added a confirmation dialog before new proposals are stopped.
+
+## 2026-09-07 — Complete Annual Conference proposals and speaker logistics
+
+- Split the Annual Conference CFP contract from the monthly CFP schema. Conference proposals now require a speaker bio with a recommended 150-word maximum, fixed topic track, fixed session type, 250-word abstract, and three to five progressive learning outcomes; product demo is no longer a conference session type.
+- Added normalized conference speaker profiles so a speaker can submit multiple independently reviewed proposals while reusing one saved identity and bio record.
+- Accepting a proposal now atomically records its decision, creates its programme session, issues a hash-only private workspace link, and automatically emails the speaker. Email delivery state is visible to organizers and an incomplete delivery can be retried with an atomically rotated link.
+- Replaced the one-time conference follow-up form with an editable, proposal-scoped logistics workspace for resources, availability, setup needs, workshop prerequisites, software/equipment, laptop needs, and workshop capacity.
+- Added an organizer-controlled logistics deadline, server-side deadline enforcement, relational constraints, authorization checks, rate limits, and end-to-end proposal-isolation/workspace tests.
+- Preserved already accepted legacy conference proposals as programme sessions while marking incomplete legacy submissions as ineligible for new acceptance decisions.
+- Pinned the patched `postcss-selector-parser` transitive release after the dependency audit identified its low-severity recursion advisory.
+
 ## 2026-09-06 — Volunteer intake form polish
 
 - Rebalanced the public volunteer form into a clearer editorial panel: the desktop form now sits in a protected right column, while mobile uses one clean card without nested poster borders or shadows.

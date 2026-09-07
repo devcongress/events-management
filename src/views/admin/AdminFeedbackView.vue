@@ -2,9 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AdminFeedbackPageSkeleton from '@/src/components/ui/page-skeletons/AdminFeedbackPageSkeleton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { buildEventFeedbackCsv } from '@/lib/event-feedback-export';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { buildEventFeedbackReport } from '@/lib/event-feedback-report';
 import { MONTHLY_FEEDBACK_WINDOW_MS } from '@/lib/event-feedback-window';
 import { resolveEventSeriesType } from '@/lib/event-series';
@@ -173,11 +175,6 @@ const defaultAccessCopy = computed(() => (
     ? 'Auto-open at meetup end and close 24 hours later'
     : 'Auto-open when the event is completed'
 ));
-const copyLinkLabel = computed(() => {
-  if (copyState.value === 'copying') return 'Copying…';
-  if (copyState.value === 'copied') return 'Copied';
-  return 'Copy attendee link';
-});
 const feedbackReport = computed(() => buildEventFeedbackReport(form.questions, submissions.value));
 const primaryBinaryInsight = computed(() => feedbackReport.value.binaryQuestions[0] ?? null);
 const ratingDistributionMaxCount = computed(() => Math.max(
@@ -487,19 +484,7 @@ async function copyPublicUrl() {
   error.value = '';
 
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(publicUrl.value);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = publicUrl.value;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await copyTextToClipboard(publicUrl.value);
 
     copyState.value = 'copied';
     copyResetTimer = setTimeout(() => {
@@ -759,15 +744,14 @@ onBeforeUnmount(() => {
                 >
                   Preview form
                 </button>
-                <button
+                <AppCopyButton
                   v-if="isOpen"
-                  type="button"
+                  :state="copyState"
+                  label="Copy attendee link"
                   class="feedback-link-button feedback-link-button--copy motion-press"
-                  :disabled="saving || !isOpen || copyState !== 'idle'"
+                  :disabled="saving || !isOpen"
                   @click="copyPublicUrl"
-                >
-                  {{ copyLinkLabel }}
-                </button>
+                />
                 <button
                   v-if="isOpen"
                   type="button"
@@ -930,14 +914,13 @@ onBeforeUnmount(() => {
                 >
                   Preview form
                 </button>
-                <button
-                  type="button"
+                <AppCopyButton
+                  :state="copyState"
+                  label="Copy attendee link"
                   class="feedback-link-button feedback-link-button--copy motion-press"
-                  :disabled="saving || !isOpen || copyState !== 'idle'"
+                  :disabled="saving || !isOpen"
                   @click="copyPublicUrl"
-                >
-                  {{ copyLinkLabel }}
-                </button>
+                />
                 <button
                   type="button"
                   class="feedback-link-button feedback-link-button--qr motion-press"

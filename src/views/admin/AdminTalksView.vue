@@ -5,10 +5,12 @@ import { useRoute } from 'vue-router';
 import { adminPath } from '@/src/admin-routes';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import SelectedSpeakerEmailPreview, { type SelectedSpeakerEmailPreviewItem } from '@/src/components/ui/SelectedSpeakerEmailPreview.vue';
 import AdminTalksPageSkeleton from '@/src/components/ui/page-skeletons/AdminTalksPageSkeleton.vue';
 import { notify } from '@/src/lib/notify';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { ensureAdminShortLink, fetchAdminSession, queryKeys } from '@/src/lib/api';
 import {
   countSpeakerSubmissionsByReviewStatus,
@@ -98,9 +100,10 @@ const pendingProposalDecision = ref<PendingProposalDecision | null>(null);
 const speakerRejectionEmailPreview = ref<SpeakerRejectionEmailPreview | null>(null);
 const speakerRejectionEmailPreviewLoading = ref(false);
 const speakerRejectionEmailPreviewError = ref<string | null>(null);
-const cfpLinkCopied = ref(false);
+const cfpLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
 const cfpShortLinkUrl = ref<string | null>(null);
 const copiedSpeakerLinkId = ref<string | null>(null);
+const copyingSpeakerLinkId = ref<string | null>(null);
 const updatingTalkId = ref<string | null>(null);
 const sendingMaterialsFollowUp = ref(false);
 const materialsFollowUpFields = ref<ArchiveMaterialField[]>([]);
@@ -861,32 +864,22 @@ async function copyCfpFormLink() {
   if (!cfpIsOpen.value) return;
 
   error.value = null;
+  cfpLinkCopyState.value = 'copying';
 
   try {
     const shortLink = cfpShortLinkUrl.value
       ? { url: cfpShortLinkUrl.value }
       : await ensureAdminShortLink({ destination: 'monthly_cfp', event_id: String(route.params.eventId) });
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(shortLink.url);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = shortLink.url;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await copyTextToClipboard(shortLink.url);
 
-    cfpLinkCopied.value = true;
+    cfpLinkCopyState.value = 'copied';
     if (cfpLinkCopiedResetTimer) clearTimeout(cfpLinkCopiedResetTimer);
     cfpLinkCopiedResetTimer = setTimeout(() => {
-      cfpLinkCopied.value = false;
+      cfpLinkCopyState.value = 'idle';
       cfpLinkCopiedResetTimer = null;
     }, 2200);
   } catch {
+    cfpLinkCopyState.value = 'idle';
     error.value = 'Could not copy the CFP link.';
   }
 }
@@ -948,22 +941,12 @@ async function copySpeakerIntakeLink(url: string, linkId: string) {
   if (!url) return;
 
   error.value = null;
+  copyingSpeakerLinkId.value = linkId;
 
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = url;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await copyTextToClipboard(url);
 
+    copyingSpeakerLinkId.value = null;
     copiedSpeakerLinkId.value = linkId;
     if (speakerIntakeLinkCopiedResetTimer) clearTimeout(speakerIntakeLinkCopiedResetTimer);
     speakerIntakeLinkCopiedResetTimer = setTimeout(() => {
@@ -971,11 +954,13 @@ async function copySpeakerIntakeLink(url: string, linkId: string) {
       speakerIntakeLinkCopiedResetTimer = null;
     }, 2200);
   } catch {
+    copyingSpeakerLinkId.value = null;
     error.value = 'Could not copy the private archive link.';
   }
 }
 
 function resetSpeakerIntakeLinkCopied() {
+  copyingSpeakerLinkId.value = null;
   copiedSpeakerLinkId.value = null;
   if (speakerIntakeLinkCopiedResetTimer) {
     clearTimeout(speakerIntakeLinkCopiedResetTimer);
@@ -1265,19 +1250,13 @@ onUnmounted(() => {
                 <input :value="cfpCanReceiveSubmissions ? cfpShareUrl : 'CFP unavailable for this event date'" readonly class="editorial-input font-mono text-sm" />
               </label>
               <div class="cfp-share-actions">
-                <button
-                  type="button"
+                <AppCopyButton
+                  :state="cfpLinkCopyState"
+                  label="Copy link"
                   class="cfp-primary-action motion-press"
-                  :class="{ 'cfp-primary-action--copied': cfpLinkCopied }"
                   :disabled="!cfpCanReceiveSubmissions"
-                  :aria-label="cfpLinkCopied ? 'CFP link copied' : 'Copy CFP link'"
                   @click="copyCfpFormLink"
-                >
-                  <svg v-if="cfpLinkCopied" class="cfp-copy-check" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M3.5 8.1 6.6 11 12.5 4.8" />
-                  </svg>
-                  <span>{{ cfpLinkCopied ? 'Copied' : 'Copy link' }}</span>
-                </button>
+                />
                 <a v-if="cfpCanReceiveSubmissions" :href="cfpFormPath" target="_blank" rel="noopener noreferrer" class="cfp-secondary-action motion-press">Open form</a>
                 <button v-else type="button" disabled class="cfp-secondary-action motion-press">Form unavailable</button>
                 <button
@@ -1493,23 +1472,14 @@ onUnmounted(() => {
                     </p>
                   </div>
                   <div class="flex flex-wrap gap-2 lg:justify-end">
-                    <button
-                      type="button"
+                    <AppCopyButton
+                      :state="copyingSpeakerLinkId === link.id ? 'copying' : copiedSpeakerLinkId === link.id ? 'copied' : 'idle'"
+                      label="Copy"
                       :disabled="!speakerIntakeUrlForToken(link.token)"
                       class="inline-flex items-center gap-1.5"
                       :class="actionClass()"
-                      :aria-label="copiedSpeakerLinkId === link.id ? 'Archive request link copied' : 'Copy archive request link'"
                       @click="copySpeakerIntakeLink(speakerIntakeUrlForToken(link.token), link.id)"
-                    >
-                      <svg v-if="copiedSpeakerLinkId === link.id" class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M3.5 8.1 6.6 11 12.5 4.8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-                      </svg>
-                      <svg v-else class="size-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M5.5 5.5V3.8A1.8 1.8 0 0 1 7.3 2h4.9A1.8 1.8 0 0 1 14 3.8v4.9a1.8 1.8 0 0 1-1.8 1.8h-1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
-                        <path d="M2 7.3A1.8 1.8 0 0 1 3.8 5.5h4.9a1.8 1.8 0 0 1 1.8 1.8v4.9A1.8 1.8 0 0 1 8.7 14H3.8A1.8 1.8 0 0 1 2 12.2V7.3Z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" />
-                      </svg>
-                      <span>{{ copiedSpeakerLinkId === link.id ? 'Copied' : 'Copy' }}</span>
-                    </button>
+                    />
                     <a
                       v-if="speakerIntakePathForToken(link.token)"
                       :href="speakerIntakePathForToken(link.token)"
@@ -1655,15 +1625,13 @@ onUnmounted(() => {
                           class="inline-flex rounded-md border border-red-600 bg-red-50 px-2.5 py-1 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-red-700"
                           title="Automatic delivery will retry on the next scheduled run."
                         >Retrying</span>
-                        <button
+                        <AppCopyButton
                           v-if="submission.status === 'selected' && selectedSpeakerLinkForSubmission(submission.id)?.short_url"
-                          type="button"
+                          :state="copyingSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'copying' : copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'copied' : 'idle'"
+                          label="Copy link"
                           :class="proposalActionClass()"
-                          :aria-label="copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'Presenter completion link copied' : 'Copy presenter completion link'"
                           @click.stop="copySpeakerIntakeLink(selectedSpeakerLinkForSubmission(submission.id)?.short_url ?? '', selectedSpeakerLinkForSubmission(submission.id)?.id ?? '')"
-                        >
-                          {{ copiedSpeakerLinkId === selectedSpeakerLinkForSubmission(submission.id)?.id ? 'Copied' : 'Copy link' }}
-                        </button>
+                        />
                         <span class="whitespace-nowrap font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">Open <span aria-hidden="true">→</span></span>
                       </div>
                     </td>
