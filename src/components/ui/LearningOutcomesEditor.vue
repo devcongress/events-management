@@ -32,6 +32,7 @@ async function add(event: MouseEvent) {
 }
 
 async function remove(index: number, event: MouseEvent) {
+  if (model.value.length <= 1) return;
   animateRows.value = event.detail !== 0;
   rowIds.value.splice(index, 1);
   model.value = model.value.filter((_, position) => position !== index);
@@ -51,7 +52,7 @@ async function remove(index: number, event: MouseEvent) {
         <span class="app-outcome-number" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
         <label class="sr-only" :for="`${id}-outcome-${rowId}`">Learning outcome {{ index + 1 }}</label>
         <input :id="`${id}-outcome-${rowId}`" v-model="model[index]" required :placeholder="`Outcome ${index + 1}`" class="app-form-control" />
-        <button type="button" class="app-form-icon-action" :aria-label="`Remove learning outcome ${index + 1}`" @click="remove(index, $event)">
+        <button v-if="model.length > 1" type="button" class="app-form-icon-action" :aria-label="`Remove learning outcome ${index + 1}`" @click="remove(index, $event)">
           <svg viewBox="0 0 20 20" fill="none" class="size-4" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>
         </button>
       </div>

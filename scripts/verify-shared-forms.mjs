@@ -54,6 +54,10 @@ try {
     await page.locator(`[id="${removedId}"]`).waitFor({ state: 'detached' });
     assert.equal(await page.getByLabel('Learning outcome 2', { exact: true }).inputValue(), 'Third outcome');
     assert.equal(await page.getByLabel('Learning outcome 2', { exact: true }).evaluate(el => el === document.activeElement), true);
+    await page.getByRole('button', { name: 'Remove learning outcome 2', exact: true }).click();
+    assert.equal(await page.getByLabel('Learning outcome 1', { exact: true }).inputValue(), 'First outcome');
+    assert.equal(await page.getByRole('button', { name: /Remove learning outcome/ }).count(), 0);
+    assert.equal(await page.getByLabel('Learning outcome 1', { exact: true }).evaluate(el => el === document.activeElement), true);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({ path: `/tmp/shared-forms-${width}.png`, fullPage: true });
     await page.getByRole('button', { name: 'Open task drawer', exact: true }).click();

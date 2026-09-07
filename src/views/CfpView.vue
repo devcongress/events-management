@@ -43,7 +43,7 @@ const proposalForm = ref<HTMLFormElement | null>(null);
 const mobileViewport = ref(false);
 const currentStep = ref(0);
 const stepTitles = ['About you', 'Your session', 'Attendee takeaways'];
-const mobileStepper = computed(() => isConferenceCall.value && mobileViewport.value);
+const proposalStepper = computed(() => isConferenceCall.value);
 const stepError = ref('');
 const stepValid = computed(() => [
   Boolean(form.speaker_name.trim() && speakerEmailValid.value && form.bio.trim()),
@@ -57,7 +57,7 @@ async function changeStep(step: number) {
   await nextTick();
   const heading = proposalForm.value?.querySelector<HTMLElement>(`#cfp-section-${step}`);
   heading?.focus({ preventScroll: true });
-  (mobileStepper.value ? proposalForm.value : heading)?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  proposalForm.value?.scrollIntoView({ block: 'start', behavior: 'instant' });
 }
 
 function continueStep() {
@@ -156,7 +156,7 @@ function formatDate(value: string): string {
 }
 
 async function submitProposal() {
-  if (mobileStepper.value && currentStep.value < 2) {
+  if (proposalStepper.value && currentStep.value < 2) {
     continueStep();
     return;
   }
@@ -339,13 +339,13 @@ onMounted(async () => {
 
       <form ref="proposalForm" :novalidate="isConferenceCall" class="editorial-panel space-y-5 p-4 sm:space-y-6 sm:p-8" @submit.prevent="submitProposal">
         <div v-if="error" class="border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
-        <div v-if="mobileStepper" class="space-y-3" aria-label="Proposal progress">
+        <div v-if="proposalStepper" class="space-y-3" aria-label="Proposal progress">
           <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray" aria-live="polite">Step {{ currentStep + 1 }} of 3 · {{ stepTitles[currentStep] }}</p>
           <ol class="flex gap-2" aria-label="Proposal steps">
             <li v-for="(title, index) in stepTitles" :key="title" class="h-1 flex-1 rounded-full" :class="index <= currentStep ? 'bg-dc-pink' : 'bg-dc-border'" :aria-current="index === currentStep ? 'step' : undefined"><span class="sr-only">{{ title }}</span></li>
           </ol>
         </div>
-        <section v-show="!mobileStepper || currentStep === 0" class="space-y-5" :aria-labelledby="isConferenceCall ? 'cfp-section-0' : undefined">
+        <section v-show="!proposalStepper || currentStep === 0" class="space-y-5" :aria-labelledby="isConferenceCall ? 'cfp-section-0' : undefined">
         <h2 v-if="isConferenceCall" id="cfp-section-0" tabindex="-1" class="cfp-section-title">About you</h2>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block">
@@ -374,7 +374,7 @@ onMounted(async () => {
           <p class="mt-2 text-sm leading-6 text-dc-gray">Recommended maximum: 150 words. We’ll reuse this profile across your proposals where possible.</p>
         </div>
         </section>
-        <section v-show="!mobileStepper || currentStep === 1" class="space-y-5" :class="{ 'cfp-quiet-section': isConferenceCall }" :aria-labelledby="isConferenceCall ? 'cfp-section-1' : undefined">
+        <section v-show="!proposalStepper || currentStep === 1" class="space-y-5" :aria-labelledby="isConferenceCall ? 'cfp-section-1' : undefined">
         <h2 v-if="isConferenceCall" id="cfp-section-1" tabindex="-1" class="cfp-section-title">Your session</h2>
         <label class="block">
           <span class="editorial-label">{{ archiveItemLabel }} Title <span class="text-red-600">*</span></span>
@@ -425,7 +425,7 @@ onMounted(async () => {
           />
         </div>
         </section>
-        <section v-if="isConferenceCall" v-show="!mobileStepper || currentStep === 2" class="cfp-quiet-section space-y-5" aria-labelledby="cfp-section-2">
+        <section v-if="isConferenceCall" v-show="currentStep === 2" class="space-y-5" aria-labelledby="cfp-section-2">
         <h2 id="cfp-section-2" tabindex="-1" class="cfp-section-title">Attendee takeaways</h2>
         <LearningOutcomesEditor v-model="form.learning_outcomes" />
         </section>
@@ -447,18 +447,18 @@ onMounted(async () => {
           <span v-if="resourceUrlError" id="cfp-resource-error" class="mt-2 block text-sm font-semibold text-red-800" role="alert">{{ resourceUrlError }}</span>
         </label>
         <p v-if="stepError" class="text-sm font-medium text-red-800" role="alert">{{ stepError }}</p>
-        <div v-if="mobileStepper" class="flex items-center gap-3 border-t border-dc-border pt-5">
+        <div v-if="proposalStepper" class="flex items-center gap-3 border-t border-dc-border pt-5">
           <button v-if="currentStep > 0" type="button" :disabled="submitting" class="motion-press min-h-11 rounded-md border border-dc-ink px-5 py-3 text-sm font-semibold disabled:opacity-50" @click="changeStep(currentStep - 1)">Back</button>
           <button v-if="currentStep < 2" type="submit" class="motion-press min-h-11 flex-1 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-3 text-sm font-semibold text-white">Continue <span aria-hidden="true">→</span></button>
           <p v-else class="text-xs leading-5 text-dc-gray">You can go back to review your proposal before submitting.</p>
         </div>
-        <div v-show="!mobileStepper || currentStep === 2" class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <div v-show="!proposalStepper || currentStep === 2" class="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <TurnstileWidget
-            v-if="turnstileActive && (!mobileStepper || currentStep === 2)"
-            :key="mobileStepper ? 'mobile-check' : 'desktop-check'"
+            v-if="turnstileActive && (!proposalStepper || currentStep === 2)"
+            :key="mobileViewport ? 'mobile-check' : 'desktop-check'"
             ref="turnstileWidget"
             :action="CFP_SUBMISSION_TURNSTILE_ACTION"
-            :size="mobileStepper ? 'compact' : 'normal'"
+            :size="mobileViewport ? 'compact' : 'normal'"
             @token-change="turnstileToken = $event"
             @error="turnstileError = $event ?? ''"
           />
@@ -473,8 +473,8 @@ onMounted(async () => {
             <template v-else>SUBMIT PROPOSAL</template>
           </button>
         </div>
-        <p v-if="submitHint && (!mobileStepper || currentStep === 2)" id="cfp-submit-help" class="app-form-help">{{ submitHint }}</p>
-        <p v-if="turnstileError && (!mobileStepper || currentStep === 2)" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
+        <p v-if="submitHint && (!proposalStepper || currentStep === 2)" id="cfp-submit-help" class="app-form-help">{{ submitHint }}</p>
+        <p v-if="turnstileError && (!proposalStepper || currentStep === 2)" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
       </form>
     </div>
   </div>
@@ -486,9 +486,6 @@ onMounted(async () => {
   scroll-margin-top: 24px;
 }
 .cfp-section-title:focus-visible { outline: 2px solid var(--dc-pink, #ec008c); outline-offset: 4px; }
-@media (min-width: 768px) {
-  .cfp-quiet-section { border-top: 1px solid #dedbd4; padding-top: 24px; }
-}
 .cfp-developer-theme {
   position: relative;
   isolation: isolate;
