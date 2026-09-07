@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
 import AdminEmailPreviewsView from '@/src/views/admin/AdminEmailPreviewsView.vue';
 import { deleteEventById, fetchAdminArchivedEvents, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, restoreArchivedEvent, revokeAdminShortLink, type AdminAuditLogEntry, type ArchivedEvent, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
 
 const AUDIT_LOG_LIMIT = 80;
@@ -39,6 +41,7 @@ const deliveryActivityView = ref<DeliveryActivityView>('messages');
 const activeSection = ref<AuditLogSection>('activity');
 const shortLinkMessage = ref('');
 const copiedShortLinkId = ref<string | null>(null);
+const copyingShortLinkId = ref<string | null>(null);
 const shortLinkStatusFilter = ref<ShortLinkStatusFilter>('active');
 const openShortLinkMenuId = ref<string | null>(null);
 const shortLinkMenuPosition = ref<ShortLinkMenuPosition | null>(null);
@@ -461,8 +464,10 @@ function closeShortLinkMenu() {
 }
 
 async function copyShortLink(linkId: string, value: string) {
+  copyingShortLinkId.value = linkId;
   try {
-    await navigator.clipboard.writeText(value);
+    await copyTextToClipboard(value);
+    copyingShortLinkId.value = null;
     copiedShortLinkId.value = linkId;
     if (copiedShortLinkResetTimer !== undefined) window.clearTimeout(copiedShortLinkResetTimer);
     copiedShortLinkResetTimer = window.setTimeout(() => {
@@ -471,6 +476,7 @@ async function copyShortLink(linkId: string, value: string) {
     }, 1600);
     closeShortLinkMenu();
   } catch {
+    copyingShortLinkId.value = null;
     shortLinkMessage.value = 'Copy failed. Select the link and copy it manually.';
   }
 }
@@ -1020,7 +1026,18 @@ onUnmounted(() => {
                       <td class="px-3 py-2 align-middle"><span class="audit-log-short-links__type" :class="`audit-log-short-links__type--${link.destination}`">{{ shortLinkDestinationLabel(link.destination) }}</span></td>
                       <td class="px-3 py-2 align-middle"><span class="audit-log-short-links__url">{{ link.url.replace('https://', '') }}</span></td>
                       <td class="px-3 py-2 align-middle text-sm font-semibold text-dc-gray">{{ link.redirect_count.toLocaleString() }}</td><td class="px-3 py-2 align-middle text-sm text-dc-gray">{{ link.last_redirected_at ? formatDateTime(link.last_redirected_at) : 'N/A' }}</td>
-                      <td class="px-3 py-2 align-middle"><div v-if="link.status === 'active'" class="audit-log-short-links__actions"><button type="button" class="motion-press min-h-9 rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-ink hover:bg-dc-paper-warm" @click="copyShortLink(link.id, link.url)"><Transition name="short-link-copy-label" mode="out-in"><span :key="copiedShortLinkId === link.id ? 'copied' : 'copy'">{{ copiedShortLinkId === link.id ? 'Copied' : 'Copy' }}</span></Transition></button><div data-short-link-menu class="audit-log-short-links__menu"><button type="button" class="motion-press audit-log-short-links__manage-button" aria-haspopup="menu" :aria-expanded="openShortLinkMenuId === link.id" :aria-label="`Manage ${link.url}`" @click.stop="toggleShortLinkMenu(link.id, $event)"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="4.5" r="1.35" /><circle cx="10" cy="10" r="1.35" /><circle cx="10" cy="15.5" r="1.35" /></svg></button></div></div><a v-else :href="link.url" target="_blank" rel="noopener noreferrer" class="audit-log-short-links__open-history">Open link ↗</a></td>
+                      <td class="px-3 py-2 align-middle">
+                        <div v-if="link.status === 'active'" class="audit-log-short-links__actions">
+                          <AppCopyButton
+                            :state="copyingShortLinkId === link.id ? 'copying' : copiedShortLinkId === link.id ? 'copied' : 'idle'"
+                            label="Copy"
+                            class="min-h-9 rounded-md border border-dc-ink bg-white px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-ink hover:bg-dc-paper-warm"
+                            @click="copyShortLink(link.id, link.url)"
+                          />
+                          <div data-short-link-menu class="audit-log-short-links__menu"><button type="button" class="motion-press audit-log-short-links__manage-button" aria-haspopup="menu" :aria-expanded="openShortLinkMenuId === link.id" :aria-label="`Manage ${link.url}`" @click.stop="toggleShortLinkMenu(link.id, $event)"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="4.5" r="1.35" /><circle cx="10" cy="10" r="1.35" /><circle cx="10" cy="15.5" r="1.35" /></svg></button></div>
+                        </div>
+                        <a v-else :href="link.url" target="_blank" rel="noopener noreferrer" class="audit-log-short-links__open-history">Open link ↗</a>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -2173,21 +2190,6 @@ onUnmounted(() => {
   transform: translateY(4px) scale(0.98);
 }
 
-.short-link-copy-label-enter-active,
-.short-link-copy-label-leave-active {
-  transition: opacity 140ms cubic-bezier(0.4, 0, 0.2, 1), transform 140ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.short-link-copy-label-enter-from {
-  opacity: 0;
-  transform: translateY(2px);
-}
-
-.short-link-copy-label-leave-to {
-  opacity: 0;
-  transform: translateY(-2px);
-}
-
 .audit-log-drawer-shell {
   position: fixed;
   inset: 0;
@@ -2546,9 +2548,7 @@ onUnmounted(() => {
   .audit-log-panel-forward-enter-active,
   .audit-log-panel-forward-leave-active,
   .audit-log-panel-backward-enter-active,
-  .audit-log-panel-backward-leave-active,
-  .short-link-copy-label-enter-active,
-  .short-link-copy-label-leave-active {
+  .audit-log-panel-backward-leave-active {
     transition: none;
   }
 
@@ -2559,9 +2559,7 @@ onUnmounted(() => {
   .audit-log-panel-backward-enter-from,
   .audit-log-panel-backward-leave-to,
   .audit-log-drawer-enter-from .audit-log-drawer,
-  .audit-log-drawer-leave-to .audit-log-drawer,
-  .short-link-copy-label-enter-from,
-  .short-link-copy-label-leave-to {
+  .audit-log-drawer-leave-to .audit-log-drawer {
     transform: none;
   }
 }

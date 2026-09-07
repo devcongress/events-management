@@ -4,9 +4,10 @@ import { communityEventSubmissionEmail } from '@/lib/email/templates/community-e
 import { eventRegistrationConfirmationEmail } from '@/lib/email/templates/event-registration-confirmation';
 import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
 import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
+import { conferenceSpeakerAcceptanceEmail } from '@/lib/email/templates/conference-speaker-acceptance';
 import type { EventSubmissionEmailKind } from '@/types';
 
-export type EmailPreviewCategory = 'Registration' | 'Event updates' | 'Community listings' | 'Speaker archive';
+export type EmailPreviewCategory = 'Registration' | 'Event updates' | 'Community listings' | 'Speaker archive' | 'Conference speakers';
 
 export type RenderedEmailPreview = {
   id: string;
@@ -273,6 +274,22 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
       trigger: 'Sent by an owner when a published talk is still missing slides, a recording, or other archive details.',
       talkTitle: 'Designing Reliable Event-Driven Systems — archive follow-up',
     }),
+    {
+      id: 'conference_speaker_accepted',
+      label: 'Conference proposal accepted',
+      category: 'Conference speakers',
+      recipient: 'Accepted conference speaker',
+      trigger: 'Sent automatically after an organizer accepts one Annual Conference proposal.',
+      from: EMAIL_SENDERS.speakers.from,
+      to: 'Efua Owusu <efua@example.com>',
+      ...conferenceSpeakerAcceptanceEmail({
+        editionLabel: 'DevCongress 2026',
+        speakerName: 'Efua Owusu',
+        talkTitle: 'Designing Reliable Event-Driven Systems',
+        privateUrl: 'https://em.devcongress.org/conference-speakers/2026/sample-private-workspace-token',
+        deadline: '2026-11-30T23:59:59.000Z',
+      }),
+    },
   ];
 
   const planned = EMAIL_SCENARIOS

@@ -1,29 +1,50 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceSpeakerDrawer from '@/src/components/AnnualConferenceSpeakerDrawer.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
+import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import { ensureAdminShortLink, fetchJson, queryKeys } from '@/src/lib/api';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
 import type { SpeakerSubmissionStatus } from '@/types';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
+type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
+  decision_email_status?: 'pending' | 'accepted' | 'failed' | null;
+  decision_email_last_attempt_at?: string | null;
+  logistics?: {
+    slides_url: string | null;
+    availability_confirmed: boolean | null;
+    technical_requirements: string | null;
+    workshop_prerequisites: string | null;
+    required_software_equipment: string | null;
+    participants_need_laptops: boolean | null;
+    preferred_workshop_capacity: number | null;
+    updated_at: string | null;
+  } | null;
+};
+
 type ConferenceSpeakersResponse = {
   edition: { year: number; label: string; name: string };
-  call: { open: boolean; public_path: string };
+  call: { open: boolean; public_path: string; logistics_deadline: string | null };
   permissions: { can_manage: boolean };
   counts: Record<SpeakerSubmissionStatus, number>;
-  submissions: AnnualConferenceSpeakerSubmission[];
+  submissions: ConferenceSubmission[];
 };
 
 const route = useRoute();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
-const copied = ref(false);
-const issuedPresenterLink = ref<{ submissionId: string; url: string } | null>(null);
+const publicLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
+const closeCallConfirmationOpen = ref(false);
+const deadlineInput = ref('');
+const emailRecoveryClock = ref(Date.now());
 const selectedSubmissionId = ref<string | null>(null);
 const statusFilter = ref<'all' | 'submitted' | 'selected' | 'not_selected'>('submitted');
 const page = ref(1);
@@ -46,6 +67,21 @@ const pageEnd = computed(() => Math.min(visibleSubmissions.value.length, page.va
 const paginatedSubmissions = computed(() => visibleSubmissions.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const canManage = computed(() => speakersQuery.data.value?.permissions.can_manage === true);
 const selectedSubmission = computed(() => submissions.value.find((submission) => submission.id === selectedSubmissionId.value) ?? null);
+const canRecoverSelectedWorkspaceEmail = computed(() => {
+  const submission = selectedSubmission.value;
+  if (!submission || submission.status !== 'selected' || !submission.logistics || submission.decision_email_status === 'accepted') return false;
+  if (submission.decision_email_status !== 'pending' || !submission.decision_email_last_attempt_at) return true;
+  return new Date(submission.decision_email_last_attempt_at).getTime() <= emailRecoveryClock.value - 5 * 60 * 1000;
+});
+let emailRecoveryTimer: number | undefined;
+let publicLinkCopyResetTimer: number | undefined;
+onMounted(() => {
+  emailRecoveryTimer = window.setInterval(() => { emailRecoveryClock.value = Date.now(); }, 30_000);
+});
+onUnmounted(() => {
+  if (emailRecoveryTimer) window.clearInterval(emailRecoveryTimer);
+  if (publicLinkCopyResetTimer) window.clearTimeout(publicLinkCopyResetTimer);
+});
 const pendingCountLabel = computed(() => `${counts.value.submitted} pending proposal${counts.value.submitted === 1 ? '' : 's'}`);
 const selectedStatusLabel = computed(() => ({
   all: 'proposals',
@@ -61,6 +97,9 @@ watch(submissions, (next) => {
     selectedSubmissionId.value = null;
   }
 });
+watch(() => speakersQuery.data.value?.call.logistics_deadline, (deadline) => {
+  deadlineInput.value = deadline ? toLocalDateTimeInput(deadline) : '';
+}, { immediate: true });
 
 const callMutation = useMutation({
   mutationFn: (open: boolean) => fetchJson<{ open: boolean }>(`/api/annual-conference/${year.value}/speakers/call`, {
@@ -68,44 +107,66 @@ const callMutation = useMutation({
   }),
   onSuccess: async (result) => {
     await speakersQuery.refetch();
+    if (!result.open) closeCallConfirmationOpen.value = false;
     notify.success(result.open ? 'Conference Call for Speakers is open.' : 'Conference Call for Speakers is closed.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the Call for Speakers.'),
 });
 const decisionMutation = useMutation({
-  mutationFn: ({ id, status }: { id: string; status: 'selected' | 'not_selected' }) => fetchJson<{ token: string | null }>(`/api/annual-conference/${year.value}/speaker-submissions/${id}`, {
+  mutationFn: ({ id, status }: { id: string; status: 'selected' | 'not_selected' }) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' | null } }>(`/api/annual-conference/${year.value}/speaker-submissions/${id}`, {
     method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
   }),
   onSuccess: async (result, variables) => {
     await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
-    if (variables.status === 'selected' && result.token) {
-      issuedPresenterLink.value = {
-        submissionId: variables.id,
-        url: new URL(`/conference-speakers/${year.value}/${result.token}`, window.location.origin).toString(),
-      };
-      statusFilter.value = 'selected';
-    }
-    notify.success(variables.status === 'selected' ? 'Presenter selected and follow-up link prepared.' : 'Proposal marked as not selected.');
+    if (variables.status === 'selected') statusFilter.value = 'selected';
+    notify.success(variables.status === 'selected'
+      ? result.decision_email.status === 'accepted'
+        ? 'Proposal accepted and the private workspace was emailed to the speaker.'
+        : 'Proposal accepted, but the workspace email needs attention.'
+      : 'Proposal marked as not selected.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the proposal.'),
+});
+const deadlineMutation = useMutation({
+  mutationFn: () => fetchJson<{ deadline: string | null }>(`/api/annual-conference/${year.value}/speakers/logistics-deadline`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deadline: deadlineInput.value ? new Date(deadlineInput.value).toISOString() : null }),
+  }),
+  onSuccess: async () => {
+    await speakersQuery.refetch();
+    notify.success('Speaker logistics deadline updated.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the deadline.'),
+});
+const resendWorkspaceEmailMutation = useMutation({
+  mutationFn: (submissionId: string) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/resend-workspace-email`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+  }),
+  onSuccess: async (result) => {
+    await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
+    notify.success(result.decision_email.status === 'accepted' ? 'A fresh private workspace link was emailed.' : 'The email provider still did not accept the message.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to resend the workspace email.'),
 });
 
 async function copyPublicLink() {
   if (!speakersQuery.data.value?.call.open) return;
+  publicLinkCopyState.value = 'copying';
   try {
     const shortLink = await ensureAdminShortLink({ destination: 'conference_cfp', conference_year: Number(year.value) });
-    await navigator.clipboard?.writeText(shortLink.url);
-    copied.value = true;
-    window.setTimeout(() => { copied.value = false; }, 1800);
+    await copyTextToClipboard(shortLink.url);
+    publicLinkCopyState.value = 'copied';
+    if (publicLinkCopyResetTimer) window.clearTimeout(publicLinkCopyResetTimer);
+    publicLinkCopyResetTimer = window.setTimeout(() => {
+      publicLinkCopyState.value = 'idle';
+      publicLinkCopyResetTimer = undefined;
+    }, 1800);
   } catch (error) {
+    publicLinkCopyState.value = 'idle';
     notify.error(error instanceof Error ? error.message : 'Unable to prepare the public link.');
   }
-}
-
-async function copyPresenterLink() {
-  if (!issuedPresenterLink.value) return;
-  await navigator.clipboard?.writeText(issuedPresenterLink.value.url);
-  notify.success('Private presenter link copied.');
 }
 
 function toggleStatusFilter(status: Exclude<typeof statusFilter.value, 'all'>) {
@@ -122,6 +183,12 @@ function formatSubmittedAt(value: string): string {
 
 function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
   return status === 'not_selected' ? 'Not selected' : status;
+}
+
+function toLocalDateTimeInput(value: string): string {
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 </script>
 
@@ -143,9 +210,24 @@ function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
             <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Review proposals and manage the public call for {{ speakersQuery.data.value.edition.name }}.</p>
           </div>
           <div class="flex flex-wrap gap-2 lg:justify-end">
-            <button class="motion-press rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" @click="copyPublicLink">{{ copied ? 'Copied' : 'Copy public link' }}</button>
-            <button v-if="canManage" class="motion-press rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="speakersQuery.data.value.call.open ? 'bg-dc-paper text-dc-ink' : 'bg-dc-pink text-white'" :disabled="callMutation.isPending.value" @click="callMutation.mutate(!speakersQuery.data.value.call.open)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
+            <AppCopyButton :state="publicLinkCopyState" label="Copy public link" class="min-h-10 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :disabled="!speakersQuery.data.value.call.open" @click="copyPublicLink" />
+            <button v-if="canManage" class="motion-press min-h-10 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
           </div>
+        </section>
+
+        <section v-if="canManage" class="mt-5 rounded-lg border border-dc-border bg-dc-paper-warm p-4">
+          <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <AppDatePicker
+              v-model="deadlineInput"
+              class="min-w-0"
+              label="Speaker logistics deadline"
+              mode="datetime"
+              density="field"
+              required
+            />
+            <button type="button" class="motion-press min-h-[50px] w-full rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-[11px] font-semibold uppercase sm:w-auto" :disabled="deadlineMutation.isPending.value || !deadlineInput" @click="deadlineMutation.mutate()">{{ deadlineMutation.isPending.value ? 'Saving…' : 'Save deadline' }}</button>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-dc-gray">Accepted speakers can save and revise their private workspace until this deadline.</p>
         </section>
 
         <section class="editorial-panel mt-6 overflow-hidden" aria-live="polite">
@@ -190,7 +272,7 @@ function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
                     {{ submission.title }}
                   </th>
                   <td class="truncate px-4 py-2 text-sm text-dc-gray" :title="`${submission.speaker_name} · ${submission.speaker_email}`">{{ submission.speaker_name }}</td>
-                  <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ submission.kind === 'product_demo' ? 'Demo' : 'Talk' }}</td>
+                  <td class="px-4 py-2 font-mono text-[10px] font-semibold leading-4 text-dc-gray">{{ submission.session_type }}</td>
                   <td class="px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-dc-gray">{{ formatSubmittedAt(submission.created_at) }}</td>
                   <td class="px-4 py-2">
                     <span class="inline-flex size-8 items-center justify-center rounded-md border" :class="submission.status === 'selected' ? 'border-[#86efac] text-[#15803d]' : submission.status === 'not_selected' ? 'border-[#fda4af] text-dc-pink' : 'border-dc-border text-dc-gray'" role="img" :aria-label="proposalStatusLabel(submission.status)" :title="proposalStatusLabel(submission.status)">
@@ -213,12 +295,25 @@ function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
           :open="Boolean(selectedSubmission)"
           :submission="selectedSubmission"
           :can-manage="canManage"
-          :submitting="decisionMutation.isPending.value"
-          :can-copy-presenter-link="issuedPresenterLink?.submissionId === selectedSubmission?.id"
+          :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value"
+          :can-resend-workspace-email="canRecoverSelectedWorkspaceEmail"
           @close="selectedSubmissionId = null"
           @approve="decisionMutation.mutate({ id: $event.id, status: 'selected' })"
           @reject="decisionMutation.mutate({ id: $event.id, status: 'not_selected' })"
-          @copy-presenter-link="copyPresenterLink"
+          @resend-workspace-email="resendWorkspaceEmailMutation.mutate($event.id)"
+        />
+
+        <ConfirmDialog
+          :open="closeCallConfirmationOpen"
+          title="Close the Call for Speakers?"
+          message="New conference proposals will stop immediately. Existing submissions remain available for review, and you can reopen the call later."
+          confirm-label="Close call"
+          busy-label="Closing…"
+          cancel-label="Keep call open"
+          :busy="callMutation.isPending.value"
+          danger
+          @cancel="closeCallConfirmationOpen = false"
+          @confirm="callMutation.mutate(false)"
         />
       </template>
     </div>

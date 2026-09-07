@@ -31,6 +31,7 @@ export interface AnnualConferenceEdition {
   name: string;
   label: string;
   speaker_call_status?: 'open' | 'closed';
+  speaker_logistics_deadline?: string | null;
   provisional_date: string | null;
   date_status: 'provisional' | 'confirmed';
   venue_note: string | null;
@@ -226,6 +227,7 @@ export const ANNUAL_CONFERENCE_2026_EDITION: AnnualConferenceEdition = {
   name: 'DevCongress Annual Conference',
   label: 'December 2026',
   speaker_call_status: 'closed',
+  speaker_logistics_deadline: null,
   provisional_date: '2026-12-19',
   date_status: 'provisional',
   venue_note: 'Current venue candidates: UPSA or Accra Digital Centre.',

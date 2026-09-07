@@ -1,5 +1,25 @@
 # Architectural Decisions
 
+## ADR-083: Ratchet the Hono Composition Root into Cohesive Route Modules
+
+**Date:** 2026-09-07
+**Why:** `server/app.ts` reached 12,453 lines, 107 imports, and 191 route registrations while owning global middleware, schemas, persistence selection, provider delivery, domain transformations, and unrelated handlers. Its size is a symptom of mixed responsibilities and high change frequency, but splitting every endpoint into a separate file would trade one navigation problem for shallow modules and fragile dependency plumbing.
+**Decision:** Keep `server/app.ts` as the ordered composition root for request environment, error handling, security headers, body limits, CORS, authentication, feature registration, and SPA fallback. Move routes out in cohesive domain registrars with one registration entry point per meaningful route family. Keep transport schemas and feature-specific delivery adapters beside their registrar; move shared HTTP policy only when several route families use it. Start with the complete nine-route Annual Conference speaker surface, retaining the existing global public/protected path classification and full-app route tests. Treat approximate file-size thresholds as review triggers rather than build failures, and prohibit new feature handlers from being added directly to the composition root.
+**Tradeoffs:** The first extraction reduces `server/app.ts` by 826 lines but deliberately leaves a large legacy root and path classifiers that still know public feature URLs. More named modules improve ownership and test seams while increasing the number of files. Production adapters remain concrete in this first mechanical extraction so route behavior does not change; a ports-based application service is deferred until isolated orchestration tests justify the additional abstraction.
+**Revisit when:** Two or more extracted route families need the same request policy, the app root falls below roughly 1,000 lines and can become declarative composition only, or speaker orchestration gains enough callers to justify a transport-independent application façade.
+
+---
+
+## ADR-082: Separate Annual Conference Proposals from Monthly CFP and Archive Intake
+
+**Date:** 2026-09-07
+**Why:** The monthly CFP is an event/archive workflow with talk-or-product-demo compatibility fields and a short one-time completion form. Annual Conference review needs complete talk proposals, independent decisions when one speaker submits several sessions, and an editable logistics phase after acceptance. Reusing the monthly shape made proposal review incomplete and coupled acceptance to a second proposal-like submission.
+**Decision:** Keep Annual Conference proposals in dedicated relational tables and remove the inherited `kind`, `github_username`, and proposal-time resource columns. Normalize speaker identity and bio by email in `annual_conference_speaker_profiles`; store fixed track, fixed session type, a speaker bio with a recommended 150-word maximum, a 250-word abstract, and three to five learning outcomes on every proposal. An atomic compare-and-set records acceptance and creates one proposal-bound programme session plus one hash-only private workspace capability, then the application immediately attempts the system-owned Resend message. The workspace updates logistics in place until an edition-level organizer deadline. Incomplete acceptance delivery is retryable through an atomic bearer-link rotation that preserves the accepted proposal and session.
+**Tradeoffs:** The annual and monthly CFPs now have deliberately different validation, persistence, and follow-up code. Email acceptance is provider-observable but inbox delivery still requires provider webhooks. Speaker profiles retain the latest submitted name and bio for an email while each proposal keeps its own review-time copy. Already accepted legacy proposals are preserved as sessions; incomplete undecided legacy rows remain visible but cannot be newly accepted.
+**Revisit when:** Co-speakers are required, accepted-session scheduling needs rooms and time slots, speaker-authenticated accounts should replace bearer workspaces, or decision emails move into a generalized transactional outbox.
+
+---
+
 ## ADR-081: Prepare event-blast audiences through a bounded Queue
 
 **Date:** 2026-08-28

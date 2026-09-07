@@ -18,12 +18,21 @@ type IntakePrefill = {
   abstract?: string;
   bio?: string;
   slides_url?: string;
+  session_type?: string;
+  learning_outcomes?: string[];
+  availability_confirmed?: boolean | null;
+  technical_requirements?: string;
+  workshop_prerequisites?: string;
+  required_software_equipment?: string;
+  participants_need_laptops?: boolean | null;
+  preferred_workshop_capacity?: number | null;
+  logistics_updated_at?: string | null;
 };
 
 const route = useRoute();
 const isConferenceIntake = computed(() => typeof route.params.year === 'string');
 const event = ref<IntakeEvent | null>(null);
-const linkPurpose = ref<SpeakerIntakeLinkPurpose>('archive_backfill');
+const linkPurpose = ref<SpeakerIntakeLinkPurpose | 'conference_speaker_workspace'>('archive_backfill');
 const archiveItemKind = ref<ArchiveItemKind>('talk');
 const requestedFields = ref<ArchiveMaterialField[]>([]);
 const loading = ref(true);
@@ -31,6 +40,8 @@ const submitting = ref(false);
 const submitted = ref(false);
 const unavailableMessage = ref<string | null>(null);
 const error = ref<string | null>(null);
+const savedMessage = ref<string | null>(null);
+const workspaceDeadline = ref<string | null>(null);
 const popularTopics = [
   'Frontend Engineering',
   'Backend Engineering',
@@ -51,6 +62,14 @@ const form = reactive({
   abstract: '',
   bio: '',
   slides_url: '',
+  session_type: '',
+  learning_outcomes: [] as string[],
+  availability_confirmed: '' as '' | 'yes' | 'not_yet',
+  technical_requirements: '',
+  workshop_prerequisites: '',
+  required_software_equipment: '',
+  participants_need_laptops: '' as '' | 'yes' | 'no',
+  preferred_workshop_capacity: null as number | null,
 });
 const topicOptions = computed(() => {
   const baseOptions = [
@@ -98,6 +117,7 @@ function resourceLabel() {
 }
 
 function archiveHeading() {
+  if (isConferenceIntake.value) return 'Speaker logistics workspace';
   if (isSelectedSpeakerLink()) {
     return 'Complete Your Speaker Details';
   }
@@ -108,6 +128,7 @@ function archiveHeading() {
 }
 
 function archiveDescription() {
+  if (isConferenceIntake.value) return 'Your accepted proposal is already saved. Keep these delivery details up to date until the organizer deadline.';
   if (isSelectedSpeakerLink()) {
     return 'Add a short bio and any resource link you have. You can leave the resource link blank if it is not ready yet.';
   }
@@ -139,7 +160,18 @@ function displayEventDate() {
 async function submitTalkDetails() {
   submitting.value = true;
   error.value = null;
-  const payload = isSelectedSpeakerLink()
+  savedMessage.value = null;
+  const payload = isConferenceIntake.value
+    ? {
+      slides_url: form.slides_url,
+      availability_confirmed: form.availability_confirmed === '' ? null : form.availability_confirmed === 'yes',
+      technical_requirements: form.technical_requirements,
+      workshop_prerequisites: form.workshop_prerequisites,
+      required_software_equipment: form.required_software_equipment,
+      participants_need_laptops: form.participants_need_laptops === '' ? null : form.participants_need_laptops === 'yes',
+      preferred_workshop_capacity: form.session_type === '60-minute workshop' ? form.preferred_workshop_capacity : null,
+    }
+    : isSelectedSpeakerLink()
     ? { topic: form.topic, bio: form.bio, slides_url: form.slides_url }
     : isMaterialsFollowUpLink()
       ? Object.fromEntries(requestedFields.value.map((field) => [field, form[field]]))
@@ -160,7 +192,8 @@ async function submitTalkDetails() {
     });
 
     if (response.ok) {
-      submitted.value = true;
+      if (isConferenceIntake.value) savedMessage.value = 'Draft saved. You can return through the same private link to make more changes.';
+      else submitted.value = true;
     } else {
       const data = await response.json();
       error.value = data.error || `The ${archiveItemLabel().toLowerCase()} details could not be submitted.`;
@@ -181,6 +214,7 @@ onMounted(async () => {
     if (response.ok) {
       event.value = data.event;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
+      workspaceDeadline.value = data.link?.deadline ?? null;
       archiveItemKind.value = data.link?.kind === 'product_demo' ? 'product_demo' : 'talk';
       requestedFields.value = Array.isArray(data.link?.requested_fields)
         ? data.link.requested_fields.filter((field: unknown): field is ArchiveMaterialField => (
@@ -204,6 +238,19 @@ function applyPrefill(prefill: IntakePrefill) {
   form.abstract = prefill.abstract || form.abstract;
   form.bio = prefill.bio || form.bio;
   form.slides_url = prefill.slides_url || form.slides_url;
+  form.session_type = prefill.session_type || form.session_type;
+  form.learning_outcomes = prefill.learning_outcomes ?? form.learning_outcomes;
+  form.availability_confirmed = prefill.availability_confirmed === true ? 'yes' : prefill.availability_confirmed === false ? 'not_yet' : '';
+  form.technical_requirements = prefill.technical_requirements || '';
+  form.workshop_prerequisites = prefill.workshop_prerequisites || '';
+  form.required_software_equipment = prefill.required_software_equipment || '';
+  form.participants_need_laptops = prefill.participants_need_laptops === true ? 'yes' : prefill.participants_need_laptops === false ? 'no' : '';
+  form.preferred_workshop_capacity = prefill.preferred_workshop_capacity ?? null;
+}
+
+function formatDeadline(value: string | null): string {
+  if (!value) return 'the organizer deadline';
+  return new Intl.DateTimeFormat('en-GH', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value));
 }
 </script>
 
@@ -225,7 +272,7 @@ function applyPrefill(prefill: IntakePrefill) {
       <p class="font-mono text-dc-ink">EVENT NOT FOUND</p>
     </div>
 
-    <div v-else-if="submitted" class="flex min-h-full items-center justify-center p-4">
+    <div v-else-if="submitted && !isConferenceIntake" class="flex min-h-full items-center justify-center p-4">
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
         <div class="mb-6 font-mono text-6xl font-bold text-dc-pink">OK</div>
         <h2 class="mb-4 text-3xl font-bold text-dc-ink">Received</h2>
@@ -266,6 +313,67 @@ function applyPrefill(prefill: IntakePrefill) {
 
       <form class="speaker-intake-form space-y-6 border-t border-dc-border pt-6" @submit.prevent="submitTalkDetails">
         <div v-if="error" class="rounded-md border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
+
+        <template v-if="isConferenceIntake">
+          <div v-if="savedMessage" class="rounded-md border border-[#15803d] bg-[#effcf3] p-4 text-sm font-semibold text-[#15803d]" role="status">{{ savedMessage }}</div>
+          <section class="rounded-lg border border-dc-border bg-dc-paper-warm p-5">
+            <p class="editorial-label">Accepted proposal</p>
+            <h2 class="text-2xl font-bold tracking-tight text-dc-ink">{{ form.title }}</h2>
+            <p class="mt-2 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray">{{ form.session_type }} · {{ form.topic }}</p>
+            <p class="mt-4 whitespace-pre-line text-sm leading-6 text-dc-gray">{{ form.abstract }}</p>
+            <ol class="mt-4 list-decimal space-y-1 pl-5 text-sm leading-6 text-dc-gray">
+              <li v-for="outcome in form.learning_outcomes" :key="outcome">{{ outcome }}</li>
+            </ol>
+            <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Updates close {{ formatDeadline(workspaceDeadline) }}.</p>
+          </section>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block">
+              <span class="editorial-label">Availability confirmation</span>
+              <select v-model="form.availability_confirmed" class="editorial-input bg-white">
+                <option value="">Choose an answer</option>
+                <option value="yes">I confirm I am available</option>
+                <option value="not_yet">Not confirmed yet</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="editorial-label">Do participants need laptops?</span>
+              <select v-model="form.participants_need_laptops" class="editorial-input bg-white">
+                <option value="">Choose an answer</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="block">
+            <span class="editorial-label">Slides or supporting-resource link</span>
+            <input v-model="form.slides_url" type="url" inputmode="url" placeholder="https://…" class="editorial-input font-mono" />
+          </label>
+          <label class="block">
+            <span class="editorial-label">Technical and setup requirements</span>
+            <textarea v-model="form.technical_requirements" rows="4" class="editorial-input resize-none" placeholder="Microphones, display adapters, internet access, room setup, or other needs." />
+          </label>
+          <label class="block">
+            <span class="editorial-label">Required software or equipment</span>
+            <textarea v-model="form.required_software_equipment" rows="3" class="editorial-input resize-none" placeholder="Software, accounts, devices, adapters, or equipment needed." />
+          </label>
+          <template v-if="form.session_type === '60-minute workshop'">
+            <label class="block">
+              <span class="editorial-label">Workshop prerequisites</span>
+              <textarea v-model="form.workshop_prerequisites" rows="3" class="editorial-input resize-none" placeholder="What should participants know or prepare beforehand?" />
+            </label>
+            <label class="block max-w-xs">
+              <span class="editorial-label">Preferred workshop capacity</span>
+              <input v-model.number="form.preferred_workshop_capacity" type="number" min="1" max="1000" class="editorial-input" />
+            </label>
+          </template>
+          <div class="flex justify-end">
+            <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-56">{{ submitting ? 'SAVING…' : 'SAVE DETAILS' }}</button>
+          </div>
+        </template>
+
+        <template v-else>
 
         <div v-if="isSelectedSpeakerLink() || isMaterialsFollowUpLink()" class="border-l-4 border-dc-yellow pl-4">
           <p class="editorial-label">{{ isMaterialsFollowUpLink() ? 'Archive follow-up' : `Selected ${archiveItemLabel()}` }}</p>
@@ -378,6 +486,7 @@ function applyPrefill(prefill: IntakePrefill) {
             {{ submitting ? 'SUBMITTING...' : 'SEND ARCHIVE DETAILS' }}
           </button>
         </div>
+        </template>
       </form>
     </div>
   </div>

@@ -160,14 +160,14 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
 | Put out the Call for Speakers | Not started | Unassigned | TBD | Define submission criteria, deadline, review committee, selection rubric, and response timeline |
-| Annual speaker submission form | Not started | Elvis | TBD | Ernest collaborates; define the annual form for name, bio, topic, abstract, talk/workshop format, and technical requirements |
+| Annual speaker submission form | Done | Elvis | 2026-09-07 | Separate conference CFP requires identity, reusable bio (150 words recommended), title, fixed track/type, 250-word abstract, and 3–5 learning outcomes; each submission is one independently reviewed proposal |
 | Speaker review committee | Not started | Unassigned | TBD | Name reviewers, resolve conflicts, and define selection/communication responsibilities |
 | Keynote outreach | Blocked | Unassigned | TBD | Starts after date, theme, venue confidence, and shortlist confirmation |
 | Workshops and breakout sessions | Not started | Unassigned | TBD | Assign facilitators, rooms, capacity, materials, equipment, and support volunteers |
 | Panel discussions | Not started | Unassigned | TBD | Define topics, moderator, panelists, duration, and audience-question format |
 | Demo sessions | Not started | Unassigned | TBD | Confirm presenters, time slots, power, network, projection, and fallback needs |
 | Programme outline | Not started | Angela | TBD | Build the December run of show after sessions and rooms are known |
-| Speaker communications | Not started | Unassigned | TBD | Plan acceptance, rejection, logistics, reminders, slides/materials, and day-of instructions |
+| Speaker communications | In progress | Unassigned | TBD | Acceptance now automatically emails a proposal-scoped private logistics workspace; organizers control its edit deadline and can retry failed delivery. Rejection messaging, reminders, and day-of instructions remain |
 
 ## Volunteers and Work Assignments
 

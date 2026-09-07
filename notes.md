@@ -73,3 +73,44 @@
 - Event workspace client data: owned remote HTTP boundary with TanStack Query cache adapter.
 - Operations read model: owned read data plus mocked provider observation.
 - Persistence migration: local-substitutable adapter contracts with owned Supabase production adapter.
+
+---
+
+# Notes: Large-File Architecture Audit 2026-09-07
+
+## Scope
+
+- Audit source files by physical lines, exported/public surface, responsibility count, dependency fan-out, and test seams.
+- Prioritize `server/app.ts`, while comparing other TypeScript and Vue hotspots so the recommendation is repository-wide rather than anecdotal.
+- Preserve route behavior, middleware ordering, organizer authorization, rate limits, and persistence selection.
+
+## Findings
+
+- `server/app.ts`: 12,453 lines, 191 registered HTTP routes, roughly 4,000 lines of imports/middleware/schemas/helpers before the first route, and about 8,000 lines of route registrations. It changes in at least the latest 50 commits and is both the HTTP composition root and the implementation home for many domains.
+- Server production TypeScript outside `server/app.ts` totals only about 2,000 lines. The entry point is therefore over six times larger than all other server production modules combined.
+- `src/views/admin/AdminAuditLogView.vue` (2,568), `AdminRegistrationsView.vue` (2,466), `AdminTalksView.vue` (1,991), and `AdminEventView.vue` (1,740) each coordinate multiple independently meaningful panels/workflows and merit later component/controller extraction.
+- `src/views/SystemDesignPresenterView.vue` (1,433) is long but comparatively cohesive: one presenter workflow plus substantial template/style content. It is a lower priority than the multi-workflow admin views.
+- `src/lib/api.ts` (1,222) has a broad export surface but low per-function complexity. Domain client modules with a compatibility barrel would improve discovery, but splitting it before the server boundary would deliver less risk reduction.
+- `lib/annual-conference-work-plan.ts` (1,103) mixes sizeable 2026 seed data with reusable validation/read-model logic. Moving seeds into a fixture module is safe, but this file is not a runtime orchestration hotspot.
+
+## Working recommendation
+
+- Use a ratcheted, responsibility-aware audit rather than a universal maximum line count.
+- First extraction: move the complete Annual Conference speaker HTTP surface (public CFP, organizer review, acceptance delivery, and private logistics workspace) behind one feature router. This is a cohesive vertical slice with fresh end-to-end coverage and removes new growth from the monolithic composition root.
+- Keep app-wide middleware in `server/app.ts`; do not duplicate auth, body limits, CORS, request IDs, or error handling in feature routers.
+- Follow with feature routers in risk-contained slices: Annual Conference planning/finance, registrations/blasts, event submissions, feedback, quiz, then remaining event/archive operations.
+- For Vue, extract stable child workflows and composables from the four multi-workflow admin views; do not split template/style purely to satisfy a line threshold.
+
+## Implemented first slice
+
+- Registered all nine Annual Conference speaker endpoints through `registerAnnualConferenceSpeakerRoutes(app)`.
+- Split the route registrar (629 lines), Zod schemas (53), and acceptance delivery (62) by responsibility.
+- Moved shared request behavior into `server/http/` and Annual Conference request composition into `server/annual-conference-request.ts`.
+- Preserved the global unauthenticated-route classifier and middleware installation order in `server/app.ts`.
+- Reduced `server/app.ts` from 12,453 to 11,627 lines without changing route paths or product behavior.
+- Added a route-registration test and passed the focused proposal/security suite plus TypeScript compilation.
+
+## Independent review
+
+- A senior-engineer agent reviewed the uncommitted architecture diff against `ba9cd89`, including exact route/response parity, middleware and authorization order, circular dependencies, local locking, token/email security, tests, and documentation.
+- The review found no P0-P3 issues. It confirmed that all nine routes preserve their prior contracts, global middleware still precedes registration, the shared lock remains module-scoped, and the 629-line registrar is a cohesive workflow boundary rather than an arbitrary shallow split.

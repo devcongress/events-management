@@ -60,6 +60,9 @@ devcongress-comm-idea/
 |---|---|
 | `src` | Vue SPA shell and active client-side routes |
 | `server` | Hono API routes and Bun static/API server |
+| `server/routes` | Cohesive Hono feature registrars; Annual Conference speaker routes are the first complete extraction from the composition root |
+| `server/http` | Shared request bindings, public-intake protection, origin resolution, safe internal errors, and same-process speaker mutation coordination |
+| `server/annual-conference-request.ts` | Request-scoped Annual Conference service, finance, edition, and capability composition |
 | `server/event-submissions/` | Community-submission lifecycle, repository adapter, and request-scoped composition boundary |
 | `server/operations-read-model.ts` | Owner operations projection joining audit history with delivery, quota, and blast state |
 | `server/protected-mutation.ts` | Shared authenticated-mutation audit adapter |
@@ -78,6 +81,8 @@ devcongress-comm-idea/
 Organizer HTTP routes remain responsible for sessions, authorization, validation, rate limits, signed capabilities, and their established response contracts. A domain lifecycle receives already-validated values and owns related state transitions plus audit/delivery intent; a repository adapter isolates current Supabase helpers; provider calls remain injected adapters. This keeps a route change from having to rediscover a domain’s persistence, audit, and notification choreography.
 
 For shared event workspace state, `src/composables/useEventWorkspace.ts` is the single TanStack Query boundary for Event and checklist resources. Views may still keep local drafts, but should use this composable rather than inventing query keys or cache behavior.
+
+`server/app.ts` remains the ordered Hono composition root for app-wide middleware and legacy handlers. New feature routes belong in a cohesive registrar under `server/routes/`; the root registers each route family only after request environment, security, body-limit, CORS, and authentication policy are installed. See `architecture-audit-2026-09-07.md` for the staged extraction sequence and responsibility-aware size guardrails.
 
 ---
 
@@ -147,6 +152,10 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/annual-conference/[year]/work-plan` — annual edition/phase/task reads scoped by membership, edition-owner task creation, assignment-scoped organizer edits, and status-only volunteer updates
 - `/api/annual-conference/[year]/phases` — edition planning-owner phase creation, editing, ordering, and deletion
 - `/api/annual-conference/[year]/access-grants` — owner-only edition responsibility directory and per-member grant mutation
+- `/api/annual-conference/[year]/speakers` — organizer conference-only proposal inbox with independently decided proposals and accepted-session logistics state
+- `/api/annual-conference/[year]/speakers/logistics-deadline` — capability-gated edition deadline for private speaker workspace edits
+- `/api/annual-conference/[year]/speaker-submissions/[submissionId]` — final per-proposal acceptance/rejection; acceptance creates the session and automatically attempts its private-workspace email
+- `/api/annual-conference/[year]/speaker-submissions/[submissionId]/resend-workspace-email` — rotates a failed private capability and retries its acceptance email
 - `/api/annual-conference/[year]/team`, `/task-members`, `/volunteer-applications` — capability-gated team, task-assignee, and private applicant projections
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event
@@ -171,6 +180,8 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/feedback/events/[eventId]/submissions` — public structured event feedback submission
 - `/api/cfp/events/[eventId]` — minimal public event context for an open monthly CFP
 - `/api/cfp` — CFP submission
+- `/api/cfp/conferences/[year]` — separate Annual Conference CFP context and complete-proposal submission contract
+- `/api/conferences/[year]/speaker-intake/[token]` — deadline-bound, proposal-scoped, repeatable accepted-speaker logistics workspace
 - `/api/talks` — all talks, optional `eventId` query filter
 - `/api/talks/[talkId]` — admin talk status update
 - `/api/talks/[talkId]/reminder` — logs organizer slide reminders for accepted talks

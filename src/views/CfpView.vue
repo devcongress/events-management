@@ -8,6 +8,17 @@ import { preflightPublicEmail } from '@/src/lib/api';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
 import { safePublicResourceUrl } from '@/lib/safe-url';
+import {
+  ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT,
+  ANNUAL_CONFERENCE_BIO_WORD_LIMIT,
+  ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX,
+  ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN,
+  ANNUAL_CONFERENCE_SESSION_TYPES,
+  ANNUAL_CONFERENCE_TOPIC_TRACKS,
+  countWords,
+  type AnnualConferenceSessionType,
+  type AnnualConferenceTopicTrack,
+} from '@/lib/annual-conference-cfp';
 import type { ArchiveItemKind, Event } from '@/types';
 
 const route = useRoute();
@@ -22,7 +33,7 @@ const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
 const turnstileToken = ref('');
 const turnstileError = ref('');
 const turnstileActive = turnstileEnabled();
-const ABSTRACT_WORD_LIMIT = 120;
+const MONTHLY_ABSTRACT_WORD_LIMIT = 120;
 const devconLogoSrc = '/brand/dev-con-logo.webp';
 
 const form = reactive({
@@ -30,16 +41,20 @@ const form = reactive({
   speaker_name: '',
   speaker_email: '',
   title: '',
+  bio: '',
+  topic: '' as AnnualConferenceTopicTrack | '',
+  session_type: '' as AnnualConferenceSessionType | '',
   abstract: '',
+  learning_outcomes: [''],
   resource_url: '',
 });
 
-function wordCount(value: string): number {
-  return value.trim().split(/\s+/).filter(Boolean).length;
-}
-
-const abstractWordCount = computed(() => wordCount(form.abstract));
-const abstractOverLimit = computed(() => abstractWordCount.value > ABSTRACT_WORD_LIMIT);
+const isConferenceCall = computed(() => route.name === 'conference-cfp');
+const abstractWordLimit = computed(() => isConferenceCall.value ? ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT : MONTHLY_ABSTRACT_WORD_LIMIT);
+const abstractWordCount = computed(() => countWords(form.abstract));
+const abstractOverLimit = computed(() => abstractWordCount.value > abstractWordLimit.value);
+const bioWordCount = computed(() => countWords(form.bio));
+const bioOverLimit = computed(() => bioWordCount.value > ANNUAL_CONFERENCE_BIO_WORD_LIMIT);
 const speakerEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.speaker_email.trim()));
 const resourceUrlInvalid = computed(() => Boolean(form.resource_url.trim()) && !safePublicResourceUrl(form.resource_url));
 const resourceUrlError = computed(() => resourceUrlInvalid.value ? 'Use a secure public HTTPS link.' : '');
@@ -47,14 +62,21 @@ const requiredFieldsComplete = computed(() => Boolean(
   form.speaker_name.trim()
   && speakerEmailValid.value
   && form.title.trim()
-  && form.abstract.trim(),
+  && form.abstract.trim()
+  && (!isConferenceCall.value || (
+    form.bio.trim()
+    && form.topic
+    && form.session_type
+    && form.learning_outcomes.length >= ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN
+    && form.learning_outcomes.every((outcome) => outcome.trim())
+  )),
 ));
-const isConferenceCall = computed(() => route.name === 'conference-cfp');
 const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status === 'cfp_open'));
 const canSubmitProposal = computed(() => (
   cfpIsAvailable.value
   && (!turnstileActive || turnstileToken.value.length > 0)
-  && !resourceUrlInvalid.value
+  && (!isConferenceCall.value ? !resourceUrlInvalid.value : true)
+  && !abstractOverLimit.value
   && !submitting.value
 ));
 const cfpClosedTitle = computed(() => {
@@ -74,6 +96,14 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
 
+function addLearningOutcome() {
+  if (form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX) form.learning_outcomes.push('');
+}
+
+function removeLearningOutcome(index: number) {
+  form.learning_outcomes.splice(index, 1);
+}
+
 async function submitProposal() {
   if (!canSubmitProposal.value) return;
 
@@ -83,10 +113,10 @@ async function submitProposal() {
     return;
   }
   if (abstractOverLimit.value) {
-    error.value = `Keep the presentation summary to ${ABSTRACT_WORD_LIMIT} words or fewer.`;
+    error.value = `Keep the presentation summary to ${abstractWordLimit.value} words or fewer.`;
     return;
   }
-  if (resourceUrlInvalid.value) {
+  if (!isConferenceCall.value && resourceUrlInvalid.value) {
     error.value = 'Use a secure public HTTPS link for the presentation or demo resource.';
     return;
   }
@@ -104,12 +134,17 @@ async function submitProposal() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...(isConferenceCall.value ? {} : { event_id: event.value?.id }),
-        kind: form.kind,
+        ...(isConferenceCall.value ? {
+          bio: form.bio.trim(),
+          topic: form.topic,
+          session_type: form.session_type,
+          learning_outcomes: form.learning_outcomes.map((outcome) => outcome.trim()),
+        } : { kind: form.kind }),
         speaker_name: form.speaker_name.trim(),
         speaker_email: form.speaker_email.trim(),
         title: form.title.trim(),
         abstract: form.abstract.trim(),
-        resource_url: form.resource_url.trim(),
+        ...(!isConferenceCall.value ? { resource_url: form.resource_url.trim() } : {}),
         turnstile_action: turnstileActive ? CFP_SUBMISSION_TURNSTILE_ACTION : undefined,
         turnstile_token: turnstileActive ? turnstileToken.value : undefined,
       }),
@@ -226,12 +261,12 @@ onMounted(async () => {
           </a>
           <p class="editorial-eyebrow !mb-0">Call for Speakers</p>
         </div>
-        <h1 class="editorial-title">Propose a {{ archiveItemLabel }}</h1>
+        <h1 class="editorial-title">{{ isConferenceCall ? 'Propose a conference session' : `Propose a ${archiveItemLabel}` }}</h1>
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
         </p>
         <p class="mt-4 text-base leading-7 text-dc-gray sm:whitespace-nowrap">
-          Share something you've built, learned, or explored with the DevCongress community.
+          {{ isConferenceCall ? 'Submit one complete talk proposal. You can return and submit another proposal separately.' : "Share something you've built, learned, or explored with the DevCongress community." }}
         </p>
       </div>
 
@@ -253,19 +288,45 @@ onMounted(async () => {
             />
           </label>
         </div>
+        <div v-if="isConferenceCall">
+          <div class="mb-2 flex items-end justify-between gap-4">
+            <label for="cfp-bio" class="editorial-label">Speaker bio <span class="text-red-600">*</span></label>
+            <span class="font-mono text-xs font-semibold uppercase tracking-wide" :class="bioOverLimit ? 'text-amber-700' : 'text-dc-gray'">
+              {{ bioWordCount }}/{{ ANNUAL_CONFERENCE_BIO_WORD_LIMIT }} words
+            </span>
+          </div>
+          <textarea id="cfp-bio" v-model="form.bio" required rows="4" maxlength="4000" class="editorial-input resize-none" />
+          <p class="mt-2 text-sm leading-6 text-dc-gray">Recommended maximum: 150 words. We’ll reuse this profile across your proposals where possible.</p>
+        </div>
         <label class="block">
           <span class="editorial-label">{{ archiveItemLabel }} Title <span class="text-red-600">*</span></span>
           <input v-model="form.title" required :placeholder="form.kind === 'product_demo' ? 'Show what your product does' : 'Building Scalable APIs with GraphQL'" class="editorial-input" />
         </label>
-        <label class="flex cursor-pointer items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-sm font-medium text-dc-gray">
+        <label v-if="!isConferenceCall" class="flex cursor-pointer items-center gap-3 rounded-md border border-dc-border bg-dc-paper-warm px-3 py-3 text-sm font-medium text-dc-gray">
           <input v-model="form.kind" type="checkbox" true-value="product_demo" false-value="talk" class="h-4 w-4 accent-dc-pink" />
           This is a product demo
         </label>
+        <div v-if="isConferenceCall" class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="editorial-label">Topic track <span class="text-red-600">*</span></span>
+            <select v-model="form.topic" required class="editorial-input bg-white">
+              <option value="" disabled>Choose one track</option>
+              <option v-for="track in ANNUAL_CONFERENCE_TOPIC_TRACKS" :key="track" :value="track">{{ track }}</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="editorial-label">Session type <span class="text-red-600">*</span></span>
+            <select v-model="form.session_type" required class="editorial-input bg-white">
+              <option value="" disabled>Choose one session type</option>
+              <option v-for="sessionType in ANNUAL_CONFERENCE_SESSION_TYPES" :key="sessionType" :value="sessionType">{{ sessionType }}</option>
+            </select>
+          </label>
+        </div>
         <div>
           <div class="mb-2 flex items-end justify-between gap-4">
             <label for="cfp-abstract" class="editorial-label">{{ archiveSummaryLabel }} <span class="text-red-600">*</span></label>
             <span class="font-mono text-xs font-semibold uppercase tracking-wide" :class="abstractOverLimit ? 'text-red-700' : 'text-dc-gray'">
-              {{ abstractWordCount }}/{{ ABSTRACT_WORD_LIMIT }} words
+              {{ abstractWordCount }}/{{ abstractWordLimit }} words
             </span>
           </div>
           <textarea
@@ -277,7 +338,18 @@ onMounted(async () => {
             :class="{ 'cfp-input-error border-red-700 bg-red-50': abstractOverLimit }"
           />
         </div>
-        <label class="block">
+        <fieldset v-if="isConferenceCall" class="space-y-3 border-t border-dc-border pt-5">
+          <legend class="editorial-label">Learning outcomes <span class="text-red-600">*</span></legend>
+          <p class="text-sm leading-6 text-dc-gray">Add 3–5 concrete things attendees will understand, be able to do, or take away after your session.</p>
+          <div v-for="(_outcome, index) in form.learning_outcomes" :key="index" class="flex items-center gap-2">
+            <label class="sr-only" :for="`cfp-outcome-${index}`">Learning outcome {{ index + 1 }}</label>
+            <input :id="`cfp-outcome-${index}`" v-model="form.learning_outcomes[index]" required :placeholder="`Outcome ${index + 1}`" class="editorial-input flex-1" />
+            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink bg-dc-paper px-3 font-mono text-xs font-semibold uppercase" :aria-label="`Remove learning outcome ${index + 1}`" @click="removeLearningOutcome(index)">Remove</button>
+          </div>
+          <button v-if="form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX" type="button" class="motion-press rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-xs font-semibold uppercase" @click="addLearningOutcome">Add another outcome</button>
+          <p v-if="form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN" class="text-sm font-semibold text-dc-pink">Add at least {{ ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN }} outcomes before submitting.</p>
+        </fieldset>
+        <label v-if="!isConferenceCall" class="block">
           <span class="editorial-label">{{ form.kind === 'product_demo' ? 'Demo link' : 'Presentation link' }} <span class="text-dc-gray">(optional)</span></span>
           <input
             v-model="form.resource_url"
@@ -317,3 +389,10 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+function addLearningOutcome() {
+  if (form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX) form.learning_outcomes.push('');
+}
+
+function removeLearningOutcome(index: number) {
+  form.learning_outcomes.splice(index, 1);
+}

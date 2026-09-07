@@ -36,7 +36,12 @@
 | `lib/supabase/community-events.ts` | Supabase-backed community event repository and public meetup DTO mapper |
 | `lib/supabase/media.ts` | Server-side Supabase Storage upload helper for meetup covers and selected event photos |
 | `supabase/migrations/*` | Supabase SQL migrations, starting with tester feedback tables |
-| `server/app.ts` | Hono app — active API routes plus dev SPA fallback |
+| `server/app.ts` | Hono composition root — app-wide middleware, feature route registration, remaining legacy API handlers, and dev SPA fallback |
+| `server/routes/annual-conference-speakers.ts` | Complete nine-route Annual Conference speaker HTTP registrar |
+| `server/routes/annual-conference-speakers/schemas.ts` | Proposal, decision, deadline, and logistics Zod transport contracts |
+| `server/routes/annual-conference-speakers/delivery.ts` | Acceptance-email delivery and persisted provider status |
+| `server/annual-conference-request.ts` | Request-scoped Annual Conference edition, service, finance, and capability composition |
+| `server/http/*` | Shared Hono bindings, public-intake protection, safe errors/origin resolution, and speaker mutation coordination |
 | `server/index.ts` | Bun production server — serves `dist/` and `/api/*` on one port |
 | `vite.config.ts` | Vite + Vue + Hono dev-server wiring |
 | `data/seed.ts` | Seed script — run via `pnpm seed` |
@@ -46,6 +51,13 @@
 ---
 
 ## Route-to-Module Notes (Current)
+
+- **Annual Conference speaker HTTP boundary**
+  - `server/routes/annual-conference-speakers.ts` registers the public CFP, organizer review, acceptance/retry, and private logistics workspace endpoints without changing their paths or response contracts.
+  - Transport schemas and acceptance delivery live beside the registrar; database proposal isolation and hash-only token operations remain in `lib/annual-conference-speakers.ts`.
+  - `server/annual-conference-request.ts` centralizes request-scoped edition lookup and capability/service composition used by both extracted and remaining conference routes.
+  - `server/http/public-intake-protection.ts` centralizes public client identity, atomic rate-limit responses, email preflight, and Turnstile validation. Global public/protected path classification remains in `server/app.ts` so middleware order is unchanged.
+  - `server/annual-conference-speaker-routes.test.ts` protects exact one-time route registration; the full proposal and security route suites remain the behavioral characterization boundary.
 
 - **Event + CFP flow**
   - Active Vue pages: `src/views/CfpView.vue`, `src/views/EventRegistrationView.vue`, `src/views/admin/AdminEventsView.vue`, `src/views/admin/AdminEventView.vue`, `src/views/admin/AdminRegistrationsView.vue`, and `src/views/admin/AdminRegistrationDisplayView.vue`
@@ -215,6 +227,7 @@
 - `src/views/admin/AdminFeedbackOverviewView.vue` opens the Feedback Hub directly into event feedback reports grouped by selectable year and period. Reports default to the current month when that period exists, and event rows keep a lighter identity block on the left with a full-width stat strip plus end-aligned action on desktop.
 - `src/views/admin/AdminEventsView.vue` reads the organizer event list through the shared TanStack query layer, shows focusable detail popovers for the compact lifecycle legend, creates and publishes classified native events with open registration campaigns, auto-generates an editable website slug from the event name, keeps a two-hour default event duration while preserving deliberate duration changes when the start moves, uploads a selected/compressed cover after the event record exists, and invalidates the event-list plus overview queries after creating a new event.
 - `src/components/ui/AppDatePicker.vue` supplies the organizer forms with one compact, app-centric date/date-time control. It displays dates as `DD/MM/YYYY`, uses Monday-first weeks, caps its body-level popover at 344px, opens above or below the trigger using the visual viewport, clamps horizontally on narrow screens, and scrolls internally when neither side can fit the full calendar. Inline errors are exposed through the trigger's accessible error state and description.
+- `src/components/ui/AppCopyButton.vue` supplies one stable-width copy-link interaction across organizer workspaces. It exposes idle, copying, and copied states, keeps the accessible action name stable while announcing progress through a dedicated status region, uses the app's green checked confirmation treatment, and locks repeat input until the caller returns to idle. `src/lib/clipboard.ts` confirms either the modern Clipboard API write or the checked legacy fallback before a view may enter the copied state. Its opacity/transform feedback is brief and disabled under reduced motion.
 - `src/views/admin/AdminAuditLogView.vue` reads audit rows through the shared TanStack query layer and now swaps directly into a dedicated audit-log skeleton while the route data is loading.
 - `src/views/admin/AdminEventView.vue` invalidates shared event/overview queries after checklist, program-outline, photo-link, and media-upload mutations so status, schedule, and media changes stay visible across routes.
 - `src/lib/meetup-media-client.ts` centralizes browser-side meetup image validation, compression, and upload helpers so organizer create/edit surfaces share the same storage limits and encoding behavior.
@@ -222,7 +235,7 @@
 - `src/views/admin/AdminAttendanceView.vue` uploads/replaces a Luma CSV and renders post-event import metrics, source/ticket breakdowns, checked-in guests, and approved no-shows.
 - `src/views/admin/AdminEventView.vue` renders the shared chronological event checklist from `/api/events/:eventId/checklist`; checking status milestones can advance the event state, while the status dropdown remains available for manual correction. Unpublished events can disable incomplete checklist milestones that do not apply to that event. The incomplete monthly System Design milestone is the deliberate published-event exception: `Not this month` persists its exclusion and disables that event's System Design navigation, while `Include this month` reverses it.
 - `src/views/admin/AdminEventView.vue` also manages optional program outlines in `event.schedule`, letting organizers add structured time/title/type/lead/description/resource rows when a meetup has a run of show. Each editing row has accessible move-up and move-down controls, so a live organizer can adjust the running order before saving. A separate quarterly-only Shared links panel lets organizers paste raw recap URLs without titles; those links are saved into a dedicated schedule bucket and preserved when the outline is edited. The editor includes a monthly system-design scenario helper for Google Slides prompt decks, empty outlines are allowed, and event feedback can reuse saved schedule rows as activity prompts.
-- `src/views/admin/AdminFeedbackView.vue` keeps event feedback setup private while restoring deliberate organizer-only attendee-form tools: preview the current draft, copy the live form URL, open a protected TV-safe QR display, close an open form immediately, or reopen a closed form for 24 hours. A manually published campaign can show its QR immediately, subject to its close boundary.
+- `src/views/admin/AdminFeedbackView.vue` keeps event feedback setup private while restoring deliberate organizer-only attendee-form tools: preview the current draft, copy the live form URL, open a protected TV-safe QR display, close an open form immediately, or reopen a closed form for 24 hours. Copy-link actions use the shared icon-led copying and checked-success feedback. A manually published campaign can show its QR immediately, subject to its close boundary.
 - Event-feedback reporting treats every submission as anonymous, keeps missed-session counts separate, and calculates averages from valid numeric ratings only. Historical identity fields are not returned to the organizer surface. The event report renders dependency-free aggregate charts from all loaded submissions; individual responses are kept out of the page and are available through a full CSV download with one submission per row and every configured question as a column. `lib/event-feedback-export.ts` owns deterministic response ordering, CSV escaping, and spreadsheet-formula neutralization for attendee-provided values.
 - `src/views/admin/AdminSystemDesignView.vue` calls `/api/events/:eventId/system-design/draft` when organizers click `Generate Draft` with a Google Slides prompt URL, fills the scenario title if it was blank, writes the returned summary into the full-width public recap field, and switches back to a saved/read-only state after persistence with explicit edit/remove actions for each saved scenario. When the event already has a matching system-design slot in the program outline, this editor updates that existing row in place instead of appending a duplicate `system_design` row at the bottom. A saved source also mounts `SystemDesignLearningRoomPanel` directly on this workspace, including for completed meetups, while the presenter opens in a separate organizer-protected tab. Before anyone joins, organizers choose generated aliases or attendee-entered room names; the setting locks after the first participant.
 - `src/views/admin/AdminEventView.vue` also manages event media: organizers can upload selected cover/photo images to Supabase Storage or add website-compatible `{ url, type }` links where `type` is `image` for direct media or `folder` for shared galleries.
@@ -304,6 +317,33 @@ PATCH /api/speaker-submissions/[submissionId]
   body: { status: 'selected' | 'not_selected', internal_note?, expires_in_days? }
   → records the organizer decision
   → selecting generates a one-time completion link that preserves the proposal kind
+```
+
+### Annual Conference CFP and Logistics
+
+```text
+POST /api/cfp/conferences/[year]
+  body: { speaker_name, speaker_email, bio, title, topic, session_type, abstract, learning_outcomes[3..5] }
+  → validates the fixed conference track and session-type lists
+  → stores one proposal in annual_conference_speaker_submissions, not speaker_submissions
+  → reuses the normalized annual_conference_speaker_profiles identity for the email
+  → permits several different titles from one speaker and reviews each row independently
+
+PATCH /api/annual-conference/[year]/speaker-submissions/[submissionId]
+  body: { status: 'selected' | 'not_selected', internal_note? }
+  → an atomic status compare-and-set accepts once and creates the proposal-bound programme session before follow-up
+  → issues a hash-only private capability and immediately attempts the acceptance email
+  → an incomplete email remains visible and can be retried with an atomic rotated-link swap
+
+PATCH /api/annual-conference/[year]/speakers/logistics-deadline
+  body: { deadline }
+  → organizer-controlled cutoff applied to every active workspace for the edition
+
+GET|POST /api/conferences/[year]/speaker-intake/[token]
+  body: { slides_url, availability_confirmed, technical_requirements, workshop_prerequisites, required_software_equipment, participants_need_laptops, preferred_workshop_capacity }
+  → verifies token hash, edition, current proposal link, accepted session, and deadline
+  → updates the same accepted session repeatedly so speakers can save drafts and return
+  → never asks the speaker to resubmit title, track, type, abstract, bio, or learning outcomes
 ```
 
 ### Manual Archive Entry (Admin)

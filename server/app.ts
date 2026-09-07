@@ -14,7 +14,7 @@ import {
 } from '@/lib/event-feedback';
 import { feedbackCampaignWindow, isFeedbackCampaignOpen } from '@/lib/event-feedback-window';
 import { addResendBroadcastRecipients, createResendBroadcastDraft, createResendBroadcastSegment, retrieveResendReceivedEmail, sendResendBroadcast, sendResendEmailBatch, ResendBatchError, ResendBroadcastError, ResendReceivingEmailError } from '@/lib/email/resend';
-import { EVENT_BLAST_PREPARATION_BATCH_SIZE, type EventBlastPreparationMessage, type EventBlastPreparationQueue } from '@/lib/event-blast-preparation';
+import { EVENT_BLAST_PREPARATION_BATCH_SIZE, type EventBlastPreparationMessage } from '@/lib/event-blast-preparation';
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
@@ -28,7 +28,6 @@ import {
 import { communityEventSubmissionEmail } from '@/lib/email/templates/community-event-submission';
 import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
 import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
-import { assessPublicEmail, type PublicEmailPreflightResult } from '@/lib/email/public-email-preflight';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
 import { attendanceRecordsFromRegistrations } from '@/lib/native-attendance';
 import {
@@ -65,23 +64,7 @@ import {
 } from '@/lib/monthly-meetup-finance';
 import {
   ANNUAL_CONFERENCE_CAPABILITIES,
-  effectiveAnnualConferenceCapabilities,
-  hasAnnualConferenceCapability,
-  type AnnualConferenceCapability,
 } from '@/lib/annual-conference-capabilities';
-import {
-  claimAnnualConferenceSpeakerIntakeLink,
-  consumeAnnualConferenceSpeakerIntakeLink,
-  createAnnualConferenceSession,
-  createAnnualConferenceSpeakerIntakeLink,
-  createAnnualConferenceSpeakerSubmission,
-  getAnnualConferenceSpeakerIntakeLink,
-  getAnnualConferenceSpeakerSubmission,
-  getAnnualConferenceSpeakerSubmissions,
-  releaseAnnualConferenceSpeakerIntakeClaim,
-  updateAnnualConferenceSpeakerSubmission,
-  type AnnualConferenceSpeakerSubmission,
-} from '@/lib/annual-conference-speakers';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
 import {
@@ -123,12 +106,11 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfi
 import { ensureActiveShortLink, listShortLinks, regenerateActiveShortLink, resolveShortLink, revokeShortLink, ShortLinkStorageError } from '@/lib/supabase/short-links';
 import {
   clearAnnualConferenceAccessGrantsForMembership,
-  getAnnualConferenceAccessGrants,
   listAnnualConferenceAccessMembers,
   listAnnualConferenceVolunteerTeam,
   setAnnualConferenceAccessGrant,
 } from '@/lib/supabase/annual-conference-access-grants';
-import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership, type AdminSession } from '@/lib/supabase/admin-auth';
+import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership } from '@/lib/supabase/admin-auth';
 import {
   archiveSupabaseCommunityEvent,
   createSupabaseCommunityEvent,
@@ -186,7 +168,7 @@ import {
 import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
 import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
-import { consumePublicRateLimit, type PublicRateLimitResult } from '@/lib/public-rate-limit';
+import { consumePublicRateLimit } from '@/lib/public-rate-limit';
 import {
   PUBLIC_API_CACHE_CONTROL,
   PUBLIC_ARCHIVE_ITEM_COLLECTION_LIMIT,
@@ -212,19 +194,12 @@ import { checkPublicEventAvailability } from '@/lib/public-event-availability';
 import { resolveEventStatus, withResolvedEventStatus } from '@/lib/event-status';
 import { adminRolesForApiRequest } from '@/server/admin-api-access';
 import { createAnnualConferenceRepository } from '@/server/annual-conference-repository';
-import { createAnnualConferenceFinanceRepository } from '@/server/annual-conference-finance-repository';
-import {
-  AnnualConferenceServiceError,
-  annualConferenceErrorStatus,
-  createAnnualConferenceService,
-} from '@/server/annual-conference-service';
 import { createEventSubmissionRequestAdapter } from '@/server/event-submissions/request-adapter';
 import { createOperationsReadModel, OperationsReadModelError } from '@/server/operations-read-model';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import {
   AnnualConferenceFinanceServiceError,
   annualConferenceFinanceErrorStatus,
-  createAnnualConferenceFinanceService,
 } from '@/server/annual-conference-finance-service';
 import { createMonthlyMeetupFinanceRepository } from '@/server/monthly-meetup-finance-repository';
 import {
@@ -247,16 +222,26 @@ import { isSupportedShortLinkCode, LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN
 import { legacySelectedSpeakerShortCode, selectedSpeakerLinkIdFromShortCode, selectedSpeakerShortCode, speakerIntakeTokenHash, verifyLegacySelectedSpeakerShortCode, verifySelectedSpeakerShortCode } from '@/lib/speaker-intake-short-links';
 import { publicRegistrationOrigin } from './public-registration-origin';
 import { secureSharedSecret, sharedSecretStatus } from '@/lib/security/shared-secret';
-
-type AppBindings = {
-  Bindings: {
-    EVENT_BLAST_PREPARATION_QUEUE?: EventBlastPreparationQueue;
-  };
-  Variables: {
-    requestId: string;
-    adminSession: AdminSession | undefined;
-  };
-};
+import type { AppBindings } from '@/server/http/app-bindings';
+import { internalErrorResponse } from '@/server/http/internal-error-response';
+import { publicAppOrigin } from '@/server/http/public-app-origin';
+import {
+  assessPublicSubmissionEmail,
+  enforcePublicRateLimit,
+  publicClientIp,
+  publicClientKey,
+  publicEmailErrorPayload,
+  requirePublicTurnstile,
+} from '@/server/http/public-intake-protection';
+import { acquireSpeakerIntakeSubmissionLock } from '@/server/http/speaker-intake-lock';
+import {
+  annualConferenceFinanceServiceForRequest,
+  annualConferenceServiceErrorResponse,
+  annualConferenceServiceForRequest,
+  getAnnualConferenceEditionByYear,
+  requireAnnualConferenceCapability,
+} from '@/server/annual-conference-request';
+import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 
 const app = new Hono<AppBindings>();
 
@@ -363,11 +348,13 @@ for (const publicWritePath of [
   '/api/feedback/events/*',
   '/api/volunteer-applications',
   '/api/cfp',
+  '/api/cfp/conferences/*',
   '/api/registration/events/*',
   '/api/public/email-preflight',
   '/api/public/event-submissions',
   '/api/auth/admin/exchange',
   '/api/events/*/speaker-intake/*',
+  '/api/conferences/*/speaker-intake/*',
   '/api/public/event-submissions/manage/:capability',
   '/api/public/event-submissions/manage/:capability/submit',
   '/api/public/event-submissions/management',
@@ -414,7 +401,6 @@ const GOOGLE_SLIDES_FETCH_TIMEOUT_MS = 8_000;
 const FEEDBACK_CAMPAIGN_STATUSES = new Set<FeedbackCampaignStatus>(['draft', 'active', 'closed']);
 const FEEDBACK_QUESTION_TYPES = new Set<FeedbackQuestionType>(['rating', 'text', 'choice', 'talk_select', 'yes_no']);
 const ROUTE_FEEDBACK_STATUSES = new Set<FeedbackStatus>(['new', 'reviewing', 'done', 'wont_fix']);
-const speakerIntakeSubmissionLocks = new Map<string, Promise<void>>();
 const eventRegistrationSubmissionSchema = z.object({
   name: z.string().trim().min(1, 'Please enter your name.').max(120),
   email: z.string().trim().toLowerCase().email('Please enter a valid email address.').max(254),
@@ -772,7 +758,6 @@ const ownerTestSpeakerSubmissionSchema = z.object({
   request_id: z.string().uuid(),
 }).strict();
 const OWNER_ONLY_TEST_SPEAKER_NOTE = 'owner-only:test-speaker';
-const conferenceSpeakerSubmissionCreateSchema = speakerSubmissionCreateSchema.omit({ event_id: true });
 const speakerTalkIntakeSchema = adminCreateTalkSchema.omit({ publish: true });
 const selectedSpeakerDetailsSchema = z.object({
   topic: z.string().trim().max(120).optional(),
@@ -1020,17 +1005,6 @@ async function auditAdminAction(c: Context, input: {
   await recordProtectedMutationAudit(c, input);
 }
 
-function internalErrorResponse(c: Context, event: string, error: unknown, publicMessage: string) {
-  console.error(JSON.stringify({
-    event,
-    request_id: c.get('requestId') ?? null,
-    method: c.req.method,
-    path: securitySafeRequestPath(c.req.path),
-    error_name: safeErrorName(error),
-  }));
-  return c.json({ error: publicMessage }, 500);
-}
-
 async function quizDeviceOwnsUser(userId: string, deviceId: string): Promise<boolean> {
   const user = await getUserById(userId);
   return Boolean(user && user.device_id === deviceId && !user.merged_into_user_id);
@@ -1047,126 +1021,6 @@ function corsOrigin(origin: string | undefined, c: Context): string | undefined 
   }
 
   return undefined;
-}
-
-function publicClientKey(c: Context): string {
-  return c.req.header('cf-connecting-ip')
-    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? `unknown:${c.req.header('user-agent') ?? 'unknown'}`;
-}
-
-function publicClientIp(c: Context): string | undefined {
-  const value = c.req.header('cf-connecting-ip')
-    ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-  return value && value !== 'unknown' ? value : undefined;
-}
-
-function publicRateLimitError(
-  c: Context,
-  result: Extract<PublicRateLimitResult, { allowed: false }>,
-  message: string,
-): globalThis.Response {
-  c.header('Retry-After', String(result.retryAfterSeconds));
-
-  if (result.unavailable) {
-    return c.json({
-      error: 'This form is temporarily unavailable. Please try again shortly.',
-      retry_after_seconds: result.retryAfterSeconds,
-    }, 503);
-  }
-
-  console.warn(JSON.stringify({
-    event: 'public_rate_limit_exceeded',
-    action: securitySafeRequestPath(c.req.path),
-    request_id: c.get('requestId') ?? null,
-  }));
-  return c.json({
-    error: message,
-    retry_after_seconds: result.retryAfterSeconds,
-  }, 429);
-}
-
-async function enforcePublicRateLimit(
-  c: Context,
-  input: {
-    action: string;
-    clientKey: string;
-    maxAttempts: number;
-    windowSeconds: number;
-  },
-  message: string,
-): Promise<globalThis.Response | null> {
-  const result = await consumePublicRateLimit(c, input);
-  return result.allowed ? null : publicRateLimitError(c, result, message);
-}
-
-async function assessPublicSubmissionEmail(c: Context, email: string): Promise<PublicEmailPreflightResult> {
-  return assessPublicEmail(email, {
-    // Unit and route tests use reserved example domains and must not depend on
-    // external DNS. Production and local development exercise the real check.
-    skipDomainLookup: envValue('NODE_ENV', c) === 'test',
-    onDnsFailure: (failure) => {
-      console.warn(JSON.stringify({
-        event: 'public_email_dns_resolver_failed',
-        request_id: c.get('requestId') ?? null,
-        resolver: failure.resolver,
-        record_type: failure.recordType,
-        failure_kind: failure.failureKind,
-        duration_ms: failure.durationMs,
-        ...(failure.errorCode === undefined ? {} : { error_code: failure.errorCode }),
-        ...(failure.errorName === undefined ? {} : { error_name: failure.errorName }),
-      }));
-    },
-  });
-}
-
-function publicEmailErrorPayload(result: Extract<PublicEmailPreflightResult, { status: 'invalid' }>) {
-  return {
-    error: result.message,
-    code: result.reason,
-    ...(result.suggestion ? { suggestion: result.suggestion } : {}),
-  };
-}
-
-async function requirePublicTurnstile(
-  c: Context,
-  input: {
-    token?: string | null;
-    submittedAction?: string | null;
-    expectedAction: string;
-    expectedHostname?: string | string[];
-  },
-): Promise<globalThis.Response | null> {
-  const token = input.token?.trim() ?? '';
-  const submittedAction = input.submittedAction?.trim() ?? '';
-  const secretKey = envValue('TURNSTILE_SECRET_KEY', c)?.trim();
-
-  if (submittedAction && submittedAction !== input.expectedAction) {
-    return c.json({ error: 'Human verification did not match this form. Please try again.' }, 400);
-  }
-
-  if (!secretKey) {
-    if (envValue('NODE_ENV', c) === 'production' || token || submittedAction) {
-      console.error(JSON.stringify({
-        event: 'turnstile_configuration_missing',
-        action: input.expectedAction,
-        request_id: c.get('requestId') ?? null,
-      }));
-      return c.json({ error: 'Human verification is temporarily unavailable. Please try again later.' }, 503);
-    }
-
-    // Local and test environments may omit Turnstile entirely.
-    return null;
-  }
-
-  const result = await validateTurnstileToken({
-    token,
-    secretKey,
-    remoteIp: publicClientIp(c),
-    expectedAction: input.expectedAction,
-    expectedHostname: input.expectedHostname ?? envValue('TURNSTILE_EXPECTED_HOSTNAME', c),
-  });
-  return result.ok ? null : c.json({ error: result.error }, result.status);
 }
 
 function eventSubmissionTurnstileHostnames(c: Context): string[] {
@@ -1220,14 +1074,15 @@ function isPublicFeedbackEventRequest(path: string, method: string): boolean {
 }
 
 function isPublicCfpEventRequest(path: string, method: string): boolean {
-  return method === 'GET' && (
-    /^\/api\/cfp\/events\/[^/]+$/.test(path)
-    || /^\/api\/cfp\/conferences\/\d{4}$/.test(path)
-  );
+  return (method === 'GET' && /^\/api\/cfp\/events\/[^/]+$/.test(path))
+    || ((method === 'GET' || method === 'POST') && /^\/api\/cfp\/conferences\/\d{4}$/.test(path));
 }
 
 function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
-  return (method === 'GET' || method === 'POST') && /^\/api\/events\/[^/]+\/speaker-intake\/[^/]+$/.test(path);
+  return (method === 'GET' || method === 'POST') && (
+    /^\/api\/events\/[^/]+\/speaker-intake\/[^/]+$/.test(path)
+    || /^\/api\/conferences\/\d{4}\/speaker-intake\/[^/]+$/.test(path)
+  );
 }
 
 function isPublicEventRegistrationRequest(path: string, method: string): boolean {
@@ -1526,12 +1381,6 @@ function withPublicEventCover(event: Event): Event {
   return { ...event, cover: publicEventCoverUrl(event.cover) };
 }
 
-async function getAnnualConferenceEditionByYear(year: number, c?: Context) {
-  const repository = createAnnualConferenceRepository(c);
-  const editions = await repository.listEditions();
-  return editions.find((edition) => edition.year === year);
-}
-
 async function createEvent(data: {
   name: string;
   description: string | null;
@@ -1671,73 +1520,6 @@ async function createEventFeedbackSubmissionStore(
   return createEventFeedbackSubmission(data);
 }
 
-async function getActiveOrganizerEmails(c: Context): Promise<string[] | null> {
-  try {
-    const { data, error } = await getSupabaseAdminClient(c)
-      .from('admin_memberships')
-      .select('email')
-      .eq('status', 'active');
-
-    if (error) return null;
-    return (data ?? []).map((membership) => membership.email);
-  } catch {
-    return null;
-  }
-}
-
-async function getActivePlanningOwnerEmails(c: Context): Promise<string[] | null> {
-  try {
-    const { data, error } = await getSupabaseAdminClient(c)
-      .from('admin_memberships')
-      .select('email')
-      .eq('status', 'active')
-      .neq('role', 'volunteer');
-    if (error) return null;
-    return (data ?? []).map((membership) => membership.email);
-  } catch {
-    return null;
-  }
-}
-
-async function annualConferenceServiceForRequest(c: Context) {
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-  if (!session.authenticated) {
-    throw new AnnualConferenceServiceError('forbidden', 'Conference access required.');
-  }
-
-  return createAnnualConferenceService({
-    repository: createAnnualConferenceRepository(c),
-    actor: { email: session.email, role: session.role },
-    accessGrants: (editionId) => getAnnualConferenceAccessGrants(editionId, session.membership_id, c),
-    activeOrganizerEmails: () => getActiveOrganizerEmails(c),
-    activePlanningOwnerEmails: () => getActivePlanningOwnerEmails(c),
-    audit: (event) => auditAdminAction(c, {
-      action: event.action,
-      targetType: event.targetType,
-      targetId: event.targetId,
-      metadata: event.metadata,
-    }),
-  });
-}
-
-async function annualConferenceFinanceServiceForRequest(c: Context) {
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-  if (!session.authenticated) {
-    throw new AnnualConferenceFinanceServiceError('forbidden', 'Conference finance access required.');
-  }
-
-  return createAnnualConferenceFinanceService({
-    repository: createAnnualConferenceFinanceRepository(c),
-    actor: { email: session.email, role: session.role },
-    audit: (event) => auditAdminAction(c, {
-      action: event.action,
-      targetType: event.targetType,
-      targetId: event.targetId,
-      metadata: event.metadata,
-    }),
-  });
-}
-
 async function monthlyMeetupFinanceServiceForRequest(c: Context) {
   const session = c.get('adminSession') ?? await getAdminSession(c);
   if (!session.authenticated) {
@@ -1757,52 +1539,6 @@ async function monthlyMeetupFinanceServiceForRequest(c: Context) {
       metadata: event.metadata,
     }),
   });
-}
-
-async function annualConferenceCapabilitiesForRequest(c: Context, year: number): Promise<{
-  capabilities: AnnualConferenceCapability[];
-  editionId: string;
-} | undefined> {
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-  if (!session.authenticated) return undefined;
-  const editionResult = await getSupabaseAdminClient(c)
-    .from('annual_conference_editions')
-    .select('id, task_creator_email')
-    .eq('year', year)
-    .maybeSingle();
-  if (editionResult.error) throw new Error(editionResult.error.message);
-  if (!editionResult.data) return undefined;
-  const grants = await getAnnualConferenceAccessGrants(editionResult.data.id, session.membership_id, c);
-  return {
-    editionId: editionResult.data.id,
-    capabilities: effectiveAnnualConferenceCapabilities({
-      role: session.role,
-      grants,
-      isPlanningOwner: Boolean(session.email)
-        && session.role !== 'volunteer'
-        && session.email?.trim().toLowerCase() === editionResult.data.task_creator_email.trim().toLowerCase(),
-    }),
-  };
-}
-
-async function requireAnnualConferenceCapability(
-  c: Context,
-  year: number,
-  capability: AnnualConferenceCapability,
-): Promise<globalThis.Response | null> {
-  const access = await annualConferenceCapabilitiesForRequest(c, year);
-  if (!access) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-  if (!hasAnnualConferenceCapability(access.capabilities, capability)) {
-    return c.json({ error: 'This account has not been assigned that conference responsibility.' }, 403);
-  }
-  return null;
-}
-
-function annualConferenceServiceErrorResponse(c: Context, error: unknown) {
-  if (error instanceof AnnualConferenceServiceError) {
-    return c.json({ error: error.message }, annualConferenceErrorStatus(error));
-  }
-  throw error;
 }
 
 function canonicalizeEventSchedule(event: Event): Event {
@@ -2248,24 +1984,6 @@ async function publicEventsForApi(c: Context): Promise<PublicEvent[]> {
 
 async function publicMeetupsForApi(c: Context): Promise<PublicMeetup[]> {
   return (await getSupabasePublicMeetups(publicAppOrigin(c), c)) ?? await buildPublicMeetups(publicAppOrigin(c), c);
-}
-
-function isLocalRequestOrigin(origin: string): boolean {
-  try {
-    const { hostname } = new URL(origin);
-    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
-  } catch {
-    return false;
-  }
-}
-
-function publicAppOrigin(c: Context): string {
-  const requestOrigin = new URL(c.req.url).origin;
-  if (envValue('NODE_ENV', c) !== 'production' && isLocalRequestOrigin(requestOrigin)) {
-    return requestOrigin;
-  }
-
-  return envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c) ?? requestOrigin;
 }
 
 function eventSubmissionManagementSignature(linkId: string, c: Context): string | null {
@@ -4956,115 +4674,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
   }
 });
 
-app.get('/api/annual-conference/:year/speakers', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-  const yearParam = c.req.param('year');
-  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
-  const year = Number(yearParam);
-  const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.view');
-  if (capabilityError) return capabilityError;
-
-  try {
-    const edition = await getAnnualConferenceEditionByYear(year, c);
-    if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-    const submissions = await getAnnualConferenceSpeakerSubmissions(edition.id);
-    const session = c.get('adminSession') ?? await getAdminSession(c);
-    if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
-    const access = await getAnnualConferenceAccessGrants(edition.id, session.membership_id, c);
-    const capabilities = effectiveAnnualConferenceCapabilities({
-      role: session.role,
-      grants: access,
-      isPlanningOwner: session.email?.trim().toLowerCase() === edition.task_creator_email.trim().toLowerCase(),
-    });
-    return c.json({
-      edition: { year: edition.year, label: edition.label, name: edition.name },
-      call: { open: edition.speaker_call_status === 'open', public_path: `/speak/c/${edition.year}` },
-      permissions: { can_manage: hasAnnualConferenceCapability(capabilities, 'speakers.manage') },
-      counts: speakerSubmissionCounts(submissions),
-      submissions: submissions.map(serializeSpeakerSubmission),
-    });
-  } catch (error) {
-    return internalErrorResponse(c, 'annual_conference_speakers_read_failed', error, 'Unable to load conference speaker proposals.');
-  }
-});
-
-app.patch('/api/annual-conference/:year/speakers/call', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-  const yearParam = c.req.param('year');
-  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
-  const parsed = z.object({ open: z.boolean() }).strict().safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: 'Choose whether the Call for Speakers is open.' }, 400);
-  const year = Number(yearParam);
-  const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
-  if (capabilityError) return capabilityError;
-
-  try {
-    const edition = await getAnnualConferenceEditionByYear(year, c);
-    if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-    const repository = createAnnualConferenceRepository(c);
-    await repository.getWorkspace(year);
-    const updatedEdition = await repository.updateEditionSpeakerCallStatus(edition.id, parsed.data.open ? 'open' : 'closed');
-    await auditAdminAction(c, {
-      action: parsed.data.open ? 'annual_conference.speakers.call.open' : 'annual_conference.speakers.call.close',
-      targetType: 'annual_conference_edition',
-      targetId: edition.id,
-      metadata: { edition_year: year },
-    });
-    return c.json({ open: updatedEdition.speaker_call_status === 'open', public_path: `/speak/c/${year}` });
-  } catch (error) {
-    return internalErrorResponse(c, 'annual_conference_speakers_call_update_failed', error, 'Unable to update the Call for Speakers.');
-  }
-});
-
-app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-  const year = Number(c.req.param('year'));
-  if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
-  const parsed = speakerSubmissionDecisionSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the proposal decision.' }, 400);
-  const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
-  if (capabilityError) return capabilityError;
-
-  try {
-    const edition = await getAnnualConferenceEditionByYear(year, c);
-    if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
-    const existing = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
-    if (!existing || existing.edition_id !== edition.id) return c.json({ error: 'Conference proposal not found.' }, 404);
-    if (existing.status !== 'submitted') return c.json({ error: 'This conference proposal has already been decided.' }, 409);
-
-    let link: { token: string; id: string } | null = null;
-    if (parsed.data.status === 'selected') {
-      const created = await createAnnualConferenceSpeakerIntakeLink({
-        edition_id: edition.id,
-        speaker_submission_id: existing.id,
-        kind: existing.kind,
-        speaker_name: existing.speaker_name,
-        speaker_email: existing.speaker_email,
-        talk_title: existing.title,
-        expires_at: addDays(new Date(), parsed.data.expires_in_days).toISOString(),
-      });
-      link = { token: created.token, id: created.link.id };
-    }
-
-    const submission = await updateAnnualConferenceSpeakerSubmission(existing.id, {
-      status: parsed.data.status,
-      internal_note: parsed.data.internal_note || null,
-      selected_intake_link_id: link?.id ?? null,
-    });
-    await auditAdminAction(c, {
-      action: 'annual_conference.speaker_submission.decision',
-      targetType: 'annual_conference_speaker_submission',
-      targetId: submission.id,
-      metadata: { edition_year: year, status: submission.status, selected_intake_link_id: submission.selected_intake_link_id },
-    });
-    return c.json({ submission, token: link?.token ?? null });
-  } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : 'Unable to update conference proposal.' }, 409);
-  }
-});
+registerAnnualConferenceSpeakerRoutes(app);
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
@@ -6798,72 +6408,6 @@ app.get('/api/cfp/events/:eventId', async (c) => {
     status: event.status,
     series_type: resolveEventSeriesType(event),
   });
-});
-
-app.get('/api/cfp/conferences/:year', async (c) => {
-  c.header('Cache-Control', 'no-store');
-  const yearParam = c.req.param('year');
-  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
-
-  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
-  if (!edition || edition.speaker_call_status !== 'open') {
-    return c.json({ error: 'CFP event not found' }, 404);
-  }
-
-  return c.json({
-    id: edition.id,
-    name: edition.name,
-    description: `Call for Speakers for ${edition.label}.`,
-    event_date: edition.provisional_date ?? `${edition.year}-12-19`,
-    status: 'cfp_open',
-    call_scope: 'annual_conference',
-    edition_year: edition.year,
-  });
-});
-
-app.post('/api/cfp/conferences/:year', async (c) => {
-  const yearParam = c.req.param('year');
-  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
-  const parsed = conferenceSpeakerSubmissionCreateSchema.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presentation proposal.' }, 400);
-  const turnstileError = await requirePublicTurnstile(c, {
-    token: parsed.data.turnstile_token,
-    submittedAction: parsed.data.turnstile_action,
-    expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
-  });
-  if (turnstileError) return turnstileError;
-  const rateLimitError = await enforcePublicRateLimit(c, {
-    action: `conference_cfp_submission:${yearParam}`,
-    clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 60 * 60,
-  }, 'This device has sent several proposals. Please try again later.');
-  if (rateLimitError) return rateLimitError;
-
-  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
-  if (!edition || edition.speaker_call_status !== 'open') return c.json({ error: 'The conference Call for Speakers is not open.' }, 400);
-  const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
-  if (emailAssessment.status === 'invalid') {
-    return c.json(publicEmailErrorPayload(emailAssessment), 422);
-  }
-  try {
-    await createAnnualConferenceSpeakerSubmission({
-      edition_id: edition.id,
-      kind: parsed.data.kind,
-      speaker_name: parsed.data.speaker_name,
-      speaker_email: parsed.data.speaker_email,
-      github_username: parsed.data.github_username || null,
-      title: parsed.data.title,
-      topic: parsed.data.topic || 'General',
-      abstract: parsed.data.abstract || null,
-      bio: parsed.data.bio || null,
-      resource_url: safePublicResourceUrl(parsed.data.resource_url) || null,
-    });
-    return c.json({ accepted: true, message: 'If this proposal is eligible, it has been added for organizer review.' }, 202);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('already been submitted')) {
-      return c.json({ accepted: true, message: 'If this proposal is eligible, it has been added for organizer review.' }, 202);
-    }
-    return c.json({ error: 'The proposal could not be submitted. Please check the form and try again.' }, 400);
-  }
 });
 
 app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
@@ -8657,24 +8201,6 @@ function missingArchiveMaterialFields(talk: Talk): ArchiveMaterialField[] {
   return missing;
 }
 
-async function acquireSpeakerIntakeSubmissionLock(key: string): Promise<() => void> {
-  const previous = speakerIntakeSubmissionLocks.get(key) ?? Promise.resolve();
-  let releaseCurrent!: () => void;
-  const current = new Promise<void>((resolve) => {
-    releaseCurrent = resolve;
-  });
-  const queued = previous.then(() => current);
-  speakerIntakeSubmissionLocks.set(key, queued);
-  await previous;
-
-  return () => {
-    releaseCurrent();
-    if (speakerIntakeSubmissionLocks.get(key) === queued) {
-      speakerIntakeSubmissionLocks.delete(key);
-    }
-  };
-}
-
 function normalizeSlidesUrl(slidesUrl: string | null): string | null {
   if (!slidesUrl) return null;
 
@@ -9850,81 +9376,6 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
       provider_status: error instanceof ResendBatchError ? error.status : null,
     }));
     return c.json({ error: 'The email provider did not accept the request. You can retry.' }, 502);
-  }
-});
-
-app.get('/api/conferences/:year/speaker-intake/:token', async (c) => {
-  const yearParam = c.req.param('year');
-  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'This presenter link is no longer available.' }, 404);
-  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
-  if (!edition) return c.json({ error: 'This presenter link is no longer available.' }, 404);
-  const link = await getAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
-  if (!link || link.used_at || new Date(link.expires_at).getTime() <= Date.now() || !link.speaker_submission_id) {
-    return c.json({ error: 'This presenter link is no longer available.' }, 410);
-  }
-  const submission = await getAnnualConferenceSpeakerSubmission(link.speaker_submission_id);
-  if (!submission || submission.edition_id !== edition.id || submission.status !== 'selected') {
-    return c.json({ error: 'This presenter link is no longer available.' }, 410);
-  }
-  return c.json({
-    event: { id: edition.id, name: edition.name, event_date: edition.provisional_date ?? `${edition.year}-12-19`, status: 'cfp_closed' },
-    link: { purpose: 'selected_speaker_confirmation', kind: link.kind },
-    prefill: {
-      speaker_name: submission.speaker_name,
-      speaker_email: submission.speaker_email,
-      github_username: submission.github_username ?? '',
-      title: submission.title,
-      topic: submission.topic,
-      abstract: submission.abstract ?? '',
-      bio: submission.bio ?? '',
-      slides_url: safePublicResourceUrl(submission.resource_url) ?? '',
-    },
-  });
-});
-
-app.post('/api/conferences/:year/speaker-intake/:token', async (c) => {
-  const yearParam = c.req.param('year');
-  if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'This presenter link is no longer available.' }, 404);
-  const rateLimitError = await enforcePublicRateLimit(c, {
-    action: `conference_speaker_intake:${yearParam}`,
-    clientKey: `${publicClientKey(c)}:${c.req.param('token')}`,
-    maxAttempts: 10, windowSeconds: 60 * 60,
-  }, 'This private form has received several attempts. Please try again later.');
-  if (rateLimitError) return rateLimitError;
-  const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
-  if (!edition) return c.json({ error: 'This presenter link is no longer available.' }, 404);
-  const parsed = selectedSpeakerDetailsSchema.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presenter details.' }, 400);
-
-  let claimId: string | null = null;
-  try {
-    const claim = await claimAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
-    claimId = claim.claimId;
-    if (!claim.link.speaker_submission_id) throw new Error('This presenter link is no longer available.');
-    const submission = await getAnnualConferenceSpeakerSubmission(claim.link.speaker_submission_id);
-    if (!submission || submission.edition_id !== edition.id || submission.status !== 'selected') throw new Error('This presenter link is no longer available.');
-    const session = await createAnnualConferenceSession({
-      edition_id: edition.id,
-      speaker_submission_id: submission.id,
-      kind: submission.kind,
-      speaker_name: submission.speaker_name,
-      speaker_email: submission.speaker_email,
-      github_username: submission.github_username,
-      title: submission.title,
-      topic: parsed.data.topic || submission.topic || 'General',
-      abstract: submission.abstract,
-      bio: parsed.data.bio || submission.bio,
-      slides_url: safePublicResourceUrl(parsed.data.slides_url) || null,
-    });
-    await consumeAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'), session.id, claim.claimId);
-    claimId = null;
-    await updateAnnualConferenceSpeakerSubmission(submission.id, { selected_session_id: session.id });
-    return c.json({ session }, 201);
-  } catch (error) {
-    await releaseAnnualConferenceSpeakerIntakeClaim(edition.id, c.req.param('token'), claimId);
-    const message = error instanceof Error ? error.message : 'Unable to submit presenter details.';
-    const closed = message.includes('no longer available') || message.includes('already being submitted');
-    return c.json({ error: closed ? message : 'Unable to submit presenter details. Please check the form and try again.' }, closed ? 410 : 400);
   }
 });
 

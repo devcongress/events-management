@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import VolunteerApplicationSheet from '@/src/components/VolunteerApplicationSheet.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import type { VolunteerApplication } from '@/types';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
@@ -70,7 +72,8 @@ const phaseManagerOpen = ref(false);
 const phaseEditorOpen = ref(false);
 const editingPhaseId = ref<string | null>(null);
 const pendingDeletePhase = ref<AnnualConferencePhase | null>(null);
-const copiedVolunteerLink = ref(false);
+const volunteerLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
+let volunteerLinkCopyResetTimer: number | undefined;
 const volunteerShortLinkUrl = ref<string | null>(null);
 const selectedVolunteerApplication = ref<VolunteerApplication | null>(null);
 
@@ -426,6 +429,8 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
 }
 
 async function copyVolunteerLink() {
+  if (volunteerLinkCopyState.value === 'copying') return;
+  volunteerLinkCopyState.value = 'copying';
   try {
     let shareUrl = volunteerShortLinkUrl.value ?? volunteerPublicUrl;
     if (!volunteerShortLinkUrl.value) {
@@ -437,13 +442,22 @@ async function copyVolunteerLink() {
         // Keep the canonical form URL available if short-link storage is unavailable.
       }
     }
-    await navigator.clipboard.writeText(shareUrl);
-    copiedVolunteerLink.value = true;
-    window.setTimeout(() => { copiedVolunteerLink.value = false; }, 1800);
+    await copyTextToClipboard(shareUrl);
+    volunteerLinkCopyState.value = 'copied';
+    if (volunteerLinkCopyResetTimer) window.clearTimeout(volunteerLinkCopyResetTimer);
+    volunteerLinkCopyResetTimer = window.setTimeout(() => {
+      volunteerLinkCopyState.value = 'idle';
+      volunteerLinkCopyResetTimer = undefined;
+    }, 1800);
   } catch {
+    volunteerLinkCopyState.value = 'idle';
     notify.error('Unable to copy the volunteer form link.');
   }
 }
+
+onBeforeUnmount(() => {
+  if (volunteerLinkCopyResetTimer) window.clearTimeout(volunteerLinkCopyResetTimer);
+});
 
 function openVolunteerDisplay() {
   window.open(annualConferencePath('volunteers/display', year.value), '_blank', 'noopener,noreferrer');
@@ -630,7 +644,7 @@ function openVolunteerDisplay() {
           <header class="page-intro"><span>People</span><h1>Volunteers</h1><p>Your assigned volunteer responsibilities for this edition.</p></header>
           <div v-if="canShareVolunteerIntake" class="volunteer-actions">
             <button type="button" class="primary-button" @click="openVolunteerDisplay">Show QR</button>
-            <button type="button" class="secondary-button" @click="copyVolunteerLink">{{ copiedVolunteerLink ? 'Copied' : 'Copy link' }}</button>
+            <AppCopyButton :state="volunteerLinkCopyState" label="Copy link" class="secondary-button" @click="copyVolunteerLink" />
             <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button">Open form</a>
           </div>
           <section v-if="canViewVolunteerTeam" class="content-card">

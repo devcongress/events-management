@@ -64,6 +64,7 @@ export async function createMockAnnualConferenceEdition(
       name: input.name,
       label: input.label,
       speaker_call_status: 'closed',
+      speaker_logistics_deadline: null,
       provisional_date: input.provisional_date,
       date_status: 'provisional',
       venue_note: null,
@@ -88,6 +89,22 @@ export async function updateMockAnnualConferenceSpeakerCallStatus(
     if (index < 0) return { data: editions, result: undefined };
     const next = [...editions];
     next[index] = { ...next[index], speaker_call_status: speakerCallStatus, updated_at: now() };
+    return { data: next, result: next[index] };
+  });
+}
+
+export async function updateMockAnnualConferenceSpeakerLogisticsDeadline(
+  editionId: string,
+  deadline: string | null,
+): Promise<AnnualConferenceEdition | undefined> {
+  return updateData<AnnualConferenceEdition, AnnualConferenceEdition | undefined>(EDITIONS_FILE, (current) => {
+    const editions = current.some((edition) => edition.id === ANNUAL_CONFERENCE_2026_EDITION.id)
+      ? current
+      : [ANNUAL_CONFERENCE_2026_EDITION, ...current];
+    const index = editions.findIndex((edition) => edition.id === editionId);
+    if (index < 0) return { data: editions, result: undefined };
+    const next = [...editions];
+    next[index] = { ...next[index], speaker_logistics_deadline: deadline, updated_at: now() };
     return { data: next, result: next[index] };
   });
 }

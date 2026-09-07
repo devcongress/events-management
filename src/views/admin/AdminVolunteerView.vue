@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import {
   VOLUNTEER_PUBLIC_PATH,
   annualConferencePath,
@@ -14,6 +15,7 @@ import {
   ensureAdminShortLink,
   queryKeys,
 } from '@/src/lib/api';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
 import { hasAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 
@@ -88,7 +90,8 @@ const volunteerDirectoryError = computed(() => (
 ));
 const publicUrl = `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`;
 const shortLinkUrl = ref<string | null>(null);
-const copied = ref(false);
+const copyState = ref<'idle' | 'copying' | 'copied'>('idle');
+let copyResetTimer: number | undefined;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en', {
@@ -101,6 +104,8 @@ function formatDate(value: string) {
 }
 
 async function copyPublicUrl() {
+  if (copyState.value === 'copying') return;
+  copyState.value = 'copying';
   try {
     let shareUrl = shortLinkUrl.value ?? publicUrl;
     if (!shortLinkUrl.value) {
@@ -112,13 +117,22 @@ async function copyPublicUrl() {
         // Keep the canonical form URL available if short-link storage is unavailable.
       }
     }
-    await navigator.clipboard.writeText(shareUrl);
-    copied.value = true;
-    window.setTimeout(() => { copied.value = false; }, 1800);
+    await copyTextToClipboard(shareUrl);
+    copyState.value = 'copied';
+    if (copyResetTimer) window.clearTimeout(copyResetTimer);
+    copyResetTimer = window.setTimeout(() => {
+      copyState.value = 'idle';
+      copyResetTimer = undefined;
+    }, 1800);
   } catch {
+    copyState.value = 'idle';
     notify.error('Unable to copy the volunteer form link.');
   }
 }
+
+onBeforeUnmount(() => {
+  if (copyResetTimer) window.clearTimeout(copyResetTimer);
+});
 
 async function prepareVolunteerShareLink() {
   shortLinkUrl.value = null;
@@ -156,13 +170,12 @@ function openVolunteerDisplay() {
           >
             Show QR
           </button>
-          <button
-            type="button"
+          <AppCopyButton
+            :state="copyState"
+            label="Copy link"
             class="motion-press min-h-10 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-ink hover:bg-dc-yellow"
             @click="copyPublicUrl"
-          >
-            {{ copied ? 'Copied' : 'Copy link' }}
-          </button>
+          />
           <a
             :href="publicUrl"
             target="_blank"

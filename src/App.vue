@@ -23,7 +23,7 @@ import {
   isOrganizerPhoneRouteName,
   organizerViewportRedirect,
 } from './organizer-viewport';
-import { SPEAKER_TALK_INTAKE_ROUTE_NAME } from './speaker-intake-route';
+import { CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME, SPEAKER_TALK_INTAKE_ROUTE_NAME } from './speaker-intake-route';
 import { isSystemDesignPresenterPath, SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
 
 interface NavLink {
@@ -98,6 +98,7 @@ const isStandaloneRoute = computed(() => (
   || route.name === 'admin-public-events-preview'
   || route.name === 'admin-public-event-preview'
   || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME
+  || route.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME
   || route.name === 'volunteer-intake'
   || route.name === 'admin-annual-conference-volunteer-display'
   || route.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME

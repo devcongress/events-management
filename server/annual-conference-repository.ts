@@ -9,6 +9,7 @@ import {
   reorderMockAnnualConferencePhases,
   updateMockAnnualConferencePhase,
   updateMockAnnualConferenceSpeakerCallStatus,
+  updateMockAnnualConferenceSpeakerLogisticsDeadline,
   updateMockAnnualConferenceTask,
 } from '@/lib/mock-db/annual-conference-work-plan';
 import {
@@ -21,6 +22,7 @@ import {
   reorderSupabaseAnnualConferencePhases,
   updateSupabaseAnnualConferencePhase,
   updateSupabaseAnnualConferenceSpeakerCallStatus,
+  updateSupabaseAnnualConferenceSpeakerLogisticsDeadline,
   updateSupabaseAnnualConferenceTask,
 } from '@/lib/supabase/annual-conference-work-plan';
 import type {
@@ -51,6 +53,7 @@ export interface AnnualConferenceRepository {
   createTask(edition: AnnualConferenceEdition, input: AnnualConferenceTaskCreateInput, actorEmail: string): Promise<AnnualConferenceTask>;
   updateTask(editionId: string, taskId: string, input: AnnualConferenceTaskUpdateInput, actorEmail: string): Promise<AnnualConferenceTask | undefined>;
   updateEditionSpeakerCallStatus(editionId: string, status: 'open' | 'closed'): Promise<AnnualConferenceEdition>;
+  updateEditionSpeakerLogisticsDeadline(editionId: string, deadline: string | null): Promise<AnnualConferenceEdition>;
 }
 
 type Backend = 'supabase' | 'mock';
@@ -149,6 +152,18 @@ export function createAnnualConferenceRepository(c?: Context): AnnualConferenceR
         return edition;
       }
       const edition = await updateMockAnnualConferenceSpeakerCallStatus(editionId, status);
+      if (!edition) throw new Error('Annual conference edition not found.');
+      return edition;
+    },
+
+    async updateEditionSpeakerLogisticsDeadline(editionId, deadline) {
+      if (selectedBackend() === 'supabase') {
+        const edition = await updateSupabaseAnnualConferenceSpeakerLogisticsDeadline(editionId, deadline, c);
+        if (edition === null) throw new Error('Supabase Annual Conference storage became unavailable during the request.');
+        if (!edition) throw new Error('Annual conference edition not found.');
+        return edition;
+      }
+      const edition = await updateMockAnnualConferenceSpeakerLogisticsDeadline(editionId, deadline);
       if (!edition) throw new Error('Annual conference edition not found.');
       return edition;
     },

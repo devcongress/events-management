@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
+import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import BlastActivityDrawer from '@/src/components/ui/BlastActivityDrawer.vue';
 import BlastEmailPreview from '@/src/components/ui/BlastEmailPreview.vue';
@@ -25,6 +26,7 @@ import {
   updateEventById,
   updateEventRegistrationCampaign,
 } from '@/src/lib/api';
+import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { adminPath } from '@/src/admin-routes';
 import { registrationAvailability } from '@/lib/event-registration';
 import { safeGoogleMapsUrl } from '@/lib/location-links';
@@ -133,7 +135,7 @@ const actionRegistrationId = ref<string | null>(null);
 const pendingCancellation = ref<EventRegistration | null>(null);
 const pendingCheckInUndo = ref<EventRegistration | null>(null);
 const savedSettings = ref<RegistrationSettingsDraft | null>(null);
-const publicLinkCopied = ref(false);
+const publicLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
 const publicShortLinkUrl = ref<string | null>(null);
 const manualRefreshPending = ref(false);
 const reopenRegistrationConfirmationOpen = ref(false);
@@ -354,13 +356,6 @@ const registrationOverviewEmptyCopy = computed(() => (
         && registrationAvailabilityState.value.reason === 'not_open'
         ? 'Registration is scheduled to open later. Review form settings to change the schedule.'
         : 'Finish the form settings and open registration when you are ready to invite guests.'
-));
-const registrationOverviewActionLabel = computed(() => (
-  canUsePublicRegistrationForm.value
-    ? publicLinkCopied.value
-      ? 'Link copied'
-      : 'Copy registration link'
-    : 'Review form settings'
 ));
 const showRegistrationOverviewEmptyAction = computed(() => (
   canUsePublicRegistrationForm.value || !registrationCanReopen.value
@@ -928,22 +923,24 @@ async function savePageDetails() {
 
 async function copyPublicLink() {
   if (!data.value?.public_url || !canUsePublicRegistrationForm.value) return;
+  publicLinkCopyState.value = 'copying';
   try {
     const shortLink = publicShortLinkUrl.value
       ? { url: publicShortLinkUrl.value }
       : await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
     publicShortLinkUrl.value = shortLink.url;
-    await navigator.clipboard.writeText(shortLink.url);
-    publicLinkCopied.value = true;
+    await copyTextToClipboard(shortLink.url);
+    publicLinkCopyState.value = 'copied';
     if (publicLinkFeedbackTimer) {
       clearTimeout(publicLinkFeedbackTimer);
     }
     publicLinkFeedbackTimer = setTimeout(() => {
-      publicLinkCopied.value = false;
+      publicLinkCopyState.value = 'idle';
       publicLinkFeedbackTimer = null;
     }, 2_000);
     notify.success('Registration form link copied.');
   } catch {
+    publicLinkCopyState.value = 'idle';
     notify.error('Unable to copy the registration form link.');
   }
 }
@@ -1255,18 +1252,14 @@ async function retryEmails() {
                 <p class="registration-overview-empty-title">No registrations yet</p>
                 <p class="registration-overview-empty-copy">{{ registrationOverviewEmptyCopy }}</p>
               </div>
-              <button
-                v-if="showRegistrationOverviewEmptyAction"
-                type="button"
+              <AppCopyButton
+                v-if="showRegistrationOverviewEmptyAction && canUsePublicRegistrationForm"
+                :state="publicLinkCopyState"
+                label="Copy registration link"
                 class="registration-overview-action motion-press"
-                @click="handleRegistrationOverviewAction"
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M7 6.25V4.75A1.75 1.75 0 0 1 8.75 3h6.5A1.75 1.75 0 0 1 17 4.75v6.5A1.75 1.75 0 0 1 15.25 13h-1.5" />
-                  <rect x="3" y="7" width="10" height="10" rx="1.75" />
-                </svg>
-                <span aria-live="polite">{{ registrationOverviewActionLabel }}</span>
-              </button>
+                @click="copyPublicLink"
+              />
+              <button v-else-if="showRegistrationOverviewEmptyAction" type="button" class="registration-overview-action motion-press" @click="handleRegistrationOverviewAction">Review form settings</button>
             </div>
 
             <div
@@ -1462,13 +1455,12 @@ async function retryEmails() {
                   >
                     OPEN FORM
                   </a>
-                  <button
-                    type="button"
+                  <AppCopyButton
+                    :state="publicLinkCopyState"
+                    label="Copy form"
                     class="editorial-action min-h-11 justify-center px-4"
                     @click="copyPublicLink"
-                  >
-                    <span aria-live="polite">{{ publicLinkCopied ? 'COPIED' : 'COPY FORM' }}</span>
-                  </button>
+                  />
                 </template>
                 <span
                   v-else

@@ -288,6 +288,7 @@ export interface Database {
           name: string;
           label: string;
           speaker_call_status: 'open' | 'closed';
+          speaker_logistics_deadline: string | null;
           provisional_date: string | null;
           date_status: 'provisional' | 'confirmed';
           venue_note: string | null;
@@ -302,6 +303,7 @@ export interface Database {
           name: string;
           label: string;
           speaker_call_status?: 'open' | 'closed';
+          speaker_logistics_deadline?: string | null;
           provisional_date?: string | null;
           date_status?: 'provisional' | 'confirmed';
           venue_note?: string | null;
@@ -316,6 +318,7 @@ export interface Database {
           name?: string;
           label?: string;
           speaker_call_status?: 'open' | 'closed';
+          speaker_logistics_deadline?: string | null;
           provisional_date?: string | null;
           date_status?: 'provisional' | 'confirmed';
           venue_note?: string | null;
@@ -330,15 +333,16 @@ export interface Database {
         Row: {
           id: string;
           edition_id: string;
-          kind: 'talk' | 'product_demo';
           speaker_name: string;
           speaker_email: string;
-          github_username: string | null;
+          speaker_profile_id: string | null;
+          proposal_schema_version: 1 | 2;
           title: string;
           topic: string;
+          session_type: '15-minute short talk' | '25-minute short talk' | '40-minute long talk' | '60-minute workshop';
+          learning_outcomes: Json;
           abstract: string | null;
           bio: string | null;
-          resource_url: string | null;
           status: 'submitted' | 'selected' | 'not_selected' | 'withdrawn';
           internal_note: string | null;
           selected_intake_link_id: string | null;
@@ -347,7 +351,7 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['annual_conference_speaker_submissions']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_speaker_submissions']['Row'], 'id' | 'created_at' | 'updated_at' | 'proposal_schema_version'> & { id?: string; created_at?: string; updated_at?: string; proposal_schema_version?: 1 | 2 };
         Update: Partial<Database['public']['Tables']['annual_conference_speaker_submissions']['Insert']>;
         Relationships: [];
       };
@@ -356,15 +360,22 @@ export interface Database {
           id: string;
           edition_id: string;
           speaker_submission_id: string | null;
-          kind: 'talk' | 'product_demo';
           speaker_name: string;
           speaker_email: string;
-          github_username: string | null;
           title: string;
           topic: string;
+          session_type: '15-minute short talk' | '25-minute short talk' | '40-minute long talk' | '60-minute workshop';
+          learning_outcomes: Json;
           abstract: string | null;
           bio: string | null;
           slides_url: string | null;
+          availability_confirmed: boolean | null;
+          technical_requirements: string | null;
+          workshop_prerequisites: string | null;
+          required_software_equipment: string | null;
+          participants_need_laptops: boolean | null;
+          preferred_workshop_capacity: number | null;
+          logistics_updated_at: string | null;
           status: 'confirmed' | 'archived';
           created_at: string;
           updated_at: string;
@@ -378,7 +389,6 @@ export interface Database {
           id: string;
           edition_id: string;
           speaker_submission_id: string | null;
-          kind: 'talk' | 'product_demo';
           speaker_name: string | null;
           speaker_email: string | null;
           talk_title: string | null;
@@ -390,15 +400,34 @@ export interface Database {
           email_last_attempt_at: string | null;
           email_last_error: string | null;
           expires_at: string;
-          claim_id: string | null;
-          claimed_at: string | null;
-          used_at: string | null;
-          used_session_id: string | null;
+          revoked_at: string | null;
+          workspace_session_id: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<Database['public']['Tables']['annual_conference_speaker_intake_links']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
         Update: Partial<Database['public']['Tables']['annual_conference_speaker_intake_links']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_speaker_profiles: {
+        Row: {
+          id: string;
+          email: string;
+          email_normalized: string;
+          name: string;
+          bio: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          name: string;
+          bio: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['annual_conference_speaker_profiles']['Insert']>;
         Relationships: [];
       };
       annual_conference_access_grants: {
@@ -2189,6 +2218,29 @@ export interface Database {
           p_claim_id: string;
         };
         Returns: boolean;
+      };
+      accept_annual_conference_speaker_proposal: {
+        Args: {
+          p_submission_id: string;
+          p_session_id: string;
+          p_link_id: string;
+          p_token_hash: string;
+          p_deadline: string;
+          p_email_idempotency_key: string;
+          p_internal_note: string;
+        };
+        Returns: Array<{ session_id: string; link_id: string }>;
+      };
+      rotate_annual_conference_speaker_workspace: {
+        Args: {
+          p_submission_id: string;
+          p_expected_link_id: string | null;
+          p_link_id: string;
+          p_token_hash: string;
+          p_deadline: string;
+          p_email_idempotency_key: string;
+        };
+        Returns: string;
       };
       review_event_submission_amendment: {
         Args: { p_amendment_id: string; p_reviewed_by: string; p_approve: boolean; p_message: string };

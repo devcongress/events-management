@@ -98,3 +98,44 @@ Replace the highest-friction shallow seams with backward-compatible domain bound
 ## Status
 
 **Complete** — compatibility-first implementation, project/index documentation, full regression suite, production build, and final diff review are complete. The delivery report records deliberately separate persistence-migration follow-up rather than misrepresenting it as finished.
+
+---
+
+# Task Plan: Large-File Architecture Audit and Refactor
+
+## Goal
+
+Audit oversized TypeScript and Vue modules, identify responsibility-heavy hotspots, and extract the highest-value boundary into focused modules without changing runtime behavior.
+
+## Phases
+
+- [x] Phase 1: Preserve the completed Annual Conference CFP work as its own commit.
+- [x] Phase 2: Inventory large files and map responsibilities, dependencies, and test coverage.
+- [x] Phase 3: Design the server route-composition boundary and select a practical extraction.
+- [x] Phase 4: Implement the isolated refactor with focused regression verification.
+- [x] Phase 5: Update architecture documentation and create a separate detailed commit.
+- [x] Phase 6: Obtain independent senior-engineer review, fix substantiated findings, and report.
+
+## Key Questions
+
+1. Which large files are genuinely too broad rather than merely long but cohesive?
+2. Which `server/app.ts` responsibilities can move without weakening authorization, middleware ordering, or route contracts?
+3. What module boundaries reduce cognitive load while avoiding thin one-route wrappers and circular dependencies?
+
+## Decisions Made
+
+- Treat line count as a discovery signal, not a pass/fail rule.
+- Keep the Annual Conference feature commit (`ba9cd89`) separate from all architecture-only changes.
+- Preserve HTTP contracts and behavior; this task is a structural refactor, not a product change.
+
+## Errors Encountered
+
+- One `apply_patch` hunk contained an invalid marker and was rejected before changing files; reran it with a valid hunk.
+- The first typecheck found two remaining `publicClientIp` consumers in `server/app.ts`; exported that shared helper from the new public-intake protection module and imported it explicitly.
+- An opt-in strict unused-symbol scan exposed existing repository warnings plus imports made obsolete by this extraction; removed every obsolete import attributable to this change while leaving unrelated pre-existing cleanup out of scope.
+- A combined documentation patch assumed an outdated `docs/architecture.md` heading and was rejected atomically; inspected the current documents and applied focused section-level updates.
+- The first full suite found one source-location assertion still reading the conference route from `server/app.ts`; updated it to assert the extracted registrar and schema module while retaining the same separation checks.
+
+## Status
+
+**Complete** — the first domain-route extraction, architecture audit, project/index documentation, full regression verification, and independent senior-engineer review are complete. The reviewer found no P0-P3 issues; the architecture refactor remains a separate commit from the Annual Conference CFP feature.

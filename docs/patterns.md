@@ -5,7 +5,7 @@
 - **Files:** `kebab-case` for utility files; Vue SFCs use `PascalCase.vue`
 - **Components:** `PascalCase` (`DashboardView`, `TalkReviewCard`)
 - **Composables:** `use-` prefix for future Vue composables
-- **API routes:** Active APIs live in `server/app.ts` or `server/routes/*`; legacy Next APIs remain under `app/api`
+- **API routes:** Active feature routes live in cohesive registrars under `server/routes/*`; `server/app.ts` owns app-wide middleware and composition while legacy Next APIs remain under `app/api`
 - **Types:** `PascalCase` interfaces, `camelCase` properties (`QuizSession`, `event_date`)
 - **DB helpers:** `verb + entity` pattern (`getAllEvents`, `getEventById`, `createEvent`, `updateEvent`)
 - **Constants:** `SCREAMING_SNAKE_CASE` (`POLL_INTERVAL_MS`, `REVEALING_DURATION_MS`)
@@ -18,6 +18,8 @@
 - `src/components/ui/` — active Vue shared primitives mounted or reused across views, such as the global Sonner toaster
 - `src/lib/` — browser-side app helpers such as `notify`, alongside legacy-compatible shared modules
 - `server/` — active Hono API and Bun production entrypoint
+- `server/routes/` — cohesive Hono route families; keep schemas and feature-only transport adapters beside their owning registrar
+- `server/http/` — shared HTTP policies and request helpers used by more than one route family
 - `app/(public)/` — legacy Next public routes kept as migration reference
 - `app/(admin)/admin/` — legacy Next admin routes kept as migration reference
 - `app/api/` — legacy Next API routes kept as migration reference
@@ -41,6 +43,14 @@ Use Hono context responses from active API handlers:
 ```ts
 app.get('/api/events', async (c) => c.json(await getAllEvents()));
 ```
+
+### Route Module Boundaries
+
+Register one coherent route family through a single typed function. Keep global request IDs, security headers, body limits, CORS, and authentication in `server/app.ts`; route registrars assume those policies have already been installed.
+
+Line count is a review trigger, not an automatic split. Extract a file only when the new module owns a capability, workflow, policy, adapter, or transformation. Avoid endpoint-per-file layouts and generic service containers.
+
+New feature routes should extend a domain registrar under `server/routes/` rather than add another handler directly to `server/app.ts`.
 
 ### Mock DB Access
 Always use typed entity helpers from `lib/mock-db/` — never call `readData`/`writeData` directly from routes:
@@ -96,6 +106,9 @@ Use IBM Plex Mono only for compact operational language, technical values, and l
 ### Toast Notifications
 Use `notify` from `src/lib/notify.ts` for app notifications so all messages target the globally mounted `AppToaster` and inherit the editorial/ops Sonner theme. Do not import `toast` from `vue-sonner` directly inside views unless a feature needs a deliberate separate toaster.
 
+### Copy-Link Feedback
+Use `src/components/ui/AppCopyButton.vue` for organizer actions that copy a public or private link and `src/lib/clipboard.ts` for the write itself. The owning view drives the shared `idle -> copying -> copied -> idle` state only after the helper confirms success. Keep record-scoped feedback keyed to its record, keep the copied result visible briefly, reset failures immediately, and avoid one-off labels, icons, or success colors that cause the control to resize.
+
 ---
 
 ## Testing Conventions
@@ -108,5 +121,5 @@ Use `notify` from `src/lib/notify.ts` for app notifications so all messages targ
 
 ## Anti-Patterns Observed
 
-- **No auth middleware** — active Hono APIs do not have server-side access control yet. Add session/role checks before exposing admin mutations.
-- **Simulated delay in API routes** — `SIMULATED_DELAY_MS` `setTimeout` in every route. Remove before production.
+- **Composition-root growth** — `server/app.ts` still contains many domain handlers and orchestration helpers. Continue extracting cohesive route families in behavior-preserving commits; do not solve this with endpoint-per-file fragmentation.
+- **Source-string UI tests** — several large organizer views are asserted through source text. Prefer mounted workflow tests before decomposing those views so behavior remains protected across component extraction.
