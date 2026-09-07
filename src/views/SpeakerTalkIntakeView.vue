@@ -327,23 +327,11 @@ function formatDeadline(value: string | null): string {
             <p class="mt-4 border-t border-dc-border pt-4 text-xs font-semibold text-dc-gray">Updates close {{ formatDeadline(workspaceDeadline) }}.</p>
           </section>
 
+          <section class="app-form-section space-y-5">
+          <h2 class="app-form-section-title">Session logistics</h2>
           <div class="grid gap-4 sm:grid-cols-2">
-            <label class="block">
-              <span class="editorial-label">Availability confirmation</span>
-              <select v-model="form.availability_confirmed" class="editorial-input bg-white">
-                <option value="">Choose an answer</option>
-                <option value="yes">I confirm I am available</option>
-                <option value="not_yet">Not confirmed yet</option>
-              </select>
-            </label>
-            <label class="block">
-              <span class="editorial-label">Do participants need laptops?</span>
-              <select v-model="form.participants_need_laptops" class="editorial-input bg-white">
-                <option value="">Choose an answer</option>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </label>
+            <AppDropdown v-model="form.availability_confirmed" label="Availability confirmation" :options="[{ value: '', label: 'Choose an answer' }, { value: 'yes', label: 'I confirm I am available' }, { value: 'not_yet', label: 'Not confirmed yet' }]" />
+            <AppDropdown v-model="form.participants_need_laptops" label="Do participants need laptops?" :options="[{ value: '', label: 'Choose an answer' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]" />
           </div>
 
           <label class="block">
@@ -358,7 +346,9 @@ function formatDeadline(value: string | null): string {
             <span class="editorial-label">Required software or equipment</span>
             <textarea v-model="form.required_software_equipment" rows="3" class="editorial-input resize-none" placeholder="Software, accounts, devices, adapters, or equipment needed." />
           </label>
-          <template v-if="form.session_type === '60-minute workshop'">
+          </section>
+          <section v-if="form.session_type === '60-minute workshop'" class="app-form-section space-y-5">
+            <h2 class="app-form-section-title">Workshop preparation</h2>
             <label class="block">
               <span class="editorial-label">Workshop prerequisites</span>
               <textarea v-model="form.workshop_prerequisites" rows="3" class="editorial-input resize-none" placeholder="What should participants know or prepare beforehand?" />
@@ -367,7 +357,7 @@ function formatDeadline(value: string | null): string {
               <span class="editorial-label">Preferred workshop capacity</span>
               <input v-model.number="form.preferred_workshop_capacity" type="number" min="1" max="1000" class="editorial-input" />
             </label>
-          </template>
+          </section>
           <div class="flex justify-end">
             <button type="submit" :disabled="submitting" class="speaker-intake-submit motion-press w-full rounded-lg border border-dc-ink bg-dc-pink px-5 py-3 font-mono text-sm font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-56">{{ submitting ? 'SAVING…' : 'SAVE DETAILS' }}</button>
           </div>
@@ -497,23 +487,6 @@ function formatDeadline(value: string | null): string {
   color: #555555;
   font-size: 0.68rem;
   letter-spacing: 0.12em;
-}
-
-.speaker-intake-form :deep(.editorial-input),
-.speaker-intake-form :deep(button[aria-haspopup='listbox']) {
-  min-height: 3.1rem;
-  border-width: 1px;
-  border-color: #c9c5bc;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
-}
-
-.speaker-intake-form :deep(.editorial-input:focus),
-.speaker-intake-form :deep(button[aria-haspopup='listbox']:focus),
-.speaker-intake-form :deep(button[aria-haspopup='listbox'][aria-expanded='true']) {
-  border-color: #111111;
-  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12);
 }
 
 .speaker-intake-form :deep(.speaker-intake-topic-menu .app-dropdown-scroll) {

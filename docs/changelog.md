@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-07 — Shared form polish
+
+- Unified regular text fields, textareas, dropdowns, and date fields around 50px field sizing, 8px corners, restrained borders, body typography, and shared focus/error/disabled states.
+- Migrated custom volunteer, feedback, community-event, amendment, and organizer composer controls. Preserved compact filters, inline/quiz editors, file uploads, and checkbox layouts.
+- Extracted numbered learning outcomes with stable row identities, accessible remove targets, neutral progress, actionable submission guidance, and reduced-motion-aware entry transitions.
+- Added quiet speaker-workspace sections and app dropdowns; added missing submission guidance across public registration/feedback/volunteer forms and mobile email composition.
+- Added shared dropdown keyboard navigation and viewport-clamped portal width while retaining opt-in portal placement for existing drawer behavior.
+- Added isolated browser regression scripts and a source-level coverage guard for ordinary fields.
+
+## 2026-09-07 — Responsive conference proposal steps
+
+- Split the conference speaker form into About you, Your session, and Attendee takeaways: one step at a time below 768px, quiet sections together on desktop.
+- Added step progress, Back/Continue actions, section validation, and focus/scroll handling while retaining entered values across navigation and viewport changes.
+- Kept proposal submission on the final mobile step, with all-section validation and a compact human-check widget for narrow screens. Monthly CFP remains a single-page form.
+- Added a browser regression script covering 320px/390px navigation, validation, Enter handling, preserved values, desktop resizing, and monthly-form isolation without sending proposals.
+
+## 2026-09-07 — Conference proposal dropdown consistency
+
+- Replaced native Topic Track and Session Type selects with the shared app dropdown, retaining the fixed choices, placeholders, and required-field submission validation.
+- Enabled viewport-aware dropdown positioning and wrapped long option labels; removed mobile overflow risks in the introduction and learning-outcome rows.
+- Added a conference-only preview of a faint dot grid and decorative braces around the solid form surface, with a lighter header treatment on mobile.
+- Disabled conference proposal submission until all learning-outcome rows are non-empty and the count is between three and five.
+
 ## 2026-09-07 — Conference speaker controls and copy-link feedback
 
 - Replaced the browser-native logistics deadline input with the app's shared accessible date-and-time picker.

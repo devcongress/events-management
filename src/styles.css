@@ -8864,7 +8864,7 @@
 
     .editorial-input {
       min-height: 2.85rem;
-      padding: 0.72rem 0.8rem !important;
+      padding: 0.72rem 0.8rem;
       font-size: 1rem;
     }
 

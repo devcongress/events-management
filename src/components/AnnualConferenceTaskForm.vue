@@ -333,7 +333,7 @@ function submitForm() {
           v-model="form.target_date"
           label="Target date"
         />
-        <p class="mt-2 text-xs font-semibold leading-5" :class="form.target_date ? 'text-dc-gray' : 'text-dc-pink'">
+        <p class="app-form-help mt-2">
           <template v-if="selectedPhase">Must be on or before {{ selectedPhase.ends_on }}.</template>
           <template v-else-if="form.target_date">Add a phase when this task belongs to a delivery window.</template>
           <template v-else>Target dates are strongly recommended for timeline planning.</template>

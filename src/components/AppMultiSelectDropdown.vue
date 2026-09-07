@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 import type { CSSProperties } from 'vue';
 import { calculateFloatingPosition, type FloatingPlacement } from '@/src/lib/floating-placement';
+import { focusDropdownOption, navigateDropdown } from '@/src/lib/dropdown-keyboard';
 
 type DropdownValue = string | number;
 
@@ -89,7 +90,15 @@ function closeDropdown() {
   open.value = false;
 }
 
-function toggleDropdown() {
+async function openWithKeyboard(event: KeyboardEvent) {
+  if (props.disabled || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+  event.preventDefault();
+  if (!open.value) toggleDropdown();
+  await nextTick();
+  focusDropdownOption(menuPanel.value, event.key === 'ArrowUp' ? 'last' : 'first');
+}
+
+function toggleDropdown(event?: MouseEvent) {
   if (props.disabled) return;
 
   if (open.value) {
@@ -99,6 +108,7 @@ function toggleDropdown() {
 
   document.dispatchEvent(new CustomEvent('app-dropdown:open', { detail: { id: dropdownId } }));
   open.value = true;
+  if (event?.detail === 0) void nextTick(() => focusDropdownOption(menuPanel.value));
 }
 
 function viewportBounds() {
@@ -130,7 +140,8 @@ function updatePlacement() {
       position: 'fixed',
       top: `${position.top}px`,
       left: `${position.left}px`,
-      minWidth: `${rect.width}px`,
+      width: `${position.width}px`,
+      minWidth: 0,
       maxWidth: 'calc(100vw - 1rem)',
     };
     menuScrollStyle.value = { maxHeight: `${Math.max(0, Math.min(256, position.maxHeight - 50))}px` };
@@ -216,15 +227,18 @@ watch(open, async (isOpen) => {
       type="button"
       class="motion-press flex min-h-[50px] w-full items-center justify-between gap-3 rounded-md border bg-dc-paper px-4 py-3 text-left text-base font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(232,17,127,0.14)] disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
+        'app-form-control',
         label ? 'mt-2' : '',
         open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(232,17,127,0.14)]' : 'border-dc-border',
       ]"
       :disabled="disabled"
+      data-form-density="field"
       :aria-expanded="open"
       :aria-controls="`${dropdownId}-menu`"
       :aria-labelledby="label ? `${dropdownId}-label ${dropdownId}-value` : `${dropdownId}-value`"
       aria-haspopup="listbox"
       @click.stop="toggleDropdown"
+      @keydown="openWithKeyboard"
     >
       <span :id="`${dropdownId}-value`" class="min-w-0 flex-1 truncate">{{ triggerText }}</span>
       <span
@@ -242,10 +256,11 @@ watch(open, async (isOpen) => {
         <div
           v-if="open"
           :id="`${dropdownId}-menu`"
-          ref="menuPanel"
+        ref="menuPanel"
+        @keydown="navigateDropdown($event, menuPanel, closeDropdown, root?.querySelector('button') ?? null)"
           class="app-dropdown-menu min-w-0 overflow-hidden rounded-md border border-dc-border bg-white shadow-[0_18px_36px_rgba(17,17,17,0.14)]"
           :class="[
-            teleport ? 'fixed z-[120]' : 'absolute z-50 w-full',
+          teleport ? 'fixed z-[200]' : 'absolute z-50 w-full',
             !teleport && menuAlign === 'right' ? 'left-auto right-0' : '',
             !teleport && menuAlign !== 'right' ? 'left-0' : '',
             !teleport && placement === 'top' ? 'bottom-[calc(100%+0.5rem)]' : '',

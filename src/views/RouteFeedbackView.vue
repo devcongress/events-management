@@ -290,7 +290,8 @@ watch([name, feedbackType], () => {
             {{ turnstileError }}
           </div>
 
-          <button type="submit" class="editorial-action w-full" :disabled="!canSubmit">
+          <p v-if="!canSubmit && !submitting" id="route-feedback-submit-help" class="app-form-help">{{ feedbackLimitMessage || validationMessage || 'Complete the human check to send your feedback.' }}</p>
+          <button type="submit" class="editorial-action w-full" :disabled="!canSubmit" :aria-describedby="!canSubmit && !submitting ? 'route-feedback-submit-help' : undefined">
             {{ submitting ? 'Sending...' : 'Send feedback' }}
           </button>
         </div>

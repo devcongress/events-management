@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Form control regression fixture</title></head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+    import { createApp } from 'vue';
+    import { VueQueryPlugin } from '@tanstack/vue-query';
+    import FormControlsPreview from './FormControlsPreview.vue';
+    import '/src/styles.css';
+    import '/src/styles/forms.css';
+    createApp(FormControlsPreview).use(VueQueryPlugin).mount('#app');
+  </script>
+</body>
+</html>

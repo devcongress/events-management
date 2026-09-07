@@ -389,7 +389,7 @@ onMounted(fetchSession);
       <form v-if="editingQuestionId === '__new__'" class="quiz-question-card space-y-4 p-5 sm:p-6" @submit.prevent="saveManualQuestion">
         <div class="flex items-center justify-between gap-4"><div><span class="font-mono text-sm font-semibold text-dc-pink">MANUAL</span><h3 class="font-mono text-lg font-semibold text-dc-ink">Add a teaching question</h3></div><button type="button" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink" @click="cancelEditQuestion">Cancel</button></div>
         <input v-model="editForm.question_text" required placeholder="Question text" class="editorial-input" />
-        <textarea v-model="editForm.explanation" required rows="3" placeholder="Ideal answer and teaching rubric" class="system-design-notes-textarea" />
+        <textarea v-model="editForm.explanation" required rows="3" placeholder="Ideal answer and teaching rubric" class="app-form-control system-design-notes-textarea" />
         <div class="grid gap-3 sm:grid-cols-2"><label v-for="(_, optionIndex) in editForm.options" :key="optionIndex" class="quiz-option-input"><span>{{ ['A', 'B', 'C', 'D'][optionIndex] }}</span><input v-model="editForm.options[optionIndex]" required :placeholder="`Option ${optionIndex + 1}`" /></label></div>
         <div class="grid gap-3 sm:grid-cols-3 sm:items-start">
           <AppDropdown class="w-full" :model-value="editForm.correct_index" label="Correct answer" :options="correctAnswerOptions" teleport @update:model-value="editForm.correct_index = Number($event)" />
@@ -409,7 +409,7 @@ onMounted(fetchSession);
             <button type="button" class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray hover:text-dc-ink" @click="cancelEditQuestion">Cancel</button>
           </div>
           <input v-model="editForm.question_text" required placeholder="Question text" class="editorial-input" />
-          <textarea v-model="editForm.explanation" required rows="3" placeholder="Reveal explanation" class="system-design-notes-textarea" />
+          <textarea v-model="editForm.explanation" required rows="3" placeholder="Reveal explanation" class="app-form-control system-design-notes-textarea" />
           <div class="grid gap-3 sm:grid-cols-2">
             <label v-for="(_, optionIndex) in editForm.options" :key="optionIndex" class="quiz-option-input">
               <span>{{ ['A', 'B', 'C', 'D'][optionIndex] }}</span>
