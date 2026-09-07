@@ -43,7 +43,16 @@ try {
     assert.equal((await hour.boundingBox()).height, 36);
     await hour.press('Escape');
     assert.equal((await page.getByLabel('Consent').boundingBox()).width < 30, true);
+    for (const textarea of await page.locator('textarea').all()) {
+      assert.equal(await textarea.evaluate(el => getComputedStyle(el).resize), 'none');
+      assert.equal(await textarea.evaluate(el => getComputedStyle(el).overflowY), 'auto');
+    }
     assert.equal((await page.getByRole('button', { name: 'Compact filter' }).boundingBox()).height < 50, true);
+    const outcomeAdd = page.getByRole('button', { name: 'Add another outcome' });
+    const outcomeAddBounds = await outcomeAdd.boundingBox();
+    const firstOutcomeBounds = await page.getByLabel('Learning outcome 1', { exact: true }).boundingBox();
+    assert(outcomeAddBounds.y < firstOutcomeBounds.y, 'Add outcome belongs in the section header');
+    assert(outcomeAddBounds.x + outcomeAddBounds.width <= width, 'Add outcome stays within the viewport');
     await page.getByLabel('Learning outcome 1', { exact: true }).fill('First outcome');
     await page.getByRole('button', { name: 'Add another outcome' }).click();
     await page.getByLabel('Learning outcome 2', { exact: true }).fill('Second outcome');

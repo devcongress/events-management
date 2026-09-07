@@ -9,6 +9,16 @@ try {
     const page = await browser.newPage({ viewport: { width, height: 844 } });
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      window.turnstile = {
+        render: (_container, options) => {
+          queueMicrotask(() => options.callback('ui-test-token'));
+          return 'ui-test-widget';
+        },
+        reset: () => {},
+        remove: () => {},
+      };
+    });
     let posts = 0;
     await page.route('**/api/**', async (route) => {
       if (route.request().method() === 'POST') {
@@ -22,17 +32,32 @@ try {
     const next = page.getByRole('button', { name: 'Continue' });
     await heading('About you').waitFor();
     assert.equal(await heading('Your session').isVisible(), false);
+    const issues = page.getByRole('list', { name: 'Issues to correct' });
+    assert.equal(await issues.count(), 0);
     await next.click();
-    assert.match(await page.getByRole('alert').innerText(), /valid email/);
+    assert.equal(await issues.locator('li').count(), 3);
     await page.getByLabel('Your Name').fill('UI Test Speaker');
-    await page.getByLabel('Email Address').fill('speaker@example.com');
+    assert.equal(await issues.locator('li').count(), 2);
+    await page.getByLabel('Email Address').fill('invalid');
     await page.getByLabel('Speaker bio').fill('A developer who enjoys teaching.');
+    assert.equal(await issues.locator('li').count(), 1);
+    assert.match(await issues.innerText(), /valid email/);
+    await page.getByLabel('Email Address').fill('speaker@example.com');
+    assert.equal(await issues.count(), 0);
     await page.getByLabel('Email Address').press('Enter');
     await heading('Your session').waitFor();
+    const back = page.getByRole('button', { name: 'Back', exact: true });
+    const backBounds = await back.boundingBox();
+    const headingBounds = await heading('Your session').boundingBox();
+    assert(backBounds.y < headingBounds.y, 'Back belongs above the step content');
+    const progressBounds = await page.locator('[aria-label="Proposal progress"]').boundingBox();
+    assert(Math.abs(backBounds.x + backBounds.width - (progressBounds.x + progressBounds.width)) < 2, 'Back aligns to the top-right');
     assert.equal(await heading('About you').isVisible(), false);
     await next.click();
-    assert.match(await page.getByRole('alert').innerText(), /topic track/);
+    assert.equal(await issues.locator('li').count(), 4);
+    assert.match(await issues.innerText(), /topic track/);
     await page.getByLabel('Talk Title').fill('Building useful developer tools');
+    assert.equal(await issues.locator('li').count(), 3);
     await page.getByRole('button', { name: 'Topic track * Choose one track' }).click();
     await page.getByRole('option', { name: 'Open Source & Developer Community', exact: true }).click();
     await page.getByRole('button', { name: 'Session type * Choose one session type' }).click();
@@ -40,6 +65,8 @@ try {
     await page.getByLabel('Abstract', { exact: false }).fill('word '.repeat(251));
     await next.click();
     assert.equal(await heading('Your session').isVisible(), true);
+    assert.equal(await issues.locator('li').count(), 1);
+    assert.match(await issues.innerText(), /250 words/);
     await page.getByLabel('Abstract', { exact: false }).fill('Learn to build useful tools and evaluate their impact.');
     await next.click();
     await heading('Attendee takeaways').waitFor();
@@ -50,14 +77,27 @@ try {
       await page.getByRole('button', { name: 'Add another outcome' }).click();
       await page.getByLabel(`Learning outcome ${index}`, { exact: true }).fill(`Apply technique ${index}.`);
     }
+    await page.getByRole('button', { name: 'SUBMIT PROPOSAL', exact: true }).click();
+    const confirmation = page.getByRole('dialog', { name: 'Submit this proposal?' });
+    await confirmation.waitFor();
+    assert.match(await confirmation.innerText(), /organizers for review/);
+    assert.equal(posts, 0, 'Opening the confirmation must not submit a proposal');
+    await confirmation.getByRole('button', { name: 'Keep editing' }).click();
+    await confirmation.waitFor({ state: 'hidden' });
+    assert.equal(await page.getByRole('button', { name: 'SUBMIT PROPOSAL', exact: true }).evaluate(el => el === document.activeElement), true, 'Cancel returns focus to Submit proposal');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     assert.equal(await page.getByLabel('Talk Title').inputValue(), 'Building useful developer tools');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     assert.equal(await page.getByLabel('Your Name').inputValue(), 'UI Test Speaker');
     await next.click();
+    await heading('Your session').waitFor();
+    await page.waitForFunction(() => document.activeElement?.id === 'cfp-section-1');
     await next.click();
+    await heading('Attendee takeaways').waitFor();
+    await page.waitForFunction(() => document.activeElement?.id === 'cfp-section-2');
     assert.equal(await page.getByLabel('Learning outcome 3', { exact: true }).inputValue(), 'Apply technique 3.');
-    await page.getByLabel('Learning outcome 3', { exact: true }).fill('   ');
+    await page.getByLabel('Learning outcome 3', { exact: true }).fill('');
+    await page.waitForFunction(() => document.querySelector('button[type="submit"][aria-busy]')?.disabled === true);
     assert.equal(await page.getByRole('button', { name: 'SUBMIT PROPOSAL', exact: true }).isEnabled(), false);
     await page.screenshot({ path: `/tmp/speaker-outcomes-${width}.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -72,6 +112,11 @@ try {
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await page.screenshot({ path: `/tmp/cfp-stepper-${width}.png`, fullPage: true });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await next.click();
+    await heading('Your session').waitFor();
+    await page.waitForFunction(() => document.activeElement?.id === 'cfp-section-1');
+    assert.equal(await page.locator('.cfp-step-viewport').evaluate(el => el.getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length), 0, 'Reduced-motion steps must not slide');
     assert.equal(posts, 0, 'Step navigation must never submit a proposal');
     assert.deepEqual(errors, []);
     // Monthly CFP remains a single page with normal browser validation.

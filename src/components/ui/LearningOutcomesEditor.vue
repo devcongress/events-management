@@ -45,7 +45,13 @@ async function remove(index: number, event: MouseEvent) {
 
 <template>
   <fieldset ref="editor" class="space-y-3" :aria-describedby="`${id}-help ${id}-progress`">
-    <legend class="editorial-label">Learning outcomes <span class="text-red-600">*</span></legend>
+    <legend class="sr-only">Learning outcomes</legend>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <p class="editorial-label" aria-hidden="true">Learning outcomes <span class="text-red-600">*</span></p>
+      <button v-if="model.length < maximum" data-add-outcome type="button" class="app-form-secondary-action ml-auto" @click="add">
+        <span aria-hidden="true">＋</span> Add another outcome
+      </button>
+    </div>
     <p :id="`${id}-help`" class="app-form-help">Add 3–5 concrete things attendees will understand, be able to do, or take away after your session.</p>
     <TransitionGroup name="form-row" tag="div" class="space-y-3" :css="animateRows" :duration="{ enter: 160, leave: 0 }" @before-leave="retireRow">
       <div v-for="(rowId, index) in rowIds" :key="rowId" class="app-outcome-row">
@@ -57,9 +63,6 @@ async function remove(index: number, event: MouseEvent) {
         </button>
       </div>
     </TransitionGroup>
-    <button v-if="model.length < maximum" data-add-outcome type="button" class="app-form-secondary-action" @click="add">
-      <span aria-hidden="true">＋</span> Add another outcome
-    </button>
-    <p :id="`${id}-progress`" class="app-form-help" aria-live="polite"><span class="font-medium">{{ completed <= minimum ? `${completed} of ${minimum} required outcomes added.` : `${completed} outcomes added · 3–5 required.` }}</span> {{ guidance }}</p>
+    <p :id="`${id}-progress`" class="app-form-help" aria-live="polite"><span class="font-medium">{{ completed <= minimum ? `${completed} of ${minimum} required outcomes added.` : `${completed} outcomes added · 3–5 required.` }}</span> <span class="font-bold text-dc-pink">{{ guidance }}</span></p>
   </fieldset>
 </template>

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-07 — Open the conference proposal form
+
+- Added an Open form action beside Copy public link on the conference speaker-management page while the call is open, matching monthly CFP behavior.
+- Opens the edition's public form in a new tab with an external-link icon and accessible new-tab notice; does not change call status.
+- Added a regression contract for the destination, open-call condition, and safe new-tab attributes.
+- Disabled manual resizing of shared textareas while retaining vertical scrolling for longer content.
+- Conference step validation now lists individual outstanding issues after Continue; corrected fields disappear from the list immediately. Browser checks cover progressive correction on mobile and desktop.
+- Moved Back to the top-right of conference step progress. Continue and Back use opposite horizontal slide directions (100ms exit/160ms entry), restore heading focus, and respect reduced motion; departing content is inert.
+- Moved Add another outcome to the top-right of the learning-outcomes header, with a wrapping layout that stays usable on narrow screens.
+- Emphasized the live learning-outcome guidance in bold app pink while keeping the completion count neutral.
+- Added a confirmation dialog before a conference proposal is submitted. Speakers can keep editing or explicitly submit; cancelling restores focus to Submit proposal, and opening the dialog does not send a request.
+
 ## 2026-09-07 — Conference steps across screen sizes
 
 - Extended the conference proposal stepper to desktop, preserving validation, Back/Continue navigation, and values across viewport changes. Monthly CFP remains single-page.

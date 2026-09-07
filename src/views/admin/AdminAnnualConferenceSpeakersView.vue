@@ -210,6 +210,16 @@ function toLocalDateTimeInput(value: string): string {
             <p class="mt-2 max-w-xl text-sm leading-6 text-dc-gray">Review proposals and manage the public call for {{ speakersQuery.data.value.edition.name }}.</p>
           </div>
           <div class="flex flex-wrap gap-2 lg:justify-end">
+            <a
+              v-if="speakersQuery.data.value.call.open"
+              :href="speakersQuery.data.value.call.public_path"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="motion-press inline-flex min-h-10 items-center gap-2 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
+            >
+              <svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h7v7M21 3l-9 9M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" /></svg>
+              Open form<span class="sr-only"> (opens in a new tab)</span>
+            </a>
             <AppCopyButton :state="publicLinkCopyState" label="Copy public link" class="min-h-10 rounded-md border-2 border-dc-ink bg-dc-paper px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :disabled="!speakersQuery.data.value.call.open" @click="copyPublicLink" />
             <button v-if="canManage" class="motion-press min-h-10 rounded-md border-2 border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :class="speakersQuery.data.value.call.open ? 'bg-red-600' : 'bg-dc-pink'" :disabled="callMutation.isPending.value" @click="speakersQuery.data.value.call.open ? closeCallConfirmationOpen = true : callMutation.mutate(true)">{{ speakersQuery.data.value.call.open ? 'Close call' : 'Open call' }}</button>
           </div>
