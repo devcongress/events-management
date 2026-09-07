@@ -5,7 +5,7 @@ import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true });
 try {
-  for (const width of [320, 390]) {
+  for (const width of [320, 390, 1280]) {
     const page = await browser.newPage({ viewport: { width, height: 844 } });
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -43,6 +43,7 @@ try {
     await page.getByLabel('Abstract', { exact: false }).fill('Learn to build useful tools and evaluate their impact.');
     await next.click();
     await heading('Attendee takeaways').waitFor();
+    assert.equal(await page.getByRole('button', { name: /Remove learning outcome/ }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'SUBMIT PROPOSAL', exact: true }).isEnabled(), false);
     await page.getByLabel('Learning outcome 1', { exact: true }).fill('Identify a practical developer problem.');
     for (const index of [2, 3]) {
@@ -61,8 +62,8 @@ try {
     await page.screenshot({ path: `/tmp/speaker-outcomes-${width}.png`, fullPage: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.setViewportSize({ width: 1280, height: 1000 });
-    await heading('About you').waitFor();
-    assert.equal(await heading('Your session').isVisible(), true);
+    assert.equal(await heading('About you').isVisible(), false);
+    assert.equal(await heading('Your session').isVisible(), false);
     assert.equal(await heading('Attendee takeaways').isVisible(), true);
     assert.equal(await next.isVisible(), false);
     await page.setViewportSize({ width, height: 844 });

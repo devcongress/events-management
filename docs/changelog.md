@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-07 — Conference steps across screen sizes
+
+- Extended the conference proposal stepper to desktop, preserving validation, Back/Continue navigation, and values across viewport changes. Monthly CFP remains single-page.
+- Keep at least one learning-outcome input: hide its remove action and guard the removal handler.
+- Saved the broader form audit and research as a deferred backlog; extended browser checks for desktop steps and the final outcome row.
+
 ## 2026-09-07 — Shared form polish
 
 - Unified regular text fields, textareas, dropdowns, and date fields around 50px field sizing, 8px corners, restrained borders, body typography, and shared focus/error/disabled states.
