@@ -33,7 +33,8 @@ describe('Annual Conference CFP contract', () => {
 
   it('keeps the conference proposal schema separate from monthly CFP persistence', () => {
     const migration = read('supabase/migrations/20260907120000_annual_conference_complete_proposals.sql');
-    const conferenceRoute = read('server/app.ts').match(/app\.post\('\/api\/cfp\/conferences\/:year'[\s\S]*?\n}\);/)?.[0] ?? '';
+    const conferenceRoutes = read('server/routes/annual-conference-speakers.ts');
+    const conferenceSchemas = read('server/routes/annual-conference-speakers/schemas.ts');
 
     expect(migration).toContain('annual_conference_speaker_submissions');
     expect(migration).toContain('drop column if exists kind');
@@ -46,10 +47,10 @@ describe('Annual Conference CFP contract', () => {
     expect(migration).toContain('accept_annual_conference_speaker_proposal');
     expect(migration).toContain('rotate_annual_conference_speaker_workspace');
     expect(migration).toContain('for update');
-    expect(conferenceRoute).toContain('createAnnualConferenceSpeakerSubmission');
-    expect(read('server/app.ts')).toContain('conferenceSpeakerSubmissionDecisionSchema');
-    expect(conferenceRoute).not.toContain('createSpeakerSubmission(');
-    expect(conferenceRoute).not.toContain('product_demo');
+    expect(conferenceRoutes).toContain('createAnnualConferenceSpeakerSubmission');
+    expect(conferenceSchemas).toContain('conferenceSpeakerSubmissionDecisionSchema');
+    expect(conferenceRoutes).not.toContain('createSpeakerSubmission(');
+    expect(conferenceSchemas).not.toContain('product_demo');
   });
 
   it('renders progressive outcomes and the editable logistics fields', () => {

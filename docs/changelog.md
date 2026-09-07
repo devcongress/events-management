@@ -7,6 +7,14 @@
 - Standardized organizer copy-link actions through one shared control with an initial copy icon, a brief copying state, a green checked confirmation, and an automatic reset without changing the button width.
 - Styled the open Annual Conference call's close action as destructive and added a confirmation dialog before new proposals are stopped.
 
+## 2026-09-07 — Large-file audit and first Hono route extraction
+
+- Audited production TypeScript and Vue hotspots by responsibility count, dependency fan-out, public surface, and test seams rather than enforcing an arbitrary line limit.
+- Moved all nine Annual Conference speaker endpoints into one feature registrar with separate transport schemas and acceptance-delivery adapter.
+- Extracted shared Hono bindings, public-intake protection, safe error/origin helpers, Annual Conference request composition, and the speaker mutation lock while preserving global middleware order.
+- Reduced `server/app.ts` from 12,453 to 11,627 lines and documented the staged route/view modularization sequence.
+- Added route-registration characterization coverage and retained the full proposal/security regression suite.
+
 ## 2026-09-07 — Complete Annual Conference proposals and speaker logistics
 
 - Split the Annual Conference CFP contract from the monthly CFP schema. Conference proposals now require a speaker bio with a recommended 150-word maximum, fixed topic track, fixed session type, 250-word abstract, and three to five progressive learning outcomes; product demo is no longer a conference session type.

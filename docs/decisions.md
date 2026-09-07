@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-083: Ratchet the Hono Composition Root into Cohesive Route Modules
+
+**Date:** 2026-09-07
+**Why:** `server/app.ts` reached 12,453 lines, 107 imports, and 191 route registrations while owning global middleware, schemas, persistence selection, provider delivery, domain transformations, and unrelated handlers. Its size is a symptom of mixed responsibilities and high change frequency, but splitting every endpoint into a separate file would trade one navigation problem for shallow modules and fragile dependency plumbing.
+**Decision:** Keep `server/app.ts` as the ordered composition root for request environment, error handling, security headers, body limits, CORS, authentication, feature registration, and SPA fallback. Move routes out in cohesive domain registrars with one registration entry point per meaningful route family. Keep transport schemas and feature-specific delivery adapters beside their registrar; move shared HTTP policy only when several route families use it. Start with the complete nine-route Annual Conference speaker surface, retaining the existing global public/protected path classification and full-app route tests. Treat approximate file-size thresholds as review triggers rather than build failures, and prohibit new feature handlers from being added directly to the composition root.
+**Tradeoffs:** The first extraction reduces `server/app.ts` by 826 lines but deliberately leaves a large legacy root and path classifiers that still know public feature URLs. More named modules improve ownership and test seams while increasing the number of files. Production adapters remain concrete in this first mechanical extraction so route behavior does not change; a ports-based application service is deferred until isolated orchestration tests justify the additional abstraction.
+**Revisit when:** Two or more extracted route families need the same request policy, the app root falls below roughly 1,000 lines and can become declarative composition only, or speaker orchestration gains enough callers to justify a transport-independent application façade.
+
+---
+
 ## ADR-082: Separate Annual Conference Proposals from Monthly CFP and Archive Intake
 
 **Date:** 2026-09-07

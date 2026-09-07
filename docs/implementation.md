@@ -36,7 +36,12 @@
 | `lib/supabase/community-events.ts` | Supabase-backed community event repository and public meetup DTO mapper |
 | `lib/supabase/media.ts` | Server-side Supabase Storage upload helper for meetup covers and selected event photos |
 | `supabase/migrations/*` | Supabase SQL migrations, starting with tester feedback tables |
-| `server/app.ts` | Hono app — active API routes plus dev SPA fallback |
+| `server/app.ts` | Hono composition root — app-wide middleware, feature route registration, remaining legacy API handlers, and dev SPA fallback |
+| `server/routes/annual-conference-speakers.ts` | Complete nine-route Annual Conference speaker HTTP registrar |
+| `server/routes/annual-conference-speakers/schemas.ts` | Proposal, decision, deadline, and logistics Zod transport contracts |
+| `server/routes/annual-conference-speakers/delivery.ts` | Acceptance-email delivery and persisted provider status |
+| `server/annual-conference-request.ts` | Request-scoped Annual Conference edition, service, finance, and capability composition |
+| `server/http/*` | Shared Hono bindings, public-intake protection, safe errors/origin resolution, and speaker mutation coordination |
 | `server/index.ts` | Bun production server — serves `dist/` and `/api/*` on one port |
 | `vite.config.ts` | Vite + Vue + Hono dev-server wiring |
 | `data/seed.ts` | Seed script — run via `pnpm seed` |
@@ -46,6 +51,13 @@
 ---
 
 ## Route-to-Module Notes (Current)
+
+- **Annual Conference speaker HTTP boundary**
+  - `server/routes/annual-conference-speakers.ts` registers the public CFP, organizer review, acceptance/retry, and private logistics workspace endpoints without changing their paths or response contracts.
+  - Transport schemas and acceptance delivery live beside the registrar; database proposal isolation and hash-only token operations remain in `lib/annual-conference-speakers.ts`.
+  - `server/annual-conference-request.ts` centralizes request-scoped edition lookup and capability/service composition used by both extracted and remaining conference routes.
+  - `server/http/public-intake-protection.ts` centralizes public client identity, atomic rate-limit responses, email preflight, and Turnstile validation. Global public/protected path classification remains in `server/app.ts` so middleware order is unchanged.
+  - `server/annual-conference-speaker-routes.test.ts` protects exact one-time route registration; the full proposal and security route suites remain the behavioral characterization boundary.
 
 - **Event + CFP flow**
   - Active Vue pages: `src/views/CfpView.vue`, `src/views/EventRegistrationView.vue`, `src/views/admin/AdminEventsView.vue`, `src/views/admin/AdminEventView.vue`, `src/views/admin/AdminRegistrationsView.vue`, and `src/views/admin/AdminRegistrationDisplayView.vue`
