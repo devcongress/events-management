@@ -33,7 +33,8 @@
 }
 
 :root textarea:is(.editorial-input, .app-form-control) {
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
 }
 
 :root :is(input, textarea, select).editorial-input:focus,

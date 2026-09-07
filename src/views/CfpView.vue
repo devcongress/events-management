@@ -6,6 +6,7 @@ import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
 import LearningOutcomesEditor from '@/src/components/ui/LearningOutcomesEditor.vue';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import { preflightPublicEmail } from '@/src/lib/api';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
@@ -29,6 +30,7 @@ const loading = ref(true);
 const submitting = ref(false);
 const submissionStage = ref<'checking' | 'submitting' | null>(null);
 const submitted = ref(false);
+const submitConfirmationOpen = ref(false);
 const error = ref<string | null>(null);
 const loadError = ref(false);
 const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
@@ -42,29 +44,44 @@ const conferenceSessionTypeOptions = ANNUAL_CONFERENCE_SESSION_TYPES.map((value)
 const proposalForm = ref<HTMLFormElement | null>(null);
 const mobileViewport = ref(false);
 const currentStep = ref(0);
+const stepDirection = ref<'forward' | 'backward'>('forward');
 const stepTitles = ['About you', 'Your session', 'Attendee takeaways'];
 const proposalStepper = computed(() => isConferenceCall.value);
-const stepError = ref('');
-const stepValid = computed(() => [
-  Boolean(form.speaker_name.trim() && speakerEmailValid.value && form.bio.trim()),
-  Boolean(form.title.trim() && form.topic && form.session_type && form.abstract.trim() && !abstractOverLimit.value),
-  learningOutcomesValid.value,
+const showStepErrors = ref(false);
+const stepIssues = computed(() => [
+  [
+    !form.speaker_name.trim() ? 'Enter your name.' : '',
+    !speakerEmailValid.value ? 'Enter a valid email address.' : '',
+    !form.bio.trim() ? 'Add your speaker bio.' : '',
+  ].filter(Boolean),
+  [
+    !form.title.trim() ? 'Add a talk title.' : '',
+    !form.topic ? 'Choose a topic track.' : '',
+    !form.session_type ? 'Choose a session type.' : '',
+    !form.abstract.trim() ? 'Add your abstract.' : abstractOverLimit.value ? 'Keep the abstract to 250 words or fewer.' : '',
+  ].filter(Boolean),
+  learningOutcomesValid.value ? [] : ['Add 3–5 learning outcomes and complete or remove empty rows.'],
 ]);
+const stepValid = computed(() => stepIssues.value.map(issues => issues.length === 0));
+const visibleStepIssues = computed(() => showStepErrors.value ? stepIssues.value[currentStep.value] : []);
 
 async function changeStep(step: number) {
+  stepDirection.value = step > currentStep.value ? 'forward' : 'backward';
   currentStep.value = step;
-  stepError.value = '';
+  showStepErrors.value = false;
   await nextTick();
   const heading = proposalForm.value?.querySelector<HTMLElement>(`#cfp-section-${step}`);
   heading?.focus({ preventScroll: true });
   proposalForm.value?.scrollIntoView({ block: 'start', behavior: 'instant' });
 }
 
+function focusCurrentStep() {
+  proposalForm.value?.querySelector<HTMLElement>(`#cfp-section-${currentStep.value}`)?.focus({ preventScroll: true });
+}
+
 function continueStep() {
   if (!stepValid.value[currentStep.value]) {
-    stepError.value = currentStep.value === 0
-      ? 'Add your name, a valid email address, and speaker bio to continue.'
-      : 'Add a title, topic track, session type, and an abstract of 250 words or fewer.';
+    showStepErrors.value = true;
     return;
   }
   void changeStep(currentStep.value + 1);
@@ -164,10 +181,27 @@ async function submitProposal() {
     const invalidStep = stepValid.value.findIndex((valid) => !valid);
     if (invalidStep !== -1) {
       await changeStep(invalidStep);
-      stepError.value = 'Complete the required fields in this section before submitting.';
+      showStepErrors.value = true;
       return;
     }
   }
+  if (!canSubmitProposal.value) return;
+
+  if (isConferenceCall.value) {
+    submitConfirmationOpen.value = true;
+    return;
+  }
+
+  await performProposalSubmission();
+}
+
+async function confirmProposalSubmission() {
+  if (submitting.value) return;
+  await performProposalSubmission();
+  submitConfirmationOpen.value = false;
+}
+
+async function performProposalSubmission() {
   if (!canSubmitProposal.value) return;
 
   error.value = null;
@@ -340,11 +374,17 @@ onMounted(async () => {
       <form ref="proposalForm" :novalidate="isConferenceCall" class="editorial-panel space-y-5 p-4 sm:space-y-6 sm:p-8" @submit.prevent="submitProposal">
         <div v-if="error" class="border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
         <div v-if="proposalStepper" class="space-y-3" aria-label="Proposal progress">
-          <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray" aria-live="polite">Step {{ currentStep + 1 }} of 3 · {{ stepTitles[currentStep] }}</p>
+          <div class="flex min-h-11 items-center justify-between gap-3">
+            <p class="min-w-0 font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray" aria-live="polite">Step {{ currentStep + 1 }} of 3 · {{ stepTitles[currentStep] }}</p>
+            <button v-if="currentStep > 0" type="button" :disabled="submitting" class="motion-press inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md border border-dc-border px-3 py-2 text-sm font-semibold disabled:opacity-50" @click="changeStep(currentStep - 1)"><span aria-hidden="true">←</span> Back</button>
+          </div>
           <ol class="flex gap-2" aria-label="Proposal steps">
             <li v-for="(title, index) in stepTitles" :key="title" class="h-1 flex-1 rounded-full" :class="index <= currentStep ? 'bg-dc-pink' : 'bg-dc-border'" :aria-current="index === currentStep ? 'step' : undefined"><span class="sr-only">{{ title }}</span></li>
           </ol>
         </div>
+        <div class="cfp-step-viewport">
+        <Transition :name="`cfp-step-${stepDirection}`" mode="out-in" @before-leave="(element: Element) => element.setAttribute('inert', '')" @after-enter="focusCurrentStep">
+        <div :key="currentStep" class="space-y-5">
         <section v-show="!proposalStepper || currentStep === 0" class="space-y-5" :aria-labelledby="isConferenceCall ? 'cfp-section-0' : undefined">
         <h2 v-if="isConferenceCall" id="cfp-section-0" tabindex="-1" class="cfp-section-title">About you</h2>
         <div class="grid gap-4 sm:grid-cols-2">
@@ -429,6 +469,9 @@ onMounted(async () => {
         <h2 id="cfp-section-2" tabindex="-1" class="cfp-section-title">Attendee takeaways</h2>
         <LearningOutcomesEditor v-model="form.learning_outcomes" />
         </section>
+        </div>
+        </Transition>
+        </div>
         <label v-if="!isConferenceCall" class="block">
           <span class="editorial-label">{{ form.kind === 'product_demo' ? 'Demo link' : 'Presentation link' }} <span class="text-dc-gray">(optional)</span></span>
           <input
@@ -446,9 +489,12 @@ onMounted(async () => {
           </span>
           <span v-if="resourceUrlError" id="cfp-resource-error" class="mt-2 block text-sm font-semibold text-red-800" role="alert">{{ resourceUrlError }}</span>
         </label>
-        <p v-if="stepError" class="text-sm font-medium text-red-800" role="alert">{{ stepError }}</p>
+        <div aria-live="polite" aria-atomic="true">
+          <ul v-if="visibleStepIssues.length" class="list-disc space-y-1 pl-5 text-sm font-medium text-red-800" aria-label="Issues to correct">
+            <li v-for="issue in visibleStepIssues" :key="issue">{{ issue }}</li>
+          </ul>
+        </div>
         <div v-if="proposalStepper" class="flex items-center gap-3 border-t border-dc-border pt-5">
-          <button v-if="currentStep > 0" type="button" :disabled="submitting" class="motion-press min-h-11 rounded-md border border-dc-ink px-5 py-3 text-sm font-semibold disabled:opacity-50" @click="changeStep(currentStep - 1)">Back</button>
           <button v-if="currentStep < 2" type="submit" class="motion-press min-h-11 flex-1 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-3 text-sm font-semibold text-white">Continue <span aria-hidden="true">→</span></button>
           <p v-else class="text-xs leading-5 text-dc-gray">You can go back to review your proposal before submitting.</p>
         </div>
@@ -477,9 +523,35 @@ onMounted(async () => {
         <p v-if="turnstileError && (!proposalStepper || currentStep === 2)" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
       </form>
     </div>
+    <ConfirmDialog
+      :open="submitConfirmationOpen"
+      title="Submit this proposal?"
+      message="This sends this proposal to the organizers for review. You can submit another proposal separately."
+      confirm-label="Submit proposal"
+      busy-label="Submitting…"
+      cancel-label="Keep editing"
+      :busy="submitting"
+      @cancel="submitConfirmationOpen = false"
+      @confirm="confirmProposalSubmission"
+    />
   </div>
 </template>
 <style scoped>
+.cfp-step-viewport { overflow-x: clip; padding: 4px; margin: -4px; }
+.cfp-step-forward-enter-active, .cfp-step-backward-enter-active {
+  transition: transform 160ms var(--motion-smooth), opacity 160ms var(--motion-smooth);
+}
+.cfp-step-forward-leave-active, .cfp-step-backward-leave-active {
+  transition: transform 100ms var(--motion-fast), opacity 100ms var(--motion-fast);
+}
+.cfp-step-forward-enter-from, .cfp-step-backward-leave-to { transform: translateX(20px); opacity: 0; }
+.cfp-step-forward-leave-to, .cfp-step-backward-enter-from { transform: translateX(-20px); opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .cfp-step-forward-enter-active, .cfp-step-backward-enter-active,
+  .cfp-step-forward-leave-active, .cfp-step-backward-leave-active { transition: none; }
+  .cfp-step-forward-enter-from, .cfp-step-backward-enter-from,
+  .cfp-step-forward-leave-to, .cfp-step-backward-leave-to { transform: none; }
+}
 .cfp-section-title {
   font-size: 1.125rem;
   font-weight: 600;

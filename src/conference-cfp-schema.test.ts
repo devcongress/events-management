@@ -64,4 +64,16 @@ describe('Annual Conference CFP contract', () => {
     expect(workspace).toContain('Workshop prerequisites');
     expect(workspace).toContain('SAVE DETAILS');
   });
+
+  it('provides an open-form link for an open conference call', () => {
+    const view = read('src/views/admin/AdminAnnualConferenceSpeakersView.vue');
+    const link = view.match(/<a\s[^>]*:href="speakersQuery\.data\.value\.call\.public_path"[^>]*>[\s\S]*?<\/a>/)?.[0];
+    expect(link).toBeDefined();
+    expect(link).toContain('v-if="speakersQuery.data.value.call.open"');
+    expect(link).toContain('target="_blank"');
+    expect(link).toContain('rel="noopener noreferrer"');
+    expect(link).toContain('Open form');
+    expect(link).toContain('opens in a new tab');
+    expect(link).not.toContain('@click');
+  });
 });

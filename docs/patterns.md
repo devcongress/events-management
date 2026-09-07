@@ -79,6 +79,8 @@ Auth and role checks have not been migrated yet. Add them in the Hono server fir
 
 Keep file/checkbox/radio inputs, calendar time inputs, composite quiz options, compact search/allocation controls, and inline editors specialized. Dropdown portals remain opt-in (`teleport`) because DOM placement affects drawer focus boundaries; enabled portals use the calculated viewport-clamped width.
 
+Shared textareas are not manually resizable (`resize: none`); longer content remains accessible through vertical scrolling (`overflow-y: auto`).
+
 Use `.app-form-help` for neutral requirements and actionable disabled-submit explanations. Preserve short single-page forms; the conference CFP uses the same three steps on desktop and mobile. `LearningOutcomesEditor` owns the speaker-specific 3–5 completed-outcome requirement, retains at least one input row, and manages stable identity, add/remove focus, and reduced-motion-aware entry feedback. The broader form audit is deferred in `form-polish-backlog.md`.
 
 Verification: `pnpm test`, `pnpm build`, `node scripts/verify-shared-forms.mjs`, and `node scripts/verify-public-form-styles.mjs`. With the local app running, also run `node scripts/verify-cfp-stepper.mjs`. The shared/public-route checks start isolated frontend servers. Browser fixtures block API writes; they do not certify production submissions.

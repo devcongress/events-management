@@ -501,7 +501,7 @@ onBeforeRouteLeave(() => {
 .mobile-blasts-compose label { display: grid; gap: .45rem; }
 .mobile-blasts-compose input, .mobile-blasts-compose textarea { width: 100%; border: 1px solid #b8b3a9; border-radius: 8px; background: #fff; padding: .8rem; color: #111; font-size: 1rem; outline: none; }
 .mobile-blasts-compose input { min-height: 3rem; }
-.mobile-blasts-compose textarea { min-height: 12rem; resize: vertical; line-height: 1.5; }
+.mobile-blasts-compose textarea { min-height: 12rem; line-height: 1.5; }
 .mobile-blasts-compose input:focus, .mobile-blasts-compose textarea:focus { border-color: #e8117f; box-shadow: 0 0 0 3px rgb(232 17 127 / .12); }
 .mobile-blasts-recipient-note { margin: 0; color: #5f5b54; font-size: .74rem; line-height: 1.5; }
 .mobile-blasts-preview { min-height: 3rem; border: 2px solid #111; border-radius: 8px; box-shadow: 2px 2px 0 #111; }

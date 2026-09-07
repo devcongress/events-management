@@ -31,5 +31,7 @@ describe('shared form control coverage', () => {
     const styles = fs.readFileSync('src/styles/forms.css', 'utf8');
     expect(styles).toContain('prefers-reduced-motion: reduce');
     expect(styles).not.toContain('transition: all');
+    expect(styles).toMatch(/textarea:is\(\.editorial-input, \.app-form-control\)\s*\{\s*resize: none;\s*overflow-y: auto;/);
+    expect(fs.readFileSync('src/views/admin/AdminMobileEventBlastsView.vue', 'utf8')).not.toContain('resize: vertical');
   });
 });
