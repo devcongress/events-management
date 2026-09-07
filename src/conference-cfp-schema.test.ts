@@ -54,7 +54,7 @@ describe('Annual Conference CFP contract', () => {
   });
 
   it('renders progressive outcomes and the editable logistics fields', () => {
-    const cfp = read('src/views/CfpView.vue');
+    const cfp = read('src/components/ui/LearningOutcomesEditor.vue');
     const workspace = read('src/views/SpeakerTalkIntakeView.vue');
 
     expect(cfp).toContain('Add another outcome');

@@ -72,6 +72,18 @@ const state = await fetch(`/api/quiz/state?sessionId=${session_id}`);
 Auth and role checks have not been migrated yet. Add them in the Hono server first so the Vue app can rely on same-origin session cookies.
 
 ### Design Token Usage
+
+#### Shared form presentation
+
+`src/styles/forms.css`, loaded after legacy styles, owns regular field geometry and focus/error/disabled treatment. Existing `.editorial-input` controls inherit it; new/custom native text-entry fields use `.app-form-control`. The baseline is 50px minimum height, 8px corners, a one-pixel border, and 16px body text. Shared dropdown/date triggers use the same appearance while preserving their compact densities.
+
+Keep file/checkbox/radio inputs, calendar time inputs, composite quiz options, compact search/allocation controls, and inline editors specialized. Dropdown portals remain opt-in (`teleport`) because DOM placement affects drawer focus boundaries; enabled portals use the calculated viewport-clamped width.
+
+Use `.app-form-help` for neutral requirements and actionable disabled-submit explanations. Use quiet sections for long forms and preserve short single-page forms; only the conference CFP currently introduces responsive mobile steps. `LearningOutcomesEditor` owns the speaker-specific 3–5 row behavior, stable identity, add/remove focus, and reduced-motion-aware entry feedback.
+
+Verification: `pnpm test`, `pnpm build`, `node scripts/verify-shared-forms.mjs`, and `node scripts/verify-public-form-styles.mjs`. With the local app running, also run `node scripts/verify-cfp-stepper.mjs`. The shared/public-route checks start isolated frontend servers. Browser fixtures block API writes; they do not certify production submissions.
+
+#### Brand tokens
 Use `dc-*` Tailwind classes for all brand colors. For programmatic style generation (e.g. status badges), use `getStatusBadge(status)` from `lib/design-system.ts`:
 ```ts
 const { className, label } = getStatusBadge(talk.status);

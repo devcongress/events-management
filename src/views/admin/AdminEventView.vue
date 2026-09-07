@@ -1208,7 +1208,7 @@ onMounted(fetchOverview);
                   <textarea
                     id="event-about-copy"
                     v-model="descriptionDraft"
-                    class="event-overview-copy-input"
+                    class="app-form-control event-overview-copy-input"
                     rows="7"
                     placeholder="Write the public About copy for this meetup."
                   />
@@ -1371,7 +1371,7 @@ onMounted(fetchOverview);
 	                    <textarea
 	                      id="event-outline-bulk"
 	                      v-model="outlineBulkText"
-	                      class="event-outline-bulk-input"
+	                      class="app-form-control event-outline-bulk-input"
 	                      rows="6"
 	                      placeholder="PROGRAM OUTLINE&#10;Welcome address 11:00 - 11:05&#10;Talk title by Speaker - 12:00 - 12:30"
 	                    />

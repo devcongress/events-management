@@ -15,6 +15,7 @@ import { isAdminPath } from './admin-routes';
 import { queryClient } from './lib/query';
 import { router } from './router';
 import './styles.css';
+import './styles/forms.css';
 
 const initialPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
 

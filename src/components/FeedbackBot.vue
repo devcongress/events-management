@@ -322,7 +322,7 @@ onUnmounted(() => {
                 <span class="editorial-label">Your name</span>
                 <input
                   v-model="name"
-                  class="feedback-bot-field mt-2"
+                  class="app-form-control feedback-bot-field mt-2"
                   type="text"
                   placeholder="Type your name"
                   :disabled="submitAnonymously || submitting"
@@ -351,7 +351,7 @@ onUnmounted(() => {
               <textarea
                 ref="feedbackTextarea"
                 v-model="message"
-                class="feedback-bot-field feedback-bot-textarea"
+                class="app-form-control feedback-bot-field feedback-bot-textarea"
                 :maxlength="FEEDBACK_MAX_LENGTH"
                 placeholder="What happened? What should be clearer?"
                 aria-describedby="feedback-bot-count"
@@ -384,7 +384,8 @@ onUnmounted(() => {
           </div>
 
           <div class="feedback-bot-actions">
-            <button type="submit" class="editorial-action w-full" :disabled="!canSubmit">
+            <p v-if="!canSubmit && !submitting" id="feedback-bot-submit-help" class="app-form-help">{{ feedbackLimitMessage || validationMessage || 'Complete the human check to send your feedback.' }}</p>
+            <button type="submit" class="editorial-action w-full" :disabled="!canSubmit" :aria-describedby="!canSubmit && !submitting ? 'feedback-bot-submit-help' : undefined">
               {{ submitting ? 'Sending...' : 'Send feedback' }}
             </button>
           </div>

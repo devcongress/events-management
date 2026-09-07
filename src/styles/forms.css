@@ -1,0 +1,84 @@
+/* Shared form language. Keep specialized inputs and compact controls opt-in. */
+:root {
+  --form-border: #aaa79f;
+  --form-focus: #e8117f;
+  --form-focus-ring: rgb(232 17 127 / 16%);
+  --form-radius: 8px;
+  --form-height: 50px;
+}
+
+/* Deliberate specificity: unify old route-local and utility-based field styles. */
+:root :is(input, textarea, select).editorial-input,
+:root :is(input, textarea, select, button).app-form-control {
+  min-width: 0;
+  border: 1px solid var(--form-border);
+  border-radius: var(--form-radius);
+  background-color: #fff;
+  color: #111;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 400;
+  outline: none;
+  box-shadow: none;
+  transition: opacity 150ms var(--motion-fast), transform 150ms var(--motion-fast);
+}
+
+:root :is(input, textarea, select).editorial-input:not([readonly], [type='search'], [inputmode='search']),
+:root :is(input, textarea, select).app-form-control,
+:root button.app-form-control[data-form-density='field'] {
+  width: 100%;
+  min-height: var(--form-height);
+  padding: 12px 14px;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+:root textarea:is(.editorial-input, .app-form-control) {
+  resize: vertical;
+}
+
+:root :is(input, textarea, select).editorial-input:focus,
+:root .app-form-control:is(:focus-visible, [aria-expanded='true']),
+:root :is(input, textarea, select).app-form-control:focus {
+  border-color: var(--form-focus);
+  box-shadow: 0 0 0 3px var(--form-focus-ring);
+}
+
+:root :is(.editorial-input, .app-form-control):is([aria-invalid='true'], .cfp-input-error, :user-invalid) {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgb(180 35 24 / 12%);
+}
+
+:root :is(.editorial-input, .app-form-control):disabled {
+  cursor: not-allowed;
+  background-color: #f5f2e8;
+  color: #66635d;
+  opacity: 0.65;
+}
+
+:root :is(.editorial-input, .app-form-control)[readonly] {
+  background-color: #f8f7f3;
+}
+:root :is(.editorial-input, .app-form-control)[readonly].font-mono { font-family: var(--font-mono), monospace; }
+
+:root :is(.editorial-input, .app-form-control)::placeholder { color: #77746e; opacity: 1; }
+.app-form-help { font-size: 14px; line-height: 1.6; color: #59564f; }
+.app-form-section-title { font-size: 18px; font-weight: 600; line-height: 1.4; }
+.app-form-section + .app-form-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0ddd4; }
+.app-outcome-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 44px; align-items: center; gap: 8px; }
+.app-outcome-number { font-family: var(--font-mono), monospace; font-size: 12px; color: #77746e; }
+.app-form-icon-action { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #e0ddd4; border-radius: 8px; color: #59564f; background: #fff; }
+.app-form-secondary-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid #aaa79f; border-radius: 8px; color: #111; background: #fff; font-size: 14px; font-weight: 500; }
+:is(.app-form-icon-action, .app-form-secondary-action):focus-visible { outline: 2px solid var(--form-focus); outline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  :is(.app-form-icon-action, .app-form-secondary-action):hover { background: #f5f2e8; }
+}
+
+.form-row-enter-active, .form-row-leave-active { transition: opacity 160ms var(--motion-smooth), transform 160ms var(--motion-smooth); }
+.form-row-enter-from, .form-row-leave-to { opacity: 0; transform: translateY(4px); }
+@media (prefers-reduced-motion: reduce) {
+  .form-row-enter-active, .form-row-leave-active { transition: none; }
+  .form-row-enter-from, .form-row-leave-to { transform: none; }
+}
+
+/* Popover choices wrap instead of silently losing the distinguishing words. */
+.app-dropdown-menu [role='option'] > span:last-child { white-space: normal; overflow-wrap: anywhere; }

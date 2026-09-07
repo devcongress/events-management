@@ -488,6 +488,7 @@ watch(open, async (isOpen) => {
       type="button"
       class="motion-press flex w-full items-center justify-between gap-3 rounded-md bg-dc-paper text-left font-medium text-dc-ink outline-none hover:bg-dc-paper-warm focus:border-dc-pink focus:shadow-[0_0_0_3px_rgba(17,17,17,0.16)]"
       :class="[
+        'app-form-control',
         triggerClasses,
         label ? triggerSpacingClass : '',
         open
@@ -497,6 +498,7 @@ watch(open, async (isOpen) => {
             : 'border-dc-border',
       ]"
       :aria-expanded="open"
+      :data-form-density="density"
       :aria-controls="`${datePickerId}-calendar`"
       :aria-labelledby="label ? `${datePickerId}-label ${datePickerId}-value` : `${datePickerId}-value`"
       :aria-required="required ? 'true' : undefined"

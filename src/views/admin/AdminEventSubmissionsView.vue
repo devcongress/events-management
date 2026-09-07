@@ -692,7 +692,7 @@ function replyPresentation(reply: EventSubmissionReply) {
                   <div class="submission-amendment-decision">
                     <div class="submission-amendment-message">
                       <label for="amendment-decision-message">Reply to organiser <span>Optional</span></label>
-                      <textarea id="amendment-decision-message" v-model="amendmentDecisionMessage" maxlength="1200" placeholder="Add context for your decision…" />
+                      <textarea class="app-form-control" id="amendment-decision-message" v-model="amendmentDecisionMessage" maxlength="1200" placeholder="Add context for your decision…" />
                       <p>This note is included in the decision email.</p>
                     </div>
                     <div class="submission-amendment-actions">
@@ -968,7 +968,7 @@ function replyPresentation(reply: EventSubmissionReply) {
               </div>
               <div v-if="selectedSubmission.review_status === 'approved' && withdrawing" class="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
                 <label class="submission-field-label">Message to organizer</label>
-                <textarea v-model="amendmentDecisionMessage" class="mt-2 min-h-20 w-full rounded border border-red-200 bg-white p-3 text-sm" maxlength="1200" placeholder="Explain why the listing is being removed" />
+                <textarea v-model="amendmentDecisionMessage" class="app-form-control mt-2 min-h-20 w-full rounded border border-red-200 bg-white p-3 text-sm" maxlength="1200" placeholder="Explain why the listing is being removed" />
                 <div class="mt-3 flex gap-2"><button type="button" class="motion-press rounded-md border-2 border-red-800 bg-red-800 px-4 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-white" :disabled="!amendmentDecisionMessage || withdrawMutation.isPending.value" @click="withdrawMutation.mutate(selectedSubmission)">{{ withdrawMutation.isPending.value ? 'Removing…' : 'Remove & notify' }}</button><button type="button" class="editorial-secondary-action motion-press" @click="withdrawing = false">Cancel</button></div>
               </div>
             </footer>

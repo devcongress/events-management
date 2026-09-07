@@ -114,19 +114,19 @@ async function submitApplication() {
               <div class="volunteer-intake-fields">
                 <label>
                   <span>Full name</span>
-                  <input v-model="form.name" name="name" autocomplete="name" maxlength="120" required>
+                  <input class="app-form-control" v-model="form.name" name="name" autocomplete="name" maxlength="120" required>
                 </label>
                 <label>
                   <span>Email address</span>
-                  <input v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" required>
+                  <input class="app-form-control" v-model="form.email" name="email" type="email" autocomplete="email" maxlength="254" required>
                 </label>
                 <label>
                   <span>X handle (optional)</span>
-                  <input v-model="form.x_handle" name="x-handle" autocomplete="off" placeholder="@yourhandle" maxlength="100">
+                  <input class="app-form-control" v-model="form.x_handle" name="x-handle" autocomplete="off" placeholder="@yourhandle" maxlength="100">
                 </label>
                 <label>
                   <span>DevCongress Slack name (optional)</span>
-                  <input v-model="form.slack_name" name="slack-name" autocomplete="nickname" placeholder="Your display name" maxlength="120">
+                  <input class="app-form-control" v-model="form.slack_name" name="slack-name" autocomplete="nickname" placeholder="Your display name" maxlength="120">
                 </label>
               </div>
 
@@ -146,6 +146,7 @@ async function submitApplication() {
 
                 <button
                   class="volunteer-intake-submit motion-press"
+                  :aria-describedby="!canSubmit && !submitting ? 'volunteer-submit-help' : undefined"
                   type="submit"
                   :disabled="!canSubmit || submitting"
                   :aria-busy="submitting"
@@ -153,6 +154,7 @@ async function submitApplication() {
                   <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
                   <template v-else>Join the volunteer list</template>
                 </button>
+                <p v-if="!canSubmit && !submitting" id="volunteer-submit-help" class="app-form-help">{{ !form.name.trim() || !form.email.trim() ? 'Add your name and email to continue.' : 'Complete the human check to continue.' }}</p>
               </div>
             </form>
           </Transition>

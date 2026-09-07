@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import CfpPageSkeleton from '@/src/components/ui/page-skeletons/CfpPageSkeleton.vue';
 import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
+import LearningOutcomesEditor from '@/src/components/ui/LearningOutcomesEditor.vue';
 import { preflightPublicEmail } from '@/src/lib/api';
 import { turnstileEnabled } from '@/src/lib/turnstile';
 import { CFP_SUBMISSION_TURNSTILE_ACTION } from '@/lib/turnstile';
@@ -35,6 +37,47 @@ const turnstileError = ref('');
 const turnstileActive = turnstileEnabled();
 const MONTHLY_ABSTRACT_WORD_LIMIT = 120;
 const devconLogoSrc = '/brand/dev-con-logo.webp';
+const conferenceTrackOptions = ANNUAL_CONFERENCE_TOPIC_TRACKS.map((value) => ({ value, label: value }));
+const conferenceSessionTypeOptions = ANNUAL_CONFERENCE_SESSION_TYPES.map((value) => ({ value, label: value }));
+const proposalForm = ref<HTMLFormElement | null>(null);
+const mobileViewport = ref(false);
+const currentStep = ref(0);
+const stepTitles = ['About you', 'Your session', 'Attendee takeaways'];
+const mobileStepper = computed(() => isConferenceCall.value && mobileViewport.value);
+const stepError = ref('');
+const stepValid = computed(() => [
+  Boolean(form.speaker_name.trim() && speakerEmailValid.value && form.bio.trim()),
+  Boolean(form.title.trim() && form.topic && form.session_type && form.abstract.trim() && !abstractOverLimit.value),
+  learningOutcomesValid.value,
+]);
+
+async function changeStep(step: number) {
+  currentStep.value = step;
+  stepError.value = '';
+  await nextTick();
+  const heading = proposalForm.value?.querySelector<HTMLElement>(`#cfp-section-${step}`);
+  heading?.focus({ preventScroll: true });
+  (mobileStepper.value ? proposalForm.value : heading)?.scrollIntoView({ block: 'start', behavior: 'instant' });
+}
+
+function continueStep() {
+  if (!stepValid.value[currentStep.value]) {
+    stepError.value = currentStep.value === 0
+      ? 'Add your name, a valid email address, and speaker bio to continue.'
+      : 'Add a title, topic track, session type, and an abstract of 250 words or fewer.';
+    return;
+  }
+  void changeStep(currentStep.value + 1);
+}
+
+let viewportQuery: MediaQueryList | undefined;
+function updateViewport() { mobileViewport.value = viewportQuery?.matches ?? false; }
+onMounted(() => {
+  viewportQuery = window.matchMedia('(max-width: 767px)');
+  updateViewport();
+  viewportQuery.addEventListener('change', updateViewport);
+});
+onUnmounted(() => viewportQuery?.removeEventListener('change', updateViewport));
 
 const form = reactive({
   kind: 'talk' as ArchiveItemKind,
@@ -58,6 +101,11 @@ const bioOverLimit = computed(() => bioWordCount.value > ANNUAL_CONFERENCE_BIO_W
 const speakerEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.speaker_email.trim()));
 const resourceUrlInvalid = computed(() => Boolean(form.resource_url.trim()) && !safePublicResourceUrl(form.resource_url));
 const resourceUrlError = computed(() => resourceUrlInvalid.value ? 'Use a secure public HTTPS link.' : '');
+const learningOutcomesValid = computed(() => (
+  form.learning_outcomes.length >= ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN
+  && form.learning_outcomes.length <= ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX
+  && form.learning_outcomes.every((outcome) => outcome.trim().length > 0)
+));
 const requiredFieldsComplete = computed(() => Boolean(
   form.speaker_name.trim()
   && speakerEmailValid.value
@@ -67,13 +115,24 @@ const requiredFieldsComplete = computed(() => Boolean(
     form.bio.trim()
     && form.topic
     && form.session_type
-    && form.learning_outcomes.length >= ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN
-    && form.learning_outcomes.every((outcome) => outcome.trim())
+    && learningOutcomesValid.value
   )),
 ));
 const cfpIsAvailable = computed(() => Boolean(event.value && event.value.status === 'cfp_open'));
+const submitHint = computed(() => {
+  if (submitting.value) return '';
+  if (isConferenceCall.value && !learningOutcomesValid.value) {
+    const remaining = Math.max(0, ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN - form.learning_outcomes.filter(outcome => outcome.trim()).length);
+    return remaining ? `Add ${remaining} more learning outcome${remaining === 1 ? '' : 's'} to continue.` : 'Complete or remove empty outcomes before submitting.';
+  }
+  if (abstractOverLimit.value) return `Keep the abstract to ${abstractWordLimit.value} words or fewer.`;
+  if (!isConferenceCall.value && resourceUrlInvalid.value) return resourceUrlError.value;
+  if (turnstileActive && !turnstileToken.value) return 'Complete the human check to submit your proposal.';
+  return '';
+});
 const canSubmitProposal = computed(() => (
   cfpIsAvailable.value
+  && (!isConferenceCall.value || learningOutcomesValid.value)
   && (!turnstileActive || turnstileToken.value.length > 0)
   && (!isConferenceCall.value ? !resourceUrlInvalid.value : true)
   && !abstractOverLimit.value
@@ -96,15 +155,19 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(value));
 }
 
-function addLearningOutcome() {
-  if (form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX) form.learning_outcomes.push('');
-}
-
-function removeLearningOutcome(index: number) {
-  form.learning_outcomes.splice(index, 1);
-}
-
 async function submitProposal() {
+  if (mobileStepper.value && currentStep.value < 2) {
+    continueStep();
+    return;
+  }
+  if (isConferenceCall.value) {
+    const invalidStep = stepValid.value.findIndex((valid) => !valid);
+    if (invalidStep !== -1) {
+      await changeStep(invalidStep);
+      stepError.value = 'Complete the required fields in this section before submitting.';
+      return;
+    }
+  }
   if (!canSubmitProposal.value) return;
 
   error.value = null;
@@ -189,7 +252,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="cfp-public-page min-h-screen bg-dc-cream text-dc-ink">
+  <div class="cfp-public-page min-h-screen bg-dc-cream text-dc-ink" :class="{ 'cfp-developer-theme': isConferenceCall }">
+    <div v-if="isConferenceCall" class="cfp-backdrop" aria-hidden="true">
+      <span class="cfp-brace cfp-brace--open">{</span>
+      <span class="cfp-brace cfp-brace--close">}</span>
+    </div>
     <div v-if="loading" class="mx-auto max-w-3xl px-4 py-8 sm:py-12">
       <CfpPageSkeleton />
     </div>
@@ -247,7 +314,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-else class="mx-auto max-w-3xl px-4 py-5 sm:py-12">
+    <div v-else class="cfp-form-content relative mx-auto max-w-3xl px-4 py-5 sm:py-12">
       <div class="editorial-header">
         <div class="mb-6 flex items-center gap-3 sm:gap-4">
           <a
@@ -265,18 +332,25 @@ onMounted(async () => {
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
         </p>
-        <p class="mt-4 text-base leading-7 text-dc-gray sm:whitespace-nowrap">
+        <p class="mt-4 text-base leading-7 text-dc-gray">
           {{ isConferenceCall ? 'Submit one complete talk proposal. You can return and submit another proposal separately.' : "Share something you've built, learned, or explored with the DevCongress community." }}
         </p>
       </div>
 
-      <form class="editorial-panel space-y-5 p-4 sm:space-y-6 sm:p-8" @submit.prevent="submitProposal">
+      <form ref="proposalForm" :novalidate="isConferenceCall" class="editorial-panel space-y-5 p-4 sm:space-y-6 sm:p-8" @submit.prevent="submitProposal">
         <div v-if="error" class="border-2 border-red-700 bg-red-100 p-4 font-mono text-sm text-red-800">{{ error }}</div>
-
+        <div v-if="mobileStepper" class="space-y-3" aria-label="Proposal progress">
+          <p class="font-mono text-xs font-semibold uppercase tracking-wide text-dc-gray" aria-live="polite">Step {{ currentStep + 1 }} of 3 · {{ stepTitles[currentStep] }}</p>
+          <ol class="flex gap-2" aria-label="Proposal steps">
+            <li v-for="(title, index) in stepTitles" :key="title" class="h-1 flex-1 rounded-full" :class="index <= currentStep ? 'bg-dc-pink' : 'bg-dc-border'" :aria-current="index === currentStep ? 'step' : undefined"><span class="sr-only">{{ title }}</span></li>
+          </ol>
+        </div>
+        <section v-show="!mobileStepper || currentStep === 0" class="space-y-5" :aria-labelledby="isConferenceCall ? 'cfp-section-0' : undefined">
+        <h2 v-if="isConferenceCall" id="cfp-section-0" tabindex="-1" class="cfp-section-title">About you</h2>
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block">
             <span class="editorial-label">Your Name <span class="text-red-600">*</span></span>
-            <input v-model="form.speaker_name" required class="editorial-input font-mono" />
+            <input v-model="form.speaker_name" autocomplete="name" required class="editorial-input font-mono" />
           </label>
           <label class="block">
             <span class="editorial-label">Email Address <span class="text-red-600">*</span></span>
@@ -284,6 +358,7 @@ onMounted(async () => {
               v-model="form.speaker_email"
               required
               type="email"
+              autocomplete="email"
               class="editorial-input border border-dc-ink font-mono"
             />
           </label>
@@ -298,6 +373,9 @@ onMounted(async () => {
           <textarea id="cfp-bio" v-model="form.bio" required rows="4" maxlength="4000" class="editorial-input resize-none" />
           <p class="mt-2 text-sm leading-6 text-dc-gray">Recommended maximum: 150 words. We’ll reuse this profile across your proposals where possible.</p>
         </div>
+        </section>
+        <section v-show="!mobileStepper || currentStep === 1" class="space-y-5" :class="{ 'cfp-quiet-section': isConferenceCall }" :aria-labelledby="isConferenceCall ? 'cfp-section-1' : undefined">
+        <h2 v-if="isConferenceCall" id="cfp-section-1" tabindex="-1" class="cfp-section-title">Your session</h2>
         <label class="block">
           <span class="editorial-label">{{ archiveItemLabel }} Title <span class="text-red-600">*</span></span>
           <input v-model="form.title" required :placeholder="form.kind === 'product_demo' ? 'Show what your product does' : 'Building Scalable APIs with GraphQL'" class="editorial-input" />
@@ -307,20 +385,28 @@ onMounted(async () => {
           This is a product demo
         </label>
         <div v-if="isConferenceCall" class="grid gap-4 sm:grid-cols-2">
-          <label class="block">
-            <span class="editorial-label">Topic track <span class="text-red-600">*</span></span>
-            <select v-model="form.topic" required class="editorial-input bg-white">
-              <option value="" disabled>Choose one track</option>
-              <option v-for="track in ANNUAL_CONFERENCE_TOPIC_TRACKS" :key="track" :value="track">{{ track }}</option>
-            </select>
-          </label>
-          <label class="block">
-            <span class="editorial-label">Session type <span class="text-red-600">*</span></span>
-            <select v-model="form.session_type" required class="editorial-input bg-white">
-              <option value="" disabled>Choose one session type</option>
-              <option v-for="sessionType in ANNUAL_CONFERENCE_SESSION_TYPES" :key="sessionType" :value="sessionType">{{ sessionType }}</option>
-            </select>
-          </label>
+          <AppDropdown
+            :model-value="form.topic"
+            :options="conferenceTrackOptions"
+            label="Topic track *"
+            placeholder="Choose one track"
+            teleport
+            menu-class="cfp-choice-menu"
+            class="min-w-0"
+            required
+            @update:model-value="form.topic = $event as AnnualConferenceTopicTrack"
+          />
+          <AppDropdown
+            :model-value="form.session_type"
+            :options="conferenceSessionTypeOptions"
+            label="Session type *"
+            placeholder="Choose one session type"
+            teleport
+            menu-class="cfp-choice-menu"
+            class="min-w-0"
+            required
+            @update:model-value="form.session_type = $event as AnnualConferenceSessionType"
+          />
         </div>
         <div>
           <div class="mb-2 flex items-end justify-between gap-4">
@@ -338,17 +424,11 @@ onMounted(async () => {
             :class="{ 'cfp-input-error border-red-700 bg-red-50': abstractOverLimit }"
           />
         </div>
-        <fieldset v-if="isConferenceCall" class="space-y-3 border-t border-dc-border pt-5">
-          <legend class="editorial-label">Learning outcomes <span class="text-red-600">*</span></legend>
-          <p class="text-sm leading-6 text-dc-gray">Add 3–5 concrete things attendees will understand, be able to do, or take away after your session.</p>
-          <div v-for="(_outcome, index) in form.learning_outcomes" :key="index" class="flex items-center gap-2">
-            <label class="sr-only" :for="`cfp-outcome-${index}`">Learning outcome {{ index + 1 }}</label>
-            <input :id="`cfp-outcome-${index}`" v-model="form.learning_outcomes[index]" required :placeholder="`Outcome ${index + 1}`" class="editorial-input flex-1" />
-            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-ink bg-dc-paper px-3 font-mono text-xs font-semibold uppercase" :aria-label="`Remove learning outcome ${index + 1}`" @click="removeLearningOutcome(index)">Remove</button>
-          </div>
-          <button v-if="form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX" type="button" class="motion-press rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-xs font-semibold uppercase" @click="addLearningOutcome">Add another outcome</button>
-          <p v-if="form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN" class="text-sm font-semibold text-dc-pink">Add at least {{ ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN }} outcomes before submitting.</p>
-        </fieldset>
+        </section>
+        <section v-if="isConferenceCall" v-show="!mobileStepper || currentStep === 2" class="cfp-quiet-section space-y-5" aria-labelledby="cfp-section-2">
+        <h2 id="cfp-section-2" tabindex="-1" class="cfp-section-title">Attendee takeaways</h2>
+        <LearningOutcomesEditor v-model="form.learning_outcomes" />
+        </section>
         <label v-if="!isConferenceCall" class="block">
           <span class="editorial-label">{{ form.kind === 'product_demo' ? 'Demo link' : 'Presentation link' }} <span class="text-dc-gray">(optional)</span></span>
           <input
@@ -366,16 +446,25 @@ onMounted(async () => {
           </span>
           <span v-if="resourceUrlError" id="cfp-resource-error" class="mt-2 block text-sm font-semibold text-red-800" role="alert">{{ resourceUrlError }}</span>
         </label>
-        <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <p v-if="stepError" class="text-sm font-medium text-red-800" role="alert">{{ stepError }}</p>
+        <div v-if="mobileStepper" class="flex items-center gap-3 border-t border-dc-border pt-5">
+          <button v-if="currentStep > 0" type="button" :disabled="submitting" class="motion-press min-h-11 rounded-md border border-dc-ink px-5 py-3 text-sm font-semibold disabled:opacity-50" @click="changeStep(currentStep - 1)">Back</button>
+          <button v-if="currentStep < 2" type="submit" class="motion-press min-h-11 flex-1 rounded-md border-2 border-dc-ink bg-dc-pink px-5 py-3 text-sm font-semibold text-white">Continue <span aria-hidden="true">→</span></button>
+          <p v-else class="text-xs leading-5 text-dc-gray">You can go back to review your proposal before submitting.</p>
+        </div>
+        <div v-show="!mobileStepper || currentStep === 2" class="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <TurnstileWidget
-            v-if="turnstileActive"
+            v-if="turnstileActive && (!mobileStepper || currentStep === 2)"
+            :key="mobileStepper ? 'mobile-check' : 'desktop-check'"
             ref="turnstileWidget"
             :action="CFP_SUBMISSION_TURNSTILE_ACTION"
+            :size="mobileStepper ? 'compact' : 'normal'"
             @token-change="turnstileToken = $event"
             @error="turnstileError = $event ?? ''"
           />
           <button
             type="submit"
+            :aria-describedby="submitHint ? 'cfp-submit-help' : undefined"
             :disabled="!canSubmitProposal"
             :aria-busy="submitting"
             class="motion-press w-full rounded-md border-2 border-dc-ink bg-dc-pink px-6 py-4 font-mono text-lg font-semibold uppercase tracking-wide text-white shadow-[2px_2px_0_#111111] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
@@ -384,15 +473,62 @@ onMounted(async () => {
             <template v-else>SUBMIT PROPOSAL</template>
           </button>
         </div>
-        <p v-if="turnstileError" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
+        <p v-if="submitHint && (!mobileStepper || currentStep === 2)" id="cfp-submit-help" class="app-form-help">{{ submitHint }}</p>
+        <p v-if="turnstileError && (!mobileStepper || currentStep === 2)" class="text-sm font-semibold text-red-800" role="alert">{{ turnstileError }}</p>
       </form>
     </div>
   </div>
 </template>
-function addLearningOutcome() {
-  if (form.learning_outcomes.length < ANNUAL_CONFERENCE_LEARNING_OUTCOME_MAX) form.learning_outcomes.push('');
+<style scoped>
+.cfp-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  scroll-margin-top: 24px;
+}
+.cfp-section-title:focus-visible { outline: 2px solid var(--dc-pink, #ec008c); outline-offset: 4px; }
+@media (min-width: 768px) {
+  .cfp-quiet-section { border-top: 1px solid #dedbd4; padding-top: 24px; }
+}
+.cfp-developer-theme {
+  position: relative;
+  isolation: isolate;
 }
 
-function removeLearningOutcome(index: number) {
-  form.learning_outcomes.splice(index, 1);
+.cfp-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgb(17 17 17 / 12%) .8px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: linear-gradient(to right, #000, transparent 30%, transparent 70%, #000);
 }
+
+.cfp-brace {
+  position: absolute;
+  color: rgb(17 17 17 / 7%);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: clamp(180px, 23vw, 360px);
+  font-weight: 400;
+  line-height: 1;
+  user-select: none;
+}
+
+.cfp-brace--open { top: 150px; left: max(12px, calc(50% - 640px)); }
+.cfp-brace--close { top: 510px; right: max(12px, calc(50% - 640px)); }
+
+:global(.cfp-choice-menu [role='option'] > span:last-child) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .cfp-backdrop {
+    mask-image: linear-gradient(#000, transparent 330px);
+    background-size: 20px 20px;
+  }
+  .cfp-brace--open { top: 12px; left: -55px; }
+  .cfp-brace--close { top: 95px; right: -55px; }
+}
+</style>

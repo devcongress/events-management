@@ -256,6 +256,7 @@ async function submitRegistration() {
             </p>
             <button
               type="submit"
+              :aria-describedby="!canSubmit && !submitting ? 'registration-submit-help' : undefined"
               class="registration-submit editorial-action"
               :disabled="!canSubmit"
               :aria-busy="submitting"
@@ -263,6 +264,7 @@ async function submitRegistration() {
               <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
               <template v-else>REGISTER</template>
             </button>
+            <p v-if="!canSubmit && !submitting" id="registration-submit-help" class="app-form-help">{{ !form.name.trim() || !form.email.trim() ? 'Add your name and email to register.' : 'Complete the human check to register.' }}</p>
           </form>
         </section>
 
@@ -700,11 +702,6 @@ async function submitRegistration() {
   font-size: 0.68rem;
 }
 
-.registration-form .editorial-input {
-  min-height: 3rem;
-  padding-block: 0.7rem;
-}
-
 .registration-form-note {
   display: -webkit-box;
   min-height: 1.2rem;
@@ -915,12 +912,6 @@ async function submitRegistration() {
     font-size: 0.62rem;
   }
 
-  .registration-form .editorial-input {
-    min-height: 3.25rem;
-    padding: 0.75rem 0.8rem !important;
-    font-size: 1rem;
-  }
-
   .registration-form-note {
     margin-top: 0;
     min-height: 0;
@@ -1012,7 +1003,6 @@ async function submitRegistration() {
     font-size: 0.58rem;
   }
 
-  .registration-form .editorial-input,
   .registration-submit {
     min-height: 2.75rem;
   }

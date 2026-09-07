@@ -391,17 +391,18 @@ onBeforeRouteLeave(() => {
 
             <label for="mobile-blast-subject">
               <span>Subject</span>
-              <input id="mobile-blast-subject" v-model="blastSubject" maxlength="160" autocomplete="off" required>
+              <input class="app-form-control" id="mobile-blast-subject" v-model="blastSubject" maxlength="160" autocomplete="off" required>
             </label>
 
             <AppDatePicker v-model="blastScheduledFor" label="Send later (optional)" mode="datetime" />
 
             <label for="mobile-blast-body">
               <span>Message</span>
-              <textarea id="mobile-blast-body" v-model="blastBody" maxlength="5000" rows="9" required />
+              <textarea class="app-form-control" id="mobile-blast-body" v-model="blastBody" maxlength="5000" rows="9" required />
             </label>
 
             <p class="mobile-blasts-recipient-note">{{ confirmedRecipients }} confirmed guest{{ confirmedRecipients === 1 ? '' : 's' }} will receive this email. Waitlisted and cancelled guests are excluded.</p>
+            <p v-if="!canCreateBlast && !blastPending" class="app-form-help">{{ !managedInternally ? 'Email updates are available for internally managed events.' : confirmedRecipients < 1 ? 'At least one confirmed guest is needed to prepare an email.' : confirmedRecipients > 100 ? 'This email flow supports up to 100 confirmed guests.' : 'Add a subject and message to preview your email.' }}</p>
             <button type="submit" class="mobile-blasts-preview" :disabled="!canCreateBlast || blastPending">Preview email <span aria-hidden="true">→</span></button>
           </form>
         </section>

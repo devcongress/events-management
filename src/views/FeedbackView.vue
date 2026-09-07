@@ -389,7 +389,8 @@ onMounted(fetchFeedbackForm);
 
           <div v-if="error || turnstileError" class="rounded-md border-2 border-red-700 bg-red-50 p-4 text-sm font-semibold text-red-800">{{ error || turnstileError }}</div>
 
-          <button type="submit" class="editorial-action w-full" :disabled="submitting || !canSubmit">
+          <p v-if="!canSubmit && !submitting" id="feedback-submit-help" class="app-form-help">{{ orderedQuestions.some(question => question.required && !isEventFeedbackAnswerPresent(answers[question.id])) ? 'Answer the required questions to submit your feedback.' : 'Complete the human check to submit your feedback.' }}</p>
+          <button type="submit" class="editorial-action w-full" :disabled="submitting || !canSubmit" :aria-describedby="!canSubmit && !submitting ? 'feedback-submit-help' : undefined">
             {{ previewMode ? 'Preview Only' : submitting ? 'Sending...' : 'Submit Feedback' }}
           </button>
         </form>
