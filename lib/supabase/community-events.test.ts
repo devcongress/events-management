@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./server', () => mocks);
 
-import { getSupabasePublicEvents } from './community-events';
+import { getSupabasePublicEvents, getSupabasePublicMeetups } from './community-events';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 
@@ -106,5 +106,46 @@ describe('getSupabasePublicEvents', () => {
     await getSupabasePublicEvents(undefined, { includePublicSubmissions: false });
 
     expect(query.neq).toHaveBeenCalledWith('submission_source', 'public_submission');
+  });
+
+  it('adds the approved contact action only to DevCongress-owned Project Night events', async () => {
+    mockPublicEventQuery([
+      communityEventRow({ name: 'DevCongress Project Night' }),
+      communityEventRow({
+        id: 'external-project-night',
+        name: 'Project Night',
+        event_ownership: 'external',
+        submission_source: 'public_submission',
+        moderation_status: 'approved',
+      }),
+    ]);
+
+    const events = await getSupabasePublicEvents(undefined, { includePublicSubmissions: true });
+
+    expect(events?.[0]?.primary_action).toEqual({
+      kind: 'slack_profile',
+      label: 'Message @aberkowitz',
+      url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
+    });
+    expect(events?.[1]?.primary_action).toBeNull();
+  });
+});
+
+describe('getSupabasePublicMeetups', () => {
+  it('keeps the Project Night contact action on a completed event', async () => {
+    mockPublicEventQuery([
+      communityEventRow({ name: 'DevCongress Project Night', status: 'completed' }),
+    ]);
+
+    const meetups = await getSupabasePublicMeetups('https://events.example');
+
+    expect(meetups?.[0]).toMatchObject({
+      status: 'past',
+      primary_action: {
+        kind: 'slack_profile',
+        label: 'Message @aberkowitz',
+        url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
+      },
+    });
   });
 });

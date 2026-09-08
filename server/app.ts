@@ -217,6 +217,7 @@ import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-s
 import type { Context } from 'hono';
 import crypto from 'crypto';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionAmendment, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import { projectNightPrimaryAction } from '@/lib/project-night-contact';
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 import { VOLUNTEER_PUBLIC_PATH } from '@/lib/volunteer-intake-routes';
 import { staticShortLinkDestinationPath } from '@/lib/short-link-destinations';
@@ -1749,6 +1750,7 @@ function toPublicMeetup(event: Event, eventTalks: Talk[], origin: string): Publi
     stream_url: safeHttpUrl(event.stream_url),
     embed_stream: event.embed_stream ?? false,
     registration_url: safeWebsiteUrl(registrationUrl),
+    primary_action: projectNightPrimaryAction(event.ownership === 'external' ? null : event.name),
     speakers: speakersForTalks(eventTalks, origin),
     schedule,
     photos,
@@ -1961,6 +1963,7 @@ async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
       stream_url: safeHttpUrl(event.stream_url),
       embed_stream: event.embed_stream ?? false,
       registration_url: safeWebsiteUrl(event.registration_url),
+      primary_action: projectNightPrimaryAction(event.ownership === 'external' ? null : event.name),
       organizer_name: event.organizer_name ?? 'DevCongress',
       organizer_website: safeHttpUrl(event.organizer_url),
       cover_url: publicEventCoverUrl(event.cover),

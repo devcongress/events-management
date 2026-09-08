@@ -96,6 +96,13 @@ function statusLabel(status: PublicMeetup['status']) {
 }
 
 function primaryAction(meetupItem: PublicMeetup): { href: string | null; label: string | null } {
+  if (meetupItem.primary_action) {
+    return {
+      href: meetupItem.primary_action.url,
+      label: meetupItem.primary_action.label,
+    };
+  }
+
   if (meetupItem.status === 'upcoming') {
     if (meetupItem.registration_url) return { href: meetupItem.registration_url, label: 'Register' };
     if (meetupItem.cfp_url) return { href: meetupItem.cfp_url, label: 'Register' };
