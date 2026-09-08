@@ -345,6 +345,12 @@ export interface SpeakerSubmission {
 // ---- Public website API ----
 export type PublicMeetupStatus = 'upcoming' | 'live' | 'past';
 
+export interface PublicEventPrimaryAction {
+  kind: 'slack_profile';
+  label: string;
+  url: string;
+}
+
 export interface PublicMeetupSpeaker {
   name: string;
   title: string;
@@ -393,6 +399,7 @@ export interface PublicMeetup {
   stream_url: string | null;
   embed_stream: boolean;
   registration_url: string | null;
+  primary_action: PublicEventPrimaryAction | null;
   speakers: PublicMeetupSpeaker[];
   schedule: PublicMeetupScheduleItem[];
   photos: {
@@ -432,6 +439,7 @@ export interface PublicEvent {
   stream_url: string | null;
   embed_stream: boolean;
   registration_url: string | null;
+  primary_action: PublicEventPrimaryAction | null;
   organizer_name: string;
   organizer_website: string | null;
   cover_url: string | null;

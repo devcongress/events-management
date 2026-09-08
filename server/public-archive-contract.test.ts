@@ -135,6 +135,34 @@ describe('public event archive contract', () => {
     expect(meetup.videos).toEqual([]);
   });
 
+  it('exposes the Project Night contact action even after the event has ended', async () => {
+    await fs.writeFile(path.join('data', 'events.json'), JSON.stringify([{
+      ...event,
+      name: 'DevCongress Project Night',
+      status: 'completed',
+    }]), 'utf-8');
+    vi.resetModules();
+
+    const { default: app } = await import('./app');
+    const response = await app.request('/api/public/meetups');
+    const payload = await response.json() as {
+      data: Array<{
+        status: string;
+        primary_action: { kind: string; label: string; url: string } | null;
+      }>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(payload.data[0]).toMatchObject({
+      status: 'past',
+      primary_action: {
+        kind: 'slack_profile',
+        label: 'Message @aberkowitz',
+        url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
+      },
+    });
+  });
+
   it('never exposes attendance identities from the public home response', async () => {
     await fs.writeFile(path.join('data', 'event-attendance-imports.json'), JSON.stringify([{
       id: 'attendance-1',

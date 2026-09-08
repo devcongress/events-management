@@ -97,6 +97,7 @@ clients do not break; it never contains attendee or attendance-derived data.
       "stream_url": null,
       "embed_stream": false,
       "registration_url": "http://localhost:3000/r/devcon-comm-march-2026-a1a7b2e5",
+      "primary_action": null,
       "speakers": [],
       "schedule": [],
       "photos": [],
@@ -120,6 +121,7 @@ The meetup DTO follows the current `devcongress.org` Astro meetup schema where p
 - `start`, `end`, and `updated_at` use `YYYY-MM-DDTHH:mm:ss+00:00` datetime strings.
 - `series_type` is `monthly`, `quarterly`, `special`, or `null` when the event belongs to no DevCongress series.
 - `location.url`, `stream_url`, `registration_url`, speaker images, schedule resource URLs, videos, `cfp_url`, and `archive_url` are full URLs when present.
+- `primary_action` is an additive, event-specific CTA override. Consumers should prefer it over their status-derived registration or recording action. Every DevCongress-owned event whose name contains `Project Night` receives `{ "kind": "slack_profile", "label": "Message @aberkowitz", "url": "slack://user?team=T0A0T7A5Q&id=U3LB1TNLS" }`, including past events; other events receive `null`. The Slack URI opens the member profile in the native client, where the visitor can choose **Message**.
 - `cover` and `photos[].url` may be app-relative paths because the Astro schema allows relative image paths.
 - `photos[]` supports direct image links and shared gallery/folder links. Each item uses `{ "url": string, "type": "image" | "folder" }`.
 - `schedule[]` carries public system-design rows too, including recap copy in `description` and prompt-deck links in `resources`, so archive or meetup pages can render that content inline without a separate system-design endpoint.

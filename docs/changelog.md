@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-08 — Persistent Project Night contact action
+
+- Added a persistent **Message @aberkowitz** public action for every Project Night event. The additive public API action and organizer website preview remain available after an event has ended and open the approved organizer's Slack profile without introducing a bot or changing the external website repository.
+
 ## 2026-09-08 — Work-plan resources and formatted details
 
 - Preserve typed line breaks and spacing in the task drawer, with wrapping for long text.

@@ -64,7 +64,7 @@ beforeEach(async () => {
     event({
       id: 'official',
       slug: 'official',
-      name: 'Official event',
+      name: 'DevCongress Project Night',
       event_date: '2025-06-20T18:00:00.000Z',
       end_date: '2025-06-20T20:00:00.000Z',
       location_type: 'online',
@@ -85,7 +85,7 @@ beforeEach(async () => {
     event({
       id: 'community-beta',
       slug: 'community-beta',
-      name: 'Community beta workshop',
+      name: 'Community Project Night',
       ownership: 'external',
       submission_source: 'public_submission',
       moderation_status: 'approved',
@@ -139,6 +139,9 @@ describe('private beta event visibility', () => {
     ]);
     expect(payload.data.filter((item) => item.source === 'public_submission').map((item) => item.cover_url))
       .toEqual([EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER]);
+    expect(payload.data.find((item) => item.id === 'community-beta')).toMatchObject({
+      primary_action: null,
+    });
   });
 
   it('returns one published event by slug while preserving the discovery gate', async () => {
@@ -172,6 +175,7 @@ describe('private beta event visibility', () => {
         stream_url: string | null;
         embed_stream: boolean;
         registration_url: string | null;
+        primary_action: { kind: string; label: string; url: string } | null;
       };
     };
 
@@ -181,6 +185,11 @@ describe('private beta event visibility', () => {
       stream_url: 'https://www.youtube.com/watch?v=recording',
       embed_stream: false,
       registration_url: 'https://lu.ma/official-event',
+      primary_action: {
+        kind: 'slack_profile',
+        label: 'Message @aberkowitz',
+        url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
+      },
     });
   });
 

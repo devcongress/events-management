@@ -8,6 +8,7 @@ import { safeHttpUrl, safeWebsiteUrl } from '@/lib/safe-url';
 import { isEventFormat } from '@/lib/event-format';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER, publicEventCoverUrl } from '@/lib/event-cover';
 import { PUBLIC_EVENT_COLLECTION_LIMIT } from '@/lib/public-api-policy';
+import { projectNightPrimaryAction } from '@/lib/project-night-contact';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type CommunityEventInsert = Database['public']['Tables']['community_events']['Insert'];
@@ -536,6 +537,7 @@ function toPublicEvent(row: CommunityEventRow): PublicEvent {
     stream_url: safeHttpUrl(row.stream_url),
     embed_stream: row.embed_stream ?? false,
     registration_url: safeWebsiteUrl(row.registration_url),
+    primary_action: projectNightPrimaryAction(external ? null : row.name),
     organizer_name: external ? (row.organizer_name ?? 'External organizer') : 'DevCongress',
     organizer_website: safeHttpUrl(row.organizer_url),
     cover_url: publicEventCoverUrl(row.cover_url),
@@ -565,6 +567,7 @@ function toPublicMeetup(row: CommunityEventRow, origin: string): PublicMeetup {
     stream_url: safeHttpUrl(row.stream_url),
     embed_stream: row.embed_stream,
     registration_url: safeWebsiteUrl(row.registration_url),
+    primary_action: projectNightPrimaryAction(row.event_ownership === 'devcongress' ? row.name : null),
     speakers,
     schedule,
     photos: normalizePhotos(row.photos),
