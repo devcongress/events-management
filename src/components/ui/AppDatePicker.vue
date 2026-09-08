@@ -11,6 +11,7 @@ const props = withDefaults(defineProps<{
   placeholder?: string;
   required?: boolean;
   mode?: 'date' | 'datetime';
+  defaultTime?: string;
   density?: 'default' | 'field';
   error?: string;
 }>(), {
@@ -18,6 +19,7 @@ const props = withDefaults(defineProps<{
   placeholder: '',
   required: false,
   mode: 'date',
+  defaultTime: '',
   density: 'default',
   error: '',
 });
@@ -77,6 +79,7 @@ function twoDigits(value: number): string {
 
 const selectedDate = computed(() => parseDate(props.modelValue));
 const selectedTime = computed(() => parseTime(props.modelValue));
+const defaultTime = computed(() => parseTime(`T${props.defaultTime}`));
 const resolvedPlaceholder = computed(() => (
   props.placeholder || (props.mode === 'datetime' ? 'Choose date and time' : 'dd / mm / yyyy')
 ));
@@ -215,8 +218,8 @@ function chooseToday() {
   const now = new Date();
   if (props.mode === 'datetime') {
     draftDate.value = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    draftHour.value = twoDigits(now.getHours());
-    draftMinute.value = twoDigits(now.getMinutes());
+    draftHour.value = defaultTime.value?.hour ?? twoDigits(now.getHours());
+    draftMinute.value = defaultTime.value?.minute ?? twoDigits(now.getMinutes());
     void focusDate(now);
     schedulePlacementUpdate();
     return;
@@ -462,8 +465,8 @@ watch(open, async (isOpen) => {
     const initialDate = selectedDate.value ?? now;
     const initialTime = selectedTime.value;
     draftDate.value = new Date(initialDate.getFullYear(), initialDate.getMonth(), initialDate.getDate());
-    draftHour.value = initialTime?.hour ?? twoDigits(now.getHours());
-    draftMinute.value = initialTime?.minute ?? twoDigits(now.getMinutes());
+    draftHour.value = initialTime?.hour ?? defaultTime.value?.hour ?? twoDigits(now.getHours());
+    draftMinute.value = initialTime?.minute ?? defaultTime.value?.minute ?? twoDigits(now.getMinutes());
     activeDate.value = new Date(initialDate.getFullYear(), initialDate.getMonth(), initialDate.getDate());
     monthCursor.value = new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
     await nextTick();

@@ -108,7 +108,7 @@ describe('getSupabasePublicEvents', () => {
     expect(query.neq).toHaveBeenCalledWith('submission_source', 'public_submission');
   });
 
-  it('adds the approved contact action only to DevCongress-owned Project Night events', async () => {
+  it('adds the approved contact action to every Project Night event regardless of ownership', async () => {
     mockPublicEventQuery([
       communityEventRow({ name: 'DevCongress Project Night' }),
       communityEventRow({
@@ -127,7 +127,11 @@ describe('getSupabasePublicEvents', () => {
       label: 'Message @aberkowitz',
       url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
     });
-    expect(events?.[1]?.primary_action).toBeNull();
+    expect(events?.[1]?.primary_action).toEqual({
+      kind: 'slack_profile',
+      label: 'Message @aberkowitz',
+      url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
+    });
   });
 });
 

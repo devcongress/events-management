@@ -1,8 +1,12 @@
 # Changelog
 
+## 2026-09-08 — Monthly event schedule defaults
+
+- Monthly event creation now starts new dates at **09:00** and ends them at **16:00** by default, while keeping both values editable. Organizer changes made from the registration workspace continue to update the event record, and the public registration form now displays the saved start-to-end range instead of only the start time.
+
 ## 2026-09-08 — Persistent Project Night contact action
 
-- Added a persistent **Message @aberkowitz** public action for every Project Night event. The additive public API action and organizer website preview remain available after an event has ended and open the approved organizer's Slack profile without introducing a bot or changing the external website repository.
+- Added a persistent **Message @aberkowitz** public action for every Project Night event. The additive public API action and organizer website preview remain available after an event has ended and open the approved organizer's Slack profile without introducing a bot. The action also applies to the existing Project Night record imported with external ownership because its named owner explicitly approved this contact path.
 
 ## 2026-09-08 — Work-plan resources and formatted details
 

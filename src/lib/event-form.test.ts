@@ -144,6 +144,20 @@ describe('event series form payload', () => {
 });
 
 describe('event date synchronization', () => {
+  it('uses the monthly 4 pm end default after a 9 am start is selected', () => {
+    expect(syncEventEndDate('', '2026-08-20T09:00', '', '16:00'))
+      .toBe('2026-08-20T16:00');
+  });
+
+  it('keeps a valid end selected before the start date', () => {
+    expect(syncEventEndDate(
+      '',
+      '2026-08-20T09:00',
+      '2026-08-20T16:00',
+      '16:00',
+    )).toBe('2026-08-20T16:00');
+  });
+
   it('defaults the end time to two hours after the first selected start', () => {
     expect(syncEventEndDate('', '2026-08-20T18:00', '')).toBe('2026-08-20T20:00');
   });

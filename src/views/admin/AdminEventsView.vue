@@ -13,6 +13,8 @@ import { createNativeEvent, deleteEventById, fetchAdminSession, fetchEvents, que
 import {
   createEventFormSchema,
   eventEndDateError,
+  MONTHLY_EVENT_DEFAULT_END_TIME,
+  MONTHLY_EVENT_DEFAULT_START_TIME,
   syncEventEndDate,
   toCreateEventApiPayload,
   toEventSlug,
@@ -239,7 +241,12 @@ watch(generatedSlug, (nextSlug) => {
 });
 
 watch(() => form.event_date, (nextStart, previousStart) => {
-  form.end_date = syncEventEndDate(previousStart, nextStart, form.end_date);
+  form.end_date = syncEventEndDate(
+    previousStart,
+    nextStart,
+    form.end_date,
+    form.series_type === 'monthly' ? MONTHLY_EVENT_DEFAULT_END_TIME : undefined,
+  );
 });
 
 function handleSlugInput(event: Event) {
@@ -477,11 +484,18 @@ async function openEventNextStep(event: CommunityEvent) {
               <label for="event-description" class="editorial-label">Description <span class="text-red-600">*</span></label>
               <textarea id="event-description" v-model="form.description" class="editorial-input min-h-32 resize-none" required placeholder="What the meetup is about and who should attend." />
             </div>
-            <AppDatePicker v-model="form.event_date" label="Starts at" mode="datetime" required />
+            <AppDatePicker
+              v-model="form.event_date"
+              label="Starts at"
+              mode="datetime"
+              :default-time="form.series_type === 'monthly' ? MONTHLY_EVENT_DEFAULT_START_TIME : undefined"
+              required
+            />
             <AppDatePicker
               v-model="form.end_date"
               label="Ends at"
               mode="datetime"
+              :default-time="form.series_type === 'monthly' ? MONTHLY_EVENT_DEFAULT_END_TIME : undefined"
               :error="endDateError ?? undefined"
             />
             <AppDropdown
