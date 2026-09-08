@@ -72,6 +72,22 @@ export async function getSupabaseRegistrationCampaign(
   return data ?? undefined;
 }
 
+export async function getSupabaseRegistrationCampaigns(
+  eventIds: readonly string[],
+  c?: Context,
+): Promise<EventRegistrationCampaign[] | null> {
+  if (!canUseSupabaseEventRegistrations(c)) return null;
+  if (eventIds.length === 0) return [];
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('event_registration_campaigns')
+    .select('*')
+    .in('event_id', [...eventIds]);
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export async function updateSupabaseRegistrationCampaign(
   eventId: string,
   input: CampaignUpdate,

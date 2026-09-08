@@ -55,10 +55,13 @@ function publicBootVariant(pathname) {
   if (path.startsWith('/r/')) return 'registration';
   if (path.startsWith('/register/')) return 'registration';
   if (path.startsWith('/cfp/')) return 'cfp';
+  if (path.startsWith('/speak/m/')) return 'cfp';
+  if (path.startsWith('/speak/c/')) return 'cfp';
   if (path.startsWith('/feedback/')) return 'feedback';
   if (path.startsWith('/speaker-talks/')) return 'speaker';
+  if (path.startsWith('/conference-speakers/')) return 'speaker';
   if (path === '/event-amendments' || path.startsWith('/event-amendments/')) return 'speaker';
-  if (path.startsWith('/volunteer/')) return 'volunteer';
+  if (path === '/volunteer' || path.startsWith('/volunteer/')) return 'volunteer';
   if (path.startsWith('/learn/system-design/')) return 'learning-room';
   return 'organizer';
 }
@@ -77,6 +80,14 @@ async function withRouteAwareBoot(response, pathname) {
     .replace(
       /(<section class="app-boot"[^>]*aria-label=")[^"]+("[^>]*>)/,
       `$1${APP_BOOT_LABELS[variant]}$2`,
+    )
+    .replace(
+      /<div class="app-boot__organizer"(?: hidden)?>/,
+      `<div class="app-boot__organizer"${variant === 'organizer' ? '' : ' hidden'}>`,
+    )
+    .replace(
+      /<div data-app-boot-public="([^"]+)" class="app-boot__public"(?: hidden)? aria-hidden="true">/g,
+      (_match, publicVariant) => `<div data-app-boot-public="${publicVariant}" class="app-boot__public"${publicVariant === variant ? '' : ' hidden'} aria-hidden="true">`,
     );
 
   const headers = new Headers(response.headers);

@@ -30,8 +30,11 @@ export function appBootVariantForPathname(pathname: string): AppBootVariant {
   if (path.startsWith('/r/')) return 'registration';
   if (path.startsWith('/register/')) return 'registration';
   if (path.startsWith('/cfp/')) return 'cfp';
+  if (path.startsWith('/speak/m/')) return 'cfp';
+  if (path.startsWith('/speak/c/')) return 'cfp';
   if (path.startsWith('/feedback/')) return 'feedback';
   if (path.startsWith('/speaker-talks/')) return 'speaker';
+  if (path.startsWith('/conference-speakers/')) return 'speaker';
   if (path === '/event-amendments' || path.startsWith('/event-amendments/')) return 'speaker';
   if (path === '/volunteer' || path.startsWith('/volunteer/')) return 'volunteer';
   if (path.startsWith('/learn/system-design/')) return 'learning-room';
@@ -176,6 +179,7 @@ export const APP_BOOT_STYLES = String.raw`
 :root{color:#111;background:#f5f2e8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",ui-sans-serif,system-ui,sans-serif}
 html,body,#app{width:100%;min-height:100%;margin:0}
 .app-boot{box-sizing:border-box;display:flex;min-height:100vh;min-height:100svh;flex-direction:column;overflow:hidden;background:#f5f2e8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",ui-sans-serif,system-ui,sans-serif}
+.app-boot [hidden]{display:none!important}
 .app-boot *,.app-boot *::before,.app-boot *::after{box-sizing:border-box}
 .app-boot__organizer{display:none;width:min(100% - 3rem,80rem);flex:1;align-content:center;margin-inline:auto;padding-block:clamp(3rem,12vh,8rem)}
 .app-boot__message{max-width:44rem}
@@ -229,10 +233,11 @@ html,body,#app{width:100%;min-height:100%;margin:0}
 export function renderAppBootMarkup(pathname = '/'): string {
   const variant = appBootVariantForPathname(pathname);
   const ariaLabel = appBootAriaLabelForVariant(variant);
+  const organizerHidden = variant === 'organizer' ? '' : ' hidden';
 
   const publicMarkup = (Object.keys(publicBootSkeletons) as Array<Exclude<AppBootVariant, 'organizer'>>)
     .map((publicVariant) => `
-      <div data-app-boot-public="${publicVariant}" class="app-boot__public" aria-hidden="true">
+      <div data-app-boot-public="${publicVariant}" class="app-boot__public"${publicVariant === variant ? '' : ' hidden'} aria-hidden="true">
         ${publicBootBrandMarkup}
         ${publicBootSkeletons[publicVariant]}
       </div>
@@ -241,7 +246,7 @@ export function renderAppBootMarkup(pathname = '/'): string {
 
   return `<!-- devcongress-app-boot:start -->
 <section class="app-boot" role="status" aria-live="polite" aria-label="${ariaLabel}" ${APP_BOOT_VARIANT_ATTRIBUTE}="${variant}">
-  ${organizerBootMarkup}
+  ${organizerBootMarkup.replace('<div class="app-boot__organizer">', `<div class="app-boot__organizer"${organizerHidden}>`)}
   ${publicMarkup}
 </section>
 <!-- devcongress-app-boot:end -->`;
@@ -257,6 +262,14 @@ export function applyAppBootVariant(html: string, pathname: string): string {
     .replace(
       /(<section class="app-boot"[^>]*aria-label=")[^"]+("[^>]*>)/,
       `$1${appBootAriaLabelForVariant(variant)}$2`,
+    )
+    .replace(
+      /<div class="app-boot__organizer"(?: hidden)?>/,
+      `<div class="app-boot__organizer"${variant === 'organizer' ? '' : ' hidden'}>`,
+    )
+    .replace(
+      /<div data-app-boot-public="([^"]+)" class="app-boot__public"(?: hidden)? aria-hidden="true">/g,
+      (_match, publicVariant: string) => `<div data-app-boot-public="${publicVariant}" class="app-boot__public"${publicVariant === variant ? '' : ' hidden'} aria-hidden="true">`,
     );
 }
 

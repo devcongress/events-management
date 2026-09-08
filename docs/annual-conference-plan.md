@@ -77,7 +77,9 @@ The first operational workspace slice is now in place:
 - task target dates remain nullable but are prioritized by the conference-health dashboard; an assigned task's target date cannot exceed its phase end date;
 - task dependencies are explicit prerequisite-task links within one edition; the Work Plan blocks self-links and circular chains, and Overview summarizes links, waiting tasks, ready tasks, and the direct blocker paths;
 - owners and organizers can add an authenticated user with the **Volunteer** role from People & Access;
-- volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update only those task statuses;
+- volunteer sessions land in Annual Conference, see only tasks where their email is accountable or collaborating, and can update those task statuses plus add and manage their own task-resource links; task details remain organizer-editable;
+- task drawers include up to 20 optionally labeled HTTP/HTTPS resources, with creator attribution. Organizers who can edit a task can manage all its resources; volunteer access requires current assignment and never allows editing another contributor’s links;
+- Details supports bold, italic, strikethrough and lists, with a 2,000-character text limit and bounded JSON structure. Legacy descriptions retain literal text and line breaks; Depends on sits beside Target date on desktop and stacks on phones;
 - phone organizers receive mobile versions of Overview, Work Plan, Timeline/phase management, Volunteers, edition controls, and task create/edit flows; phone volunteers receive a separate assignment-only Overview and My Tasks interface;
 - volunteer access is enforced at both the organizer router and API boundary; Events, hubs, access management, applicant records, task creation, task reassignment, task-detail editing, and organizer-only internal notes remain unavailable;
 - Work plan and Timeline are phase-scoped by default: they open on the current phase, or the next available phase outside an active window, and recalculate every metric and task section when organizers switch to another phase, **No phase**, or the entire conference;
@@ -160,7 +162,7 @@ The intended result is one December 2026 volunteer dataset regardless of which v
 | Work item | Status | Owner | Target | Current note / next action |
 | --- | --- | --- | --- | --- |
 | Put out the Call for Speakers | Not started | Unassigned | TBD | Define submission criteria, deadline, review committee, selection rubric, and response timeline |
-| Annual speaker submission form | Done | Elvis | 2026-09-07 | Separate conference CFP requires identity, reusable bio (150 words recommended), title, fixed track/type, 250-word abstract, and 3–5 learning outcomes; each submission is one independently reviewed proposal |
+| Annual speaker submission form | Done | Elvis | 2026-09-07 | Separate conference CFP requires identity, reusable bio (150 words recommended), title, fixed track/type, 250-word abstract, and 3–5 learning outcomes; each submission is independently reviewed. Success is confirmed on-page with another-proposal action; no receipt email is sent so quota remains available for decisions and other operations. |
 | Speaker review committee | Not started | Unassigned | TBD | Name reviewers, resolve conflicts, and define selection/communication responsibilities |
 | Keynote outreach | Blocked | Unassigned | TBD | Starts after date, theme, venue confidence, and shortlist confirmation |
 | Workshops and breakout sessions | Not started | Unassigned | TBD | Assign facilitators, rooms, capacity, materials, equipment, and support volunteers |

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import AnnualConferenceTaskForm from '@/src/components/AnnualConferenceTaskForm.vue';
+import TaskDetailsContent from '@/src/components/TaskDetailsContent.vue';
+import AnnualConferenceTaskResources from '@/src/components/AnnualConferenceTaskResources.vue';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
@@ -10,6 +12,7 @@ import {
 } from '@/lib/annual-conference-work-plan';
 
 const props = defineProps<{
+  year: string;
   open: boolean;
   mode: 'details' | 'edit' | 'create';
   task: AnnualConferenceTask | null;
@@ -259,10 +262,9 @@ onUnmounted(() => {
 
                 <section class="mt-6 border-t-2 border-dc-ink pt-5">
                   <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Task detail</p>
-                  <p class="mt-2 text-base font-medium leading-7" :class="task.details ? 'text-dc-ink' : 'text-dc-gray'">
-                    {{ task.details ?? 'No task description yet.' }}
-                  </p>
+                  <TaskDetailsContent class="mt-2 text-base text-dc-ink" :value="task.details ?? ''" :format="task.details_format" />
                 </section>
+                <AnnualConferenceTaskResources :key="`${year}:${task.id}`" :year="year" :task-id="task.id" />
 
                 <dl class="mt-6 grid gap-5 border-y border-dc-border py-5 sm:grid-cols-2">
                   <div>

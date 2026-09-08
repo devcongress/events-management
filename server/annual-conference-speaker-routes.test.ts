@@ -11,6 +11,11 @@ describe('Annual Conference speaker route registration', () => {
       ['PATCH', '/api/annual-conference/:year/speakers/logistics-deadline'],
       ['PATCH', '/api/annual-conference/:year/speaker-submissions/:submissionId'],
       ['POST', '/api/annual-conference/:year/speaker-submissions/:submissionId/resend-workspace-email'],
+      ['POST', '/api/annual-conference/:year/speaker-submissions/:submissionId/resend-decision-email'],
+      ['PATCH', '/api/annual-conference/:year/speaker-submissions/:submissionId/decision-email-recipient'],
+      ['POST', '/api/annual-conference/:year/speaker-submissions/:submissionId/replace-workspace-email'],
+      ['POST', '/api/internal/annual-conference-speaker-emails/retry'],
+      ['POST', '/api/webhooks/resend'],
       ['GET', '/api/conferences/:year/speaker-intake/:token'],
       ['POST', '/api/conferences/:year/speaker-intake/:token'],
     ] as const;

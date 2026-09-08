@@ -32,6 +32,8 @@ describe('Annual Conference speaker scope', () => {
       getAnnualConferenceSession,
       getAnnualConferenceSpeakerIntakeLink,
       getAnnualConferenceSpeakerSubmissions,
+      getAnnualConferenceSpeakerSubmission,
+      rotateAnnualConferenceSpeakerWorkspace,
       updateAnnualConferenceSessionLogistics,
       updateAnnualConferenceSpeakerSubmission,
     } = await store();
@@ -119,5 +121,24 @@ describe('Annual Conference speaker scope', () => {
       workspace_session_id: session.id,
       revoked_at: null,
     });
+
+    const exhausted = await updateAnnualConferenceSpeakerSubmission(submission.id, {
+      decision_email_kind: 'acceptance',
+      decision_email_status: 'failed',
+      decision_email_recipient: submission.speaker_email,
+      decision_email_idempotency_key: `conference-speaker-accepted-${link.id}`,
+      decision_email_attempt_count: 5,
+      decision_email_last_attempt_at: '2099-01-01T00:00:00.000Z',
+      decision_email_retryable: false,
+    });
+    const replacement = await rotateAnnualConferenceSpeakerWorkspace({
+      submission: exhausted,
+      deadline: '2099-12-31T23:59:59.000Z',
+      tokenSecret: 'test-speaker-link-secret-that-is-at-least-32-bytes',
+      allowAccepted: true,
+    });
+    expect(replacement.submission.decision_email_attempt_count).toBe(0);
+    expect(replacement.submission.decision_email_last_attempt_at).toBeNull();
+    await expect(getAnnualConferenceSpeakerSubmission(secondProposal.id)).resolves.toMatchObject({ status: 'submitted' });
   });
 });

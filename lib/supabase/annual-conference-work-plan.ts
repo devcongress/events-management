@@ -261,6 +261,7 @@ export async function createSupabaseAnnualConferenceTask(
     edition_id: edition.id,
     title: input.title,
     details: input.details ?? null,
+    details_format: input.details_format ?? 'plain_text',
     internal_note: null,
     phase_id: input.phase_id ?? null,
     workstream: input.workstream,
@@ -299,6 +300,7 @@ export async function updateSupabaseAnnualConferenceTask(
 
   const update: TaskUpdate = {
     ...input,
+    ...('details' in input ? { details_format: input.details_format ?? 'plain_text' } : {}),
     updated_by_email: actorEmail,
   };
 

@@ -6,6 +6,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AdminAuditLogPageSkeleton from '@/src/components/ui/page-skeletons/AdminAuditLogPageSkeleton.vue';
 import AdminEmailPreviewsView from '@/src/views/admin/AdminEmailPreviewsView.vue';
+import AdminShortLinksState from '@/src/components/admin/AdminShortLinksState.vue';
 import { deleteEventById, fetchAdminArchivedEvents, fetchAdminAuditLog, fetchAdminShortLinks, queryKeys, regenerateAdminShortLink, restoreArchivedEvent, revokeAdminShortLink, type AdminAuditLogEntry, type ArchivedEvent, type EmailHealthLevel, type RecentEmailDelivery, type RecentEventBlast } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
@@ -117,6 +118,7 @@ const hardDeleteArchivedEventMutation = useMutation({
 
 const logs = computed(() => auditQuery.data.value?.logs ?? []);
 const allShortLinks = computed(() => shortLinksQuery.data.value?.links ?? []);
+const shortLinksError = computed(() => shortLinksQuery.error.value?.message ?? '');
 const archivedEvents = computed(() => archivedEventsQuery.data.value?.events ?? []);
 const visibleShortLinks = computed(() => allShortLinks.value.filter((link) => link.status === shortLinkStatusFilter.value));
 const activeShortLinkCount = computed(() => allShortLinks.value.filter((link) => link.status === 'active').length);
@@ -1005,11 +1007,14 @@ onUnmounted(() => {
               </div>
               <p v-if="shortLinkMessage" class="audit-log-short-links__message">{{ shortLinkMessage }}</p>
             </div>
-            <div class="audit-log-delivery-history audit-log-short-links__history">
-              <div v-if="shortLinksQuery.isPending.value" class="audit-log-delivery-history__empty">Loading short links…</div>
-              <div v-else-if="allShortLinks.length === 0" class="audit-log-delivery-history__empty">No open public forms are ready for a flyer link.</div>
-              <div v-else-if="visibleShortLinks.length === 0" class="audit-log-delivery-history__empty">No {{ shortLinkStatusFilter }} links.</div>
-              <div v-else class="overflow-x-auto">
+            <AdminShortLinksState
+              :pending="shortLinksQuery.isPending.value"
+              :error="shortLinksQuery.isError.value ? (shortLinksError || 'Unable to load short links.') : ''"
+              :total-count="allShortLinks.length"
+              :visible-count="visibleShortLinks.length"
+              :status-filter="shortLinkStatusFilter"
+            >
+              <div class="overflow-x-auto">
                 <table class="audit-log-short-links__table w-full table-fixed text-left">
                   <colgroup>
                     <col class="w-[24%]">
@@ -1042,7 +1047,7 @@ onUnmounted(() => {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </AdminShortLinksState>
           </section>
 
           <section v-else id="audit-log-panel-archived-events" key="archived-events" role="tabpanel" aria-labelledby="audit-log-tab-archived-events" class="audit-log-email-delivery w-full">

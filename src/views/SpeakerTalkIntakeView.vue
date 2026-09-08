@@ -264,6 +264,7 @@ function formatDeadline(value: string | null): string {
       <div class="w-full max-w-md rounded-lg border-2 border-dc-ink bg-dc-paper p-8 text-center shadow-[3px_3px_0_#111111]">
         <h2 class="mb-3 text-2xl font-bold text-dc-ink">Link closed</h2>
         <p class="text-dc-gray">{{ unavailableMessage }}</p>
+        <p v-if="isConferenceIntake" class="mt-4 text-sm leading-6 text-dc-gray">Reply to your acceptance email or contact the DevCongress team to request a replacement link.</p>
         <p class="mt-4 text-sm text-dc-gray">You can close this tab.</p>
       </div>
     </div>

@@ -347,6 +347,18 @@ export interface Database {
           internal_note: string | null;
           selected_intake_link_id: string | null;
           selected_session_id: string | null;
+          decision_email_kind: 'acceptance' | 'rejection' | null;
+          decision_email_status: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
+          decision_email_recipient: string | null;
+          decision_email_provider_id: string | null;
+          decision_email_idempotency_key: string | null;
+          decision_email_sent_at: string | null;
+          decision_email_delivered_at: string | null;
+          decision_email_last_attempt_at: string | null;
+          decision_email_last_event_at: string | null;
+          decision_email_last_error: string | null;
+          decision_email_attempt_count: number;
+          decision_email_retryable: boolean;
           decided_at: string | null;
           created_at: string;
           updated_at: string;
@@ -393,12 +405,17 @@ export interface Database {
           speaker_email: string | null;
           talk_title: string | null;
           token_hash: string;
-          email_status: 'pending' | 'accepted' | 'failed' | null;
+          email_status: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
+          email_recipient: string | null;
           email_provider_id: string | null;
           email_idempotency_key: string | null;
           email_sent_at: string | null;
+          email_delivered_at: string | null;
           email_last_attempt_at: string | null;
+          email_last_event_at: string | null;
           email_last_error: string | null;
+          email_attempt_count: number;
+          email_retryable: boolean;
           expires_at: string;
           revoked_at: string | null;
           workspace_session_id: string | null;
@@ -407,6 +424,18 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['annual_conference_speaker_intake_links']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
         Update: Partial<Database['public']['Tables']['annual_conference_speaker_intake_links']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_email_webhook_events: {
+        Row: {
+          webhook_event_id: string;
+          provider_email_id: string;
+          event_type: 'email.delivered' | 'email.delivery_delayed' | 'email.bounced' | 'email.failed' | 'email.suppressed' | 'email.complained';
+          provider_created_at: string;
+          processed_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['annual_conference_email_webhook_events']['Row'], 'processed_at'> & { processed_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_email_webhook_events']['Insert']>;
         Relationships: [];
       };
       annual_conference_speaker_profiles: {
@@ -806,6 +835,7 @@ export interface Database {
           edition_id: string;
           title: string;
           details: string | null;
+          details_format: 'plain_text' | 'rich_text';
           internal_note: string | null;
           phase_id: string | null;
           workstream: AnnualConferenceWorkstream;
@@ -830,6 +860,7 @@ export interface Database {
           edition_id: string;
           title: string;
           details?: string | null;
+          details_format?: 'plain_text' | 'rich_text';
           internal_note?: string | null;
           phase_id?: string | null;
           workstream: AnnualConferenceWorkstream;
@@ -854,6 +885,7 @@ export interface Database {
           edition_id?: string;
           title?: string;
           details?: string | null;
+          details_format?: 'plain_text' | 'rich_text';
           internal_note?: string | null;
           phase_id?: string | null;
           workstream?: AnnualConferenceWorkstream;
@@ -886,6 +918,47 @@ export interface Database {
             columns: ['phase_id'];
             isOneToOne: false;
             referencedRelation: 'annual_conference_phases';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      annual_conference_task_resources: {
+        Row: {
+          id: string;
+          task_id: string;
+          url: string;
+          label: string | null;
+          created_by_email: string;
+          updated_by_email: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          url: string;
+          label?: string | null;
+          created_by_email: string;
+          updated_by_email: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          url?: string;
+          label?: string | null;
+          created_by_email?: string;
+          updated_by_email?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'annual_conference_task_resources_task_id_fkey';
+            columns: ['task_id'];
+            isOneToOne: false;
+            referencedRelation: 'annual_conference_tasks';
             referencedColumns: ['id'];
           },
         ];
@@ -2231,6 +2304,14 @@ export interface Database {
         };
         Returns: Array<{ session_id: string; link_id: string }>;
       };
+      reject_annual_conference_speaker_proposal: {
+        Args: {
+          p_submission_id: string;
+          p_email_idempotency_key: string;
+          p_internal_note: string;
+        };
+        Returns: string;
+      };
       rotate_annual_conference_speaker_workspace: {
         Args: {
           p_submission_id: string;
@@ -2239,8 +2320,41 @@ export interface Database {
           p_token_hash: string;
           p_deadline: string;
           p_email_idempotency_key: string;
+          p_email_recipient: string;
+          p_allow_accepted?: boolean;
         };
         Returns: string;
+      };
+      claim_annual_conference_speaker_email_attempt: {
+        Args: {
+          p_submission_id: string;
+          p_expected_idempotency_key: string;
+          p_expected_attempt_count: number;
+          p_attempted_at: string;
+          p_allow_non_retryable?: boolean;
+        };
+        Returns: boolean;
+      };
+      replace_annual_conference_speaker_email_recipient: {
+        Args: {
+          p_submission_id: string;
+          p_expected_idempotency_key: string | null;
+          p_expected_attempt_count: number;
+          p_email_recipient: string;
+          p_email_idempotency_key: string;
+        };
+        Returns: boolean;
+      };
+      apply_annual_conference_speaker_email_event: {
+        Args: {
+          p_provider_email_id: string;
+          p_status: string;
+          p_event_at: string;
+          p_delivered_at: string | null;
+          p_last_error: string | null;
+          p_retryable: boolean;
+        };
+        Returns: boolean;
       };
       review_event_submission_amendment: {
         Args: { p_amendment_id: string; p_reviewed_by: string; p_approve: boolean; p_message: string };

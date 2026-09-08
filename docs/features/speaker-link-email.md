@@ -257,11 +257,11 @@ Production secret command:
 pnpm exec wrangler secret put RESEND_API_KEY
 ```
 
-The approved sender identity is code-owned in `lib/email/scenarios.ts`; the monitored Reply-To binding remains committed in `wrangler.toml`. Local Reply-To overrides belong in `.env.local`. `RESEND_WEBHOOK_SECRET` is not required until delivery webhooks are implemented.
+The approved sender identity is code-owned in `lib/email/scenarios.ts`; the monitored Reply-To binding remains committed in `wrangler.toml`. Local Reply-To overrides belong in `.env.local`. `RESEND_WEBHOOK_SECRET` verifies the active outbound-delivery webhook and must remain server-only.
 
 No separate email Worker is required for July. The existing authenticated Hono Worker can call Resend directly. A queue/second worker becomes useful only when automatic retries, scheduled reminders, or materially higher volume are introduced. Resend has an official [Cloudflare Workers guide](https://resend.com/docs/send-with-cloudflare-workers).
 
-### 5. Add a delivery webhook
+### 5. Delivery webhook
 
 Register:
 
@@ -280,7 +280,7 @@ email.suppressed
 email.complained
 ```
 
-The route is public but must verify the Resend signature against the raw request body using `RESEND_WEBHOOK_SECRET`. Webhooks are at-least-once and can arrive out of order, so deduplicate on `svix-id` and apply events using their timestamps. See [webhook signature verification](https://resend.com/docs/webhooks/verify-webhooks-requests) and [delivery guarantees](https://resend.com/docs/webhooks/introduction).
+The route is public but verifies the Resend signature against the raw request body using `RESEND_WEBHOOK_SECRET`. Webhooks are at-least-once and can arrive out of order, so Annual Conference delivery events are deduplicated on `svix-id` and applied only when their provider timestamp is newer. Proposal submission itself deliberately sends no receipt email; acceptance and rejection are the quota-bearing messages. See [webhook signature verification](https://resend.com/docs/webhooks/verify-webhooks-requests) and [delivery guarantees](https://resend.com/docs/webhooks/introduction).
 
 ## Application Architecture
 

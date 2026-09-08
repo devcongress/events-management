@@ -100,9 +100,20 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `GET /api/annual-conference/:year/work-plan` | Returns the edition plan and effective capability list; volunteers default to assigned tasks with internal notes removed, while explicit full-view or management grants expand the projection |
 | `GET /api/annual-conference/:year/speakers` | Returns only the edition's conference proposal queue and Call for Speakers state; requires conference-speaker access |
 | `PATCH /api/annual-conference/:year/speakers/call` | Opens or closes the edition's public Call for Speakers; requires conference-speaker management access and records an audit event |
+| `PATCH /api/annual-conference/:year/speaker-submissions/:submissionId` | Atomically accepts or rejects one proposal and prepares its automatic proposal-scoped decision email |
+| `POST /api/annual-conference/:year/speaker-submissions/:submissionId/resend-decision-email` | Manually retries a failed rejection email without reopening the proposal decision |
+| `POST /api/annual-conference/:year/speaker-submissions/:submissionId/resend-workspace-email` | Retries failed acceptance delivery while preserving the current private workspace link |
+| `PATCH /api/annual-conference/:year/speaker-submissions/:submissionId/decision-email-recipient` | Confirmed delivery-address correction and resend; does not rewrite the speaker profile |
+| `POST /api/annual-conference/:year/speaker-submissions/:submissionId/replace-workspace-email` | Confirmed revocation and replacement of an accepted proposal's private link |
+| `POST /api/internal/annual-conference-speaker-emails/retry` | Scheduled bounded retry drain for pending or transiently failed conference decision emails |
+| `POST /api/webhooks/resend` | Public signature-verified outbound Resend delivery lifecycle webhook |
 | `GET/POST /api/annual-conference/editions` | List editions or let the latest edition's planning owner create a future edition with an inherited or selected active-organizer owner |
 | `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to platform/planning owners or a member with delegated work-plan management, and requires one accountable owner |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId` | Assigned organizers may edit their tasks; volunteers default to assigned status-only changes, while delegated work-plan managers may edit every task |
+| `GET /api/annual-conference/:year/work-plan/:taskId/resources` | List task resources and per-row management permissions; volunteers must currently be assigned |
+| `POST /api/annual-conference/:year/work-plan/:taskId/resources` | Add an attributed HTTP/HTTPS link, with a database-enforced 20-link task cap |
+| `PATCH /api/annual-conference/:year/work-plan/:taskId/resources/:resourceId` | Update a link/label; assigned volunteers manage their own resources only, organizer task editors manage all |
+| `DELETE /api/annual-conference/:year/work-plan/:taskId/resources/:resourceId` | Remove a resource under the same ownership checks; does not delete the linked document |
 | `POST/PATCH/DELETE /api/annual-conference/:year/phases*` | Capability-gated phase management with non-overlap and task target-date safeguards |
 | `GET/PATCH /api/annual-conference/:year/access-grants*` | Owner-only responsibility matrix and audited per-member grant/revocation |
 | `GET /api/annual-conference/:year/team` | Active volunteer names only; requires volunteer-team viewing and excludes applicant contact details |

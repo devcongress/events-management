@@ -9,6 +9,7 @@ type SpeakerProposalRejectionEmailInput = {
   eventName: string;
   speakerName: string;
   talkTitle: string;
+  subject?: string;
 };
 
 function escapeHtml(value: string): string {
@@ -25,7 +26,7 @@ function firstName(value: string): string {
 }
 
 export function speakerProposalRejectionEmail(input: SpeakerProposalRejectionEmailInput) {
-  const subject = emailSubjects.speakerProposalRejected(input.eventName);
+  const subject = input.subject ?? emailSubjects.speakerProposalRejected(input.eventName);
   const speakerFirstName = firstName(input.speakerName);
   const safeFirstName = escapeHtml(speakerFirstName);
   const safeEventName = escapeHtml(input.eventName);

@@ -502,6 +502,7 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
     </div>
 
     <AnnualConferenceTaskDrawer
+      :year="year"
       :open="Boolean(selectedTask)"
       :mode="editingTaskId ? 'edit' : 'details'"
       :task="selectedTask"

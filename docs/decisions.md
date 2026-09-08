@@ -1,5 +1,24 @@
 # Architectural Decisions
 
+## ADR-085: Keep Task Resources Independently Owned and Details Explicitly Formatted
+
+**Date:** 2026-09-08
+**Decision:** Store resource links as separate task-owned rows with authenticated creator attribution, rather than replacing an embedded array when someone edits a task. Assigned volunteers may manage their own links; organizer task-edit authorization controls management of all links. Enforce the 20-resource cap under a database task-row lock. Store rich-text Details as a bounded, allowlisted JSON document with an explicit `details_format` discriminator; existing records default to literal plain text. Render Vue nodes rather than arbitrary HTML and load the editor only when needed.
+**Why:** Multiple contributors must not overwrite each other’s resources or change links they do not own. An explicit format preserves old text without interpreting legacy markup as HTML, while supporting visible in-place formatting.
+**Tradeoffs:** Two additive database migrations are required. Formatting is deliberately limited, and larger resource collections should use a shared folder link. Resource ownership does not grant task-detail editing rights.
+
+---
+
+## ADR-084: Spend Conference Email Quota on Decisions, Not Submission Receipts
+
+**Date:** 2026-09-07
+**Why:** Annual Conference speakers need confidence that a proposal was received, but a receipt for every proposal consumes the same constrained transactional quota needed for decisions and other event operations. A speaker may submit several proposals, making receipt volume grow faster than decision communication.
+**Decision:** Confirm successful submission in the public UI and offer a one-click path to submit another proposal while preserving the speaker identity fields. Do not send an Annual Conference proposal-receipt email. Send exactly one proposal-scoped decision email after acceptance or rejection, store its intent with the irreversible decision, retry transient failures on the existing Worker schedule with bounded backoff and a stable provider idempotency key, and reconcile signed Resend delivery events. Atomically claim each attempt against its idempotency key and attempt count; address correction and accepted-link replacement refuse an in-flight claim and invalidate stale candidates. Keep those recovery actions separate and confirmed; routine acceptance retries retain the same private link.
+**Tradeoffs:** Speakers do not receive an inbox receipt and must rely on the success page at submission time. In return, quota is reserved for actionable messages, duplicate decision sends are constrained, and organizers can see and recover delivery failures without changing another proposal from the same speaker.
+**Revisit when:** Transactional quota is no longer constrained, speakers gain accounts with a proposal dashboard, or correspondence moves into a generalized outbox.
+
+---
+
 ## ADR-083: Ratchet the Hono Composition Root into Cohesive Route Modules
 
 **Date:** 2026-09-07
@@ -14,7 +33,7 @@
 
 **Date:** 2026-09-07
 **Why:** The monthly CFP is an event/archive workflow with talk-or-product-demo compatibility fields and a short one-time completion form. Annual Conference review needs complete talk proposals, independent decisions when one speaker submits several sessions, and an editable logistics phase after acceptance. Reusing the monthly shape made proposal review incomplete and coupled acceptance to a second proposal-like submission.
-**Decision:** Keep Annual Conference proposals in dedicated relational tables and remove the inherited `kind`, `github_username`, and proposal-time resource columns. Normalize speaker identity and bio by email in `annual_conference_speaker_profiles`; store fixed track, fixed session type, a speaker bio with a recommended 150-word maximum, a 250-word abstract, and three to five learning outcomes on every proposal. An atomic compare-and-set records acceptance and creates one proposal-bound programme session plus one hash-only private workspace capability, then the application immediately attempts the system-owned Resend message. The workspace updates logistics in place until an edition-level organizer deadline. Incomplete acceptance delivery is retryable through an atomic bearer-link rotation that preserves the accepted proposal and session.
+**Decision:** Keep Annual Conference proposals in dedicated relational tables and remove the inherited `kind`, `github_username`, and proposal-time resource columns. Normalize speaker identity and bio by email in `annual_conference_speaker_profiles`; store fixed track, fixed session type, a speaker bio with a recommended 150-word maximum, a 250-word abstract, and three to five learning outcomes on every proposal. An atomic compare-and-set records acceptance and creates one proposal-bound programme session plus one hash-only private workspace capability, then the application immediately attempts the system-owned Resend message. The workspace updates logistics in place until an edition-level organizer deadline. Incomplete acceptance delivery retries the deterministic current capability; only an explicit confirmed replacement rotates and revokes it.
 **Tradeoffs:** The annual and monthly CFPs now have deliberately different validation, persistence, and follow-up code. Email acceptance is provider-observable but inbox delivery still requires provider webhooks. Speaker profiles retain the latest submitted name and bio for an email while each proposal keeps its own review-time copy. Already accepted legacy proposals are preserved as sessions; incomplete undecided legacy rows remain visible but cannot be newly accepted.
 **Revisit when:** Co-speakers are required, accepted-session scheduling needs rooms and time slots, speaker-authenticated accounts should replace bearer workspaces, or decision emails move into a generalized transactional outbox.
 

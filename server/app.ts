@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
+import { validateTaskDetailsInput } from '@/lib/annual-conference-task-details';
 import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { renderAppBootMarkup } from '@/lib/app-boot';
@@ -38,6 +39,7 @@ import {
   getEventRegistrations,
   getPendingRegistrationEmails,
   getRegistrationCampaign,
+  getRegistrationCampaigns,
   registerForEvent,
   undoCheckInRegistration,
   updateRegistrationCampaign,
@@ -157,7 +159,7 @@ import {
   updateEventSubmissionReplySlackStatus,
   updateEventSubmissionEmailDelivery,
 } from '@/lib/supabase/event-submissions';
-import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackHubData, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
+import { createSupabaseEventFeedbackSubmission, createSupabaseFeedbackCampaign, deleteSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignByEvent, getSupabaseFeedbackCampaignsByEventIds, getSupabaseFeedbackHubData, getSupabaseFeedbackSubmissionsByEvent, updateSupabaseFeedbackCampaign } from '@/lib/supabase/feedback-campaigns';
 import {
   removeMeetupMedia,
   uploadEventSubmissionCover,
@@ -242,6 +244,7 @@ import {
   requireAnnualConferenceCapability,
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
+import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 
 const app = new Hono<AppBindings>();
 
@@ -365,6 +368,7 @@ for (const publicWritePath of [
   // Verify the webhook signature only after buffering the raw body; keep this
   // unauthenticated path on the same narrow ceiling as public form posts.
   '/api/webhooks/resend/inbound',
+  '/api/webhooks/resend',
 ]) {
   app.use(publicWritePath, bodyLimitForPayloadMethods(PUBLIC_JSON_BODY_MAX_BYTES));
 }
@@ -870,7 +874,8 @@ const eventFeedbackSubmissionSchema = z.object({
 }).strict();
 const annualConferenceTaskCreateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160),
-  details: z.string().trim().max(2000).nullable().optional(),
+  details: z.string().trim().max(30000).nullable().optional(),
+  details_format: z.enum(['plain_text', 'rich_text']).optional(),
   phase_id: z.string().uuid().nullable().optional(),
   workstream: z.enum(ANNUAL_CONFERENCE_WORKSTREAMS),
   accountable_owner: z.string().trim().min(1, 'An accountable owner is required.').max(120),
@@ -879,10 +884,11 @@ const annualConferenceTaskCreateSchema = z.object({
   target_date: z.string().date().nullable().optional(),
   status: z.enum(ANNUAL_CONFERENCE_TASK_STATUSES).optional().default('not_started'),
   dependency_task_ids: z.array(z.string().uuid()).max(30).optional().default([]),
-}).strict();
+}).strict().refine(validateTaskDetailsInput, { message: 'Provide valid task details within 2,000 characters.', path: ['details'] });
 const annualConferenceTaskUpdateSchema = z.object({
   title: z.string().trim().min(1, 'Task title is required.').max(160).optional(),
-  details: z.string().trim().max(2000).nullable().optional(),
+  details: z.string().trim().max(30000).nullable().optional(),
+  details_format: z.enum(['plain_text', 'rich_text']).optional(),
   phase_id: z.string().uuid().nullable().optional(),
   workstream: z.enum(ANNUAL_CONFERENCE_WORKSTREAMS).optional(),
   accountable_owner: z.string().trim().min(1).max(120).nullable().optional(),
@@ -893,7 +899,7 @@ const annualConferenceTaskUpdateSchema = z.object({
   dependency_task_ids: z.array(z.string().uuid()).max(30).optional(),
 }).strict().refine((value) => Object.keys(value).length > 0, {
   message: 'Provide at least one task change.',
-});
+}).refine(validateTaskDetailsInput, { message: 'Provide valid task details within 2,000 characters.', path: ['details'] });
 const annualConferenceEditionCreateSchema = z.object({
   year: z.number().int().min(2000).max(2200),
   name: z.string().trim().min(1).max(160),
@@ -1133,6 +1139,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     ))
     || (method === 'POST' && (
       path === '/api/webhooks/resend/inbound'
+      || path === '/api/webhooks/resend'
       || path === '/api/public/email-preflight'
       || path === '/api/cfp'
       || path === '/api/feedback'
@@ -1149,6 +1156,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
       || path === '/api/internal/event-page-monitors/check-due'
       || path === '/api/internal/speaker-rejection-emails/retry'
       || path === '/api/internal/selected-speaker-emails/retry'
+      || path === '/api/internal/annual-conference-speaker-emails/retry'
       || path === '/api/internal/event-blasts/prepare'
     ))
     || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
@@ -1260,16 +1268,13 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
     getAllEvents(c),
     createAnnualConferenceRepository(c).listEditions(),
   ]);
+  const eventIds = events.map((event) => event.id);
   const [registrationCampaigns, feedbackCampaigns] = await Promise.all([
-    Promise.all(events.map(async (event) => ({
-    event,
-    campaign: await getRegistrationCampaign(event.id, c),
-    }))),
-    Promise.all(events.map(async (event) => ({
-      event,
-      campaign: await getFeedbackCampaignByEventStore(event.id, c),
-    }))),
+    getRegistrationCampaigns(eventIds, c),
+    getFeedbackCampaignsByEventStore(eventIds, c),
   ]);
+  const registrationCampaignByEventId = new Map(registrationCampaigns.map((campaign) => [campaign.event_id, campaign]));
+  const feedbackCampaignByEventId = new Map(feedbackCampaigns.map((campaign) => [campaign.event_id, campaign]));
   return {
     events,
     editions,
@@ -1278,12 +1283,15 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
       ...events
         .filter((event) => Boolean(event.slug) && event.series_type === 'monthly' && event.status === 'cfp_open')
         .map((event) => ({ destination: 'monthly_cfp' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/cfp/${event.slug}` })),
-      ...registrationCampaigns
-        .filter(({ event, campaign }) => Boolean(event.slug) && campaign?.status === 'open')
-        .map(({ event }) => ({ destination: 'event_registration' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/r/${event.slug}` })),
-      ...feedbackCampaigns
-        .filter(({ event, campaign }) => campaign && isFeedbackCampaignOpen(event, campaign))
-        .map(({ event }) => ({ destination: 'event_feedback' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` })),
+      ...events
+        .filter((event) => Boolean(event.slug) && registrationCampaignByEventId.get(event.id)?.status === 'open')
+        .map((event) => ({ destination: 'event_registration' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/r/${event.slug}` })),
+      ...events
+        .filter((event) => {
+          const campaign = feedbackCampaignByEventId.get(event.id);
+          return campaign ? isFeedbackCampaignOpen(event, campaign) : false;
+        })
+        .map((event) => ({ destination: 'event_feedback' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` })),
       ...editions
         .filter((edition) => edition.speaker_call_status === 'open')
         .map((edition) => ({ destination: 'conference_cfp' as const, eventId: null, conferenceEditionId: edition.id, destinationPath: `/speak/c/${edition.year}` })),
@@ -1467,6 +1475,13 @@ async function getFeedbackCampaignByEventStore(eventId: string, c?: Context): Pr
   const campaign = await getSupabaseFeedbackCampaignByEvent(eventId, c);
   if (campaign !== null) return campaign;
   return getFeedbackCampaignByEvent(eventId);
+}
+
+async function getFeedbackCampaignsByEventStore(eventIds: readonly string[], c?: Context): Promise<FeedbackCampaign[]> {
+  const campaigns = await getSupabaseFeedbackCampaignsByEventIds(eventIds, c);
+  if (campaigns !== null) return campaigns;
+  const eventIdSet = new Set(eventIds);
+  return (await getAllFeedbackCampaigns()).filter((campaign) => eventIdSet.has(campaign.event_id));
 }
 
 async function getOrCreateFeedbackCampaignStore(eventId: string, c?: Context): Promise<FeedbackCampaign> {
@@ -4675,6 +4690,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 });
 
 registerAnnualConferenceSpeakerRoutes(app);
+registerAnnualConferenceTaskResourceRoutes(app);
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);

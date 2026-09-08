@@ -16,8 +16,13 @@ import type { SpeakerSubmissionStatus } from '@/types';
 import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-speakers';
 
 type ConferenceSubmission = AnnualConferenceSpeakerSubmission & {
-  decision_email_status?: 'pending' | 'accepted' | 'failed' | null;
+  decision_email_status?: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
+  decision_email_recipient?: string | null;
   decision_email_last_attempt_at?: string | null;
+  decision_email_delivered_at?: string | null;
+  decision_email_last_error?: string | null;
+  decision_email_attempt_count?: number;
+  decision_email_retryable?: boolean;
   logistics?: {
     slides_url: string | null;
     availability_confirmed: boolean | null;
@@ -34,6 +39,7 @@ type ConferenceSpeakersResponse = {
   edition: { year: number; label: string; name: string };
   call: { open: boolean; public_path: string; logistics_deadline: string | null };
   permissions: { can_manage: boolean };
+  email_delivery: { configured: boolean; workspace_links_configured: boolean };
   counts: Record<SpeakerSubmissionStatus, number>;
   submissions: ConferenceSubmission[];
 };
@@ -46,6 +52,7 @@ const closeCallConfirmationOpen = ref(false);
 const deadlineInput = ref('');
 const emailRecoveryClock = ref(Date.now());
 const selectedSubmissionId = ref<string | null>(null);
+const replacementSubmissionId = ref<string | null>(null);
 const statusFilter = ref<'all' | 'submitted' | 'selected' | 'not_selected'>('submitted');
 const page = ref(1);
 const PAGE_SIZE = 6;
@@ -66,10 +73,21 @@ const pageStart = computed(() => visibleSubmissions.value.length ? (page.value -
 const pageEnd = computed(() => Math.min(visibleSubmissions.value.length, page.value * PAGE_SIZE));
 const paginatedSubmissions = computed(() => visibleSubmissions.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE));
 const canManage = computed(() => speakersQuery.data.value?.permissions.can_manage === true);
+const approvalBlockedReason = computed(() => {
+  const data = speakersQuery.data.value;
+  if (!data?.email_delivery.configured) return 'Configure speaker decision email before accepting or rejecting proposals.';
+  if (!data.email_delivery.workspace_links_configured) return 'Configure speaker workspace link signing before accepting proposals.';
+  if (!data.call.logistics_deadline || new Date(data.call.logistics_deadline).getTime() <= Date.now()) return 'Set a future speaker logistics deadline before accepting proposals.';
+  return null;
+});
 const selectedSubmission = computed(() => submissions.value.find((submission) => submission.id === selectedSubmissionId.value) ?? null);
 const canRecoverSelectedWorkspaceEmail = computed(() => {
   const submission = selectedSubmission.value;
-  if (!submission || submission.status !== 'selected' || !submission.logistics || submission.decision_email_status === 'accepted') return false;
+  if (!submission || submission.status !== 'selected' || !submission.logistics || ['accepted', 'delivered'].includes(submission.decision_email_status ?? '')) return false;
+  if (!['pending', 'failed'].includes(submission.decision_email_status ?? '')) return false;
+  if (submission.decision_email_status === 'failed'
+    && submission.decision_email_retryable === false
+    && submission.decision_email_last_error !== 'Automatic email retries were exhausted. Review the recipient and retry manually.') return false;
   if (submission.decision_email_status !== 'pending' || !submission.decision_email_last_attempt_at) return true;
   return new Date(submission.decision_email_last_attempt_at).getTime() <= emailRecoveryClock.value - 5 * 60 * 1000;
 });
@@ -123,7 +141,9 @@ const decisionMutation = useMutation({
       ? result.decision_email.status === 'accepted'
         ? 'Proposal accepted and the private workspace was emailed to the speaker.'
         : 'Proposal accepted, but the workspace email needs attention.'
-      : 'Proposal marked as not selected.');
+      : result.decision_email.status === 'accepted'
+        ? 'Proposal rejected and the decision email was sent.'
+        : 'Proposal rejected, but the decision email needs attention.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the proposal.'),
 });
@@ -146,9 +166,40 @@ const resendWorkspaceEmailMutation = useMutation({
   }),
   onSuccess: async (result) => {
     await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
-    notify.success(result.decision_email.status === 'accepted' ? 'A fresh private workspace link was emailed.' : 'The email provider still did not accept the message.');
+    notify.success(result.decision_email.status === 'accepted' ? 'The private workspace email was retried without changing its link.' : 'The email provider still did not accept the message.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to resend the workspace email.'),
+});
+const retryDecisionEmailMutation = useMutation({
+  mutationFn: (submissionId: string) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/resend-decision-email`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+  }),
+  onSuccess: async (result) => {
+    await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
+    notify.success(result.decision_email.status === 'accepted' ? 'The decision email was accepted by the provider.' : 'The decision email still needs attention.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to retry the decision email.'),
+});
+const correctDecisionEmailMutation = useMutation({
+  mutationFn: ({ submissionId, email }: { submissionId: string; email: string }) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/decision-email-recipient`, {
+    method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speaker_email: email, confirmed: true }),
+  }),
+  onSuccess: async (result) => {
+    await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
+    notify.success(result.decision_email.status === 'accepted' ? 'The corrected address was saved and emailed.' : 'The address was saved, but delivery still needs attention.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to correct the delivery address.'),
+});
+const replaceWorkspaceEmailMutation = useMutation({
+  mutationFn: (submissionId: string) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${submissionId}/replace-workspace-email`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
+  }),
+  onSuccess: async (result) => {
+    replacementSubmissionId.value = null;
+    await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
+    notify.success(result.decision_email.status === 'accepted' ? 'The old link was revoked and a replacement was emailed.' : 'The old link was revoked, but the replacement email needs attention.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to replace the private link.'),
 });
 
 async function copyPublicLink() {
@@ -305,12 +356,17 @@ function toLocalDateTimeInput(value: string): string {
           :open="Boolean(selectedSubmission)"
           :submission="selectedSubmission"
           :can-manage="canManage"
-          :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value"
+          :submitting="decisionMutation.isPending.value || resendWorkspaceEmailMutation.isPending.value || retryDecisionEmailMutation.isPending.value || correctDecisionEmailMutation.isPending.value || replaceWorkspaceEmailMutation.isPending.value"
           :can-resend-workspace-email="canRecoverSelectedWorkspaceEmail"
+          :approval-blocked-reason="approvalBlockedReason"
+          :decision-email-configured="speakersQuery.data.value.email_delivery.configured"
           @close="selectedSubmissionId = null"
           @approve="decisionMutation.mutate({ id: $event.id, status: 'selected' })"
           @reject="decisionMutation.mutate({ id: $event.id, status: 'not_selected' })"
           @resend-workspace-email="resendWorkspaceEmailMutation.mutate($event.id)"
+          @retry-decision-email="retryDecisionEmailMutation.mutate($event.id)"
+          @correct-decision-email="(submission, email) => correctDecisionEmailMutation.mutate({ submissionId: submission.id, email })"
+          @replace-workspace-email="replacementSubmissionId = $event.id"
         />
 
         <ConfirmDialog
@@ -324,6 +380,18 @@ function toLocalDateTimeInput(value: string): string {
           danger
           @cancel="closeCallConfirmationOpen = false"
           @confirm="callMutation.mutate(false)"
+        />
+        <ConfirmDialog
+          :open="Boolean(replacementSubmissionId)"
+          title="Replace this private workspace link?"
+          message="The current link will stop working immediately. A new private link will be emailed to the saved delivery address."
+          confirm-label="Replace and email"
+          busy-label="Replacing…"
+          cancel-label="Keep current link"
+          :busy="replaceWorkspaceEmailMutation.isPending.value"
+          danger
+          @cancel="replacementSubmissionId = null"
+          @confirm="replacementSubmissionId && replaceWorkspaceEmailMutation.mutate(replacementSubmissionId)"
         />
       </template>
     </div>
