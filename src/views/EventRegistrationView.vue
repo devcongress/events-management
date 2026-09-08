@@ -16,6 +16,7 @@ import {
   submitEventRegistration,
 } from '@/src/lib/api';
 import { versionPublicMeetupMediaUrl } from '@/src/lib/public-meetup-media';
+import { formatPublicEventSchedule } from '@/src/lib/event-schedule';
 
 const route = useRoute();
 const eventKey = computed(() => String(route.params.eventKey ?? route.params.eventId ?? ''));
@@ -57,18 +58,6 @@ const canSubmit = computed(() => (
   && (!turnstileActive || turnstileToken.value.length > 0)
   && !submitting.value
 ));
-
-function formatEventDate(value: string): string {
-  return new Intl.DateTimeFormat('en-GH', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZone: 'Africa/Accra',
-  }).format(new Date(value));
-}
 
 function unavailableMessage(reason: string | null | undefined): string {
   if (reason === 'not_open') return 'Registration has not opened yet.';
@@ -147,7 +136,7 @@ async function submitRegistration() {
             <dl class="registration-event-meta">
               <div>
                 <dt>When</dt>
-                <dd>{{ formatEventDate(registration.event.event_date) }}</dd>
+                <dd>{{ formatPublicEventSchedule(registration.event.event_date, registration.event.end_date) }}</dd>
               </div>
               <div>
                 <dt>Where</dt>

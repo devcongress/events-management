@@ -140,7 +140,11 @@ describe('private beta event visibility', () => {
     expect(payload.data.filter((item) => item.source === 'public_submission').map((item) => item.cover_url))
       .toEqual([EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER, EVENT_ANNOUNCEMENT_FALLBACK_COVER]);
     expect(payload.data.find((item) => item.id === 'community-beta')).toMatchObject({
-      primary_action: null,
+      primary_action: {
+        kind: 'slack_profile',
+        label: 'Message @aberkowitz',
+        url: 'slack://user?team=T0A0T7A5Q&id=U3LB1TNLS',
+      },
     });
   });
 

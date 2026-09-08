@@ -33,6 +33,11 @@ import { safeGoogleMapsUrl } from '@/lib/location-links';
 import { notify } from '@/src/lib/notify';
 import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
 import {
+  eventEndDateError,
+  MONTHLY_EVENT_DEFAULT_END_TIME,
+  MONTHLY_EVENT_DEFAULT_START_TIME,
+} from '@/src/lib/event-form';
+import {
   ALL_REGISTRATION_INITIALS,
   registrationInitials,
 } from '@/src/lib/registration-checkin';
@@ -388,6 +393,10 @@ const changedSettingFields = computed<RegistrationSettingsField[]>(() => (
 ));
 const hasSettingsChanges = computed(() => changedSettingFields.value.length > 0);
 const currentPageDetails = computed<RegistrationPageDetailsDraft>(() => ({ ...pageDetails }));
+const pageDetailsEndDateError = computed(() => eventEndDateError(
+  pageDetails.event_date,
+  pageDetails.end_date,
+));
 const hasPageDetailsChanges = computed(() => (
   Boolean(savedPageDetails.value)
   && JSON.stringify(savedPageDetails.value) !== JSON.stringify(currentPageDetails.value)
@@ -396,6 +405,7 @@ const pageDetailsValid = computed(() => Boolean(
   pageDetails.name.trim()
   && pageDetails.description.trim()
   && pageDetails.event_date
+  && !pageDetailsEndDateError.value
   && (
     pageDetails.location_mode === 'maps'
       ? safeGoogleMapsUrl(pageDetails.location_url)
@@ -1481,7 +1491,7 @@ async function retryEmails() {
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="editorial-label">Registration page details</p>
-                  <p class="mt-1 text-sm leading-6 text-dc-gray">These details appear on the public registration ticket.</p>
+                  <p class="mt-1 text-sm leading-6 text-dc-gray">These details appear on the public registration ticket. Changing either event time updates the public schedule.</p>
                 </div>
                 <RouterLink
                   :to="{ path: adminPath(`events/${eventId}`), hash: '#event-media' }"
@@ -1500,8 +1510,20 @@ async function retryEmails() {
                   <textarea id="registration-event-description" v-model="pageDetails.description" class="editorial-input min-h-28 resize-y" maxlength="10000" required />
                   <p class="mt-2 text-xs leading-5 text-dc-gray">Used on the event-details view. The public registration form uses its separate introduction below.</p>
                 </div>
-                <AppDatePicker v-model="pageDetails.event_date" label="Starts at" mode="datetime" required />
-                <AppDatePicker v-model="pageDetails.end_date" label="Ends at" mode="datetime" />
+                <AppDatePicker
+                  v-model="pageDetails.event_date"
+                  label="Starts at"
+                  mode="datetime"
+                  :default-time="data?.event.series_type === 'monthly' ? MONTHLY_EVENT_DEFAULT_START_TIME : undefined"
+                  required
+                />
+                <AppDatePicker
+                  v-model="pageDetails.end_date"
+                  label="Ends at"
+                  mode="datetime"
+                  :default-time="data?.event.series_type === 'monthly' ? MONTHLY_EVENT_DEFAULT_END_TIME : undefined"
+                  :error="pageDetailsEndDateError ?? undefined"
+                />
                 <AppDropdown v-model="pageDetails.location_mode" label="Location details" :options="pageLocationOptions" />
                 <GhanaVenueAutocomplete
                   v-if="pageDetails.location_mode === 'venue'"

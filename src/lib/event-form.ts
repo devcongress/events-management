@@ -10,6 +10,8 @@ const OPTIONAL_COVER_MESSAGE = 'Use a full URL or a site-local path that starts 
 const OPTIONAL_MAP_MESSAGE = 'Add an HTTPS Google Maps link for the Ghana venue.';
 const OPTIONAL_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
+export const MONTHLY_EVENT_DEFAULT_START_TIME = '09:00';
+export const MONTHLY_EVENT_DEFAULT_END_TIME = '16:00';
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
@@ -47,12 +49,32 @@ function toLocalDateTimeValue(timestamp: number): string {
   return new Date(timestamp).toISOString().slice(0, 16);
 }
 
-export function syncEventEndDate(previousStart: string, nextStart: string, currentEnd: string): string {
+export function syncEventEndDate(
+  previousStart: string,
+  nextStart: string,
+  currentEnd: string,
+  defaultEndTime?: string,
+): string {
   const nextStartTimestamp = eventDateTimestamp(nextStart);
   if (nextStartTimestamp === null) return currentEnd;
 
+  if (!currentEnd && /^\d{2}:\d{2}$/.test(defaultEndTime ?? '')) {
+    const defaultEnd = `${nextStart.slice(0, 10)}T${defaultEndTime}`;
+    const defaultEndTimestamp = eventDateTimestamp(defaultEnd);
+    if (defaultEndTimestamp !== null && defaultEndTimestamp > nextStartTimestamp) {
+      return defaultEnd;
+    }
+  }
+
   const previousStartTimestamp = eventDateTimestamp(previousStart);
   const currentEndTimestamp = eventDateTimestamp(currentEnd);
+  if (
+    previousStartTimestamp === null
+    && currentEndTimestamp !== null
+    && currentEndTimestamp > nextStartTimestamp
+  ) {
+    return currentEnd;
+  }
   const currentDuration = previousStartTimestamp !== null && currentEndTimestamp !== null
     ? currentEndTimestamp - previousStartTimestamp
     : DEFAULT_EVENT_DURATION_MS;
