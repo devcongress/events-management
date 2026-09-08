@@ -62,10 +62,13 @@ export async function createMockRegistrationCampaign(input: {
   return campaign;
 }
 
+export async function getAllMockRegistrationCampaigns(): Promise<EventRegistrationCampaign[]> {
+  return (await readData<EventRegistrationCampaign>(CAMPAIGNS_FILE))
+    .map((campaign) => ({ ...campaign, blast_transactional_reserve: campaign.blast_transactional_reserve ?? null }));
+}
+
 export async function getMockRegistrationCampaign(eventId: string): Promise<EventRegistrationCampaign | undefined> {
-  const campaign = (await readData<EventRegistrationCampaign>(CAMPAIGNS_FILE))
-    .find((item) => item.event_id === eventId);
-  return campaign ? { ...campaign, blast_transactional_reserve: campaign.blast_transactional_reserve ?? null } : undefined;
+  return (await getAllMockRegistrationCampaigns()).find((campaign) => campaign.event_id === eventId);
 }
 
 export async function updateMockRegistrationCampaign(

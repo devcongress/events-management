@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import type { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
@@ -11,6 +12,9 @@ import {
 } from '@/lib/annual-conference-cfp';
 import { hasAnnualConferenceCapability, effectiveAnnualConferenceCapabilities } from '@/lib/annual-conference-capabilities';
 import {
+  annualConferenceSpeakerWorkspaceToken,
+  annualConferenceSpeakerWorkspaceTokenMatches,
+  applyAnnualConferenceDecisionEmailProviderEvent,
   acceptAnnualConferenceSpeakerSubmission,
   createAnnualConferenceSpeakerSubmission,
   getAnnualConferenceSession,
@@ -18,10 +22,13 @@ import {
   getAnnualConferenceSpeakerIntakeLinkById,
   getAnnualConferenceSpeakerSubmission,
   getAnnualConferenceSpeakerSubmissions,
+  insertAnnualConferenceEmailWebhookEvent,
   rejectAnnualConferenceSpeakerSubmission,
+  replaceAnnualConferenceDecisionEmailRecipient,
   rotateAnnualConferenceSpeakerWorkspace,
   updateAnnualConferenceSessionLogistics,
   updateAnnualConferenceSpeakerIntakeDeadlines,
+  updateAnnualConferenceSpeakerSubmission,
   type AnnualConferenceSpeakerSubmission,
 } from '@/lib/annual-conference-speakers';
 import { getAnnualConferenceAccessGrants } from '@/lib/supabase/annual-conference-access-grants';
@@ -46,10 +53,22 @@ import {
 import { acquireSpeakerIntakeSubmissionLock } from '@/server/http/speaker-intake-lock';
 import { safeErrorName } from '@/server/security-log';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
-import { deliverAnnualConferenceWorkspaceEmail } from './annual-conference-speakers/delivery';
+import { secureSharedSecret } from '@/lib/security/shared-secret';
+import { verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
 import {
+  annualConferenceDecisionEmailCanBeRetriedManually,
+  annualConferenceDecisionEmailCooldownElapsed,
+  annualConferenceEmailConfigured,
+  annualConferenceWorkspaceEmailConfigured,
+  deliverAnnualConferenceDecisionEmail,
+  retryAnnualConferenceDecisionEmails,
+} from './annual-conference-speakers/delivery';
+import {
+  annualConferenceResendWebhookSchema,
   conferenceSpeakerDeadlineSchema,
+  conferenceSpeakerEmailRecipientSchema,
   conferenceSpeakerLogisticsSchema,
+  conferenceSpeakerReplacementEmailSchema,
   conferenceSpeakerSubmissionCreateSchema,
   conferenceSpeakerSubmissionDecisionSchema,
 } from './annual-conference-speakers/schemas';
@@ -64,6 +83,28 @@ function speakerSubmissionCounts(submissions: Array<Pick<AnnualConferenceSpeaker
     not_selected: 0,
     withdrawn: 0,
   });
+}
+
+function annualConferenceDeadline(edition: { speaker_logistics_deadline?: string | null }): string | null {
+  return edition.speaker_logistics_deadline ?? null;
+}
+
+function annualConferenceWebhookOutcome(type: string, eventAt: string) {
+  if (type === 'email.delivered') return { status: 'delivered' as const, deliveredAt: eventAt, retryable: false, lastError: null };
+  if (type === 'email.delivery_delayed') return { status: 'delayed' as const, retryable: false, lastError: 'The provider reported a delivery delay.' };
+  if (type === 'email.bounced') return { status: 'bounced' as const, retryable: false, lastError: 'The message bounced. Correct the delivery address before sending again.' };
+  if (type === 'email.suppressed') return { status: 'suppressed' as const, retryable: false, lastError: 'The provider suppressed this recipient. Correct the address or resolve the suppression before sending again.' };
+  if (type === 'email.complained') return { status: 'complained' as const, retryable: false, lastError: 'The recipient reported this message. Do not resend without their consent.' };
+  return { status: 'failed' as const, retryable: false, lastError: 'The provider reported a permanent delivery failure. Correct the address before sending again.' };
+}
+
+function scheduledJobAuthorized(c: Context): boolean {
+  const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+  const received = c.req.header('x-scheduled-job-secret')?.trim();
+  if (!expected || !received) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(received);
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): void {
@@ -99,8 +140,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         ]);
         return {
           ...submission,
-          decision_email_status: decisionLink?.email_status ?? null,
-          decision_email_last_attempt_at: decisionLink?.email_last_attempt_at ?? null,
+          decision_email_status: submission.decision_email_status ?? decisionLink?.email_status ?? null,
+          decision_email_recipient: submission.decision_email_recipient ?? decisionLink?.email_recipient ?? submission.speaker_email,
+          decision_email_last_attempt_at: submission.decision_email_last_attempt_at ?? decisionLink?.email_last_attempt_at ?? null,
+          decision_email_sent_at: submission.decision_email_sent_at ?? decisionLink?.email_sent_at ?? null,
+          decision_email_delivered_at: submission.decision_email_delivered_at ?? decisionLink?.email_delivered_at ?? null,
+          decision_email_last_error: submission.decision_email_last_error ?? decisionLink?.email_last_error ?? null,
+          decision_email_attempt_count: submission.decision_email_attempt_count ?? decisionLink?.email_attempt_count ?? 0,
+          decision_email_retryable: submission.decision_email_retryable ?? decisionLink?.email_retryable ?? true,
           logistics: acceptedSession ? {
             slides_url: acceptedSession.slides_url,
             availability_confirmed: acceptedSession.availability_confirmed,
@@ -121,6 +168,10 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           logistics_deadline: edition.speaker_logistics_deadline ?? null,
         },
         permissions: { can_manage: hasAnnualConferenceCapability(capabilities, 'speakers.manage') },
+        email_delivery: {
+          configured: annualConferenceEmailConfigured(c),
+          workspace_links_configured: annualConferenceWorkspaceEmailConfigured(c),
+        },
         counts: speakerSubmissionCounts(submissions),
         submissions: submissionDetails,
       });
@@ -249,22 +300,23 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         }, 409);
       }
 
+      if (!annualConferenceEmailConfigured(c)) {
+        return c.json({ error: 'Speaker decision email is not configured. The proposal was not decided.' }, 503);
+      }
+
       if (parsed.data.status === 'selected') {
-        const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
-        const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
-        if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
-          return c.json({
-            error: 'Speaker email sending is not configured. The proposal was not accepted.',
-          }, 503);
+        const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+        if (!tokenSecret) {
+          return c.json({ error: 'Speaker workspace link signing is not configured. The proposal was not accepted.' }, 503);
         }
-        const deadline = edition.speaker_logistics_deadline
-          ?? new Date(`${edition.provisional_date ?? `${edition.year}-12-19`}T23:59:59.000Z`).toISOString();
-        if (new Date(deadline).getTime() <= Date.now()) {
+        const deadline = annualConferenceDeadline(edition);
+        if (!deadline || new Date(deadline).getTime() <= Date.now()) {
           return c.json({ error: 'Set a future speaker logistics deadline before accepting this proposal.' }, 409);
         }
         const accepted = await acceptAnnualConferenceSpeakerSubmission({
           submission: existing,
           deadline,
+          tokenSecret,
           internalNote: parsed.data.internal_note || null,
         });
         try {
@@ -285,12 +337,11 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             error_name: safeErrorName(auditError),
           }));
         }
-        const emailStatus = await deliverAnnualConferenceWorkspaceEmail(c, {
+        const emailStatus = await deliverAnnualConferenceDecisionEmail(c, {
           editionLabel: edition.label,
           editionYear: edition.year,
           deadline,
           submission: accepted.submission,
-          linkId: accepted.link.id,
           token: accepted.token,
         });
         return c.json({
@@ -318,7 +369,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           error_name: safeErrorName(auditError),
         }));
       }
-      return c.json({ submission, token: null, decision_email: { status: null } });
+      const emailStatus = await deliverAnnualConferenceDecisionEmail(c, {
+        editionLabel: edition.label,
+        editionYear: edition.year,
+        deadline: null,
+        submission,
+      });
+      return c.json({ submission, token: null, decision_email: { status: emailStatus } });
     } catch (error) {
       return c.json({
         error: error instanceof Error ? error.message : 'Unable to update conference proposal.',
@@ -336,9 +393,8 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     const year = Number(yearParam);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
     if (capabilityError) return capabilityError;
-    const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
-    const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
-    if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
+    const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+    if (!annualConferenceEmailConfigured(c) || !tokenSecret) {
       return c.json({ error: 'Speaker email sending is not configured.' }, 503);
     }
 
@@ -360,7 +416,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       const currentLink = submission.selected_intake_link_id
         ? await getAnnualConferenceSpeakerIntakeLinkById(submission.selected_intake_link_id)
         : undefined;
-      if (currentLink?.email_status === 'accepted') {
+      if (!['pending', 'failed'].includes(submission.decision_email_status ?? '')) {
+        return c.json({ error: 'This delivery state requires an address correction, not a routine retry.' }, 409);
+      }
+      if (submission.decision_email_status === 'failed' && !annualConferenceDecisionEmailCanBeRetriedManually(submission)) {
+        return c.json({ error: 'The provider permanently failed this delivery. Correct the address before sending again.' }, 409);
+      }
+      if (currentLink?.email_status === 'accepted' || currentLink?.email_status === 'delivered') {
         return c.json({ error: 'The workspace email was already accepted by the provider.' }, 409);
       }
       if (
@@ -370,19 +432,26 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       ) {
         return c.json({ error: 'The workspace email is still being sent. Try again in a few minutes.' }, 409);
       }
-      const deadline = edition.speaker_logistics_deadline
-        ?? new Date(`${edition.provisional_date ?? `${edition.year}-12-19`}T23:59:59.000Z`).toISOString();
-      if (new Date(deadline).getTime() <= Date.now()) {
+      const deadline = annualConferenceDeadline(edition);
+      if (!deadline || new Date(deadline).getTime() <= Date.now()) {
         return c.json({ error: 'The speaker logistics deadline has passed.' }, 409);
       }
-      const rotated = await rotateAnnualConferenceSpeakerWorkspace({ submission, deadline });
-      const emailStatus = await deliverAnnualConferenceWorkspaceEmail(c, {
+      let deliverySubmission = submission;
+      let deliveryToken: string;
+      if (currentLink && annualConferenceSpeakerWorkspaceTokenMatches(currentLink, tokenSecret)) {
+        deliveryToken = annualConferenceSpeakerWorkspaceToken(currentLink.id, tokenSecret);
+      } else {
+        const rotated = await rotateAnnualConferenceSpeakerWorkspace({ submission: deliverySubmission, deadline, tokenSecret });
+        deliverySubmission = rotated.submission;
+        deliveryToken = rotated.token;
+      }
+      const emailStatus = await deliverAnnualConferenceDecisionEmail(c, {
         editionLabel: edition.label,
         editionYear: edition.year,
         deadline,
-        submission: rotated.submission,
-        linkId: rotated.link.id,
-        token: rotated.token,
+        submission: deliverySubmission,
+        token: deliveryToken,
+        manual: true,
       });
       try {
         await recordProtectedMutationAudit(c, {
@@ -408,6 +477,212 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       );
     } finally {
       releaseRotationLock();
+    }
+  });
+
+  app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/resend-decision-email', async (c) => {
+    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    if (adminError) return adminError;
+    const year = Number(c.req.param('year'));
+    if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    if (capabilityError) return capabilityError;
+    if (!annualConferenceEmailConfigured(c)) return c.json({ error: 'Speaker email sending is not configured.' }, 503);
+
+    const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-decision-email:${year}:${c.req.param('submissionId')}`);
+    try {
+      const edition = await getAnnualConferenceEditionByYear(year, c);
+      const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+      if (!edition || !submission || submission.edition_id !== edition.id || submission.status !== 'not_selected') {
+        return c.json({ error: 'Rejected conference proposal not found.' }, 404);
+      }
+      if (submission.decision_email_status !== 'failed') {
+        return c.json({ error: 'Only a failed rejection email can be retried.' }, 409);
+      }
+      if (!annualConferenceDecisionEmailCanBeRetriedManually(submission)) {
+        return c.json({ error: 'The provider permanently failed this delivery. Correct the address before sending again.' }, 409);
+      }
+      if (!annualConferenceDecisionEmailCooldownElapsed(submission)) {
+        return c.json({ error: 'The decision email is still being processed. Try again in a few minutes.' }, 409);
+      }
+      const retrySubmission = submission;
+      const status = await deliverAnnualConferenceDecisionEmail(c, {
+        editionLabel: edition.label,
+        editionYear: edition.year,
+        deadline: null,
+        submission: retrySubmission,
+        manual: true,
+      });
+      await recordProtectedMutationAudit(c, {
+        action: 'annual_conference.speaker_decision_email.retry',
+        targetType: 'annual_conference_speaker_submission',
+        targetId: submission.id,
+        metadata: { edition_year: year, email_status: status },
+      });
+      return c.json({ decision_email: { status } });
+    } catch (error) {
+      return internalErrorResponse(c, 'annual_conference_speaker_decision_email_retry_failed', error, 'Unable to retry the speaker decision email.');
+    } finally {
+      release();
+    }
+  });
+
+  app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId/decision-email-recipient', async (c) => {
+    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    if (adminError) return adminError;
+    const year = Number(c.req.param('year'));
+    const parsed = conferenceSpeakerEmailRecipientSchema.safeParse(await c.req.json().catch(() => null));
+    if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Confirm the delivery email address.' }, 400);
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    if (capabilityError) return capabilityError;
+    if (!annualConferenceEmailConfigured(c)) return c.json({ error: 'Speaker email sending is not configured.' }, 503);
+    const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
+    if (emailAssessment.status === 'invalid') return c.json(publicEmailErrorPayload(emailAssessment), 422);
+
+    const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-recipient:${year}:${c.req.param('submissionId')}`);
+    try {
+      const edition = await getAnnualConferenceEditionByYear(year, c);
+      const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+      if (!edition || !submission || submission.edition_id !== edition.id || !['selected', 'not_selected'].includes(submission.status)) {
+        return c.json({ error: 'Decided conference proposal not found.' }, 404);
+      }
+      let prepared: AnnualConferenceSpeakerSubmission;
+      let token: string | undefined;
+      let deadline: string | null = null;
+      if (submission.status === 'selected') {
+        const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+        if (!tokenSecret) return c.json({ error: 'Speaker workspace link signing is not configured.' }, 503);
+        deadline = annualConferenceDeadline(edition);
+        if (!deadline || new Date(deadline).getTime() <= Date.now()) return c.json({ error: 'Set a future speaker logistics deadline before sending a workspace email.' }, 409);
+        const rotated = await rotateAnnualConferenceSpeakerWorkspace({
+          submission,
+          deadline,
+          tokenSecret,
+          emailRecipient: emailAssessment.normalizedEmail,
+          allowAccepted: true,
+        });
+        prepared = rotated.submission;
+        token = rotated.token;
+      } else {
+        prepared = await replaceAnnualConferenceDecisionEmailRecipient({
+          submission,
+          recipient: emailAssessment.normalizedEmail,
+          idempotencyKey: `conference-speaker-rejected-${submission.id}-${crypto.randomUUID()}`,
+        });
+      }
+      const status = await deliverAnnualConferenceDecisionEmail(c, {
+        editionLabel: edition.label,
+        editionYear: edition.year,
+        deadline,
+        submission: prepared,
+        token,
+        manual: true,
+      });
+      await recordProtectedMutationAudit(c, {
+        action: 'annual_conference.speaker_decision_email.recipient_correct',
+        targetType: 'annual_conference_speaker_submission',
+        targetId: submission.id,
+        metadata: { edition_year: year, recipient_changed: true, email_status: status },
+      });
+      return c.json({ decision_email: { status, recipient: emailAssessment.normalizedEmail } });
+    } catch (error) {
+      if (error instanceof Error && (error.message.includes('still being sent') || error.message.includes('changed while the address'))) {
+        return c.json({ error: error.message }, 409);
+      }
+      return internalErrorResponse(c, 'annual_conference_speaker_recipient_correction_failed', error, 'Unable to correct and resend the speaker email.');
+    } finally {
+      release();
+    }
+  });
+
+  app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/replace-workspace-email', async (c) => {
+    const adminError = await requireAdmin(c, ['owner', 'organizer']);
+    if (adminError) return adminError;
+    const year = Number(c.req.param('year'));
+    const parsed = conferenceSpeakerReplacementEmailSchema.safeParse(await c.req.json().catch(() => null));
+    if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
+    if (!parsed.success) return c.json({ error: 'Confirm that the current private link should be replaced.' }, 400);
+    const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+    if (capabilityError) return capabilityError;
+    const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+    if (!annualConferenceEmailConfigured(c) || !tokenSecret) return c.json({ error: 'Speaker workspace email is not configured.' }, 503);
+
+    const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-workspace-replacement:${year}:${c.req.param('submissionId')}`);
+    try {
+      const edition = await getAnnualConferenceEditionByYear(year, c);
+      const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+      if (!edition || !submission || submission.edition_id !== edition.id || submission.status !== 'selected') {
+        return c.json({ error: 'Accepted conference proposal not found.' }, 404);
+      }
+      const deadline = annualConferenceDeadline(edition);
+      if (!deadline || new Date(deadline).getTime() <= Date.now()) return c.json({ error: 'Set a future speaker logistics deadline before replacing the workspace link.' }, 409);
+      const rotated = await rotateAnnualConferenceSpeakerWorkspace({ submission, deadline, tokenSecret, allowAccepted: true });
+      const status = await deliverAnnualConferenceDecisionEmail(c, {
+        editionLabel: edition.label,
+        editionYear: edition.year,
+        deadline,
+        submission: rotated.submission,
+        token: rotated.token,
+        manual: true,
+      });
+      await recordProtectedMutationAudit(c, {
+        action: 'annual_conference.speaker_workspace_email.replace',
+        targetType: 'annual_conference_speaker_submission',
+        targetId: submission.id,
+        metadata: { edition_year: year, email_status: status },
+      });
+      return c.json({ decision_email: { status } });
+    } catch (error) {
+      return internalErrorResponse(c, 'annual_conference_speaker_workspace_replacement_failed', error, 'Unable to replace the speaker workspace link.');
+    } finally {
+      release();
+    }
+  });
+
+  app.post('/api/internal/annual-conference-speaker-emails/retry', async (c) => {
+    if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+    try {
+      return c.json(await retryAnnualConferenceDecisionEmails(c));
+    } catch (error) {
+      return internalErrorResponse(c, 'annual_conference_speaker_email_scheduled_retry_failed', error, 'Unable to retry conference speaker emails.');
+    }
+  });
+
+  app.post('/api/webhooks/resend', async (c) => {
+    const secret = envValue('RESEND_WEBHOOK_SECRET', c)?.trim();
+    const rawBody = await c.req.text();
+    if (!secret || !verifyResendWebhookSignature({
+      rawBody,
+      webhookId: c.req.header('svix-id') ?? null,
+      timestamp: c.req.header('svix-timestamp') ?? null,
+      signatures: c.req.header('svix-signature') ?? null,
+      secret,
+    })) return c.json({ error: 'Invalid webhook signature.' }, 401);
+
+    const payload = (() => {
+      try { return JSON.parse(rawBody); } catch { return null; }
+    })();
+    const parsed = annualConferenceResendWebhookSchema.safeParse(payload);
+    if (!parsed.success) return c.json({ error: 'Unsupported webhook payload.' }, 400);
+    const eventId = c.req.header('svix-id')!;
+    const outcome = annualConferenceWebhookOutcome(parsed.data.type, parsed.data.created_at);
+    try {
+      const matched = await applyAnnualConferenceDecisionEmailProviderEvent({
+        providerEmailId: parsed.data.data.email_id,
+        eventAt: parsed.data.created_at,
+        ...outcome,
+      });
+      if (!matched) return c.body(null, 204);
+      await insertAnnualConferenceEmailWebhookEvent({
+        webhook_event_id: eventId,
+        provider_email_id: parsed.data.data.email_id,
+        event_type: parsed.data.type,
+        provider_created_at: parsed.data.created_at,
+      });
+      return c.body(null, 204);
+    } catch (error) {
+      return internalErrorResponse(c, 'annual_conference_speaker_email_webhook_failed', error, 'Unable to process email delivery status.');
     }
   });
 

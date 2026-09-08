@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { taskDetailsSearchText } from '@/lib/annual-conference-task-details';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
@@ -187,7 +188,7 @@ const ownerOptions = computed(() => [
 ]);
 const filteredTasks = computed(() => sortedTasks(tasks.value.filter((task) => {
   const needle = search.value.trim().toLowerCase();
-  const matchesSearch = !needle || [task.title, task.details, task.accountable_owner, ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream]]
+  const matchesSearch = !needle || [task.title, taskDetailsSearchText(task.details, task.details_format), task.accountable_owner, ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream]]
     .some((value) => value?.toLowerCase().includes(needle));
   const matchesStatus = statusFilter.value === 'all' || task.status === statusFilter.value;
   const matchesPhase = phaseFilterValue.value === 'all'
@@ -350,6 +351,7 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
     createTaskMutation.mutate({
       title: value.title,
       details: value.details ?? null,
+      details_format: value.details_format,
       phase_id: value.phase_id ?? null,
       workstream: value.workstream,
       accountable_owner: value.accountable_owner,
@@ -696,6 +698,7 @@ function openVolunteerDisplay() {
     </nav>
 
     <AnnualConferenceTaskDrawer
+      :year="year"
       :open="showCreateForm || Boolean(selectedTask)"
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"

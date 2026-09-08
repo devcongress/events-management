@@ -6,6 +6,7 @@ const OWNER_ROLES: AdminRole[] = ['owner'];
 const CONFERENCE_MEMBER_ROLES: AdminRole[] = annualConferenceRolesForAdmission('member');
 const ANNUAL_WORK_PLAN_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan$/;
 const ANNUAL_TASK_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+$/;
+const ANNUAL_TASK_RESOURCES_PATH = /^\/api\/annual-conference\/\d{4}\/work-plan\/[^/]+\/resources(?:\/[^/]+)?$/;
 const ANNUAL_CONFERENCE_DELEGATED_PATH = /^\/api\/annual-conference\/\d{4}\/(?:work-plan|phases(?:\/order|\/[^/]+)?|team|task-members|volunteer-applications)$/;
 const MEMBERSHIP_ROLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/role$/;
 const MEMBERSHIP_ENABLE_PATH = /^\/api\/admin\/organizers\/[^/]+\/enable$/;
@@ -85,6 +86,10 @@ export function adminRolesForApiRequest(path: string, method: string): AdminRole
   }
 
   if (method === 'PATCH' && ANNUAL_TASK_PATH.test(path)) {
+    return CONFERENCE_MEMBER_ROLES;
+  }
+
+  if (ANNUAL_TASK_RESOURCES_PATH.test(path) && ['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) {
     return CONFERENCE_MEMBER_ROLES;
   }
 

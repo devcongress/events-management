@@ -5,6 +5,10 @@ describe('admin API role policy', () => {
   it('admits volunteers only to assigned-work reads and task status updates', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan', 'GET')).toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1', 'PATCH')).toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1/resources', 'GET')).toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1/resources', 'POST')).toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1/resources/resource-1', 'PATCH')).toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1/resources/resource-1', 'DELETE')).toContain('volunteer');
     expect(adminRolesForApiRequest('/api/auth/logout', 'POST')).toContain('volunteer');
   });
 
@@ -72,6 +76,8 @@ describe('admin API role policy', () => {
 
   it('does not admit similarly prefixed or malformed paths', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/export', 'GET')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1/resources/extra/path', 'GET')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1/resources', 'PUT')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/current/work-plan', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/auth/logout/other', 'POST')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/auth/logout', 'GET')).not.toContain('volunteer');

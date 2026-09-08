@@ -11,6 +11,7 @@ import {
   checkInMockRegistration,
   createMockRegistrationCampaign,
   deleteMockRegistration,
+  getAllMockRegistrationCampaigns,
   getMockEventRegistrations,
   getMockPendingRegistrationEmails,
   getMockRegistrationCampaign,
@@ -27,6 +28,7 @@ import {
   getSupabaseEventRegistrations,
   getSupabasePendingRegistrationEmails,
   getSupabaseRegistrationCampaign,
+  getSupabaseRegistrationCampaigns,
   registerSupabaseForEvent,
   undoCheckInSupabaseRegistration,
   updateSupabaseRegistrationCampaign,
@@ -65,6 +67,17 @@ export async function getRegistrationCampaign(
 ): Promise<EventRegistrationCampaign | undefined> {
   const campaign = await getSupabaseRegistrationCampaign(eventId, c);
   return campaign !== null ? campaign : getMockRegistrationCampaign(eventId);
+}
+
+export async function getRegistrationCampaigns(
+  eventIds: readonly string[],
+  c?: Context,
+): Promise<EventRegistrationCampaign[]> {
+  const campaigns = await getSupabaseRegistrationCampaigns(eventIds, c);
+  if (campaigns !== null) return campaigns;
+
+  const eventIdSet = new Set(eventIds);
+  return (await getAllMockRegistrationCampaigns()).filter((campaign) => eventIdSet.has(campaign.event_id));
 }
 
 export async function updateRegistrationCampaign(

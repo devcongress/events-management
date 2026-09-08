@@ -178,6 +178,36 @@ describe('annual conference volunteer API access', () => {
     await expect(response.json()).resolves.toMatchObject({ status: 'in_progress', internal_note: null });
   });
 
+  it('saves validated rich details for an organizer without granting volunteer detail editing', async () => {
+    const { default: app } = await import('./app');
+    const details = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Speaker brief', marks: [{ type: 'bold' }] }] }] });
+    const request = () => app.request('http://localhost/api/annual-conference/2026/work-plan/task-assigned', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ details, details_format: 'rich_text' }),
+    });
+    expect((await request()).status).toBe(403);
+    expect(mocks.updateTask).not.toHaveBeenCalled();
+    mocks.session.role = 'owner';
+    mocks.session.email = 'owner@example.com';
+    expect((await request()).status).toBe(200);
+    expect(mocks.updateTask).toHaveBeenCalledWith('edition-2026', 'task-assigned', { details, details_format: 'rich_text' }, 'owner@example.com', expect.anything());
+  });
+
+  it.each([
+    { details_format: 'rich_text' },
+    { details: 'x'.repeat(2001) },
+    { details: '<script>alert(1)</script>', details_format: 'rich_text' },
+    { details: JSON.stringify({ type: 'doc', content: [{ type: 'image', attrs: { src: 'bad' } }] }), details_format: 'rich_text' },
+  ])('rejects invalid details before persistence: %j', async (input) => {
+    mocks.session.role = 'owner';
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-assigned', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+    expect(response.status).toBe(400);
+    expect(mocks.updateTask).not.toHaveBeenCalled();
+  });
+
   it('expands a volunteer workspace only after an explicit edition grant', async () => {
     mocks.grants = ['work_plan.view_all'];
     const { default: app } = await import('./app');

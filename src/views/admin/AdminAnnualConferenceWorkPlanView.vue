@@ -304,6 +304,7 @@ function handleCreate(value: AnnualConferenceTaskUpdateInput) {
   createMutation.mutate({
     title: value.title,
     details: value.details ?? null,
+    details_format: value.details_format,
     phase_id: value.phase_id ?? null,
     workstream: value.workstream,
     accountable_owner: value.accountable_owner,
@@ -655,6 +656,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
     </div>
 
     <AnnualConferenceTaskDrawer
+      :year="year"
       :open="showCreateForm || Boolean(selectedTask)"
       :mode="showCreateForm ? 'create' : editingTaskId ? 'edit' : 'details'"
       :task="showCreateForm ? null : selectedTask"

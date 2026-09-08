@@ -51,3 +51,27 @@ export const conferenceSpeakerLogisticsSchema = z.object({
 export const conferenceSpeakerDeadlineSchema = z.object({
   deadline: z.string().datetime({ offset: true }).nullable(),
 }).strict();
+
+export const conferenceSpeakerEmailRecipientSchema = z.object({
+  speaker_email: z.string().trim().toLowerCase().email('Enter a valid delivery email address').max(254),
+  confirmed: z.literal(true),
+}).strict();
+
+export const conferenceSpeakerReplacementEmailSchema = z.object({
+  confirmed: z.literal(true),
+}).strict();
+
+export const annualConferenceResendWebhookSchema = z.object({
+  type: z.enum([
+    'email.delivered',
+    'email.delivery_delayed',
+    'email.bounced',
+    'email.failed',
+    'email.suppressed',
+    'email.complained',
+  ]),
+  created_at: z.string().datetime({ offset: true }),
+  data: z.object({
+    email_id: z.string().trim().min(1).max(200),
+  }).passthrough(),
+}).passthrough();

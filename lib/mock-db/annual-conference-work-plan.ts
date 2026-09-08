@@ -202,6 +202,7 @@ export async function createMockAnnualConferenceTask(
       edition_id: edition.id,
       title: input.title,
       details: input.details ?? null,
+      details_format: input.details_format ?? 'plain_text',
       internal_note: null,
       phase_id: input.phase_id ?? null,
       workstream: input.workstream,
@@ -244,6 +245,7 @@ export async function updateMockAnnualConferenceTask(
     const task: AnnualConferenceTask = {
       ...tasks[index],
       ...input,
+      ...('details' in input ? { details_format: input.details_format ?? 'plain_text' } : {}),
       collaborators: input.collaborators ? [...input.collaborators] : tasks[index].collaborators,
       dependency_task_ids: input.dependency_task_ids
         ? [...input.dependency_task_ids]

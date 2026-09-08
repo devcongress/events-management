@@ -76,4 +76,12 @@ describe('Annual Conference CFP contract', () => {
     expect(link).toContain('opens in a new tab');
     expect(link).not.toContain('@click');
   });
+
+  it('confirms receipt on-page and offers another proposal without promising an email', () => {
+    const view = read('src/views/CfpView.vue');
+    expect(view).toContain('Proposal received.');
+    expect(view).toContain('Submit another proposal');
+    expect(view).toContain("form.learning_outcomes = ['']");
+    expect(view).not.toContain('We emailed you a receipt');
+  });
 });

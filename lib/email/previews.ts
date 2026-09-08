@@ -290,6 +290,21 @@ export function emailPreviewCatalog(): EmailPreviewCatalog {
         deadline: '2026-11-30T23:59:59.000Z',
       }),
     },
+    {
+      id: 'conference_speaker_declined',
+      label: 'Conference proposal not selected',
+      category: 'Conference speakers',
+      recipient: 'Conference speaker applicant',
+      trigger: 'Sent automatically after an organizer rejects one Annual Conference proposal.',
+      from: EMAIL_SENDERS.speakers.from,
+      to: 'Efua Owusu <efua@example.com>',
+      ...speakerProposalRejectionEmail({
+        eventName: 'December 2026',
+        speakerName: 'Efua Owusu',
+        talkTitle: 'Designing Reliable Event-Driven Systems',
+        subject: emailSubjects.conferenceSpeakerDeclined('December 2026'),
+      }),
+    },
   ];
 
   const planned = EMAIL_SCENARIOS

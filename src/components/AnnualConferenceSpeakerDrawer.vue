@@ -5,8 +5,13 @@ import type { AnnualConferenceSpeakerSubmission } from '@/lib/annual-conference-
 import { safePublicResourceUrl } from '@/lib/safe-url';
 
 type AnnualConferenceSpeakerSubmissionWithLogistics = AnnualConferenceSpeakerSubmission & {
-  decision_email_status?: 'pending' | 'accepted' | 'failed' | null;
+  decision_email_status?: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
+  decision_email_recipient?: string | null;
   decision_email_last_attempt_at?: string | null;
+  decision_email_delivered_at?: string | null;
+  decision_email_last_error?: string | null;
+  decision_email_attempt_count?: number;
+  decision_email_retryable?: boolean;
   logistics?: {
     slides_url: string | null;
     availability_confirmed: boolean | null;
@@ -25,6 +30,8 @@ const props = defineProps<{
   canManage: boolean;
   submitting?: boolean;
   canResendWorkspaceEmail?: boolean;
+  approvalBlockedReason?: string | null;
+  decisionEmailConfigured?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -32,10 +39,14 @@ const emit = defineEmits<{
   approve: [submission: SpeakerSubmission | AnnualConferenceSpeakerSubmissionWithLogistics];
   reject: [submission: SpeakerSubmission | AnnualConferenceSpeakerSubmissionWithLogistics];
   resendWorkspaceEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics];
+  retryDecisionEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics];
+  replaceWorkspaceEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics];
+  correctDecisionEmail: [submission: AnnualConferenceSpeakerSubmissionWithLogistics, email: string];
 }>();
 
 const panelRef = ref<HTMLElement | null>(null);
 const closeButtonRef = ref<HTMLButtonElement | null>(null);
+const correctedEmail = ref('');
 let previouslyFocused: HTMLElement | null = null;
 let previousBodyOverflow = '';
 let previousDocumentOverflow = '';
@@ -54,6 +65,11 @@ const resourceUrl = computed(() => props.submission && 'resource_url' in props.s
   ? safePublicResourceUrl(props.submission.resource_url)
   : null);
 const learningOutcomes = computed(() => props.submission && 'learning_outcomes' in props.submission ? props.submission.learning_outcomes : []);
+const annualSubmission = computed(() => props.submission && 'proposal_schema_version' in props.submission
+  ? props.submission as AnnualConferenceSpeakerSubmissionWithLogistics
+  : null);
+const canRetryDecisionEmail = computed(() => annualSubmission.value?.decision_email_retryable !== false
+  || annualSubmission.value?.decision_email_last_error === 'Automatic email retries were exhausted. Review the recipient and retry manually.');
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('en-GH', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value));
@@ -129,6 +145,12 @@ watch(() => props.open, async (open, wasOpen) => {
     unlockPage();
   }
 });
+
+watch(() => props.submission?.id, () => {
+  correctedEmail.value = props.submission && 'decision_email_recipient' in props.submission
+    ? props.submission.decision_email_recipient ?? props.submission.speaker_email
+    : props.submission?.speaker_email ?? '';
+}, { immediate: true });
 
 onUnmounted(() => {
   if (props.open) unlockPage();
@@ -208,15 +230,37 @@ onUnmounted(() => {
                 <div v-if="submission.logistics.required_software_equipment" class="sm:col-span-2"><dt class="text-dc-gray">Software/equipment</dt><dd class="mt-1 whitespace-pre-line">{{ submission.logistics.required_software_equipment }}</dd></div>
               </dl>
             </section>
+
+            <section v-if="annualSubmission && annualSubmission.status !== 'submitted'" class="mt-6 rounded-md border border-dc-border bg-dc-paper-warm p-4">
+              <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-pink">Decision email</p>
+              <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                <div><dt class="text-dc-gray">Status</dt><dd class="font-semibold capitalize text-dc-ink">{{ annualSubmission.decision_email_status ?? 'pending' }}</dd></div>
+                <div><dt class="text-dc-gray">Attempts</dt><dd class="font-semibold text-dc-ink">{{ annualSubmission.decision_email_attempt_count ?? 0 }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-dc-gray">Delivery address</dt><dd class="mt-1 font-semibold text-dc-ink">{{ annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email }}</dd></div>
+                <div v-if="annualSubmission.decision_email_last_error" class="sm:col-span-2"><dt class="text-dc-gray">Needs attention</dt><dd class="mt-1 text-red-700">{{ annualSubmission.decision_email_last_error }}</dd></div>
+              </dl>
+              <form v-if="canManage" class="mt-4 flex flex-col gap-2 border-t border-dc-border pt-4 sm:flex-row" @submit.prevent="emit('correctDecisionEmail', annualSubmission, correctedEmail)">
+                <label class="min-w-0 flex-1">
+                  <span class="sr-only">Correct decision email address</span>
+                  <input v-model.trim="correctedEmail" type="email" autocomplete="email" required class="app-form-control min-h-11 w-full border-2 border-dc-ink px-3 text-sm" aria-label="Correct decision email address">
+                </label>
+                <button type="submit" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[10px] font-semibold uppercase" :disabled="submitting || correctedEmail === (annualSubmission.decision_email_recipient ?? annualSubmission.speaker_email)">Save and resend</button>
+              </form>
+            </section>
           </div>
 
           <footer class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t-2 border-dc-ink bg-dc-paper px-5 py-4 sm:px-6">
             <template v-if="submission.status === 'submitted' && canManage && !isLegacyConferenceProposal">
-              <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('reject', submission)">Reject</button>
-              <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink shadow-[2px_2px_0_#111111]" :disabled="submitting" @click="emit('approve', submission)">{{ submitting ? 'Saving…' : 'Approve' }}</button>
+              <p v-if="approvalBlockedReason" class="mr-auto w-full text-xs font-semibold leading-5 text-red-700">{{ approvalBlockedReason }}</p>
+              <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:opacity-50" :disabled="submitting || !decisionEmailConfigured" @click="emit('reject', submission)">Reject</button>
+              <button type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink shadow-[2px_2px_0_#111111] disabled:opacity-50" :disabled="submitting || Boolean(approvalBlockedReason)" @click="emit('approve', submission)">{{ submitting ? 'Saving…' : 'Approve' }}</button>
             </template>
-            <button v-else-if="submission.status === 'submitted' && canManage && isLegacyConferenceProposal" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('reject', submission)">Reject legacy proposal</button>
-            <button v-else-if="canManage && canResendWorkspaceEmail && 'session_type' in submission" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('resendWorkspaceEmail', submission)">Resend workspace email</button>
+            <button v-else-if="submission.status === 'submitted' && canManage && isLegacyConferenceProposal" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink disabled:opacity-50" :disabled="submitting || !decisionEmailConfigured" @click="emit('reject', submission)">Reject legacy proposal</button>
+            <template v-else-if="canManage && 'session_type' in submission">
+              <button v-if="submission.status === 'not_selected' && submission.decision_email_status === 'failed' && canRetryDecisionEmail" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('retryDecisionEmail', submission)">Retry decision email</button>
+              <button v-if="submission.status === 'selected' && canResendWorkspaceEmail" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('resendWorkspaceEmail', submission)">Retry workspace email</button>
+              <button v-if="submission.status === 'selected' && ['accepted', 'delivered'].includes(submission.decision_email_status ?? '')" type="button" class="motion-press min-h-11 rounded-md border-2 border-dc-ink bg-dc-paper px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-dc-ink" :disabled="submitting" @click="emit('replaceWorkspaceEmail', submission)">Replace private link</button>
+            </template>
             <p v-else-if="submission.status === 'submitted'" class="mr-auto text-xs font-semibold leading-5 text-dc-gray">Only organizers with speaker-review access can make a decision.</p>
           </footer>
         </section>

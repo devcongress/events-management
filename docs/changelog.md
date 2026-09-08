@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-09-08 — Work-plan resources and formatted details
+
+- Preserve typed line breaks and spacing in the task drawer, with wrapping for long text.
+- Place Depends on beside Target date at desktop widths and retain stacked controls on smaller screens.
+- Add a lazy-loaded rich-text Details editor with bold, italic, strikethrough, bullets, numbering and undo/redo, with a 12rem minimum editing height. Store bounded, validated JSON only for explicitly formatted details; existing text remains literal and mobile search uses visible text.
+- Add up to 20 labeled HTTP/HTTPS resource links per task. Assigned volunteers manage only links they added; organizers with task-edit permission manage all task links. Server authorization and an atomic database cap back the controls.
+- Include inline save/error feedback and resource removal confirmation across desktop, timeline and mobile task drawers.
+- Database rollout requires the new task-resource and task-details-format migrations; creating the files does not apply them.
+
+## 2026-09-07 — Restore the short-link registry and public speaker loading shells
+
+- Replaced per-event registration and feedback lookups in the owner short-link registry with two bounded campaign collection reads; feedback eligibility no longer loads unrelated questions.
+- Stopped failed registry requests from appearing as a valid zero-link state.
+- Classified monthly CFP, conference CFP, and accepted-speaker workspace routes as public first-paint experiences in both server and Pages delivery paths. Non-selected shells now carry a server-rendered `hidden` state that the Pages worker rewrites with the route, preventing organizer content from flashing before the stylesheet or Vue hydrates.
+- Added regression coverage for bulk campaign reads, failed registry presentation, public speaker route classification, and the actual Pages HTML response transformation.
+
+## 2026-09-07 — Durable Annual Conference decision email lifecycle
+
+- Kept Annual Conference proposal submission receipt-free by design, while strengthening the success page and preserving speaker identity details for another proposal.
+- Added automatic rejection email alongside acceptance email, with proposal-scoped state so one speaker's decisions never affect another proposal.
+- Added bounded scheduled retries, stable idempotency, signed Resend webhook reconciliation, delivery status/error visibility, confirmed address correction, and explicit private-link replacement. Retry attempts and address corrections use compare-and-set guards so stale scheduled work cannot overwrite a newer recipient or private link.
+- Kept routine acceptance retries on the same deterministic private link; replacement alone revokes the current capability.
+- Blocked decisions when their email configuration is unavailable and blocked acceptance when workspace signing or a future logistics deadline is unavailable.
+- Added migration and route coverage for receipt-free submission, rejection delivery, provider delivery events, independent decisions, stable-link recovery, permanent provider rejection, exhausted manual recovery, and correction-versus-retry concurrency.
+
 ## 2026-09-07 — Open the conference proposal form
 
 - Added an Open form action beside Copy public link on the conference speaker-management page while the call is open, matching monthly CFP behavior.

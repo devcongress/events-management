@@ -72,6 +72,27 @@ export async function getSupabaseFeedbackCampaignByEvent(eventId: string, c?: Co
 }
 
 /**
+ * Load campaign metadata for registry-style reads without fetching questions.
+ * Callers that only need campaign status should not pay the per-campaign
+ * question-query cost of getSupabaseFeedbackCampaignByEvent.
+ */
+export async function getSupabaseFeedbackCampaignsByEventIds(
+  eventIds: readonly string[],
+  c?: Context,
+): Promise<FeedbackCampaign[] | null> {
+  if (!canUseSupabaseFeedbackCampaigns(c)) return null;
+  if (eventIds.length === 0) return [];
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from('feedback_campaigns')
+    .select('*')
+    .in('event_id', [...eventIds]);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((campaign) => toFeedbackCampaign(campaign, []));
+}
+
+/**
  * Read the feedback hub's campaign definitions and submissions in bounded
  * batches. The monthly overview must not issue one campaign/question/
  * submission chain per historical event.

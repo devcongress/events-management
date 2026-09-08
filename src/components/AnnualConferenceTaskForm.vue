@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query';
-import { computed, reactive, watch } from 'vue';
+import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppMultiSelectDropdown from '@/src/components/AppMultiSelectDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
+import { parseTaskDetails, type TaskDetailsFormat } from '@/lib/annual-conference-task-details';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_TASK_PRIORITIES,
@@ -24,6 +25,9 @@ import {
 type TaskFormValue = Omit<AnnualConferenceTaskCreateInput, 'accountable_owner'> & {
   accountable_owner: string | null;
 };
+const TaskDetailsEditor = defineAsyncComponent(() => import('@/src/components/TaskDetailsEditor.vue'));
+const detailsError = ref('');
+const detailsEditor = ref<{ focus: () => void } | null>(null);
 
 const props = defineProps<{
   mode: 'create' | 'edit';
@@ -48,6 +52,7 @@ const organizersQuery = useQuery({
 const form = reactive({
   title: '',
   details: '',
+  details_format: 'plain_text' as TaskDetailsFormat,
   phase_id: '',
   workstream: 'programme_speakers' as AnnualConferenceTask['workstream'],
   accountable_owner: '',
@@ -200,9 +205,11 @@ function organizerNameFromValue(value: string): string {
 }
 
 function resetForm() {
+  detailsError.value = '';
   const task = props.task;
   form.title = task?.title ?? '';
   form.details = task?.details ?? '';
+  form.details_format = task?.details_format ?? 'plain_text';
   form.phase_id = task?.phase_id ?? (props.mode === 'create' ? props.defaultPhaseId ?? '' : '');
   form.workstream = task?.workstream ?? 'programme_speakers';
   form.accountable_owner = task?.accountable_owner ?? '';
@@ -228,9 +235,19 @@ function optionalText(value: string): string | null {
 }
 
 function submitForm() {
+  detailsError.value = '';
+  try {
+    if (form.details && form.details_format === 'rich_text') parseTaskDetails(form.details);
+    else if (form.details.length > 2000) throw new Error('Keep task details within 2,000 characters.');
+  } catch {
+    detailsError.value = 'Keep details within 2,000 characters and use fewer nested lists or formatting changes.';
+    detailsEditor.value?.focus();
+    return;
+  }
   emit('submit', {
     title: form.title.trim(),
     details: optionalText(form.details),
+    details_format: form.details_format,
     phase_id: form.phase_id || null,
     workstream: form.workstream,
     accountable_owner: optionalText(form.accountable_owner),
@@ -328,7 +345,7 @@ function submitForm() {
         menu-class="min-w-40"
       />
 
-      <div>
+      <div class="lg:col-start-1">
         <AppDatePicker
           v-model="form.target_date"
           label="Target date"
@@ -340,17 +357,7 @@ function submitForm() {
         </p>
       </div>
 
-      <label class="block lg:col-span-2">
-        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Details</span>
-        <textarea
-          v-model="form.details"
-          class="editorial-input mt-2 min-h-24 resize-none"
-          maxlength="2000"
-          placeholder="Describe the expected outcome."
-        />
-      </label>
-
-      <div class="block lg:col-span-2">
+      <div class="block">
         <AppMultiSelectDropdown
           v-model="form.dependency_task_ids"
           label="Depends on"
@@ -362,6 +369,16 @@ function submitForm() {
         <span class="mt-2 block text-xs font-medium leading-5 text-dc-gray">
           Choose the tasks that must be complete before this work can move forward. The Overview will surface the resulting delivery path.
         </span>
+      </div>
+      <div class="block lg:col-span-2">
+        <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-dc-gray">Details</span>
+        <TaskDetailsEditor
+          ref="detailsEditor"
+          v-model="form.details"
+          v-model:format="form.details_format"
+          :disabled="submitting"
+        />
+        <p v-if="detailsError" role="alert" class="mt-2 text-sm font-semibold text-red-700">{{ detailsError }}</p>
       </div>
     </div>
 

@@ -84,6 +84,8 @@ For shared event workspace state, `src/composables/useEventWorkspace.ts` is the 
 
 `server/app.ts` remains the ordered Hono composition root for app-wide middleware and legacy handlers. New feature routes belong in a cohesive registrar under `server/routes/`; the root registers each route family only after request environment, security, body-limit, CORS, and authentication policy are installed. See `architecture-audit-2026-09-07.md` for the staged extraction sequence and responsibility-aware size guardrails.
 
+The owner short-link registry is a bounded read model. It loads events, conference editions, registration campaigns, feedback campaign metadata, and stored short links in collection queries, then joins them in memory. It must not call event-detail readers in a loop or load feedback questions, because registry eligibility depends only on event and campaign status.
+
 ---
 
 ## Event Archive Domain
@@ -155,7 +157,9 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/annual-conference/[year]/speakers` — organizer conference-only proposal inbox with independently decided proposals and accepted-session logistics state
 - `/api/annual-conference/[year]/speakers/logistics-deadline` — capability-gated edition deadline for private speaker workspace edits
 - `/api/annual-conference/[year]/speaker-submissions/[submissionId]` — final per-proposal acceptance/rejection; acceptance creates the session and automatically attempts its private-workspace email
-- `/api/annual-conference/[year]/speaker-submissions/[submissionId]/resend-workspace-email` — rotates a failed private capability and retries its acceptance email
+- `/api/annual-conference/[year]/speaker-submissions/[submissionId]/resend-workspace-email` — retries failed acceptance delivery with the same deterministic private capability
+- `/api/annual-conference/[year]/speaker-submissions/[submissionId]/decision-email-recipient` and `/replace-workspace-email` — confirmed organizer recovery paths for address correction and deliberate capability rotation
+- `/api/internal/annual-conference-speaker-emails/retry` and `/api/webhooks/resend` — bounded scheduled retries plus signed, timestamp-ordered provider delivery reconciliation
 - `/api/annual-conference/[year]/team`, `/task-members`, `/volunteer-applications` — capability-gated team, task-assignee, and private applicant projections
 - `/api/attendance/monthly` — admin-only monthly attendance ledger, import coverage, and cross-month insights
 - `/api/events` — all events, create event

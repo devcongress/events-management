@@ -81,8 +81,7 @@ export const EMAIL_SCENARIOS: ReadonlyArray<{
   { id: 'community_amendment_rejected', status: 'active', sender: 'events', recipient: 'community event submitter', subjectPattern: 'Update on your event submission: {event title}' },
   { id: 'community_submission_withdrawn', status: 'active', sender: 'events', recipient: 'community event submitter', subjectPattern: 'Your event listing was removed: {event title}' },
   { id: 'conference_speaker_invitation', status: 'planned', sender: 'speakers', recipient: 'prospective conference speaker', subjectPattern: 'Invitation to speak at DevCongress {edition}' },
-  { id: 'conference_speaker_proposal_receipt', status: 'planned', sender: 'speakers', recipient: 'conference speaker applicant', subjectPattern: 'We received your DevCongress {edition} proposal' },
   { id: 'conference_speaker_accepted', status: 'active', sender: 'speakers', recipient: 'accepted conference speaker', subjectPattern: 'Your session was accepted for DevCongress {edition}' },
-  { id: 'conference_speaker_declined', status: 'planned', sender: 'speakers', recipient: 'conference speaker applicant', subjectPattern: 'Update on your DevCongress {edition} proposal' },
+  { id: 'conference_speaker_declined', status: 'active', sender: 'speakers', recipient: 'conference speaker applicant', subjectPattern: 'Update on your DevCongress {edition} proposal' },
   { id: 'conference_registration', status: 'planned', sender: 'events', recipient: 'conference attendee', subjectPattern: 'You are registered for DevCongress {edition}' },
 ];

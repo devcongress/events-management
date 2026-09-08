@@ -267,6 +267,25 @@ async function performProposalSubmission() {
   }
 }
 
+async function submitAnotherProposal() {
+  form.title = '';
+  form.topic = '';
+  form.session_type = '';
+  form.abstract = '';
+  form.learning_outcomes = [''];
+  form.resource_url = '';
+  currentStep.value = 0;
+  stepDirection.value = 'backward';
+  showStepErrors.value = false;
+  error.value = null;
+  turnstileToken.value = '';
+  turnstileError.value = '';
+  turnstileWidget.value?.reset();
+  submitted.value = false;
+  await nextTick();
+  focusCurrentStep();
+}
+
 onMounted(async () => {
   try {
     const response = await fetch(isConferenceCall.value
@@ -333,8 +352,12 @@ onMounted(async () => {
         <div class="cfp-success-body">
           <img class="cfp-success-logo" :src="devconLogoSrc" alt="DevCongress">
 
-          <h2>Thank you.</h2>
-          <p class="cfp-success-copy">We’ll be in touch if your proposal is selected.</p>
+          <h2>{{ isConferenceCall ? 'Proposal received.' : 'Thank you.' }}</h2>
+          <p class="cfp-success-copy">
+            {{ isConferenceCall
+              ? `Thanks${form.speaker_name.trim() ? `, ${form.speaker_name.trim().split(/\s+/)[0]}` : ''}. Your proposal is now with the DevCongress review team.`
+              : 'We’ll be in touch if your proposal is selected.' }}
+          </p>
 
           <div class="cfp-success-pass">
             <div>
@@ -343,7 +366,13 @@ onMounted(async () => {
             </div>
           </div>
 
-          <p class="cfp-success-footnote">You can close this tab.</p>
+          <button
+            v-if="isConferenceCall"
+            type="button"
+            class="motion-press mt-6 min-h-12 w-full rounded-md border-2 border-dc-ink bg-dc-yellow px-5 py-3 font-mono text-xs font-bold uppercase tracking-[0.1em] text-dc-ink shadow-[3px_3px_0_#111111]"
+            @click="submitAnotherProposal"
+          >Submit another proposal</button>
+          <p class="cfp-success-footnote">{{ isConferenceCall ? 'Done for now? You can safely close this tab.' : 'You can close this tab.' }}</p>
         </div>
       </div>
     </div>

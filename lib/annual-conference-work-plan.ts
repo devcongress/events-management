@@ -46,6 +46,7 @@ export interface AnnualConferenceTask {
   edition_id: string;
   title: string;
   details: string | null;
+  details_format?: 'plain_text' | 'rich_text';
   internal_note: string | null;
   phase_id: string | null;
   workstream: AnnualConferenceWorkstream;
@@ -69,6 +70,7 @@ export interface AnnualConferenceTask {
 export interface AnnualConferenceTaskCreateInput {
   title: string;
   details?: string | null;
+  details_format?: 'plain_text' | 'rich_text';
   phase_id?: string | null;
   workstream: AnnualConferenceWorkstream;
   accountable_owner: string;
@@ -84,6 +86,7 @@ export type AnnualConferenceTaskUpdateInput = Partial<
     AnnualConferenceTask,
     | 'title'
     | 'details'
+    | 'details_format'
     | 'phase_id'
     | 'workstream'
     | 'accountable_owner'
