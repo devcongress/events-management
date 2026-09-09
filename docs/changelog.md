@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-09 — Volunteer intake retry countdown
+
+- Added a server-directed countdown to the volunteer form submit button when the API returns a rate-limit or temporary-unavailability retry window.
+- The wait ends automatically using a deadline-based one-second timer that is cleaned up when the page closes and performs no additional network requests; the button becomes available once any refreshed human check is also complete.
+- Updated Hono, Vitest, Wrangler, and the transitive Sharp runtime to patched releases after the repository dependency audit began rejecting their previously locked versions.
+
+## 2026-09-09 — Shared-network-safe volunteer intake protection
+
+- Replaced the misleading two-per-device volunteer limit with layered, distributed protection: a three-request-per-minute network burst guard, ten validated new applications per network per day, and three unresolved attempts per normalized email per day.
+- Validate email before spending the lower new-application allowances, and return the same accepted response for an email already stored in the active volunteer campaign without creating another record.
+- Updated rate-limit feedback to describe the actual shared-network boundary while retaining Turnstile and hashed Supabase counters for abuse resistance.
+
+## 2026-09-09 — Editable Slack event announcements
+
+- Added Slack Web API delivery for public event announcements, persisting the returned channel and message timestamp so later organizer edits update the original Slack card instead of leaving stale event details.
+- Kept legacy incoming-webhook delivery as a compatibility fallback, surfaced bounded update failures without rolling back event changes, and synchronized approved community-event amendments through the same path.
+- Slack cards now show the complete event start–end range. Deployment requires the editable-announcement migration plus a server-only bot token and the `#events` channel ID; existing webhook posts require a one-time message reference before they can be edited.
+
 ## 2026-09-08 — Monthly event schedule defaults
 
 - Monthly event creation now starts new dates at **09:00** and ends them at **16:00** by default, while keeping both values editable. Organizer changes made from the registration workspace continue to update the event record, and the public registration form now displays the saved start-to-end range instead of only the start time.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import TurnstileWidget from '@/src/components/TurnstileWidget.vue';
 import SubmissionProgressLabel from '@/src/components/ui/SubmissionProgressLabel.vue';
 import { preflightPublicEmail } from '@/src/lib/api';
@@ -21,13 +21,53 @@ const submitting = ref(false);
 const submissionStage = ref<'checking' | 'submitting' | null>(null);
 const submitted = ref(false);
 const error = ref('');
+const retryAfterSeconds = ref(0);
 const turnstileActive = turnstileEnabled();
+let retryDeadlineMs = 0;
+let retryTimer: number | undefined;
 
-const canSubmit = computed(() => (
+const hasRequiredSubmissionDetails = computed(() => (
   form.name.trim().length > 0
   && form.email.trim().length > 0
   && (!turnstileActive || turnstileToken.value.length > 0)
 ));
+const canSubmit = computed(() => (
+  hasRequiredSubmissionDetails.value
+  && retryAfterSeconds.value === 0
+));
+const retryCountdownLabel = computed(() => {
+  const seconds = retryAfterSeconds.value;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainingSeconds = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+});
+
+function clearRetryTimer() {
+  if (retryTimer !== undefined) {
+    window.clearInterval(retryTimer);
+    retryTimer = undefined;
+  }
+}
+
+function updateRetryCountdown() {
+  retryAfterSeconds.value = Math.max(0, Math.ceil((retryDeadlineMs - Date.now()) / 1000));
+  if (retryAfterSeconds.value === 0) clearRetryTimer();
+}
+
+function beginRetryCountdown(seconds: number) {
+  clearRetryTimer();
+  retryDeadlineMs = Date.now() + Math.max(1, Math.ceil(seconds)) * 1000;
+  updateRetryCountdown();
+  retryTimer = window.setInterval(updateRetryCountdown, 1000);
+}
+
+onBeforeUnmount(clearRetryTimer);
 
 async function submitApplication() {
   if (!canSubmit.value || submitting.value) return;
@@ -49,10 +89,25 @@ async function submitApplication() {
         turnstile_token: turnstileActive ? turnstileToken.value : undefined,
       }),
     });
-    const payload = await response.json().catch(() => ({})) as { error?: string };
+    const payload = await response.json().catch(() => ({})) as {
+      error?: string;
+      retry_after_seconds?: number;
+    };
 
     if (!response.ok) {
       error.value = payload.error ?? 'We could not save your details. Please try again.';
+      const retryAfterHeader = Number.parseInt(response.headers.get('Retry-After') ?? '', 10);
+      const retryDuration = Number.isFinite(payload.retry_after_seconds)
+        ? payload.retry_after_seconds
+        : retryAfterHeader;
+      if (
+        (response.status === 429 || response.status === 503)
+        && typeof retryDuration === 'number'
+        && Number.isFinite(retryDuration)
+        && retryDuration > 0
+      ) {
+        beginRetryCountdown(retryDuration);
+      }
       if (turnstileActive) {
         turnstileToken.value = '';
         turnstileWidget.value?.reset();
@@ -152,9 +207,14 @@ async function submitApplication() {
                   :aria-busy="submitting"
                 >
                   <SubmissionProgressLabel v-if="submissionStage" :stage="submissionStage" />
+                  <template v-else-if="retryAfterSeconds > 0">Try again in {{ retryCountdownLabel }}</template>
                   <template v-else>Join the volunteer list</template>
                 </button>
-                <p v-if="!canSubmit && !submitting" id="volunteer-submit-help" class="app-form-help">{{ !form.name.trim() || !form.email.trim() ? 'Add your name and email to continue.' : 'Complete the human check to continue.' }}</p>
+                <p v-if="!canSubmit && !submitting" id="volunteer-submit-help" class="app-form-help">
+                  <template v-if="retryAfterSeconds > 0">The wait ends automatically. Complete the human check again if prompted.</template>
+                  <template v-else-if="!form.name.trim() || !form.email.trim()">Add your name and email to continue.</template>
+                  <template v-else>Complete the human check to continue.</template>
+                </p>
               </div>
             </form>
           </Transition>

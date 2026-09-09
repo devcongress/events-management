@@ -1,5 +1,39 @@
 # Architectural Decisions
 
+## ADR-087: Layer Volunteer Intake Limits Without Treating an IP as a Device
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Context:** The volunteer form described a public-IP bucket as a device and allowed only two requests per 24 hours. Shared office, campus, carrier, VPN, and event networks could therefore block a person who had never submitted. The lower allowance was also consumed before email assessment or idempotent duplicate detection.
+
+**Decision:** Keep Turnstile as the first automated-abuse boundary. Apply a distributed three-request-per-minute burst guard to every schema-valid, human-verified request; after email assessment, return the same accepted response for an existing normalized email. For genuinely new applications, enforce ten per public network per 24 hours and three unresolved attempts per normalized email per 24 hours. Store only the existing action-scoped hashes in the rate-limit table, and describe network limits accurately in public errors.
+
+**Trade-offs:** A coordinated attacker can distribute requests across IP addresses and email addresses, while a network hosting more than ten genuine new applicants in a day can still reach the daily guard. Existing-email detection adds one compatibility-document read, bounded behind Turnstile and the burst guard. The current JSON compatibility store still provides weaker cross-isolate write semantics than a dedicated relational volunteer table.
+
+**Revisit when:** Volunteer campaigns move to a relational table, legitimate intake regularly exceeds ten people behind one public address, or operational evidence justifies risk-scored/device-bound controls that do not fingerprint ordinary visitors.
+
+---
+
+## ADR-086: Persist Slack Message References for Editable Event Announcements
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Context:** Incoming webhooks accept an event card but return no durable channel/message reference. When organizers correct a published event after the Slack post was accepted, the channel retains the old snapshot and the existing one-send guard correctly prevents a duplicate announcement.
+
+**Decision:** Prefer Slack Web API `chat.postMessage` when a server-only bot token and explicit Events-channel ID are configured. Persist only the returned channel ID and message timestamp with the durable announcement row, then use `chat.update` after changes to public card fields or approval of a community-event amendment. Slack synchronization stays best-effort: event mutations succeed independently, update errors are bounded and visible, and credentials never enter persistence or logs. Retain incoming-webhook delivery as a non-editable compatibility fallback.
+
+**Trade-offs:** Editable delivery requires a Slack app bot with `chat:write`, channel membership, two new runtime settings, and a forward-only migration. Existing webhook messages have no stored timestamp and need one manual reference before EMS can update them. Direct event edits now add one bounded provider request when an editable announcement exists.
+
+**Alternatives considered:** Repost corrected cards (creates duplicates), delete old webhook messages (incoming webhooks cannot do this), or treat Slack as permanently immutable (leaves operational details stale).
+
+**Revisit when:** Slack announcement edits need queued retry/backoff, automatic reconciliation of legacy webhook posts, or separate channels per event series.
+
+---
+
 ## ADR-085: Keep Task Resources Independently Owned and Details Explicitly Formatted
 
 **Date:** 2026-09-08

@@ -19,7 +19,7 @@ import { EVENT_BLAST_PREPARATION_BATCH_SIZE, type EventBlastPreparationMessage }
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
-import { sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError } from '@/lib/email/slack';
+import { sendEditableEventAddedToSlack, sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError, updateEditableEventAddedToSlack } from '@/lib/email/slack';
 import { EMAIL_SENDERS, emailSubjects } from '@/lib/email/scenarios';
 import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
@@ -102,7 +102,13 @@ import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, Q
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
 import { claimSpeakerIntakeLink, consumeSpeakerIntakeLink, createSpeakerIntakeLink, deleteActiveSpeakerIntakeLinksBySubmission, deleteSpeakerIntakeLink, getSpeakerIntakeLinkByCapability, getSpeakerIntakeLinkById, getSpeakerIntakeLinkByToken, getSpeakerIntakeLinksByEvent, releaseSpeakerIntakeLinkClaim, speakerIntakeLinkExpired, updateSpeakerIntakeLinkEmailDeliveries } from '@/lib/mock-db/speaker-intake-links';
 import { createSpeakerSubmission, decideSpeakerSubmission as decideSpeakerSubmissionRecord, getPendingSpeakerRejectionEmails, getSpeakerSubmissionById, getSpeakerSubmissionsByEvent, SpeakerSubmissionDecisionFinalError, updateSpeakerDecisionEmailDelivery, updateSpeakerSubmission } from '@/lib/mock-db/speaker-submissions';
-import { createVolunteerApplication, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
+import { createVolunteerApplication, getVolunteerApplicationByEmail, getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
+import {
+  normalizedVolunteerEmailKey,
+  VOLUNTEER_EMAIL_RETRY_LIMIT,
+  VOLUNTEER_NETWORK_BURST_LIMIT,
+  VOLUNTEER_NETWORK_DAILY_LIMIT,
+} from '@/lib/volunteer-rate-limit';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { ensureActiveShortLink, listShortLinks, regenerateActiveShortLink, resolveShortLink, revokeShortLink, ShortLinkStorageError } from '@/lib/supabase/short-links';
@@ -131,6 +137,7 @@ import {
 import {
   claimEventSlackAnnouncement,
   completeEventSlackAnnouncement,
+  completeEventSlackAnnouncementUpdate,
   getEventSlackAnnouncement,
   type EventSlackAnnouncement,
 } from '@/lib/supabase/event-slack-announcements';
@@ -2095,6 +2102,74 @@ type EventSlackDispatchResult = {
   websiteStatus: number | null;
 };
 
+const SLACK_MESSAGE_EVENT_FIELDS = new Set([
+  'name',
+  'event_date',
+  'end_date',
+  'format',
+  'location',
+  'online_url',
+  'cover',
+  'slug',
+]);
+
+function eventSlackMessageInput(
+  event: Event,
+  c: Context,
+  source: 'organizer' | 'public submission' = announcementSource(event),
+) {
+  return {
+    eventName: event.name,
+    eventDate: event.event_date,
+    eventEndDate: event.end_date,
+    eventFormat: event.format ?? 'meetup',
+    location: event.location?.name ?? event.location?.label ?? event.online_url ?? 'Location to be announced',
+    source,
+    publicEventUrl: publicWebsiteEventUrl(event, c),
+    coverImageUrl: slackEventCoverUrl(event, c),
+  } as const;
+}
+
+function eventSlackDeliveryConfigured(c: Context): boolean {
+  const webhookConfigured = Boolean(envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)?.trim());
+  const editableConfigured = Boolean(
+    envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim()
+    && envValue('SLACK_EVENTS_CHANNEL_ID', c)?.trim(),
+  );
+  return webhookConfigured || editableConfigured;
+}
+
+async function syncSentEventSlackAnnouncement(event: Event, c: Context): Promise<void> {
+  const botToken = envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim();
+  if (!botToken) return;
+
+  try {
+    const announcement = await getEventSlackAnnouncement(event.id, c);
+    if (
+      announcement?.status !== 'sent'
+      || !announcement.provider_channel_id
+      || !announcement.provider_message_ts
+    ) return;
+
+    await updateEditableEventAddedToSlack({
+      botToken,
+      channelId: announcement.provider_channel_id,
+      messageTs: announcement.provider_message_ts,
+      ...eventSlackMessageInput(event, c),
+    });
+    await completeEventSlackAnnouncementUpdate(event.id, { succeeded: true }, c);
+  } catch (error) {
+    const errorMessage = error instanceof SlackWebhookError ? error.message : 'Slack message update failed.';
+    await completeEventSlackAnnouncementUpdate(event.id, { succeeded: false, errorMessage }, c).catch(() => undefined);
+    console.warn(JSON.stringify({
+      event: 'event_slack_announcement_update_failed',
+      event_id: event.id,
+      error_name: error instanceof SlackWebhookError ? error.name : safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+  }
+}
+
 async function notifyEventsChannel(
   event: Event,
   source: 'organizer' | 'public submission',
@@ -2110,8 +2185,11 @@ async function notifyEventsChannel(
     };
   }
 
-  const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c);
-  if (webhookUrl) {
+  const webhookUrl = envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)?.trim();
+  const botToken = envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim();
+  const channelId = envValue('SLACK_EVENTS_CHANNEL_ID', c)?.trim();
+  const editableDeliveryConfigured = Boolean(botToken && channelId);
+  if (webhookUrl || editableDeliveryConfigured) {
     const websiteUrl = publicWebsiteEventUrl(event, c);
     const website = await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c));
     if (!website.available) {
@@ -2150,35 +2228,33 @@ async function notifyEventsChannel(
     return { announcement: claimed, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
-  if (!webhookUrl) {
+  if (!webhookUrl && !editableDeliveryConfigured) {
     const announcement = await completeEventSlackAnnouncement(
       event.id,
       claimed.attempt_token,
       false,
-      'Slack event-channel webhook is not configured.',
+      'Slack event-channel delivery is not configured.',
+      null,
       c,
     );
     return { announcement, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
   try {
-    await sendEventAddedToSlack({
-      webhookUrl,
-      eventName: event.name,
-      eventDate: event.event_date,
-      eventFormat: event.format ?? 'meetup',
-      location: event.location?.name ?? event.location?.label ?? event.online_url ?? 'Location to be announced',
-      source,
-      publicEventUrl: publicWebsiteEventUrl(event, c),
-      coverImageUrl: slackEventCoverUrl(event, c),
-    });
-    const announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, true, null, c);
+    const messageInput = eventSlackMessageInput(event, c, source);
+    let providerReference = null;
+    if (editableDeliveryConfigured && botToken && channelId) {
+      providerReference = await sendEditableEventAddedToSlack({ botToken, channelId, ...messageInput });
+    } else {
+      await sendEventAddedToSlack({ webhookUrl: webhookUrl!, ...messageInput });
+    }
+    const announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, true, null, providerReference, c);
     return { announcement, dispatched: true, websiteReady: true, websiteStatus: null };
   } catch (error) {
     const errorMessage = error instanceof SlackWebhookError ? error.message : 'Slack notification failed.';
     let announcement: EventSlackAnnouncement | null = null;
     try {
-      announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, false, errorMessage, c);
+      announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, false, errorMessage, null, c);
     } catch (completionError) {
       console.warn(JSON.stringify({
         event: 'event_added_slack_notification_completion_failed',
@@ -2200,7 +2276,7 @@ async function notifyEventsChannel(
 }
 
 async function retryEligibleEventSlackAnnouncements(c: Context) {
-  if (!envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)) {
+  if (!eventSlackDeliveryConfigured(c)) {
     return { checked: 0, sent: 0, waiting_for_website: 0, failed: 0 };
   }
 
@@ -3045,6 +3121,11 @@ function eventSubmissionLifecycleForRequest(c: Context) {
     },
     rebaselineApprovedEventMonitor: async ({ submissionId }) => {
       await dispatchApprovedAmendmentMonitorRebaseline(submissionId, c);
+    },
+    syncApprovedEventAnnouncement: async ({ submissionId }) => {
+      const eventId = await getApprovedEventIdForSubmission(submissionId, c);
+      const event = eventId ? await getEventById(eventId, c) : null;
+      if (event) await syncSentEventSlackAnnouncement(event, c);
     },
   });
 }
@@ -4498,30 +4579,44 @@ app.post('/api/volunteer-applications', async (c) => {
   if (turnstileError) return turnstileError;
 
   const clientKey = publicClientKey(c);
-  const cooldownError = await enforcePublicRateLimit(c, {
-    action: 'volunteer_application_cooldown',
+  const burstError = await enforcePublicRateLimit(c, {
+    action: VOLUNTEER_NETWORK_BURST_LIMIT.action,
     clientKey,
-    maxAttempts: 1,
-    windowSeconds: 10 * 60,
-  }, 'A volunteer application was recently received from this device.');
-  if (cooldownError) return cooldownError;
-
-  const dailyLimitError = await enforcePublicRateLimit(c, {
-    action: 'volunteer_application_daily',
-    clientKey,
-    maxAttempts: 2,
-    windowSeconds: 24 * 60 * 60,
-  }, 'This device has reached the volunteer application limit for today.');
-  if (dailyLimitError) return dailyLimitError;
+    maxAttempts: VOLUNTEER_NETWORK_BURST_LIMIT.maxAttempts,
+    windowSeconds: VOLUNTEER_NETWORK_BURST_LIMIT.windowSeconds,
+  }, 'Several volunteer requests reached us from this network. Please wait one minute and try again.');
+  if (burstError) return burstError;
 
   const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.email);
   if (emailAssessment.status === 'invalid') {
     return c.json(publicEmailErrorPayload(emailAssessment), 422);
   }
 
+  const normalizedEmail = normalizedVolunteerEmailKey(emailAssessment.normalizedEmail);
+  const existingApplication = await getVolunteerApplicationByEmail(normalizedEmail);
+  if (existingApplication) {
+    return c.json({ accepted: true }, 202);
+  }
+
+  const networkDailyError = await enforcePublicRateLimit(c, {
+    action: VOLUNTEER_NETWORK_DAILY_LIMIT.action,
+    clientKey,
+    maxAttempts: VOLUNTEER_NETWORK_DAILY_LIMIT.maxAttempts,
+    windowSeconds: VOLUNTEER_NETWORK_DAILY_LIMIT.windowSeconds,
+  }, 'This network has sent several new volunteer applications today. Please try again later.');
+  if (networkDailyError) return networkDailyError;
+
+  const emailRetryError = await enforcePublicRateLimit(c, {
+    action: VOLUNTEER_EMAIL_RETRY_LIMIT.action,
+    clientKey: normalizedEmail,
+    maxAttempts: VOLUNTEER_EMAIL_RETRY_LIMIT.maxAttempts,
+    windowSeconds: VOLUNTEER_EMAIL_RETRY_LIMIT.windowSeconds,
+  }, 'We have received several attempts for this email address. Please try again later.');
+  if (emailRetryError) return emailRetryError;
+
   const result = await createVolunteerApplication({
     name: parsed.data.name,
-    email: parsed.data.email,
+    email: normalizedEmail,
     x_handle: parsed.data.x_handle,
     slack_name: parsed.data.slack_name,
   });
@@ -6711,7 +6806,7 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
 
   const eligible = eventIsEligibleForSlackAnnouncement(event);
   const websiteUrl = publicWebsiteEventUrl(event, c);
-  const website = eligible && envValue('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', c)
+  const website = eligible && eventSlackDeliveryConfigured(c)
     ? await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c))
     : { available: true, status: null };
   const announcement = await getEventSlackAnnouncement(event.id, c);
@@ -7964,6 +8059,8 @@ app.patch('/api/events/:eventId', async (c) => {
     });
     if (!eventIsEligibleForSlackAnnouncement(event) && eventIsEligibleForSlackAnnouncement(updatedEvent)) {
       await notifyEventsChannel(updatedEvent, announcementSource(updatedEvent), c);
+    } else if (Object.keys(updates).some((field) => SLACK_MESSAGE_EVENT_FIELDS.has(field))) {
+      await syncSentEventSlackAnnouncement(updatedEvent, c);
     }
     return c.json(updatedEvent);
   } catch (error) {
@@ -8051,6 +8148,9 @@ app.post('/api/events/:eventId/media', async (c) => {
       targetId: event.id,
       metadata: { purpose, file_name: uploadedFile.name || null },
     });
+    if (purpose === 'cover') {
+      await syncSentEventSlackAnnouncement(updatedEvent, c);
+    }
 
     return c.json({
       event: updatedEvent,

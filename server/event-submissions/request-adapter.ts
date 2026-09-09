@@ -22,6 +22,7 @@ export function createEventSubmissionRequestAdapter(
       amendment: EventSubmissionAmendment;
     }): Promise<void>;
     rebaselineApprovedEventMonitor(input: { submissionId: string }): Promise<void>;
+    syncApprovedEventAnnouncement(input: { submissionId: string }): Promise<void>;
   },
 ) {
   return createEventSubmissionLifecycle({
@@ -35,5 +36,6 @@ export function createEventSubmissionRequestAdapter(
     },
     notifyAmendmentSubmitted: dependencies.notifyAmendmentSubmitted,
     rebaselineApprovedEventMonitor: dependencies.rebaselineApprovedEventMonitor,
+    syncApprovedEventAnnouncement: dependencies.syncApprovedEventAnnouncement,
   });
 }
