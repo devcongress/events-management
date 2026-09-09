@@ -1,10 +1,26 @@
 # Architectural Decisions
 
-## ADR-087: Layer Volunteer Intake Limits Without Treating an IP as a Device
+## ADR-088: Do Not Rate-Limit Volunteer Applicants by Shared Network
 
 **Date:** 2026-09-09
 
 **Status:** Accepted
+
+**Context:** Production counters showed eight distinct validated volunteer emails arriving through one public-network identity within an hour. Campus Wi-Fi, event venues, offices, cafés, VPNs, and carrier NAT can legitimately place many unrelated applicants behind one public IP. The ten-per-network daily ceiling then rejected genuine applicants and presented an hours-long wait.
+
+**Decision:** Remove both the per-minute and per-day public-network limits from volunteer intake. Keep Turnstile, email assessment, idempotent success for an existing normalized email, and the three-per-day normalized-email retry guard. Different email identities therefore never consume a shared volunteer allowance.
+
+**Trade-offs:** Turnstile and email identity now carry more of the automated-abuse boundary, and a distributed attacker with many deliverable addresses can create more work than under an IP quota. This is preferable to rejecting cohorts of legitimate students or event attendees based on a network identity they do not control.
+
+**Revisit when:** Abuse evidence justifies a risk-scored control that can distinguish automated traffic without treating a public IP as one person or device.
+
+---
+
+## ADR-087: Layer Volunteer Intake Limits Without Treating an IP as a Device
+
+**Date:** 2026-09-09
+
+**Status:** Superseded by ADR-088
 
 **Context:** The volunteer form described a public-IP bucket as a device and allowed only two requests per 24 hours. Shared office, campus, carrier, VPN, and event networks could therefore block a person who had never submitted. The lower allowance was also consumed before email assessment or idempotent duplicate detection.
 

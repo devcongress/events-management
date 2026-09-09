@@ -106,8 +106,6 @@ import { createVolunteerApplication, getVolunteerApplicationByEmail, getVoluntee
 import {
   normalizedVolunteerEmailKey,
   VOLUNTEER_EMAIL_RETRY_LIMIT,
-  VOLUNTEER_NETWORK_BURST_LIMIT,
-  VOLUNTEER_NETWORK_DAILY_LIMIT,
 } from '@/lib/volunteer-rate-limit';
 import { addSpeaker, getSpeakerByEmail, getSpeakersByEvent, removeSpeaker } from '@/lib/mock-db/speakers';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled, isSupabaseServerConfigured } from '@/lib/supabase/server';
@@ -4578,15 +4576,6 @@ app.post('/api/volunteer-applications', async (c) => {
   });
   if (turnstileError) return turnstileError;
 
-  const clientKey = publicClientKey(c);
-  const burstError = await enforcePublicRateLimit(c, {
-    action: VOLUNTEER_NETWORK_BURST_LIMIT.action,
-    clientKey,
-    maxAttempts: VOLUNTEER_NETWORK_BURST_LIMIT.maxAttempts,
-    windowSeconds: VOLUNTEER_NETWORK_BURST_LIMIT.windowSeconds,
-  }, 'Several volunteer requests reached us from this network. Please wait one minute and try again.');
-  if (burstError) return burstError;
-
   const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.email);
   if (emailAssessment.status === 'invalid') {
     return c.json(publicEmailErrorPayload(emailAssessment), 422);
@@ -4597,14 +4586,6 @@ app.post('/api/volunteer-applications', async (c) => {
   if (existingApplication) {
     return c.json({ accepted: true }, 202);
   }
-
-  const networkDailyError = await enforcePublicRateLimit(c, {
-    action: VOLUNTEER_NETWORK_DAILY_LIMIT.action,
-    clientKey,
-    maxAttempts: VOLUNTEER_NETWORK_DAILY_LIMIT.maxAttempts,
-    windowSeconds: VOLUNTEER_NETWORK_DAILY_LIMIT.windowSeconds,
-  }, 'This network has sent several new volunteer applications today. Please try again later.');
-  if (networkDailyError) return networkDailyError;
 
   const emailRetryError = await enforcePublicRateLimit(c, {
     action: VOLUNTEER_EMAIL_RETRY_LIMIT.action,

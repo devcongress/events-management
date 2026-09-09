@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-09 — Remove volunteer shared-network quotas
+
+- Removed both public-IP-based volunteer intake limits after live production evidence showed multiple legitimate applicants submitting from one campus or venue network.
+- Retained Turnstile, validated-email checks, idempotent duplicate acceptance, and a normalized-email retry guard so different people never consume a shared volunteer quota.
+
 ## 2026-09-09 — Volunteer intake retry countdown
 
 - Added a server-directed countdown to the volunteer form submit button when the API returns a rate-limit or temporary-unavailability retry window.

@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe('volunteer intake rate-limit flow', () => {
-  it('does not spend the validated-new-application allowances on a rejected email', async () => {
+  it('does not spend any rate-limit allowance on a rejected email', async () => {
     mocks.assessEmail.mockResolvedValue({
       status: 'invalid',
       normalizedEmail: 'person@mailinator.com',
@@ -69,14 +69,10 @@ describe('volunteer intake rate-limit flow', () => {
     });
 
     expect(response.status).toBe(422);
-    expect(mocks.enforceRateLimit).toHaveBeenCalledTimes(1);
-    expect(mocks.enforceRateLimit.mock.calls[0]?.[1]).toMatchObject({
-      action: 'volunteer_application_burst',
-      clientKey: 'shared-network',
-    });
+    expect(mocks.enforceRateLimit).not.toHaveBeenCalled();
   });
 
-  it('uses separate shared-network and normalized-email limits for a new application', async () => {
+  it('uses only the normalized-email limit for a new application', async () => {
     mocks.assessEmail.mockResolvedValue({
       status: 'deliverable',
       normalizedEmail: 'ama@example.com',
@@ -93,8 +89,6 @@ describe('volunteer intake rate-limit flow', () => {
 
     expect(response.status).toBe(202);
     expect(mocks.enforceRateLimit.mock.calls.map((call) => call[1])).toEqual([
-      expect.objectContaining({ action: 'volunteer_application_burst', clientKey: 'shared-network' }),
-      expect.objectContaining({ action: 'volunteer_application_network_daily', clientKey: 'shared-network' }),
       expect.objectContaining({ action: 'volunteer_application_email_daily', clientKey: 'ama@example.com' }),
     ]);
     expect(mocks.createVolunteerApplication).toHaveBeenCalledWith(expect.objectContaining({
@@ -102,7 +96,7 @@ describe('volunteer intake rate-limit flow', () => {
     }));
   });
 
-  it('returns the same accepted response for an existing email before spending new-application limits', async () => {
+  it('returns the same accepted response for an existing email without spending a rate-limit allowance', async () => {
     mocks.assessEmail.mockResolvedValue({
       status: 'deliverable',
       normalizedEmail: 'ama@example.com',
@@ -119,7 +113,7 @@ describe('volunteer intake rate-limit flow', () => {
     });
 
     expect(response.status).toBe(202);
-    expect(mocks.enforceRateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.enforceRateLimit).not.toHaveBeenCalled();
     expect(mocks.createVolunteerApplication).not.toHaveBeenCalled();
   });
 });
