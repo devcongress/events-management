@@ -42,6 +42,15 @@ export async function createVolunteerApplication(input: CreateVolunteerApplicati
   );
 }
 
+export async function getVolunteerApplicationByEmail(email: string): Promise<VolunteerApplication | null> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const applications = await readData<VolunteerApplication>(VOLUNTEER_APPLICATIONS_FILE);
+  return applications.find((application) => (
+    application.campaign_id === DECEMBER_VOLUNTEER_CAMPAIGN_ID
+    && application.email.toLowerCase() === normalizedEmail
+  )) ?? null;
+}
+
 export async function getVolunteerApplications(): Promise<VolunteerApplication[]> {
   const applications = await readData<VolunteerApplication>(VOLUNTEER_APPLICATIONS_FILE);
   return applications

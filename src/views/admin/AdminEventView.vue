@@ -1185,6 +1185,7 @@ onMounted(fetchOverview);
               </button>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
+            <p v-if="slackAnnouncement?.message_update_last_error" class="event-overview-copy-error mt-3">Latest Slack update failed: {{ slackAnnouncement.message_update_last_error }}</p>
             <p v-if="slackEligible" class="mt-3 max-w-2xl text-xs leading-5 text-dc-gray">This event will be posted to Slack as soon as its public page is available on devcongress.org. The website refresh runs daily; the scheduled retry will check again after the update.</p>
             <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div class="rounded-lg border border-dc-border bg-dc-paper p-4">

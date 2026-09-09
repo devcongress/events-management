@@ -122,6 +122,7 @@ vi.mock('@/lib/supabase/annual-conference-access-grants', () => ({
 
 vi.mock('@/lib/mock-db/volunteer-applications', () => ({
   createVolunteerApplication: vi.fn(),
+  getVolunteerApplicationByEmail: vi.fn(),
   getVolunteerApplications: vi.fn(async () => mocks.applications),
 }));
 

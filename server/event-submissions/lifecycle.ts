@@ -82,6 +82,7 @@ export type EventSubmissionLifecycleDependencies = {
     amendment: EventSubmissionAmendment;
   }): Promise<void>;
   rebaselineApprovedEventMonitor?(input: { submissionId: string }): Promise<void>;
+  syncApprovedEventAnnouncement?(input: { submissionId: string }): Promise<void>;
 };
 
 export function createEventSubmissionLifecycle(dependencies: EventSubmissionLifecycleDependencies) {
@@ -210,6 +211,9 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
         });
         if (input.approve && dependencies.rebaselineApprovedEventMonitor) {
           await dependencies.rebaselineApprovedEventMonitor({ submissionId: amendment.submission_id }).catch(() => undefined);
+        }
+        if (input.approve && dependencies.syncApprovedEventAnnouncement) {
+          await dependencies.syncApprovedEventAnnouncement({ submissionId: amendment.submission_id }).catch(() => undefined);
         }
         return amendment;
       },

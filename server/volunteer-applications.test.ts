@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createVolunteerApplication: vi.fn(),
+  getVolunteerApplicationByEmail: vi.fn(),
 }));
 
 vi.mock('@/lib/mock-db/volunteer-applications', () => ({
   DECEMBER_VOLUNTEER_CAMPAIGN_ID: 'december-mega-meetup',
   createVolunteerApplication: mocks.createVolunteerApplication,
+  getVolunteerApplicationByEmail: mocks.getVolunteerApplicationByEmail,
   getVolunteerApplications: vi.fn(async () => []),
 }));
 
@@ -18,6 +20,7 @@ beforeEach(async () => {
   vi.resetModules();
   const { resetLocalPublicRateLimits } = await import('@/lib/public-rate-limit');
   resetLocalPublicRateLimits();
+  mocks.getVolunteerApplicationByEmail.mockResolvedValue(null);
   mocks.createVolunteerApplication.mockResolvedValue({
     created: true,
     application: {
@@ -56,5 +59,29 @@ describe('public volunteer applications', () => {
       x_handle: '',
       slack_name: '',
     });
+  });
+
+  it('treats a repeated normalized email as an accepted idempotent retry', async () => {
+    mocks.getVolunteerApplicationByEmail.mockResolvedValue({
+      id: 'volunteer-existing',
+      campaign_id: 'december-mega-meetup',
+      name: 'Ama Mensah',
+      email: 'ama@example.com',
+      x_handle: '',
+      slack_name: '',
+      created_at: '2026-08-20T10:00:00.000Z',
+    });
+    const { default: app } = await import('./app');
+
+    const response = await app.request('http://localhost/api/volunteer-applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Ama Mensah', email: 'AMA@Example.com' }),
+    });
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({ accepted: true });
+    expect(mocks.getVolunteerApplicationByEmail).toHaveBeenCalledWith('ama@example.com');
+    expect(mocks.createVolunteerApplication).not.toHaveBeenCalled();
   });
 });

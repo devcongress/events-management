@@ -11,6 +11,10 @@ export type EventSlackAnnouncement = {
   last_attempt_at: string | null;
   sent_at: string | null;
   last_error: string | null;
+  provider_channel_id: string | null;
+  provider_message_ts: string | null;
+  message_updated_at: string | null;
+  message_update_last_error: string | null;
 };
 
 export type ClaimedEventSlackAnnouncement = EventSlackAnnouncement & {
@@ -34,6 +38,10 @@ function localClaim(eventId: string, source: EventSlackAnnouncement['source'], a
     last_attempt_at: null,
     sent_at: null,
     last_error: null,
+    provider_channel_id: null,
+    provider_message_ts: null,
+    message_updated_at: null,
+    message_update_last_error: null,
     lease_token: null,
     lease_expires_at: null,
   };
@@ -93,6 +101,7 @@ export async function completeEventSlackAnnouncement(
   attemptToken: string,
   sent: boolean,
   errorMessage: string | null,
+  providerReference?: { channelId: string; messageTs: string } | null,
   c?: Context,
 ): Promise<EventSlackAnnouncement> {
   if (!isSupabaseRuntimeEnabled(c)) {
@@ -103,6 +112,10 @@ export async function completeEventSlackAnnouncement(
       status: sent ? 'sent' as const : 'failed' as const,
       sent_at: sent ? nowIso() : null,
       last_error: sent ? null : errorMessage,
+      provider_channel_id: sent ? providerReference?.channelId ?? null : null,
+      provider_message_ts: sent ? providerReference?.messageTs ?? null : null,
+      message_updated_at: sent && providerReference ? nowIso() : null,
+      message_update_last_error: null,
       lease_token: null,
       lease_expires_at: null,
     };
@@ -116,7 +129,51 @@ export async function completeEventSlackAnnouncement(
     p_attempt_token: attemptToken,
     p_sent: sent,
     p_error: errorMessage,
+    p_provider_channel_id: providerReference?.channelId ?? null,
+    p_provider_message_ts: providerReference?.messageTs ?? null,
   }).single();
   if (error || !data) throw new Error('Unable to finalize the Slack announcement.');
+  return data as EventSlackAnnouncement;
+}
+
+export async function completeEventSlackAnnouncementUpdate(
+  eventId: string,
+  update: { succeeded: boolean; errorMessage?: string | null },
+  c?: Context,
+): Promise<EventSlackAnnouncement> {
+  if (!isSupabaseRuntimeEnabled(c)) {
+    const current = localAnnouncements.get(eventId);
+    if (!current || current.status !== 'sent') throw new Error('Slack announcement is not available for updating.');
+    const completed = {
+      ...current,
+      message_updated_at: update.succeeded ? nowIso() : current.message_updated_at,
+      message_update_last_error: update.succeeded ? null : update.errorMessage ?? 'Slack message update failed.',
+    };
+    localAnnouncements.set(eventId, completed);
+    return completed;
+  }
+
+  const client = getSupabaseAdminClient(c) as any;
+  const completedAt = nowIso();
+  const changes = update.succeeded
+    ? {
+      message_updated_at: completedAt,
+      message_update_last_error: null,
+      updated_at: completedAt,
+    }
+    : {
+      message_update_last_error: (update.errorMessage ?? 'Slack message update failed.').slice(0, 500),
+      updated_at: completedAt,
+    };
+  const { data, error } = await client
+    .from('event_slack_announcements')
+    .update(changes)
+    .eq('event_id', eventId)
+    .eq('status', 'sent')
+    .not('provider_channel_id', 'is', null)
+    .not('provider_message_ts', 'is', null)
+    .select('*')
+    .maybeSingle();
+  if (error || !data) throw new Error('Unable to record the Slack message update.');
   return data as EventSlackAnnouncement;
 }

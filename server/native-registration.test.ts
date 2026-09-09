@@ -109,6 +109,98 @@ describe('native event registration API', () => {
       .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
   });
 
+  it('updates a bot-posted Slack announcement when the organizer changes the event schedule', async () => {
+    vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', '');
+    vi.stubEnv('SLACK_EVENTS_BOT_TOKEN', 'xoxb-test-events-token-that-is-long-enough');
+    vi.stubEnv('SLACK_EVENTS_CHANNEL_ID', 'C0123456789');
+    let slackUpdatesAvailable = true;
+    const slackFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith('https://devcongress.org/')) return new Response('', { status: 200 });
+      if (url === 'https://slack.com/api/chat.postMessage') {
+        return new Response(JSON.stringify({ ok: true, channel: 'C0123456789', ts: '1788900000.123456' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url === 'https://slack.com/api/chat.update') {
+        return new Response(JSON.stringify(slackUpdatesAvailable
+          ? { ok: true, channel: 'C0123456789', ts: '1788900000.123456' }
+          : { ok: false, error: 'ratelimited' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', slackFetch);
+    const { default: app } = await import('./app');
+
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Editable Slack meetup',
+        description: 'A published organizer event.',
+        event_date: '2099-09-20T13:32:00.000Z',
+        end_date: '2099-09-20T15:32:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    expect(createdResponse.status).toBe(201);
+    const created = await createdResponse.json() as { event: { id: string } };
+
+    const updateResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_date: '2099-09-20T09:00:00.000Z',
+        end_date: '2099-09-20T16:00:00.000Z',
+      }),
+    });
+    expect(updateResponse.status).toBe(200);
+
+    const postCall = slackFetch.mock.calls.find(([input]) => String(input) === 'https://slack.com/api/chat.postMessage');
+    const updateCall = slackFetch.mock.calls.find(([input]) => String(input) === 'https://slack.com/api/chat.update');
+    expect(postCall).toBeTruthy();
+    expect(updateCall).toBeTruthy();
+    expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
+      channel: 'C0123456789',
+      ts: '1788900000.123456',
+    });
+    expect(String(updateCall?.[1]?.body)).toContain('9:00 am–4:00 pm GMT');
+
+    const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+    await expect(status.json()).resolves.toMatchObject({
+      announcement: {
+        status: 'sent',
+        provider_channel_id: 'C0123456789',
+        provider_message_ts: '1788900000.123456',
+        message_update_last_error: null,
+      },
+    });
+
+    slackUpdatesAvailable = false;
+    const updateDuringSlackOutage = await app.request(`http://localhost/api/events/${created.event.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Editable Slack meetup, revised' }),
+    });
+    expect(updateDuringSlackOutage.status).toBe(200);
+    await expect(updateDuringSlackOutage.json()).resolves.toMatchObject({
+      name: 'Editable Slack meetup, revised',
+    });
+
+    const failedStatus = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+    await expect(failedStatus.json()).resolves.toMatchObject({
+      announcement: {
+        status: 'sent',
+        message_update_last_error: 'Slack rejected the notification (ratelimited).',
+      },
+    });
+  });
+
   it('does not fail event creation when the events channel is unavailable', async () => {
     vi.stubEnv('SLACK_EVENTS_CHANNEL_WEBHOOK_URL', 'https://hooks.slack.com/services/test/events');
     const slackFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => (

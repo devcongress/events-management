@@ -902,6 +902,10 @@ export type EventSlackAnnouncement = {
   last_attempt_at: string | null;
   sent_at: string | null;
   last_error: string | null;
+  provider_channel_id: string | null;
+  provider_message_ts: string | null;
+  message_updated_at: string | null;
+  message_update_last_error: string | null;
 };
 
 export type EventSlackAnnouncementResponse = {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack } from './slack';
+import { sendEditableEventAddedToSlack, sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, updateEditableEventAddedToSlack } from './slack';
 
 describe('event Slack announcements', () => {
   it('sends a review-only alert when a monitored registration page changes', async () => {
@@ -73,6 +73,93 @@ describe('event Slack announcements', () => {
     expect(payload.blocks.some((block) => block.type === 'actions')).toBe(false);
     expect(payload.blocks.find((block) => block.text?.text?.includes('Open event'))?.text?.text)
       .toBe('<https://devcongress.org/events/community-design-night|Open event →>');
+  });
+
+  it('renders the complete event time range when an end time is available', async () => {
+    const requests: RequestInit[] = [];
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init ?? {});
+      return new Response('ok', { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await sendEventAddedToSlack({
+      webhookUrl: 'https://hooks.slack.com/services/test/events',
+      eventName: 'September meetup',
+      eventDate: '2026-09-26T09:00:00.000Z',
+      eventEndDate: '2026-09-26T16:00:00.000Z',
+      eventFormat: 'meetup',
+      location: 'Accra',
+      source: 'organizer',
+      publicEventUrl: 'https://devcongress.org/events/september-meetup',
+      fetcher,
+    });
+
+    const payload = JSON.parse(String(requests[0]?.body)) as { blocks: Array<{ text?: { text?: string } }> };
+    expect(payload.blocks.find((block) => block.text?.text?.includes('September meetup'))?.text?.text)
+      .toContain('9:00 am–4:00 pm GMT');
+  });
+
+  it('posts and updates an editable event message through the Slack Web API', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), init: init ?? {} });
+      return new Response(JSON.stringify({ ok: true, channel: 'C0123456789', ts: '1788900000.123456' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }) as unknown as typeof fetch;
+    const message = {
+      botToken: 'xoxb-test-token-that-is-long-enough',
+      eventName: 'September meetup',
+      eventDate: '2026-09-26T09:00:00.000Z',
+      eventEndDate: '2026-09-26T16:00:00.000Z',
+      eventFormat: 'meetup',
+      location: 'Accra',
+      source: 'organizer' as const,
+      publicEventUrl: 'https://devcongress.org/events/september-meetup',
+      fetcher,
+    };
+
+    const reference = await sendEditableEventAddedToSlack({ ...message, channelId: 'C0123456789' });
+    await updateEditableEventAddedToSlack({ ...message, ...reference });
+
+    expect(reference).toEqual({ channelId: 'C0123456789', messageTs: '1788900000.123456' });
+    expect(calls.map((call) => call.url)).toEqual([
+      'https://slack.com/api/chat.postMessage',
+      'https://slack.com/api/chat.update',
+    ]);
+    expect(calls[0]?.init.headers).toMatchObject({ Authorization: 'Bearer xoxb-test-token-that-is-long-enough' });
+    expect(JSON.parse(String(calls[1]?.init.body))).toMatchObject({
+      channel: 'C0123456789',
+      ts: '1788900000.123456',
+    });
+  });
+
+  it('keeps bot credentials out of bounded Slack API errors', async () => {
+    const botToken = 'xoxb-sensitive-token-that-must-not-leak';
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      ok: false,
+      error: 'invalid_auth',
+      detail: botToken,
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as unknown as typeof fetch;
+
+    const result = sendEditableEventAddedToSlack({
+      botToken,
+      channelId: 'C0123456789',
+      eventName: 'September meetup',
+      eventDate: '2026-09-26T09:00:00.000Z',
+      eventFormat: 'meetup',
+      location: 'Accra',
+      source: 'organizer',
+      publicEventUrl: 'https://devcongress.org/events/september-meetup',
+      fetcher,
+    });
+
+    await expect(result).rejects.toThrow('Slack rejected the notification (invalid_auth).');
+    await expect(result).rejects.not.toThrow(botToken);
   });
 
   it('omits a malformed or non-public cover instead of sending an invalid image block', async () => {
