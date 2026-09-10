@@ -2,7 +2,7 @@
 
 ## 2026-09-10 — Volunteer directory pagination
 
-- Display recognized X profiles as clean clickable handles without tracking parameters; email and Slack values truncate and expand on tap for viewing and copying.
+- Display recognized X profiles as clean clickable handles without tracking parameters; email and Slack values truncate with an adjacent icon button to copy the full value, without expandable rows.
 - Unified the mobile volunteer sharing actions with icons, bordered copy styling, and narrow-screen layouts.
 - Paginated the volunteer directory into ten-row pages using the shared app controls, with a visible range summary and full-directory status totals.
 - Keep navigation outside the horizontally scrolling table, reset it when the conference year changes, and clamp the selected page when the list shrinks.

@@ -22,12 +22,15 @@ async function copy() {
 </script>
 
 <template>
-  <details class="min-w-0">
-    <summary class="cursor-pointer truncate py-2 font-medium text-dc-pink underline decoration-dc-pink/30 underline-offset-4" :aria-label="`View ${label}: ${value}`">{{ value }}</summary>
-    <div class="mt-1 rounded-md border border-dc-border bg-dc-paper-warm p-2">
-      <a v-if="email" :href="`mailto:${value}`" class="block [overflow-wrap:anywhere] text-dc-pink">{{ value }}</a>
-      <p v-else class="[overflow-wrap:anywhere]">{{ value }}</p>
-      <AppCopyButton :state="state" :label="`Copy ${label.toLowerCase()}`" class="mt-2 min-h-11 max-w-full rounded-md border border-dc-border bg-white px-2 text-xs" @click="copy" />
-    </div>
-  </details>
+  <div class="flex min-w-0 items-center gap-2">
+    <a v-if="email" :href="`mailto:${value}`" :title="value" class="min-w-0 flex-1 truncate font-medium text-dc-pink underline decoration-dc-pink/30 underline-offset-4">{{ value }}</a>
+    <span v-else :title="value" class="min-w-0 flex-1 truncate">{{ value }}</span>
+    <AppCopyButton
+      icon-only
+      :state="state"
+      :label="`Copy ${label.toLowerCase()}`"
+      class="h-11 w-11 shrink-0 rounded-md border border-dc-border bg-white text-dc-gray"
+      @click="copy"
+    />
+  </div>
 </template>
