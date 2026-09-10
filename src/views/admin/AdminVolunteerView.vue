@@ -4,6 +4,9 @@ import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
+import AppPagination from '@/src/components/AppPagination.vue';
+import VolunteerContactValue from '@/src/components/VolunteerContactValue.vue';
+import { xProfile } from '@/src/lib/x-profile';
 import {
   VOLUNTEER_PUBLIC_PATH,
   annualConferencePath,
@@ -49,6 +52,7 @@ const volunteerRows = computed(() => {
       name: application.name,
       email: application.email,
       xHandle: application.x_handle,
+      xProfile: xProfile(application.x_handle),
       slackName: application.slack_name,
       signedUpAt: application.created_at,
       status: application.status,
@@ -64,6 +68,7 @@ const volunteerRows = computed(() => {
         name: member.display_name,
         email: null,
         xHandle: null,
+        xProfile: null,
         slackName: null,
         signedUpAt: null,
         status: 'active' as const,
@@ -79,6 +84,18 @@ const volunteerRows = computed(() => {
   });
 });
 const activeVolunteerCount = computed(() => volunteerRows.value.filter((row) => row.status === 'active').length);
+const volunteerPage = ref(1);
+const volunteersPerPage = 10;
+const volunteerPageCount = computed(() => Math.max(1, Math.ceil(volunteerRows.value.length / volunteersPerPage)));
+const volunteerPageStart = computed(() => (volunteerPage.value - 1) * volunteersPerPage);
+const volunteerPageEnd = computed(() => Math.min(volunteerRows.value.length, volunteerPageStart.value + volunteersPerPage));
+const paginatedVolunteers = computed(() => volunteerRows.value.slice(volunteerPageStart.value, volunteerPageEnd.value));
+
+watch(year, () => { volunteerPage.value = 1; });
+watch(volunteerPageCount, (pageCount) => {
+  volunteerPage.value = Math.min(volunteerPage.value, pageCount);
+});
+
 const applicantCount = computed(() => volunteerRows.value.filter((row) => row.status === 'applicant').length);
 const volunteerDirectoryLoading = computed(() => (
   (canViewTeam.value && teamQuery.isPending.value)
@@ -229,7 +246,7 @@ function openVolunteerDisplay() {
               </tr>
             </thead>
             <tbody class="divide-y divide-dc-border bg-white">
-              <tr v-for="row in volunteerRows" :key="row.id" class="hover:bg-dc-paper-warm/40">
+              <tr v-for="row in paginatedVolunteers" :key="row.id" class="hover:bg-dc-paper-warm/40">
                 <th scope="row" class="px-5 py-3 text-sm font-semibold text-dc-ink sm:px-6">{{ row.name }}</th>
                 <td class="px-4 py-3">
                   <span
@@ -246,10 +263,16 @@ function openVolunteerDisplay() {
                 </td>
                 <template v-else-if="canReviewApplications">
                   <td class="px-4 py-3 text-sm">
-                    <a :href="`mailto:${row.email}`" class="font-medium text-dc-pink underline decoration-dc-pink/30 underline-offset-4">{{ row.email }}</a>
+                    <VolunteerContactValue v-if="row.email" :value="row.email" label="Email" email />
                   </td>
-                  <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">{{ row.xHandle || '—' }}</td>
-                  <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">{{ row.slackName || '—' }}</td>
+                  <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">
+                    <a v-if="row.xProfile" :href="row.xProfile.href" target="_blank" rel="noopener noreferrer" class="block [overflow-wrap:anywhere] text-dc-pink underline underline-offset-4">{{ row.xProfile.label }}</a>
+                    <span v-else class="block [overflow-wrap:anywhere]">{{ row.xHandle || '—' }}</span>
+                  </td>
+                  <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">
+                    <VolunteerContactValue v-if="row.slackName" :value="row.slackName" label="Slack" />
+                    <span v-else>—</span>
+                  </td>
                   <td class="whitespace-nowrap px-5 py-3 text-right sm:px-6">
                     <time class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">{{ formatDate(row.signedUpAt!) }}</time>
                   </td>
@@ -257,6 +280,19 @@ function openVolunteerDisplay() {
               </tr>
             </tbody>
           </table>
+        </div>
+        <div v-if="!volunteerDirectoryLoading && !volunteerDirectoryError && volunteerRows.length" class="flex flex-col gap-3 border-t border-dc-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p class="text-xs text-dc-gray">Showing {{ volunteerPageStart + 1 }}–{{ volunteerPageEnd }} of {{ volunteerRows.length }} volunteers</p>
+          <AppPagination
+            v-model:page="volunteerPage"
+            class="volunteer-pagination"
+            :page-count="volunteerPageCount"
+            :total="volunteerRows.length"
+            :range-start="volunteerPageStart + 1"
+            :range-end="volunteerPageEnd"
+            item-label="volunteers"
+            aria-label="Volunteer directory pagination"
+          />
         </div>
       </section>
 
@@ -267,3 +303,11 @@ function openVolunteerDisplay() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.volunteer-pagination {
+  border-top: 0;
+  padding: 0;
+  background: transparent;
+}
+</style>
