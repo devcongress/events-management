@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useQuery } from '@tanstack/vue-query';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -7,7 +6,6 @@ import { adminPath } from '@/src/admin-routes';
 import { isSystemDesignWorkspaceDisabled } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { isSystemDesignSessionItem } from '@/lib/system-design';
-import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 
 const props = defineProps<{
@@ -32,16 +30,7 @@ const quarterlyTabs: AdminEventTab[] = [
   { href: 'feedback', label: 'Feedback' },
 ];
 const { eventQuery, checklistQuery } = useEventWorkspace(() => props.eventId);
-const adminSessionQuery = useQuery({
-  queryKey: queryKeys.adminSession,
-  queryFn: fetchAdminSession,
-});
 const isQuarterlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'quarterly' : false);
-const isMonthlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'monthly' : false);
-const canViewMonthlyFinance = computed(() => {
-  const role = adminSessionQuery.data.value?.user?.role;
-  return role === 'owner' || role === 'organizer';
-});
 const hasSavedSystemDesignSource = computed(() => (
   eventQuery.data.value?.schedule?.some((item) => (
     isSystemDesignSessionItem(item)
@@ -65,7 +54,6 @@ const fullTabs = computed<AdminEventTab[]>(() => [
   },
   { href: 'feedback', label: 'Feedback' },
   { href: 'attendance', label: 'Attendance' },
-  ...(isMonthlyEvent.value && canViewMonthlyFinance.value ? [{ href: 'finance', label: 'Finance' }] : []),
 ]);
 const tabs = computed<AdminEventTab[]>(() => (isQuarterlyEvent.value ? quarterlyTabs : fullTabs.value));
 

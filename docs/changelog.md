@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-10 — Retire monthly meetup finances
+
+- Removed the monthly Finance tab, screen, API handlers, client contracts, and local/Supabase storage implementations. Annual Conference finances are unchanged.
+- Added an explicitly destructive migration to drop only the monthly expense and category tables and remove their matching finance audit entries. Deploy the application removal before applying it; the migration has not been applied by this code change.
+
+## 2026-09-10 — Single-line volunteer X values
+
+- Truncate X handles and unrecognized values to one line with an adjacent full-value copy button; valid X profiles remain clickable.
+
 ## 2026-09-10 — Volunteer directory pagination
 
 - Display recognized X profiles as clean clickable handles without tracking parameters; email and Slack values truncate with an adjacent icon button to copy the full value, without expandable rows.

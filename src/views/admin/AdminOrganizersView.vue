@@ -609,7 +609,7 @@ onUnmounted(() => {
             </button>
           </div>
           <p class="mt-3 border-t border-dc-border pt-3 text-[11px] leading-4 text-dc-gray">
-            Volunteers remain limited to assigned tasks. Monthly meetup finance is available to Owners and Organizers, and both roles can manage expenses.
+            Volunteers remain limited to assigned tasks.
           </p>
         </section>
 

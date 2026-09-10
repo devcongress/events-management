@@ -4,7 +4,7 @@ import AppCopyButton from './ui/AppCopyButton.vue';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
 
-const props = defineProps<{ value: string; label: string; email?: boolean }>();
+const props = defineProps<{ value: string; label: string; email?: boolean; profileHref?: string }>();
 const state = ref<'idle' | 'copying' | 'copied'>('idle');
 let timer: ReturnType<typeof setTimeout> | undefined;
 onBeforeUnmount(() => clearTimeout(timer));
@@ -24,6 +24,7 @@ async function copy() {
 <template>
   <div class="flex min-w-0 items-center gap-2">
     <a v-if="email" :href="`mailto:${value}`" :title="value" class="min-w-0 flex-1 truncate font-medium text-dc-pink underline decoration-dc-pink/30 underline-offset-4">{{ value }}</a>
+    <a v-else-if="profileHref" :href="profileHref" target="_blank" rel="noopener noreferrer" :title="value" class="min-w-0 flex-1 truncate text-dc-pink underline underline-offset-4">{{ value }}</a>
     <span v-else :title="value" class="min-w-0 flex-1 truncate">{{ value }}</span>
     <AppCopyButton
       icon-only

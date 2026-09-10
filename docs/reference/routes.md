@@ -62,7 +62,6 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/talks/backfill` | Archive Requests: multi-select eligible program speakers, email each person a private title/name/kind-locked form, and track it until used, expired, or removed |
 | `/organizer-console/events/:eventId/speakers` | Compatibility route for the legacy speaker access allowlist; it is not the Event Archive and is no longer shown in event navigation |
 | `/organizer-console/events/:eventId/attendance` | Event attendance readout and CSV import |
-| `/organizer-console/events/:eventId/finance` | Owner-only GHS actual-expense ledger for monthly meetups; no budget entry required |
 | `/organizer-console/events/:eventId/quiz` | Quiz builder and host controls |
 | `/organizer-console/events/:eventId/system-design` | Saved System Design scenario workspace plus five-question generation/review and presentation launch; saved sources keep this available for completed meetups |
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
@@ -80,9 +79,6 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `GET/POST /api/registration/events/:eventKey` | Public registration status and non-enumerating name/email submission by event slug or ID, protected by strict input and mail-domain preflight, production Turnstile, atomic cross-Worker limits, campaign/email uniqueness, and atomic capacity allocation |
 | `GET /api/registration/events/:eventKey/calendar.ics` | Public, attendee-free calendar download used by confirmed registration emails |
 | `/api/events/:eventId/registrations*` | Organizer registration status/window/capacity, private guest list, check-in, Owner/Organizer-only `DELETE .../:registrationId/check-in` undo, cancellation with atomic oldest-waitlisted promotion, and a development/test-only permanent-delete endpoint that returns `404` in other runtimes. Monthly place allocation and overflow waitlisting are server policy, not mutable organizer settings. The authenticated GET discriminates native campaigns from existing historical events with `managed_internally`; unknown events remain `404`. |
-| `GET /api/events/:eventId/finance` | Owner or Organizer access to the monthly meetup actual-expense summary and ledger; Volunteers are rejected and non-monthly events are rejected |
-| `POST /api/events/:eventId/finance/expenses` | Owner-or-Organizer validated GHS expense creation with paid/unpaid/cancelled state and audit logging; Volunteers are rejected |
-| `PATCH /api/events/:eventId/finance/expenses/:expenseId` | Owner-or-Organizer validated GHS expense editing with audit logging; the expense must belong to the monthly meetup and Volunteers are rejected |
 | `POST /api/events/:eventId/registration-emails/process` | Organizer retry for failed transactional receipt, waitlist, or promotion deliveries |
 | `GET /api/admin/venues/search?q=...` | Authenticated, rate-limited Ghana venue autocomplete backed by server-side Google Places (New) |
 | `/api/talks*` | Compatibility routes for Event Archive item review, publishing, resources, and reminders |
