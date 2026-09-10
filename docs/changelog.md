@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-10 — Volunteer directory pagination
+
+- Display recognized X profiles as clean clickable handles without tracking parameters; email and Slack values truncate and expand on tap for viewing and copying.
+- Unified the mobile volunteer sharing actions with icons, bordered copy styling, and narrow-screen layouts.
+- Paginated the volunteer directory into ten-row pages using the shared app controls, with a visible range summary and full-directory status totals.
+- Keep navigation outside the horizontally scrolling table, reset it when the conference year changes, and clamp the selected page when the list shrinks.
+
 ## 2026-09-09 — Remove volunteer shared-network quotas
 
 - Removed both public-IP-based volunteer intake limits after live production evidence showed multiple legitimate applicants submitting from one campus or venue network.

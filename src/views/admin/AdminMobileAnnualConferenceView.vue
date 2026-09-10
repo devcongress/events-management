@@ -645,9 +645,9 @@ function openVolunteerDisplay() {
         <section v-else key="volunteers" class="conference-view">
           <header class="page-intro"><span>People</span><h1>Volunteers</h1><p>Your assigned volunteer responsibilities for this edition.</p></header>
           <div v-if="canShareVolunteerIntake" class="volunteer-actions">
-            <button type="button" class="primary-button" @click="openVolunteerDisplay">Show QR</button>
+            <button type="button" class="primary-button" @click="openVolunteerDisplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM21 14v4h-3v3h-4M21 21h-1" /></svg><span>Show QR</span></button>
             <AppCopyButton :state="volunteerLinkCopyState" label="Copy link" class="secondary-button" @click="copyVolunteerLink" />
-            <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button">Open form</a>
+            <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 4H4v16h16v-6" /></svg><span>Open form</span></a>
           </div>
           <section v-if="canViewVolunteerTeam" class="content-card">
             <header class="content-card__header"><div><span>Team</span><h2>{{ volunteerTeam.length }} active {{ volunteerTeam.length === 1 ? 'volunteer' : 'volunteers' }}</h2></div></header>
@@ -884,6 +884,14 @@ function openVolunteerDisplay() {
 .phase-card .progress-track { margin: .75rem 0 .5rem; }
 
 .volunteer-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.volunteer-actions > button, .volunteer-actions > a, .volunteer-actions :deep(.app-copy-button) { min-width: 0; min-height: 3rem; gap: .35rem; padding: .6rem .3rem; font-family: var(--font-mono), monospace; font-size: .6rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+.volunteer-actions :deep(.app-copy-button) { border: 1px solid #aaa69d; border-radius: 8px; background: #fff; color: #222; }
+.volunteer-actions :deep(.app-copy-button[data-copy-state='copied']) { border-color: #15803d; background: #dcfce7; color: #166534; }
+.volunteer-actions > button > svg, .volunteer-actions > a > svg { width: 1rem; height: 1rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.volunteer-actions :deep(.app-copy-button:focus-visible) { outline: 2px solid #e8117f; outline-offset: 2px; }
+@media (max-width: 359px) {
+  .volunteer-actions > button, .volunteer-actions > a, .volunteer-actions :deep(.app-copy-button__state) { flex-direction: column; }
+}
 .application-row { display: grid; width: 100%; min-height: 4.25rem; grid-template-columns: 2.25rem minmax(0, 1fr) auto .85rem; align-items: center; gap: .7rem; border: 0; background: #fff; padding: .75rem 1rem; color: #111; text-align: left; transition: transform 100ms var(--motion-fast), background-color 150ms var(--motion-fast); }
 .application-row + .application-row { border-top: 1px solid var(--conference-border); }
 .application-avatar { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid #c9c5bb; border-radius: 50%; background: #fefce8; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; }
