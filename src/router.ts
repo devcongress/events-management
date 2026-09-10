@@ -239,7 +239,6 @@ export const router = createRouter({
     { path: adminPath('events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)'), name: 'admin-talks', component: AdminTalksView, beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView, beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath('events/:eventId/attendance'), name: 'admin-attendance', component: AdminAttendanceView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/finance'), name: 'admin-monthly-meetup-finance', component: () => import('./views/admin/AdminMonthlyMeetupFinanceView.vue'), beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath('events/:eventId/registrations'), name: 'admin-registrations', component: AdminRegistrationsView, beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView, beforeEnter: redirectCommunitySubmissionWorkspace },
     { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView, beforeEnter: redirectCommunitySubmissionWorkspace },

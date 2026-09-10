@@ -1,5 +1,13 @@
 # Architectural Decisions
 
+## ADR-089: Retire Monthly Meetup Finance
+
+**Date:** 2026-09-10
+
+**Decision:** At the organizer's explicit request, remove monthly meetup finance functionality and permanently remove its data. This supersedes the earlier monthly expense-ledger and category-catalog decisions. Annual Conference finance remains a separate, supported domain.
+
+**Implementation:** Remove the monthly UI, routes, API contracts, domain/service/repository code, and generated table types. Retain historical migrations, then apply a new transaction that drops only the two monthly-finance tables without CASCADE and deletes their precisely matched audit entries. Deploy the application removal before applying the destructive migration. Existing external backups are not erased; recovery depends on them.
+
 ## ADR-088: Do Not Rate-Limit Volunteer Applicants by Shared Network
 
 **Date:** 2026-09-09

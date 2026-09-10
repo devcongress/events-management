@@ -46,13 +46,6 @@ import type {
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
 import type { AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
-import type {
-  MonthlyMeetupFinanceCategory,
-  MonthlyMeetupFinanceCategoryInput,
-  MonthlyMeetupFinanceExpense,
-  MonthlyMeetupFinanceExpenseInput,
-  MonthlyMeetupFinanceSummary,
-} from '@/lib/monthly-meetup-finance';
 
 export interface OverviewRegular {
   key: string;
@@ -160,16 +153,6 @@ export interface AdminSessionResponse {
     email: string | null;
     display_name: string | null;
     role: AdminRole;
-  };
-}
-
-export interface MonthlyMeetupFinanceResponse {
-  event: Pick<Event, 'id' | 'name' | 'event_date' | 'series_type'>;
-  categories: MonthlyMeetupFinanceCategory[];
-  expenses: MonthlyMeetupFinanceExpense[];
-  summary: MonthlyMeetupFinanceSummary;
-  permissions: {
-    can_manage: boolean;
   };
 }
 
@@ -489,7 +472,6 @@ export const queryKeys = {
   eventSubmissions: (status: EventSubmissionQueueFilter | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
-  monthlyMeetupFinance: (eventId: string) => ['monthly-meetup-finance', eventId] as const,
   annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
@@ -646,49 +628,6 @@ export function cancelAnnualConferenceFinanceIncomeExpectation(
 ) {
   return fetchJson<AnnualConferenceFinanceEntry>(`/api/annual-conference/${year}/finance/entries/${entryId}/cancel`, {
     method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-}
-
-export function fetchMonthlyMeetupFinance(eventId: string) {
-  return fetchJson<MonthlyMeetupFinanceResponse>(`/api/events/${eventId}/finance`, {
-    credentials: 'include',
-  });
-}
-
-export function createMonthlyMeetupFinanceCategory(
-  eventId: string,
-  input: MonthlyMeetupFinanceCategoryInput,
-) {
-  return fetchJson<MonthlyMeetupFinanceCategory>(`/api/events/${eventId}/finance/categories`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-}
-
-export function createMonthlyMeetupFinanceExpense(
-  eventId: string,
-  input: MonthlyMeetupFinanceExpenseInput,
-) {
-  return fetchJson<MonthlyMeetupFinanceExpense>(`/api/events/${eventId}/finance/expenses`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  });
-}
-
-export function updateMonthlyMeetupFinanceExpense(
-  eventId: string,
-  expenseId: string,
-  input: MonthlyMeetupFinanceExpenseInput,
-) {
-  return fetchJson<MonthlyMeetupFinanceExpense>(`/api/events/${eventId}/finance/expenses/${expenseId}`, {
-    method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

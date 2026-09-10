@@ -60,11 +60,6 @@ import {
   type AnnualConferenceFinanceEntryInput,
 } from '@/lib/annual-conference-finance';
 import {
-  MONTHLY_MEETUP_FINANCE_EXPENSE_STATUSES,
-  type MonthlyMeetupFinanceCategoryInput,
-  type MonthlyMeetupFinanceExpenseInput,
-} from '@/lib/monthly-meetup-finance';
-import {
   ANNUAL_CONFERENCE_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 import { createEventFormSchema, toCreateEventApiPayload } from '@/src/lib/event-form';
@@ -208,12 +203,6 @@ import {
   AnnualConferenceFinanceServiceError,
   annualConferenceFinanceErrorStatus,
 } from '@/server/annual-conference-finance-service';
-import { createMonthlyMeetupFinanceRepository } from '@/server/monthly-meetup-finance-repository';
-import {
-  MonthlyMeetupFinanceServiceError,
-  monthlyMeetupFinanceErrorStatus,
-  createMonthlyMeetupFinanceService,
-} from '@/server/monthly-meetup-finance-service';
 import { generateId, now } from '@/lib/utils';
 import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
@@ -682,18 +671,6 @@ const annualConferenceFinanceIncomeReceiptSchema = z.object({
 }).strict();
 const annualConferenceFinanceIncomeCancellationSchema = z.object({
   reason: z.string().trim().min(1, 'Explain why this expectation is no longer expected.').max(500),
-}).strict();
-const monthlyMeetupFinanceExpenseSchema = z.object({
-  category: z.string().trim().min(1, 'Category is required.').max(80),
-  description: z.string().trim().min(1, 'Description is required.').max(200),
-  amount_minor: z.number().int().min(1).max(9_000_000_000_000),
-  status: z.enum(MONTHLY_MEETUP_FINANCE_EXPENSE_STATUSES),
-  vendor: z.string().trim().max(160).nullable().optional(),
-  expense_date: z.string().date(),
-  notes: z.string().trim().max(2000).nullable().optional(),
-}).strict();
-const monthlyMeetupFinanceCategorySchema = z.object({
-  name: z.string().trim().min(1, 'Category name is required.').max(80),
 }).strict();
 const adminTokenExchangeSchema = z.object({
   access_token: z.string().trim().min(20).max(8192),
@@ -1539,27 +1516,6 @@ async function createEventFeedbackSubmissionStore(
   const submission = await createSupabaseEventFeedbackSubmission(data, c);
   if (submission) return submission;
   return createEventFeedbackSubmission(data);
-}
-
-async function monthlyMeetupFinanceServiceForRequest(c: Context) {
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-  if (!session.authenticated) {
-    throw new MonthlyMeetupFinanceServiceError('forbidden', 'Monthly meetup finance access required.');
-  }
-
-  return createMonthlyMeetupFinanceService({
-    repository: createMonthlyMeetupFinanceRepository(c),
-    actor: {
-      email: session.email,
-      role: session.role,
-    },
-    audit: (event) => auditAdminAction(c, {
-      action: event.action,
-      targetType: event.targetType,
-      targetId: event.targetId,
-      metadata: event.metadata,
-    }),
-  });
 }
 
 function canonicalizeEventSchedule(event: Event): Event {
@@ -6949,98 +6905,6 @@ app.post('/api/events/:eventId/slack-announcement', async (c) => {
     website_ready: result.websiteReady,
     website_status: result.websiteStatus,
   });
-});
-
-app.get('/api/events/:eventId/finance', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-
-  const event = await getEventById(c.req.param('eventId'), c);
-  if (!event) return c.json({ error: 'Event not found.' }, 404);
-
-  try {
-    const service = await monthlyMeetupFinanceServiceForRequest(c);
-    return c.json(await service.getFinance(event));
-  } catch (error) {
-    if (error instanceof MonthlyMeetupFinanceServiceError) {
-      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
-    }
-    return internalErrorResponse(c, 'monthly_meetup_finance_read_failed', error, 'Unable to load monthly meetup finance.');
-  }
-});
-
-app.post('/api/events/:eventId/finance/categories', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-
-  const event = await getEventById(c.req.param('eventId'), c);
-  if (!event) return c.json({ error: 'Event not found.' }, 404);
-
-  const parsed = monthlyMeetupFinanceCategorySchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the category name.' }, 400);
-  }
-
-  try {
-    const service = await monthlyMeetupFinanceServiceForRequest(c);
-    return c.json(await service.createCategory(event, parsed.data as MonthlyMeetupFinanceCategoryInput), 201);
-  } catch (error) {
-    if (error instanceof MonthlyMeetupFinanceServiceError) {
-      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
-    }
-    return internalErrorResponse(c, 'monthly_meetup_finance_category_create_failed', error, 'Unable to save the monthly category.');
-  }
-});
-
-app.post('/api/events/:eventId/finance/expenses', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-
-  const event = await getEventById(c.req.param('eventId'), c);
-  if (!event) return c.json({ error: 'Event not found.' }, 404);
-
-  const parsed = monthlyMeetupFinanceExpenseSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the expense details.' }, 400);
-  }
-
-  try {
-    const service = await monthlyMeetupFinanceServiceForRequest(c);
-    return c.json(await service.createExpense(event, parsed.data as MonthlyMeetupFinanceExpenseInput), 201);
-  } catch (error) {
-    if (error instanceof MonthlyMeetupFinanceServiceError) {
-      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
-    }
-    return internalErrorResponse(c, 'monthly_meetup_finance_expense_create_failed', error, 'Unable to save the expense.');
-  }
-});
-
-app.patch('/api/events/:eventId/finance/expenses/:expenseId', async (c) => {
-  const adminError = await requireAdmin(c, ['owner', 'organizer']);
-  if (adminError) return adminError;
-
-  const event = await getEventById(c.req.param('eventId'), c);
-  if (!event) return c.json({ error: 'Event not found.' }, 404);
-
-  const parsed = monthlyMeetupFinanceExpenseSchema.safeParse(await c.req.json().catch(() => null));
-  if (!parsed.success) {
-    return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the expense details.' }, 400);
-  }
-
-  try {
-    const service = await monthlyMeetupFinanceServiceForRequest(c);
-    const expense = await service.updateExpense(
-      event,
-      c.req.param('expenseId'),
-      parsed.data as MonthlyMeetupFinanceExpenseInput,
-    );
-    return c.json(expense);
-  } catch (error) {
-    if (error instanceof MonthlyMeetupFinanceServiceError) {
-      return c.json({ error: error.message }, monthlyMeetupFinanceErrorStatus(error));
-    }
-    return internalErrorResponse(c, 'monthly_meetup_finance_expense_update_failed', error, 'Unable to update the expense.');
-  }
 });
 
 app.get('/api/events/:eventId/registrations', async (c) => {

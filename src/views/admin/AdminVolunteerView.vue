@@ -266,8 +266,8 @@ function openVolunteerDisplay() {
                     <VolunteerContactValue v-if="row.email" :value="row.email" label="Email" email />
                   </td>
                   <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">
-                    <a v-if="row.xProfile" :href="row.xProfile.href" target="_blank" rel="noopener noreferrer" class="block [overflow-wrap:anywhere] text-dc-pink underline underline-offset-4">{{ row.xProfile.label }}</a>
-                    <span v-else class="block [overflow-wrap:anywhere]">{{ row.xHandle || '—' }}</span>
+                    <VolunteerContactValue v-if="row.xHandle" :value="row.xProfile?.label ?? row.xHandle" :profile-href="row.xProfile?.href" label="X handle" />
+                    <span v-else>—</span>
                   </td>
                   <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">
                     <VolunteerContactValue v-if="row.slackName" :value="row.slackName" label="Slack" />
