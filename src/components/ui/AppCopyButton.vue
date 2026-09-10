@@ -9,11 +9,13 @@ const props = withDefaults(defineProps<{
   copyingLabel?: string;
   copiedLabel?: string;
   disabled?: boolean;
+  iconOnly?: boolean;
 }>(), {
   label: 'Copy link',
   copyingLabel: 'Copying…',
   copiedLabel: 'Copied',
   disabled: false,
+  iconOnly: false,
 });
 
 const emit = defineEmits<{
@@ -44,20 +46,20 @@ const activeLabel = computed(() => {
           <rect x="3.5" y="6.5" width="10" height="10" rx="1.75" />
           <path d="M6.5 6.5V4.75A1.75 1.75 0 0 1 8.25 3h7A1.75 1.75 0 0 1 17 4.75v7a1.75 1.75 0 0 1-1.75 1.75H13.5" />
         </svg>
-        <span>{{ label }}</span>
+        <span v-if="!iconOnly">{{ label }}</span>
       </span>
       <span class="app-copy-button__state" :class="{ 'app-copy-button__state--active': state === 'copying' }">
         <svg viewBox="0 0 20 20" fill="none">
           <rect x="3.5" y="6.5" width="10" height="10" rx="1.75" />
           <path d="M6.5 6.5V4.75A1.75 1.75 0 0 1 8.25 3h7A1.75 1.75 0 0 1 17 4.75v7a1.75 1.75 0 0 1-1.75 1.75H13.5" />
         </svg>
-        <span>{{ copyingLabel }}</span>
+        <span v-if="!iconOnly">{{ copyingLabel }}</span>
       </span>
       <span class="app-copy-button__state" :class="{ 'app-copy-button__state--active': state === 'copied' }">
         <svg viewBox="0 0 20 20" fill="none">
           <path d="m4.5 10.25 3.5 3.5 7.5-8" />
         </svg>
-        <span>{{ copiedLabel }}</span>
+        <span v-if="!iconOnly">{{ copiedLabel }}</span>
       </span>
     </span>
   </button>
