@@ -18,7 +18,7 @@ import {
   type AnnualConferenceTask,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
-import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
+import { ACTIVE_ANNUAL_CONFERENCE_EDITION, annualConferencePath } from '@/src/annual-conference';
 import {
   deleteAnnualConferencePhase,
   reorderAnnualConferencePhases,
@@ -266,6 +266,13 @@ function readinessClass(): string {
   return 'health-signal--danger';
 }
 
+function workPlanTarget(query: Record<string, string>) {
+  return {
+    path: annualConferencePath('work-plan', year.value),
+    query: { phase: phaseScope.value, ...query },
+  };
+}
+
 function setGapStatus(value: string | number) {
   gapStatus.value = value as typeof gapStatus.value;
 }
@@ -439,10 +446,31 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
             </div>
             <dl class="health-hero__facts">
               <div><dt>Phase window</dt><dd>{{ phaseScopeWindow }}</dd></div>
-              <div><dt>Planning confidence</dt><dd>{{ scopedTasks.length ? `${health.planning_confidence_percent}%` : '—' }}</dd></div>
-              <div><dt>Overdue</dt><dd>{{ health.overdue }}</dd></div>
-              <div><dt>Blocked</dt><dd>{{ health.blocked }}</dd></div>
-              <div><dt>Due in 7 days</dt><dd>{{ health.due_soon }}</dd></div>
+              <div>
+                <dt>Planning confidence</dt>
+                <dd>
+                  <RouterLink
+                    v-if="scopedTasks.length && health.planning_confidence_percent < 100"
+                    :to="workPlanTarget({ attention: 'needs_planning' })"
+                    class="health-hero__fact-link"
+                  >
+                    {{ health.planning_confidence_percent }}%
+                  </RouterLink>
+                  <span v-else>{{ scopedTasks.length ? `${health.planning_confidence_percent}%` : '—' }}</span>
+                </dd>
+              </div>
+              <div>
+                <dt>Overdue</dt>
+                <dd><RouterLink v-if="health.overdue" :to="workPlanTarget({ attention: 'overdue' })" class="health-hero__fact-link">{{ health.overdue }}</RouterLink><span v-else>0</span></dd>
+              </div>
+              <div>
+                <dt>Blocked</dt>
+                <dd><RouterLink v-if="health.blocked" :to="workPlanTarget({ status: 'blocked' })" class="health-hero__fact-link">{{ health.blocked }}</RouterLink><span v-else>0</span></dd>
+              </div>
+              <div>
+                <dt>Due in 7 days</dt>
+                <dd><RouterLink v-if="health.due_soon" :to="workPlanTarget({ attention: 'due_soon' })" class="health-hero__fact-link">{{ health.due_soon }}</RouterLink><span v-else>0</span></dd>
+              </div>
             </dl>
           </div>
           <div class="health-hero__countdown">
@@ -620,6 +648,8 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
 .health-hero__facts > div { min-width: 0; padding: .8rem; }
 .health-hero__facts dt { font-family: var(--font-mono); font-size: .5625rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #888; }
 .health-hero__facts dd { margin-top: .35rem; font-size: .8125rem; font-weight: 700; color: #111; }
+.health-hero__fact-link { color: #b20d61; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .18rem; }
+.health-hero__fact-link:hover, .health-hero__fact-link:focus-visible { color: #e8117f; }
 .health-signal { display: inline-flex; font-family: var(--font-mono); font-size: .5625rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .health-signal--good { color: #15803d; }.health-signal--warn { color: #9a6700; }.health-signal--danger { color: #e8117f; }.health-signal--neutral { color: #777; }
 .health-hero__action { min-height: 2.5rem; border: 1px solid #e0ddd4; border-radius: 8px; padding: .55rem .85rem; background: white; font-family: var(--font-mono); font-size: .625rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #555; }

@@ -12,9 +12,11 @@ import {
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
   createAnnualConferenceOwnerDirectory,
   defaultAnnualConferencePhaseScope,
+  matchesAnnualConferenceTaskAttention,
   resolveAnnualConferenceOwnerFilter,
   type AnnualConferenceOwnerIdentity,
   type AnnualConferenceTask,
+  type AnnualConferenceTaskAttention,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
@@ -37,6 +39,7 @@ const LEDGER_PAGE_SIZE = 6;
 const statusFilter = ref<'all' | AnnualConferenceTask['status']>('all');
 const workstreamFilter = ref<'all' | AnnualConferenceTask['workstream']>('all');
 const ownerFilter = ref('all');
+const attentionFilter = ref<'all' | AnnualConferenceTaskAttention>('all');
 const ledgerPage = ref(1);
 
 type LedgerViewTransition = {
@@ -146,7 +149,13 @@ const workstreamSummaries = computed(() => projection.value.workstreams.map((wor
 const filtersActive = computed(() =>
   statusFilter.value !== 'all'
   || workstreamFilter.value !== 'all'
-  || ownerFilter.value !== 'all');
+  || ownerFilter.value !== 'all'
+  || attentionFilter.value !== 'all');
+const attentionFilterLabel = computed(() => ({
+  overdue: 'Overdue',
+  due_soon: 'Due in 7 days',
+  needs_planning: 'Needs planning',
+})[attentionFilter.value as AnnualConferenceTaskAttention]);
 
 const visibleTasks = computed(() => {
   return scopedTasks.value.filter((task) => {
@@ -156,8 +165,10 @@ const visibleTasks = computed(() => {
       || (ownerFilter.value === 'unassigned'
         ? !task.accountable_owner
         : ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value));
+    const matchesAttention = attentionFilter.value === 'all'
+      || matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value);
 
-    return matchesStatus && matchesWorkstream && matchesOwner;
+    return matchesStatus && matchesWorkstream && matchesOwner && matchesAttention;
   });
 });
 const ledgerPageCount = computed(() => Math.max(1, Math.ceil(visibleTasks.value.length / LEDGER_PAGE_SIZE)));
@@ -171,7 +182,7 @@ const ledgerRangeStart = computed(() => visibleTasks.value.length
   : 0);
 const ledgerRangeEnd = computed(() => Math.min(ledgerPage.value * LEDGER_PAGE_SIZE, visibleTasks.value.length));
 
-watch([phaseFilter, statusFilter, workstreamFilter, ownerFilter], () => {
+watch([phaseFilter, statusFilter, workstreamFilter, ownerFilter, attentionFilter], () => {
   ledgerPage.value = 1;
 });
 
@@ -205,9 +216,10 @@ watch([() => route.fullPath, tasks, phases, organizerMembers, assignedAccess], (
     statusFilter.value = (context.status ?? 'all') as typeof statusFilter.value;
     workstreamFilter.value = (context.workstream ?? 'all') as typeof workstreamFilter.value;
     ownerFilter.value = requestedOwner ?? 'all';
+    attentionFilter.value = (context.attention ?? 'all') as typeof attentionFilter.value;
   }, () => {
     if (hasInvalidContext) void replaceWorkPlanContext({ task: requestedTask?.id ?? null });
-  });
+  }, !requestedTask);
 
   if (requestedTask && selectedTaskId.value !== requestedTask.id) openTask(requestedTask.id);
   if (!context.task && selectedTaskId.value) closeTaskDrawer();
@@ -271,6 +283,7 @@ function workPlanContextQuery(patch: { task?: string | null } = {}): Record<stri
     ...(statusFilter.value !== 'all' ? { status: statusFilter.value } : {}),
     ...(workstreamFilter.value !== 'all' ? { workstream: workstreamFilter.value } : {}),
     ...(ownerFilter.value !== 'all' ? { owner: ownerFilter.value } : {}),
+    ...(attentionFilter.value !== 'all' ? { attention: attentionFilter.value } : {}),
     ...(task ? { task } : {}),
   }, 'tasks');
 
@@ -307,9 +320,12 @@ function handleDrawerSubmit(value: AnnualConferenceTaskUpdateInput) {
   handleUpdate(value);
 }
 
-function updateLedgerFilters(update: () => void, afterUpdate?: () => void) {
+function updateLedgerFilters(update: () => void, afterUpdate?: () => void, animate = true) {
   if (
-    typeof document === 'undefined'
+    !animate
+    || selectedTaskId.value
+    || showCreateForm.value
+    || typeof document === 'undefined'
     || typeof window === 'undefined'
     || window.matchMedia('(prefers-reduced-motion: reduce)').matches
   ) {
@@ -350,6 +366,14 @@ function clearFilters() {
     statusFilter.value = 'all';
     workstreamFilter.value = 'all';
     ownerFilter.value = 'all';
+    attentionFilter.value = 'all';
+  }, () => { void replaceWorkPlanContext(); });
+}
+
+function clearAttentionFilter() {
+  if (attentionFilter.value === 'all') return;
+  updateLedgerFilters(() => {
+    attentionFilter.value = 'all';
   }, () => { void replaceWorkPlanContext(); });
 }
 
@@ -375,6 +399,7 @@ function setPhaseFilter(value: string | number) {
     statusFilter.value = 'all';
     workstreamFilter.value = 'all';
     ownerFilter.value = 'all';
+    attentionFilter.value = 'all';
   }, () => { void replaceWorkPlanContext(); });
 }
 
@@ -566,6 +591,15 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             </div>
 
             <div class="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
+              <button
+                v-if="attentionFilter !== 'all'"
+                type="button"
+                class="min-h-10 rounded-md border border-dc-pink bg-[#fce7f3] px-3 font-mono text-[9px] font-semibold uppercase tracking-[0.08em] text-dc-pink"
+                aria-label="Clear attention filter"
+                @click="clearAttentionFilter"
+              >
+                {{ attentionFilterLabel }} ×
+              </button>
               <div v-if="assignedAccess" class="min-w-0 flex-1 rounded-md border border-dc-border bg-dc-paper px-3 py-2 sm:w-52 sm:flex-none">
                 <span class="block font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Tasks for</span>
                 <strong class="mt-0.5 block truncate text-sm text-dc-ink">{{ currentMemberLabel }}</strong>
@@ -576,14 +610,9 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               <button type="button" class="min-h-10 rounded-md border border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="filtersActive ? 'text-dc-pink hover:border-dc-pink' : 'cursor-default text-dc-gray/50'" :disabled="!filtersActive" @click="clearFilters">Clear</button>
             </div>
           </div>
-        </section>
 
-        <section class="mb-4 overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
-          <div class="flex items-center justify-between gap-4 border-b-2 border-dc-ink bg-dc-paper-warm px-3 py-2">
-            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <h2 class="text-sm font-semibold text-dc-ink">{{ phaseScopeLabel }} workstreams</h2>
-              <p class="text-[11px] font-medium text-dc-gray">Select one to filter the ledger.</p>
-            </div>
+          <div class="flex items-center justify-between gap-4 border-t border-dc-border bg-dc-paper px-3 py-2">
+            <p id="workstream-filter-label" class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Workstream</p>
             <button
               v-if="workstreamFilter !== 'all'"
               type="button"
@@ -593,7 +622,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
               Show all
             </button>
           </div>
-          <div class="grid sm:grid-cols-2 md:grid-cols-4">
+          <div class="grid sm:grid-cols-2 md:grid-cols-4" role="group" aria-labelledby="workstream-filter-label">
             <button
               v-for="item in workstreamSummaries"
               :key="item.workstream"
@@ -629,12 +658,11 @@ function statusClass(status: AnnualConferenceTask['status']): string {
         <section class="annual-task-ledger overflow-hidden rounded-lg border-2 border-dc-ink bg-dc-paper">
           <div class="flex items-center justify-between gap-4 border-b-2 border-dc-ink bg-dc-paper-warm px-4 py-3">
             <div>
-              <h2 class="text-lg font-bold text-dc-ink">Task ledger</h2>
-              <p class="mt-0.5 text-xs font-medium text-dc-gray">
+              <h2 class="text-sm font-semibold text-dc-ink">
                 {{ assignedAccess
                   ? `${visibleTasks.length} of ${scopedTasks.length} assigned tasks in ${phaseScopeLabel} match the current filters.`
                   : `${visibleTasks.length} of ${scopedTasks.length} ${phaseScopeLabel} tasks match the current filters.` }}
-              </p>
+              </h2>
             </div>
             <span class="hidden shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray sm:block">
               One accountable owner

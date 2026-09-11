@@ -66,6 +66,7 @@ const DESKTOP_EVENT_ROUTE_SECTIONS = new Map<string, OrganizerMobileEventSection
 ]);
 
 const CONFERENCE_STATUSES = new Set(['all', 'not_started', 'in_progress', 'blocked', 'done']);
+const CONFERENCE_ATTENTION_FILTERS = new Set(['overdue', 'due_soon', 'needs_planning']);
 const CONFERENCE_WORKSTREAMS = new Set([
   'programme',
   'volunteers',
@@ -120,12 +121,14 @@ export function organizerConferenceContextQuery(
 ): Record<string, string> {
   const context: Record<string, string> = { section };
   const status = queryString(query, 'status');
+  const attention = queryString(query, 'attention');
   const workstream = queryString(query, 'workstream');
   const phase = boundedQueryString(query, 'phase', 100);
   const owner = boundedQueryString(query, 'owner', 254);
   const task = boundedQueryString(query, 'task', 100);
 
   if (status && CONFERENCE_STATUSES.has(status)) context.status = status;
+  if (attention && CONFERENCE_ATTENTION_FILTERS.has(attention)) context.attention = attention;
   if (workstream && CONFERENCE_WORKSTREAMS.has(workstream)) context.workstream = workstream;
   if (phase && /^[a-z0-9][a-z0-9-]*$/i.test(phase)) context.phase = phase;
   if (owner) context.owner = owner;

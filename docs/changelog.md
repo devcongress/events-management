@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-11 — Actionable conference work-plan summaries
+
+- Consolidated phase, status, owner, and workstream filtering into one labelled work-plan control area, removing the repeated workstream and task-ledger framing.
+- Linked unassigned and blocked delivery counts to the exact conference-wide task filters, linked named dependency blockers and dependent tasks directly to their work-plan details, and made Timeline planning, overdue, blocked, and due-soon signals open their matching tasks.
+- Suppressed ledger view transitions while a task drawer is opening or already open, preventing the task table snapshot from briefly rendering above the drawer.
+- Preserved phase, owner, status, workstream, dependency, volunteer-assignment, pagination, and URL-context behavior across desktop and phone workspaces.
+
 ## 2026-09-11 — Enforced source readability spacing
 
 - Replace the obsolete Next.js ESLint configuration with a flat configuration for the active Vue and TypeScript application.

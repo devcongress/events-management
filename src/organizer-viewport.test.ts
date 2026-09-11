@@ -128,6 +128,15 @@ describe('organizer viewport policy', () => {
     expect(organizerMobileEventSection({ section: 'unknown' })).toBe('overview');
   });
 
+  it('preserves supported conference attention filters across viewport changes', () => {
+    expect(organizerConferenceContextQuery({
+      section: 'tasks', phase: 'all', attention: 'overdue',
+    })).toEqual({ section: 'tasks', phase: 'all', attention: 'overdue' });
+    expect(organizerConferenceContextQuery({
+      section: 'tasks', attention: 'not-a-filter',
+    })).toEqual({ section: 'tasks' });
+  });
+
   it('returns tablets and desktops from the limited route to the full console', () => {
     expect(organizerViewportRedirect({
       authenticated: true, isAdminRoute: true, isPhone: false, routeName: 'admin-mobile',

@@ -61,4 +61,35 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(mobileConferenceSource).toContain('class="assigned-task-owner"');
     expect(mobileConferenceSource).toContain('ownerFilter.value = assignedAccess.value ? \'all\'');
   });
+
+  it('opens overview delivery signals and dependency tasks in the matching work-plan context', () => {
+    expect(overviewSource).toContain(":to=\"workPlanTarget({ owner: 'unassigned' })\"");
+    expect(overviewSource).toContain(":to=\"workPlanTarget({ status: 'blocked' })\"");
+    expect(overviewSource).toContain(":to=\"workPlanTarget({ task: blocker.prerequisite.id })\"");
+    expect(overviewSource).toContain(":to=\"workPlanTarget({ task: dependent.id })\"");
+    expect(overviewSource).toContain("query: { phase: 'all', ...query }");
+  });
+
+  it('does not animate the ledger underneath an opening or open task drawer', () => {
+    expect(workPlanSource).toContain('}, !requestedTask);');
+    expect(workPlanSource).toContain('function updateLedgerFilters(update: () => void, afterUpdate?: () => void, animate = true)');
+    expect(workPlanSource).toContain('!animate\n    || selectedTaskId.value\n    || showCreateForm.value');
+  });
+
+  it('keeps every work-plan filter in one labelled controls section', () => {
+    expect(workPlanSource).toContain('id="workstream-filter-label"');
+    expect(workPlanSource).toContain('aria-labelledby="workstream-filter-label"');
+    expect(workPlanSource.match(/work plan controls/g)).toHaveLength(1);
+    expect(workPlanSource).not.toContain('{{ phaseScopeLabel }} workstreams');
+    expect(workPlanSource).not.toContain('Task ledger');
+  });
+
+  it('opens timeline readiness counts as exact desktop and mobile work-plan filters', () => {
+    expect(timelineSource).toContain("workPlanTarget({ attention: 'needs_planning' })");
+    expect(timelineSource).toContain("workPlanTarget({ attention: 'overdue' })");
+    expect(timelineSource).toContain("workPlanTarget({ attention: 'due_soon' })");
+    expect(timelineSource).toContain("workPlanTarget({ status: 'blocked' })");
+    expect(workPlanSource).toContain('matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value)');
+    expect(mobileConferenceSource).toContain('matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value)');
+  });
 });

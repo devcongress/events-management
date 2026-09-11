@@ -24,6 +24,7 @@ export const ANNUAL_CONFERENCE_TASK_PRIORITIES = ['high', 'medium', 'low'] as co
 export type AnnualConferenceTaskStatus = typeof ANNUAL_CONFERENCE_TASK_STATUSES[number];
 export type AnnualConferenceWorkstream = typeof ANNUAL_CONFERENCE_WORKSTREAMS[number];
 export type AnnualConferenceTaskPriority = typeof ANNUAL_CONFERENCE_TASK_PRIORITIES[number];
+export type AnnualConferenceTaskAttention = 'overdue' | 'due_soon' | 'needs_planning';
 
 export interface AnnualConferenceEdition {
   id: string;
@@ -1170,6 +1171,21 @@ export function annualConferenceWorkstreamCounts(
 
 function dateOrdinal(value: string): number {
   return Date.parse(`${value}T12:00:00Z`) / 86_400_000;
+}
+
+export function matchesAnnualConferenceTaskAttention(
+  task: AnnualConferenceTask,
+  attention: AnnualConferenceTaskAttention,
+  today: string,
+): boolean {
+  if (task.status === 'done') return false;
+  if (attention === 'needs_planning') {
+    return !task.phase_id || !task.target_date || !task.accountable_owner;
+  }
+  if (!task.target_date) return false;
+  if (attention === 'overdue') return task.target_date < today;
+
+  return task.target_date >= today && dateOrdinal(task.target_date) <= dateOrdinal(today) + 7;
 }
 
 function percent(part: number, whole: number): number {

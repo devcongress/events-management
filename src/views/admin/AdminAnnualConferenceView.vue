@@ -69,6 +69,13 @@ function personCompletionPercent(person: { complete: number; total: number }): n
   return person.total > 0 ? Math.round((person.complete / person.total) * 100) : 0;
 }
 
+function workPlanTarget(query: Record<string, string> = {}) {
+  return {
+    path: annualConferencePath('work-plan', year.value),
+    query: { phase: 'all', ...query },
+  };
+}
+
 function closeFacts(restoreFocus = false) {
   factsOpen.value = false;
   if (restoreFocus) void nextTick(() => factsTrigger.value?.focus());
@@ -222,13 +229,21 @@ onUnmounted(() => {
               <span v-if="assignedAccess">
                 {{ summary.total }} {{ summary.total === 1 ? 'task assigned to you' : 'tasks assigned to you' }}
               </span>
-              <span v-else-if="summary.unassigned > 0" class="conference-delivery__attention">
+              <RouterLink
+                v-else-if="summary.unassigned > 0"
+                :to="workPlanTarget({ owner: 'unassigned' })"
+                class="conference-delivery__signal conference-delivery__attention"
+              >
                 {{ summary.unassigned }} need {{ summary.unassigned === 1 ? 'an owner' : 'owners' }}
-              </span>
+              </RouterLink>
               <span v-else>Every task has an owner</span>
-              <span v-if="summary.blocked > 0">
+              <RouterLink
+                v-if="summary.blocked > 0"
+                :to="workPlanTarget({ status: 'blocked' })"
+                class="conference-delivery__signal"
+              >
                 {{ summary.blocked }} {{ summary.blocked === 1 ? 'task blocked' : 'tasks blocked' }}
-              </span>
+              </RouterLink>
             </div>
           </div>
 
@@ -285,17 +300,26 @@ onUnmounted(() => {
 
             <div v-if="dependencySummary.blockers.length" class="conference-dependency-graph" aria-label="Task dependency paths">
               <div v-for="blocker in dependencySummary.blockers.slice(0, 3)" :key="blocker.prerequisite.id" class="conference-dependency-path">
-                <div class="conference-dependency-node">
+                <RouterLink
+                  :to="workPlanTarget({ task: blocker.prerequisite.id })"
+                  class="conference-dependency-node motion-press"
+                  :aria-label="`Open blocker ${blocker.prerequisite.title} in the work plan`"
+                >
                   <span class="conference-dependency-node__label">Prerequisite</span>
                   <strong>{{ blocker.prerequisite.title }}</strong>
                   <span>{{ taskStatusLabel(blocker.prerequisite) }}</span>
-                </div>
+                </RouterLink>
                 <span class="conference-dependency-path__arrow" aria-hidden="true">→</span>
                 <div class="conference-dependency-dependents">
                   <span class="conference-dependency-node__label">Unblocks</span>
-                  <span v-for="dependent in blocker.dependents.slice(0, 3)" :key="dependent.id" class="conference-dependency-dependent">
+                  <RouterLink
+                    v-for="dependent in blocker.dependents.slice(0, 3)"
+                    :key="dependent.id"
+                    :to="workPlanTarget({ task: dependent.id })"
+                    class="conference-dependency-dependent"
+                  >
                     {{ dependent.title }}
-                  </span>
+                  </RouterLink>
                   <span v-if="blocker.dependents.length > 3" class="conference-dependency-dependent conference-dependency-dependent--more">
                     +{{ blocker.dependents.length - 3 }} more
                   </span>
@@ -704,8 +728,22 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.conference-delivery__attention {
+.conference-delivery__signal {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: #a8a49a;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.22rem;
+}
+
+.conference-delivery__signal.conference-delivery__attention {
   color: #e8117f;
+}
+
+.conference-delivery__signal:hover,
+.conference-delivery__signal:focus-visible {
+  color: #e8117f;
+  text-decoration-color: currentColor;
 }
 
 .conference-brief__primary-action {
@@ -857,6 +895,13 @@ onUnmounted(() => {
 
 .conference-dependency-node {
   border-left: 3px solid #e8117f;
+  color: inherit;
+  text-decoration: none;
+}
+
+.conference-dependency-node:hover,
+.conference-dependency-node:focus-visible {
+  border-color: #e8117f;
 }
 
 .conference-dependency-node strong {
@@ -887,6 +932,13 @@ onUnmounted(() => {
   font-size: 0.72rem;
   font-weight: var(--font-weight-emphasis);
   line-height: 1.3;
+  text-decoration-color: #a8a49a;
+  text-underline-offset: 0.16rem;
+}
+
+.conference-dependency-dependent:hover,
+.conference-dependency-dependent:focus-visible {
+  color: #e8117f;
 }
 
 .conference-dependency-dependent--more {
