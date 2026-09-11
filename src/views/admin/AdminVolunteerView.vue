@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import VolunteerApplicationSheet from '@/src/components/VolunteerApplicationSheet.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import VolunteerContactValue from '@/src/components/VolunteerContactValue.vue';
@@ -14,17 +15,27 @@ import {
 import {
   fetchAnnualConferenceVolunteerTeam,
   fetchAnnualConferenceWorkPlan,
+  fetchAdminSession,
   fetchVolunteerApplications,
   ensureAdminShortLink,
   queryKeys,
 } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
-import { buildVolunteerDirectoryRows, filterVolunteerDirectory, type VolunteerDirectoryStatusFilter } from '@/src/lib/volunteer-directory';
+import { adminPath } from '@/src/admin-routes';
+import {
+  buildVolunteerDirectoryRows,
+  filterVolunteerDirectory,
+  volunteerDirectoryActions,
+  volunteerDirectoryAssignments,
+  type VolunteerDirectoryRow,
+  type VolunteerDirectoryStatusFilter,
+} from '@/src/lib/volunteer-directory';
 import { hasAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 
 const route = useRoute();
 const year = computed(() => String(route.params.year));
+const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
 const workPlanQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
   queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
@@ -64,11 +75,25 @@ const volunteerPageCount = computed(() => Math.max(1, Math.ceil(filteredVoluntee
 const volunteerPageStart = computed(() => (volunteerPage.value - 1) * volunteersPerPage);
 const volunteerPageEnd = computed(() => Math.min(filteredVolunteerRows.value.length, volunteerPageStart.value + volunteersPerPage));
 const paginatedVolunteers = computed(() => filteredVolunteerRows.value.slice(volunteerPageStart.value, volunteerPageEnd.value));
+const selectedVolunteer = ref<VolunteerDirectoryRow | null>(null);
+const selectedVolunteerTasks = computed(() => volunteerDirectoryAssignments(
+  selectedVolunteer.value,
+  workPlanQuery.data.value?.tasks ?? [],
+));
+const selectedVolunteerActions = computed(() => volunteerDirectoryActions(selectedVolunteer.value, {
+  role: sessionQuery.data.value?.user?.role ?? null,
+  year: year.value,
+  canViewAllTasks: workPlanQuery.data.value?.permissions.access_scope === 'all',
+  canAssignTasks: workPlanQuery.data.value?.permissions.can_edit_all_tasks === true,
+  workPlanPath: annualConferencePath('work-plan', year.value),
+  accessPath: adminPath('organizers'),
+}));
 
 watch(year, () => {
   volunteerSearch.value = '';
   volunteerStatusFilter.value = 'all';
   volunteerPage.value = 1;
+  selectedVolunteer.value = null;
 });
 watch([volunteerSearch, volunteerStatusFilter], () => { volunteerPage.value = 1; });
 watch(volunteerPageCount, (pageCount) => {
@@ -103,9 +128,11 @@ async function copyPublicUrl() {
   copyState.value = 'copying';
   try {
     let shareUrl = shortLinkUrl.value ?? publicUrl;
+
     if (!shortLinkUrl.value) {
       try {
         const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+
         shortLinkUrl.value = shortLink.url;
         shareUrl = shortLink.url;
       } catch {
@@ -134,6 +161,7 @@ async function prepareVolunteerShareLink() {
   if (!canShareIntake.value) return;
   try {
     const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+
     if (canShareIntake.value) shortLinkUrl.value = shortLink.url;
   } catch {
     // The canonical form URL remains available for narrow volunteer roles and service outages.
@@ -188,7 +216,7 @@ function clearVolunteerFilters() {
         </template>
       </AnnualConferenceNav>
 
-      <section v-if="canViewTeam || canReviewApplications" class="editorial-panel overflow-hidden">
+      <section v-if="canViewTeam || canReviewApplications" class="editorial-panel volunteer-directory-panel overflow-hidden">
         <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-5 py-4 sm:px-6">
           <div>
             <p class="editorial-eyebrow">Volunteers</p>
@@ -281,7 +309,15 @@ function clearVolunteerFilters() {
             </thead>
             <tbody class="divide-y divide-dc-border bg-white">
               <tr v-for="row in paginatedVolunteers" :key="row.id" class="hover:bg-dc-paper-warm/40">
-                <th scope="row" class="px-5 py-3 text-sm font-semibold text-dc-ink sm:px-6">{{ row.name }}</th>
+                <th scope="row" class="px-5 py-3 text-sm font-semibold text-dc-ink sm:px-6">
+                  <button
+                    type="button"
+                    class="motion-press text-left underline decoration-dc-border underline-offset-4 hover:decoration-dc-pink"
+                    aria-haspopup="dialog"
+                    :aria-label="`Open details for ${row.name}`"
+                    @click="selectedVolunteer = row"
+                  >{{ row.name }}</button>
+                </th>
                 <td class="px-4 py-3">
                   <span
                     class="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize"
@@ -331,6 +367,14 @@ function clearVolunteerFilters() {
         </div>
       </section>
 
+      <VolunteerApplicationSheet
+        :open="Boolean(selectedVolunteer)"
+        :person="selectedVolunteer"
+        :assigned-tasks="selectedVolunteerTasks"
+        :actions="selectedVolunteerActions"
+        @close="selectedVolunteer = null"
+      />
+
       <section v-if="!workPlanQuery.isPending.value && !canViewTeam && !canShareIntake && !canReviewApplications" class="editorial-panel p-6">
         <h2 class="text-lg font-semibold text-dc-ink">No volunteer responsibility assigned</h2>
         <p class="mt-2 text-sm text-dc-gray">Ask an Owner to assign the volunteer responsibility you need for this edition.</p>
@@ -340,6 +384,10 @@ function clearVolunteerFilters() {
 </template>
 
 <style scoped>
+.volunteer-directory-panel {
+  box-shadow: none;
+}
+
 .volunteer-pagination {
   border-top: 0;
   padding: 0;

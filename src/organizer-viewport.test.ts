@@ -23,9 +23,11 @@ describe('organizer viewport policy', () => {
     const matches = matchesOrganizerPhoneViewport({
       matchMedia(query) {
         queries.push(query);
+
         return { matches: true } as MediaQueryList;
       },
     });
+
     expect(matches).toBe(true);
     expect(queries).toEqual([ORGANIZER_PHONE_MEDIA_QUERY]);
   });
@@ -40,6 +42,7 @@ describe('organizer viewport policy', () => {
     for (const routeName of [
       'admin-login', 'admin-auth-callback', 'admin-feedback-display', 'admin-registration-display',
       'admin-annual-conference-volunteer-display', 'admin-public-events-preview', 'admin-public-event-preview',
+      'admin-organizers',
       'admin-mobile', ORGANIZER_PHONE_EVENTS_ROUTE_NAME, ORGANIZER_PHONE_EVENT_ROUTE_NAME,
       ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME, 'admin-mobile-check-in', ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
     ]) {
@@ -119,6 +122,7 @@ describe('organizer viewport policy', () => {
       section: 'finance', status: 'unknown', workstream: 'not-real', phase: '../phase',
       task: 'task with spaces', owner: ['not', 'a', 'string'],
     });
+
     expect(context).toEqual({ section: 'overview' });
     expect(organizerMobileConferenceSection(context)).toBe('overview');
     expect(organizerMobileEventSection({ section: 'unknown' })).toBe('overview');

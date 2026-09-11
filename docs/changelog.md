@@ -6,7 +6,8 @@
 - Keep pagination totals and ranges aligned with the filtered result, reset paging when filters or editions change, and provide an explicit no-match recovery state.
 - Keep organizer and volunteer data capabilities intact while avoiding unnecessary application or edition-management reads for restricted volunteers.
 - Give mobile organizers direct Events and Conference entry points, and refine volunteer conference overviews on desktop and mobile with the existing app typography, a clear zero-assignment state, and no volunteer edition or back-navigation controls.
-- Keep the mobile volunteer search and lifecycle controls visible beneath the sticky conference header while directory rows scroll. No migration required.
+- Keep the mobile volunteer sharing actions, search, and lifecycle controls together beneath the sticky conference header while directory rows scroll.
+- Remove the directory panel's protruding hard shadow without hiding the application's scrollbars. No migration required.
 
 ## 2026-09-11 — Independent website and Slack publication status
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { z } from 'zod';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
@@ -13,6 +14,7 @@ import {
   fetchAdminSession,
   fetchAnnualConferenceAccess,
   fetchAnnualConferenceEditions,
+  fetchVolunteerApplications,
   queryKeys,
   updateAnnualConferenceAccessGrant,
   type AnnualConferenceAccessResponse,
@@ -35,6 +37,7 @@ const addOrganizerSchema = z.object({
 });
 
 const queryClient = useQueryClient();
+const route = useRoute();
 const showEmails = ref(false);
 const roleUpdatingId = ref<string | null>(null);
 const enableUpdatingId = ref<string | null>(null);
@@ -53,6 +56,18 @@ const form = reactive({
   display_name: '',
   role: 'organizer' as AdminRole,
 });
+const accessSetupContext = ref<string | null>(null);
+const appliedVolunteerApplication = ref<string | null>(null);
+const appliedResponsibilityMember = ref<string | null>(null);
+const requestedApplicationId = computed(() => typeof route.query.volunteer_application === 'string'
+  ? route.query.volunteer_application
+  : null);
+const requestedMemberId = computed(() => typeof route.query.member === 'string' ? route.query.member : null);
+const requestedEdition = computed(() => {
+  const value = typeof route.query.edition === 'string' ? route.query.edition : '';
+
+  return /^\d{4}$/.test(value) ? value : String(ACTIVE_ANNUAL_CONFERENCE_EDITION.year);
+});
 const organizersQuery = useQuery({
   queryKey: queryKeys.adminOrganizers,
   queryFn: fetchAdminOrganizers,
@@ -64,6 +79,12 @@ const adminSessionQuery = useQuery({
 const organizers = computed(() => organizersQuery.data.value?.organizers ?? []);
 const currentUserRole = computed<AdminRole | null>(() => adminSessionQuery.data.value?.user?.role ?? null);
 const currentUserEmail = computed(() => adminSessionQuery.data.value?.user?.email?.toLowerCase() ?? null);
+const requestedApplicationQuery = useQuery({
+  queryKey: computed(() => queryKeys.volunteerApplications(requestedEdition.value)),
+  queryFn: () => fetchVolunteerApplications(requestedEdition.value),
+  enabled: computed(() => Boolean(requestedApplicationId.value)
+    && (currentUserRole.value === 'owner' || currentUserRole.value === 'organizer')),
+});
 const editionsQuery = useQuery({
   queryKey: queryKeys.annualConferenceEditions,
   queryFn: fetchAnnualConferenceEditions,
@@ -148,8 +169,46 @@ watch([currentUserRole, responsibilityMember], ([role, member]) => {
   }
 });
 
+watch(
+  [requestedApplicationId, () => requestedApplicationQuery.data.value?.applications, currentUserRole],
+  ([applicationId, applications, role]) => {
+    if (!applicationId || appliedVolunteerApplication.value === applicationId) return;
+    if (role !== 'owner' && role !== 'organizer') return;
+    const application = applications?.find((item) => item.id === applicationId);
+
+    if (!application) return;
+
+    form.email = application.email;
+    form.display_name = application.name;
+    form.role = 'volunteer';
+    accessSetupContext.value = application.name;
+    appliedVolunteerApplication.value = applicationId;
+  },
+  { immediate: true },
+);
+
+watch(
+  [requestedMemberId, organizers, currentUserRole],
+  async ([memberId, members, role]) => {
+    if (!memberId || appliedResponsibilityMember.value === memberId || role !== 'owner') return;
+    const member = members.find((item) => item.id === memberId && item.status === 'active');
+
+    if (!member) return;
+
+    responsibilityYear.value = requestedEdition.value;
+    delegationMemberId.value = member.id;
+    responsibilityMemberId.value = member.id;
+    appliedResponsibilityMember.value = memberId;
+    setPageInteractionLocked(true);
+    await nextTick();
+    responsibilityCloseButton.value?.focus();
+  },
+  { immediate: true },
+);
+
 async function readError(response: Response): Promise<string> {
   const payload = await response.json().catch(() => null) as { error?: string } | null;
+
   return payload?.error ?? `Request failed: ${response.status}`;
 }
 
@@ -181,6 +240,7 @@ const addOrganizerMutation = useMutation({
     form.email = '';
     form.display_name = '';
     form.role = 'organizer';
+    accessSetupContext.value = null;
     await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
   },
   onError: (caught) => {
@@ -207,6 +267,7 @@ const updateOrganizerRoleMutation = useMutation({
     roleUpdatingId.value = organizerId;
     await queryClient.cancelQueries({ queryKey: queryKeys.adminOrganizers });
     const previous = queryClient.getQueryData<OrganizerMembershipsResponse>(queryKeys.adminOrganizers);
+
     if (previous) {
       queryClient.setQueryData<OrganizerMembershipsResponse>(queryKeys.adminOrganizers, {
         ...previous,
@@ -215,6 +276,7 @@ const updateOrganizerRoleMutation = useMutation({
           : organizer),
       });
     }
+
     return { previous };
   },
   onError: (caught, _variables, context) => {
@@ -232,6 +294,7 @@ const updateOrganizerRoleMutation = useMutation({
 const updateResponsibilityMutation = useMutation({
   mutationFn: ({ capability, enabled }: { capability: AnnualConferenceCapability; enabled: boolean }) => {
     if (!responsibilityMemberId.value) throw new Error('Choose a team member first.');
+
     return updateAnnualConferenceAccessGrant(
       responsibilityYear.value,
       responsibilityMemberId.value,
@@ -242,8 +305,10 @@ const updateResponsibilityMutation = useMutation({
   onMutate: async ({ capability, enabled }) => {
     responsibilityUpdating.value = capability;
     const queryKey = queryKeys.annualConferenceAccess(responsibilityYear.value);
+
     await queryClient.cancelQueries({ queryKey });
     const previous = queryClient.getQueryData<AnnualConferenceAccessResponse>(queryKey);
+
     if (previous && responsibilityMemberId.value) {
       queryClient.setQueryData<AnnualConferenceAccessResponse>(queryKey, {
         ...previous,
@@ -255,6 +320,7 @@ const updateResponsibilityMutation = useMutation({
         }),
       });
     }
+
     return { previous, queryKey };
   },
   onError: (caught, _variables, context) => {
@@ -283,6 +349,7 @@ const disableOrganizerMutation = useMutation({
   onMutate: async (organizerId) => {
     await queryClient.cancelQueries({ queryKey: queryKeys.adminOrganizers });
     const previous = queryClient.getQueryData<OrganizerMembershipsResponse>(queryKeys.adminOrganizers);
+
     if (previous) {
       queryClient.setQueryData<OrganizerMembershipsResponse>(queryKeys.adminOrganizers, {
         ...previous,
@@ -291,6 +358,7 @@ const disableOrganizerMutation = useMutation({
           : organizer),
       });
     }
+
     return { previous };
   },
   onError: (caught, _organizerId, context) => {
@@ -310,7 +378,9 @@ const enableOrganizerMutation = useMutation({
       method: 'POST',
       credentials: 'include',
     });
+
     if (!response.ok) throw new Error(await readError(response));
+
     return response.json() as Promise<OrganizerMembership>;
   },
   onMutate: (organizerId) => {
@@ -333,7 +403,9 @@ const removeOrganizerMutation = useMutation({
       method: 'DELETE',
       credentials: 'include',
     });
+
     if (!response.ok) throw new Error(await readError(response));
+
     return response.json() as Promise<{ removed: true; id: string }>;
   },
   onSuccess: async ({ id }) => {
@@ -350,6 +422,7 @@ const removeOrganizerMutation = useMutation({
 function submitOrganizer() {
   if (!addOrganizerValidation.value.success) {
     notify.error(addOrganizerValidation.value.error.issues[0]?.message ?? 'Check the access details.');
+
     return;
   }
   if (addOrganizerMutation.isPending.value) {
@@ -415,6 +488,7 @@ function setPageInteractionLocked(locked: boolean) {
     previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     pageContent.value?.setAttribute('inert', '');
+
     return;
   }
 
@@ -450,6 +524,7 @@ function handleResponsibilityPanelKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     void closeResponsibilities();
+
     return;
   }
 
@@ -458,10 +533,12 @@ function handleResponsibilityPanelKeydown(event: KeyboardEvent) {
   const focusable = Array.from(responsibilityPanel.value.querySelectorAll<HTMLElement>(
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
   )).filter((element) => !element.hasAttribute('hidden'));
+
   if (focusable.length === 0) return;
 
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
+
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();
@@ -487,6 +564,7 @@ function toggleResponsibility(capability: AnnualConferenceCapability, enabled: b
 
 function formatDateTime(value: string | null): string {
   if (!value) return 'Never';
+
   return new Intl.DateTimeFormat('en', {
     month: 'short',
     day: 'numeric',
@@ -499,6 +577,7 @@ function formatDateTime(value: string | null): string {
 function roleLabel(role: AdminRole): string {
   if (role === 'owner') return 'Owner';
   if (role === 'volunteer') return 'Volunteer';
+
   return 'Organizer';
 }
 
@@ -511,6 +590,7 @@ function unavailableActionLabel(organizer: OrganizerMembership): string {
   if (currentUserEmail.value && organizer.email.toLowerCase() === currentUserEmail.value) return 'You';
   if (organizer.role === 'owner' && currentUserRole.value !== 'owner') return 'Owner only';
   if (organizer.role === 'owner' && ownerCount.value <= 1) return 'Protected';
+
   return 'Unavailable';
 }
 
@@ -563,6 +643,9 @@ onUnmounted(() => {
           <p class="editorial-eyebrow">Invite</p>
           <h2 class="mt-1 text-lg font-semibold text-dc-ink">Add access</h2>
           <p class="mt-1 text-xs leading-5 text-dc-gray">Add one person and choose the access they need.</p>
+          <p v-if="accessSetupContext" class="mt-3 rounded-md border border-dc-border bg-dc-yellow/30 px-3 py-2 text-[11px] leading-4 text-dc-gray">
+            Reviewing access for <strong class="text-dc-ink">{{ accessSetupContext }}</strong>. Adding this person grants workspace access; it does not happen automatically.
+          </p>
           <div class="mt-3 grid gap-2.5">
             <label>
               <span class="editorial-label">Email</span>

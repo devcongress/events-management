@@ -17,6 +17,9 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/phases', 'POST')).toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/2026/volunteer-applications', 'GET')).toContain('volunteer');
     expect(adminRolesForApiRequest('/api/admin/organizers', 'GET')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/admin/organizers', 'POST')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/access-grants', 'GET')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/annual-conference/2026/access-grants/member-1', 'PATCH')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/admin/volunteer-applications', 'GET')).not.toContain('volunteer');
     expect(adminRolesForApiRequest('/api/events', 'GET')).toEqual(['owner', 'organizer']);
     expect(adminRolesForApiRequest('/api/annual-conference/2026/finance', 'GET')).toEqual(['owner', 'organizer']);

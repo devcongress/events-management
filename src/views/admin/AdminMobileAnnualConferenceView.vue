@@ -9,8 +9,8 @@ import VolunteerApplicationSheet from '@/src/components/VolunteerApplicationShee
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
-import type { VolunteerApplication } from '@/types';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
+import { adminPath } from '@/src/admin-routes';
 import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
@@ -51,7 +51,14 @@ import {
   updateAnnualConferencePhase,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
-import { buildVolunteerDirectoryRows, filterVolunteerDirectory, type VolunteerDirectoryStatusFilter } from '@/src/lib/volunteer-directory';
+import {
+  buildVolunteerDirectoryRows,
+  filterVolunteerDirectory,
+  volunteerDirectoryActions,
+  volunteerDirectoryAssignments,
+  type VolunteerDirectoryRow,
+  type VolunteerDirectoryStatusFilter,
+} from '@/src/lib/volunteer-directory';
 import {
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerConferenceContextQuery,
@@ -86,7 +93,7 @@ const pendingDeletePhase = ref<AnnualConferencePhase | null>(null);
 const volunteerLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
 let volunteerLinkCopyResetTimer: number | undefined;
 const volunteerShortLinkUrl = ref<string | null>(null);
-const selectedVolunteerApplication = ref<VolunteerApplication | null>(null);
+const selectedVolunteer = ref<VolunteerDirectoryRow | null>(null);
 
 const editionForm = reactive({
   year: Number(year.value) + 1,
@@ -124,6 +131,7 @@ const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetch
 const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
 const canManageEditions = computed(() => {
   const role = sessionQuery.data.value?.user?.role;
+
   return role === 'owner' || role === 'organizer';
 });
 const editionsQuery = useQuery({
@@ -181,6 +189,15 @@ const mobileVolunteerDirectoryError = computed(() => (
   (canViewVolunteerTeam.value && volunteerTeamQuery.isError.value)
   || (canReviewVolunteerApplications.value && volunteerQuery.isError.value)
 ));
+const selectedVolunteerTasks = computed(() => volunteerDirectoryAssignments(selectedVolunteer.value, tasks.value));
+const selectedVolunteerActions = computed(() => volunteerDirectoryActions(selectedVolunteer.value, {
+  role: sessionQuery.data.value?.user?.role ?? null,
+  year: year.value,
+  canViewAllTasks: permissions.value?.access_scope === 'all',
+  canAssignTasks: permissions.value?.can_edit_all_tasks === true,
+  workPlanPath: annualConferencePath('work-plan', year.value),
+  accessPath: adminPath('organizers'),
+}));
 const ownerDirectory = computed(() => createAnnualConferenceOwnerDirectory(
   organizersQuery.data.value?.organizers ?? [],
 ));
@@ -188,6 +205,7 @@ const ownerDirectory = computed(() => createAnnualConferenceOwnerDirectory(
 watch(year, () => {
   mobileVolunteerSearch.value = '';
   mobileVolunteerStatusFilter.value = 'all';
+  selectedVolunteer.value = null;
 });
 const organizerLabels = computed(() => Object.fromEntries(
   [
@@ -202,6 +220,9 @@ const organizerLabels = computed(() => Object.fromEntries(
     .map((value) => [value.trim().toLowerCase(), ownerDirectory.value.resolve(value).label]),
 ));
 const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
+const currentMemberLabel = computed(() => sessionQuery.data.value?.user?.display_name?.trim()
+  || currentMemberEmail.value
+  || 'You');
 const currentPhase = computed(() => phases.value.find((phase) => today.value >= phase.starts_on && today.value <= phase.ends_on) ?? null);
 const conferenceDate = computed(() => edition.value?.provisional_date ?? phases.value.at(-1)?.ends_on ?? null);
 const conferenceDateParts = computed(() => {
@@ -226,6 +247,7 @@ const daysToConference = computed(() => conferenceDate.value ? daysBetween(today
 const phaseRows = computed(() => phases.value.map((phase) => {
   const phaseTasks = tasks.value.filter((task) => task.phase_id === phase.id);
   const done = phaseTasks.filter((task) => task.status === 'done').length;
+
   return { ...phase, total: phaseTasks.length, done, completion: phaseTasks.length ? Math.round((done / phaseTasks.length) * 100) : 0 };
 }));
 const planningGaps = computed(() => sortedTasks(tasks.value.filter((task) => !task.phase_id || !task.target_date)));
@@ -263,11 +285,14 @@ const statusOptions = [
 ];
 const ownerOptions = computed(() => {
   const identities = new Map<string, AnnualConferenceOwnerIdentity>();
+
   for (const task of tasks.value) {
     if (!task.accountable_owner?.trim()) continue;
     const identity = ownerDirectory.value.resolve(task.accountable_owner);
+
     identities.set(identity.key, identity);
   }
+
   return [
     { value: 'all', label: 'All owners' },
     { value: 'unassigned', label: 'Unassigned' },
@@ -288,6 +313,7 @@ const filteredTasks = computed(() => sortedTasks(tasks.value.filter((task) => {
     || (ownerFilter.value === 'unassigned'
       ? !task.accountable_owner
       : ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value));
+
   return matchesSearch && matchesStatus && matchesPhase && matchesWorkstream && matchesOwner;
 })));
 const filtersActive = computed(() => Boolean(search.value.trim())
@@ -298,6 +324,7 @@ const filtersActive = computed(() => Boolean(search.value.trim())
 const canEditSelectedTask = computed(() => {
   if (!selectedTask.value) return false;
   if (permissions.value?.can_edit_all_tasks) return true;
+
   return permissions.value?.can_edit_assigned_tasks === true
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
 });
@@ -310,13 +337,14 @@ watch(availableTabs, (tabs) => {
   }
 });
 
-watch([() => route.fullPath, tasks, phases], () => {
+watch([() => route.fullPath, tasks, phases, assignedAccess], () => {
   const context = organizerConferenceContextQuery(route.query);
+
   applyingRouteContext = true;
   activeTab.value = organizerMobileConferenceSection(context);
   statusFilter.value = (context.status ?? 'all') as TaskStatusFilter;
   workstreamFilter.value = context.workstream ?? 'all';
-  ownerFilter.value = context.owner ?? 'all';
+  ownerFilter.value = assignedAccess.value ? 'all' : (context.owner ?? 'all');
   phaseFilterValue.value = context.phase && (
     context.phase === 'all'
     || context.phase === 'unassigned'
@@ -327,6 +355,7 @@ watch([() => route.fullPath, tasks, phases], () => {
   const requestedTask = requestedTaskId
     ? tasks.value.find((task) => task.id === requestedTaskId)
     : null;
+
   if (requestedTask && selectedTaskId.value !== requestedTask.id) openTask(requestedTask.id);
   if (!requestedTaskId && selectedTaskId.value) closeTaskDrawer();
   if (requestedTaskId && tasks.value.length && !requestedTask) {
@@ -381,6 +410,7 @@ const deletePhaseMutation = useMutation({
 function currentAccraDate(): string {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Accra', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
@@ -409,16 +439,19 @@ function nameFromEmail(value: string): string {
 
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
+
   return ownerDirectory.value.resolve(value).label;
 }
 
 function sortedTasks(items: AnnualConferenceTask[]): AnnualConferenceTask[] {
   return [...items].sort((left, right) => {
     const urgency = taskUrgency(left) - taskUrgency(right);
+
     if (urgency !== 0) return urgency;
     if (!left.target_date && !right.target_date) return left.sort_order - right.sort_order;
     if (!left.target_date) return 1;
     if (!right.target_date) return -1;
+
     return left.target_date.localeCompare(right.target_date) || left.sort_order - right.sort_order;
   });
 }
@@ -428,6 +461,7 @@ function taskUrgency(task: AnnualConferenceTask): number {
   if (task.status !== 'done' && task.target_date && task.target_date < today.value) return 1;
   if (task.status === 'in_progress') return 2;
   if (task.status === 'done') return 4;
+
   return 3;
 }
 
@@ -435,8 +469,10 @@ function taskTiming(task: AnnualConferenceTask): string {
   if (task.status === 'done') return 'Completed';
   if (!task.target_date) return 'No target date';
   const difference = daysBetween(today.value, task.target_date);
+
   if (difference < 0) return `${Math.abs(difference)}d overdue`;
   if (difference === 0) return 'Due today';
+
   return `Due in ${difference}d`;
 }
 
@@ -449,6 +485,7 @@ function mobileConferenceQuery(
 ): Record<string, string> {
   const section = patch.section ?? activeTab.value;
   const task = patch.task === undefined ? selectedTaskId.value : patch.task;
+
   return organizerConferenceContextQuery({
     section,
     ...(statusFilter.value !== 'all' ? { status: statusFilter.value } : {}),
@@ -475,6 +512,7 @@ function selectTab(tab: MobileConferenceTab, history: 'push' | 'replace' = 'push
   if (selectedTaskId.value) closeTaskDrawer();
   activeTab.value = tab;
   const context = { section: tab, task: null };
+
   void (history === 'replace'
     ? replaceMobileConferenceContext(context)
     : pushMobileConferenceContext(context));
@@ -502,6 +540,7 @@ function clearFilters() {
 function requestCreateTask() {
   if (!permissions.value?.can_create_tasks) {
     notify.info(`Only ${permissions.value?.task_creator_email ?? 'the planning owner'} can add tasks.`);
+
     return;
   }
   openCreateDrawer();
@@ -515,6 +554,7 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
   if (showCreateForm.value) {
     if (!value.title || !value.workstream || !value.accountable_owner) {
       notify.error('A title, workstream, and accountable owner are required.');
+
       return;
     }
     createTaskMutation.mutate({
@@ -530,6 +570,7 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
       status: value.status ?? 'not_started',
       dependency_task_ids: value.dependency_task_ids ?? [],
     });
+
     return;
   }
   if (selectedTask.value) updateTaskMutation.mutate({ taskId: selectedTask.value.id, input: value });
@@ -537,6 +578,7 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
 
 function changeEdition(value: string | number) {
   const nextYear = String(value);
+
   if (nextYear === year.value) return;
   void router.replace({
     name: route.name ?? undefined,
@@ -547,6 +589,7 @@ function changeEdition(value: string | number) {
 
 function openEditionForm() {
   const latestYear = Math.max(Number(year.value), ...editions.value.map((item) => item.year));
+
   editionForm.year = latestYear + 1;
   editionForm.label = `December ${editionForm.year}`;
   editionForm.provisional_date = `${editionForm.year}-12-19`;
@@ -569,6 +612,7 @@ function openPhaseEditor(phase?: AnnualConferencePhase) {
   phaseForm.name = phase?.name ?? `Phase ${phases.value.length + 1}`;
   phaseForm.starts_on = phase?.starts_on ?? (phases.value.at(-1) ? nextDay(phases.value.at(-1)!.ends_on) : `${year.value}-08-01`);
   const defaultEnd = conferenceDate.value ?? `${year.value}-12-01`;
+
   phaseForm.ends_on = phase?.ends_on ?? (defaultEnd >= phaseForm.starts_on ? defaultEnd : phaseForm.starts_on);
   phaseEditorOpen.value = true;
 }
@@ -580,20 +624,25 @@ function closePhaseEditor() {
 
 function submitPhase() {
   const input = { name: phaseForm.name.trim(), starts_on: phaseForm.starts_on, ends_on: phaseForm.ends_on };
+
   if (editingPhaseId.value) updatePhaseMutation.mutate({ phaseId: editingPhaseId.value, input });
   else createPhaseMutation.mutate(input);
 }
 
 function nextDay(value: string): string {
   const date = new Date(`${value}T12:00:00Z`);
+
   date.setUTCDate(date.getUTCDate() + 1);
+
   return date.toISOString().slice(0, 10);
 }
 
 async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
   const index = phases.value.findIndex((item) => item.id === phase.id);
+
   if (!phases.value[index + direction]) return;
   const ids = phases.value.map((item) => item.id);
+
   [ids[index], ids[index + direction]] = [ids[index + direction], ids[index]];
   try {
     await reorderAnnualConferencePhases(year.value, ids);
@@ -608,9 +657,11 @@ async function copyVolunteerLink() {
   volunteerLinkCopyState.value = 'copying';
   try {
     let shareUrl = volunteerShortLinkUrl.value ?? volunteerPublicUrl;
+
     if (!volunteerShortLinkUrl.value) {
       try {
         const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+
         volunteerShortLinkUrl.value = shortLink.url;
         shareUrl = shortLink.url;
       } catch {
@@ -643,9 +694,8 @@ function clearMobileVolunteerFilters() {
   mobileVolunteerStatusFilter.value = 'all';
 }
 
-function openMobileVolunteerApplication(rowId: string) {
-  const applicationId = rowId.startsWith('application:') ? rowId.slice('application:'.length) : null;
-  selectedVolunteerApplication.value = applications.value.find((application) => application.id === applicationId) ?? null;
+function openMobileVolunteer(row: VolunteerDirectoryRow) {
+  selectedVolunteer.value = row;
 }
 </script>
 
@@ -780,14 +830,19 @@ function openMobileVolunteerApplication(rowId: string) {
             <AppDropdown v-model="ownerFilter" class="filter-grid__wide" label="Owner" :options="ownerOptions" density="compact" />
             <button type="button" class="clear-button filter-grid__wide" :disabled="!filtersActive" @click="clearFilters">Clear filters</button>
           </div>
-          <AppDropdown
-            v-else
-            :model-value="statusFilter"
-            label="Status"
-            :options="statusOptions"
-            density="compact"
-            @update:model-value="statusFilter = $event as TaskStatusFilter"
-          />
+          <div v-else class="assigned-task-controls">
+            <div class="assigned-task-owner">
+              <span>Tasks for</span>
+              <strong>{{ currentMemberLabel }}</strong>
+            </div>
+            <AppDropdown
+              :model-value="statusFilter"
+              label="Status"
+              :options="statusOptions"
+              density="compact"
+              @update:model-value="statusFilter = $event as TaskStatusFilter"
+            />
+          </div>
 
           <p v-if="filteredTasks.length === 0" class="empty-state">No tasks match these filters.</p>
           <div v-else class="task-list">
@@ -852,27 +907,29 @@ function openMobileVolunteerApplication(rowId: string) {
 
         <section v-else key="volunteers" class="conference-view">
           <header class="page-intro"><span>People</span><h1>Volunteers</h1><p>Your assigned volunteer responsibilities for this edition.</p></header>
-          <div v-if="canShareVolunteerIntake" class="volunteer-actions">
-            <button type="button" class="primary-button" @click="openVolunteerDisplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM21 14v4h-3v3h-4M21 21h-1" /></svg><span>Show QR</span></button>
-            <AppCopyButton :state="volunteerLinkCopyState" label="Copy link" class="secondary-button" @click="copyVolunteerLink" />
-            <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 4H4v16h16v-6" /></svg><span>Open form</span></a>
+          <div class="volunteer-directory-sticky">
+            <div v-if="canShareVolunteerIntake" class="volunteer-actions">
+              <button type="button" class="primary-button" @click="openVolunteerDisplay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h2v2h-2zM21 14v4h-3v3h-4M21 21h-1" /></svg><span>Show QR</span></button>
+              <AppCopyButton :state="volunteerLinkCopyState" label="Copy link" class="secondary-button" @click="copyVolunteerLink" />
+              <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 4H4v16h16v-6" /></svg><span>Open form</span></a>
+            </div>
+            <section class="volunteer-directory-tools" aria-label="Find volunteers">
+              <label>
+                <span class="sr-only">Search volunteers</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                <input v-model="mobileVolunteerSearch" type="search" autocomplete="off" placeholder="Search name, email, X or Slack">
+              </label>
+              <div class="volunteer-lifecycle-filter" role="group" aria-label="Filter volunteers by lifecycle">
+                <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'all'" @click="mobileVolunteerStatusFilter = 'all'">All <strong>{{ mobileVolunteerRows.length }}</strong></button>
+                <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'active'" @click="mobileVolunteerStatusFilter = mobileVolunteerStatusFilter === 'active' ? 'all' : 'active'">Active <strong>{{ mobileActiveVolunteerCount }}</strong></button>
+                <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'applicant'" @click="mobileVolunteerStatusFilter = mobileVolunteerStatusFilter === 'applicant' ? 'all' : 'applicant'">Applicants <strong>{{ mobileApplicantCount }}</strong></button>
+              </div>
+              <div class="volunteer-filter-result">
+                <span aria-live="polite">{{ filteredMobileVolunteerRows.length }} {{ filteredMobileVolunteerRows.length === 1 ? 'match' : 'matches' }}</span>
+                <button v-if="hasMobileVolunteerFilters" type="button" @click="clearMobileVolunteerFilters">Clear filters</button>
+              </div>
+            </section>
           </div>
-          <section class="volunteer-directory-tools" aria-label="Find volunteers">
-            <label>
-              <span class="sr-only">Search volunteers</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-              <input v-model="mobileVolunteerSearch" type="search" autocomplete="off" placeholder="Search name, email, X or Slack">
-            </label>
-            <div class="volunteer-lifecycle-filter" role="group" aria-label="Filter volunteers by lifecycle">
-              <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'all'" @click="mobileVolunteerStatusFilter = 'all'">All <strong>{{ mobileVolunteerRows.length }}</strong></button>
-              <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'active'" @click="mobileVolunteerStatusFilter = mobileVolunteerStatusFilter === 'active' ? 'all' : 'active'">Active <strong>{{ mobileActiveVolunteerCount }}</strong></button>
-              <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'applicant'" @click="mobileVolunteerStatusFilter = mobileVolunteerStatusFilter === 'applicant' ? 'all' : 'applicant'">Applicants <strong>{{ mobileApplicantCount }}</strong></button>
-            </div>
-            <div class="volunteer-filter-result">
-              <span aria-live="polite">{{ filteredMobileVolunteerRows.length }} {{ filteredMobileVolunteerRows.length === 1 ? 'match' : 'matches' }}</span>
-              <button v-if="hasMobileVolunteerFilters" type="button" @click="clearMobileVolunteerFilters">Clear filters</button>
-            </div>
-          </section>
           <section
             v-if="hasMobileVolunteerFilters && !mobileVolunteerDirectoryPending && !mobileVolunteerDirectoryError && filteredMobileVolunteerRows.length === 0"
             class="content-card"
@@ -889,11 +946,12 @@ function openMobileVolunteerApplication(rowId: string) {
             <p v-else-if="volunteerTeamQuery.isError.value" class="empty-state">Unable to load the volunteer team.</p>
             <p v-else-if="filteredMobileActiveVolunteers.length === 0" class="empty-state empty-state--plain">No active volunteers have been added yet.</p>
             <div v-else class="application-list">
-              <div v-for="member in filteredMobileActiveVolunteers" :key="member.id" class="application-row">
+              <button v-for="member in filteredMobileActiveVolunteers" :key="member.id" type="button" class="application-row" aria-haspopup="dialog" @click="openMobileVolunteer(member)">
                 <span class="application-avatar" aria-hidden="true">{{ applicationInitials(member.name) }}</span>
                 <strong>{{ member.name }}</strong>
                 <span>Volunteer</span>
-              </div>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+              </button>
             </div>
           </section>
           <section v-if="canReviewVolunteerApplications && mobileVolunteerStatusFilter !== 'active' && (!hasMobileVolunteerFilters || filteredMobileApplicants.length)" class="content-card">
@@ -908,7 +966,7 @@ function openMobileVolunteerApplication(rowId: string) {
                 type="button"
                 class="application-row"
                 aria-haspopup="dialog"
-                @click="openMobileVolunteerApplication(application.id)"
+                @click="openMobileVolunteer(application)"
               >
                 <span class="application-avatar" aria-hidden="true">{{ applicationInitials(application.name) }}</span>
                 <strong>{{ application.name }}</strong>
@@ -952,9 +1010,11 @@ function openMobileVolunteerApplication(rowId: string) {
     />
 
     <VolunteerApplicationSheet
-      :open="Boolean(selectedVolunteerApplication)"
-      :application="selectedVolunteerApplication"
-      @close="selectedVolunteerApplication = null"
+      :open="Boolean(selectedVolunteer)"
+      :person="selectedVolunteer"
+      :assigned-tasks="selectedVolunteerTasks"
+      :actions="selectedVolunteerActions"
+      @close="selectedVolunteer = null"
     />
 
     <Teleport to="body">
@@ -1101,6 +1161,10 @@ function openMobileVolunteerApplication(rowId: string) {
 .search-field input { min-width: 0; border: 0; background: transparent; font-size: 1rem; outline: 0; }
 .filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; border: 1px solid var(--conference-border); border-radius: 10px; background: var(--conference-surface); padding: .8rem; }
 .filter-grid__wide { grid-column: 1 / -1; }
+.assigned-task-controls { display: grid; gap: .7rem; }
+.assigned-task-owner { border: 1px solid var(--conference-border); border-radius: 10px; background: var(--conference-surface); padding: .75rem .85rem; }
+.assigned-task-owner span { display: block; color: var(--conference-muted); font-family: var(--font-mono), monospace; font-size: .58rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.assigned-task-owner strong { display: block; margin-top: .2rem; overflow: hidden; font-size: .95rem; text-overflow: ellipsis; white-space: nowrap; }
 .task-list { overflow: hidden; border: 1px solid var(--conference-border); border-radius: 12px; background: #fff; }
 .task-list--embedded { border: 0; border-radius: 0; }
 .task-row { position: relative; display: grid; width: 100%; min-height: 5.5rem; grid-template-columns: minmax(0, 1fr) 1.2rem; gap: .2rem .75rem; border: 0; border-bottom: 1px solid var(--conference-border); background: #fff; padding: .85rem 1rem; color: #111; text-align: left; transition: transform 100ms var(--motion-fast), background-color 150ms var(--motion-fast); }
@@ -1149,7 +1213,8 @@ function openMobileVolunteerApplication(rowId: string) {
 @media (max-width: 359px) {
   .volunteer-actions > button, .volunteer-actions > a, .volunteer-actions :deep(.app-copy-button__state) { flex-direction: column; }
 }
-.volunteer-directory-tools { position: sticky; top: calc(4.15rem + env(safe-area-inset-top)); z-index: 20; display: grid; gap: .65rem; border: 1px solid var(--conference-border); border-radius: 12px; background: #fff; padding: .8rem; }
+.volunteer-directory-sticky { position: sticky; top: calc(4.15rem + env(safe-area-inset-top)); z-index: 20; display: grid; gap: .65rem; padding-bottom: .15rem; background: var(--conference-bg); }
+.volunteer-directory-tools { display: grid; gap: .65rem; border: 1px solid var(--conference-border); border-radius: 12px; background: #fff; padding: .8rem; }
 .volunteer-directory-tools > label { position: relative; display: block; }
 .volunteer-directory-tools > label > svg { position: absolute; top: 50%; left: .8rem; width: 1rem; height: 1rem; transform: translateY(-50%); fill: none; stroke: #666; stroke-width: 1.8; stroke-linecap: round; }
 .volunteer-directory-tools input { width: 100%; min-height: 2.75rem; border: 1px solid var(--conference-border); border-radius: 8px; background: #faf9f4; padding: .65rem .75rem .65rem 2.4rem; color: #111; font-size: .8rem; outline: none; }

@@ -31,6 +31,7 @@ const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
   'admin-annual-conference-volunteer-display',
   'admin-public-events-preview',
   'admin-public-event-preview',
+  'admin-organizers',
 ]);
 
 interface OrganizerViewportRouteInput {
@@ -78,13 +79,16 @@ const CONFERENCE_WORKSTREAMS = new Set([
 
 function queryString(query: OrganizerRouteQuery | undefined, key: string): string | null {
   const value = query?.[key];
+
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
+
   return trimmed || null;
 }
 
 function boundedQueryString(query: OrganizerRouteQuery | undefined, key: string, maxLength: number): string | null {
   const value = queryString(query, key);
+
   return value && value.length <= maxLength ? value : null;
 }
 
@@ -98,12 +102,15 @@ function redirectTarget(path: string, query: Record<string, string> = {}): Organ
 
 export function organizerMobileEventSection(query: OrganizerRouteQuery | undefined): OrganizerMobileEventSection {
   const section = queryString(query, 'section');
+
   return section === 'guests' || section === 'submissions' ? section : 'overview';
 }
 
 export function organizerMobileConferenceSection(query: OrganizerRouteQuery | undefined): OrganizerMobileConferenceSection {
   const section = queryString(query, 'section');
+
   if (section === 'tasks' || section === 'timeline' || section === 'volunteers') return section;
+
   return 'overview';
 }
 
@@ -123,6 +130,7 @@ export function organizerConferenceContextQuery(
   if (phase && /^[a-z0-9][a-z0-9-]*$/i.test(phase)) context.phase = phase;
   if (owner) context.owner = owner;
   if (task && /^[a-z0-9][a-z0-9-]*$/i.test(task)) context.task = task;
+
   return context;
 }
 
@@ -172,6 +180,7 @@ export function organizerViewportRedirect({
   if (!authenticated || !isAdminRoute) return null;
 
   const normalizedRouteName = typeof routeName === 'string' ? routeName : '';
+
   if (isPhone) {
     if (
       isOrganizerPhoneRouteName(normalizedRouteName)
@@ -182,6 +191,7 @@ export function organizerViewportRedirect({
 
     if (DESKTOP_CONFERENCE_ROUTE_NAMES.has(normalizedRouteName)) {
       const section = DESKTOP_CONFERENCE_ROUTE_SECTIONS.get(normalizedRouteName) ?? 'overview';
+
       return redirectTarget(
         mobileAnnualConferencePath(conferenceYear ?? undefined),
         organizerConferenceContextQuery(query, section),
@@ -190,6 +200,7 @@ export function organizerViewportRedirect({
 
     if (eventId) {
       const section = DESKTOP_EVENT_ROUTE_SECTIONS.get(normalizedRouteName) ?? 'overview';
+
       return redirectTarget(
         organizerPhoneEventPath(eventId),
         organizerEventContextQuery(query, section),
@@ -201,8 +212,10 @@ export function organizerViewportRedirect({
 
   if (normalizedRouteName === ORGANIZER_PHONE_EVENT_ROUTE_NAME && eventId) {
     const section = organizerMobileEventSection(query);
+
     if (section === 'guests') return redirectTarget(adminPath(`events/${encodeURIComponent(eventId)}/registrations`));
     if (section === 'submissions') return redirectTarget(adminPath(`events/${encodeURIComponent(eventId)}/talks/proposals`));
+
     return redirectTarget(adminPath(`events/${encodeURIComponent(eventId)}`));
   }
 
@@ -222,6 +235,7 @@ export function organizerViewportRedirect({
     const context = organizerConferenceContextQuery(query);
     const section = organizerMobileConferenceSection(context);
     const targetQuery = { ...context };
+
     delete targetQuery.section;
     if (section === 'tasks') {
       return redirectTarget(annualConferencePath('work-plan', conferenceYear ?? undefined), targetQuery);
@@ -230,9 +244,11 @@ export function organizerViewportRedirect({
       const timelineQuery = Object.fromEntries(
         Object.entries(targetQuery).filter(([key]) => key === 'phase' || key === 'task'),
       );
+
       return redirectTarget(annualConferencePath('timeline', conferenceYear ?? undefined), timelineQuery);
     }
     if (section === 'volunteers') return redirectTarget(annualConferencePath('volunteers', conferenceYear ?? undefined));
+
     return redirectTarget(annualConferencePath('', conferenceYear ?? undefined));
   }
 

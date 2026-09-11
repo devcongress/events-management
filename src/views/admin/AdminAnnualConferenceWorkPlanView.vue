@@ -77,9 +77,13 @@ const sessionQuery = useQuery({
   queryFn: fetchAdminSession,
 });
 const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
+const currentMemberLabel = computed(() => sessionQuery.data.value?.user?.display_name?.trim()
+  || currentMemberEmail.value
+  || 'You');
 const phaseScopeLabel = computed(() => {
   if (selectedPhase.value) return selectedPhase.value.name;
   if (phaseFilter.value === 'unassigned') return 'No phase';
+
   return 'Entire conference';
 });
 const phaseScopeDescription = computed(() => {
@@ -87,11 +91,13 @@ const phaseScopeDescription = computed(() => {
     return `${formatDate(selectedPhase.value.starts_on)} – ${formatDate(selectedPhase.value.ends_on)}`;
   }
   if (phaseFilter.value === 'unassigned') return 'Tasks still waiting for a delivery phase';
+
   return 'All phases and unclassified tasks';
 });
 const canEditSelectedTask = computed(() => {
   if (!selectedTask.value || assignedAccess.value) return false;
   if (permissions.value?.can_edit_all_tasks) return true;
+
   return permissions.value?.can_edit_assigned_tasks === true
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
 });
@@ -112,11 +118,14 @@ const organizerLabels = computed<Record<string, string>>(() => Object.fromEntrie
 ));
 const owners = computed(() => {
   const identities = new Map<string, AnnualConferenceOwnerIdentity>();
+
   for (const task of scopedTasks.value) {
     if (!task.accountable_owner?.trim()) continue;
     const identity = ownerDirectory.value.resolve(task.accountable_owner);
+
     identities.set(identity.key, identity);
   }
+
   return [...identities.values()].sort((left, right) => left.label.localeCompare(right.label));
 });
 const statusCounts = computed(() => projection.value.status_counts);
@@ -147,12 +156,14 @@ const visibleTasks = computed(() => {
       || (ownerFilter.value === 'unassigned'
         ? !task.accountable_owner
         : ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value));
+
     return matchesStatus && matchesWorkstream && matchesOwner;
   });
 });
 const ledgerPageCount = computed(() => Math.max(1, Math.ceil(visibleTasks.value.length / LEDGER_PAGE_SIZE)));
 const paginatedTasks = computed(() => {
   const start = (ledgerPage.value - 1) * LEDGER_PAGE_SIZE;
+
   return visibleTasks.value.slice(start, start + LEDGER_PAGE_SIZE);
 });
 const ledgerRangeStart = computed(() => visibleTasks.value.length
@@ -168,10 +179,10 @@ watch(visibleTasks, () => {
   ledgerPage.value = Math.min(ledgerPage.value, ledgerPageCount.value);
 });
 
-watch([() => route.fullPath, tasks, phases, organizerMembers], () => {
+watch([() => route.fullPath, tasks, phases, organizerMembers, assignedAccess], () => {
   if (!phases.value.length) return;
   const context = organizerConferenceContextQuery({ ...route.query, section: 'tasks' }, 'tasks');
-  const requestedOwner = context.owner
+  const requestedOwner = !assignedAccess.value && context.owner
     ? resolveAnnualConferenceOwnerFilter(tasks.value, context.owner, organizerMembers.value)
     : null;
   const requestedPhase = context.phase && (
@@ -183,7 +194,7 @@ watch([() => route.fullPath, tasks, phases, organizerMembers], () => {
     ? tasks.value.find((task) => task.id === context.task)
     : null;
   const hasInvalidContext = Boolean(
-    (context.owner && tasks.value.length && !requestedOwner)
+    (context.owner && (assignedAccess.value || (tasks.value.length && !requestedOwner)))
     || (context.phase && !requestedPhase)
     || (context.task && tasks.value.length && !requestedTask),
   );
@@ -214,10 +225,12 @@ const createMutation = useMutation({
 
 function startEditing(taskId: string) {
   const task = tasks.value.find((item) => item.id === taskId);
+
   if (!task || assignedAccess.value) return;
   const canEditTask = permissions.value?.can_edit_all_tasks === true
     || (permissions.value?.can_edit_assigned_tasks === true
       && isAnnualConferenceTaskAssignedTo(task, currentMemberEmail.value));
+
   if (!canEditTask) return;
   editTask(taskId);
 }
@@ -225,6 +238,7 @@ function startEditing(taskId: string) {
 function requestCreateDrawer() {
   if (!permissions.value) {
     notify.info('Task permissions are still loading.');
+
     return;
   }
 
@@ -232,6 +246,7 @@ function requestCreateDrawer() {
     notify.info(
       `Only a platform owner or this edition’s planning owner (${permissions.value.task_creator_email}) can add tasks. Other organizers can edit assigned tasks.`,
     );
+
     return;
   }
 
@@ -241,6 +256,7 @@ function requestCreateDrawer() {
 function toggleTask(taskId: string) {
   if (selectedTaskId.value === taskId) {
     closeTaskWithContext();
+
     return;
   }
   openTask(taskId);
@@ -257,7 +273,9 @@ function workPlanContextQuery(patch: { task?: string | null } = {}): Record<stri
     ...(ownerFilter.value !== 'all' ? { owner: ownerFilter.value } : {}),
     ...(task ? { task } : {}),
   }, 'tasks');
+
   delete context.section;
+
   return context;
 }
 
@@ -282,6 +300,7 @@ function handleUpdate(value: AnnualConferenceTaskUpdateInput) {
 function handleDrawerSubmit(value: AnnualConferenceTaskUpdateInput) {
   if (showCreateForm.value) {
     handleCreate(value);
+
     return;
   }
 
@@ -296,13 +315,16 @@ function updateLedgerFilters(update: () => void, afterUpdate?: () => void) {
   ) {
     update();
     afterUpdate?.();
+
     return;
   }
 
   const transitionDocument = document as LedgerViewTransitionDocument;
+
   if (!transitionDocument.startViewTransition) {
     update();
     afterUpdate?.();
+
     return;
   }
 
@@ -312,6 +334,7 @@ function updateLedgerFilters(update: () => void, afterUpdate?: () => void) {
     afterUpdate?.();
     await nextTick();
   });
+
   activeLedgerTransition = transition;
 
   void transition.finished
@@ -336,6 +359,7 @@ function toggleUnassignedFilter() {
 
 function setOwnerFilter(value: string | number) {
   const nextOwner = String(value);
+
   if (ownerFilter.value === nextOwner) return;
   updateLedgerFilters(() => {
     ownerFilter.value = nextOwner;
@@ -344,6 +368,7 @@ function setOwnerFilter(value: string | number) {
 
 function setPhaseFilter(value: string | number) {
   const nextPhase = String(value);
+
   if (phaseFilter.value === nextPhase) return;
   updateLedgerFilters(() => {
     phaseFilter.value = nextPhase;
@@ -370,6 +395,7 @@ function setWorkstreamFilter(value: 'all' | AnnualConferenceTask['workstream']) 
 function handleCreate(value: AnnualConferenceTaskUpdateInput) {
   if (!value.title || !value.workstream || !value.accountable_owner) {
     notify.error('A title, workstream, and accountable owner are required.');
+
     return;
   }
 
@@ -401,11 +427,13 @@ function currentAccraDate(): string {
     timeZone: 'Africa/Accra', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date());
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
+
   return ownerDirectory.value.resolve(value).label;
 }
 
@@ -413,6 +441,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
   if (status === 'done') return 'border-dc-ink bg-dc-yellow text-dc-ink';
   if (status === 'blocked') return 'border-dc-ink bg-dc-pink text-white';
   if (status === 'in_progress') return 'border-[#0f766e] bg-[#e7f5f2] text-[#0f766e]';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 </script>
@@ -537,7 +566,11 @@ function statusClass(status: AnnualConferenceTask['status']): string {
             </div>
 
             <div class="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
-              <div class="min-w-0 flex-1 sm:w-52 sm:flex-none">
+              <div v-if="assignedAccess" class="min-w-0 flex-1 rounded-md border border-dc-border bg-dc-paper px-3 py-2 sm:w-52 sm:flex-none">
+                <span class="block font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Tasks for</span>
+                <strong class="mt-0.5 block truncate text-sm text-dc-ink">{{ currentMemberLabel }}</strong>
+              </div>
+              <div v-else class="min-w-0 flex-1 sm:w-52 sm:flex-none">
                 <AppDropdown :model-value="ownerFilter" :options="ownerFilterOptions" density="compact" menu-align="right" menu-class="min-w-48" teleport @update:model-value="setOwnerFilter" />
               </div>
               <button type="button" class="min-h-10 rounded-md border border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]" :class="filtersActive ? 'text-dc-pink hover:border-dc-pink' : 'cursor-default text-dc-gray/50'" :disabled="!filtersActive" @click="clearFilters">Clear</button>
