@@ -528,9 +528,11 @@ function syncOrganizerViewportRoute() {
     isPhone: phoneViewport.value,
     routeName: route.name,
     eventId: typeof adminEventId.value === 'string' ? adminEventId.value : null,
+    conferenceYear: typeof route.params.year === 'string' ? route.params.year : null,
+    query: route.query,
   });
 
-  if (redirect && redirect !== route.path) {
+  if (redirect && redirect.path !== route.path) {
     void router.replace(redirect);
   }
 }

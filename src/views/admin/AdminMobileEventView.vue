@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useCheckInDay } from "@/src/composables/useCheckInDay";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import { computed, ref } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { computed, ref, watch } from 'vue';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import { adminPath } from '@/src/admin-routes';
 import {
@@ -29,6 +29,7 @@ import {
 import { safePublicResourceUrl } from '@/lib/safe-url';
 import {
   ORGANIZER_PHONE_EVENTS_ROUTE_PATH,
+  organizerMobileEventSection,
   organizerPhoneCheckInPath,
   organizerPhoneEventBlastsPath,
 } from '@/src/organizer-viewport';
@@ -78,10 +79,11 @@ const submissionFilters: Array<{ value: SubmissionFilter; label: string }> = [
 ];
 
 const route = useRoute();
+const router = useRouter();
 const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
 const checkInDay = useCheckInDay(() => eventQuery.data.value);
-const activeSection = ref<MobileEventSection>('overview');
+const activeSection = ref<MobileEventSection>(organizerMobileEventSection(route.query));
 const panelTransition = ref('mobile-event-panel-forward');
 const guestSearch = ref('');
 const guestFilter = ref<RegistrationGuestFilter>('all');
@@ -158,7 +160,7 @@ const proposalDecisionMessage = computed(() => {
     : `${proposal} will be rejected and removed from the pending review queue. This decision cannot be undone.`;
 });
 
-function selectSection(section: MobileEventSection) {
+function applySection(section: MobileEventSection) {
   const currentIndex = sectionOrder.indexOf(activeSection.value);
   const nextIndex = sectionOrder.indexOf(section);
   panelTransition.value = nextIndex >= currentIndex
@@ -166,6 +168,20 @@ function selectSection(section: MobileEventSection) {
     : 'mobile-event-panel-back';
   activeSection.value = section;
 }
+
+function selectSection(section: MobileEventSection) {
+  if (section === activeSection.value) return;
+  applySection(section);
+  void router.push({
+    path: route.path,
+    query: { ...route.query, section },
+  });
+}
+
+watch(() => route.query.section, () => {
+  const section = organizerMobileEventSection(route.query);
+  if (section !== activeSection.value) applySection(section);
+});
 
 function formatEventDate(value: string) {
   return EVENT_DATE_FORMATTER.format(new Date(value));

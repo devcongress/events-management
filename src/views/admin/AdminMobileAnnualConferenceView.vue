@@ -18,7 +18,9 @@ import {
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAMS,
   calculateAnnualConferenceHealth,
+  createAnnualConferenceOwnerDirectory,
   summarizeAnnualConferenceWorkPlan,
+  type AnnualConferenceOwnerIdentity,
   type AnnualConferencePhase,
   type AnnualConferencePhaseCreateInput,
   type AnnualConferencePhaseUpdateInput,
@@ -48,7 +50,11 @@ import {
   updateAnnualConferencePhase,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
-import { ORGANIZER_PHONE_ROUTE_PATH } from '@/src/organizer-viewport';
+import {
+  ORGANIZER_PHONE_ROUTE_PATH,
+  organizerConferenceContextQuery,
+  organizerMobileConferenceSection,
+} from '@/src/organizer-viewport';
 import {
   hasAnyAnnualConferenceCapability,
   hasAnnualConferenceCapability,
@@ -63,11 +69,13 @@ const router = useRouter();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const today = ref(currentAccraDate());
-const activeTab = ref<MobileConferenceTab>('overview');
+const initialRouteContext = organizerConferenceContextQuery(route.query);
+const activeTab = ref<MobileConferenceTab>(organizerMobileConferenceSection(initialRouteContext));
 const search = ref('');
-const statusFilter = ref<TaskStatusFilter>('all');
-const workstreamFilter = ref('all');
-const ownerFilter = ref('all');
+const statusFilter = ref<TaskStatusFilter>((initialRouteContext.status ?? 'all') as TaskStatusFilter);
+const workstreamFilter = ref(initialRouteContext.workstream ?? 'all');
+const ownerFilter = ref(initialRouteContext.owner ?? 'all');
+const phaseFilterValue = ref(initialRouteContext.phase ?? 'all');
 const editionFormOpen = ref(false);
 const phaseManagerOpen = ref(false);
 const phaseEditorOpen = ref(false);
@@ -94,6 +102,7 @@ const {
   phases,
   tasks,
   selectedTask,
+  selectedTaskId,
   editingTaskId,
   showCreateForm,
   updateTaskMutation,
@@ -135,11 +144,20 @@ const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
 const health = computed(() => calculateAnnualConferenceHealth(tasks.value, phases.value, today.value));
 const applications = computed(() => volunteerQuery.data.value?.applications ?? []);
 const volunteerTeam = computed(() => volunteerTeamQuery.data.value?.members ?? []);
+const ownerDirectory = computed(() => createAnnualConferenceOwnerDirectory(
+  organizersQuery.data.value?.organizers ?? [],
+));
 const organizerLabels = computed(() => Object.fromEntries(
-  (organizersQuery.data.value?.organizers ?? []).map((organizer) => [
-    organizer.email.trim().toLowerCase(),
-    organizer.display_name?.trim() || nameFromEmail(organizer.email),
-  ]),
+  [
+    ...(organizersQuery.data.value?.organizers ?? []).flatMap((organizer) => [
+      organizer.email,
+      organizer.display_name ?? '',
+      organizer.email.split('@')[0] ?? '',
+    ]),
+    ...tasks.value.map((task) => task.accountable_owner ?? ''),
+  ]
+    .filter((value) => value.trim())
+    .map((value) => [value.trim().toLowerCase(), ownerDirectory.value.resolve(value).label]),
 ));
 const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
 const currentPhase = computed(() => phases.value.find((phase) => today.value >= phase.starts_on && today.value <= phase.ends_on) ?? null);
@@ -179,13 +197,21 @@ const statusOptions = [
   { value: 'all', label: 'All statuses' },
   ...ANNUAL_CONFERENCE_TASK_STATUSES.map((status) => ({ value: status, label: ANNUAL_CONFERENCE_STATUS_LABELS[status] })),
 ];
-const ownerOptions = computed(() => [
-  { value: 'all', label: 'All owners' },
-  { value: 'unassigned', label: 'Unassigned' },
-  ...(organizersQuery.data.value?.organizers ?? [])
-    .filter((organizer) => organizer.status === 'active')
-    .map((organizer) => ({ value: organizer.email.trim().toLowerCase(), label: organizer.display_name?.trim() || nameFromEmail(organizer.email) })),
-]);
+const ownerOptions = computed(() => {
+  const identities = new Map<string, AnnualConferenceOwnerIdentity>();
+  for (const task of tasks.value) {
+    if (!task.accountable_owner?.trim()) continue;
+    const identity = ownerDirectory.value.resolve(task.accountable_owner);
+    identities.set(identity.key, identity);
+  }
+  return [
+    { value: 'all', label: 'All owners' },
+    { value: 'unassigned', label: 'Unassigned' },
+    ...[...identities.values()]
+      .sort((left, right) => left.label.localeCompare(right.label))
+      .map((identity) => ({ value: identity.filter_value, label: identity.label })),
+  ];
+});
 const filteredTasks = computed(() => sortedTasks(tasks.value.filter((task) => {
   const needle = search.value.trim().toLowerCase();
   const matchesSearch = !needle || [task.title, taskDetailsSearchText(task.details, task.details_format), task.accountable_owner, ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream]]
@@ -195,10 +221,11 @@ const filteredTasks = computed(() => sortedTasks(tasks.value.filter((task) => {
     || (phaseFilterValue.value === 'unassigned' ? !task.phase_id : task.phase_id === phaseFilterValue.value);
   const matchesWorkstream = workstreamFilter.value === 'all' || task.workstream === workstreamFilter.value;
   const matchesOwner = ownerFilter.value === 'all'
-    || (ownerFilter.value === 'unassigned' ? !task.accountable_owner : task.accountable_owner?.toLowerCase() === ownerFilter.value);
+    || (ownerFilter.value === 'unassigned'
+      ? !task.accountable_owner
+      : ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value));
   return matchesSearch && matchesStatus && matchesPhase && matchesWorkstream && matchesOwner;
 })));
-const phaseFilterValue = ref('all');
 const filtersActive = computed(() => Boolean(search.value.trim())
   || statusFilter.value !== 'all'
   || phaseFilterValue.value !== 'all'
@@ -211,9 +238,45 @@ const canEditSelectedTask = computed(() => {
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
 });
 const volunteerPublicUrl = `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`;
+let applyingRouteContext = false;
 
 watch(availableTabs, (tabs) => {
-  if (!tabs.some((tab) => tab.id === activeTab.value)) activeTab.value = tabs[0]?.id ?? 'overview';
+  if (permissions.value && !tabs.some((tab) => tab.id === activeTab.value)) {
+    selectTab(tabs[0]?.id ?? 'overview', 'replace');
+  }
+});
+
+watch([() => route.fullPath, tasks, phases], () => {
+  const context = organizerConferenceContextQuery(route.query);
+  applyingRouteContext = true;
+  activeTab.value = organizerMobileConferenceSection(context);
+  statusFilter.value = (context.status ?? 'all') as TaskStatusFilter;
+  workstreamFilter.value = context.workstream ?? 'all';
+  ownerFilter.value = context.owner ?? 'all';
+  phaseFilterValue.value = context.phase && (
+    context.phase === 'all'
+    || context.phase === 'unassigned'
+    || phases.value.some((phase) => phase.id === context.phase)
+  ) ? context.phase : 'all';
+
+  const requestedTaskId = context.task;
+  const requestedTask = requestedTaskId
+    ? tasks.value.find((task) => task.id === requestedTaskId)
+    : null;
+  if (requestedTask && selectedTaskId.value !== requestedTask.id) openTask(requestedTask.id);
+  if (!requestedTaskId && selectedTaskId.value) closeTaskDrawer();
+  if (requestedTaskId && tasks.value.length && !requestedTask) {
+    closeTaskDrawer();
+    void replaceMobileConferenceContext({ task: null });
+  }
+
+  queueMicrotask(() => {
+    applyingRouteContext = false;
+  });
+}, { immediate: true });
+
+watch([statusFilter, phaseFilterValue, workstreamFilter, ownerFilter], () => {
+  if (!applyingRouteContext) void replaceMobileConferenceContext();
 });
 
 const createTaskMutation = useMutation({
@@ -282,7 +345,7 @@ function nameFromEmail(value: string): string {
 
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
-  return organizerLabels.value[value.trim().toLowerCase()] ?? nameFromEmail(value);
+  return ownerDirectory.value.resolve(value).label;
 }
 
 function sortedTasks(items: AnnualConferenceTask[]): AnnualConferenceTask[] {
@@ -317,9 +380,51 @@ function statusClass(status: AnnualConferenceTaskStatus): string {
   return `conference-status conference-status--${status.replace('_', '-')}`;
 }
 
-function selectTab(tab: MobileConferenceTab) {
+function mobileConferenceQuery(
+  patch: { section?: MobileConferenceTab; task?: string | null } = {},
+): Record<string, string> {
+  const section = patch.section ?? activeTab.value;
+  const task = patch.task === undefined ? selectedTaskId.value : patch.task;
+  return organizerConferenceContextQuery({
+    section,
+    ...(statusFilter.value !== 'all' ? { status: statusFilter.value } : {}),
+    ...(phaseFilterValue.value !== 'all' ? { phase: phaseFilterValue.value } : {}),
+    ...(workstreamFilter.value !== 'all' ? { workstream: workstreamFilter.value } : {}),
+    ...(ownerFilter.value !== 'all' ? { owner: ownerFilter.value } : {}),
+    ...(task ? { task } : {}),
+  }, section);
+}
+
+function replaceMobileConferenceContext(
+  patch: { section?: MobileConferenceTab; task?: string | null } = {},
+) {
+  return router.replace({ path: route.path, query: mobileConferenceQuery(patch) });
+}
+
+function pushMobileConferenceContext(
+  patch: { section?: MobileConferenceTab; task?: string | null } = {},
+) {
+  return router.push({ path: route.path, query: mobileConferenceQuery(patch) });
+}
+
+function selectTab(tab: MobileConferenceTab, history: 'push' | 'replace' = 'push') {
+  if (selectedTaskId.value) closeTaskDrawer();
   activeTab.value = tab;
+  const context = { section: tab, task: null };
+  void (history === 'replace'
+    ? replaceMobileConferenceContext(context)
+    : pushMobileConferenceContext(context));
   window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}
+
+function openTaskWithContext(taskId: string) {
+  openTask(taskId);
+  void pushMobileConferenceContext({ task: taskId });
+}
+
+function closeTaskWithContext() {
+  closeTaskDrawer();
+  void replaceMobileConferenceContext({ task: null });
 }
 
 function clearFilters() {
@@ -369,7 +474,11 @@ function handleTaskSubmit(value: AnnualConferenceTaskUpdateInput) {
 function changeEdition(value: string | number) {
   const nextYear = String(value);
   if (nextYear === year.value) return;
-  void router.replace({ name: route.name ?? undefined, params: { ...route.params, year: nextYear } });
+  void router.replace({
+    name: route.name ?? undefined,
+    params: { ...route.params, year: nextYear },
+    query: mobileConferenceQuery({ task: null }),
+  });
 }
 
 function openEditionForm() {
@@ -583,7 +692,7 @@ function openVolunteerDisplay() {
 
           <p v-if="filteredTasks.length === 0" class="empty-state">No tasks match these filters.</p>
           <div v-else class="task-list">
-            <button v-for="task in filteredTasks" :key="task.id" type="button" class="task-row" @click="openTask(task.id)">
+            <button v-for="task in filteredTasks" :key="task.id" type="button" class="task-row" @click="openTaskWithContext(task.id)">
               <span :class="statusClass(task.status)">{{ ANNUAL_CONFERENCE_STATUS_LABELS[task.status] }}</span>
               <strong>{{ task.title }}</strong>
               <small>{{ ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream] }}</small>
@@ -633,7 +742,7 @@ function openVolunteerDisplay() {
             <header class="content-card__header"><div><span>Plan quality</span><h2>Planning gaps</h2></div><strong>{{ planningGaps.length }}</strong></header>
             <p v-if="planningGaps.length === 0" class="empty-state empty-state--plain">Every task has a phase and target date.</p>
             <div v-else class="task-list task-list--embedded">
-              <button v-for="task in planningGaps" :key="task.id" type="button" class="task-row" @click="openTask(task.id)">
+              <button v-for="task in planningGaps" :key="task.id" type="button" class="task-row" @click="openTaskWithContext(task.id)">
                 <span class="gap-label">{{ !task.phase_id && !task.target_date ? 'Phase + date' : !task.phase_id ? 'Phase missing' : 'Date missing' }}</span>
                 <strong>{{ task.title }}</strong><small>{{ organizerDisplay(task.accountable_owner) }}</small>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
@@ -711,7 +820,7 @@ function openVolunteerDisplay() {
         ? 'Only the status of tasks assigned to you can be updated.'
         : 'Only a platform owner, planning owner, or assigned task owner/collaborator can edit this task.'"
       :submitting="showCreateForm ? createTaskMutation.isPending.value : updateTaskMutation.isPending.value"
-      @close="closeTaskDrawer"
+      @close="closeTaskWithContext"
       @edit="startEditingSelectedTask"
       @cancel-edit="editingTaskId = null"
       @submit="handleTaskSubmit"
