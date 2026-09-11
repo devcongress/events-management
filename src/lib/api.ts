@@ -852,7 +852,15 @@ export type EventSlackAnnouncementResponse = {
   announcement: EventSlackAnnouncement | null;
   eligible: boolean;
   dispatched?: boolean;
+  website: {
+    state: 'not_published' | 'pending' | 'published' | 'failed';
+    url: string;
+    http_status: number | null;
+  };
+  slack_url: string | null;
+  /** @deprecated Use website.state instead. */
   website_ready?: boolean;
+  /** @deprecated Use website.http_status instead. */
   website_status?: number | null;
 };
 

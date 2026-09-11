@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-11 — Independent website and Slack publication status
+
+- Show website publication and Slack announcement delivery as separate organizer states for both DevCongress-owned and approved community events.
+- Distinguish not published, waiting, successful, and failed outcomes with focused recovery actions, while retaining the last successful Slack send or update timestamp.
+- Resolve exact Slack message permalinks from stored provider references so organizers can reopen editable announcements; legacy webhook posts remain clearly identified as non-editable.
+- Keep website readiness observable when Slack delivery is not configured, without changing the existing idempotent send, retry, or automatic-update paths. No migration required.
+
 ## 2026-09-11 — Organizer navigation context across devices
 
 - Preserve event identity and map desktop event sections to Overview, Guests, or Submissions when the same organizer link opens at phone width.

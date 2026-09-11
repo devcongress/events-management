@@ -131,6 +131,16 @@ describe('native event registration API', () => {
           headers: { 'Content-Type': 'application/json' },
         });
       }
+      if (url === 'https://slack.com/api/chat.getPermalink') {
+        return new Response(JSON.stringify({
+          ok: true,
+          channel: 'C0123456789',
+          permalink: 'https://devcongress.slack.com/archives/C0123456789/p1788900000123456',
+        }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
       return new Response('not found', { status: 404 });
     });
     vi.stubGlobal('fetch', slackFetch);
@@ -173,6 +183,11 @@ describe('native event registration API', () => {
 
     const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
     await expect(status.json()).resolves.toMatchObject({
+      website: {
+        state: 'published',
+        url: expect.stringContaining('https://devcongress.org/events/'),
+      },
+      slack_url: 'https://devcongress.slack.com/archives/C0123456789/p1788900000123456',
       announcement: {
         status: 'sent',
         provider_channel_id: 'C0123456789',
@@ -225,6 +240,40 @@ describe('native event registration API', () => {
 
     expect(response.status).toBe(201);
     expect(slackFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports website publication independently when Slack delivery is not configured', async () => {
+    const websiteFetch = vi.fn(async (input: RequestInfo | URL) => (
+      String(input).startsWith('https://devcongress.org/')
+        ? new Response('', { status: 404 })
+        : new Response('not found', { status: 404 })
+    ));
+    vi.stubGlobal('fetch', websiteFetch);
+    const { default: app } = await import('./app');
+
+    const createdResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Website status without Slack',
+        description: 'Website state remains independently observable.',
+        event_date: '2099-08-20T19:00:00.000Z',
+        location: { name: 'Accra', label: 'Accra', url: null },
+        registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
+      }),
+    });
+    const created = await createdResponse.json() as { event: { id: string } };
+
+    const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+    await expect(status.json()).resolves.toMatchObject({
+      eligible: true,
+      website: {
+        state: 'pending',
+        http_status: 404,
+      },
+      slack_url: null,
+    });
+    expect(websiteFetch).toHaveBeenCalledTimes(1);
   });
 
   it('permits one deliberate retry after a failed event-channel announcement and never reposts after success', async () => {

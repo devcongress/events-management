@@ -12,6 +12,7 @@ import {
 import { resolveEventStatus } from '@/lib/event-status';
 import { EVENT_FORMAT_LABELS, EVENT_FORMATS } from '@/lib/event-format';
 import AppDropdown from '@/src/components/AppDropdown.vue';
+import EventPublicationStatusPanel from '@/src/components/EventPublicationStatusPanel.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
 import {
@@ -23,7 +24,7 @@ import {
   resolveEventSeriesType,
   type EventSeriesSelection,
 } from '@/lib/event-series';
-import { fetchEventSlackAnnouncement, queryKeys, sendEventSlackAnnouncement, type EventSlackAnnouncement } from '@/src/lib/api';
+import { fetchEventSlackAnnouncement, queryKeys, sendEventSlackAnnouncement, type EventSlackAnnouncement, type EventSlackAnnouncementResponse } from '@/src/lib/api';
 import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
 import {
   compressionSavingsPercent,
@@ -80,8 +81,10 @@ const mediaUploadPurpose = ref<'cover' | 'photo' | null>(null);
 const mediaUploadProgress = ref<number | null>(null);
 const slackAnnouncement = ref<EventSlackAnnouncement | null>(null);
 const slackEligible = ref(false);
-const slackWebsiteReady = ref(true);
+const slackWebsite = ref<EventSlackAnnouncementResponse['website']>({ state: 'failed', url: '', http_status: null });
+const slackUrl = ref<string | null>(null);
 const slackSending = ref(false);
+const publicationRefreshing = ref(false);
 const photoTypeOptions = [
   { value: 'folder', label: 'Gallery / folder' },
   { value: 'image', label: 'Single image' },
@@ -402,11 +405,13 @@ async function fetchOverview() {
       const slack = await fetchEventSlackAnnouncement(nextEvent.id);
       slackAnnouncement.value = slack.announcement;
       slackEligible.value = slack.eligible;
-      slackWebsiteReady.value = slack.website_ready !== false;
+      slackWebsite.value = slack.website;
+      slackUrl.value = slack.slack_url;
     } catch {
       slackAnnouncement.value = null;
       slackEligible.value = false;
-      slackWebsiteReady.value = true;
+      slackWebsite.value = { state: 'failed', url: '', http_status: null };
+      slackUrl.value = null;
     }
   }
   checklist.value = checklistResponse?.items ?? [];
@@ -414,23 +419,32 @@ async function fetchOverview() {
   await scrollToRequestedSection();
 }
 
-const slackAnnouncementLabel = computed(() => {
-  if (!slackEligible.value) return null;
-  if (!slackAnnouncement.value) return 'SEND TO SLACK';
-  if (slackAnnouncement.value.status === 'failed') return 'RETRY SLACK';
-  if (slackAnnouncement.value.status === 'pending') return 'SENDING…';
-  return null;
-});
+async function refreshPublicationStatus() {
+  if (!event.value || publicationRefreshing.value) return;
+  publicationRefreshing.value = true;
+  try {
+    const response = await fetchEventSlackAnnouncement(event.value.id);
+    slackAnnouncement.value = response.announcement;
+    slackEligible.value = response.eligible;
+    slackWebsite.value = response.website;
+    slackUrl.value = response.slack_url;
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : 'Publication status could not be refreshed.');
+  } finally {
+    publicationRefreshing.value = false;
+  }
+}
 
 async function sendSlackAnnouncement() {
-  if (!event.value || !slackAnnouncementLabel.value || slackSending.value) return;
+  if (!event.value || !slackEligible.value || slackAnnouncement.value?.status === 'sent' || slackSending.value) return;
   slackSending.value = true;
   try {
     const response = await sendEventSlackAnnouncement(event.value.id);
     slackAnnouncement.value = response.announcement;
     slackEligible.value = response.eligible;
-    slackWebsiteReady.value = response.website_ready !== false;
-    if (!slackWebsiteReady.value) notify.error('The public page is not available yet. Slack will be retried after the website update.');
+    slackWebsite.value = response.website;
+    slackUrl.value = response.slack_url;
+    if (response.website.state !== 'published') notify.error('The public page is not available yet. Slack will be retried after the website update.');
     else if (response.announcement?.status === 'sent') notify.success('Event sent to the Slack events channel.');
     else notify.error(response.announcement?.last_error || 'Slack could not accept the event. Retry is available.');
   } catch (error) {
@@ -528,6 +542,7 @@ async function publishEvent() {
       sharedLinksError.value = null;
     }
     await invalidateEventQueries();
+    await refreshPublicationStatus();
     notify.success('Event published to community');
   } catch (error) {
     publishError.value = error instanceof Error ? error.message : 'Failed to publish event';
@@ -1174,19 +1189,19 @@ onMounted(fetchOverview);
               >
                 Published
               </span>
-              <button
-                v-if="slackAnnouncementLabel"
-                type="button"
-                class="event-overview-publish-action"
-                :disabled="slackSending || slackAnnouncement?.status === 'pending'"
-                @click="sendSlackAnnouncement"
-              >
-                {{ slackSending ? 'Sending...' : slackAnnouncementLabel }}
-              </button>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
-            <p v-if="slackAnnouncement?.message_update_last_error" class="event-overview-copy-error mt-3">Latest Slack update failed: {{ slackAnnouncement.message_update_last_error }}</p>
-            <p v-if="slackEligible" class="mt-3 max-w-2xl text-xs leading-5 text-dc-gray">This event will be posted to Slack as soon as its public page is available on devcongress.org. The website refresh runs daily; the scheduled retry will check again after the update.</p>
+            <EventPublicationStatusPanel
+              class="mt-5"
+              :website="slackWebsite"
+              :announcement="slackAnnouncement"
+              :slack-eligible="slackEligible"
+              :slack-url="slackUrl"
+              :slack-sending="slackSending"
+              :refreshing="publicationRefreshing"
+              @refresh="refreshPublicationStatus"
+              @send-slack="sendSlackAnnouncement"
+            />
             <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
               <div class="rounded-lg border border-dc-border bg-dc-paper p-4">
                 <div class="event-overview-copy-header">
