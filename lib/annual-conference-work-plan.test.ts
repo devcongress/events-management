@@ -12,6 +12,7 @@ import {
   createAnnualConferenceOwnerDirectory,
   defaultAnnualConferencePhaseScope,
   filterAnnualConferenceTasksByPhase,
+  matchesAnnualConferenceTaskAttention,
   resolveAnnualConferenceOwnerFilter,
   summarizeAnnualConferenceTasksByOwner,
   summarizeAnnualConferenceDependencies,
@@ -37,6 +38,15 @@ describe('annual conference work plan', () => {
       'blocked',
       'done',
     ]);
+  });
+
+  it('matches the same actionable attention sets shown by conference health', () => {
+    const task = ANNUAL_CONFERENCE_2026_SEED_TASKS[0];
+
+    expect(matchesAnnualConferenceTaskAttention({ ...task, status: 'in_progress', target_date: '2026-09-10' }, 'overdue', '2026-09-11')).toBe(true);
+    expect(matchesAnnualConferenceTaskAttention({ ...task, status: 'in_progress', target_date: '2026-09-18' }, 'due_soon', '2026-09-11')).toBe(true);
+    expect(matchesAnnualConferenceTaskAttention({ ...task, status: 'in_progress', accountable_owner: null }, 'needs_planning', '2026-09-11')).toBe(true);
+    expect(matchesAnnualConferenceTaskAttention({ ...task, status: 'done', target_date: '2026-09-10' }, 'overdue', '2026-09-11')).toBe(false);
   });
 
   it('seeds the fixed 2026 phases and the confirmed Phase 1 work', () => {

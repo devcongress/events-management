@@ -19,12 +19,14 @@ import {
   ANNUAL_CONFERENCE_WORKSTREAMS,
   calculateAnnualConferenceHealth,
   createAnnualConferenceOwnerDirectory,
+  matchesAnnualConferenceTaskAttention,
   summarizeAnnualConferenceWorkPlan,
   type AnnualConferenceOwnerIdentity,
   type AnnualConferencePhase,
   type AnnualConferencePhaseCreateInput,
   type AnnualConferencePhaseUpdateInput,
   type AnnualConferenceTask,
+  type AnnualConferenceTaskAttention,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskStatus,
   type AnnualConferenceTaskUpdateInput,
@@ -85,6 +87,9 @@ const statusFilter = ref<TaskStatusFilter>((initialRouteContext.status ?? 'all')
 const workstreamFilter = ref(initialRouteContext.workstream ?? 'all');
 const ownerFilter = ref(initialRouteContext.owner ?? 'all');
 const phaseFilterValue = ref(initialRouteContext.phase ?? 'all');
+const attentionFilter = ref<'all' | AnnualConferenceTaskAttention>(
+  (initialRouteContext.attention ?? 'all') as 'all' | AnnualConferenceTaskAttention,
+);
 const editionFormOpen = ref(false);
 const phaseManagerOpen = ref(false);
 const phaseEditorOpen = ref(false);
@@ -313,14 +318,22 @@ const filteredTasks = computed(() => sortedTasks(tasks.value.filter((task) => {
     || (ownerFilter.value === 'unassigned'
       ? !task.accountable_owner
       : ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value));
+  const matchesAttention = attentionFilter.value === 'all'
+    || matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value);
 
-  return matchesSearch && matchesStatus && matchesPhase && matchesWorkstream && matchesOwner;
+  return matchesSearch && matchesStatus && matchesPhase && matchesWorkstream && matchesOwner && matchesAttention;
 })));
 const filtersActive = computed(() => Boolean(search.value.trim())
   || statusFilter.value !== 'all'
   || phaseFilterValue.value !== 'all'
   || workstreamFilter.value !== 'all'
-  || ownerFilter.value !== 'all');
+  || ownerFilter.value !== 'all'
+  || attentionFilter.value !== 'all');
+const attentionFilterLabel = computed(() => ({
+  overdue: 'Overdue',
+  due_soon: 'Due in 7 days',
+  needs_planning: 'Needs planning',
+})[attentionFilter.value as AnnualConferenceTaskAttention]);
 const canEditSelectedTask = computed(() => {
   if (!selectedTask.value) return false;
   if (permissions.value?.can_edit_all_tasks) return true;
@@ -345,6 +358,7 @@ watch([() => route.fullPath, tasks, phases, assignedAccess], () => {
   statusFilter.value = (context.status ?? 'all') as TaskStatusFilter;
   workstreamFilter.value = context.workstream ?? 'all';
   ownerFilter.value = assignedAccess.value ? 'all' : (context.owner ?? 'all');
+  attentionFilter.value = (context.attention ?? 'all') as typeof attentionFilter.value;
   phaseFilterValue.value = context.phase && (
     context.phase === 'all'
     || context.phase === 'unassigned'
@@ -368,7 +382,7 @@ watch([() => route.fullPath, tasks, phases, assignedAccess], () => {
   });
 }, { immediate: true });
 
-watch([statusFilter, phaseFilterValue, workstreamFilter, ownerFilter], () => {
+watch([statusFilter, phaseFilterValue, workstreamFilter, ownerFilter, attentionFilter], () => {
   if (!applyingRouteContext) void replaceMobileConferenceContext();
 });
 
@@ -492,6 +506,7 @@ function mobileConferenceQuery(
     ...(phaseFilterValue.value !== 'all' ? { phase: phaseFilterValue.value } : {}),
     ...(workstreamFilter.value !== 'all' ? { workstream: workstreamFilter.value } : {}),
     ...(ownerFilter.value !== 'all' ? { owner: ownerFilter.value } : {}),
+    ...(attentionFilter.value !== 'all' ? { attention: attentionFilter.value } : {}),
     ...(task ? { task } : {}),
   }, section);
 }
@@ -535,6 +550,7 @@ function clearFilters() {
   phaseFilterValue.value = 'all';
   workstreamFilter.value = 'all';
   ownerFilter.value = 'all';
+  attentionFilter.value = 'all';
 }
 
 function requestCreateTask() {
@@ -816,6 +832,15 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
             <span class="sr-only">Search tasks</span>
             <input v-model="search" type="search" placeholder="Search tasks">
           </label>
+
+          <button
+            v-if="attentionFilter !== 'all'"
+            type="button"
+            class="clear-button attention-filter"
+            @click="attentionFilter = 'all'"
+          >
+            {{ attentionFilterLabel }} <span aria-hidden="true">×</span>
+          </button>
 
           <div v-if="!assignedAccess" class="filter-grid">
             <AppDropdown v-model="phaseFilterValue" label="Phase" :options="phaseOptions" density="compact" />
