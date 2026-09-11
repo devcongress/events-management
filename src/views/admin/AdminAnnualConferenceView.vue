@@ -102,17 +102,18 @@ onUnmounted(() => {
         </button>
       </section>
 
-      <section class="conference-brief" aria-labelledby="conference-brief-date">
+      <section :class="['conference-brief', { 'conference-brief--volunteer': assignedAccess }]" aria-labelledby="conference-brief-date">
         <header class="conference-brief__masthead">
           <div class="conference-brief__date">
             <div class="conference-brief__edition-meta">
-              <p class="conference-brief__eyebrow">{{ edition?.label ?? year }} edition</p>
-              <span class="conference-brief__status">
+              <p class="conference-brief__eyebrow">{{ assignedAccess ? 'Your conference work' : `${edition?.label ?? year} edition` }}</p>
+              <span :class="['conference-brief__status', { 'conference-brief__status--volunteer': assignedAccess }]">
                 <span aria-hidden="true" />
-                Provisional
+                {{ assignedAccess ? 'Volunteer workspace' : 'Provisional' }}
               </span>
             </div>
             <h1 id="conference-brief-date">{{ formatConferenceDate(edition?.provisional_date) }}</h1>
+            <p v-if="assignedAccess" class="conference-brief__volunteer-lede">Your assigned tasks and progress, in one focused place.</p>
           </div>
 
           <div
@@ -179,7 +180,19 @@ onUnmounted(() => {
           </div>
         </header>
 
-        <div class="conference-brief__delivery">
+        <section v-if="assignedAccess && summary.total === 0" class="conference-volunteer-empty" aria-labelledby="conference-volunteer-empty-title">
+          <span class="conference-volunteer-empty__mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><path d="M9 8.5h14v15H9zM12.5 5.5h7v5h-7zM12.5 15.5l2.2 2.2 4.8-5" /></svg>
+          </span>
+          <div class="conference-volunteer-empty__copy">
+            <p class="conference-brief__eyebrow">Assigned work</p>
+            <h2 id="conference-volunteer-empty-title">No tasks assigned yet</h2>
+            <p>When an organizer assigns work to you, it will appear here and in My tasks.</p>
+          </div>
+          <p class="conference-volunteer-empty__note">No action required</p>
+        </section>
+
+        <div v-else class="conference-brief__delivery">
           <div class="conference-delivery">
             <div class="conference-delivery__headline">
               <div>
@@ -341,6 +354,29 @@ onUnmounted(() => {
   margin-bottom: 2.5rem;
 }
 
+.conference-brief--volunteer {
+  width: min(100%, 70rem);
+  margin-right: auto;
+  margin-left: auto;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.conference-brief--volunteer .conference-brief__masthead {
+  grid-template-columns: minmax(0, 50rem);
+  padding-top: clamp(2.5rem, 5vw, 5rem);
+  padding-bottom: clamp(2rem, 4vw, 3.5rem);
+}
+
+.conference-brief--volunteer .conference-brief__date h1 {
+  max-width: 18ch;
+  color: #2f3437;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(2.75rem, 5.4vw, 5rem);
+  font-weight: var(--font-weight-display);
+  letter-spacing: -0.055em;
+  line-height: 0.96;
+}
+
 .conference-brief__masthead {
   position: relative;
   display: grid;
@@ -397,6 +433,27 @@ onUnmounted(() => {
   border: 1px solid #111111;
   border-radius: 50%;
   background: #f5e642;
+}
+
+.conference-brief__status--volunteer {
+  border-radius: 999px;
+  background: #fbf3db;
+  padding: 0.38rem 0.55rem;
+  color: #956400;
+}
+
+.conference-brief__status--volunteer > span {
+  border-color: #956400;
+  background: #ffffff;
+}
+
+.conference-brief__volunteer-lede {
+  max-width: 38rem;
+  margin: 1.15rem 0 0;
+  color: #787774;
+  font-size: clamp(0.95rem, 1.35vw, 1.08rem);
+  font-weight: 500;
+  line-height: 1.6;
 }
 
 .conference-notes {
@@ -516,6 +573,68 @@ onUnmounted(() => {
   gap: clamp(2rem, 5vw, 5.5rem);
   border-top: 1px solid #d9d5cc;
   padding: clamp(1.35rem, 2.6vw, 2.1rem) 0;
+}
+
+.conference-volunteer-empty {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem 1.5rem;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.conference-volunteer-empty__mark {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-items: center;
+  border-radius: 8px;
+  background: #fbf3db;
+  color: #956400;
+}
+
+.conference-volunteer-empty__mark svg {
+  width: 1.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.conference-volunteer-empty__copy h2 {
+  margin: 0.4rem 0 0;
+  color: #2f3437;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  font-weight: var(--font-weight-heading);
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.conference-volunteer-empty__copy > p:last-child {
+  max-width: 44rem;
+  margin: 0.55rem 0 0;
+  color: #787774;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.conference-volunteer-empty__note {
+  margin: 0;
+  border-radius: 999px;
+  background: #edf3ec;
+  padding: 0.45rem 0.65rem;
+  color: #346538;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  font-weight: var(--font-weight-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .conference-delivery {
@@ -1015,6 +1134,20 @@ onUnmounted(() => {
   }
 
   .conference-brief__primary-action {
+    width: fit-content;
+  }
+
+  .conference-volunteer-empty {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+  }
+
+  .conference-volunteer-empty__mark {
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+
+  .conference-volunteer-empty__note {
+    grid-column: 1 / -1;
     width: fit-content;
   }
 

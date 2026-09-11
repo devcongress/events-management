@@ -33,6 +33,7 @@ import { isAnnualConferenceTaskAssignedTo } from '@/lib/annual-conference-access
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
   VOLUNTEER_PUBLIC_PATH,
+  annualConferenceEditionsForNavigation,
   annualConferencePath,
 } from '@/src/annual-conference';
 import {
@@ -50,6 +51,7 @@ import {
   updateAnnualConferencePhase,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
+import { buildVolunteerDirectoryRows, filterVolunteerDirectory, type VolunteerDirectoryStatusFilter } from '@/src/lib/volunteer-directory';
 import {
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerConferenceContextQuery,
@@ -119,8 +121,16 @@ const {
 });
 
 const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
-const editionsQuery = useQuery({ queryKey: queryKeys.annualConferenceEditions, queryFn: fetchAnnualConferenceEditions });
 const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
+const canManageEditions = computed(() => {
+  const role = sessionQuery.data.value?.user?.role;
+  return role === 'owner' || role === 'organizer';
+});
+const editionsQuery = useQuery({
+  queryKey: queryKeys.annualConferenceEditions,
+  queryFn: fetchAnnualConferenceEditions,
+  enabled: canManageEditions,
+});
 const capabilities = computed(() => permissions.value?.capabilities ?? []);
 const assignedAccess = computed(() => permissions.value?.access_scope === 'assigned');
 const canViewTimeline = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['timeline.view', 'phases.manage']));
@@ -139,14 +149,46 @@ const volunteerQuery = useQuery({
   enabled: computed(() => canReviewVolunteerApplications.value && year.value === '2026' && activeTab.value === 'volunteers'),
 });
 const edition = computed(() => workPlanQuery.data.value?.edition);
-const editions = computed(() => editionsQuery.data.value?.editions ?? []);
+const editions = computed(() => annualConferenceEditionsForNavigation(
+  sessionQuery.data.value?.user?.role,
+  editionsQuery.data.value?.editions ?? [],
+  edition.value,
+));
 const summary = computed(() => summarizeAnnualConferenceWorkPlan(tasks.value));
 const health = computed(() => calculateAnnualConferenceHealth(tasks.value, phases.value, today.value));
 const applications = computed(() => volunteerQuery.data.value?.applications ?? []);
 const volunteerTeam = computed(() => volunteerTeamQuery.data.value?.members ?? []);
+const mobileVolunteerSearch = ref('');
+const mobileVolunteerStatusFilter = ref<VolunteerDirectoryStatusFilter>('all');
+const mobileVolunteerRows = computed(() => buildVolunteerDirectoryRows(
+  canReviewVolunteerApplications.value ? applications.value : [],
+  canViewVolunteerTeam.value ? volunteerTeam.value : [],
+));
+const filteredMobileVolunteerRows = computed(() => filterVolunteerDirectory(mobileVolunteerRows.value, {
+  search: mobileVolunteerSearch.value,
+  status: mobileVolunteerStatusFilter.value,
+}));
+const filteredMobileActiveVolunteers = computed(() => filteredMobileVolunteerRows.value.filter((row) => row.status === 'active'));
+const filteredMobileApplicants = computed(() => filteredMobileVolunteerRows.value.filter((row) => row.status === 'applicant'));
+const mobileActiveVolunteerCount = computed(() => mobileVolunteerRows.value.filter((row) => row.status === 'active').length);
+const mobileApplicantCount = computed(() => mobileVolunteerRows.value.filter((row) => row.status === 'applicant').length);
+const hasMobileVolunteerFilters = computed(() => mobileVolunteerSearch.value.trim().length > 0 || mobileVolunteerStatusFilter.value !== 'all');
+const mobileVolunteerDirectoryPending = computed(() => (
+  (canViewVolunteerTeam.value && volunteerTeamQuery.isPending.value)
+  || (canReviewVolunteerApplications.value && volunteerQuery.isPending.value)
+));
+const mobileVolunteerDirectoryError = computed(() => (
+  (canViewVolunteerTeam.value && volunteerTeamQuery.isError.value)
+  || (canReviewVolunteerApplications.value && volunteerQuery.isError.value)
+));
 const ownerDirectory = computed(() => createAnnualConferenceOwnerDirectory(
   organizersQuery.data.value?.organizers ?? [],
 ));
+
+watch(year, () => {
+  mobileVolunteerSearch.value = '';
+  mobileVolunteerStatusFilter.value = 'all';
+});
 const organizerLabels = computed(() => Object.fromEntries(
   [
     ...(organizersQuery.data.value?.organizers ?? []).flatMap((organizer) => [
@@ -162,6 +204,24 @@ const organizerLabels = computed(() => Object.fromEntries(
 const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
 const currentPhase = computed(() => phases.value.find((phase) => today.value >= phase.starts_on && today.value <= phase.ends_on) ?? null);
 const conferenceDate = computed(() => edition.value?.provisional_date ?? phases.value.at(-1)?.ends_on ?? null);
+const conferenceDateParts = computed(() => {
+  if (!conferenceDate.value) return null;
+
+  const parts = new Intl.DateTimeFormat('en-GH', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).formatToParts(new Date(`${conferenceDate.value}T12:00:00`));
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+
+  return {
+    weekday: part('weekday'),
+    day: part('day'),
+    month: part('month'),
+    year: part('year'),
+  };
+});
 const daysToConference = computed(() => conferenceDate.value ? daysBetween(today.value, conferenceDate.value) : null);
 const phaseRows = computed(() => phases.value.map((phase) => {
   const phaseTasks = tasks.value.filter((task) => task.phase_id === phase.id);
@@ -177,7 +237,11 @@ const availableTabs = computed<Array<{ id: MobileConferenceTab; label: string }>
 ]);
 const editionOptions = computed(() => editions.value.map((item) => ({ value: String(item.year), label: item.label })));
 const currentEdition = computed(() => editions.value.find((item) => String(item.year) === year.value));
-const canCreateEdition = computed(() => permissions.value?.can_create_tasks === true && editions.value[0]?.year === currentEdition.value?.year);
+const canCreateEdition = computed(() => (
+  canManageEditions.value
+  && permissions.value?.can_create_tasks === true
+  && editions.value[0]?.year === currentEdition.value?.year
+));
 const planningOwnerOptions = computed(() => [
   { value: '', label: `Keep ${currentEdition.value?.task_creator_email ?? 'current owner'}` },
   ...(organizersQuery.data.value?.organizers ?? [])
@@ -573,12 +637,22 @@ onBeforeUnmount(() => {
 function openVolunteerDisplay() {
   window.open(annualConferencePath('volunteers/display', year.value), '_blank', 'noopener,noreferrer');
 }
+
+function clearMobileVolunteerFilters() {
+  mobileVolunteerSearch.value = '';
+  mobileVolunteerStatusFilter.value = 'all';
+}
+
+function openMobileVolunteerApplication(rowId: string) {
+  const applicationId = rowId.startsWith('application:') ? rowId.slice('application:'.length) : null;
+  selectedVolunteerApplication.value = applications.value.find((application) => application.id === applicationId) ?? null;
+}
 </script>
 
 <template>
   <section class="conference-mobile">
-    <header class="conference-mobile__header">
-      <RouterLink :to="ORGANIZER_PHONE_ROUTE_PATH" class="icon-button" aria-label="Back to Mobile Ops">
+    <header :class="['conference-mobile__header', { 'conference-mobile__header--volunteer': isVolunteer }]">
+      <RouterLink v-if="!isVolunteer" :to="ORGANIZER_PHONE_ROUTE_PATH" class="icon-button" aria-label="Back to Mobile Ops">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 4-6 6 6 6" /></svg>
       </RouterLink>
       <div class="conference-mobile__title">
@@ -588,7 +662,7 @@ function openVolunteerDisplay() {
       <span class="conference-mobile__role">{{ isVolunteer ? 'Volunteer' : 'Organizer' }}</span>
     </header>
 
-    <div v-if="!isVolunteer" class="conference-mobile__edition-bar">
+    <div v-if="canManageEditions" class="conference-mobile__edition-bar">
       <AppDropdown :model-value="year" :options="editionOptions" density="compact" menu-class="min-w-48" @update:model-value="changeEdition" />
       <button
         v-if="canCreateEdition"
@@ -615,13 +689,38 @@ function openVolunteerDisplay() {
 
       <Transition v-else name="conference-view" mode="out-in">
         <section v-if="activeTab === 'overview'" key="overview" class="conference-view">
-          <header class="page-intro">
-            <span>{{ assignedAccess ? 'Your conference work' : `${year} edition` }}</span>
-            <h1>{{ conferenceDate ? formatDate(conferenceDate, true) : 'Conference date to be confirmed' }}</h1>
-            <p>{{ assignedAccess ? 'See the work assigned to you and keep its status current.' : 'Conference delivery, planning notes, and the work that needs attention.' }}</p>
+          <header v-if="assignedAccess" class="volunteer-intro">
+            <span>Your conference work</span>
+            <div v-if="conferenceDateParts" class="volunteer-intro__date" :aria-label="conferenceDate ? formatDate(conferenceDate, true) : undefined">
+              <strong>{{ conferenceDateParts.day }}</strong>
+              <div>
+                <h1>{{ conferenceDateParts.month }}</h1>
+                <p>{{ conferenceDateParts.weekday }} · {{ conferenceDateParts.year }}</p>
+              </div>
+            </div>
+            <h1 v-else>Conference date to be confirmed</h1>
+            <p>Your assigned tasks and progress, in one focused place.</p>
           </header>
 
-          <section class="overview-progress" aria-labelledby="mobile-progress-title">
+          <header v-else class="page-intro">
+            <span>{{ year }} edition</span>
+            <h1>{{ conferenceDate ? formatDate(conferenceDate, true) : 'Conference date to be confirmed' }}</h1>
+            <p>Conference delivery, planning notes, and the work that needs attention.</p>
+          </header>
+
+          <section v-if="assignedAccess && summary.total === 0" class="volunteer-empty-work" aria-labelledby="mobile-empty-work-title">
+            <span class="volunteer-empty-work__mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32"><path d="M9 8.5h14v15H9zM12.5 5.5h7v5h-7zM12.5 15.5l2.2 2.2 4.8-5" /></svg>
+            </span>
+            <div>
+              <span>Assigned work</span>
+              <h2 id="mobile-empty-work-title">No tasks assigned yet</h2>
+              <p>When an organizer assigns work to you, it will appear here and under My tasks.</p>
+            </div>
+            <small>You do not need to do anything right now.</small>
+          </section>
+
+          <section v-else class="overview-progress" aria-labelledby="mobile-progress-title">
             <div>
               <span>{{ assignedAccess ? 'My progress' : 'Delivery progress' }}</span>
               <h2 id="mobile-progress-title">{{ summary.done }} of {{ summary.total }} complete</h2>
@@ -632,7 +731,7 @@ function openVolunteerDisplay() {
             </div>
           </section>
 
-          <div class="signal-grid" aria-label="Conference operating summary">
+          <div v-if="!assignedAccess || summary.total > 0" class="signal-grid" aria-label="Conference operating summary">
             <button type="button" @click="statusFilter = 'blocked'; selectTab('tasks')"><span>Blocked</span><strong>{{ summary.blocked }}</strong></button>
             <div v-if="assignedAccess"><span>In progress</span><strong>{{ summary.in_progress }}</strong></div>
             <button v-else type="button" @click="ownerFilter = 'unassigned'; selectTab('tasks')"><span>Unassigned</span><strong>{{ summary.unassigned }}</strong></button>
@@ -650,7 +749,7 @@ function openVolunteerDisplay() {
             </dl>
           </section>
 
-          <button type="button" class="wide-action" @click="selectTab('tasks')">
+          <button v-if="!assignedAccess || summary.total > 0" type="button" class="wide-action" @click="selectTab('tasks')">
             <span><small>{{ assignedAccess ? 'Assigned work' : 'Work plan' }}</small><strong>{{ assignedAccess ? 'Open my tasks' : 'Manage conference tasks' }}</strong></span>
             <span aria-hidden="true">→</span>
           </button>
@@ -758,36 +857,62 @@ function openVolunteerDisplay() {
             <AppCopyButton :state="volunteerLinkCopyState" label="Copy link" class="secondary-button" @click="copyVolunteerLink" />
             <a :href="volunteerPublicUrl" target="_blank" rel="noreferrer" class="secondary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7M21 3 10 14M10 4H4v16h16v-6" /></svg><span>Open form</span></a>
           </div>
-          <section v-if="canViewVolunteerTeam" class="content-card">
-            <header class="content-card__header"><div><span>Team</span><h2>{{ volunteerTeam.length }} active {{ volunteerTeam.length === 1 ? 'volunteer' : 'volunteers' }}</h2></div></header>
+          <section class="volunteer-directory-tools" aria-label="Find volunteers">
+            <label>
+              <span class="sr-only">Search volunteers</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input v-model="mobileVolunteerSearch" type="search" autocomplete="off" placeholder="Search name, email, X or Slack">
+            </label>
+            <div class="volunteer-lifecycle-filter" role="group" aria-label="Filter volunteers by lifecycle">
+              <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'all'" @click="mobileVolunteerStatusFilter = 'all'">All <strong>{{ mobileVolunteerRows.length }}</strong></button>
+              <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'active'" @click="mobileVolunteerStatusFilter = mobileVolunteerStatusFilter === 'active' ? 'all' : 'active'">Active <strong>{{ mobileActiveVolunteerCount }}</strong></button>
+              <button type="button" :aria-pressed="mobileVolunteerStatusFilter === 'applicant'" @click="mobileVolunteerStatusFilter = mobileVolunteerStatusFilter === 'applicant' ? 'all' : 'applicant'">Applicants <strong>{{ mobileApplicantCount }}</strong></button>
+            </div>
+            <div class="volunteer-filter-result">
+              <span aria-live="polite">{{ filteredMobileVolunteerRows.length }} {{ filteredMobileVolunteerRows.length === 1 ? 'match' : 'matches' }}</span>
+              <button v-if="hasMobileVolunteerFilters" type="button" @click="clearMobileVolunteerFilters">Clear filters</button>
+            </div>
+          </section>
+          <section
+            v-if="hasMobileVolunteerFilters && !mobileVolunteerDirectoryPending && !mobileVolunteerDirectoryError && filteredMobileVolunteerRows.length === 0"
+            class="content-card"
+          >
+            <div class="empty-state">
+              <strong>No matching volunteers</strong>
+              <span>Try another name or contact value, or clear the lifecycle filter.</span>
+              <button type="button" class="secondary-button" @click="clearMobileVolunteerFilters">Clear filters</button>
+            </div>
+          </section>
+          <section v-if="canViewVolunteerTeam && mobileVolunteerStatusFilter !== 'applicant' && (!hasMobileVolunteerFilters || filteredMobileActiveVolunteers.length)" class="content-card">
+            <header class="content-card__header"><div><span>Team</span><h2>{{ filteredMobileActiveVolunteers.length }} active {{ filteredMobileActiveVolunteers.length === 1 ? 'volunteer' : 'volunteers' }}</h2></div></header>
             <p v-if="volunteerTeamQuery.isPending.value" class="empty-state empty-state--plain">Loading volunteer team…</p>
             <p v-else-if="volunteerTeamQuery.isError.value" class="empty-state">Unable to load the volunteer team.</p>
-            <p v-else-if="volunteerTeam.length === 0" class="empty-state empty-state--plain">No active volunteers have been added yet.</p>
+            <p v-else-if="filteredMobileActiveVolunteers.length === 0" class="empty-state empty-state--plain">No active volunteers have been added yet.</p>
             <div v-else class="application-list">
-              <div v-for="member in volunteerTeam" :key="member.id" class="application-row">
-                <span class="application-avatar" aria-hidden="true">{{ applicationInitials(member.display_name) }}</span>
-                <strong>{{ member.display_name }}</strong>
+              <div v-for="member in filteredMobileActiveVolunteers" :key="member.id" class="application-row">
+                <span class="application-avatar" aria-hidden="true">{{ applicationInitials(member.name) }}</span>
+                <strong>{{ member.name }}</strong>
                 <span>Volunteer</span>
               </div>
             </div>
           </section>
-          <section v-if="canReviewVolunteerApplications" class="content-card">
-            <header class="content-card__header"><div><span>Applications</span><h2>{{ applications.length }} {{ applications.length === 1 ? 'application' : 'applications' }}</h2></div></header>
+          <section v-if="canReviewVolunteerApplications && mobileVolunteerStatusFilter !== 'active' && (!hasMobileVolunteerFilters || filteredMobileApplicants.length)" class="content-card">
+            <header class="content-card__header"><div><span>Applications</span><h2>{{ filteredMobileApplicants.length }} {{ filteredMobileApplicants.length === 1 ? 'application' : 'applications' }}</h2></div></header>
             <p v-if="volunteerQuery.isPending.value" class="empty-state empty-state--plain">Loading applications…</p>
             <p v-else-if="volunteerQuery.isError.value" class="empty-state">Unable to load applications.</p>
-            <p v-else-if="applications.length === 0" class="empty-state empty-state--plain">No volunteer applications yet.</p>
+            <p v-else-if="filteredMobileApplicants.length === 0" class="empty-state empty-state--plain">No volunteer applications yet.</p>
             <div v-else class="application-list">
               <button
-                v-for="application in applications"
+                v-for="application in filteredMobileApplicants"
                 :key="application.id"
                 type="button"
                 class="application-row"
                 aria-haspopup="dialog"
-                @click="selectedVolunteerApplication = application"
+                @click="openMobileVolunteerApplication(application.id)"
               >
                 <span class="application-avatar" aria-hidden="true">{{ applicationInitials(application.name) }}</span>
                 <strong>{{ application.name }}</strong>
-                <time :datetime="application.created_at"><span>Joined</span>{{ formatTimestamp(application.created_at) }}</time>
+                <time v-if="application.signedUpAt" :datetime="application.signedUpAt"><span>Joined</span>{{ formatTimestamp(application.signedUpAt) }}</time>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
               </button>
             </div>
@@ -889,6 +1014,7 @@ function openVolunteerDisplay() {
   padding: max(.7rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .7rem max(1rem, env(safe-area-inset-left));
   backdrop-filter: blur(14px);
 }
+.conference-mobile__header--volunteer { grid-template-columns: minmax(0, 1fr) auto; }
 
 .conference-mobile__title { display: grid; min-width: 0; gap: .12rem; }
 .conference-mobile__title span, .page-intro > span, .page-intro > div > span, .overview-progress span, .content-card__header span, .phase-card header span, .conference-sheet header span, .mobile-form label > span {
@@ -910,6 +1036,22 @@ function openVolunteerDisplay() {
 .secondary-button.conference-mobile__edition-action::before { position: absolute; inset: 50% 0 auto; z-index: -1; height: 2rem; transform: translateY(-50%); border: 1px solid #aaa69d; border-radius: 7px; background: #fff; content: ''; }
 .conference-mobile__content { width: min(100%, 42rem); margin: 0 auto; padding: 1.25rem max(1rem, env(safe-area-inset-right)) calc(5.75rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
 .conference-view { display: grid; gap: 1rem; }
+.volunteer-intro { display: grid; gap: .7rem; padding: .55rem 0 1.15rem; border-bottom: 1px solid #ddd9d0; }
+.volunteer-intro > span, .volunteer-empty-work > div > span {
+  color: var(--conference-muted);
+  font-family: var(--font-mono), monospace;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.volunteer-intro__date { display: flex; align-items: center; gap: .85rem; }
+.volunteer-intro__date > strong { color: #2f3437; font-family: var(--font-sans), system-ui, sans-serif; font-size: clamp(3.5rem, 18vw, 5rem); font-weight: 700; letter-spacing: -.055em; line-height: .82; }
+.volunteer-intro__date > div { display: grid; gap: .08rem; }
+.volunteer-intro__date h1 { margin: 0; color: #2f3437; font-family: var(--font-sans), system-ui, sans-serif; font-size: clamp(1.7rem, 8vw, 2.25rem); font-weight: 700; letter-spacing: -.035em; line-height: 1; }
+.volunteer-intro__date p { margin: 0; color: #787774; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.volunteer-intro > h1 { margin: .1rem 0 0; color: #2f3437; font-family: var(--font-sans), system-ui, sans-serif; font-size: 2rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.08; }
+.volunteer-intro > p { margin: 0; max-width: 34rem; color: #787774; font-size: .82rem; font-weight: 500; line-height: 1.55; }
 .page-intro { padding: .15rem 0 .35rem; }
 .page-intro h1 { margin: .35rem 0 0; max-width: 18ch; font-size: clamp(1.7rem, 8vw, 2.3rem); font-weight: 700; letter-spacing: -.035em; line-height: 1.04; }
 .page-intro p { margin: .55rem 0 0; max-width: 40rem; color: var(--conference-muted); font-size: .84rem; font-weight: 500; line-height: 1.5; }
@@ -924,6 +1066,12 @@ function openVolunteerDisplay() {
 .clear-button:disabled { color: #aaa; opacity: .55; }
 
 .overview-progress, .content-card, .phase-card { overflow: hidden; border: 1px solid var(--conference-border); border-radius: 12px; background: var(--conference-surface); }
+.volunteer-empty-work { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: .9rem 1rem; border: 1px solid #eaeaea; border-radius: 12px; background: #fff; padding: 1.25rem; }
+.volunteer-empty-work__mark { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 8px; background: #fbf3db; color: #956400; }
+.volunteer-empty-work__mark svg { width: 1.45rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.volunteer-empty-work h2 { margin: .25rem 0 0; color: #2f3437; font-size: 1.05rem; letter-spacing: -.015em; }
+.volunteer-empty-work p { margin: .35rem 0 0; color: #787774; font-size: .78rem; line-height: 1.55; }
+.volunteer-empty-work > small { grid-column: 1 / -1; border-top: 1px solid #eaeaea; padding-top: .8rem; color: #787774; font-family: var(--font-mono), monospace; font-size: .55rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .overview-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .75rem; padding: 1rem; }
 .overview-progress h2 { margin: .25rem 0 0; font-size: 1.1rem; }
 .overview-progress > strong { color: var(--conference-accent); font-size: 1.8rem; line-height: 1; }
@@ -1001,6 +1149,18 @@ function openVolunteerDisplay() {
 @media (max-width: 359px) {
   .volunteer-actions > button, .volunteer-actions > a, .volunteer-actions :deep(.app-copy-button__state) { flex-direction: column; }
 }
+.volunteer-directory-tools { position: sticky; top: calc(4.15rem + env(safe-area-inset-top)); z-index: 20; display: grid; gap: .65rem; border: 1px solid var(--conference-border); border-radius: 12px; background: #fff; padding: .8rem; }
+.volunteer-directory-tools > label { position: relative; display: block; }
+.volunteer-directory-tools > label > svg { position: absolute; top: 50%; left: .8rem; width: 1rem; height: 1rem; transform: translateY(-50%); fill: none; stroke: #666; stroke-width: 1.8; stroke-linecap: round; }
+.volunteer-directory-tools input { width: 100%; min-height: 2.75rem; border: 1px solid var(--conference-border); border-radius: 8px; background: #faf9f4; padding: .65rem .75rem .65rem 2.4rem; color: #111; font-size: .8rem; outline: none; }
+.volunteer-directory-tools input:focus { border-color: #111; box-shadow: 0 0 0 2px #fff16b; }
+.volunteer-lifecycle-filter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--conference-border); border-radius: 8px; }
+.volunteer-lifecycle-filter > button { min-width: 0; min-height: 2.75rem; border: 0; background: #fff; padding: .45rem .25rem; color: #666; font-family: var(--font-mono), monospace; font-size: .55rem; font-weight: 700; text-transform: uppercase; }
+.volunteer-lifecycle-filter > button + button { border-left: 1px solid var(--conference-border); }
+.volunteer-lifecycle-filter > button[aria-pressed='true'] { background: #fff16b; color: #111; }
+.volunteer-lifecycle-filter strong { margin-left: .2rem; color: #111; }
+.volunteer-filter-result { display: flex; min-height: 1.5rem; align-items: center; justify-content: space-between; gap: .75rem; color: #666; font-family: var(--font-mono), monospace; font-size: .55rem; font-weight: 700; text-transform: uppercase; }
+.volunteer-filter-result button { border: 0; background: transparent; padding: .2rem 0; color: #e8117f; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .application-row { display: grid; width: 100%; min-height: 4.25rem; grid-template-columns: 2.25rem minmax(0, 1fr) auto .85rem; align-items: center; gap: .7rem; border: 0; background: #fff; padding: .75rem 1rem; color: #111; text-align: left; transition: transform 100ms var(--motion-fast), background-color 150ms var(--motion-fast); }
 .application-row + .application-row { border-top: 1px solid var(--conference-border); }
 .application-avatar { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid #c9c5bb; border-radius: 50%; background: #fefce8; font-family: var(--font-mono), monospace; font-size: .62rem; font-weight: 700; }

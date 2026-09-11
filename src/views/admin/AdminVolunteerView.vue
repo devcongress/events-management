@@ -20,6 +20,7 @@ import {
 } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
+import { buildVolunteerDirectoryRows, filterVolunteerDirectory, type VolunteerDirectoryStatusFilter } from '@/src/lib/volunteer-directory';
 import { hasAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
 
 const route = useRoute();
@@ -44,59 +45,36 @@ const volunteerQuery = useQuery({
 });
 const applications = computed(() => volunteerQuery.data.value?.applications ?? []);
 const team = computed(() => teamQuery.data.value?.members ?? []);
-const volunteerRows = computed(() => {
-  const applicationRows = canReviewApplications.value
-    ? applications.value.map((application) => ({
-      id: `application:${application.id}`,
-      membershipId: application.membership_id,
-      name: application.name,
-      email: application.email,
-      xHandle: application.x_handle,
-      xProfile: xProfile(application.x_handle),
-      slackName: application.slack_name,
-      signedUpAt: application.created_at,
-      status: application.status,
-    }))
-    : [];
-  const activeMembershipIds = new Set(applicationRows.flatMap((row) => row.membershipId ? [row.membershipId] : []));
-  const teamRows = canViewTeam.value
-    ? team.value
-      .filter((member) => !activeMembershipIds.has(member.id))
-      .map((member) => ({
-        id: `member:${member.id}`,
-        membershipId: member.id,
-        name: member.display_name,
-        email: null,
-        xHandle: null,
-        xProfile: null,
-        slackName: null,
-        signedUpAt: null,
-        status: 'active' as const,
-      }))
-    : [];
-
-  return [...applicationRows, ...teamRows].sort((left, right) => {
-    if (left.status !== right.status) return left.status === 'active' ? -1 : 1;
-    if (left.status === 'applicant' && left.signedUpAt && right.signedUpAt) {
-      return new Date(right.signedUpAt).getTime() - new Date(left.signedUpAt).getTime();
-    }
-    return left.name.localeCompare(right.name);
-  });
-});
+const volunteerRows = computed(() => buildVolunteerDirectoryRows(
+  canReviewApplications.value ? applications.value : [],
+  canViewTeam.value ? team.value : [],
+));
 const activeVolunteerCount = computed(() => volunteerRows.value.filter((row) => row.status === 'active').length);
+const applicantCount = computed(() => volunteerRows.value.filter((row) => row.status === 'applicant').length);
+const volunteerSearch = ref('');
+const volunteerStatusFilter = ref<VolunteerDirectoryStatusFilter>('all');
+const filteredVolunteerRows = computed(() => filterVolunteerDirectory(volunteerRows.value, {
+  search: volunteerSearch.value,
+  status: volunteerStatusFilter.value,
+}));
+const hasVolunteerFilters = computed(() => volunteerSearch.value.trim().length > 0 || volunteerStatusFilter.value !== 'all');
 const volunteerPage = ref(1);
 const volunteersPerPage = 10;
-const volunteerPageCount = computed(() => Math.max(1, Math.ceil(volunteerRows.value.length / volunteersPerPage)));
+const volunteerPageCount = computed(() => Math.max(1, Math.ceil(filteredVolunteerRows.value.length / volunteersPerPage)));
 const volunteerPageStart = computed(() => (volunteerPage.value - 1) * volunteersPerPage);
-const volunteerPageEnd = computed(() => Math.min(volunteerRows.value.length, volunteerPageStart.value + volunteersPerPage));
-const paginatedVolunteers = computed(() => volunteerRows.value.slice(volunteerPageStart.value, volunteerPageEnd.value));
+const volunteerPageEnd = computed(() => Math.min(filteredVolunteerRows.value.length, volunteerPageStart.value + volunteersPerPage));
+const paginatedVolunteers = computed(() => filteredVolunteerRows.value.slice(volunteerPageStart.value, volunteerPageEnd.value));
 
-watch(year, () => { volunteerPage.value = 1; });
+watch(year, () => {
+  volunteerSearch.value = '';
+  volunteerStatusFilter.value = 'all';
+  volunteerPage.value = 1;
+});
+watch([volunteerSearch, volunteerStatusFilter], () => { volunteerPage.value = 1; });
 watch(volunteerPageCount, (pageCount) => {
   volunteerPage.value = Math.min(volunteerPage.value, pageCount);
 });
 
-const applicantCount = computed(() => volunteerRows.value.filter((row) => row.status === 'applicant').length);
 const volunteerDirectoryLoading = computed(() => (
   (canViewTeam.value && teamQuery.isPending.value)
   || (canReviewApplications.value && volunteerQuery.isPending.value)
@@ -169,6 +147,11 @@ watch(canShareIntake, () => {
 function openVolunteerDisplay() {
   window.open(annualConferencePath('volunteers/display', year.value), '_blank', 'noopener,noreferrer');
 }
+
+function clearVolunteerFilters() {
+  volunteerSearch.value = '';
+  volunteerStatusFilter.value = 'all';
+}
 </script>
 
 <template>
@@ -212,26 +195,77 @@ function openVolunteerDisplay() {
             <h2 class="mt-1 text-lg font-semibold text-dc-ink">Volunteer directory</h2>
             <p class="mt-0.5 text-xs text-dc-gray">Active team members and sign-ups in one list.</p>
           </div>
-          <dl class="flex overflow-hidden rounded-md border border-dc-border bg-dc-paper-warm text-xs">
-            <div class="flex items-center gap-2 px-3 py-2">
+          <div class="flex overflow-hidden rounded-md border border-dc-border bg-dc-paper-warm text-xs" role="group" aria-label="Filter volunteers by lifecycle">
+            <button
+              type="button"
+              class="motion-press flex items-center gap-2 px-3 py-2 text-dc-gray"
+              :class="volunteerStatusFilter === 'active' ? 'bg-dc-yellow text-dc-ink' : 'hover:bg-white'"
+              :aria-pressed="volunteerStatusFilter === 'active'"
+              @click="volunteerStatusFilter = volunteerStatusFilter === 'active' ? 'all' : 'active'"
+            >
               <span class="h-1.5 w-1.5 rounded-full bg-dc-success" aria-hidden="true" />
-              <dt class="text-dc-gray">Active</dt>
-              <dd class="font-semibold text-dc-ink">{{ activeVolunteerCount }}</dd>
-            </div>
-            <div class="flex items-center gap-2 border-l border-dc-border px-3 py-2">
+              <span>Active</span>
+              <span class="font-semibold text-dc-ink">{{ activeVolunteerCount }}</span>
+            </button>
+            <button
+              type="button"
+              class="motion-press flex items-center gap-2 border-l border-dc-border px-3 py-2 text-dc-gray"
+              :class="volunteerStatusFilter === 'applicant' ? 'bg-dc-yellow text-dc-ink' : 'hover:bg-white'"
+              :aria-pressed="volunteerStatusFilter === 'applicant'"
+              @click="volunteerStatusFilter = volunteerStatusFilter === 'applicant' ? 'all' : 'applicant'"
+            >
               <span class="h-1.5 w-1.5 rounded-full bg-dc-gray" aria-hidden="true" />
-              <dt class="text-dc-gray">Applicants</dt>
-              <dd class="font-semibold text-dc-ink">{{ applicantCount }}</dd>
-            </div>
-            <div class="border-l border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray">
+              <span>Applicants</span>
+              <span class="font-semibold text-dc-ink">{{ applicantCount }}</span>
+            </button>
+            <button
+              type="button"
+              class="motion-press border-l border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide"
+              :class="volunteerStatusFilter === 'all' ? 'bg-dc-yellow text-dc-ink' : 'text-dc-gray hover:bg-white'"
+              :aria-pressed="volunteerStatusFilter === 'all'"
+              @click="volunteerStatusFilter = 'all'"
+            >
               {{ volunteerRows.length }} total
-            </div>
-          </dl>
+            </button>
+          </div>
         </div>
 
         <div v-if="volunteerDirectoryLoading" class="p-6 text-dc-gray">Loading volunteers…</div>
         <div v-else-if="volunteerDirectoryError" class="p-6 text-red-800">Unable to load the volunteer directory.</div>
         <div v-else-if="volunteerRows.length === 0" class="p-6 text-dc-gray">No volunteers or applications yet.</div>
+        <template v-else>
+          <div class="flex flex-col gap-3 border-b border-dc-border bg-dc-paper-warm/50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <label class="relative block w-full sm:max-w-sm">
+              <span class="sr-only">Search volunteers</span>
+              <svg class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dc-gray" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-3.5-3.5" />
+              </svg>
+              <input
+                v-model="volunteerSearch"
+                type="search"
+                autocomplete="off"
+                placeholder="Search name, email, X or Slack"
+                class="min-h-10 w-full rounded-md border border-dc-border bg-white py-2 pl-9 pr-3 text-sm text-dc-ink outline-none placeholder:text-dc-gray focus:border-dc-ink focus:ring-2 focus:ring-dc-yellow"
+              >
+            </label>
+            <div class="flex min-h-8 items-center justify-between gap-3 sm:justify-end">
+              <p class="font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-gray" aria-live="polite">
+                {{ filteredVolunteerRows.length }} {{ filteredVolunteerRows.length === 1 ? 'match' : 'matches' }}
+              </p>
+              <button
+                v-if="hasVolunteerFilters"
+                type="button"
+                class="motion-press text-xs font-semibold text-dc-pink underline decoration-dc-pink/40 underline-offset-4"
+                @click="clearVolunteerFilters"
+              >Clear filters</button>
+            </div>
+          </div>
+          <div v-if="filteredVolunteerRows.length === 0" class="px-5 py-10 text-center sm:px-6">
+            <p class="text-sm font-semibold text-dc-ink">No matching volunteers</p>
+            <p class="mt-1 text-xs text-dc-gray">Try another name or contact value, or clear the lifecycle filter.</p>
+            <button type="button" class="motion-press mt-4 rounded-md border border-dc-ink bg-white px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink" @click="clearVolunteerFilters">Clear filters</button>
+          </div>
         <div v-else class="overflow-x-auto">
           <table class="w-full min-w-[60rem] table-fixed border-collapse text-left">
             <caption class="sr-only">Volunteer directory with active and applicant status</caption>
@@ -266,7 +300,7 @@ function openVolunteerDisplay() {
                     <VolunteerContactValue v-if="row.email" :value="row.email" label="Email" email />
                   </td>
                   <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">
-                    <VolunteerContactValue v-if="row.xHandle" :value="row.xProfile?.label ?? row.xHandle" :profile-href="row.xProfile?.href" label="X handle" />
+                    <VolunteerContactValue v-if="row.xHandle" :value="xProfile(row.xHandle)?.label ?? row.xHandle" :profile-href="xProfile(row.xHandle)?.href" label="X handle" />
                     <span v-else>—</span>
                   </td>
                   <td class="px-4 py-3 font-mono text-xs font-semibold text-dc-gray">
@@ -281,13 +315,14 @@ function openVolunteerDisplay() {
             </tbody>
           </table>
         </div>
-        <div v-if="!volunteerDirectoryLoading && !volunteerDirectoryError && volunteerRows.length" class="flex flex-col gap-3 border-t border-dc-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p class="text-xs text-dc-gray">Showing {{ volunteerPageStart + 1 }}–{{ volunteerPageEnd }} of {{ volunteerRows.length }} volunteers</p>
+        </template>
+        <div v-if="!volunteerDirectoryLoading && !volunteerDirectoryError && filteredVolunteerRows.length" class="flex flex-col gap-3 border-t border-dc-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p class="text-xs text-dc-gray">Showing {{ volunteerPageStart + 1 }}–{{ volunteerPageEnd }} of {{ filteredVolunteerRows.length }} volunteers</p>
           <AppPagination
             v-model:page="volunteerPage"
             class="volunteer-pagination"
             :page-count="volunteerPageCount"
-            :total="volunteerRows.length"
+            :total="filteredVolunteerRows.length"
             :range-start="volunteerPageStart + 1"
             :range-end="volunteerPageEnd"
             item-label="volunteers"
