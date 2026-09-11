@@ -13,6 +13,7 @@ import {
   deleteMockRegistration,
   getAllMockRegistrationCampaigns,
   getMockEventRegistrations,
+  getMockRegistrationAttendanceSources,
   getMockPendingRegistrationEmails,
   getMockRegistrationCampaign,
   registerMockForEvent,
@@ -26,6 +27,7 @@ import {
   createSupabaseRegistrationCampaign,
   deleteSupabaseRegistration,
   getSupabaseEventRegistrations,
+  getSupabaseRegistrationAttendanceSources,
   getSupabasePendingRegistrationEmails,
   getSupabaseRegistrationCampaign,
   getSupabaseRegistrationCampaigns,
@@ -35,6 +37,7 @@ import {
   updateSupabaseRegistrationEmailDelivery,
   type PendingRegistrationEmail,
 } from '@/lib/supabase/event-registrations';
+import type { RegistrationAttendanceSource } from '@/lib/native-attendance';
 
 export type RegistrationCampaignInput = {
   status?: EventRegistrationCampaignStatus;
@@ -101,6 +104,14 @@ export async function getEventRegistrations(
   c?: Context,
 ): Promise<EventRegistration[]> {
   return await getSupabaseEventRegistrations(eventId, c) ?? getMockEventRegistrations(eventId);
+}
+
+export async function getRegistrationAttendanceSources(
+  eventIds: readonly string[],
+  c?: Context,
+): Promise<RegistrationAttendanceSource[]> {
+  const sources = await getSupabaseRegistrationAttendanceSources(eventIds, c);
+  return sources !== null ? sources : getMockRegistrationAttendanceSources(eventIds);
 }
 
 export async function checkInRegistration(

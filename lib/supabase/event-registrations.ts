@@ -8,6 +8,7 @@ import type {
 } from '@/types';
 import type { Database } from '@/types/supabase';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from './server';
+import type { RegistrationAttendanceSource } from '@/lib/native-attendance';
 
 type CampaignInsert = Database['public']['Tables']['event_registration_campaigns']['Insert'];
 type CampaignUpdate = Database['public']['Tables']['event_registration_campaigns']['Update'];
@@ -171,6 +172,55 @@ export async function getSupabaseEventRegistrations(
     checkinsByRegistration.get(registration.id) ?? null,
     deliveriesByRegistration.get(registration.id) ?? null,
   ));
+}
+
+export async function getSupabaseRegistrationAttendanceSources(
+  eventIds: readonly string[],
+  c?: Context,
+): Promise<RegistrationAttendanceSource[] | null> {
+  if (!canUseSupabaseEventRegistrations(c)) return null;
+  if (eventIds.length === 0) return [];
+
+  const campaigns = await getSupabaseRegistrationCampaigns(eventIds, c);
+  if (!campaigns || campaigns.length === 0) return [];
+
+  const client = getSupabaseAdminClient(c);
+  const campaignIds = campaigns.map((campaign) => campaign.id);
+  const registrationsResult = await client
+    .from('event_registrations')
+    .select('id, campaign_id, name, email, normalized_email, status, confirmed_at, cancelled_at, created_at, updated_at')
+    .in('campaign_id', campaignIds)
+    .order('created_at', { ascending: false });
+  if (registrationsResult.error) throw new Error(registrationsResult.error.message);
+
+  const registrationIds = registrationsResult.data.map((registration) => registration.id);
+  const checkinsResult = registrationIds.length > 0
+    ? await client
+      .from('event_registration_checkins')
+      .select('registration_id, checked_in_at')
+      .in('registration_id', registrationIds)
+    : { data: [], error: null };
+  if (checkinsResult.error) throw new Error(checkinsResult.error.message);
+
+  const checkinsByRegistration = new Map(
+    checkinsResult.data.map((checkin) => [checkin.registration_id, checkin.checked_in_at]),
+  );
+  const registrationsByCampaign = new Map<string, EventRegistration[]>();
+  for (const registration of registrationsResult.data) {
+    const group = registrationsByCampaign.get(registration.campaign_id) ?? [];
+    group.push(toEventRegistration(
+      registration,
+      checkinsByRegistration.get(registration.id) ?? null,
+      null,
+    ));
+    registrationsByCampaign.set(registration.campaign_id, group);
+  }
+
+  return campaigns.map((campaign) => ({
+    event_id: campaign.event_id,
+    campaign_updated_at: campaign.updated_at,
+    registrations: registrationsByCampaign.get(campaign.id) ?? [],
+  }));
 }
 
 export async function checkInSupabaseRegistration(

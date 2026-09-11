@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useCheckInDay } from "@/src/composables/useCheckInDay";
-import { CHECK_IN_DAY_MESSAGE } from "@/lib/event-check-in";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -251,10 +250,9 @@ watch(availableInitials, (initials) => {
                 type="button"
                 class="mobile-ops-guest-checkin"
                 :disabled="!checkInDay || Boolean(actionRegistrationId)"
-                  :title="!checkInDay ? CHECK_IN_DAY_MESSAGE : undefined"
                 @click="checkInGuest(registration)"
               >
-                {{ !checkInDay ? 'Event day only' : actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
+                {{ actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
               </button>
               <button
                 v-else-if="registration.status === 'confirmed' && registration.checked_in_at"

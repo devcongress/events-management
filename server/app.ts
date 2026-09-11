@@ -30,7 +30,11 @@ import { communityEventSubmissionEmail } from '@/lib/email/templates/community-e
 import { monthlyArchiveRequestEmail, selectedSpeakerConfirmationEmail } from '@/lib/email/templates/monthly-archive-request';
 import { speakerProposalRejectionEmail } from '@/lib/email/templates/speaker-proposal-rejection';
 import { registrationAvailability, summarizeEventRegistrations } from '@/lib/event-registration';
-import { attendanceRecordsFromRegistrations } from '@/lib/native-attendance';
+import {
+  attendanceImportFromRegistrationSource,
+  eventHasFinalNativeAttendance,
+  eventUsesNativeAttendance,
+} from '@/lib/native-attendance';
 import {
   cancelRegistration,
   checkInRegistration,
@@ -38,6 +42,7 @@ import {
   deleteRegistration,
   getEventRegistrations,
   getPendingRegistrationEmails,
+  getRegistrationAttendanceSources,
   getRegistrationCampaign,
   getRegistrationCampaigns,
   registerForEvent,
@@ -9600,10 +9605,27 @@ app.get('/api/attendance/monthly', async (c) => {
   const adminError = await requireAdmin(c);
   if (adminError) return adminError;
 
-  const [events, imports] = await Promise.all([
+  const [events, csvImports] = await Promise.all([
     getAllEvents(c),
     getAttendanceImports(),
   ]);
+  const nativeEvents = events.filter((event) => eventHasFinalNativeAttendance(event));
+  const nativeSources = await getRegistrationAttendanceSources(
+    nativeEvents.map((event) => event.id),
+    c,
+  );
+  const nativeEventById = new Map(nativeEvents.map((event) => [event.id, event]));
+  const nativeEventIds = new Set(nativeSources.map((source) => source.event_id));
+  const nativeImports = nativeSources.flatMap((source) => {
+    const event = nativeEventById.get(source.event_id);
+    return event
+      ? [attendanceImportFromRegistrationSource(source, attendanceMonthForEvent(event))]
+      : [];
+  });
+  const imports = [
+    ...csvImports.filter((attendanceImport) => !nativeEventIds.has(attendanceImport.event_id)),
+    ...nativeImports,
+  ];
   const ledger = buildAttendanceLedger(events, imports);
   const redactLedgerMonth = (month: typeof ledger[number]) => ({
     ...month,
@@ -9637,27 +9659,15 @@ app.get('/api/events/:eventId/attendance', async (c) => {
     return c.json({ error: 'Event not found' }, 404);
   }
 
-  const startsNativeAttendance = new Date(event.event_date).getTime() >= Date.UTC(2026, 7, 1);
-  const isOfficialMonthlyMeetup = resolveEventSeriesType(event) === 'monthly'
-    && event.submission_source !== 'public_submission';
-  const registrationCampaign = startsNativeAttendance && isOfficialMonthlyMeetup
-    ? await getRegistrationCampaign(event.id, c)
+  const nativeSource = eventUsesNativeAttendance(event)
+    ? (await getRegistrationAttendanceSources([event.id], c))[0]
     : undefined;
 
-  if (registrationCampaign) {
-    const records = attendanceRecordsFromRegistrations(
-      event.id,
-      await getEventRegistrations(event.id, c),
+  if (nativeSource) {
+    const registrationAttendance = attendanceImportFromRegistrationSource(
+      nativeSource,
+      attendanceMonthForEvent(event),
     );
-    const registrationAttendance = {
-      id: `native-registration-${event.id}`,
-      event_id: event.id,
-      attendance_month: attendanceMonthForEvent(event),
-      source_filename: null,
-      row_count: records.length,
-      imported_at: registrationCampaign.updated_at,
-      records,
-    };
 
     return c.json({
       event,

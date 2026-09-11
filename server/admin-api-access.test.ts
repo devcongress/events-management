@@ -32,6 +32,8 @@ describe('admin API role policy', () => {
     expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/check-in', 'POST')).toEqual(['owner', 'organizer']);
     expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/check-in', 'DELETE')).toEqual(['owner', 'organizer']);
     expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/check-in', 'DELETE')).not.toContain('volunteer');
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/cancel', 'POST')).toEqual(['owner', 'organizer']);
+    expect(adminRolesForApiRequest('/api/events/event-1/registrations/registration-1/cancel', 'POST')).not.toContain('volunteer');
   });
 
   it('keeps existing member role changes owner-only', () => {

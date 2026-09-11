@@ -12,6 +12,7 @@ import type {
 import { generateId, now } from '@/lib/utils';
 import { readData, updateData, writeData } from './index';
 import type { PendingRegistrationEmail } from '@/lib/supabase/event-registrations';
+import type { RegistrationAttendanceSource } from '@/lib/native-attendance';
 
 const CAMPAIGNS_FILE = 'event-registration-campaigns';
 const REGISTRATIONS_FILE = 'event-registrations';
@@ -183,6 +184,33 @@ export async function getMockEventRegistrations(eventId: string): Promise<EventR
       };
     })
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export async function getMockRegistrationAttendanceSources(
+  eventIds: readonly string[],
+): Promise<RegistrationAttendanceSource[]> {
+  if (eventIds.length === 0) return [];
+
+  const eventIdSet = new Set(eventIds);
+  const [campaigns, registrations] = await Promise.all([
+    getAllMockRegistrationCampaigns(),
+    readData<EventRegistration>(REGISTRATIONS_FILE),
+  ]);
+  const registrationsByCampaign = new Map<string, EventRegistration[]>();
+  for (const registration of registrations) {
+    const group = registrationsByCampaign.get(registration.campaign_id) ?? [];
+    group.push(registration);
+    registrationsByCampaign.set(registration.campaign_id, group);
+  }
+
+  return campaigns
+    .filter((campaign) => eventIdSet.has(campaign.event_id))
+    .map((campaign) => ({
+      event_id: campaign.event_id,
+      campaign_updated_at: campaign.updated_at,
+      registrations: (registrationsByCampaign.get(campaign.id) ?? [])
+        .sort((first, second) => second.created_at.localeCompare(first.created_at)),
+    }));
 }
 
 export async function checkInMockRegistration(registrationId: string): Promise<string | undefined> {
