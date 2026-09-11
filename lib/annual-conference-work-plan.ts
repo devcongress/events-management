@@ -67,6 +67,31 @@ export interface AnnualConferenceTask {
   updated_at: string;
 }
 
+export interface AnnualConferenceOwnerMember {
+  email: string;
+  display_name?: string | null;
+}
+
+export interface AnnualConferenceOwnerIdentity {
+  key: string;
+  filter_value: string;
+  label: string;
+}
+
+export interface AnnualConferenceOwnerDirectory {
+  resolve(value: string): AnnualConferenceOwnerIdentity;
+  matches(left: string | null | undefined, right: string | null | undefined): boolean;
+}
+
+export interface AnnualConferenceTaskOwnerSummary {
+  key: string;
+  label: string;
+  filter_owner: string;
+  complete: number;
+  pending: number;
+  total: number;
+}
+
 export interface AnnualConferenceTaskCreateInput {
   title: string;
   details?: string | null;
@@ -686,17 +711,101 @@ export function filterAnnualConferenceTasksByPhase(
   return tasks.filter((task) => task.phase_id === phaseScope);
 }
 
+function normalizeAnnualConferenceOwnerAlias(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+export function createAnnualConferenceOwnerDirectory(
+  members: AnnualConferenceOwnerMember[],
+): AnnualConferenceOwnerDirectory {
+  const membersByAlias = new Map<string, AnnualConferenceOwnerMember | null>();
+
+  const registerAlias = (value: string, member: AnnualConferenceOwnerMember) => {
+    const alias = normalizeAnnualConferenceOwnerAlias(value);
+    if (!alias) return;
+    const existing = membersByAlias.get(alias);
+    if (existing && existing.email.trim().toLowerCase() !== member.email.trim().toLowerCase()) {
+      membersByAlias.set(alias, null);
+      return;
+    }
+    if (existing === null) return;
+    membersByAlias.set(alias, member);
+  };
+
+  for (const member of members) {
+    const email = member.email.trim();
+    registerAlias(email, member);
+    registerAlias(member.display_name ?? '', member);
+    registerAlias(email.split('@')[0] ?? '', member);
+  }
+
+  const resolve = (value: string): AnnualConferenceOwnerIdentity => {
+    const rawValue = value.trim();
+    const member = membersByAlias.get(normalizeAnnualConferenceOwnerAlias(rawValue));
+    if (member) {
+      const email = member.email.trim().toLowerCase();
+      return {
+        key: `member:${email}`,
+        filter_value: email,
+        label: member.display_name?.trim() || member.email,
+      };
+    }
+    return {
+      key: `legacy:${rawValue.toLowerCase()}`,
+      filter_value: rawValue,
+      label: rawValue,
+    };
+  };
+
+  return {
+    resolve,
+    matches(left, right) {
+      if (!left?.trim() || !right?.trim()) return false;
+      return resolve(left).key === resolve(right).key;
+    },
+  };
+}
+
+export function summarizeAnnualConferenceTasksByOwner(
+  tasks: AnnualConferenceTask[],
+  members: AnnualConferenceOwnerMember[],
+): AnnualConferenceTaskOwnerSummary[] {
+  const directory = createAnnualConferenceOwnerDirectory(members);
+  const summaries = new Map<string, AnnualConferenceTaskOwnerSummary>();
+
+  for (const task of tasks) {
+    if (!task.accountable_owner?.trim()) continue;
+    const identity = directory.resolve(task.accountable_owner);
+    const summary = summaries.get(identity.key) ?? {
+      key: identity.key,
+      label: identity.label,
+      filter_owner: identity.filter_value,
+      complete: 0,
+      pending: 0,
+      total: 0,
+    };
+    summary.total += 1;
+    if (task.status === 'done') summary.complete += 1;
+    else summary.pending += 1;
+    summaries.set(identity.key, summary);
+  }
+
+  return [...summaries.values()];
+}
+
 export function resolveAnnualConferenceOwnerFilter(
   tasks: AnnualConferenceTask[],
   requestedOwner: string,
+  members: AnnualConferenceOwnerMember[] = [],
 ): string | null {
-  const normalizedRequestedOwner = requestedOwner.trim().toLowerCase();
-  if (!normalizedRequestedOwner) return null;
-
-  return tasks
-    .map((task) => task.accountable_owner?.trim() ?? '')
-    .find((owner) => owner.toLowerCase() === normalizedRequestedOwner)
-    || null;
+  if (!requestedOwner.trim()) return null;
+  const directory = createAnnualConferenceOwnerDirectory(members);
+  const matchingTask = tasks.find((task) => (
+    directory.matches(task.accountable_owner, requestedOwner)
+  ));
+  return matchingTask?.accountable_owner
+    ? directory.resolve(matchingTask.accountable_owner).filter_value
+    : null;
 }
 
 export function validateAnnualConferencePhaseDates(
