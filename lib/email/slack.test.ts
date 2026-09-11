@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sendEditableEventAddedToSlack, sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, updateEditableEventAddedToSlack } from './slack';
+import { getSlackMessagePermalink, sendEditableEventAddedToSlack, sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, updateEditableEventAddedToSlack } from './slack';
 
 describe('event Slack announcements', () => {
   it('sends a review-only alert when a monitored registration page changes', async () => {
@@ -133,6 +133,28 @@ describe('event Slack announcements', () => {
       channel: 'C0123456789',
       ts: '1788900000.123456',
     });
+  });
+
+  it('loads a validated permalink for a stored Slack message reference', async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      ok: true,
+      channel: 'C0123456789',
+      permalink: 'https://devcongress.slack.com/archives/C0123456789/p1788900000123456',
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })) as unknown as typeof fetch;
+
+    await expect(getSlackMessagePermalink({
+      botToken: 'xoxb-test-token-that-is-long-enough',
+      channelId: 'C0123456789',
+      messageTs: '1788900000.123456',
+      fetcher,
+    })).resolves.toBe('https://devcongress.slack.com/archives/C0123456789/p1788900000123456');
+
+    expect(fetcher).toHaveBeenCalledWith('https://slack.com/api/chat.getPermalink', expect.objectContaining({
+      method: 'POST',
+    }));
   });
 
   it('keeps bot credentials out of bounded Slack API errors', async () => {

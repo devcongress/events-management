@@ -128,6 +128,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST /api/internal/event-page-monitors/check-due` | Shared-secret scheduled drain for due external registration-page checks; called by the existing 15-minute Worker cron |
 | `POST /api/internal/speaker-rejection-emails/retry` | Shared-secret scheduled retry for pending or failed automatic speaker-proposal rejection emails |
 | `/api/admin/events-preview*` | Organizer-only, non-cacheable preview feed containing the complete published event collection, including private-beta submissions excluded from the public feed |
+| `GET/POST /api/events/:eventId/slack-announcement` | Organizer publication read model and idempotent Slack send/retry action, with independent website readiness, stored delivery history, and a best-effort exact-message permalink |
 | `/api/auth/*` | Supabase Google OAuth exchange, app-owned organizer session, callback, and logout; no shared-password fallback |
 | `/api/admin/organizers*` | Organizer email allowlist management; re-enable and permanent removal endpoints are Owner-only, and permanent removal requires a disabled membership |
 | `/api/admin/audit-log` | Owner-only audit log read API, including the latest Resend quota observation and transactional outbox recovery summary |

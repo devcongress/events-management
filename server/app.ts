@@ -19,7 +19,7 @@ import { EVENT_BLAST_PREPARATION_BATCH_SIZE, type EventBlastPreparationMessage }
 import { getEmailDeliveryHealth, getEmailOutboxSummary, getRecentEmailDeliveries, recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { assessBlastCapacity, blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { boundedSlackExcerpt, htmlToPlainText, parseEventSubmissionReplyRecipient, verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
-import { sendEditableEventAddedToSlack, sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError, updateEditableEventAddedToSlack } from '@/lib/email/slack';
+import { getSlackMessagePermalink, sendEditableEventAddedToSlack, sendEventAddedToSlack, sendEventPageMonitoringAlertToSlack, sendEventSubmissionAmendmentToSlack, sendEventSubmissionReceivedToSlack, sendEventSubmissionReplyToSlack, SlackWebhookError, updateEditableEventAddedToSlack } from '@/lib/email/slack';
 import { EMAIL_SENDERS, emailSubjects } from '@/lib/email/scenarios';
 import { emailPreviewCatalog } from '@/lib/email/previews';
 import {
@@ -2028,6 +2028,65 @@ function publicWebsiteEventReadinessUrl(event: Event, c: Context): string {
   const url = new URL(publicWebsiteEventUrl(event, c));
   url.searchParams.set('readiness', '1');
   return url.toString();
+}
+
+type EventWebsitePublication = {
+  state: 'not_published' | 'pending' | 'published' | 'failed';
+  url: string;
+  http_status: number | null;
+};
+
+async function eventWebsitePublication(event: Event, c: Context): Promise<EventWebsitePublication> {
+  const url = publicWebsiteEventUrl(event, c);
+  if (event.publish_to_website === false || event.publication_status === 'draft') {
+    return { state: 'not_published', url, http_status: null };
+  }
+
+  const availability = await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c));
+  if (availability.available) return { state: 'published', url, http_status: availability.status };
+  if (availability.status === 404) return { state: 'pending', url, http_status: availability.status };
+  return { state: 'failed', url, http_status: availability.status };
+}
+
+function eventWebsitePublicationFromDispatch(
+  event: Event,
+  c: Context,
+  available: boolean,
+  status: number | null,
+): EventWebsitePublication {
+  const url = publicWebsiteEventUrl(event, c);
+  if (available) return { state: 'published', url, http_status: status };
+  if (status === 404) return { state: 'pending', url, http_status: status };
+  return { state: 'failed', url, http_status: status };
+}
+
+async function eventSlackAnnouncementPermalink(
+  announcement: EventSlackAnnouncement | null,
+  c: Context,
+): Promise<string | null> {
+  const botToken = envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim();
+  if (
+    !botToken
+    || announcement?.status !== 'sent'
+    || !announcement.provider_channel_id
+    || !announcement.provider_message_ts
+  ) return null;
+
+  try {
+    return await getSlackMessagePermalink({
+      botToken,
+      channelId: announcement.provider_channel_id,
+      messageTs: announcement.provider_message_ts,
+    });
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'event_slack_announcement_permalink_failed',
+      event_id: announcement.event_id,
+      error_name: error instanceof SlackWebhookError ? error.name : safeErrorName(error),
+      request_id: c.get('requestId') ?? null,
+    }));
+    return null;
+  }
 }
 
 function slackEventCoverUrl(event: Event, _c: Context): string {
@@ -6748,16 +6807,18 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
   if (!event) return c.json({ error: 'Event not found' }, 404);
 
   const eligible = eventIsEligibleForSlackAnnouncement(event);
-  const websiteUrl = publicWebsiteEventUrl(event, c);
-  const website = eligible && eventSlackDeliveryConfigured(c)
-    ? await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c))
-    : { available: true, status: null };
-  const announcement = await getEventSlackAnnouncement(event.id, c);
+  const [website, announcement] = await Promise.all([
+    eventWebsitePublication(event, c),
+    getEventSlackAnnouncement(event.id, c),
+  ]);
+  const slackUrl = await eventSlackAnnouncementPermalink(announcement, c);
   return c.json({
     announcement,
     eligible,
-    website_ready: website.available,
-    website_status: website.status,
+    website,
+    slack_url: slackUrl,
+    website_ready: website.state === 'published',
+    website_status: website.http_status,
   });
 });
 
@@ -6908,6 +6969,8 @@ app.post('/api/events/:eventId/slack-announcement', async (c) => {
     announcement: result.announcement,
     eligible: true,
     dispatched: result.dispatched,
+    website: eventWebsitePublicationFromDispatch(event, c, result.websiteReady, result.websiteStatus),
+    slack_url: await eventSlackAnnouncementPermalink(result.announcement, c),
     website_ready: result.websiteReady,
     website_status: result.websiteStatus,
   });

@@ -118,7 +118,7 @@ function slackMessageTs(value: string): string {
 }
 
 async function callSlackWebApi(input: {
-  method: 'chat.postMessage' | 'chat.update';
+  method: 'chat.getPermalink' | 'chat.postMessage' | 'chat.update';
   botToken: string;
   payload: Record<string, unknown>;
   fetcher?: typeof fetch;
@@ -421,4 +421,33 @@ export async function updateEditableEventAddedToSlack(input: EventSlackMessageIn
     },
     fetcher: input.fetcher,
   });
+}
+
+export async function getSlackMessagePermalink(input: SlackMessageReference & {
+  botToken: string;
+  fetcher?: typeof fetch;
+}): Promise<string> {
+  const result = await callSlackWebApi({
+    method: 'chat.getPermalink',
+    botToken: input.botToken,
+    payload: {
+      channel: slackChannelId(input.channelId),
+      message_ts: slackMessageTs(input.messageTs),
+    },
+    fetcher: input.fetcher,
+  });
+  if (typeof result.permalink !== 'string') {
+    throw new SlackWebhookError('Slack did not return an announcement destination.');
+  }
+
+  let permalink: URL;
+  try {
+    permalink = new URL(result.permalink);
+  } catch {
+    throw new SlackWebhookError('Slack returned an invalid announcement destination.');
+  }
+  if (permalink.protocol !== 'https:' || !permalink.hostname.endsWith('.slack.com')) {
+    throw new SlackWebhookError('Slack returned an invalid announcement destination.');
+  }
+  return permalink.toString();
 }
