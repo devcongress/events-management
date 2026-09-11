@@ -282,7 +282,7 @@ function isActive(href: string): boolean {
 
     <div
       v-if="showPageHeading"
-      class="mt-4 flex flex-wrap items-start justify-between gap-4 border-t border-dc-border pt-4"
+      class="mt-4 flex flex-wrap items-start justify-between gap-4 pt-4"
     >
       <div class="min-w-0 flex-1">
         <h1 v-if="title" class="text-3xl font-extrabold tracking-tight text-dc-ink sm:text-4xl">{{ title }}</h1>

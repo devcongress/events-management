@@ -39,6 +39,8 @@ describe('mobile organizer entry points', () => {
     expect(mobileConferenceSource).toContain('v-if="canManageEditions" class="conference-mobile__edition-bar"');
     expect(conferenceNavSource).toContain('v-if="canManageEditions" class="min-w-44 max-w-56');
     expect(conferenceNavSource).toContain('{{ currentEdition?.label ?? `December ${year}` }}');
+    expect(conferenceNavSource).toContain('class="mt-4 flex flex-wrap items-start justify-between gap-4 pt-4"');
+    expect(conferenceNavSource).not.toContain('gap-4 border-t border-dc-border pt-4');
   });
 
   it('keeps the volunteer conference overview focused and removes organizer navigation', () => {
