@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useCheckInDay } from "@/src/composables/useCheckInDay";
+import { CHECK_IN_DAY_MESSAGE } from "@/lib/event-check-in";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -79,6 +81,7 @@ const submissionFilters: Array<{ value: SubmissionFilter; label: string }> = [
 const route = useRoute();
 const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
+const checkInDay = useCheckInDay(() => eventQuery.data.value);
 const activeSection = ref<MobileEventSection>('overview');
 const panelTransition = ref('mobile-event-panel-forward');
 const guestSearch = ref('');
@@ -189,6 +192,7 @@ function toggleSubmission(submissionId: string) {
 }
 
 async function checkInGuest(registration: EventRegistration) {
+  if (!checkInDay.value) return;
   if (!eventId.value || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
   try {
@@ -376,7 +380,7 @@ async function confirmProposalDecision() {
                         <div class="min-w-0"><strong>{{ registration.name }}</strong><span>{{ registration.email }}</span></div>
                         <span class="mobile-event-row-status" :class="{ 'is-checked': registration.checked_in_at, 'is-waiting': registration.status === 'waitlisted', 'is-cancelled': registration.status === 'cancelled' }">{{ registration.checked_in_at ? 'Checked in' : registration.status }}</span>
                       </div>
-                      <button v-if="registration.status === 'confirmed' && !registration.checked_in_at" type="button" class="mobile-event-row-action" :disabled="Boolean(actionRegistrationId)" @click="checkInGuest(registration)">{{ actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}</button>
+                      <button v-if="registration.status === 'confirmed' && !registration.checked_in_at" type="button" class="mobile-event-row-action" :disabled="!checkInDay || Boolean(actionRegistrationId)" :title="!checkInDay ? CHECK_IN_DAY_MESSAGE : undefined" @click="checkInGuest(registration)">{{ !checkInDay ? 'Event day only' : actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}</button>
                       <button v-else-if="registration.status === 'confirmed' && registration.checked_in_at" type="button" class="mobile-event-row-action mobile-event-row-action--quiet" :disabled="Boolean(actionRegistrationId)" @click="pendingCheckInUndo = registration">{{ actionRegistrationId === registration.id ? 'Undoing…' : 'Undo check-in' }}</button>
                     </li>
                   </ul>

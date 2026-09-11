@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useCheckInDay } from "@/src/composables/useCheckInDay";
+import { CHECK_IN_DAY_MESSAGE } from "@/lib/event-check-in";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -31,6 +33,7 @@ const EVENT_DATE_FORMATTER = new Intl.DateTimeFormat('en', {
 const route = useRoute();
 const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
+const checkInDay = useCheckInDay(() => eventQuery.data.value);
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
 const actionRegistrationId = ref<string | null>(null);
@@ -78,6 +81,7 @@ const eventContext = computed(() => {
 });
 
 async function checkInGuest(registration: EventRegistration) {
+  if (!checkInDay.value) return;
   if (!eventId.value || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
 
@@ -246,10 +250,11 @@ watch(availableInitials, (initials) => {
                 v-if="registration.status === 'confirmed' && !registration.checked_in_at"
                 type="button"
                 class="mobile-ops-guest-checkin"
-                :disabled="Boolean(actionRegistrationId)"
+                :disabled="!checkInDay || Boolean(actionRegistrationId)"
+                  :title="!checkInDay ? CHECK_IN_DAY_MESSAGE : undefined"
                 @click="checkInGuest(registration)"
               >
-                {{ actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
+                {{ !checkInDay ? 'Event day only' : actionRegistrationId === registration.id ? 'Checking in…' : 'Check in' }}
               </button>
               <button
                 v-else-if="registration.status === 'confirmed' && registration.checked_in_at"
