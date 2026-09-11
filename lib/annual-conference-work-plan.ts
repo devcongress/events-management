@@ -686,6 +686,19 @@ export function filterAnnualConferenceTasksByPhase(
   return tasks.filter((task) => task.phase_id === phaseScope);
 }
 
+export function resolveAnnualConferenceOwnerFilter(
+  tasks: AnnualConferenceTask[],
+  requestedOwner: string,
+): string | null {
+  const normalizedRequestedOwner = requestedOwner.trim().toLowerCase();
+  if (!normalizedRequestedOwner) return null;
+
+  return tasks
+    .map((task) => task.accountable_owner?.trim() ?? '')
+    .find((owner) => owner.toLowerCase() === normalizedRequestedOwner)
+    || null;
+}
+
 export function validateAnnualConferencePhaseDates(
   input: Pick<AnnualConferencePhaseCreateInput, 'starts_on' | 'ends_on'>,
   phases: AnnualConferencePhase[],

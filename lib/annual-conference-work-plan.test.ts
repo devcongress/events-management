@@ -11,6 +11,7 @@ import {
   canManageAnnualConferencePlanning,
   defaultAnnualConferencePhaseScope,
   filterAnnualConferenceTasksByPhase,
+  resolveAnnualConferenceOwnerFilter,
   summarizeAnnualConferenceDependencies,
   summarizeAnnualConferenceWorkPlan,
   validateAnnualConferenceTaskDependencies,
@@ -80,6 +81,17 @@ describe('annual conference work plan', () => {
     )).toHaveLength(12);
     expect(filterAnnualConferenceTasksByPhase(ANNUAL_CONFERENCE_2026_SEED_TASKS, 'unassigned')).toHaveLength(15);
     expect(filterAnnualConferenceTasksByPhase(ANNUAL_CONFERENCE_2026_SEED_TASKS, 'all')).toHaveLength(27);
+  });
+
+  it('resolves a linked owner across the full work plan instead of the current phase only', () => {
+    const phaseTwoOwners = filterAnnualConferenceTasksByPhase(
+      ANNUAL_CONFERENCE_2026_SEED_TASKS,
+      ANNUAL_CONFERENCE_2026_PHASES[1].id,
+    ).map((task) => task.accountable_owner);
+    expect(phaseTwoOwners).not.toContain('Elvis');
+
+    expect(resolveAnnualConferenceOwnerFilter(ANNUAL_CONFERENCE_2026_SEED_TASKS, ' elvis ')).toBe('Elvis');
+    expect(resolveAnnualConferenceOwnerFilter(ANNUAL_CONFERENCE_2026_SEED_TASKS, 'Unknown owner')).toBeNull();
   });
 
   it('makes the first listed owner accountable and the rest collaborators', () => {

@@ -10,6 +10,7 @@ import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
+  resolveAnnualConferenceOwnerFilter,
   type AnnualConferenceTask,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
@@ -149,9 +150,9 @@ watch(visibleTasks, () => {
   ledgerPage.value = Math.min(ledgerPage.value, ledgerPageCount.value);
 });
 
-watch([owners, routeOwnerFilter], () => {
-  if (routeOwnerFilterApplied.value || !routeOwnerFilter.value || owners.value.length === 0) return;
-  const requestedOwner = owners.value.find((owner) => owner === routeOwnerFilter.value);
+watch([tasks, routeOwnerFilter], () => {
+  if (routeOwnerFilterApplied.value || !routeOwnerFilter.value || tasks.value.length === 0) return;
+  const requestedOwner = resolveAnnualConferenceOwnerFilter(tasks.value, routeOwnerFilter.value);
   if (!requestedOwner) return;
 
   updateLedgerFilters(() => {
