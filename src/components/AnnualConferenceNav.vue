@@ -56,12 +56,16 @@ const sessionQuery = useQuery({
   queryFn: fetchAdminSession,
 });
 const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
+const canManageEditions = computed(() => {
+  const role = sessionQuery.data.value?.user?.role;
+  return role === 'owner' || role === 'organizer';
+});
 const editionsQuery = useQuery({
   queryKey: queryKeys.annualConferenceEditions,
   queryFn: fetchAnnualConferenceEditions,
   enabled: computed(() => (
     sessionQuery.data.value?.authenticated === true
-    && !isVolunteer.value
+    && canManageEditions.value
   )),
 });
 const workPlanQuery = useQuery({
@@ -80,7 +84,8 @@ const editions = computed(() => annualConferenceEditionsForNavigation(
 ));
 const currentEdition = computed(() => editions.value.find((edition) => String(edition.year) === year.value));
 const canCreateEdition = computed(() => (
-  workPlanQuery.data.value?.permissions.can_create_tasks === true
+  canManageEditions.value
+  && workPlanQuery.data.value?.permissions.can_create_tasks === true
   && editions.value[0]?.year === currentEdition.value?.year
 ));
 const capabilities = computed(() => workPlanQuery.data.value?.permissions.capabilities ?? []);
@@ -179,16 +184,18 @@ function isActive(href: string): boolean {
         <p class="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-dc-ink">
           Annual Conference
         </p>
-        <div class="min-w-44 max-w-56 flex-1 sm:flex-none">
+        <div v-if="canManageEditions" class="min-w-44 max-w-56 flex-1 sm:flex-none">
           <AppDropdown
             :model-value="year"
             :options="editionOptions"
-            :disabled="isVolunteer"
             density="compact"
             menu-class="min-w-48"
             @update:model-value="changeEdition"
           />
         </div>
+        <strong v-else class="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-dc-gray">
+          {{ currentEdition?.label ?? `December ${year}` }}
+        </strong>
       </div>
 
       <div class="flex items-center justify-end">

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-11 — Volunteer directory discovery and focused workspaces
+
+- Add case-insensitive volunteer-directory search across name, email, X, and Slack, with clickable All, Active, and Applicant counts on desktop and mobile.
+- Keep pagination totals and ranges aligned with the filtered result, reset paging when filters or editions change, and provide an explicit no-match recovery state.
+- Keep organizer and volunteer data capabilities intact while avoiding unnecessary application or edition-management reads for restricted volunteers.
+- Give mobile organizers direct Events and Conference entry points, and refine volunteer conference overviews on desktop and mobile with the existing app typography, a clear zero-assignment state, and no volunteer edition or back-navigation controls.
+- Keep the mobile volunteer search and lifecycle controls visible beneath the sticky conference header while directory rows scroll. No migration required.
+
 ## 2026-09-11 — Independent website and Slack publication status
 
 - Show website publication and Slack announcement delivery as separate organizer states for both DevCongress-owned and approved community events.
