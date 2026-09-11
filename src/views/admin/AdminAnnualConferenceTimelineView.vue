@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useMutation } from '@tanstack/vue-query';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -11,6 +11,7 @@ import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
+  defaultAnnualConferencePhaseScope,
   type AnnualConferencePhase,
   type AnnualConferencePhaseCreateInput,
   type AnnualConferencePhaseUpdateInput,
@@ -26,8 +27,10 @@ import {
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
+import { organizerConferenceContextQuery } from '@/src/organizer-viewport';
 
 const route = useRoute();
+const router = useRouter();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const phaseManagerOpen = ref(false);
 const editorOpen = ref(false);
@@ -140,11 +143,29 @@ function planningStatusClass(status: AnnualConferenceTask['status']): string {
 watch(gapStatus, resetGapPage);
 watch(phaseScope, () => {
   resetGapPage();
-  closeTaskDrawer();
 });
 watch(filteredGapTasks, () => {
   gapPage.value = Math.min(gapPage.value, gapPageCount.value);
 });
+watch([() => route.fullPath, tasks, phases], () => {
+  if (!phases.value.length) return;
+  const context = organizerConferenceContextQuery({ ...route.query, section: 'timeline' }, 'timeline');
+  const requestedPhase = context.phase && (
+    context.phase === 'all'
+    || context.phase === 'unassigned'
+    || phases.value.some((phase) => phase.id === context.phase)
+  ) ? context.phase : null;
+  phaseScope.value = requestedPhase ?? defaultAnnualConferencePhaseScope(phases.value, today.value);
+
+  const requestedTask = context.task
+    ? tasks.value.find((task) => task.id === context.task)
+    : null;
+  if (requestedTask && selectedTaskId.value !== requestedTask.id) editTask(requestedTask.id);
+  if (!context.task && selectedTaskId.value) closeTaskDrawer();
+  if ((context.phase && !requestedPhase) || (context.task && tasks.value.length && !requestedTask)) {
+    void replaceTimelineContext({ task: requestedTask?.id ?? null });
+  }
+}, { immediate: true });
 const gapStatusOptions = [
   { value: 'all', label: 'All statuses' },
   { value: 'not_started', label: 'Not started' },
@@ -235,10 +256,37 @@ function setGapStatus(value: string | number) {
 
 function setPhaseScope(value: string | number) {
   phaseScope.value = String(value);
+  closeTaskDrawer();
+  void replaceTimelineContext({ task: null });
 }
 
 function startFixingTask(task: AnnualConferenceTask) {
   editTask(task.id);
+  void pushTimelineContext({ task: task.id });
+}
+
+function timelineQuery(patch: { task?: string | null } = {}): Record<string, string> {
+  const task = patch.task === undefined ? selectedTaskId.value : patch.task;
+  const context = organizerConferenceContextQuery({
+    section: 'timeline',
+    ...(phaseScope.value !== 'all' ? { phase: phaseScope.value } : {}),
+    ...(task ? { task } : {}),
+  }, 'timeline');
+  delete context.section;
+  return context;
+}
+
+function replaceTimelineContext(patch: { task?: string | null } = {}) {
+  return router.replace({ path: route.path, query: timelineQuery(patch) });
+}
+
+function pushTimelineContext(patch: { task?: string | null } = {}) {
+  return router.push({ path: route.path, query: timelineQuery(patch) });
+}
+
+function closeTaskWithContext() {
+  closeTaskDrawer();
+  void replaceTimelineContext({ task: null });
 }
 
 function taskPhaseName(task: AnnualConferenceTask): string {
@@ -510,7 +558,7 @@ async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
       :phases="phases"
       :organizer-labels="organizerLabels"
       :submitting="updateTaskMutation.isPending.value"
-      @close="closeTaskDrawer"
+      @close="closeTaskWithContext"
       @edit="selectedTask && (editingTaskId = selectedTask.id)"
       @cancel-edit="editingTaskId = null"
       @submit="submitTask"

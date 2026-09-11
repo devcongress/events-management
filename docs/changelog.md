@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-11 — Organizer navigation context across devices
+
+- Preserve event identity and map desktop event sections to Overview, Guests, or Submissions when the same organizer link opens at phone width.
+- Carry Annual Conference section, phase, status, workstream, owner, and open-task context between desktop and phone workspaces.
+- Store mobile tabs plus Work Plan and Timeline task drawers in browser history, so Back restores the previous meaningful view; invalid or unsupported context falls back safely. No migration required.
+
 ## 2026-09-11 — Canonical conference assignee identity
 
 - Resolve accountable owners through one shared directory across the Annual Conference Overview, owner filter, ledger rows, and linked work-plan routes.

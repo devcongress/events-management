@@ -294,15 +294,6 @@ router.beforeEach(async (to, from) => {
     }).catch(() => undefined);
 
     const isPhone = matchesOrganizerPhoneViewport();
-    if (
-      cachedSession.user?.role === 'volunteer'
-      && isPhone
-      && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
-      && to.name !== 'admin-annual-conference-volunteer-display'
-    ) {
-      return mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined);
-    }
-
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,
       isAdminRoute: isAdminPath(to.path),
@@ -310,7 +301,23 @@ router.beforeEach(async (to, from) => {
       routeName: to.name,
       eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
       conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
+      query: to.query,
     });
+    if (
+      cachedSession.user?.role === 'volunteer'
+      && isPhone
+      && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+      && to.name !== 'admin-annual-conference-volunteer-display'
+    ) {
+      if (viewportRedirect?.path.startsWith(adminPath('mobile/annual-conference/'))) {
+        return viewportRedirect;
+      }
+      return {
+        path: mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined),
+        query: { section: 'overview' },
+        replace: true,
+      };
+    }
     if (viewportRedirect) return viewportRedirect;
 
     if (cachedSession.user?.role === 'volunteer') {
@@ -331,15 +338,6 @@ router.beforeEach(async (to, from) => {
     });
     if (session.authenticated) {
       const isPhone = matchesOrganizerPhoneViewport();
-      if (
-        session.user?.role === 'volunteer'
-        && isPhone
-        && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
-        && to.name !== 'admin-annual-conference-volunteer-display'
-      ) {
-        return mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined);
-      }
-
       const viewportRedirect = organizerViewportRedirect({
         authenticated: true,
         isAdminRoute: isAdminPath(to.path),
@@ -347,7 +345,23 @@ router.beforeEach(async (to, from) => {
         routeName: to.name,
         eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
         conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
+        query: to.query,
       });
+      if (
+        session.user?.role === 'volunteer'
+        && isPhone
+        && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+        && to.name !== 'admin-annual-conference-volunteer-display'
+      ) {
+        if (viewportRedirect?.path.startsWith(adminPath('mobile/annual-conference/'))) {
+          return viewportRedirect;
+        }
+        return {
+          path: mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined),
+          query: { section: 'overview' },
+          replace: true,
+        };
+      }
       if (viewportRedirect) return viewportRedirect;
 
       if (session.user?.role === 'volunteer') {

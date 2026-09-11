@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useMutation, useQuery } from '@tanstack/vue-query';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
@@ -11,6 +11,7 @@ import {
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
   createAnnualConferenceOwnerDirectory,
+  defaultAnnualConferencePhaseScope,
   resolveAnnualConferenceOwnerFilter,
   type AnnualConferenceOwnerIdentity,
   type AnnualConferenceTask,
@@ -26,8 +27,10 @@ import {
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
+import { organizerConferenceContextQuery } from '@/src/organizer-viewport';
 
 const route = useRoute();
+const router = useRouter();
 const year = computed(() => String(route.params.year ?? ACTIVE_ANNUAL_CONFERENCE_EDITION.year));
 const today = ref(currentAccraDate());
 const LEDGER_PAGE_SIZE = 6;
@@ -35,11 +38,6 @@ const statusFilter = ref<'all' | AnnualConferenceTask['status']>('all');
 const workstreamFilter = ref<'all' | AnnualConferenceTask['workstream']>('all');
 const ownerFilter = ref('all');
 const ledgerPage = ref(1);
-const routeOwnerFilter = computed(() => {
-  const owner = route.query.owner;
-  return typeof owner === 'string' ? owner.trim() : '';
-});
-const routeOwnerFilterApplied = ref(false);
 
 type LedgerViewTransition = {
   finished: Promise<void>;
@@ -170,20 +168,38 @@ watch(visibleTasks, () => {
   ledgerPage.value = Math.min(ledgerPage.value, ledgerPageCount.value);
 });
 
-watch([tasks, routeOwnerFilter, organizerMembers], () => {
-  if (routeOwnerFilterApplied.value || !routeOwnerFilter.value || tasks.value.length === 0) return;
-  const requestedOwner = resolveAnnualConferenceOwnerFilter(
-    tasks.value,
-    routeOwnerFilter.value,
-    organizerMembers.value,
+watch([() => route.fullPath, tasks, phases, organizerMembers], () => {
+  if (!phases.value.length) return;
+  const context = organizerConferenceContextQuery({ ...route.query, section: 'tasks' }, 'tasks');
+  const requestedOwner = context.owner
+    ? resolveAnnualConferenceOwnerFilter(tasks.value, context.owner, organizerMembers.value)
+    : null;
+  const requestedPhase = context.phase && (
+    context.phase === 'all'
+    || context.phase === 'unassigned'
+    || phases.value.some((phase) => phase.id === context.phase)
+  ) ? context.phase : null;
+  const requestedTask = context.task
+    ? tasks.value.find((task) => task.id === context.task)
+    : null;
+  const hasInvalidContext = Boolean(
+    (context.owner && tasks.value.length && !requestedOwner)
+    || (context.phase && !requestedPhase)
+    || (context.task && tasks.value.length && !requestedTask),
   );
-  if (!requestedOwner) return;
 
   updateLedgerFilters(() => {
-    phaseFilter.value = 'all';
-    ownerFilter.value = requestedOwner;
+    phaseFilter.value = requestedPhase
+      ?? (context.owner ? 'all' : defaultAnnualConferencePhaseScope(phases.value, today.value));
+    statusFilter.value = (context.status ?? 'all') as typeof statusFilter.value;
+    workstreamFilter.value = (context.workstream ?? 'all') as typeof workstreamFilter.value;
+    ownerFilter.value = requestedOwner ?? 'all';
+  }, () => {
+    if (hasInvalidContext) void replaceWorkPlanContext({ task: requestedTask?.id ?? null });
   });
-  routeOwnerFilterApplied.value = true;
+
+  if (requestedTask && selectedTaskId.value !== requestedTask.id) openTask(requestedTask.id);
+  if (!context.task && selectedTaskId.value) closeTaskDrawer();
 }, { immediate: true });
 
 const createMutation = useMutation({
@@ -224,10 +240,38 @@ function requestCreateDrawer() {
 
 function toggleTask(taskId: string) {
   if (selectedTaskId.value === taskId) {
-    closeTaskDrawer();
+    closeTaskWithContext();
     return;
   }
   openTask(taskId);
+  void pushWorkPlanContext({ task: taskId });
+}
+
+function workPlanContextQuery(patch: { task?: string | null } = {}): Record<string, string> {
+  const task = patch.task === undefined ? selectedTaskId.value : patch.task;
+  const context = organizerConferenceContextQuery({
+    section: 'tasks',
+    ...(phaseFilter.value !== 'all' ? { phase: phaseFilter.value } : {}),
+    ...(statusFilter.value !== 'all' ? { status: statusFilter.value } : {}),
+    ...(workstreamFilter.value !== 'all' ? { workstream: workstreamFilter.value } : {}),
+    ...(ownerFilter.value !== 'all' ? { owner: ownerFilter.value } : {}),
+    ...(task ? { task } : {}),
+  }, 'tasks');
+  delete context.section;
+  return context;
+}
+
+function replaceWorkPlanContext(patch: { task?: string | null } = {}) {
+  return router.replace({ path: route.path, query: workPlanContextQuery(patch) });
+}
+
+function pushWorkPlanContext(patch: { task?: string | null } = {}) {
+  return router.push({ path: route.path, query: workPlanContextQuery(patch) });
+}
+
+function closeTaskWithContext() {
+  closeTaskDrawer();
+  void replaceWorkPlanContext({ task: null });
 }
 
 function handleUpdate(value: AnnualConferenceTaskUpdateInput) {
@@ -244,25 +288,28 @@ function handleDrawerSubmit(value: AnnualConferenceTaskUpdateInput) {
   handleUpdate(value);
 }
 
-function updateLedgerFilters(update: () => void) {
+function updateLedgerFilters(update: () => void, afterUpdate?: () => void) {
   if (
     typeof document === 'undefined'
     || typeof window === 'undefined'
     || window.matchMedia('(prefers-reduced-motion: reduce)').matches
   ) {
     update();
+    afterUpdate?.();
     return;
   }
 
   const transitionDocument = document as LedgerViewTransitionDocument;
   if (!transitionDocument.startViewTransition) {
     update();
+    afterUpdate?.();
     return;
   }
 
   activeLedgerTransition?.skipTransition?.();
   const transition = transitionDocument.startViewTransition(async () => {
     update();
+    afterUpdate?.();
     await nextTick();
   });
   activeLedgerTransition = transition;
@@ -280,7 +327,7 @@ function clearFilters() {
     statusFilter.value = 'all';
     workstreamFilter.value = 'all';
     ownerFilter.value = 'all';
-  });
+  }, () => { void replaceWorkPlanContext(); });
 }
 
 function toggleUnassignedFilter() {
@@ -292,7 +339,7 @@ function setOwnerFilter(value: string | number) {
   if (ownerFilter.value === nextOwner) return;
   updateLedgerFilters(() => {
     ownerFilter.value = nextOwner;
-  });
+  }, () => { void replaceWorkPlanContext(); });
 }
 
 function setPhaseFilter(value: string | number) {
@@ -303,21 +350,21 @@ function setPhaseFilter(value: string | number) {
     statusFilter.value = 'all';
     workstreamFilter.value = 'all';
     ownerFilter.value = 'all';
-  });
+  }, () => { void replaceWorkPlanContext(); });
 }
 
 function setStatusFilter(value: 'all' | AnnualConferenceTask['status']) {
   if (statusFilter.value === value) return;
   updateLedgerFilters(() => {
     statusFilter.value = value;
-  });
+  }, () => { void replaceWorkPlanContext(); });
 }
 
 function setWorkstreamFilter(value: 'all' | AnnualConferenceTask['workstream']) {
   if (workstreamFilter.value === value) return;
   updateLedgerFilters(() => {
     workstreamFilter.value = value;
-  });
+  }, () => { void replaceWorkPlanContext(); });
 }
 
 function handleCreate(value: AnnualConferenceTaskUpdateInput) {
@@ -692,7 +739,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
       :can-edit="canEditSelectedTask"
       :status-only="permissions?.can_update_assigned_task_status === true"
       :submitting="showCreateForm ? createMutation.isPending.value : updateMutation.isPending.value"
-      @close="closeTaskDrawer"
+      @close="closeTaskWithContext"
       @edit="selectedTask && startEditing(selectedTask.id)"
       @cancel-edit="editingTaskId = null"
       @submit="handleDrawerSubmit"
