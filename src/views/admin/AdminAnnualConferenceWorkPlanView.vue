@@ -10,7 +10,9 @@ import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_TASK_STATUSES,
   ANNUAL_CONFERENCE_WORKSTREAM_LABELS,
+  createAnnualConferenceOwnerDirectory,
   resolveAnnualConferenceOwnerFilter,
+  type AnnualConferenceOwnerIdentity,
   type AnnualConferenceTask,
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
@@ -96,18 +98,34 @@ const canEditSelectedTask = computed(() => {
     && isAnnualConferenceTaskAssignedTo(selectedTask.value, currentMemberEmail.value);
 });
 const summary = computed(() => projection.value.summary);
+const organizerMembers = computed(() => organizersQuery.data.value?.organizers ?? []);
+const ownerDirectory = computed(() => createAnnualConferenceOwnerDirectory(organizerMembers.value));
 const organizerLabels = computed<Record<string, string>>(() => Object.fromEntries(
-  (organizersQuery.data.value?.organizers ?? []).map((organizer) => [
-    organizer.email.trim().toLowerCase(),
-    organizer.display_name?.trim() || organizer.email,
-  ]),
+  [
+    ...organizerMembers.value.flatMap((organizer) => [
+      organizer.email,
+      organizer.display_name ?? '',
+      organizer.email.split('@')[0] ?? '',
+    ]),
+    ...tasks.value.map((task) => task.accountable_owner ?? ''),
+  ]
+    .filter((value) => value.trim())
+    .map((value) => [value.trim().toLowerCase(), ownerDirectory.value.resolve(value).label]),
 ));
-const owners = computed(() => projection.value.owners);
+const owners = computed(() => {
+  const identities = new Map<string, AnnualConferenceOwnerIdentity>();
+  for (const task of scopedTasks.value) {
+    if (!task.accountable_owner?.trim()) continue;
+    const identity = ownerDirectory.value.resolve(task.accountable_owner);
+    identities.set(identity.key, identity);
+  }
+  return [...identities.values()].sort((left, right) => left.label.localeCompare(right.label));
+});
 const statusCounts = computed(() => projection.value.status_counts);
 const ownerFilterOptions = computed(() => [
   { value: 'all', label: 'All owners' },
   { value: 'unassigned', label: 'Unassigned' },
-  ...owners.value.map((owner) => ({ value: owner, label: organizerDisplay(owner) })),
+  ...owners.value.map((owner) => ({ value: owner.filter_value, label: owner.label })),
 ]);
 const phaseFilterOptions = computed(() => [
   ...phases.value.map((phase) => ({ value: phase.id, label: phase.name })),
@@ -128,7 +146,9 @@ const visibleTasks = computed(() => {
     const matchesStatus = statusFilter.value === 'all' || task.status === statusFilter.value;
     const matchesWorkstream = workstreamFilter.value === 'all' || task.workstream === workstreamFilter.value;
     const matchesOwner = ownerFilter.value === 'all'
-      || (ownerFilter.value === 'unassigned' ? !task.accountable_owner : task.accountable_owner === ownerFilter.value);
+      || (ownerFilter.value === 'unassigned'
+        ? !task.accountable_owner
+        : ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value));
     return matchesStatus && matchesWorkstream && matchesOwner;
   });
 });
@@ -150,9 +170,13 @@ watch(visibleTasks, () => {
   ledgerPage.value = Math.min(ledgerPage.value, ledgerPageCount.value);
 });
 
-watch([tasks, routeOwnerFilter], () => {
+watch([tasks, routeOwnerFilter, organizerMembers], () => {
   if (routeOwnerFilterApplied.value || !routeOwnerFilter.value || tasks.value.length === 0) return;
-  const requestedOwner = resolveAnnualConferenceOwnerFilter(tasks.value, routeOwnerFilter.value);
+  const requestedOwner = resolveAnnualConferenceOwnerFilter(
+    tasks.value,
+    routeOwnerFilter.value,
+    organizerMembers.value,
+  );
   if (!requestedOwner) return;
 
   updateLedgerFilters(() => {
@@ -335,7 +359,7 @@ function currentAccraDate(): string {
 
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
-  return organizerLabels.value[value.trim().toLowerCase()] ?? value;
+  return ownerDirectory.value.resolve(value).label;
 }
 
 function statusClass(status: AnnualConferenceTask['status']): string {

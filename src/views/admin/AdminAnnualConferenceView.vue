@@ -6,6 +6,7 @@ import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   summarizeAnnualConferenceDependencies,
+  summarizeAnnualConferenceTasksByOwner,
   summarizeAnnualConferenceWorkPlan,
   type AnnualConferenceTask,
 } from '@/lib/annual-conference-work-plan';
@@ -33,64 +34,15 @@ const organizersQuery = useQuery({
   enabled: computed(() => Boolean(workPlanQuery.data.value) && !assignedAccess.value),
 });
 const taskCompletionByPerson = computed(() => {
-  const organizerByIdentity = new Map<string, { email: string; name: string }>();
-  const ambiguousIdentities = new Set<string>();
-  const normalizeIdentity = (value: string) => value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '');
-  const registerIdentity = (identity: string, organizer: { email: string; name: string }) => {
-    const key = normalizeIdentity(identity);
-    if (!key || ambiguousIdentities.has(key)) return;
-    const existing = organizerByIdentity.get(key);
-    if (existing && existing.email !== organizer.email) {
-      organizerByIdentity.delete(key);
-      ambiguousIdentities.add(key);
-      return;
-    }
-    organizerByIdentity.set(key, organizer);
-  };
-
-  for (const member of organizersQuery.data.value?.organizers ?? []) {
-    if (member.status !== 'active') continue;
-    const organizer = {
-      email: member.email.trim().toLowerCase(),
-      name: member.display_name?.trim() || member.email,
-    };
-    registerIdentity(organizer.email, organizer);
-    registerIdentity(organizer.name, organizer);
-    registerIdentity(organizer.email.split('@')[0] ?? '', organizer);
-  }
-
-  const people = new Map<string, {
-    email: string;
-    name: string;
-    filterOwner: string;
-    complete: number;
-    pending: number;
-    total: number;
-  }>();
-
-  for (const task of tasks.value) {
-    if (!task.accountable_owner) continue;
-    const rawOwner = task.accountable_owner.trim();
-    const organizer = organizerByIdentity.get(normalizeIdentity(rawOwner));
-    const email = organizer?.email ?? rawOwner.toLowerCase();
-    const existing = people.get(email) ?? {
-      email,
-      name: organizer?.name ?? rawOwner,
-      filterOwner: rawOwner,
-      complete: 0,
-      pending: 0,
-      total: 0,
-    };
-    existing.total += 1;
-    if (task.status === 'done') existing.complete += 1;
-    else existing.pending += 1;
-    people.set(email, existing);
-  }
-
-  return [...people.values()]
+  const activeMembers = (organizersQuery.data.value?.organizers ?? [])
+    .filter((member) => member.status === 'active');
+  return summarizeAnnualConferenceTasksByOwner(tasks.value, activeMembers)
+    .map((person) => ({
+      ...person,
+      email: person.key,
+      name: person.label,
+      filterOwner: person.filter_owner,
+    }))
     .filter((person) => person.pending > 0)
     .sort((a, b) => (
       b.pending - a.pending || b.total - a.total || a.name.localeCompare(b.name)

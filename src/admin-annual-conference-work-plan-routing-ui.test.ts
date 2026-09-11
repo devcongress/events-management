@@ -17,8 +17,9 @@ const workspaceSource = readFileSync(
 describe('Annual Conference assignee work-plan routing', () => {
   it('passes the selected assignee from Overview and applies it across the entire conference', () => {
     expect(overviewSource).toContain('query: { owner: person.filterOwner }');
-    expect(workPlanSource).toContain('watch([tasks, routeOwnerFilter]');
-    expect(workPlanSource).toContain('resolveAnnualConferenceOwnerFilter(tasks.value, routeOwnerFilter.value)');
+    expect(workPlanSource).toContain('watch([tasks, routeOwnerFilter, organizerMembers]');
+    expect(workPlanSource).toContain('ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value)');
+    expect(workPlanSource).toContain('organizerMembers.value,');
     expect(workPlanSource).toContain("phaseFilter.value = 'all';\n    ownerFilter.value = requestedOwner;");
   });
 

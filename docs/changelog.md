@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-11 — Canonical conference assignee identity
+
+- Resolve accountable owners through one shared directory across the Annual Conference Overview, owner filter, ledger rows, and linked work-plan routes.
+- Group organizer display names, email addresses, and unambiguous email local parts into one workload count, including tasks spread across different phases.
+- Keep unresolved or ambiguous legacy owner names visible and independently filterable instead of hiding or incorrectly merging them. No migration required.
+
 ## 2026-09-11 — Conference people cache isolation
 
 - Give Annual Conference task-member lookups a year-scoped cache key instead of sharing the People & Access directory cache.

@@ -9,9 +9,11 @@ import {
   calculateAnnualConferenceHealth,
   canCreateAnnualConferenceTask,
   canManageAnnualConferencePlanning,
+  createAnnualConferenceOwnerDirectory,
   defaultAnnualConferencePhaseScope,
   filterAnnualConferenceTasksByPhase,
   resolveAnnualConferenceOwnerFilter,
+  summarizeAnnualConferenceTasksByOwner,
   summarizeAnnualConferenceDependencies,
   summarizeAnnualConferenceWorkPlan,
   validateAnnualConferenceTaskDependencies,
@@ -92,6 +94,69 @@ describe('annual conference work plan', () => {
 
     expect(resolveAnnualConferenceOwnerFilter(ANNUAL_CONFERENCE_2026_SEED_TASKS, ' elvis ')).toBe('Elvis');
     expect(resolveAnnualConferenceOwnerFilter(ANNUAL_CONFERENCE_2026_SEED_TASKS, 'Unknown owner')).toBeNull();
+  });
+
+  it('treats an organizer display name, email, and email local part as one assignee', () => {
+    const members = [{
+      email: 'essienernest.kojoowusu@gmail.com',
+      display_name: 'GrandKojo',
+    }];
+    const tasks = ANNUAL_CONFERENCE_2026_SEED_TASKS.slice(0, 3).map((task, index) => ({
+      ...task,
+      id: `identity-task-${index + 1}`,
+      phase_id: index === 0
+        ? ANNUAL_CONFERENCE_2026_PHASES[0].id
+        : ANNUAL_CONFERENCE_2026_PHASES[1].id,
+      accountable_owner: index === 0
+        ? 'GrandKojo'
+        : index === 1
+          ? 'ESSIENErnest.KojoOwusu@gmail.com'
+          : 'External helper',
+      status: index === 1 ? 'done' as const : 'in_progress' as const,
+    }));
+    const directory = createAnnualConferenceOwnerDirectory(members);
+
+    expect(summarizeAnnualConferenceTasksByOwner(tasks, members)).toEqual([
+      {
+        key: 'member:essienernest.kojoowusu@gmail.com',
+        label: 'GrandKojo',
+        filter_owner: 'essienernest.kojoowusu@gmail.com',
+        complete: 1,
+        pending: 1,
+        total: 2,
+      },
+      {
+        key: 'legacy:external helper',
+        label: 'External helper',
+        filter_owner: 'External helper',
+        complete: 0,
+        pending: 1,
+        total: 1,
+      },
+    ]);
+    expect(resolveAnnualConferenceOwnerFilter(tasks, 'GrandKojo', members))
+      .toBe('essienernest.kojoowusu@gmail.com');
+    expect(resolveAnnualConferenceOwnerFilter(tasks, 'essienernest.kojoowusu@gmail.com', members))
+      .toBe('essienernest.kojoowusu@gmail.com');
+    expect(tasks.filter((task) => (
+      directory.matches(task.accountable_owner, 'essienernest.kojoowusu@gmail.com')
+    )).map((task) => task.id)).toEqual(['identity-task-1', 'identity-task-2']);
+    expect(resolveAnnualConferenceOwnerFilter(tasks, 'External helper', members)).toBe('External helper');
+  });
+
+  it('keeps ambiguous display names as legacy owners instead of merging people', () => {
+    const members = [
+      { email: 'alex.one@example.com', display_name: 'Alex' },
+      { email: 'alex.two@example.com', display_name: 'Alex' },
+    ];
+    const directory = createAnnualConferenceOwnerDirectory(members);
+
+    expect(directory.resolve('Alex')).toEqual({
+      key: 'legacy:alex',
+      filter_value: 'Alex',
+      label: 'Alex',
+    });
+    expect(directory.matches('Alex', 'alex.one@example.com')).toBe(false);
   });
 
   it('makes the first listed owner accountable and the rest collaborators', () => {
