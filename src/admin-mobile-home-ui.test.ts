@@ -24,12 +24,19 @@ const desktopVolunteerSource = readFileSync(
 const globalStylesSource = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 
 describe('mobile organizer entry points', () => {
-  it('turns the organizer home into two direct, thumb-sized workspace choices', () => {
+  it('turns the organizer home into permission-aware next actions', () => {
+    expect(mobileHomeSource).toContain('mobileOrganizerNextActions');
+    expect(mobileHomeSource).toContain('enabled: canSeeEvents');
+    expect(mobileHomeSource).toContain('enabled: authenticated');
+    expect(mobileHomeSource).toContain('Next actions');
+    expect(mobileHomeSource).toContain('Loading your work');
+    expect(mobileHomeSource).toContain('Some actions could not load');
+    expect(mobileHomeSource).toContain('You are clear for now');
+    expect(mobileHomeSource).toContain("section: 'tasks'");
+    expect(mobileHomeSource).toContain("phase: 'all'");
+    expect(mobileHomeSource).toContain('task: action.target.taskId');
     expect(mobileHomeSource).toContain(':to="ORGANIZER_PHONE_EVENTS_ROUTE_PATH"');
     expect(mobileHomeSource).toContain(':to="mobileAnnualConferencePath()"');
-    expect(mobileHomeSource).toContain('Guest lists, check-in, proposals');
-    expect(mobileHomeSource).toContain('Open conference');
-    expect(mobileHomeSource).toContain('min-height: 13.5rem');
     expect(mobileHomeSource).toContain('@media (prefers-reduced-motion: reduce)');
   });
 

@@ -11,6 +11,7 @@ import {
   organizerConferenceContextQuery,
   organizerMobileConferenceSection,
   organizerMobileEventSection,
+  organizerPostAuthLanding,
   organizerPhoneCheckInPath,
   organizerPhoneEventBlastsPath,
   organizerPhoneEventPath,
@@ -36,6 +37,31 @@ describe('organizer viewport policy', () => {
     expect(organizerViewportRedirect({
       authenticated: true, isAdminRoute: true, isPhone: true, routeName: 'admin-talks',
     })).toEqual({ path: ORGANIZER_PHONE_ROUTE_PATH, replace: true });
+  });
+
+  it('lands phone organizers on Home after broad conference login redirects', () => {
+    expect(organizerPostAuthLanding(
+      '/organizer-console/annual-conference/2026',
+      'organizer',
+      true,
+    )).toBe(ORGANIZER_PHONE_ROUTE_PATH);
+    expect(organizerPostAuthLanding(
+      '/organizer-console/mobile/annual-conference/2026?section=overview',
+      'owner',
+      true,
+    )).toBe(ORGANIZER_PHONE_ROUTE_PATH);
+  });
+
+  it('preserves intentional post-login destinations and volunteer routing', () => {
+    const taskTarget = '/organizer-console/mobile/annual-conference/2026?section=tasks&task=task-1';
+    const eventTarget = '/organizer-console/mobile/events/event-1/check-in';
+
+    expect(organizerPostAuthLanding(taskTarget, 'organizer', true)).toBe(taskTarget);
+    expect(organizerPostAuthLanding(eventTarget, 'owner', true)).toBe(eventTarget);
+    expect(organizerPostAuthLanding('/organizer-console/annual-conference/2026', 'owner', false))
+      .toBe('/organizer-console/annual-conference/2026');
+    expect(organizerPostAuthLanding(eventTarget, 'volunteer', true))
+      .toBe('/organizer-console/annual-conference/2026');
   });
 
   it('keeps phone-safe organizer displays and auth routes available', () => {

@@ -6,7 +6,6 @@ import {
   adminPath,
   safeInternalAppPath,
 } from '@/src/admin-routes';
-import { annualConferencePath } from '@/src/annual-conference';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 import {
@@ -14,6 +13,7 @@ import {
   type AdminAuthFailureReason,
 } from '@/src/lib/admin-auth-flow';
 import { queryClient } from '@/src/lib/query';
+import { matchesOrganizerPhoneViewport, organizerPostAuthLanding } from '@/src/organizer-viewport';
 import AdminLoginView from './AdminLoginView.vue';
 
 const route = useRoute();
@@ -92,7 +92,11 @@ onMounted(async () => {
         return;
       }
 
-      await router.replace(session.user?.role === 'volunteer' ? annualConferencePath() : redirectTo.value);
+      await router.replace(organizerPostAuthLanding(
+        redirectTo.value,
+        session.user?.role,
+        matchesOrganizerPhoneViewport(),
+      ));
       window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
 
       return;
@@ -109,7 +113,11 @@ onMounted(async () => {
     const session = await fetchAdminSession();
 
     if (session.authenticated) {
-      await router.replace(session.user?.role === 'volunteer' ? annualConferencePath() : redirectTo.value);
+      await router.replace(organizerPostAuthLanding(
+        redirectTo.value,
+        session.user?.role,
+        matchesOrganizerPhoneViewport(),
+      ));
 
       return;
     }

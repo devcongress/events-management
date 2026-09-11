@@ -9,6 +9,7 @@ import {
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 import { queryClient } from '@/src/lib/query';
+import { matchesOrganizerPhoneViewport, organizerPostAuthLanding } from '@/src/organizer-viewport';
 import {
   adminAuthFailureCopy,
   parseAdminAuthFailureReason,
@@ -228,7 +229,11 @@ onMounted(async () => {
 
     authConfigured.value = session.auth_configured;
     if (session.authenticated) {
-      await router.replace(redirectTo.value);
+      await router.replace(organizerPostAuthLanding(
+        redirectTo.value,
+        session.user?.role,
+        matchesOrganizerPhoneViewport(),
+      ));
     } else if (!session.auth_configured) {
       internalError.value = 'Google organizer sign-in is not configured in this environment.';
     }
