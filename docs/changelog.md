@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-11 — Conference people cache isolation
+
+- Give Annual Conference task-member lookups a year-scoped cache key instead of sharing the People & Access directory cache.
+- Preserve the complete membership directory when organizers move between Conference Work Plan and People & Access, regardless of navigation order.
+- Add regression coverage for both loading orders and for separate conference editions. No migration required.
+
 ## 2026-09-11 — Assignee-linked work-plan scope
 
 - Make assignee cards on the Annual Conference Overview resolve owners against the complete work plan, then open the ledger at **Entire conference** filtered to that person.
