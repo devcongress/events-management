@@ -7,6 +7,7 @@ import { notify } from '@/src/lib/notify';
 const props = defineProps<{ value: string; label: string; email?: boolean; profileHref?: string }>();
 const state = ref<'idle' | 'copying' | 'copied'>('idle');
 let timer: ReturnType<typeof setTimeout> | undefined;
+
 onBeforeUnmount(() => clearTimeout(timer));
 async function copy() {
   state.value = 'copying';

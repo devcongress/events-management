@@ -98,6 +98,7 @@ function publishedTalksFor(eventId: string): PublicArchiveTalk[] {
 
 function tagsFor(eventId: string): string[] {
   const counts = new Map<string, number>();
+
   for (const talk of publishedTalksFor(eventId)) {
     if (talk.topic) {
       counts.set(talk.topic, (counts.get(talk.topic) ?? 0) + 1);
@@ -120,6 +121,7 @@ function talksPreviewFor(eventId: string): PublicArchiveTalk[] {
 
 function eventDateParts(value: string) {
   const date = new Date(value);
+
   return {
     month: date.toLocaleDateString('en-US', { month: 'short' }),
     day: date.getDate(),
@@ -136,6 +138,7 @@ function clearFilters() {
 watch(years, (availableYears) => {
   if (availableYears.length === 0) {
     selectedYear.value = null;
+
     return;
   }
 

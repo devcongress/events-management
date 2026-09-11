@@ -36,8 +36,10 @@ describe('event registration confirmation email', () => {
     const googleLine = content.text
       .split('\n')
       .find((line) => line.startsWith('Add to Google Calendar: '));
+
     expect(googleLine).toBeDefined();
     const googleUrl = new URL(googleLine!.replace('Add to Google Calendar: ', ''));
+
     expect(googleUrl.origin).toBe('https://calendar.google.com');
     expect(googleUrl.searchParams.get('action')).toBe('TEMPLATE');
     expect(googleUrl.searchParams.get('text')).toBe('DevCongress May Meetup');

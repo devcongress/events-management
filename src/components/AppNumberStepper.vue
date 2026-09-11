@@ -23,6 +23,7 @@ const canIncrease = computed(() => props.max === undefined || props.modelValue <
 function clamp(value: number) {
   if (props.min !== undefined && value < props.min) return props.min;
   if (props.max !== undefined && value > props.max) return props.max;
+
   return value;
 }
 

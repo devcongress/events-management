@@ -58,6 +58,7 @@ const sessionQuery = useQuery({
 const isVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
 const canManageEditions = computed(() => {
   const role = sessionQuery.data.value?.user?.role;
+
   return role === 'owner' || role === 'organizer';
 });
 const editionsQuery = useQuery({
@@ -143,6 +144,7 @@ const createEditionMutation = useMutation({
 
 function openEditionForm() {
   const latestYear = Math.max(Number(year.value), ...editions.value.map((edition) => edition.year));
+
   editionForm.year = latestYear + 1;
   editionForm.label = `December ${editionForm.year}`;
   editionForm.provisional_date = `${editionForm.year}-12-19`;
@@ -152,6 +154,7 @@ function openEditionForm() {
 
 function changeEdition(value: string | number) {
   const nextYear = String(value);
+
   if (nextYear !== year.value) void router.push(annualConferencePath('', nextYear));
 }
 

@@ -18,9 +18,11 @@ export function now(): string {
 export function generateJoinCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed similar looking chars
   let code = '';
+
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+
   return code;
 }
 
@@ -49,6 +51,7 @@ export function getSlidesViewUrl(talk: Talk): string | null {
   if (talk.slides_type === 'url' && talk.slides_url) {
     return talk.slides_url;
   }
+
   return null;
 }
 
@@ -61,6 +64,7 @@ export function getEventTags(talks: Talk[], min: number = 2, max: number = 4): s
 
   // Count frequency of each topic
   const topicCounts = new Map<string, number>();
+
   talks.forEach(talk => {
     if (talk.topic) {
       topicCounts.set(talk.topic, (topicCounts.get(talk.topic) || 0) + 1);
@@ -71,11 +75,13 @@ export function getEventTags(talks: Talk[], min: number = 2, max: number = 4): s
   const sortedTopics = Array.from(topicCounts.entries())
     .sort((a, b) => {
       if (b[1] !== a[1]) return b[1] - a[1]; // frequency desc
+
       return a[0].localeCompare(b[0]); // alphabetical
     })
     .map(([topic]) => topic);
 
   // Return 2-4 tags
   const tagCount = Math.max(min, Math.min(max, sortedTopics.length));
+
   return sortedTopics.slice(0, tagCount);
 }

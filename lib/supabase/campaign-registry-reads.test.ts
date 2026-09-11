@@ -21,8 +21,10 @@ function bulkQuery(rows: unknown[]) {
     select: vi.fn(),
     in: vi.fn(),
   };
+
   query.select.mockReturnValue(query);
   query.in.mockResolvedValue({ data: rows, error: null });
+
   return query;
 }
 
@@ -36,6 +38,7 @@ describe('short-link registry campaign reads', () => {
     const eventIds = ['event-1', 'event-2'];
     const rows = [{ id: 'registration-1', event_id: 'event-1', status: 'open' }];
     const query = bulkQuery(rows);
+
     mocks.from.mockReturnValue(query);
 
     await expect(getSupabaseRegistrationCampaigns(eventIds)).resolves.toEqual(rows);
@@ -61,6 +64,7 @@ describe('short-link registry campaign reads', () => {
       updated_at: '2026-09-01T00:00:00.000Z',
     }];
     const query = bulkQuery(rows);
+
     mocks.from.mockReturnValue(query);
 
     await expect(getSupabaseFeedbackCampaignsByEventIds(eventIds)).resolves.toEqual([
@@ -89,6 +93,7 @@ describe('short-link registry campaign reads', () => {
       in: vi.fn(),
       order: vi.fn(),
     };
+
     registrationQuery.select.mockReturnValue(registrationQuery);
     registrationQuery.in.mockReturnValue(registrationQuery);
     registrationQuery.order.mockResolvedValue({
@@ -109,10 +114,12 @@ describe('short-link registry campaign reads', () => {
     const checkinQuery = bulkQuery([
       { registration_id: 'registration-1', checked_in_at: '2026-08-29T10:05:00.000Z' },
     ]);
+
     mocks.from.mockImplementation((table: string) => {
       if (table === 'event_registration_campaigns') return campaignQuery;
       if (table === 'event_registrations') return registrationQuery;
       if (table === 'event_registration_checkins') return checkinQuery;
+
       throw new Error(`Unexpected table: ${table}`);
     });
 

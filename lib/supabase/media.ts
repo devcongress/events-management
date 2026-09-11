@@ -27,6 +27,7 @@ export function meetupMediaPath(
   fileId: string,
 ): string {
   const safeSlug = slugify(eventSlug) || 'event';
+
   return purpose === 'cover'
     ? `events/${safeSlug}/covers/${fileId}.${extension}`
     : `events/${safeSlug}/photos/${fileId}.${extension}`;
@@ -43,6 +44,7 @@ export function validateMeetupMediaFile(file: File): string | null {
 
   const extension = file.name.toLowerCase().match(/\.[a-z0-9]+$/)?.[0] ?? '';
   const allowedExtensions = new Set(['.avif', '.jpeg', '.jpg', '.png', '.webp']);
+
   if (!allowedExtensions.has(extension)) {
     return 'Image file extension must be .avif, .jpg, .jpeg, .png, or .webp';
   }
@@ -79,6 +81,7 @@ export async function validateMeetupMediaContent(file: File): Promise<string | n
   }
 
   const dimensions = imageDimensions(bytes, file.type);
+
   if (!dimensions) return 'Image dimensions could not be verified';
   if (
     dimensions.width > MEETUP_MEDIA_MAX_EDGE_PIXELS
@@ -106,6 +109,7 @@ export async function uploadMeetupMedia(
   }
 
   const extension = MEETUP_MEDIA_TYPES.get(file.type);
+
   if (!extension) {
     throw new Error('Unsupported image type');
   }
@@ -147,6 +151,7 @@ export async function uploadEventSubmissionCover(
   }
 
   const extension = MEETUP_MEDIA_TYPES.get(file.type);
+
   if (!extension) throw new Error('Unsupported image type');
 
   const path = `event-submissions/covers/${crypto.randomUUID()}.${extension}`;
@@ -156,6 +161,7 @@ export async function uploadEventSubmissionCover(
     contentType: file.type,
     upsert: false,
   });
+
   if (error) throw new Error(error.message);
 
   return {
@@ -206,6 +212,7 @@ function validDimensions(value: ImageDimensions): boolean {
 
 function pngDimensions(bytes: Uint8Array): ImageDimensions | null {
   if (bytes.length < 24 || ascii(bytes, 12, 16) !== 'IHDR') return null;
+
   return {
     width: readUint32BigEndian(bytes, 16),
     height: readUint32BigEndian(bytes, 20),
@@ -223,6 +230,7 @@ function jpegDimensions(bytes: Uint8Array): ImageDimensions | null {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
 
   let offset = 2;
+
   while (offset + 3 < bytes.length) {
     if (bytes[offset] !== 0xff) {
       offset += 1;
@@ -230,12 +238,14 @@ function jpegDimensions(bytes: Uint8Array): ImageDimensions | null {
     }
     while (bytes[offset] === 0xff) offset += 1;
     const marker = bytes[offset];
+
     offset += 1;
     if (marker === undefined || marker === 0xd9 || marker === 0xda) return null;
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
     if (offset + 1 >= bytes.length) return null;
 
     const segmentLength = readUint16BigEndian(bytes, offset);
+
     if (segmentLength < 2 || offset + segmentLength > bytes.length) return null;
     if (JPEG_START_OF_FRAME_MARKERS.has(marker) && segmentLength >= 7) {
       return {
@@ -253,10 +263,12 @@ function webpDimensions(bytes: Uint8Array): ImageDimensions | null {
   if (bytes.length < 30 || ascii(bytes, 0, 4) !== 'RIFF' || ascii(bytes, 8, 12) !== 'WEBP') return null;
 
   let offset = 12;
+
   while (offset + 8 <= bytes.length) {
     const chunkType = ascii(bytes, offset, offset + 4);
     const chunkSize = readUint32LittleEndian(bytes, offset + 4);
     const payloadOffset = offset + 8;
+
     if (payloadOffset + chunkSize > bytes.length) return null;
 
     if (chunkType === 'VP8X' && chunkSize >= 10) {
@@ -282,6 +294,7 @@ function webpDimensions(bytes: Uint8Array): ImageDimensions | null {
       const b2 = bytes[payloadOffset + 2] ?? 0;
       const b3 = bytes[payloadOffset + 3] ?? 0;
       const b4 = bytes[payloadOffset + 4] ?? 0;
+
       return {
         width: 1 + (((b2 & 0x3f) << 8) | b1),
         height: 1 + (((b4 & 0x0f) << 10) | (b3 << 2) | ((b2 & 0xc0) >> 6)),
@@ -300,12 +313,15 @@ function avifDimensions(bytes: Uint8Array): ImageDimensions | null {
 
 function avifFtypHasSupportedBrand(bytes: Uint8Array): boolean {
   const ftypSize = readUint32BigEndian(bytes, 0);
+
   if (ftypSize < 16 || ftypSize > bytes.length || ascii(bytes, 4, 8) !== 'ftyp') return false;
 
   for (let offset = 8; offset + 4 <= ftypSize; offset += 4) {
     const brand = ascii(bytes, offset, offset + 4);
+
     if (brand === 'avif' || brand === 'avis') return true;
   }
+
   return false;
 }
 
@@ -318,14 +334,17 @@ function findAvifDimensions(
   if (depth > 6) return null;
 
   let offset = start;
+
   while (offset + 8 <= end) {
     let boxSize = readUint32BigEndian(bytes, offset);
     const boxType = ascii(bytes, offset + 4, offset + 8);
     let headerSize = 8;
+
     if (boxSize === 1) {
       if (offset + 16 > end) return null;
       const high = readUint32BigEndian(bytes, offset + 8);
       const low = readUint32BigEndian(bytes, offset + 12);
+
       if (high !== 0) return null;
       boxSize = low;
       headerSize = 16;
@@ -336,6 +355,7 @@ function findAvifDimensions(
 
     const payloadStart = offset + headerSize;
     const boxEnd = offset + boxSize;
+
     if (boxType === 'ispe' && boxEnd - payloadStart >= 12) {
       return {
         width: readUint32BigEndian(bytes, payloadStart + 4),
@@ -346,6 +366,7 @@ function findAvifDimensions(
     if (boxType === 'meta' || boxType === 'iprp' || boxType === 'ipco') {
       const childStart = boxType === 'meta' ? payloadStart + 4 : payloadStart;
       const nested = findAvifDimensions(bytes, childStart, boxEnd, depth + 1);
+
       if (nested) return nested;
     }
 

@@ -32,6 +32,7 @@ const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
 });
+
 type TalkSection = 'cfp' | 'proposals' | 'program' | 'backfill';
 type AdminSpeakerIntakeLink = {
   id: string;
@@ -119,6 +120,7 @@ const speakerLinkExpiresInDays = ref(7);
 const backfillProgramItemValues = ref<string[]>([]);
 const backfillProgramItemEmails = ref<Record<string, string>>({});
 const error = ref<string | null>(null);
+
 type ProposalStatusFilter = 'all' | 'submitted' | 'selected' | 'not_selected';
 const proposalStatusFilter = ref<ProposalStatusFilter>('all');
 const proposalStatusOptions: Array<{ value: ProposalStatusFilter; label: string }> = [
@@ -176,6 +178,7 @@ const selectedSpeakerLinkBySubmissionId = computed(() => {
   for (const link of byRecency) {
     if (!link.speaker_submission_id) continue;
     const existing = map.get(link.speaker_submission_id);
+
     if (!existing || (existing.status !== 'active' && link.status === 'active')) {
       map.set(link.speaker_submission_id, link);
     }
@@ -200,6 +203,7 @@ const talkSections: { id: TalkSection; label: string }[] = [
 ];
 const activeTalkSection = computed<TalkSection>(() => {
   const raw = Array.isArray(route.params.talksSection) ? route.params.talksSection[0] : route.params.talksSection;
+
   return raw === 'proposals' || raw === 'program' || raw === 'backfill' ? raw : 'cfp';
 });
 const activeTalkSectionIndex = computed(() => Math.max(
@@ -214,14 +218,17 @@ const previewProposal = computed<SpeakerSubmission | null>(() => (
 ));
 const proposalDecisionTitle = computed(() => {
   if (!pendingProposalDecision.value) return '';
+
   return pendingProposalDecision.value.status === 'selected'
     ? 'Approve this proposal?'
     : 'Reject this proposal?';
 });
 const proposalDecisionMessage = computed(() => {
   const decision = pendingProposalDecision.value;
+
   if (!decision) return '';
   const proposal = `“${decision.submission.title}” by ${decision.submission.speaker_name}`;
+
   return decision.status === 'selected'
     ? `${proposal} will be approved and a private speaker form link will be prepared. No email is sent yet. This decision cannot be undone.`
     : `${proposal} will be rejected and removed from the pending review queue. Confirming will automatically send the speaker a rejection email. This decision and email cannot be undone.`;
@@ -238,6 +245,7 @@ const publicArchivePath = computed(() => (
 const cfpFormPath = computed(() => `/cfp/${route.params.eventId}`);
 const cfpFormUrl = computed(() => {
   if (typeof window === 'undefined') return cfpFormPath.value;
+
   return new URL(cfpFormPath.value, window.location.origin).toString();
 });
 const cfpShareUrl = computed(() => cfpShortLinkUrl.value ?? cfpFormUrl.value);
@@ -250,6 +258,7 @@ const eventIsMonthly = computed(() => (
 const eventIsUpcoming = computed(() => {
   if (!event.value?.event_date) return false;
   const eventDateMs = new Date(event.value.event_date).getTime();
+
   return Number.isFinite(eventDateMs) && eventDateMs > Date.now();
 });
 const canOpenCfp = computed(() => eventIsMonthly.value && eventIsUpcoming.value);
@@ -262,8 +271,10 @@ const cfpStatusHelp = computed(() => {
   if (!eventIsUpcoming.value) return 'CFP can only be opened before the monthly meetup date.';
   if (cfpIsOpen.value) return 'Share the public link. New proposals will land in the inbox below.';
   if (cfpIsClosed.value) return 'Submission is paused. Reopen only if organizers are still accepting proposals.';
+
   return 'Open CFP when this event is ready to receive presentation proposals.';
 });
+
 watch(proposalStatusFilter, () => { proposalPage.value = 1; });
 watch(proposalPageCount, () => { proposalPage.value = Math.min(proposalPage.value, proposalPageCount.value); });
 const speakerLinkExpiryDurations = [3, 7, 14, 31];
@@ -304,6 +315,7 @@ const canSendBackfillEmails = computed(() => (
 const sendBackfillButtonLabel = computed(() => {
   if (creatingSpeakerLink.value) return 'Sending...';
   const count = selectedBackfillProgramItems.value.length;
+
   return count > 0 ? `Send ${count} ${count === 1 ? 'email' : 'emails'}` : 'Send email';
 });
 
@@ -313,6 +325,7 @@ function backfillProgramItemIsSelected(value: string): boolean {
 
 function backfillProgramItemEmailIsInvalid(value: string): boolean {
   const email = backfillProgramItemEmails.value[value]?.trim() ?? '';
+
   return email.length > 0 && !validSpeakerEmailPattern.test(email);
 }
 
@@ -331,6 +344,7 @@ function speakerEmailPlaceholder(speakerName: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '.')
     .replace(/^\.|\.$/g, '');
+
   return `${localPart || 'speaker'}@example.com`;
 }
 
@@ -342,16 +356,19 @@ function talkSectionCount(section: TalkSection): number | null {
   if (section === 'proposals') return pendingSubmissionCount.value;
   if (section === 'program') return confirmedTalkCount.value;
   if (section === 'backfill') return activeArchiveBackfillLinkCount.value;
+
   return null;
 }
 
 async function fetchTalks() {
   const response = await fetch(`/api/events/${route.params.eventId}/talks`);
+
   if (response.ok) talks.value = await response.json();
 }
 
 async function fetchEvent() {
   const result = await workspace.eventQuery.refetch();
+
   event.value = result.data ?? null;
 }
 
@@ -359,14 +376,18 @@ async function prepareCfpShareLink() {
   cfpShortLinkUrl.value = null;
   if (!cfpCanReceiveSubmissions.value) return;
   const shortLink = await ensureAdminShortLink({ destination: 'monthly_cfp', event_id: String(route.params.eventId) });
+
   cfpShortLinkUrl.value = shortLink.url;
 }
 
 async function fetchSpeakerSubmissions() {
   const response = await fetch(`/api/events/${route.params.eventId}/speaker-submissions`, { cache: 'no-store' });
+
   if (response.ok) {
     const data = await response.json();
+
     speakerSubmissions.value = data.submissions ?? [];
+
     return true;
   }
 
@@ -375,14 +396,17 @@ async function fetchSpeakerSubmissions() {
 
 async function fetchSpeakerIntakeLinks() {
   const response = await fetch(`/api/events/${route.params.eventId}/speaker-intake-links`, { cache: 'no-store' });
+
   if (response.ok) {
     const data = await response.json();
+
     speakerIntakeLinks.value = data.links ?? [];
   }
 }
 
 async function fetchArchiveRequestAvailability() {
   const result = await workspace.checklistQuery.refetch();
+
   checklistItems.value = result.data?.items ?? [];
 }
 
@@ -394,12 +418,15 @@ function rememberIssuedSpeakerLink(payload: { link?: AdminSpeakerIntakeLink | nu
     token: payload.token ?? payload.link.token ?? null,
   };
   const index = speakerIntakeLinks.value.findIndex((link) => link.id === issuedLink.id);
+
   if (index === -1) {
     speakerIntakeLinks.value = [issuedLink, ...speakerIntakeLinks.value];
+
     return;
   }
 
   const next = [...speakerIntakeLinks.value];
+
   next[index] = issuedLink;
   speakerIntakeLinks.value = next;
 }
@@ -436,9 +463,11 @@ function formatProposalSubmittedDate(value: string): string {
 function linkDurationDays(link: Pick<AdminSpeakerIntakeLink, 'created_at' | 'expires_at'>): number | null {
   const createdAt = new Date(link.created_at).getTime();
   const expiresAt = new Date(link.expires_at).getTime();
+
   if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) return null;
 
   const durationDays = Math.round((expiresAt - createdAt) / (24 * 60 * 60 * 1000));
+
   return durationDays > 0 ? durationDays : null;
 }
 
@@ -451,6 +480,7 @@ function linkShelfStatusLabel(link: AdminSpeakerIntakeLink): string {
   if (link.status === 'expired') return 'Expired';
 
   const durationDays = linkDurationDays(link);
+
   return durationDays ? `Expires in ${durationDays} days` : 'Active';
 }
 
@@ -460,15 +490,18 @@ function linkNeedsReissue(link: AdminSpeakerIntakeLink): boolean {
 
 function missingArchiveMaterialFields(talk: Talk): ArchiveMaterialField[] {
   const missing: ArchiveMaterialField[] = [];
+
   if (!talk.abstract?.trim()) missing.push('abstract');
   if (!talk.bio?.trim()) missing.push('bio');
   if (!slidesLink(talk)) missing.push('slides_url');
+
   return missing;
 }
 
 function archiveMaterialFieldLabel(field: ArchiveMaterialField, talk: Talk): string {
   if (field === 'abstract') return archiveKindFor(talk) === 'product_demo' ? 'Demo summary' : 'Abstract';
   if (field === 'bio') return 'Presenter bio';
+
   return archiveResourceLabel(talk);
 }
 
@@ -480,16 +513,19 @@ function latestMaterialsFollowUpLink(talkId: string): AdminSpeakerIntakeLink | n
 
 function materialsFollowUpStatus(talkId: string): string | null {
   const link = latestMaterialsFollowUpLink(talkId);
+
   if (!link) return null;
   if (link.status === 'used') return `Follow-up completed ${formatDateTime(link.used_at!)}`;
   if (link.email_status === 'failed') return 'Last follow-up email failed. You can retry.';
   if (link.status === 'expired') return 'Last follow-up link expired. You can send a new one.';
   if (link.email_status === 'accepted' && link.email_sent_at) return `Follow-up emailed ${formatDateTime(link.email_sent_at)}`;
+
   return 'Follow-up email is being prepared.';
 }
 
 function hasActiveMaterialsFollowUp(talkId: string): boolean {
   const link = latestMaterialsFollowUpLink(talkId);
+
   return Boolean(link && link.status === 'active' && link.email_status !== 'failed');
 }
 
@@ -505,12 +541,14 @@ async function sendMaterialsFollowUp(talk: Talk) {
       body: JSON.stringify({ requested_fields: materialsFollowUpFields.value }),
     });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) throw new Error(data.error || 'Unable to send the materials follow-up.');
 
     await fetchSpeakerIntakeLinks();
     notify.success('Materials follow-up sent to the presenter.');
   } catch (requestError) {
     const message = requestError instanceof Error ? requestError.message : 'Unable to send the materials follow-up.';
+
     error.value = message;
     notify.error(message);
   } finally {
@@ -529,6 +567,7 @@ function closeTalkPreview() {
   if (!talkPreview.value) return;
   talkPreview.value = null;
   const trigger = talkPreviewTrigger;
+
   talkPreviewTrigger = null;
   void nextTick(() => trigger?.focus());
 }
@@ -536,6 +575,7 @@ function closeTalkPreview() {
 function handleTalkPreviewKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && talkPreview.value) {
     closeTalkPreview();
+
     return;
   }
 
@@ -545,6 +585,7 @@ function handleTalkPreviewKeydown(event: KeyboardEvent) {
   ));
   const first = focusable[0];
   const last = focusable.at(-1);
+
   if (!first || !last) return;
 
   if (event.shiftKey && document.activeElement === first) {
@@ -562,6 +603,7 @@ async function refreshSpeakerSubmissions() {
 
   try {
     const refreshed = await fetchSpeakerSubmissions();
+
     if (!refreshed) error.value = 'Could not refresh presentation proposals.';
   } catch {
     error.value = 'Could not refresh presentation proposals.';
@@ -615,6 +657,7 @@ async function sendSpeakerIntakeEmails() {
 
 async function enableArchiveRequests() {
   const item = archiveRequestsChecklistItem.value;
+
   if (!item || !archiveRequestsDisabled.value || enablingArchiveRequests.value) return;
 
   enablingArchiveRequests.value = true;
@@ -625,6 +668,7 @@ async function enableArchiveRequests() {
       body: JSON.stringify({ disabled: false }),
     });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
       throw new Error(data.error ?? 'Could not enable archive requests.');
     }
@@ -663,14 +707,17 @@ async function decideSpeakerSubmission(submissionId: string, status: 'selected' 
       } else {
         notify.success('Proposal rejected. The speaker rejection email is being sent automatically.');
       }
+
       return true;
     } else {
       const message = data.error || 'Failed to update presentation proposal';
+
       error.value = message;
       notify.error(message);
     }
   } catch {
     const message = 'Failed to update presentation proposal';
+
     error.value = message;
     notify.error(message);
   } finally {
@@ -692,6 +739,7 @@ async function createOwnerTestSpeakerSubmission() {
       body: JSON.stringify({ request_id: ownerTestSpeakerRequestId.value }),
     });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) throw new Error(data.error || 'Could not create the test proposal.');
     ownerTestSpeakerRequestId.value = null;
     proposalStatusFilter.value = 'submitted';
@@ -709,6 +757,7 @@ async function createOwnerTestSpeakerSubmission() {
 async function loadSpeakerRejectionEmailPreview(submissionId: string) {
   speakerRejectionEmailPreviewController?.abort();
   const controller = new AbortController();
+
   speakerRejectionEmailPreviewController = controller;
   speakerRejectionEmailPreview.value = null;
   speakerRejectionEmailPreviewError.value = null;
@@ -719,6 +768,7 @@ async function loadSpeakerRejectionEmailPreview(submissionId: string) {
       signal: controller.signal,
     });
     const data = await response.json().catch(() => ({}));
+
     if (controller.signal.aborted || speakerRejectionEmailPreviewController !== controller) return;
     if (!response.ok) throw new Error(data.error || 'Could not preview the rejection email.');
     speakerRejectionEmailPreview.value = data as SpeakerRejectionEmailPreview;
@@ -754,9 +804,11 @@ function requestProposalDecision(submission: SpeakerSubmission, status: 'selecte
 
 async function confirmProposalDecision() {
   const decision = pendingProposalDecision.value;
+
   if (!decision || decidingSubmissionId.value) return;
   if (decision.status === 'not_selected' && !speakerRejectionEmailPreview.value) return;
   const decided = await decideSpeakerSubmission(decision.submission.id, decision.status);
+
   if (decided) cancelProposalDecision();
 }
 
@@ -778,6 +830,7 @@ async function previewSelectedSpeakerEmails(submissionId?: string) {
   selectedSpeakerEmailPreviewController?.abort();
   speakerRejectionEmailPreviewController?.abort();
   const controller = new AbortController();
+
   selectedSpeakerEmailPreviewController = controller;
   preparingSelectedSpeakerEmailTarget.value = submissionId ?? 'all';
   error.value = null;
@@ -789,6 +842,7 @@ async function previewSelectedSpeakerEmails(submissionId?: string) {
       signal: controller.signal,
     });
     const data = await response.json().catch(() => ({}));
+
     if (controller.signal.aborted || selectedSpeakerEmailPreviewController !== controller) return;
     if (!response.ok) throw new Error(data.error || 'Could not prepare selected-speaker emails.');
     await Promise.all([fetchSpeakerSubmissions(), fetchSpeakerIntakeLinks()]);
@@ -796,6 +850,7 @@ async function previewSelectedSpeakerEmails(submissionId?: string) {
     selectedSpeakerEmailPreviews.value = data.previews ?? [];
     if (selectedSpeakerEmailPreviews.value.length === 0) {
       notify.info(data.already_sent_count > 0 ? 'All selected-speaker emails have already been sent.' : 'No selected speakers are waiting for an email.');
+
       return;
     }
     selectedSpeakerEmailPreviewOpen.value = true;
@@ -824,6 +879,7 @@ async function sendSelectedSpeakerEmails() {
       }),
     });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) throw new Error(data.error || 'Could not send selected-speaker emails.');
     selectedSpeakerEmailPreviewOpen.value = false;
     selectedSpeakerEmailPreviews.value = [];
@@ -849,6 +905,7 @@ async function sendSelectedSpeakerTestEmail() {
       body: JSON.stringify({ request_id: selectedSpeakerTestRequestId.value }),
     });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) throw new Error(data.error || 'Could not send the test speaker email.');
     selectedSpeakerTestRequestId.value = null;
     notify.success(`Test speaker email accepted for ${data.recipient}.`);
@@ -870,6 +927,7 @@ async function copyCfpFormLink() {
     const shortLink = cfpShortLinkUrl.value
       ? { url: cfpShortLinkUrl.value }
       : await ensureAdminShortLink({ destination: 'monthly_cfp', event_id: String(route.params.eventId) });
+
     await copyTextToClipboard(shortLink.url);
 
     cfpLinkCopyState.value = 'copied';
@@ -932,8 +990,10 @@ function speakerIntakePathForToken(token: string | null): string {
 
 function speakerIntakeUrlForToken(token: string | null): string {
   const path = speakerIntakePathForToken(token);
+
   if (!path) return '';
   if (typeof window === 'undefined') return path;
+
   return new URL(path, window.location.origin).toString();
 }
 
@@ -1023,6 +1083,7 @@ function primaryTalkAction(talk: Talk): { label: string; status: TalkStatus } | 
 
 function talkStatusMessage(talk: Talk | undefined, status: TalkStatus): string {
   const itemLabel = talk ? archiveKindLabel(talk) : 'Archive item';
+
   if (status === 'published') return `${itemLabel} published to the public archive.`;
   if (talk?.status === 'published' && (status === 'accepted' || status === 'slides_received')) {
     return `${itemLabel} removed from the public archive.`;
@@ -1030,6 +1091,7 @@ function talkStatusMessage(talk: Talk | undefined, status: TalkStatus): string {
   if (status === 'accepted') return `${itemLabel} is ready for archive review.`;
   if (status === 'rejected') return `${itemLabel} excluded from the archive.`;
   if (status === 'slides_received') return `${archiveResourceLabel(talk ?? { kind: 'talk' })} marked as received.`;
+
   return `${itemLabel} updated.`;
 }
 
@@ -1054,11 +1116,13 @@ async function setStatus(talkId: string, status: TalkStatus) {
       notify.success(talkStatusMessage(talk, status));
     } else {
       const message = data.error || `Failed to update ${talk ? archiveKindLabel(talk).toLowerCase() : 'archive item'}`;
+
       error.value = message;
       notify.error(message);
     }
   } catch {
     const message = `Failed to update ${talk ? archiveKindLabel(talk).toLowerCase() : 'archive item'}`;
+
     error.value = message;
     notify.error(message);
   } finally {
@@ -1070,11 +1134,13 @@ async function sendReminder(talkId: string) {
   error.value = null;
 
   const response = await fetch(`/api/talks/${talkId}/reminder`, { method: 'POST' });
+
   if (response.ok) {
     notify.success('Reminder logged for presenter follow-up.');
     await fetchTalks();
   } else {
     const data = await response.json();
+
     error.value = data.error || 'Failed to send reminder';
   }
 }
@@ -1106,11 +1172,13 @@ function slidesLink(talk: Talk): string | null {
   if (talk.slides_url) {
     try {
       const url = new URL(talk.slides_url);
+
       if (url.protocol === 'http:' || url.protocol === 'https:') return talk.slides_url;
     } catch {
       return null;
     }
   }
+
   return null;
 }
 
@@ -1131,6 +1199,7 @@ function archiveStatusLabel(talk: Talk): string {
   if (talk.status === 'accepted') return 'Ready to publish';
   if (talk.status === 'slides_received') return `${archiveResourceLabel(talk)} received`;
   if (talk.status === 'published') return 'Published';
+
   return 'Excluded';
 }
 
@@ -1145,12 +1214,14 @@ function selectedSpeakerLinkForSubmission(submissionId: string): AdminSpeakerInt
 function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
   if (status === 'selected') return 'Approved';
   if (status === 'not_selected') return 'Rejected';
+
   return 'Pending';
 }
 
 function proposalStatusClass(status: SpeakerSubmissionStatus): string {
   if (status === 'selected') return 'border-dc-pink bg-dc-pink text-white';
   if (status === 'not_selected') return 'border-[#fda4af] bg-[#fff1f2] text-[#be123c]';
+
   return 'border-[#e4cf21] bg-dc-yellow text-dc-ink';
 }
 

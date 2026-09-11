@@ -68,6 +68,7 @@ export async function getSupabaseFeedbackCampaignByEvent(eventId: string, c?: Co
   }
 
   if (!data) return undefined;
+
   return toFeedbackCampaign(data, await getQuestionsForCampaign(data.id, c));
 }
 
@@ -89,6 +90,7 @@ export async function getSupabaseFeedbackCampaignsByEventIds(
     .in('event_id', [...eventIds]);
 
   if (error) throw new Error(error.message);
+
   return (data ?? []).map((campaign) => toFeedbackCampaign(campaign, []));
 }
 
@@ -113,6 +115,7 @@ export async function getSupabaseFeedbackHubData(
       .eq('trigger_source', 'event_feedback_form')
       .order('created_at', { ascending: false }),
   ]);
+
   if (campaignError) throw new Error(campaignError.message);
   if (submissionError) throw new Error(submissionError.message);
 
@@ -120,11 +123,14 @@ export async function getSupabaseFeedbackHubData(
   const { data: questionRows, error: questionError } = campaignIds.length === 0
     ? { data: [], error: null }
     : await client.from('feedback_questions').select('*').in('campaign_id', campaignIds).order('order_index', { ascending: true });
+
   if (questionError) throw new Error(questionError.message);
 
   const questionsByCampaign = new Map<string, FeedbackQuestionRow[]>();
+
   for (const question of questionRows ?? []) {
     const questions = questionsByCampaign.get(question.campaign_id) ?? [];
+
     questions.push(question);
     questionsByCampaign.set(question.campaign_id, questions);
   }
@@ -199,6 +205,7 @@ export async function updateSupabaseFeedbackCampaign(
   if (!canUseSupabaseFeedbackCampaigns(c)) return null;
 
   const existing = await getSupabaseFeedbackCampaignByEvent(eventId, c);
+
   if (existing === null || existing === undefined) return existing;
 
   if (updates.questions) {
@@ -208,6 +215,7 @@ export async function updateSupabaseFeedbackCampaign(
       .eq('campaign_id', existing.id)
       .eq('trigger_source', 'event_feedback_form')
       .limit(1);
+
     if (responseError) throw new Error(responseError.message);
     if (response.length > 0) {
       throw new Error('Feedback questions cannot be changed after responses exist. Create a new campaign for a fresh form.');
@@ -215,6 +223,7 @@ export async function updateSupabaseFeedbackCampaign(
   }
 
   const update: FeedbackCampaignUpdate = {};
+
   if (typeof updates.title === 'string') update.title = updates.title;
   if ('intro' in updates) update.intro = updates.intro ?? null;
   if (typeof updates.status === 'string') update.status = updates.status;
@@ -270,6 +279,7 @@ export async function deleteSupabaseFeedbackCampaignByEvent(eventId: string, c?:
   if (!canUseSupabaseFeedbackCampaigns(c)) return null;
 
   const existing = await getSupabaseFeedbackCampaignByEvent(eventId, c);
+
   if (!existing) return existing;
 
   const { error } = await getSupabaseAdminClient(c)

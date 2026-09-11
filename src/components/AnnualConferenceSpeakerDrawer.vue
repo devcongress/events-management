@@ -54,6 +54,7 @@ let appWasInert = false;
 
 const statusLabel = computed(() => {
   if (!props.submission) return '';
+
   return props.submission.status === 'not_selected' ? 'Not selected' : props.submission.status;
 });
 const kindLabel = computed(() => props.submission && 'session_type' in props.submission ? props.submission.session_type : props.submission?.kind === 'product_demo' ? 'Product demo' : 'Talk proposal');
@@ -78,6 +79,7 @@ function formatDate(value: string): string {
 function statusClass(status: SpeakerSubmissionStatus): string {
   if (status === 'selected') return 'border-[#15803d] bg-[#effcf3] text-[#15803d]';
   if (status === 'not_selected') return 'border-dc-border bg-dc-paper-warm text-dc-gray';
+
   return 'border-dc-pink bg-[#fff1f7] text-dc-pink';
 }
 
@@ -89,6 +91,7 @@ function lockPage() {
   document.documentElement.style.overflow = 'hidden';
 
   const app = document.querySelector<HTMLElement>('#app');
+
   appWasInert = app?.hasAttribute('inert') ?? false;
   if (!appWasInert) app?.setAttribute('inert', '');
   document.addEventListener('keydown', handleKeydown);
@@ -98,6 +101,7 @@ function unlockPage() {
   document.body.style.overflow = previousBodyOverflow;
   document.documentElement.style.overflow = previousDocumentOverflow;
   const app = document.querySelector<HTMLElement>('#app');
+
   if (!appWasInert) app?.removeAttribute('inert');
   document.removeEventListener('keydown', handleKeydown);
   previouslyFocused?.focus();
@@ -113,6 +117,7 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     requestClose();
+
     return;
   }
   if (event.key !== 'Tab' || !panelRef.value) return;
@@ -120,13 +125,16 @@ function handleKeydown(event: KeyboardEvent) {
   const focusable = [...panelRef.value.querySelectorAll<HTMLElement>(
     'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
   )];
+
   if (!focusable.length) {
     event.preventDefault();
     panelRef.value.focus();
+
     return;
   }
   const first = focusable[0];
   const last = focusable.at(-1)!;
+
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();

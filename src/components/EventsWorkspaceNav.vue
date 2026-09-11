@@ -19,6 +19,7 @@ const indicatorStyle = computed(() => ({
 function setLinkElement(element: Element | ComponentPublicInstance | null, index: number) {
   if (element instanceof HTMLElement) {
     linkElements.value[index] = element;
+
     return;
   }
 
@@ -30,8 +31,10 @@ function setLinkElement(element: Element | ComponentPublicInstance | null, index
 function updateIndicator() {
   const first = linkElements.value[0];
   const active = linkElements.value[submissionsActive.value ? 1 : 0];
+
   if (!first || !active || first.offsetWidth === 0) {
     indicator.value = { left: 0, baseWidth: 0, scale: 1, ready: false };
+
     return;
   }
 

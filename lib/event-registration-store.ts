@@ -69,6 +69,7 @@ export async function getRegistrationCampaign(
   c?: Context,
 ): Promise<EventRegistrationCampaign | undefined> {
   const campaign = await getSupabaseRegistrationCampaign(eventId, c);
+
   return campaign !== null ? campaign : getMockRegistrationCampaign(eventId);
 }
 
@@ -77,9 +78,11 @@ export async function getRegistrationCampaigns(
   c?: Context,
 ): Promise<EventRegistrationCampaign[]> {
   const campaigns = await getSupabaseRegistrationCampaigns(eventIds, c);
+
   if (campaigns !== null) return campaigns;
 
   const eventIdSet = new Set(eventIds);
+
   return (await getAllMockRegistrationCampaigns()).filter((campaign) => eventIdSet.has(campaign.event_id));
 }
 
@@ -89,6 +92,7 @@ export async function updateRegistrationCampaign(
   c?: Context,
 ): Promise<EventRegistrationCampaign | undefined> {
   const campaign = await updateSupabaseRegistrationCampaign(eventId, input, c);
+
   return campaign !== null ? campaign : updateMockRegistrationCampaign(eventId, input);
 }
 
@@ -111,6 +115,7 @@ export async function getRegistrationAttendanceSources(
   c?: Context,
 ): Promise<RegistrationAttendanceSource[]> {
   const sources = await getSupabaseRegistrationAttendanceSources(eventIds, c);
+
   return sources !== null ? sources : getMockRegistrationAttendanceSources(eventIds);
 }
 
@@ -120,6 +125,7 @@ export async function checkInRegistration(
   c?: Context,
 ): Promise<string | undefined> {
   const checkedInAt = await checkInSupabaseRegistration(registrationId, checkedInByEmail, c);
+
   return checkedInAt !== null ? checkedInAt : checkInMockRegistration(registrationId);
 }
 
@@ -168,6 +174,7 @@ export async function updateRegistrationEmailDelivery(
   c?: Context,
 ): Promise<void> {
   const result = await updateSupabaseRegistrationEmailDelivery(deliveryId, input, c);
+
   if (result === null) {
     await updateMockRegistrationEmailDelivery(deliveryId, input);
   }

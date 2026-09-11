@@ -103,6 +103,7 @@ export function isAnnualConferenceCapability(value: unknown): value is AnnualCon
 export function annualConferenceRoleCapabilities(role: AdminRole): AnnualConferenceCapability[] {
   if (role === 'owner') return [...ANNUAL_CONFERENCE_CAPABILITIES];
   if (role === 'organizer') return [...ORGANIZER_DEFAULT_CAPABILITIES];
+
   return [];
 }
 
@@ -112,6 +113,7 @@ export function effectiveAnnualConferenceCapabilities(input: {
   isPlanningOwner?: boolean;
 }): AnnualConferenceCapability[] {
   const capabilities = new Set<AnnualConferenceCapability>(annualConferenceRoleCapabilities(input.role));
+
   for (const capability of input.grants ?? []) {
     if ((capability === 'finance.view' || capability.startsWith('speakers.')) && input.role === 'volunteer') continue;
     capabilities.add(capability);
@@ -120,6 +122,7 @@ export function effectiveAnnualConferenceCapabilities(input: {
     capabilities.add('work_plan.manage');
     capabilities.add('phases.manage');
   }
+
   return ANNUAL_CONFERENCE_CAPABILITIES.filter((capability) => capabilities.has(capability));
 }
 
@@ -148,5 +151,6 @@ export function canDelegateAnnualConferenceCapability(
   role: AdminRole,
 ): boolean {
   if (capability === 'finance.view' || capability.startsWith('speakers.')) return role === 'organizer';
+
   return role === 'volunteer';
 }

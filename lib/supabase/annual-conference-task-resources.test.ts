@@ -23,9 +23,11 @@ function updateQuery(result: { data: unknown; error: { message: string } | null 
     select: vi.fn(),
     maybeSingle: vi.fn(async () => result),
   };
+
   query.update.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.select.mockReturnValue(query);
+
   return query;
 }
 
@@ -37,6 +39,7 @@ beforeEach(() => {
 describe('Supabase Annual Conference task resource storage', () => {
   it('enforces the volunteer creator predicate in the update query', async () => {
     const query = updateQuery({ data: undefined, error: null });
+
     mocks.from.mockReturnValue(query);
 
     await expect(updateSupabaseAnnualConferenceTaskResource(
@@ -62,6 +65,7 @@ describe('Supabase Annual Conference task resource storage', () => {
         error: { message: 'annual_conference_task_resource_limit' },
       })),
     };
+
     query.insert.mockReturnValue(query);
     query.select.mockReturnValue(query);
     mocks.from.mockReturnValue(query);

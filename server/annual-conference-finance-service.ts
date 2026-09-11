@@ -28,6 +28,7 @@ export function annualConferenceFinanceErrorStatus(
   if (error.code === 'invalid') return 400;
   if (error.code === 'forbidden') return 403;
   if (error.code === 'not_found') return 404;
+
   return 500;
 }
 
@@ -52,12 +53,14 @@ export function createAnnualConferenceFinanceService(
 
   async function finance(year: number) {
     const snapshot = await repository.getFinance(year);
+
     if (!snapshot) {
       throw new AnnualConferenceFinanceServiceError(
         'not_found',
         'Annual conference ' + year + ' was not found.',
       );
     }
+
     return snapshot;
   }
 
@@ -68,11 +71,13 @@ export function createAnnualConferenceFinanceService(
         'Only a platform owner can change conference finance records.',
       );
     }
+
     return actor.email;
   }
 
   function requireManualIncomeEntry(snapshot: Awaited<ReturnType<typeof finance>>, entryId: string) {
     const entry = snapshot.entries.find((candidate) => candidate.id === entryId);
+
     if (!entry) {
       throw new AnnualConferenceFinanceServiceError('not_found', 'Finance income record was not found.');
     }
@@ -82,12 +87,14 @@ export function createAnnualConferenceFinanceService(
         'Only manual income expectations can be changed in Finance.',
       );
     }
+
     return entry;
   }
 
   return {
     async getFinance(year: number) {
       const snapshot = await finance(year);
+
       return {
         ...snapshot,
         summary: summarizeAnnualConferenceFinance(snapshot.budgets, snapshot.entries),
@@ -101,6 +108,7 @@ export function createAnnualConferenceFinanceService(
       const actorEmail = requireOwner();
       const snapshot = await finance(year);
       const budget = await repository.createBudgetLine(snapshot.edition_id, input, actorEmail);
+
       await dependencies.audit({
         action: 'annual_conference.finance.budget_create',
         targetType: 'annual_conference_finance_budget',
@@ -112,6 +120,7 @@ export function createAnnualConferenceFinanceService(
           currency: budget.currency,
         },
       });
+
       return budget;
     },
 
@@ -119,6 +128,7 @@ export function createAnnualConferenceFinanceService(
       const actorEmail = requireOwner();
       const snapshot = await finance(year);
       const entry = await repository.createEntry(snapshot.edition_id, input, actorEmail);
+
       await dependencies.audit({
         action: 'annual_conference.finance.entry_create',
         targetType: 'annual_conference_finance_entry',
@@ -132,6 +142,7 @@ export function createAnnualConferenceFinanceService(
           status: entry.status,
         },
       });
+
       return entry;
     },
 
@@ -143,6 +154,7 @@ export function createAnnualConferenceFinanceService(
       const actorEmail = requireOwner();
       const snapshot = await finance(year);
       const entry = requireManualIncomeEntry(snapshot, entryId);
+
       if (entry.status === 'cancelled') {
         throw new AnnualConferenceFinanceServiceError('invalid', 'A cancelled expectation cannot be amended.');
       }
@@ -153,6 +165,7 @@ export function createAnnualConferenceFinanceService(
         );
       }
       const updated = await repository.amendIncomeExpectation(entry.id, input, actorEmail);
+
       await dependencies.audit({
         action: 'annual_conference.finance.income_expectation_amend',
         targetType: 'annual_conference_finance_entry',
@@ -165,6 +178,7 @@ export function createAnnualConferenceFinanceService(
           currency: updated.currency,
         },
       });
+
       return updated;
     },
 
@@ -176,6 +190,7 @@ export function createAnnualConferenceFinanceService(
       const actorEmail = requireOwner();
       const snapshot = await finance(year);
       const entry = requireManualIncomeEntry(snapshot, entryId);
+
       if (entry.status === 'cancelled') {
         throw new AnnualConferenceFinanceServiceError('invalid', 'A cancelled expectation cannot receive a payment.');
       }
@@ -189,6 +204,7 @@ export function createAnnualConferenceFinanceService(
         );
       }
       const updated = await repository.recordIncomeReceipt(entry.id, input, actorEmail);
+
       await dependencies.audit({
         action: 'annual_conference.finance.income_receipt_create',
         targetType: 'annual_conference_finance_entry',
@@ -201,6 +217,7 @@ export function createAnnualConferenceFinanceService(
           currency: updated.currency,
         },
       });
+
       return updated;
     },
 
@@ -212,6 +229,7 @@ export function createAnnualConferenceFinanceService(
       const actorEmail = requireOwner();
       const snapshot = await finance(year);
       const entry = requireManualIncomeEntry(snapshot, entryId);
+
       if (entry.status === 'cancelled') {
         throw new AnnualConferenceFinanceServiceError('invalid', 'This expectation has already been cancelled.');
       }
@@ -222,6 +240,7 @@ export function createAnnualConferenceFinanceService(
         );
       }
       const updated = await repository.cancelIncomeExpectation(entry.id, input, actorEmail);
+
       await dependencies.audit({
         action: 'annual_conference.finance.income_expectation_cancel',
         targetType: 'annual_conference_finance_entry',
@@ -233,6 +252,7 @@ export function createAnnualConferenceFinanceService(
           currency: updated.currency,
         },
       });
+
       return updated;
     },
   };

@@ -68,6 +68,7 @@ export async function getSupabaseCommunityEvents(c?: Context): Promise<Event[] |
     .order('starts_at', { ascending: false });
 
   if (error) throw new Error('Unable to load community events');
+
   return data.map(toEvent);
 }
 
@@ -82,6 +83,7 @@ export async function getSupabaseCommunityEventById(id: string, c?: Context): Pr
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
+
   return data ? toEvent(data) : undefined;
 }
 
@@ -96,6 +98,7 @@ export async function getSupabaseCommunityEventBySlug(slug: string, c?: Context)
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
+
   return data ? toEvent(data) : undefined;
 }
 
@@ -115,6 +118,7 @@ export async function getSupabaseCommunityEventByExternalId(
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
+
   return data ? toEvent(data) : undefined;
 }
 
@@ -132,6 +136,7 @@ export async function getSupabaseCommunityEventByRegistrationUrl(
     .maybeSingle();
 
   if (error) throw new Error('Unable to load community event');
+
   return data ? toEvent(data) : undefined;
 }
 
@@ -184,6 +189,7 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
       .single();
 
     if (fallback.error) throw new Error(fallback.error.message);
+
     return toEvent(fallback.data);
   }
 
@@ -195,10 +201,12 @@ export async function createSupabaseCommunityEvent(input: CreateCommunityEventIn
       .single();
 
     if (fallback.error) throw new Error(fallback.error.message);
+
     return toEvent(fallback.data);
   }
 
   if (error) throw new Error(error.message);
+
   return toEvent(data);
 }
 
@@ -254,6 +262,7 @@ export async function updateSupabaseCommunityEvent(
   if (typeof input.external_synced_at === 'string' || input.external_synced_at === null) update.external_synced_at = input.external_synced_at ?? null;
   if (input.location && typeof input.location === 'object') {
     const location = input.location as Event['location'];
+
     update.location_label = location?.label ?? null;
     update.location_name = location?.name ?? DEFAULT_LOCATION.name;
     update.location_url = location?.url ?? null;
@@ -279,10 +288,12 @@ export async function updateSupabaseCommunityEvent(
       .maybeSingle();
 
     if (fallback.error) throw new Error(fallback.error.message);
+
     return fallback.data ? toEvent(fallback.data) : undefined;
   }
 
   if (error) throw new Error(error.message);
+
   return data ? toEvent(data) : undefined;
 }
 
@@ -294,6 +305,7 @@ export async function deleteSupabaseCommunityEvent(id: string, c?: Context): Pro
   });
 
   if (error) throw new Error(error.message);
+
   return data === true;
 }
 
@@ -312,6 +324,7 @@ export async function archiveSupabaseCommunityEvent(
   });
 
   if (error) throw new Error(error.message);
+
   return data?.[0] ? toEvent(data[0] as CommunityEventRow) : undefined;
 }
 
@@ -323,6 +336,7 @@ export async function restoreSupabaseArchivedCommunityEvent(id: string, c?: Cont
   });
 
   if (error) throw new Error(error.message);
+
   return data?.[0] ? toEvent(data[0] as CommunityEventRow) : undefined;
 }
 
@@ -336,6 +350,7 @@ export async function getSupabaseArchivedCommunityEvents(c?: Context): Promise<A
     .order('deleted_at', { ascending: false });
 
   if (listError) throw new Error(listError.message);
+
   return (data ?? []).map(toArchivedEvent);
 }
 
@@ -373,6 +388,7 @@ export async function deleteSupabaseCommunityEventsByImportMatch(
   }
 
   const ids = Array.from(matchedIds);
+
   if (ids.length === 0) return [];
 
   const { error } = await getSupabaseAdminClient(c)
@@ -381,6 +397,7 @@ export async function deleteSupabaseCommunityEventsByImportMatch(
     .in('id', ids);
 
   if (error) throw new Error(error.message);
+
   return ids;
 }
 
@@ -397,6 +414,7 @@ export async function getSupabasePublicMeetups(origin: string, c?: Context): Pro
     .limit(PUBLIC_EVENT_COLLECTION_LIMIT);
 
   if (error) throw new Error('Unable to load public meetups');
+
   return data.map((row) => toPublicMeetup(row, origin));
 }
 
@@ -420,6 +438,7 @@ export async function getSupabasePublicEvents(
     .limit(PUBLIC_EVENT_COLLECTION_LIMIT);
 
   if (error) throw new Error('Unable to load public events');
+
   return data
     .filter((row) => row.event_ownership === 'devcongress' || row.moderation_status === 'approved')
     .map(toPublicEvent);
@@ -441,6 +460,7 @@ export async function getSupabasePublicEventPreviewMeetups(
     .limit(PUBLIC_EVENT_COLLECTION_LIMIT);
 
   if (error) throw new Error('Unable to load event preview');
+
   return data
     .filter((row) => row.event_ownership === 'devcongress' || row.moderation_status === 'approved')
     .map((row) => toPublicMeetup(row, origin));
@@ -515,6 +535,7 @@ function toArchivedEvent(row: CommunityEventRow): ArchivedCommunityEvent {
 
 function toPublicEvent(row: CommunityEventRow): PublicEvent {
   const external = row.event_ownership === 'external';
+
   return {
     id: row.id,
     slug: row.slug,
@@ -599,6 +620,7 @@ function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
       resources: Array.isArray(item.resources)
         ? item.resources.filter(isRecord).flatMap((resource) => {
           const url = safeHttpUrl(typeof resource.url === 'string' ? resource.url : null);
+
           return url ? [{
             title: stringValue(resource.title, 'Resource'),
             url,
@@ -608,6 +630,7 @@ function normalizeSchedule(value: Json[]): PublicMeetupScheduleItem[] {
       shared_links: Array.isArray(item.shared_links)
         ? item.shared_links.flatMap((link) => {
           const url = safeHttpUrl(typeof link === 'string' ? link : null);
+
           return url ? [url] : [];
         })
         : [],
@@ -631,6 +654,7 @@ function normalizeSpeakers(value: Json[]): PublicMeetupSpeaker[] {
         ? speaker.socials.filter(isRecord).flatMap((social) => {
           const platform = social.platform === 'github' || social.platform === 'website' ? social.platform : null;
           const url = safeHttpUrl(typeof social.url === 'string' ? social.url : null);
+
           return platform && url ? [{ platform, url }] : [];
         })
         : [],
@@ -642,6 +666,7 @@ function normalizePhotos(value: Json[]): PublicMeetup['photos'] {
     .filter(isRecord)
     .flatMap((photo) => {
       const url = safeWebsiteUrl(typeof photo.url === 'string' ? photo.url : null);
+
       return url ? [{
         url,
         type: (photo.type === 'folder' ? 'folder' : 'image') as 'folder' | 'image',
@@ -654,6 +679,7 @@ function normalizeVideos(value: Json[]): PublicMeetup['videos'] {
     .filter(isRecord)
     .flatMap((video) => {
       const embedUrl = safeHttpUrl(typeof video.embed_url === 'string' ? video.embed_url : null);
+
       return embedUrl ? [{
         title: stringValue(video.title, 'Recording'),
         embed_url: embedUrl,
@@ -690,13 +716,16 @@ function publicMeetupStatus(startsAt: string, endsAt: string): PublicMeetup['sta
   const now = Date.now();
   const start = new Date(startsAt).getTime();
   const end = new Date(endsAt).getTime();
+
   if (now < start) return 'upcoming';
   if (now <= end) return 'live';
+
   return 'past';
 }
 
 function toWebsiteDateTime(value: string): string {
   const iso = new Date(value).toISOString();
+
   return `${iso.slice(0, 19)}+00:00`;
 }
 
@@ -706,7 +735,9 @@ function absoluteAppUrl(origin: string, path: string): string {
 
 function defaultEndDate(startsAt: Date): Date {
   const end = new Date(startsAt);
+
   end.setHours(end.getHours() + 5);
+
   return end;
 }
 

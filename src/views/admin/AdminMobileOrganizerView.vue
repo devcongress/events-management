@@ -10,8 +10,10 @@ const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetch
 const firstName = computed(() => sessionQuery.data.value?.user?.display_name?.trim().split(/\s+/)[0] ?? 'organizer');
 const greeting = computed(() => {
   const hour = new Date().getHours();
+
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
+
   return 'Good evening';
 });
 const todayLabel = new Intl.DateTimeFormat('en-GH', {

@@ -8,6 +8,7 @@ let tempRoot: string;
 
 async function importSubmissionsStore() {
   vi.resetModules();
+
   return import('./speaker-submissions');
 }
 

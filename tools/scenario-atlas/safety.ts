@@ -13,5 +13,6 @@ export function isLoopbackHostname(hostname: string): boolean {
 export function isAllowedMutation(request: Request): boolean {
   const requestUrl = new URL(request.url);
   const origin = request.headers.get('origin');
+
   return isLoopbackHostname(requestUrl.hostname) && origin === requestUrl.origin;
 }

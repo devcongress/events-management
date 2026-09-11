@@ -52,6 +52,7 @@ const canSubmit = computed(() => feedbackFormValidation.value.success
 const feedbackLengthLabel = computed(() => `${message.value.length}/${FEEDBACK_MAX_LENGTH}`);
 const pagePath = computed(() => {
   const from = route.query.from;
+
   return typeof from === 'string' && from ? from : route.fullPath;
 });
 const feedbackLimitMessage = computed(() => {
@@ -61,6 +62,7 @@ const feedbackLimitMessage = computed(() => {
 
   if (cooldownRemaining > 0) {
     const minutes = Math.max(1, Math.ceil(cooldownRemaining / 60000));
+
     return `Feedback received. You can send another note in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
   }
 
@@ -94,26 +96,31 @@ function recentSubmissionTimestamps(now = Date.now()) {
 function readSubmissionTimestamps() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(FEEDBACK_SUBMISSIONS_KEY) ?? '[]');
+
     return Array.isArray(parsed)
       ? parsed.filter((value) => typeof value === 'number' && Number.isFinite(value))
       : [];
   } catch {
     window.localStorage.removeItem(FEEDBACK_SUBMISSIONS_KEY);
+
     return [];
   }
 }
 
 function recordSuccessfulSubmission() {
   const timestamps = [Date.now(), ...recentSubmissionTimestamps()];
+
   window.localStorage.setItem(FEEDBACK_SUBMISSIONS_KEY, JSON.stringify(timestamps));
 }
 
 function syncFeedbackTextareaHeight() {
   const element = feedbackTextarea.value;
+
   if (!element) return;
 
   element.style.height = 'auto';
   const nextHeight = Math.min(element.scrollHeight, FEEDBACK_TEXTAREA_MAX_HEIGHT);
+
   element.style.height = `${nextHeight}px`;
   element.style.overflowY = element.scrollHeight > FEEDBACK_TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden';
 }
@@ -132,6 +139,7 @@ async function submitFeedback() {
 
   if (!canSubmit.value || !formValidation.success) {
     error.value = turnstileError.value || feedbackLimitMessage.value || validationMessage.value || null;
+
     return;
   }
 
@@ -160,6 +168,7 @@ async function submitFeedback() {
 
     if (!response.ok) {
       const data = await response.json().catch(() => null);
+
       throw new Error(data?.error ?? 'Unable to send feedback');
     }
 

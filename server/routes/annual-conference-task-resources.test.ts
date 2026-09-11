@@ -86,6 +86,7 @@ vi.mock('@/lib/supabase/admin-auth', () => ({
       });
     }
     c.set('adminSession', mocks.session);
+
     return null;
   }),
 }));
@@ -117,7 +118,9 @@ import { registerAnnualConferenceTaskResourceRoutes } from './annual-conference-
 
 function app() {
   const instance = new Hono<AppBindings>();
+
   registerAnnualConferenceTaskResourceRoutes(instance);
+
   return instance;
 }
 

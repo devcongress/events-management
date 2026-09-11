@@ -18,6 +18,7 @@ export async function recordProtectedMutationAudit(
   input: ProtectedMutationAuditEvent,
 ): Promise<void> {
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated) return;
 
   await recordAdminAudit(c, {

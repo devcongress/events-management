@@ -39,6 +39,7 @@ const activePreview = computed(() => (
 const sendLabel = computed(() => {
   if (props.busy) return 'Sending…';
   const count = props.previews.length;
+
   return `Send ${count} email${count === 1 ? '' : 's'}`;
 });
 
@@ -50,6 +51,7 @@ function lockPage() {
   document.documentElement.style.overflow = 'hidden';
 
   const app = document.querySelector<HTMLElement>('#app');
+
   appWasInert = app?.hasAttribute('inert') ?? false;
   if (!appWasInert) app?.setAttribute('inert', '');
   document.addEventListener('keydown', onKeydown);
@@ -59,6 +61,7 @@ function unlockPage() {
   document.body.style.overflow = previousBodyOverflow;
   document.documentElement.style.overflow = previousDocumentOverflow;
   const app = document.querySelector<HTMLElement>('#app');
+
   if (!appWasInert) app?.removeAttribute('inert');
   document.removeEventListener('keydown', onKeydown);
   previouslyFocused?.focus();
@@ -74,6 +77,7 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     requestClose();
+
     return;
   }
   if (event.key !== 'Tab' || !panel.value) return;
@@ -81,9 +85,11 @@ function onKeydown(event: KeyboardEvent) {
   const focusable = [...panel.value.querySelectorAll<HTMLElement>(
     'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
   )];
+
   if (!focusable.length) {
     event.preventDefault();
     panel.value.focus();
+
     return;
   }
 
@@ -91,6 +97,7 @@ function onKeydown(event: KeyboardEvent) {
   const last = focusable.at(-1)!;
   const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const activeIndex = activeElement ? focusable.indexOf(activeElement) : -1;
+
   if (!activeElement || !panel.value.contains(activeElement) || activeIndex === -1) {
     event.preventDefault();
     (event.shiftKey ? last : first).focus();

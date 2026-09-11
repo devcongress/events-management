@@ -24,7 +24,9 @@ async function editionIdForYear(year: number, c?: Context): Promise<string | und
     .select('id')
     .eq('year', year)
     .maybeSingle();
+
   if (result.error) throw new Error(result.error.message);
+
   return result.data?.id;
 }
 
@@ -39,7 +41,9 @@ export async function getAnnualConferenceAccessGrants(
     .select('capability')
     .eq('edition_id', editionId)
     .eq('membership_id', membershipId);
+
   if (result.error) throw new Error(result.error.message);
+
   return result.data.map((row) => row.capability);
 }
 
@@ -53,6 +57,7 @@ export async function listAnnualConferenceAccessMembers(year: number, c?: Contex
     .select('id, task_creator_email')
     .eq('year', year)
     .maybeSingle();
+
   if (editionResult.error) throw new Error(editionResult.error.message);
   if (!editionResult.data) return undefined;
   const edition = editionResult.data;
@@ -69,12 +74,15 @@ export async function listAnnualConferenceAccessMembers(year: number, c?: Contex
       .select('membership_id, capability')
       .eq('edition_id', editionId),
   ]);
+
   if (membersResult.error) throw new Error(membersResult.error.message);
   if (grantsResult.error) throw new Error(grantsResult.error.message);
 
   const grantsByMember = new Map<string, AnnualConferenceCapability[]>();
+
   for (const grant of grantsResult.data) {
     const capabilities = grantsByMember.get(grant.membership_id) ?? [];
+
     capabilities.push(grant.capability);
     grantsByMember.set(grant.membership_id, capabilities);
   }
@@ -83,6 +91,7 @@ export async function listAnnualConferenceAccessMembers(year: number, c?: Contex
     edition_id: editionId,
     members: membersResult.data.map((member) => {
       const planningOwner = member.email.trim().toLowerCase() === edition.task_creator_email.trim().toLowerCase();
+
       return {
         id: member.id,
         display_name: member.display_name,
@@ -107,6 +116,7 @@ export async function setAnnualConferenceAccessGrant(input: {
 }, c?: Context): Promise<'updated' | 'not_found' | 'inactive' | 'not_eligible' | undefined> {
   if (!isSupabaseRuntimeEnabled(c)) return undefined;
   const editionId = await editionIdForYear(input.year, c);
+
   if (!editionId) return undefined;
 
   const client = getSupabaseAdminClient(c);
@@ -115,6 +125,7 @@ export async function setAnnualConferenceAccessGrant(input: {
     .select('id, role, status')
     .eq('id', input.membershipId)
     .maybeSingle();
+
   if (membershipResult.error) throw new Error(membershipResult.error.message);
   if (!membershipResult.data) return 'not_found';
   if (membershipResult.data.status !== 'active') return 'inactive';
@@ -132,7 +143,9 @@ export async function setAnnualConferenceAccessGrant(input: {
     const result = await client
       .from('annual_conference_access_grants')
       .upsert(row, { onConflict: 'edition_id,membership_id,capability', ignoreDuplicates: true });
+
     if (result.error) throw new Error(result.error.message);
+
     return 'updated';
   }
 
@@ -142,7 +155,9 @@ export async function setAnnualConferenceAccessGrant(input: {
     .eq('edition_id', editionId)
     .eq('membership_id', input.membershipId)
     .eq('capability', input.capability);
+
   if (result.error) throw new Error(result.error.message);
+
   return 'updated';
 }
 
@@ -155,6 +170,7 @@ export async function clearAnnualConferenceAccessGrantsForMembership(
     .from('annual_conference_access_grants')
     .delete()
     .eq('membership_id', membershipId);
+
   if (result.error) throw new Error(result.error.message);
 }
 
@@ -166,6 +182,7 @@ export async function listAnnualConferenceVolunteerTeam(year: number, c?: Contex
 }>> {
   if (!isSupabaseRuntimeEnabled(c)) return [];
   const editionId = await editionIdForYear(year, c);
+
   if (!editionId) return [];
 
   const volunteersResult = await getSupabaseAdminClient(c)
@@ -174,7 +191,9 @@ export async function listAnnualConferenceVolunteerTeam(year: number, c?: Contex
     .eq('status', 'active')
     .eq('role', 'volunteer')
     .order('display_name', { ascending: true });
+
   if (volunteersResult.error) throw new Error(volunteersResult.error.message);
+
   return volunteersResult.data
     .map((member) => ({
       id: member.id,

@@ -8,6 +8,7 @@ describe('monthly finance retirement', () => {
 
   it('retains Annual Conference finance reads and mutations', () => {
     const financeRoutes = app.routes.filter((route) => route.path.startsWith('/api/annual-conference/:year/finance'));
+
     expect(financeRoutes.map(({ method, path }) => `${method} ${path}`)).toEqual(expect.arrayContaining([
       'GET /api/annual-conference/:year/finance',
       'POST /api/annual-conference/:year/finance/budgets',

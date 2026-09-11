@@ -39,6 +39,7 @@ const taskFormId = 'annual-conference-task-form';
 const drawerEyebrow = computed(() => {
   if (props.mode === 'create') return 'New task';
   if (props.mode === 'edit') return 'Editing task';
+
   return 'Task detail';
 });
 const drawerTitle = computed(() => (
@@ -48,6 +49,7 @@ const taskPhase = computed(() => props.phases.find((phase) => phase.id === props
 const dependencyTasks = computed(() => {
   if (!props.task) return [];
   const tasksById = new Map(props.tasks.map((task) => [task.id, task]));
+
   return props.task.dependency_task_ids
     .map((taskId) => tasksById.get(taskId))
     .filter((task): task is AnnualConferenceTask => Boolean(task));
@@ -67,6 +69,7 @@ function formatDate(value: string): string {
 
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
+
   return props.organizerLabels?.[value.trim().toLowerCase()] ?? value;
 }
 
@@ -74,6 +77,7 @@ function statusClass(status: AnnualConferenceTask['status']): string {
   if (status === 'done') return 'border-dc-ink bg-dc-yellow text-dc-ink';
   if (status === 'blocked') return 'border-dc-ink bg-dc-pink text-white';
   if (status === 'in_progress') return 'border-[#0f766e] bg-[#e7f5f2] text-[#0f766e]';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 
@@ -85,6 +89,7 @@ function lockPage() {
   document.documentElement.style.overflow = 'hidden';
 
   const app = document.querySelector<HTMLElement>('#app');
+
   appWasInert = app?.hasAttribute('inert') ?? false;
   if (!appWasInert) app?.setAttribute('inert', '');
 
@@ -96,6 +101,7 @@ function unlockPage() {
   document.documentElement.style.overflow = previousDocumentOverflow;
 
   const app = document.querySelector<HTMLElement>('#app');
+
   if (!appWasInert) app?.removeAttribute('inert');
 
   document.removeEventListener('keydown', handleKeydown);
@@ -113,6 +119,7 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     requestClose();
+
     return;
   }
 
@@ -121,14 +128,17 @@ function handleKeydown(event: KeyboardEvent) {
   const focusable = [...panelRef.value.querySelectorAll<HTMLElement>(
     'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
   )].filter((element) => !element.hasAttribute('hidden'));
+
   if (!focusable.length) {
     event.preventDefault();
     panelRef.value.focus();
+
     return;
   }
 
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
+
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();
@@ -145,6 +155,7 @@ watch(
       lockPage();
       await nextTick();
       closeButtonRef.value?.focus();
+
       return;
     }
 

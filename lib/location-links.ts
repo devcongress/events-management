@@ -8,11 +8,13 @@ const GOOGLE_MAPS_HOSTS = new Set([
 
 export function safeGoogleMapsUrl(value: string | null | undefined): string | null {
   const candidate = value?.trim();
+
   if (!candidate || candidate.length > 2048) return null;
 
   try {
     const url = new URL(candidate);
     const hostname = url.hostname.toLowerCase();
+
     if (
       url.protocol !== 'https:'
       || url.username

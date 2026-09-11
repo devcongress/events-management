@@ -13,9 +13,11 @@ export function evaluateRegistrationRateLimit(
 ): { allowed: true } | { allowed: false; retryAfterMs: number } {
   const cutoff = nowMs - WINDOW_MS;
   const attempts = (buckets.get(key)?.attempts ?? []).filter((attempt) => attempt > cutoff);
+
   buckets.set(key, { attempts });
 
   if (attempts.length < MAX_ATTEMPTS) return { allowed: true };
+
   return {
     allowed: false,
     retryAfterMs: Math.max(1, attempts[0] + WINDOW_MS - nowMs),
@@ -24,6 +26,7 @@ export function evaluateRegistrationRateLimit(
 
 export function recordRegistrationAttempt(key: string, nowMs = Date.now()): void {
   const bucket = buckets.get(key) ?? { attempts: [] };
+
   bucket.attempts.push(nowMs);
   buckets.set(key, bucket);
 }

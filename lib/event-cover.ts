@@ -11,6 +11,7 @@ const LEGACY_EVENT_COVERS = new Set([
 
 export function publicEventCoverUrl(value: string | null | undefined): string {
   const cover = safeWebsiteUrl(value);
+
   return !cover || LEGACY_EVENT_COVERS.has(cover)
     ? EVENT_ANNOUNCEMENT_FALLBACK_COVER
     : cover;

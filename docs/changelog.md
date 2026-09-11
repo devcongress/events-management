@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-11 — Enforced source readability spacing
+
+- Replace the obsolete Next.js ESLint configuration with a flat configuration for the active Vue and TypeScript application.
+- Enforce single blank-line separation after imports and declaration groups and before terminal control flow, while rejecting repeated empty lines.
+- Add project-wide auto-fix and verification scripts and normalize the active codebase to the same spacing policy.
+
 ## 2026-09-11 — Volunteer directory discovery and focused workspaces
 
 - Add case-insensitive volunteer-directory search across name, email, X, and Slack, with clickable All, Active, and Applicant counts on desktop and mobile.

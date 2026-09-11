@@ -9,13 +9,16 @@ const LEGACY_SIGNATURE_BYTES = 12;
 
 function uuidBytes(id: string): Buffer {
   const hex = id.replaceAll('-', '');
+
   if (!/^[0-9a-f]{32}$/i.test(hex)) throw new Error('Speaker intake link ID is invalid.');
+
   return Buffer.from(hex, 'hex');
 }
 
 function uuidFromBytes(value: Buffer): string | null {
   if (value.byteLength !== 16) return null;
   const hex = value.toString('hex');
+
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
@@ -34,6 +37,7 @@ export function selectedSpeakerShortCode(linkId: string, eventId: string, secret
 
 export function legacySelectedSpeakerShortCode(linkId: string, eventId: string, secret: string): string {
   const encodedId = uuidBytes(linkId).toString('base64url');
+
   return `P_${encodedId}_${signature(linkId, eventId, secret, LEGACY_SIGNATURE_BYTES)}`;
 }
 
@@ -55,7 +59,9 @@ export function verifySelectedSpeakerShortCode(
   secret: string,
 ): boolean {
   const expected = selectedSpeakerShortCode(linkId, eventId, secret);
+
   if (code.length !== expected.length) return false;
+
   return crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected));
 }
 
@@ -67,7 +73,9 @@ export function verifyLegacySelectedSpeakerShortCode(
 ): boolean {
   if (!LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) return false;
   const expected = legacySelectedSpeakerShortCode(linkId, eventId, secret);
+
   if (code.length !== expected.length) return false;
+
   return crypto.timingSafeEqual(Buffer.from(code), Buffer.from(expected));
 }
 

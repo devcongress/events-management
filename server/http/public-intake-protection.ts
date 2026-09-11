@@ -14,6 +14,7 @@ export function publicClientKey(c: Context): string {
 export function publicClientIp(c: Context): string | undefined {
   const value = c.req.header('cf-connecting-ip')
     ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+
   return value && value !== 'unknown' ? value : undefined;
 }
 
@@ -36,6 +37,7 @@ function publicRateLimitError(
     action: securitySafeRequestPath(c.req.path),
     request_id: c.get('requestId') ?? null,
   }));
+
   return c.json({
     error: message,
     retry_after_seconds: result.retryAfterSeconds,
@@ -53,6 +55,7 @@ export async function enforcePublicRateLimit(
   message: string,
 ): Promise<globalThis.Response | null> {
   const result = await consumePublicRateLimit(c, input);
+
   return result.allowed ? null : publicRateLimitError(c, result, message);
 }
 
@@ -113,6 +116,7 @@ export async function requirePublicTurnstile(
         action: input.expectedAction,
         request_id: c.get('requestId') ?? null,
       }));
+
       return c.json({ error: 'Human verification is temporarily unavailable. Please try again later.' }, 503);
     }
 
@@ -127,5 +131,6 @@ export async function requirePublicTurnstile(
     expectedAction: input.expectedAction,
     expectedHostname: input.expectedHostname ?? envValue('TURNSTILE_EXPECTED_HOSTNAME', c),
   });
+
   return result.ok ? null : c.json({ error: result.error }, result.status);
 }

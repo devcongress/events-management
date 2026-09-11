@@ -6,6 +6,7 @@ export function normalizeSecretAnswer(value: string): string {
 
 export function hashSecretAnswer(value: string): string {
   const normalized = normalizeSecretAnswer(value);
+
   return crypto.createHash('sha256').update(normalized).digest('hex');
 }
 

@@ -21,6 +21,7 @@ async function enqueueWrite<T>(filename: string, fn: () => Promise<T>): Promise<
   const queue = writeQueues.get(filename) || Promise.resolve();
 
   const nextPromise = queue.then(fn, fn);
+
   writeQueues.set(filename, nextPromise.then(() => {}, () => {}));
 
   return nextPromise;
@@ -28,6 +29,7 @@ async function enqueueWrite<T>(filename: string, fn: () => Promise<T>): Promise<
 
 export async function readData<T>(filename: string): Promise<T[]> {
   const remote = await readRemoteData<T>(filename);
+
   if (remote) return remote.data;
 
   return readDataFile<T>(filename);
@@ -36,6 +38,7 @@ export async function readData<T>(filename: string): Promise<T[]> {
 export async function writeData<T>(filename: string, data: T[]): Promise<void> {
   return enqueueWrite(filename, async () => {
     const remote = await readRemoteData<T>(filename);
+
     if (remote && await writeRemoteData(filename, data, remote.version)) return;
     await writeDataFile(filename, data);
   });
@@ -49,9 +52,11 @@ export async function updateData<T, R>(
     const remote = await readRemoteData<T>(filename);
     const current = remote?.data ?? await readDataFile<T>(filename);
     const { data, result } = await fn(current);
+
     if (!await writeRemoteData(filename, data, remote?.version)) {
       await writeDataFile(filename, data);
     }
+
     return result;
   });
 }
@@ -84,9 +89,11 @@ async function readRemoteData<T>(filename: string): Promise<SharedDocument<T> | 
     if (envValue('NODE_ENV') === 'production') return { data: [], version: 0 };
 
     const localData = await readDataFile<T>(filename);
+
     if (localData.length > 0) {
       await writeRemoteData(filename, localData, 0);
     }
+
     return { data: localData, version: localData.length > 0 ? 1 : 0 };
   }
 
@@ -112,6 +119,7 @@ async function writeRemoteData<T>(filename: string, data: T[], expectedVersion?:
 
   if (error) {
     if (error.message.includes('shared_document_conflict')) throw new SharedDocumentConflictError(filename);
+
     throw new Error(`Unable to write shared ${filename} data`);
   }
 

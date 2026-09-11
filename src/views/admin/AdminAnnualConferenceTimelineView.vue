@@ -68,6 +68,7 @@ const {
 const phaseScopeLabel = computed(() => {
   if (selectedPhase.value) return selectedPhase.value.name;
   if (phaseScope.value === 'unassigned') return 'No phase';
+
   return 'Entire conference';
 });
 const phaseScopeOptions = computed(() => [
@@ -95,6 +96,7 @@ const scopeCountdownLabel = computed(() => selectedPhase.value?.name ?? 'Confere
 const phaseScopeWindow = computed(() => {
   if (selectedPhase.value) return `${shortDate(selectedPhase.value.starts_on)} – ${shortDate(selectedPhase.value.ends_on)}`;
   if (phaseScope.value === 'unassigned') return 'Not scheduled';
+
   return phases.value.length
     ? `${shortDate(phases.value[0].starts_on)} – ${shortDate(phases.value.at(-1)!.ends_on)}`
     : 'Not set';
@@ -107,11 +109,13 @@ const timelineEnd = computed(() => phases.value.at(-1)?.ends_on ?? conferenceDat
 const todayPosition = computed(() => {
   if (!timelineStart.value || !timelineEnd.value) return null;
   const total = Math.max(1, daysBetween(timelineStart.value, timelineEnd.value));
+
   return Math.min(100, Math.max(0, (daysBetween(timelineStart.value, today.value) / total) * 100));
 });
 const filteredGapTasks = computed(() => {
   return sortedTasks(projection.value.planning_gaps.filter((task) => {
     const matchesStatus = gapStatus.value === 'all' || task.status === gapStatus.value;
+
     return matchesStatus;
   }));
 });
@@ -119,6 +123,7 @@ const totalPlanningGaps = computed(() => projection.value.planning_gaps.length);
 const gapPageCount = computed(() => Math.max(1, Math.ceil(filteredGapTasks.value.length / GAP_TABLE_PAGE_SIZE)));
 const paginatedGapTasks = computed(() => {
   const start = (gapPage.value - 1) * GAP_TABLE_PAGE_SIZE;
+
   return filteredGapTasks.value.slice(start, start + GAP_TABLE_PAGE_SIZE);
 });
 const gapRangeStart = computed(() => filteredGapTasks.value.length ? (gapPage.value - 1) * GAP_TABLE_PAGE_SIZE + 1 : 0);
@@ -130,6 +135,7 @@ function resetGapPage() {
 
 function organizerDisplay(value: string | null): string {
   if (!value) return 'Unassigned';
+
   return organizerLabels.value[value.trim().toLowerCase()] ?? value;
 }
 
@@ -137,6 +143,7 @@ function planningStatusClass(status: AnnualConferenceTask['status']): string {
   if (status === 'done') return 'planning-status--done';
   if (status === 'blocked') return 'planning-status--blocked';
   if (status === 'in_progress') return 'planning-status--active';
+
   return 'planning-status--idle';
 }
 
@@ -155,11 +162,13 @@ watch([() => route.fullPath, tasks, phases], () => {
     || context.phase === 'unassigned'
     || phases.value.some((phase) => phase.id === context.phase)
   ) ? context.phase : null;
+
   phaseScope.value = requestedPhase ?? defaultAnnualConferencePhaseScope(phases.value, today.value);
 
   const requestedTask = context.task
     ? tasks.value.find((task) => task.id === context.task)
     : null;
+
   if (requestedTask && selectedTaskId.value !== requestedTask.id) editTask(requestedTask.id);
   if (!context.task && selectedTaskId.value) closeTaskDrawer();
   if ((context.phase && !requestedPhase) || (context.task && tasks.value.length && !requestedTask)) {
@@ -173,6 +182,7 @@ const gapStatusOptions = [
   { value: 'blocked', label: 'Blocked' },
   { value: 'done', label: 'Done' },
 ];
+
 function refreshToday() {
   today.value = currentAccraDate();
 }
@@ -192,6 +202,7 @@ function currentAccraDate(): string {
     timeZone: 'Africa/Accra', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date());
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
@@ -212,6 +223,7 @@ function sortedTasks(items: AnnualConferenceTask[]): AnnualConferenceTask[] {
     if (!left.target_date && !right.target_date) return left.sort_order - right.sort_order;
     if (!left.target_date) return 1;
     if (!right.target_date) return -1;
+
     return left.target_date.localeCompare(right.target_date) || left.sort_order - right.sort_order;
   });
 }
@@ -228,12 +240,15 @@ function shortDate(value: string): string {
 
 function nextDay(value: string): string {
   const date = new Date(`${value}T12:00:00Z`);
+
   date.setUTCDate(date.getUTCDate() + 1);
+
   return date.toISOString().slice(0, 10);
 }
 
 function readinessLabel(): string {
   if (scopedTasks.value.length === 0) return 'No work assigned';
+
   return {
     complete: 'Objectives complete',
     on_track: 'On track',
@@ -247,6 +262,7 @@ function readinessClass(): string {
   if (scopedTasks.value.length === 0) return 'health-signal--neutral';
   if (health.value.readiness === 'complete' || health.value.readiness === 'on_track') return 'health-signal--good';
   if (health.value.readiness === 'needs_planning' || health.value.readiness === 'at_risk') return 'health-signal--warn';
+
   return 'health-signal--danger';
 }
 
@@ -272,7 +288,9 @@ function timelineQuery(patch: { task?: string | null } = {}): Record<string, str
     ...(phaseScope.value !== 'all' ? { phase: phaseScope.value } : {}),
     ...(task ? { task } : {}),
   }, 'timeline');
+
   delete context.section;
+
   return context;
 }
 
@@ -306,6 +324,7 @@ function startCreate() {
   form.name = `Phase ${phases.value.length + 1}`;
   const proposedStart = phases.value.at(-1) ? nextDay(phases.value.at(-1)!.ends_on) : `${year.value}-08-01`;
   const endDate = conferenceDate.value ?? `${year.value}-12-01`;
+
   form.starts_on = proposedStart;
   form.ends_on = endDate >= proposedStart ? endDate : proposedStart;
   editorOpen.value = true;
@@ -339,8 +358,10 @@ const deleteMutation = useMutation({
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to remove the phase.'),
 });
+
 function submitPhase() {
   const input = { name: form.name.trim(), starts_on: form.starts_on, ends_on: form.ends_on };
+
   if (editingPhaseId.value) updatePhaseMutation.mutate({ phaseId: editingPhaseId.value, input });
   else createMutation.mutate(input);
 }
@@ -352,9 +373,11 @@ function submitTask(input: AnnualConferenceTaskUpdateInput) {
 async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
   const index = phases.value.findIndex((item) => item.id === phase.id);
   const neighbor = phases.value[index + direction];
+
   if (!neighbor) return;
   try {
     const orderedIds = phases.value.map((item) => item.id);
+
     [orderedIds[index], orderedIds[index + direction]] = [orderedIds[index + direction], orderedIds[index]];
     await reorderAnnualConferencePhases(year.value, orderedIds);
     await refresh();

@@ -35,16 +35,19 @@ const remaining = computed(() => {
   }
 
   const elapsed = Math.floor((now.value - new Date(state.value.question_started_at).getTime()) / 1000);
+
   return Math.max(0, state.value.current_question.time_limit_seconds - elapsed);
 });
 const secondsUntilStart = computed(() => {
   if (!state.value?.question_started_at || !['presenting', 'answering'].includes(state.value.session.question_phase ?? '')) return null;
+
   return Math.max(0, Math.ceil((new Date(state.value.question_started_at).getTime() - now.value) / 1000));
 });
 const questionIsOpen = computed(() => state.value?.session.question_phase === 'answering' && (secondsUntilStart.value === null || secondsUntilStart.value <= 0));
 
 const progress = computed(() => {
   const limit = state.value?.current_question?.time_limit_seconds ?? 20;
+
   return (remaining.value / limit) * 100;
 });
 const playerStanding = computed(() => state.value?.player_standing ?? null);
@@ -53,6 +56,7 @@ const isTopFive = computed(() => Boolean(playerStanding.value && playerStanding.
 
 function syncToLiveClock(serverNow: string) {
   const serverNowMs = new Date(serverNow).getTime();
+
   if (Number.isFinite(serverNowMs)) clockOffsetMs.value = serverNowMs - Date.now();
 }
 
@@ -73,12 +77,15 @@ async function joinLearningRoom() {
 
   if (!response.ok) {
     const data = await response.json();
+
     joinError.value = data.error || 'This System Design learning room is not available.';
     joining.value = false;
+
     return;
   }
 
   const data = await response.json();
+
   sessionId.value = data.session_id;
   userId.value = data.user_id;
   participantId.value = data.participant_id;
@@ -92,8 +99,10 @@ async function joinLearningRoom() {
 async function saveName() {
   if (!participantId.value || savingName.value) return;
   const nickname = nicknameInput.value.trim();
+
   if (!nickname) {
     nameError.value = 'Enter the name you want to use in this room.';
+
     return;
   }
 
@@ -106,6 +115,7 @@ async function saveName() {
     body: JSON.stringify({ device_id: getDeviceId(), nickname }),
   });
   const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     nameError.value = data.error || 'Your name could not be updated.';
   } else {
@@ -128,14 +138,17 @@ async function pollState() {
     const response = await fetch(`/api/quiz/state?${stateQuery.toString()}`, {
       headers: { 'X-Quiz-Device-ID': getDeviceId() },
     });
+
     if (response.ok) {
       const nextState = await response.json() as QuizStateResponse;
+
       if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
         selectedAnswer.value = null;
         answerError.value = null;
       }
       state.value = nextState;
       syncToLiveClock(nextState.server_now);
+
       return;
     }
 
@@ -164,6 +177,7 @@ async function submitAnswer(answerIndex: number) {
 
   if (!response.ok) {
     const data = await response.json();
+
     answerError.value = data.error || 'Your answer could not be submitted.';
   } else {
     selectedAnswer.value = answerIndex;

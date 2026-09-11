@@ -31,5 +31,6 @@ export function resolveEventStatus(event: EventStatusSource, nowMs = Date.now())
 
 export function withResolvedEventStatus<T extends EventStatusSource>(event: T, nowMs = Date.now()): T {
   const status = resolveEventStatus(event, nowMs);
+
   return status === event.status ? event : { ...event, status };
 }

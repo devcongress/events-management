@@ -16,6 +16,7 @@ describe('annual conference capabilities', () => {
 
   it('preserves organizer defaults without granting planning-owner mutations', () => {
     const capabilities = effectiveAnnualConferenceCapabilities({ role: 'organizer' });
+
     expect(hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')).toBe(true);
     expect(hasAnnualConferenceCapability(capabilities, 'volunteers.review_applications')).toBe(true);
     expect(hasAnnualConferenceCapability(capabilities, 'work_plan.manage')).toBe(false);
@@ -24,10 +25,12 @@ describe('annual conference capabilities', () => {
 
   it('gives planning owners planning mutations and platform owners everything', () => {
     const planningOwner = effectiveAnnualConferenceCapabilities({ role: 'organizer', isPlanningOwner: true });
+
     expect(planningOwner).toContain('work_plan.manage');
     expect(planningOwner).toContain('phases.manage');
 
     const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
+
     expect(owner).toHaveLength(10);
     expect(owner).toContain('finance.view');
   });

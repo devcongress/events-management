@@ -47,16 +47,20 @@ const today = new Date();
 const currentYear = today.getFullYear();
 const currentMonth = today.getMonth() + 1;
 const statusOptions: Array<'all' | 'uploaded' | 'missing'> = ['all', 'uploaded', 'missing'];
+
 function monthParts(month: string): { year: number; month: number } {
   const [year, monthNumber] = month.split('-').map(Number);
+
   return { year, month: monthNumber };
 }
 
 function isCollectableMonth(month: string): boolean {
   const parts = monthParts(month);
+
   if (parts.year < ATTENDANCE_START_YEAR) return false;
   if (parts.year > currentYear) return false;
   if (parts.year === currentYear && parts.month > currentMonth) return false;
+
   return true;
 }
 
@@ -69,6 +73,7 @@ const selectedYearLabel = computed(() => selectedYear.value || String(new Date()
 const filteredLedger = computed(() => {
   return yearLedger.value.filter((item) => {
     const statusMatches = selectedStatus.value === 'all' || item.upload_status === selectedStatus.value;
+
     return statusMatches;
   });
 });
@@ -179,11 +184,13 @@ function lastRsvpDate(person: ConsistencyPersonRow): string | null {
 
 function formatLastRsvpDate(person: ConsistencyPersonRow): string {
   const date = lastRsvpDate(person);
+
   return date ? formatDate(date) : '-';
 }
 
 function chartBarHeight(value: number, maximum: number): string {
   if (value <= 0 || maximum <= 0) return '0%';
+
   return `${Math.max(4, Math.round((value / maximum) * 100))}%`;
 }
 
@@ -201,6 +208,7 @@ async function fetchAttendanceLedger() {
 
   if (response.ok) {
     const payload = await response.json() as { ledger: AttendanceLedgerMonth[]; insights: AttendanceMonthlyInsights };
+
     ledger.value = payload.ledger;
     insights.value = payload.insights;
     if (!availableYears.value.includes(selectedYear.value)) {
@@ -208,6 +216,7 @@ async function fetchAttendanceLedger() {
     }
   } else {
     const payload = await response.json().catch(() => ({}));
+
     error.value = payload.error ?? 'Unable to load attendance ledger';
   }
 
@@ -232,6 +241,7 @@ function formatPercent(value: number): string {
 
 function statusOptionLabel(option: 'all' | 'uploaded' | 'missing'): string {
   if (option === 'uploaded') return 'Recorded';
+
   return option;
 }
 
@@ -239,6 +249,7 @@ function formatEventTurnout(summary: EventAttendanceSummary): string {
   const registrationRate = summary.total_registrations === 0
     ? 0
     : summary.checked_in / summary.total_registrations;
+
   return `${summary.checked_in} out of ${summary.total_registrations} came / ${formatPercent(registrationRate)}`;
 }
 
@@ -246,6 +257,7 @@ function percentile(values: number[], percentileValue: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const index = Math.ceil((percentileValue / 100) * sorted.length) - 1;
+
   return sorted[Math.max(0, Math.min(sorted.length - 1, index))];
 }
 

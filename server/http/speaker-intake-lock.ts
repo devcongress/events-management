@@ -11,6 +11,7 @@ export async function acquireSpeakerIntakeSubmissionLock(key: string): Promise<(
     releaseCurrent = resolve;
   });
   const queued = previous.then(() => current);
+
   speakerIntakeSubmissionLocks.set(key, queued);
   await previous;
 

@@ -5,6 +5,7 @@ import { generateId, now } from '@/lib/utils';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 
 const FILE = 'speaker-submissions';
+
 type SpeakerSubmissionRow = Database['public']['Tables']['speaker_submissions']['Row'];
 
 export class SpeakerSubmissionDecisionFinalError extends Error {
@@ -53,10 +54,12 @@ export async function getSpeakerSubmissionsByEvent(eventId: string): Promise<Spe
       .order('created_at', { ascending: false });
 
     if (error) throw new Error('Unable to load presentation proposals');
+
     return (data ?? []).map(fromSupabaseRow);
   }
 
   const submissions = await readData<SpeakerSubmission>(FILE);
+
   return submissions
     .map(normalizeSpeakerSubmission)
     .filter((submission) => submission.event_id === eventId)
@@ -72,11 +75,13 @@ export async function getSpeakerSubmissionById(id: string): Promise<SpeakerSubmi
       .maybeSingle();
 
     if (error) throw new Error('Unable to load presentation proposal');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
 
   const submissions = await readData<SpeakerSubmission>(FILE);
   const submission = submissions.find((item) => item.id === id);
+
   return submission ? normalizeSpeakerSubmission(submission) : undefined;
 }
 
@@ -157,6 +162,7 @@ export async function createSpeakerSubmission(
       throw new Error('This archive proposal has already been submitted for this event');
     }
     if (error || !stored) throw new Error('Unable to create presentation proposal');
+
     return fromSupabaseRow(stored);
   }
 
@@ -189,6 +195,7 @@ export async function updateSpeakerSubmission(
 ): Promise<SpeakerSubmission> {
   if (isSupabaseRuntimeEnabled()) {
     const existing = await getSpeakerSubmissionById(id);
+
     if (!existing) throw new Error(`Speaker submission ${id} not found`);
 
     const statusChanged = updates.status && updates.status !== existing.status;
@@ -211,6 +218,7 @@ export async function updateSpeakerSubmission(
       throw new Error('This archive proposal has already been submitted for this event');
     }
     if (error || !data) throw new Error('Unable to update presentation proposal');
+
     return fromSupabaseRow(data);
   }
 
@@ -232,6 +240,7 @@ export async function updateSpeakerSubmission(
     };
 
     const nextSubmissions = [...normalizedSubmissions];
+
     nextSubmissions[index] = next;
 
     return {
@@ -280,12 +289,14 @@ export async function decideSpeakerSubmission(
     if (error) throw new Error('Unable to update presentation proposal');
     if (data) return fromSupabaseRow(data);
     if (await getSpeakerSubmissionById(id)) throw new SpeakerSubmissionDecisionFinalError();
+
     throw new Error(`Speaker submission ${id} not found`);
   }
 
   return updateData<SpeakerSubmission, SpeakerSubmission>(FILE, (submissions) => {
     const normalizedSubmissions = submissions.map(normalizeSpeakerSubmission);
     const index = normalizedSubmissions.findIndex((submission) => submission.id === id);
+
     if (index === -1) throw new Error(`Speaker submission ${id} not found`);
     if (normalizedSubmissions[index].status !== 'submitted') throw new SpeakerSubmissionDecisionFinalError();
 
@@ -296,7 +307,9 @@ export async function decideSpeakerSubmission(
       updated_at: decidedAt,
     };
     const nextSubmissions = [...normalizedSubmissions];
+
     nextSubmissions[index] = next;
+
     return { data: nextSubmissions, result: next };
   });
 }
@@ -317,13 +330,17 @@ export async function getPendingSpeakerRejectionEmails(options: {
       .in('decision_email_status', statuses)
       .order('decision_email_last_attempt_at', { ascending: true, nullsFirst: true })
       .limit(limit);
+
     if (options.submissionId) query = query.eq('id', options.submissionId);
     const { data, error } = await query;
+
     if (error) throw new Error('Unable to load pending speaker decision emails');
+
     return (data ?? []).map(fromSupabaseRow);
   }
 
   const submissions = (await readData<SpeakerSubmission>(FILE)).map(normalizeSpeakerSubmission);
+
   return submissions
     .filter((submission) => (
       submission.status === 'not_selected'
@@ -343,6 +360,7 @@ export async function updateSpeakerDecisionEmailDelivery(
   },
 ): Promise<SpeakerSubmission> {
   const attemptedAt = now();
+
   return updateSpeakerSubmission(id, {
     decision_email_status: update.status,
     decision_email_provider_id: update.providerId ?? null,

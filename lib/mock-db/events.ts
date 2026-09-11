@@ -10,6 +10,7 @@ export async function getAllEvents(): Promise<Event[]> {
 
 export async function getEventById(id: string): Promise<Event | undefined> {
   const events = await readData<Event>(FILE);
+
   return events.find(e => e.id === id);
 }
 
@@ -26,8 +27,10 @@ export async function createEvent(
     created_at: now(),
     updated_at: now(),
   };
+
   events.push(newEvent);
   await writeData(FILE, events);
+
   return newEvent;
 }
 
@@ -49,11 +52,13 @@ export async function updateEvent(
   };
 
   await writeData(FILE, events);
+
   return events[index];
 }
 
 export async function deleteEvent(id: string): Promise<void> {
   const events = await readData<Event>(FILE);
   const filtered = events.filter(e => e.id !== id);
+
   await writeData(FILE, filtered);
 }

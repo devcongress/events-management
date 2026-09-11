@@ -86,10 +86,12 @@ describe('System Design presentation runs', () => {
     const session: QuizSession = { id: 'room-1', event_id: 'event-1', join_code: 'ABC234', purpose: 'system_design_learning', status: 'active', current_question_index: 0, question_phase: 'answering', started_at: '2026-07-01T10:00:00.000Z', finished_at: null, created_at: '2026-07-01T09:00:00.000Z', question_started_at: '2026-07-01T10:00:00.000Z', phase_started_at: null, expires_at: null, released_question_ids: ['question-1'], skipped_question_ids: [] };
     const question: Question = { id: 'question-1', quiz_session_id: session.id, question_text: 'Question', options: ['A', 'B', 'C', 'D'], correct_index: 0, time_limit_seconds: 20, points: 1000, order_index: 0, created_at: '2026-07-01T09:00:00.000Z', explanation: 'Hidden until reveal.' };
     const nextQuestion: Question = { ...question, id: 'question-2', order_index: 1 };
+
     await writeData('quiz-sessions', [session]);
     await writeData('questions', [question, nextQuestion]);
     await writeData<Response>('responses', [{ id: 'response-1', question_id: question.id, user_id: 'user-1', answer_index: 0, answered_at: '2026-07-01T10:00:05.000Z', time_taken_ms: 5000, points_awarded: 900, is_correct: true, created_at: '2026-07-01T10:00:05.000Z' }]);
     const skipped = await skipSystemDesignQuestion(session, [question, nextQuestion]);
+
     expect(skipped).toMatchObject({ question_phase: 'presenting', current_question_index: 1, skipped_question_ids: [question.id], released_question_ids: [question.id, nextQuestion.id] });
     expect(skipped.question_started_at).not.toBeNull();
     await expect(readData<Response>('responses')).resolves.toEqual([]);
@@ -103,6 +105,7 @@ describe('System Design presentation runs', () => {
       { id: 'participant-1', quiz_session_id: 'room-1', user_id: 'user-1', nickname_used: 'Bright Fox', total_score: 0, current_streak: 0, joined_at: '2026-07-01T10:00:00.000Z' },
       { id: 'participant-2', quiz_session_id: 'room-1', user_id: 'user-2', nickname_used: 'Calm Owl', total_score: 0, current_streak: 0, joined_at: '2026-07-01T10:00:01.000Z' },
     ];
+
     await writeData('quiz-participants', participants);
 
     await expect(renameQuizParticipant('participant-1', 'room-1', 'Ama')).resolves.toMatchObject({
@@ -141,6 +144,7 @@ describe('System Design presentation runs', () => {
 
     expect(joins.filter((join) => join.status === 'fulfilled')).toHaveLength(1);
     const rejected = joins.find((join) => join.status === 'rejected');
+
     expect(rejected).toMatchObject({
       status: 'rejected',
       reason: expect.any(QuizParticipantNicknameTakenError),

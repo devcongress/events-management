@@ -48,15 +48,18 @@ function textLine(value: string, fallback = ''): string {
 
 function safeHttpUrl(value: string | null | undefined): string | null {
   const candidate = value?.trim();
+
   if (!candidate || candidate.length > 2048) return null;
   try {
     const url = new URL(candidate);
+
     if (
       (url.protocol !== 'https:' && url.protocol !== 'http:')
       || url.username
       || url.password
       || !url.hostname
     ) return null;
+
     return url.toString();
   } catch {
     return null;
@@ -65,6 +68,7 @@ function safeHttpUrl(value: string | null | undefined): string | null {
 
 function formatEventDate(value: string, timezone: string): string {
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return 'Date provided with submission';
   try {
     return new Intl.DateTimeFormat('en-GH', {

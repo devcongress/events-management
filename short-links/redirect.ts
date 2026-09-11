@@ -10,16 +10,19 @@ const MINIMUM_SHARED_SECRET_BYTES = 32;
 
 function secureResolverToken(value: string): string | null {
   const token = value.trim();
+
   return new TextEncoder().encode(token).byteLength >= MINIMUM_SHARED_SECRET_BYTES ? token : null;
 }
 
 function securityHeaders(initial: HeadersInit = {}): Headers {
   const headers = new Headers(initial);
+
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('X-Frame-Options', 'DENY');
   headers.set('Referrer-Policy', 'no-referrer');
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   headers.set('Content-Security-Policy', "default-src 'none'; style-src 'self'; style-src-attr 'none'; img-src https://em.devcongress.org; base-uri 'none'; frame-ancestors 'none'");
+
   return headers;
 }
 
@@ -76,13 +79,17 @@ export async function resolveShortLinkRequest(request: Request, env: ShortLinkEn
   if (request.method !== 'GET' && request.method !== 'HEAD') return unavailable();
   const url = new URL(request.url);
   const segments = url.pathname.split('/').filter(Boolean);
+
   if (segments.length !== 1 || !isSupportedShortLinkCode(segments[0])) return unavailable();
   const resolverToken = secureResolverToken(env.SHORT_LINK_RESOLVER_TOKEN);
+
   if (!resolverToken) return unavailable();
 
   let resolved: Response;
+
   try {
     const resolverUrl = new URL(`/api/internal/short-links/${segments[0]}`, env.EMS_RESOLVER_ORIGIN);
+
     resolved = await fetch(resolverUrl, {
       headers: {
         accept: 'application/json',
@@ -96,11 +103,14 @@ export async function resolveShortLinkRequest(request: Request, env: ShortLinkEn
   }
   if (!resolved.ok) return unavailable();
   const body = await resolved.json<{ destination_path?: unknown }>();
+
   if (typeof body.destination_path !== 'string' || !body.destination_path.startsWith('/') || body.destination_path.startsWith('//')) {
     return unavailable();
   }
   const destination = new URL(body.destination_path, env.PUBLIC_APP_ORIGIN);
+
   if (destination.origin !== new URL(env.PUBLIC_APP_ORIGIN).origin) return unavailable();
+
   return new Response(null, {
     status: 302,
     headers: securityHeaders({ location: destination.toString(), 'cache-control': 'no-store' }),

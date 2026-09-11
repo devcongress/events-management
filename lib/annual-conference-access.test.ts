@@ -78,6 +78,7 @@ describe('annual conference volunteer access', () => {
 
   it('does not filter organizer work plans', () => {
     const tasks = [task(), task({ id: 'task-2' })];
+
     expect(annualConferenceTasksForMember(
       tasks,
       { role: 'organizer', email: 'organizer@example.com' },
@@ -92,6 +93,7 @@ describe('annual conference volunteer access', () => {
       { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.view_all'] },
       ['work_plan.view_all'],
     );
+
     expect(visible).toHaveLength(2);
     expect(visible.every((item) => item.internal_note === null)).toBe(true);
   });

@@ -23,6 +23,7 @@ function recentTimestamps(state: FeedbackRateLimitState | undefined, now: number
 function persistState(key: string, timestamps: number[]) {
   if (timestamps.length === 0) {
     routeFeedbackSubmissions.delete(key);
+
     return;
   }
 
@@ -31,16 +32,19 @@ function persistState(key: string, timestamps: number[]) {
 
 export function evaluateRouteFeedbackRateLimit(key: string, now = Date.now()): FeedbackRateLimitResult {
   const timestamps = recentTimestamps(routeFeedbackSubmissions.get(key), now);
+
   persistState(key, timestamps);
 
   const latest = timestamps[0] ?? 0;
   const cooldownRemaining = latest + ROUTE_FEEDBACK_COOLDOWN_MS - now;
+
   if (cooldownRemaining > 0) {
     return { allowed: false, reason: 'cooldown', retryAfterMs: cooldownRemaining };
   }
 
   if (timestamps.length >= ROUTE_FEEDBACK_DAILY_LIMIT) {
     const windowRemaining = timestamps[timestamps.length - 1] + ROUTE_FEEDBACK_DAILY_WINDOW_MS - now;
+
     return { allowed: false, reason: 'daily_limit', retryAfterMs: Math.max(windowRemaining, 1000) };
   }
 
@@ -49,6 +53,7 @@ export function evaluateRouteFeedbackRateLimit(key: string, now = Date.now()): F
 
 export function recordRouteFeedbackSubmission(key: string, now = Date.now()) {
   const timestamps = recentTimestamps(routeFeedbackSubmissions.get(key), now);
+
   persistState(key, [now, ...timestamps]);
 }
 
@@ -58,6 +63,6 @@ export function routeFeedbackRetryMessage(result: Extract<FeedbackRateLimitResul
   }
 
   const minutes = Math.max(1, Math.ceil(result.retryAfterMs / 60000));
+
   return `Feedback received. You can send another note in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
 }
-

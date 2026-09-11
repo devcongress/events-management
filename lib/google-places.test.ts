@@ -29,6 +29,7 @@ describe('Ghana venue search', () => {
     ]);
 
     const [url, request] = vi.mocked(fetchImpl).mock.calls[0] ?? [];
+
     expect(url).toBe('https://places.googleapis.com/v1/places:autocomplete');
     expect(request?.headers).toMatchObject({ 'X-Goog-Api-Key': 'server-key' });
     expect(JSON.parse(String(request?.body))).toMatchObject({
@@ -41,12 +42,14 @@ describe('Ghana venue search', () => {
 
   it('does not call Google for an incomplete query', async () => {
     const fetchImpl = vi.fn() as unknown as typeof fetch;
+
     await expect(searchGhanaVenues({ query: 'F', apiKey: 'server-key', fetchImpl })).resolves.toEqual([]);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('turns an upstream rejection into a bounded provider error', async () => {
     const fetchImpl = vi.fn(async () => new Response('{}', { status: 403 })) as unknown as typeof fetch;
+
     await expect(searchGhanaVenues({ query: 'Fido', apiKey: 'server-key', fetchImpl }))
       .rejects.toEqual(new GooglePlacesSearchError('Google Places venue search failed.', 403));
   });

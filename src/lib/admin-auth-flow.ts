@@ -16,6 +16,7 @@ export interface AdminAuthFailureCopy {
 
 export function parseAdminAuthFailureReason(value: unknown): AdminAuthFailureReason | null {
   if (typeof value !== 'string') return null;
+
   return ADMIN_AUTH_FAILURE_REASONS.includes(value as AdminAuthFailureReason)
     ? value as AdminAuthFailureReason
     : null;
@@ -25,6 +26,7 @@ export function adminAuthFailureReasonForStatus(status: number): AdminAuthFailur
   if (status === 403) return 'access_denied';
   if (status === 429) return 'rate_limited';
   if (status >= 500) return 'service_unavailable';
+
   return 'oauth_failed';
 }
 

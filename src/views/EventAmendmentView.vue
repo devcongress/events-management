@@ -68,10 +68,12 @@ function chooseCover(event: Event) {
   if (saving.value || submitting.value) return;
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
+
   if (!file) return;
   if (!['image/avif', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
     error.value = 'Use an AVIF, JPEG, PNG, or WebP cover that is 5MB or smaller.';
     input.value = '';
+
     return;
   }
   revokeCoverPreview();
@@ -82,8 +84,10 @@ function chooseCover(event: Event) {
 }
 function payloadFormData() {
   const data = new FormData();
+
   Object.entries(payload()).forEach(([key, value]) => data.set(key, String(value ?? '')));
   if (coverFile.value) data.set('cover', coverFile.value);
+
   return data;
 }
 function managementHeaders(headers: Record<string, string> = {}) {
@@ -92,6 +96,7 @@ function managementHeaders(headers: Record<string, string> = {}) {
 function saveCoverWithProgress() {
   return new Promise<unknown>((resolve, reject) => {
     const request = new XMLHttpRequest();
+
     request.open('PUT', '/api/public/event-submissions/management/with-cover');
     request.setRequestHeader('Authorization', `Bearer ${capability}`);
     request.upload.onprogress = (event) => {
@@ -101,6 +106,7 @@ function saveCoverWithProgress() {
     request.onerror = () => reject(new Error('Network error while uploading cover.'));
     request.onload = () => {
       const data = request.responseText ? JSON.parse(request.responseText) : {};
+
       if (request.status >= 200 && request.status < 300) resolve(data);
       else reject(new Error(data.error || 'Changes could not be saved.'));
     };
@@ -112,14 +118,19 @@ async function load() {
   try {
     if (!capability) {
       unavailable.value = 'This event link is no longer available.';
+
       return;
     }
     const response = await fetch('/api/public/event-submissions/management', { headers: managementHeaders() });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) { unavailable.value = data.error || 'This event link is no longer available.'; return; }
+
+    if (!response.ok) { unavailable.value = data.error || 'This event link is no longer available.';
+
+ return; }
     submission.value = data.management.submission;
     currentEvent.value = data.management.current_event ?? null;
     const source = data.management.amendment ?? data.management.current_event ?? data.management.submission;
+
     amendment.value = data.management.amendment;
     Object.assign(form, {
       starts_at: toLocal(source.starts_at), ends_at: toLocal(source.ends_at), location_type: source.location_type,
@@ -137,6 +148,7 @@ async function save() {
   saving.value = true; error.value = ''; saved.value = false;
   try {
     const withCover = Boolean(coverFile.value);
+
     coverUploadProgress.value = withCover ? 0 : null;
     const data = withCover
       ? await saveCoverWithProgress() as { amendment: Amendment }
@@ -144,9 +156,12 @@ async function save() {
         method: 'PUT', headers: managementHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify(payload()),
       }).then(async (response) => {
         const payload = await response.json().catch(() => ({}));
+
         if (!response.ok) throw new Error(payload.error || 'Changes could not be saved.');
+
         return payload as { amendment: Amendment };
       });
+
     amendment.value = data.amendment;
     coverFile.value = null;
     revokeCoverPreview();
@@ -170,6 +185,7 @@ async function submit() {
       headers: managementHeaders(),
     });
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) throw new Error(data.error || 'Changes could not be submitted.');
     amendment.value = data.amendment;
   } catch (cause) {

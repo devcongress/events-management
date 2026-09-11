@@ -61,6 +61,7 @@ export function attendanceMonthForEvent(event: Pick<Event, 'event_date'>): strin
 
 export function attendanceMonthLabel(month: string): string {
   const [year, monthNumber] = month.split('-').map(Number);
+
   return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
@@ -126,6 +127,7 @@ function latestImportByEvent(imports: EventAttendanceImport[]): Map<string, Even
 
   for (const attendanceImport of imports) {
     const existing = map.get(attendanceImport.event_id);
+
     if (!existing || new Date(attendanceImport.imported_at).getTime() > new Date(existing.imported_at).getTime()) {
       map.set(attendanceImport.event_id, attendanceImport);
     }
@@ -205,6 +207,7 @@ function percentile(values: number[], percentileValue: number): number {
 
   const sorted = [...values].sort((a, b) => a - b);
   const index = Math.ceil((percentileValue / 100) * sorted.length) - 1;
+
   return sorted[Math.max(0, Math.min(sorted.length - 1, index))];
 }
 
@@ -214,6 +217,7 @@ function sourceQuality(records: LumaAttendanceRecord[]): AttendanceSourceInsight
   for (const record of records) {
     const label = record.utm_source ?? 'Direct / unknown';
     const source = sources.get(label) ?? { registrations: 0, checked_in: 0 };
+
     source.registrations += 1;
     if (record.checked_in_at) source.checked_in += 1;
     sources.set(label, source);
@@ -231,6 +235,7 @@ function sourceQuality(records: LumaAttendanceRecord[]): AttendanceSourceInsight
 
 function repeatAttendeeProfiles(ledger: AttendanceLedgerMonth[]): AttendanceRepeatAttendee[] {
   const people = new Map<string, AttendanceRepeatAttendee>();
+
   for (const month of ledger) {
     for (const eventItem of month.events) {
       for (const record of eventItem.import?.records ?? []) {
@@ -240,6 +245,7 @@ function repeatAttendeeProfiles(ledger: AttendanceLedgerMonth[]): AttendanceRepe
         const person = people.get(key) ?? { key, name: record.name || record.email || record.guest_id, email, trail: [] };
         const existing = person.trail.find((mark) => mark.event_id === eventItem.event.id);
         const outcome = record.checked_in_at ? 'came' : 'missed';
+
         if (!existing) {
           person.trail.push({ event_id: eventItem.event.id, event_name: eventItem.event.name, event_date: eventItem.event.event_date, outcome });
         } else if (existing.outcome === 'missed' && outcome === 'came') {
@@ -249,6 +255,7 @@ function repeatAttendeeProfiles(ledger: AttendanceLedgerMonth[]): AttendanceRepe
       }
     }
   }
+
   return [...people.values()]
     .map((person) => ({ ...person, trail: person.trail.sort((a, b) => a.event_date.localeCompare(b.event_date)) }))
     .filter((person) => person.trail.length > 1)
@@ -264,6 +271,7 @@ export function buildAttendanceInsights(ledger: AttendanceLedgerMonth[]): Attend
     .filter((email): email is string => Boolean(email));
   const emailCounts = attendeeEmails.reduce((counts, email) => {
     counts.set(email, (counts.get(email) ?? 0) + 1);
+
     return counts;
   }, new Map<string, number>());
   const averageCheckInRate = imported.length === 0

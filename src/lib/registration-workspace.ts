@@ -48,6 +48,7 @@ export function registrationEventHasEnded(
 
   const eventEnd = event.end_date || event.event_date;
   const eventEndMs = new Date(eventEnd).getTime();
+
   return Number.isFinite(eventEndMs) && eventEndMs < nowMs;
 }
 
@@ -90,6 +91,7 @@ export function filterRegistrationGuests(
       if (input.status === 'waitlisted') return registration.status === 'waitlisted';
       if (input.status === 'checked_in') return Boolean(registration.checked_in_at);
       if (input.status === 'cancelled') return registration.status === 'cancelled';
+
       return input.eventEnded
         && registration.status === 'confirmed'
         && !registration.checked_in_at;

@@ -17,6 +17,7 @@ export type BlastCapacity = {
 
 export function blastTransactionalReserve(value: string | undefined): number {
   const parsed = Number.parseInt(value ?? '', 10);
+
   return Number.isSafeInteger(parsed) && parsed >= 0 && parsed < 100
     ? parsed
     : DEFAULT_BLAST_TRANSACTIONAL_RESERVE;
@@ -47,6 +48,7 @@ export function assessBlastCapacity(input: {
   const allocatable = Math.max(0, dailyRemaining - queued);
   const safe = Math.max(0, allocatable - input.protectedReserve);
   const exhausted = input.health.daily_quota_used >= input.health.daily_quota_limit;
+
   return {
     known: true,
     daily_limit: input.health.daily_quota_limit,

@@ -36,5 +36,6 @@ export function calculatePoints(
 export function calculateStreakBonus(streakCount: number): number {
   if (streakCount < 2) return 0;
   if (streakCount >= 5) return STREAK_BONUSES[5];
+
   return STREAK_BONUSES[streakCount] || 0;
 }

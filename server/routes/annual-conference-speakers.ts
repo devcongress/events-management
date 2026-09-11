@@ -76,6 +76,7 @@ import {
 function speakerSubmissionCounts(submissions: Array<Pick<AnnualConferenceSpeakerSubmission, 'status'>>) {
   return submissions.reduce((counts, submission) => {
     counts[submission.status] += 1;
+
     return counts;
   }, {
     submitted: 0,
@@ -95,33 +96,41 @@ function annualConferenceWebhookOutcome(type: string, eventAt: string) {
   if (type === 'email.bounced') return { status: 'bounced' as const, retryable: false, lastError: 'The message bounced. Correct the delivery address before sending again.' };
   if (type === 'email.suppressed') return { status: 'suppressed' as const, retryable: false, lastError: 'The provider suppressed this recipient. Correct the address or resolve the suppression before sending again.' };
   if (type === 'email.complained') return { status: 'complained' as const, retryable: false, lastError: 'The recipient reported this message. Do not resend without their consent.' };
+
   return { status: 'failed' as const, retryable: false, lastError: 'The provider reported a permanent delivery failure. Correct the address before sending again.' };
 }
 
 function scheduledJobAuthorized(c: Context): boolean {
   const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
   const received = c.req.header('x-scheduled-job-secret')?.trim();
+
   if (!expected || !received) return false;
   const expectedBuffer = Buffer.from(expected);
   const receivedBuffer = Buffer.from(received);
+
   return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): void {
   app.get('/api/annual-conference/:year/speakers', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const year = Number(yearParam);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.view');
+
     if (capabilityError) return capabilityError;
 
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
+
       if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
       const submissions = await getAnnualConferenceSpeakerSubmissions(edition.id);
       const session = c.get('adminSession') ?? await getAdminSession(c);
+
       if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
       const access = await getAnnualConferenceAccessGrants(edition.id, session.membership_id, c);
       const capabilities = effectiveAnnualConferenceCapabilities({
@@ -138,6 +147,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             ? getAnnualConferenceSession(submission.selected_session_id)
             : undefined,
         ]);
+
         return {
           ...submission,
           decision_email_status: submission.decision_email_status ?? decisionLink?.email_status ?? null,
@@ -160,6 +170,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           } : null,
         };
       }));
+
       return c.json({
         edition: { year: edition.year, label: edition.label, name: edition.name },
         call: {
@@ -187,24 +198,31 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.patch('/api/annual-conference/:year/speakers/call', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const parsed = z.object({ open: z.boolean() }).strict().safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) return c.json({ error: 'Choose whether the Call for Speakers is open.' }, 400);
     const year = Number(yearParam);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
 
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
+
       if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
       const repository = createAnnualConferenceRepository(c);
+
       await repository.getWorkspace(year);
       const updatedEdition = await repository.updateEditionSpeakerCallStatus(
         edition.id,
         parsed.data.open ? 'open' : 'closed',
       );
+
       await recordProtectedMutationAudit(c, {
         action: parsed.data.open
           ? 'annual_conference.speakers.call.open'
@@ -213,6 +231,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         targetId: edition.id,
         metadata: { edition_year: year },
       });
+
       return c.json({
         open: updatedEdition.speaker_call_status === 'open',
         public_path: `/speak/c/${year}`,
@@ -229,24 +248,31 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.patch('/api/annual-conference/:year/speakers/logistics-deadline', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const parsed = conferenceSpeakerDeadlineSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) return c.json({ error: 'Choose a valid logistics deadline with a timezone.' }, 400);
     const year = Number(yearParam);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
 
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
+
       if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
       if (parsed.data.deadline && new Date(parsed.data.deadline).getTime() <= Date.now()) {
         return c.json({ error: 'The logistics deadline must be in the future.' }, 400);
       }
       const repository = createAnnualConferenceRepository(c);
+
       await repository.getWorkspace(year);
       const updated = await repository.updateEditionSpeakerLogisticsDeadline(edition.id, parsed.data.deadline);
+
       if (updated.speaker_logistics_deadline) {
         await updateAnnualConferenceSpeakerIntakeDeadlines(edition.id, updated.speaker_logistics_deadline);
       }
@@ -256,6 +282,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         targetId: edition.id,
         metadata: { edition_year: year, deadline: updated.speaker_logistics_deadline ?? null },
       });
+
       return c.json({ deadline: updated.speaker_logistics_deadline ?? null });
     } catch (error) {
       return internalErrorResponse(
@@ -269,25 +296,32 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
+
     if (!Number.isInteger(year) || year < 2000 || year > 3000) {
       return c.json({ error: 'Conference year must use four digits.' }, 400);
     }
     const parsed = conferenceSpeakerSubmissionDecisionSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the proposal decision.' }, 400);
     }
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
 
     const releaseDecisionLock = await acquireSpeakerIntakeSubmissionLock(
       `annual-conference-decision:${year}:${c.req.param('submissionId')}`,
     );
+
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
+
       if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
       const existing = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+
       if (!existing || existing.edition_id !== edition.id) {
         return c.json({ error: 'Conference proposal not found.' }, 404);
       }
@@ -306,10 +340,12 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
       if (parsed.data.status === 'selected') {
         const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+
         if (!tokenSecret) {
           return c.json({ error: 'Speaker workspace link signing is not configured. The proposal was not accepted.' }, 503);
         }
         const deadline = annualConferenceDeadline(edition);
+
         if (!deadline || new Date(deadline).getTime() <= Date.now()) {
           return c.json({ error: 'Set a future speaker logistics deadline before accepting this proposal.' }, 409);
         }
@@ -319,6 +355,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           tokenSecret,
           internalNote: parsed.data.internal_note || null,
         });
+
         try {
           await recordProtectedMutationAudit(c, {
             action: 'annual_conference.speaker_submission.decision',
@@ -344,6 +381,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           submission: accepted.submission,
           token: accepted.token,
         });
+
         return c.json({
           submission: accepted.submission,
           token: null,
@@ -355,6 +393,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         existing.id,
         parsed.data.internal_note || null,
       );
+
       try {
         await recordProtectedMutationAudit(c, {
           action: 'annual_conference.speaker_submission.decision',
@@ -375,6 +414,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         deadline: null,
         submission,
       });
+
       return c.json({ submission, token: null, decision_email: { status: emailStatus } });
     } catch (error) {
       return c.json({
@@ -387,13 +427,17 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/resend-workspace-email', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const year = Number(yearParam);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
     const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+
     if (!annualConferenceEmailConfigured(c) || !tokenSecret) {
       return c.json({ error: 'Speaker email sending is not configured.' }, 503);
     }
@@ -401,10 +445,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     const releaseRotationLock = await acquireSpeakerIntakeSubmissionLock(
       `annual-conference-email-rotation:${year}:${c.req.param('submissionId')}`,
     );
+
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
+
       if (!edition) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
       const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+
       if (
         !submission
         || submission.edition_id !== edition.id
@@ -416,6 +463,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       const currentLink = submission.selected_intake_link_id
         ? await getAnnualConferenceSpeakerIntakeLinkById(submission.selected_intake_link_id)
         : undefined;
+
       if (!['pending', 'failed'].includes(submission.decision_email_status ?? '')) {
         return c.json({ error: 'This delivery state requires an address correction, not a routine retry.' }, 409);
       }
@@ -433,15 +481,18 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         return c.json({ error: 'The workspace email is still being sent. Try again in a few minutes.' }, 409);
       }
       const deadline = annualConferenceDeadline(edition);
+
       if (!deadline || new Date(deadline).getTime() <= Date.now()) {
         return c.json({ error: 'The speaker logistics deadline has passed.' }, 409);
       }
       let deliverySubmission = submission;
       let deliveryToken: string;
+
       if (currentLink && annualConferenceSpeakerWorkspaceTokenMatches(currentLink, tokenSecret)) {
         deliveryToken = annualConferenceSpeakerWorkspaceToken(currentLink.id, tokenSecret);
       } else {
         const rotated = await rotateAnnualConferenceSpeakerWorkspace({ submission: deliverySubmission, deadline, tokenSecret });
+
         deliverySubmission = rotated.submission;
         deliveryToken = rotated.token;
       }
@@ -453,6 +504,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         token: deliveryToken,
         manual: true,
       });
+
       try {
         await recordProtectedMutationAudit(c, {
           action: 'annual_conference.speaker_workspace_email.resend',
@@ -467,6 +519,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           error_name: safeErrorName(auditError),
         }));
       }
+
       return c.json({ decision_email: { status: emailStatus } });
     } catch (error) {
       return internalErrorResponse(
@@ -482,17 +535,22 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/resend-decision-email', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
+
     if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
     if (!annualConferenceEmailConfigured(c)) return c.json({ error: 'Speaker email sending is not configured.' }, 503);
 
     const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-decision-email:${year}:${c.req.param('submissionId')}`);
+
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
       const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+
       if (!edition || !submission || submission.edition_id !== edition.id || submission.status !== 'not_selected') {
         return c.json({ error: 'Rejected conference proposal not found.' }, 404);
       }
@@ -513,12 +571,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         submission: retrySubmission,
         manual: true,
       });
+
       await recordProtectedMutationAudit(c, {
         action: 'annual_conference.speaker_decision_email.retry',
         targetType: 'annual_conference_speaker_submission',
         targetId: submission.id,
         metadata: { edition_year: year, email_status: status },
       });
+
       return c.json({ decision_email: { status } });
     } catch (error) {
       return internalErrorResponse(c, 'annual_conference_speaker_decision_email_retry_failed', error, 'Unable to retry the speaker decision email.');
@@ -529,29 +589,37 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.patch('/api/annual-conference/:year/speaker-submissions/:submissionId/decision-email-recipient', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
     const parsed = conferenceSpeakerEmailRecipientSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Confirm the delivery email address.' }, 400);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
     if (!annualConferenceEmailConfigured(c)) return c.json({ error: 'Speaker email sending is not configured.' }, 503);
     const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
+
     if (emailAssessment.status === 'invalid') return c.json(publicEmailErrorPayload(emailAssessment), 422);
 
     const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-recipient:${year}:${c.req.param('submissionId')}`);
+
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
       const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+
       if (!edition || !submission || submission.edition_id !== edition.id || !['selected', 'not_selected'].includes(submission.status)) {
         return c.json({ error: 'Decided conference proposal not found.' }, 404);
       }
       let prepared: AnnualConferenceSpeakerSubmission;
       let token: string | undefined;
       let deadline: string | null = null;
+
       if (submission.status === 'selected') {
         const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+
         if (!tokenSecret) return c.json({ error: 'Speaker workspace link signing is not configured.' }, 503);
         deadline = annualConferenceDeadline(edition);
         if (!deadline || new Date(deadline).getTime() <= Date.now()) return c.json({ error: 'Set a future speaker logistics deadline before sending a workspace email.' }, 409);
@@ -562,6 +630,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           emailRecipient: emailAssessment.normalizedEmail,
           allowAccepted: true,
         });
+
         prepared = rotated.submission;
         token = rotated.token;
       } else {
@@ -579,17 +648,20 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         token,
         manual: true,
       });
+
       await recordProtectedMutationAudit(c, {
         action: 'annual_conference.speaker_decision_email.recipient_correct',
         targetType: 'annual_conference_speaker_submission',
         targetId: submission.id,
         metadata: { edition_year: year, recipient_changed: true, email_status: status },
       });
+
       return c.json({ decision_email: { status, recipient: emailAssessment.normalizedEmail } });
     } catch (error) {
       if (error instanceof Error && (error.message.includes('still being sent') || error.message.includes('changed while the address'))) {
         return c.json({ error: error.message }, 409);
       }
+
       return internalErrorResponse(c, 'annual_conference_speaker_recipient_correction_failed', error, 'Unable to correct and resend the speaker email.');
     } finally {
       release();
@@ -598,24 +670,31 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.post('/api/annual-conference/:year/speaker-submissions/:submissionId/replace-workspace-email', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
     if (adminError) return adminError;
     const year = Number(c.req.param('year'));
     const parsed = conferenceSpeakerReplacementEmailSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!Number.isInteger(year) || year < 2000 || year > 3000) return c.json({ error: 'Conference year must use four digits.' }, 400);
     if (!parsed.success) return c.json({ error: 'Confirm that the current private link should be replaced.' }, 400);
     const capabilityError = await requireAnnualConferenceCapability(c, year, 'speakers.manage');
+
     if (capabilityError) return capabilityError;
     const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+
     if (!annualConferenceEmailConfigured(c) || !tokenSecret) return c.json({ error: 'Speaker workspace email is not configured.' }, 503);
 
     const release = await acquireSpeakerIntakeSubmissionLock(`annual-conference-workspace-replacement:${year}:${c.req.param('submissionId')}`);
+
     try {
       const edition = await getAnnualConferenceEditionByYear(year, c);
       const submission = await getAnnualConferenceSpeakerSubmission(c.req.param('submissionId'));
+
       if (!edition || !submission || submission.edition_id !== edition.id || submission.status !== 'selected') {
         return c.json({ error: 'Accepted conference proposal not found.' }, 404);
       }
       const deadline = annualConferenceDeadline(edition);
+
       if (!deadline || new Date(deadline).getTime() <= Date.now()) return c.json({ error: 'Set a future speaker logistics deadline before replacing the workspace link.' }, 409);
       const rotated = await rotateAnnualConferenceSpeakerWorkspace({ submission, deadline, tokenSecret, allowAccepted: true });
       const status = await deliverAnnualConferenceDecisionEmail(c, {
@@ -626,12 +705,14 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         token: rotated.token,
         manual: true,
       });
+
       await recordProtectedMutationAudit(c, {
         action: 'annual_conference.speaker_workspace_email.replace',
         targetType: 'annual_conference_speaker_submission',
         targetId: submission.id,
         metadata: { edition_year: year, email_status: status },
       });
+
       return c.json({ decision_email: { status } });
     } catch (error) {
       return internalErrorResponse(c, 'annual_conference_speaker_workspace_replacement_failed', error, 'Unable to replace the speaker workspace link.');
@@ -652,6 +733,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   app.post('/api/webhooks/resend', async (c) => {
     const secret = envValue('RESEND_WEBHOOK_SECRET', c)?.trim();
     const rawBody = await c.req.text();
+
     if (!secret || !verifyResendWebhookSignature({
       rawBody,
       webhookId: c.req.header('svix-id') ?? null,
@@ -664,15 +746,18 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       try { return JSON.parse(rawBody); } catch { return null; }
     })();
     const parsed = annualConferenceResendWebhookSchema.safeParse(payload);
+
     if (!parsed.success) return c.json({ error: 'Unsupported webhook payload.' }, 400);
     const eventId = c.req.header('svix-id')!;
     const outcome = annualConferenceWebhookOutcome(parsed.data.type, parsed.data.created_at);
+
     try {
       const matched = await applyAnnualConferenceDecisionEmailProviderEvent({
         providerEmailId: parsed.data.data.email_id,
         eventAt: parsed.data.created_at,
         ...outcome,
       });
+
       if (!matched) return c.body(null, 204);
       await insertAnnualConferenceEmailWebhookEvent({
         webhook_event_id: eventId,
@@ -680,6 +765,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         event_type: parsed.data.type,
         provider_created_at: parsed.data.created_at,
       });
+
       return c.body(null, 204);
     } catch (error) {
       return internalErrorResponse(c, 'annual_conference_speaker_email_webhook_failed', error, 'Unable to process email delivery status.');
@@ -689,9 +775,11 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
   app.get('/api/cfp/conferences/:year', async (c) => {
     c.header('Cache-Control', 'no-store');
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
 
     const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+
     if (!edition || edition.speaker_call_status !== 'open') {
       return c.json({ error: 'CFP event not found' }, 404);
     }
@@ -717,8 +805,10 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.post('/api/cfp/conferences/:year', async (c) => {
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'CFP event not found' }, 404);
     const parsed = conferenceSpeakerSubmissionCreateSchema.safeParse(await c.req.json().catch(() => ({})));
+
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presentation proposal.' }, 400);
     }
@@ -727,6 +817,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       submittedAction: parsed.data.turnstile_action,
       expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
     });
+
     if (turnstileError) return turnstileError;
     const rateLimitError = await enforcePublicRateLimit(c, {
       action: `conference_cfp_submission:${yearParam}`,
@@ -734,13 +825,16 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       maxAttempts: 5,
       windowSeconds: 60 * 60,
     }, 'This device has sent several proposals. Please try again later.');
+
     if (rateLimitError) return rateLimitError;
 
     const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+
     if (!edition || edition.speaker_call_status !== 'open') {
       return c.json({ error: 'The conference Call for Speakers is not open.' }, 400);
     }
     const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
+
     if (emailAssessment.status === 'invalid') {
       return c.json(publicEmailErrorPayload(emailAssessment), 422);
     }
@@ -756,6 +850,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         abstract: parsed.data.abstract,
         bio: parsed.data.bio,
       });
+
       return c.json({
         accepted: true,
         message: 'If this proposal is eligible, it has been added for organizer review.',
@@ -767,6 +862,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           message: 'If this proposal is eligible, it has been added for organizer review.',
         }, 202);
       }
+
       return c.json({
         error: 'The proposal could not be submitted. Please check the form and try again.',
       }, 400);
@@ -775,12 +871,15 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.get('/api/conferences/:year/speaker-intake/:token', async (c) => {
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) {
       return c.json({ error: 'This presenter link is no longer available.' }, 404);
     }
     const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+
     if (!edition) return c.json({ error: 'This presenter link is no longer available.' }, 404);
     const link = await getAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
+
     if (
       !link
       || link.revoked_at
@@ -792,6 +891,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     }
     const submission = await getAnnualConferenceSpeakerSubmission(link.speaker_submission_id);
     const session = await getAnnualConferenceSession(link.workspace_session_id);
+
     if (
       !submission
       || !session
@@ -804,6 +904,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     ) {
       return c.json({ error: 'This presenter link is no longer available.' }, 410);
     }
+
     return c.json({
       event: {
         id: edition.id,
@@ -838,6 +939,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
   app.post('/api/conferences/:year/speaker-intake/:token', async (c) => {
     const yearParam = c.req.param('year');
+
     if (!/^\d{4}$/.test(yearParam)) {
       return c.json({ error: 'This presenter link is no longer available.' }, 404);
     }
@@ -847,10 +949,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       maxAttempts: 10,
       windowSeconds: 60 * 60,
     }, 'This private form has received several attempts. Please try again later.');
+
     if (rateLimitError) return rateLimitError;
     const edition = await getAnnualConferenceEditionByYear(Number(yearParam), c);
+
     if (!edition) return c.json({ error: 'This presenter link is no longer available.' }, 404);
     const parsed = conferenceSpeakerLogisticsSchema.safeParse(await c.req.json().catch(() => ({})));
+
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presenter details.' }, 400);
     }
@@ -858,6 +963,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     try {
       const link = await getAnnualConferenceSpeakerIntakeLink(edition.id, c.req.param('token'));
       const deadline = link ? edition.speaker_logistics_deadline ?? link.expires_at : null;
+
       if (
         !link
         || link.revoked_at
@@ -870,6 +976,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       }
       const submission = await getAnnualConferenceSpeakerSubmission(link.speaker_submission_id);
       const existingSession = await getAnnualConferenceSession(link.workspace_session_id);
+
       if (
         !submission
         || !existingSession
@@ -891,9 +998,11 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         participants_need_laptops: parsed.data.participants_need_laptops,
         preferred_workshop_capacity: parsed.data.preferred_workshop_capacity,
       });
+
       return c.json({ session, message: 'Your speaker logistics have been saved.' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to submit presenter details.';
+
       return c.json({
         error: message.includes('no longer available')
           ? message

@@ -4,15 +4,18 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({ headless: true });
+
 try {
   for (const width of [320, 390, 1280]) {
     const page = await browser.newPage({ viewport: { width, height: 844 } });
     const errors = [];
+
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript(() => {
       window.turnstile = {
         render: (_container, options) => {
           queueMicrotask(() => options.callback('ui-test-token'));
+
           return 'ui-test-widget';
         },
         reset: () => {},
@@ -20,19 +23,24 @@ try {
       };
     });
     let posts = 0;
+
     await page.route('**/api/**', async (route) => {
       if (route.request().method() === 'POST') {
         posts += 1;
+
         return route.abort();
       }
+
       return route.fulfill({ json: { id: 'cfp-ui-fixture', name: 'DevCongress Annual Conference', event_date: '2026-12-19', status: 'cfp_open' } });
     });
     await page.goto('http://localhost:5173/speak/c/2026');
     const heading = (name) => page.getByRole('heading', { name, exact: true });
     const next = page.getByRole('button', { name: 'Continue' });
+
     await heading('About you').waitFor();
     assert.equal(await heading('Your session').isVisible(), false);
     const issues = page.getByRole('list', { name: 'Issues to correct' });
+
     assert.equal(await issues.count(), 0);
     await next.click();
     assert.equal(await issues.locator('li').count(), 3);
@@ -49,8 +57,10 @@ try {
     const back = page.getByRole('button', { name: 'Back', exact: true });
     const backBounds = await back.boundingBox();
     const headingBounds = await heading('Your session').boundingBox();
+
     assert(backBounds.y < headingBounds.y, 'Back belongs above the step content');
     const progressBounds = await page.locator('[aria-label="Proposal progress"]').boundingBox();
+
     assert(Math.abs(backBounds.x + backBounds.width - (progressBounds.x + progressBounds.width)) < 2, 'Back aligns to the top-right');
     assert.equal(await heading('About you').isVisible(), false);
     await next.click();
@@ -79,6 +89,7 @@ try {
     }
     await page.getByRole('button', { name: 'SUBMIT PROPOSAL', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: 'Submit this proposal?' });
+
     await confirmation.waitFor();
     assert.match(await confirmation.innerText(), /organizers for review/);
     assert.equal(posts, 0, 'Opening the confirmation must not submit a proposal');

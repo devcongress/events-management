@@ -144,6 +144,7 @@ function archiveDescription() {
 
 function displayEventName() {
   const fullName = event.value?.name.trim() ?? '';
+
   return fullName || 'this event';
 }
 
@@ -196,6 +197,7 @@ async function submitTalkDetails() {
       else submitted.value = true;
     } else {
       const data = await response.json();
+
       error.value = data.error || `The ${archiveItemLabel().toLowerCase()} details could not be submitted.`;
     }
   } catch {
@@ -211,6 +213,7 @@ onMounted(async () => {
       ? `/api/conferences/${route.params.year}/speaker-intake/${route.params.token}`
       : `/api/events/${route.params.eventId}/speaker-intake/${route.params.token}`);
     const data = await response.json().catch(() => ({}));
+
     if (response.ok) {
       event.value = data.event;
       linkPurpose.value = data.link?.purpose ?? 'archive_backfill';
@@ -250,6 +253,7 @@ function applyPrefill(prefill: IntakePrefill) {
 
 function formatDeadline(value: string | null): string {
   if (!value) return 'the organizer deadline';
+
   return new Intl.DateTimeFormat('en-GH', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(value));
 }
 </script>

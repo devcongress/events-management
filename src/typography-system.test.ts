@@ -15,8 +15,10 @@ const SHARED_SYSTEM_FILES = [
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
+
     if (entry.isDirectory()) return sourceFiles(path);
     if (!SOURCE_EXTENSIONS.has(extname(entry.name)) || entry.name.endsWith('.test.ts')) return [];
+
     return [path];
   });
 }
@@ -27,12 +29,14 @@ describe('typography system', () => {
     const syntheticMonoDisplay = /(?:font-mono.*font-extrabold|font-extrabold.*font-mono)/;
     const offenders = [...sourceFiles(SOURCE_ROOT), ...SHARED_SYSTEM_FILES].flatMap((path) => {
       const source = readFileSync(path, 'utf8');
+
       return source.split('\n').flatMap((line, index) => {
         const numericWeight = line.match(/font-weight:\s*(\d+)\b/);
         const unsupportedNumericWeight = (
           numericWeight
           && !SUPPORTED_WEIGHTS.has(Number(numericWeight[1]))
         );
+
         return (
           unsupportedClass.test(line)
           || unsupportedNumericWeight

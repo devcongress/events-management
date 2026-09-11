@@ -45,20 +45,25 @@ onMounted(async () => {
 
   if (callbackError) {
     await redirectToLogin('oauth_failed');
+
     return;
   }
 
   if (code) {
     const supabase = getSupabaseBrowserClient();
+
     if (!supabase) {
       await redirectToLogin('service_unavailable');
+
       return;
     }
 
     try {
       const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+
       if (exchangeError || !data.session?.access_token) {
         await redirectToLogin('oauth_failed');
+
         return;
       }
 
@@ -71,6 +76,7 @@ onMounted(async () => {
 
       if (!response.ok) {
         await redirectToLogin(adminAuthFailureReasonForStatus(response.status));
+
         return;
       }
 
@@ -79,16 +85,20 @@ onMounted(async () => {
         queryFn: fetchAdminSession,
         staleTime: 0,
       });
+
       if (!session.authenticated) {
         await redirectToLogin('oauth_failed');
+
         return;
       }
 
       await router.replace(session.user?.role === 'volunteer' ? annualConferencePath() : redirectTo.value);
       window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+
       return;
     } catch {
       await redirectToLogin('service_unavailable');
+
       return;
     } finally {
       await supabase.auth.signOut().catch(() => undefined);
@@ -97,8 +107,10 @@ onMounted(async () => {
 
   try {
     const session = await fetchAdminSession();
+
     if (session.authenticated) {
       await router.replace(session.user?.role === 'volunteer' ? annualConferencePath() : redirectTo.value);
+
       return;
     }
   } catch {

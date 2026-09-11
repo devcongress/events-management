@@ -10,16 +10,19 @@ export async function getAllSpeakers(): Promise<EventSpeaker[]> {
 
 export async function getSpeakerById(id: string): Promise<EventSpeaker | undefined> {
   const speakers = await readData<EventSpeaker>(FILE);
+
   return speakers.find(s => s.id === id);
 }
 
 export async function getSpeakersByEvent(eventId: string): Promise<EventSpeaker[]> {
   const speakers = await readData<EventSpeaker>(FILE);
+
   return speakers.filter(s => s.event_id === eventId);
 }
 
 export async function getSpeakerByEmail(eventId: string, email: string): Promise<EventSpeaker | undefined> {
   const speakers = await readData<EventSpeaker>(FILE);
+
   return speakers.find(s => s.event_id === eventId && s.email.toLowerCase() === email.toLowerCase());
 }
 

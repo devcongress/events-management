@@ -37,6 +37,7 @@ export function isArchiveRequestsDisabledForEvent(
   items: Pick<EventChecklistItem, 'label' | 'disabled_at'>[],
 ): boolean {
   const archiveRequestsItem = items.find(isArchiveRequestsChecklistItem);
+
   return !archiveRequestsItem || Boolean(archiveRequestsItem.disabled_at);
 }
 

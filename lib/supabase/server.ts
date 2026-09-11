@@ -42,6 +42,7 @@ export function getSupabaseAdminClient(c?: Context): ServerSupabaseClient {
 
   const cacheKey = `${supabaseUrl}:${serviceRoleKey.slice(0, 10)}`;
   const cached = adminClients.get(cacheKey);
+
   if (cached) {
     return cached;
   }
@@ -53,6 +54,7 @@ export function getSupabaseAdminClient(c?: Context): ServerSupabaseClient {
       detectSessionInUrl: false,
     },
   });
+
   adminClients.set(cacheKey, adminClient);
 
   return adminClient;

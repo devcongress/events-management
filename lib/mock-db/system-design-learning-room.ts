@@ -12,6 +12,7 @@ export function nextUnreleasedLearningQuestion(
   releasedQuestionIds: string[],
 ): Question | null {
   const released = new Set(releasedQuestionIds);
+
   return [...questions]
     .filter((question) => !released.has(question.id))
     .sort((left, right) => left.order_index - right.order_index)[0] ?? null;
@@ -29,7 +30,9 @@ export async function prepareSystemDesignPresentationRun(
     const { data, error } = await getSupabaseAdminClient().rpc('prepare_system_design_presentation', {
       p_session_id: session.id,
     });
+
     if (error || !data) throw new Error('Unable to prepare System Design presentation');
+
     return {
       session: quizSessionFromRow(data),
       removedParticipants: participants.length,
@@ -65,7 +68,9 @@ export async function presentNextSystemDesignQuestion(sessionId: string): Promis
   const { data, error } = await getSupabaseAdminClient().rpc('present_system_design_question', {
     p_session_id: sessionId,
   });
+
   if (error || !data) throw new Error(error?.message ?? 'Unable to present System Design question');
+
   return quizSessionFromRow(data);
 }
 
@@ -74,7 +79,9 @@ export async function advanceSystemDesignQuestion(sessionId: string): Promise<Qu
   const { data, error } = await getSupabaseAdminClient().rpc('advance_system_design_question', {
     p_session_id: sessionId,
   });
+
   if (error || !data) throw new Error(error?.message ?? 'Unable to advance System Design question');
+
   return quizSessionFromRow(data);
 }
 
@@ -83,7 +90,9 @@ export async function revealSystemDesignQuestion(sessionId: string): Promise<Qui
   const { data, error } = await getSupabaseAdminClient().rpc('reveal_system_design_question', {
     p_session_id: sessionId,
   });
+
   if (error || !data) throw new Error(error?.message ?? 'Unable to reveal System Design question');
+
   return quizSessionFromRow(data);
 }
 
@@ -92,10 +101,13 @@ export async function revealSystemDesignQuestion(sessionId: string): Promise<Qui
 export async function skipSystemDesignQuestion(session: QuizSession, questions: Question[]): Promise<QuizSession> {
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient().rpc('skip_system_design_question', { p_session_id: session.id });
+
     if (error || !data) throw new Error(error?.message ?? 'question_not_ready_to_skip');
+
     return quizSessionFromRow(data);
   }
   const current = questions.find((question) => question.order_index === session.current_question_index);
+
   if (!current || session.status !== 'active' || !['presenting', 'answering'].includes(session.question_phase ?? '')) {
     throw new Error('question_not_ready_to_skip');
   }
@@ -106,6 +118,7 @@ export async function skipSystemDesignQuestion(session: QuizSession, questions: 
     ...skippedQuestionIds,
   ]);
   const transitionAt = new Date();
+
   return updateQuizSession(session.id, {
     status: 'active',
     current_question_index: nextQuestion?.order_index ?? -1,
@@ -125,6 +138,7 @@ export async function reopenSystemDesignQuestion(session: QuizSession, question:
   if (session.status === 'finished') throw new Error('session_finished');
   if (!(session.skipped_question_ids ?? []).includes(question.id)) throw new Error('question_not_skipped');
   const transitionAt = new Date().toISOString();
+
   return updateQuizSession(session.id, {
     status: 'active',
     current_question_index: question.order_index,
@@ -145,9 +159,11 @@ export async function rebuildSystemDesignScores(sessionId: string, questions: Qu
     Promise.all(questions.map((question) => getResponsesByQuestion(question.id))),
   ]);
   const responses = responseGroups.flat().sort((left, right) => left.created_at.localeCompare(right.created_at));
+
   await Promise.all(participants.map(async (participant) => {
     const mine = responses.filter((response) => response.user_id === participant.user_id);
     const streak = mine.reduce((value, response) => response.is_correct ? value + 1 : 0, 0);
+
     await updateQuizParticipant(participant.id, {
       total_score: mine.reduce((total, response) => total + response.points_awarded, 0),
       current_streak: streak,

@@ -7,6 +7,7 @@ const indexFile = new URL('index.html', distRoot);
 
 async function htmlResponse(file: Blob, pathname: string): Promise<Response> {
   const html = await file.text();
+
   return new Response(applyAppBootVariant(html, pathname), {
     headers: {
       'content-type': 'text/html; charset=utf-8',
@@ -30,6 +31,7 @@ Bun.serve({
       if (url.pathname === '/' || !url.pathname.split('/').pop()?.includes('.')) {
         return htmlResponse(staticFile, url.pathname);
       }
+
       return new Response(staticFile);
     }
 

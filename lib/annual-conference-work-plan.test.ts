@@ -90,6 +90,7 @@ describe('annual conference work plan', () => {
       ANNUAL_CONFERENCE_2026_SEED_TASKS,
       ANNUAL_CONFERENCE_2026_PHASES[1].id,
     ).map((task) => task.accountable_owner);
+
     expect(phaseTwoOwners).not.toContain('Elvis');
 
     expect(resolveAnnualConferenceOwnerFilter(ANNUAL_CONFERENCE_2026_SEED_TASKS, ' elvis ')).toBe('Elvis');
@@ -284,6 +285,7 @@ describe('annual conference work plan', () => {
 
   it('preserves unchanged legacy name assignments without an organizer lookup', () => {
     const sponsorship = ANNUAL_CONFERENCE_2026_SEED_TASKS.find((task) => task.title === 'Sponsorship Packages');
+
     expect(sponsorship).toBeDefined();
 
     const update = {
@@ -305,6 +307,7 @@ describe('annual conference work plan', () => {
 
   it('requires active organizer verification when a legacy assignment changes', () => {
     const venue = ANNUAL_CONFERENCE_2026_SEED_TASKS.find((task) => task.title === 'Venue');
+
     expect(venue).toBeDefined();
 
     const update = {
@@ -328,6 +331,7 @@ describe('annual conference work plan', () => {
 
   it('allows a legacy collaborator to remain while another legacy collaborator is removed', () => {
     const sponsorship = ANNUAL_CONFERENCE_2026_SEED_TASKS.find((task) => task.title === 'Sponsorship Packages');
+
     expect(sponsorship).toBeDefined();
 
     const update = {

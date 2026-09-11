@@ -68,9 +68,11 @@ function tabTo(href: string) {
 
   if (from === 'attendance' || from === 'feedback') {
     const query: { from: 'attendance' | 'feedback'; month?: string } = { from };
+
     if (from === 'feedback' && typeof month === 'string' && /^\d{4}-\d{2}$/.test(month)) {
       query.month = month;
     }
+
     return { path, query };
   }
 
@@ -79,7 +81,9 @@ function tabTo(href: string) {
 
 function isActive(href: string) {
   const path = tabPath(href);
+
   if (!href) return route.path === path;
+
   return route.path === path || route.path.startsWith(`${path}/`);
 }
 
@@ -93,11 +97,13 @@ const indicatorStyle = computed(() => ({
 function setTabElement(element: Element | ComponentPublicInstance | null, index: number) {
   if (element instanceof HTMLElement) {
     tabElements.value[index] = element;
+
     return;
   }
 
   if (element && !(element instanceof Element)) {
     const componentElement = element.$el;
+
     if (componentElement instanceof HTMLElement) {
       tabElements.value[index] = componentElement;
     }
@@ -114,6 +120,7 @@ function updateIndicator() {
 
   if (!element) {
     indicator.value = { left: 0, width: 0, ready: false };
+
     return;
   }
 

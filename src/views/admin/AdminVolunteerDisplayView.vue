@@ -12,8 +12,10 @@ const DEVCONGRESS_LOGO_PATH = '/brand/dev-con-logo.png';
 onMounted(async () => {
   try {
     let qrDestination = publicUrl.value;
+
     try {
       const shortLink = await ensureAdminShortLink({ destination: 'volunteer_intake' });
+
       qrDestination = shortLink.url;
     } catch {
       // The canonical form remains scannable if short-link storage is unavailable.

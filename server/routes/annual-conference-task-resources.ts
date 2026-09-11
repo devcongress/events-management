@@ -27,9 +27,11 @@ const updateResourceSchema = z.object({
 
 async function serviceForRequest(c: Context<AppBindings>) {
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated) {
     throw new AnnualConferenceTaskResourceServiceError('forbidden', 'Conference access required.');
   }
+
   return createAnnualConferenceTaskResourceService({
     workPlanRepository: createAnnualConferenceRepository(c),
     resourceRepository: createAnnualConferenceTaskResourceRepository(c),
@@ -43,6 +45,7 @@ function errorResponse(c: Context<AppBindings>, error: unknown) {
   if (error instanceof AnnualConferenceTaskResourceServiceError) {
     return c.json({ error: error.message }, annualConferenceTaskResourceErrorStatus(error));
   }
+
   return internalErrorResponse(
     c,
     'annual_conference_task_resources_failed',
@@ -53,17 +56,22 @@ function errorResponse(c: Context<AppBindings>, error: unknown) {
 
 function routeParams(c: Context<AppBindings>) {
   const year = yearSchema.safeParse(c.req.param('year'));
+
   if (!year.success) return { error: c.json({ error: year.error.issues[0]?.message }, 400) } as const;
   const taskId = idSchema.safeParse(c.req.param('taskId'));
+
   if (!taskId.success) return { error: c.json({ error: 'Annual conference task was not found.' }, 404) } as const;
+
   return { year: Number(year.data), taskId: taskId.data } as const;
 }
 
 export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings>): void {
   app.get('/api/annual-conference/:year/work-plan/:taskId/resources', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
     if (adminError) return adminError;
     const params = routeParams(c);
+
     if ('error' in params) return params.error;
     try {
       return c.json(await (await serviceForRequest(c)).list(params.year, params.taskId));
@@ -74,10 +82,13 @@ export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings
 
   app.post('/api/annual-conference/:year/work-plan/:taskId/resources', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
     if (adminError) return adminError;
     const params = routeParams(c);
+
     if ('error' in params) return params.error;
     const parsed = createResourceSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the resource link.' }, 400);
     try {
       return c.json(await (await serviceForRequest(c)).create(params.year, params.taskId, parsed.data), 201);
@@ -88,12 +99,16 @@ export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings
 
   app.patch('/api/annual-conference/:year/work-plan/:taskId/resources/:resourceId', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
     if (adminError) return adminError;
     const params = routeParams(c);
+
     if ('error' in params) return params.error;
     const resourceId = idSchema.safeParse(c.req.param('resourceId'));
+
     if (!resourceId.success) return c.json({ error: 'Task resource link was not found.' }, 404);
     const parsed = updateResourceSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the resource changes.' }, 400);
     try {
       return c.json(await (await serviceForRequest(c)).update(
@@ -109,10 +124,13 @@ export function registerAnnualConferenceTaskResourceRoutes(app: Hono<AppBindings
 
   app.delete('/api/annual-conference/:year/work-plan/:taskId/resources/:resourceId', async (c) => {
     const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
     if (adminError) return adminError;
     const params = routeParams(c);
+
     if ('error' in params) return params.error;
     const resourceId = idSchema.safeParse(c.req.param('resourceId'));
+
     if (!resourceId.success) return c.json({ error: 'Task resource link was not found.' }, 404);
     try {
       return c.json(await (await serviceForRequest(c)).delete(params.year, params.taskId, resourceId.data));

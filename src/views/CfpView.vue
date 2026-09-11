@@ -71,6 +71,7 @@ async function changeStep(step: number) {
   showStepErrors.value = false;
   await nextTick();
   const heading = proposalForm.value?.querySelector<HTMLElement>(`#cfp-section-${step}`);
+
   heading?.focus({ preventScroll: true });
   proposalForm.value?.scrollIntoView({ block: 'start', behavior: 'instant' });
 }
@@ -82,12 +83,14 @@ function focusCurrentStep() {
 function continueStep() {
   if (!stepValid.value[currentStep.value]) {
     showStepErrors.value = true;
+
     return;
   }
   void changeStep(currentStep.value + 1);
 }
 
 let viewportQuery: MediaQueryList | undefined;
+
 function updateViewport() { mobileViewport.value = viewportQuery?.matches ?? false; }
 onMounted(() => {
   viewportQuery = window.matchMedia('(max-width: 767px)');
@@ -140,11 +143,13 @@ const submitHint = computed(() => {
   if (submitting.value) return '';
   if (isConferenceCall.value && !learningOutcomesValid.value) {
     const remaining = Math.max(0, ANNUAL_CONFERENCE_LEARNING_OUTCOME_MIN - form.learning_outcomes.filter(outcome => outcome.trim()).length);
+
     return remaining ? `Add ${remaining} more learning outcome${remaining === 1 ? '' : 's'} to continue.` : 'Complete or remove empty outcomes before submitting.';
   }
   if (abstractOverLimit.value) return `Keep the abstract to ${abstractWordLimit.value} words or fewer.`;
   if (!isConferenceCall.value && resourceUrlInvalid.value) return resourceUrlError.value;
   if (turnstileActive && !turnstileToken.value) return 'Complete the human check to submit your proposal.';
+
   return '';
 });
 const canSubmitProposal = computed(() => (
@@ -175,13 +180,16 @@ function formatDate(value: string): string {
 async function submitProposal() {
   if (proposalStepper.value && currentStep.value < 2) {
     continueStep();
+
     return;
   }
   if (isConferenceCall.value) {
     const invalidStep = stepValid.value.findIndex((valid) => !valid);
+
     if (invalidStep !== -1) {
       await changeStep(invalidStep);
       showStepErrors.value = true;
+
       return;
     }
   }
@@ -189,6 +197,7 @@ async function submitProposal() {
 
   if (isConferenceCall.value) {
     submitConfirmationOpen.value = true;
+
     return;
   }
 
@@ -207,14 +216,17 @@ async function performProposalSubmission() {
   error.value = null;
   if (!requiredFieldsComplete.value) {
     error.value = 'Complete every required field before submitting.';
+
     return;
   }
   if (abstractOverLimit.value) {
     error.value = `Keep the presentation summary to ${abstractWordLimit.value} words or fewer.`;
+
     return;
   }
   if (!isConferenceCall.value && resourceUrlInvalid.value) {
     error.value = 'Use a secure public HTTPS link for the presentation or demo resource.';
+
     return;
   }
 
@@ -222,6 +234,7 @@ async function performProposalSubmission() {
   submissionStage.value = 'checking';
   try {
     const emailCheck = await preflightPublicEmail(form.speaker_email);
+
     form.speaker_email = emailCheck.normalized_email;
     submissionStage.value = 'submitting';
     const response = await fetch(isConferenceCall.value
@@ -251,6 +264,7 @@ async function performProposalSubmission() {
       submitted.value = true;
     } else {
       const data = await response.json().catch(() => ({}));
+
       error.value = data.error || 'The proposal could not be submitted. Please try again.';
       if (turnstileActive) {
         turnstileToken.value = '';
@@ -291,6 +305,7 @@ onMounted(async () => {
     const response = await fetch(isConferenceCall.value
       ? `/api/cfp/conferences/${route.params.year}`
       : `/api/cfp/events/${route.params.eventId}`);
+
     if (response.ok) {
       event.value = await response.json();
     } else {

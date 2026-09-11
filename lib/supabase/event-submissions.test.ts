@@ -85,9 +85,11 @@ function queryReturning<T>(data: T) {
     in: vi.fn(),
     maybeSingle: vi.fn(async () => ({ data, error: null })),
   };
+
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.in.mockReturnValue(query);
+
   return query;
 }
 
@@ -99,6 +101,7 @@ beforeEach(() => {
 describe('event submission management storage', () => {
   it('resolves the canonical event only from an approved submission', async () => {
     const submissionQuery = queryReturning({ approved_event_id: submissionRow.approved_event_id });
+
     mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => submissionQuery) });
 
     await expect(getApprovedEventIdForSubmission(submissionRow.id)).resolves.toBe(submissionRow.approved_event_id);
@@ -111,6 +114,7 @@ describe('event submission management storage', () => {
       organizer_name: submissionRow.organizer_name,
       organizer_email: submissionRow.organizer_email,
     });
+
     mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => contactQuery) });
 
     await expect(getEventSubmissionOrganizerContact(submissionRow.id, submissionRow.approved_event_id!)).resolves.toEqual({
@@ -132,6 +136,7 @@ describe('event submission management storage', () => {
       .mockReturnValueOnce(submissionQuery)
       .mockReturnValueOnce(eventQuery)
       .mockReturnValueOnce(amendmentQuery);
+
     mocks.getSupabaseAdminClient.mockReturnValue({ from });
 
     await expect(getEventSubmissionManagement(linkRow.id)).resolves.toMatchObject({

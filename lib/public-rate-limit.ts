@@ -23,6 +23,7 @@ export type PublicRateLimitResult =
 
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');
@@ -60,6 +61,7 @@ export async function consumePublicRateLimit(
         action: input.action,
         error_code: 'supabase_not_configured',
       }));
+
       return {
         allowed: false,
         retryAfterSeconds: 60,
@@ -85,6 +87,7 @@ export async function consumePublicRateLimit(
       action: input.action,
       error_code: error?.code ?? null,
     }));
+
     return {
       allowed: false,
       retryAfterSeconds: 60,

@@ -61,7 +61,9 @@ export class ResendBatchError extends Error {
 function safeProviderMessage(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const normalized = value.replace(/\s+/g, ' ').trim();
+
   if (!normalized) return undefined;
+
   return normalized
     .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]')
     .replace(/\b(?:re|sk|key)_[A-Za-z0-9_-]+\b/gi, '[redacted]')
@@ -115,20 +117,24 @@ async function resendRequest(
 async function requireResendId(response: Response): Promise<string> {
   const payload = await response.json().catch(() => null);
   const parsed = resendIdResponseSchema.safeParse(payload);
+
   if (!response.ok || !parsed.success) {
     const providerError = resendErrorResponseSchema.safeParse(payload);
+
     throw new ResendBroadcastError(
       'The email provider did not accept the blast.',
       response.status,
       providerError.success ? safeProviderMessage(providerError.data.message) : undefined,
     );
   }
+
   return parsed.data.id;
 }
 
 async function resendBroadcastResponseError(message: string, response: Response): Promise<ResendBroadcastError> {
   const payload = await response.json().catch(() => null);
   const providerError = resendErrorResponseSchema.safeParse(payload);
+
   return new ResendBroadcastError(
     message,
     response.status,
@@ -138,7 +144,9 @@ async function resendBroadcastResponseError(message: string, response: Response)
 
 function resendRetryAfterMilliseconds(response: Response): number {
   const retryAfter = Number.parseFloat(response.headers.get('retry-after') ?? '');
+
   if (Number.isFinite(retryAfter) && retryAfter >= 0) return Math.min(retryAfter * 1_000, 10_000);
+
   return 1_000;
 }
 
@@ -148,7 +156,9 @@ function waitForResend(milliseconds: number): Promise<void> {
 
 function recipientName(name: string): { first_name?: string; last_name?: string } {
   const words = name.trim().split(/\s+/).filter(Boolean);
+
   if (words.length === 0) return {};
+
   return { first_name: words[0], last_name: words.slice(1).join(' ') || undefined };
 }
 
@@ -157,9 +167,11 @@ async function runWithConcurrency<T>(items: T[], limit: number, worker: (item: T
   const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
     while (queue.length > 0) {
       const item = queue.shift();
+
       if (item) await worker(item);
     }
   });
+
   await Promise.all(workers);
 }
 
@@ -180,6 +192,7 @@ async function addRecipientToResendSegment(input: {
         segments: [{ id: input.segmentId }],
       }),
     }, input.fetcher);
+
     if (createResponse.ok) return;
     if (createResponse.status === 429 && attempt < 4) {
       await waitForResend(resendRetryAfterMilliseconds(createResponse));
@@ -193,11 +206,13 @@ async function addRecipientToResendSegment(input: {
         { method: 'POST', body: JSON.stringify({}) },
         input.fetcher,
       );
+
       if (addResponse.ok || addResponse.status === 409) return;
       if (addResponse.status === 429 && attempt < 4) {
         await waitForResend(resendRetryAfterMilliseconds(addResponse));
         continue;
       }
+
       throw await resendBroadcastResponseError('The email provider did not accept the guest list.', addResponse);
     }
 
@@ -231,6 +246,7 @@ export async function addResendBroadcastRecipients(input: {
   fetcher?: Fetcher;
 }): Promise<void> {
   const fetcher = input.fetcher ?? fetch;
+
   await runWithConcurrency(input.recipients, 1, async (recipient) => {
     await addRecipientToResendSegment({ apiKey: input.apiKey, segmentId: input.segmentId, recipient, fetcher });
   });
@@ -265,6 +281,7 @@ export async function createResendBroadcastDraft(input: {
     eventUrl: input.eventUrl,
     calendarDownloadUrl: input.calendarDownloadUrl,
   });
+
   return requireResendId(await resendRequest(input.apiKey, '/broadcasts', {
     method: 'POST',
     body: JSON.stringify({
@@ -330,9 +347,11 @@ export async function prepareResendBroadcast(input: {
       replyTo: input.replyTo,
       fetcher,
     });
+
     return { broadcastId, segmentId };
   } catch (error) {
     await discardResendSegment(input.apiKey, segmentId, fetcher);
+
     throw error;
   }
 }
@@ -347,6 +366,7 @@ export async function sendResendBroadcast(input: {
     method: 'POST',
     body: JSON.stringify(input.scheduledFor ? { scheduled_at: input.scheduledFor } : {}),
   }, input.fetcher ?? fetch);
+
   await requireResendId(response);
 }
 
@@ -381,6 +401,7 @@ export async function sendResendEmailBatch(input: {
 
   if (!response.ok) {
     const body = resendErrorResponseSchema.safeParse(await response.json().catch(() => null));
+
     throw new ResendBatchError(
       'The email provider did not accept the request.',
       response.status,
@@ -389,6 +410,7 @@ export async function sendResendEmailBatch(input: {
   }
 
   const parsed = resendBatchResponseSchema.safeParse(await response.json().catch(() => null));
+
   if (!parsed.success || parsed.data.data.length !== input.emails.length) {
     throw new ResendBatchError('The email provider returned an unexpected response.', response.status);
   }
@@ -420,6 +442,7 @@ export async function retrieveResendReceivedEmail(input: {
   fetcher?: Fetcher;
 }): Promise<ResendReceivedEmail> {
   let response: Response;
+
   try {
     response = await (input.fetcher ?? fetch)(
       `https://api.resend.com/emails/receiving/${encodeURIComponent(input.emailId)}`,
@@ -437,8 +460,10 @@ export async function retrieveResendReceivedEmail(input: {
   }
 
   const parsed = resendReceivedEmailSchema.safeParse(await response.json().catch(() => null));
+
   if (!response.ok || !parsed.success) {
     throw new ResendReceivingEmailError('The received email could not be retrieved.', response.status);
   }
+
   return parsed.data;
 }

@@ -59,6 +59,7 @@ export async function validateTurnstileToken({
   }
 
   const formData = new FormData();
+
   formData.set('secret', secretKey);
   formData.set('response', token);
 
@@ -69,12 +70,14 @@ export async function validateTurnstileToken({
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TURNSTILE_VERIFY_TIMEOUT_MS);
   let result: TurnstileSiteverifyResponse;
+
   try {
     const response = await fetch(TURNSTILE_VERIFY_URL, {
       method: 'POST',
       body: formData,
       signal: controller.signal,
     });
+
     if (!response.ok) {
       throw new Error('Turnstile verification unavailable');
     }
@@ -110,6 +113,7 @@ export async function validateTurnstileToken({
     : expectedHostname
       ? [expectedHostname]
       : [];
+
   if (expectedHostnames.length > 0 && (!result.hostname || !expectedHostnames.includes(result.hostname))) {
     return {
       ok: false,

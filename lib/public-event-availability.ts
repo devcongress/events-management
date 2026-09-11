@@ -19,9 +19,11 @@ export async function checkPublicEventAvailability(
 ): Promise<PublicEventAvailability> {
   try {
     const head = await requestPublicEvent(url, 'HEAD', fetcher);
+
     if (head.status !== 405) return { available: head.ok, status: head.status };
 
     const get = await requestPublicEvent(url, 'GET', fetcher);
+
     return { available: get.ok, status: get.status };
   } catch {
     return { available: false, status: null };

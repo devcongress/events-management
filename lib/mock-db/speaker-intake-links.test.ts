@@ -8,6 +8,7 @@ let tempRoot: string;
 
 async function importLinksStore() {
   vi.resetModules();
+
   return import('./speaker-intake-links');
 }
 
@@ -41,6 +42,7 @@ describe('speaker intake links', () => {
     });
 
     const stored = await fs.readFile(path.join(tempRoot, 'data', 'speaker-intake-links.json'), 'utf-8');
+
     expect(stored).not.toContain(token);
     expect(stored).toContain(link.token_hash);
     await expect(getSpeakerIntakeLinkByToken('event-june', token)).resolves.toMatchObject({
@@ -193,6 +195,7 @@ describe('speaker intake links', () => {
     ]);
 
     const deliveredLinks = await getSpeakerIntakeLinksByEvent('event-june');
+
     expect(deliveredLinks).toHaveLength(2);
     expect(deliveredLinks).toEqual(expect.arrayContaining([
       expect.objectContaining({

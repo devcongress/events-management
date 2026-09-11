@@ -25,6 +25,7 @@ const emit = defineEmits<{
 const activeLabel = computed(() => {
   if (props.state === 'copying') return props.copyingLabel;
   if (props.state === 'copied') return props.copiedLabel;
+
   return '';
 });
 </script>

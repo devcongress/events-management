@@ -54,6 +54,7 @@ describe('public CFP resource links', () => {
 
     expect(response.status).toBe(202);
     const { getSpeakerSubmissionsByEvent } = await import('../lib/mock-db/speaker-submissions');
+
     await expect(getSpeakerSubmissionsByEvent(event.id)).resolves.toMatchObject([
       expect.objectContaining({
         kind: 'product_demo',
@@ -85,6 +86,7 @@ describe('public CFP resource links', () => {
 
     expect(response.status).toBe(400);
     const { getSpeakerSubmissionsByEvent } = await import('../lib/mock-db/speaker-submissions');
+
     await expect(getSpeakerSubmissionsByEvent(event.id)).resolves.toEqual([]);
   });
 });

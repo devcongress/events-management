@@ -143,11 +143,14 @@ const targetTypeDropdownOptions = computed(() => [
 ]);
 const orderedLogs = computed(() => {
   const nextLogs = [...logs.value];
+
   if (!groupByActorEmail.value) return nextLogs;
 
   return nextLogs.sort((first, second) => {
     const actorComparison = actorLabel(first).localeCompare(actorLabel(second), undefined, { sensitivity: 'base' });
+
     if (actorComparison !== 0) return actorComparison;
+
     return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
   });
 });
@@ -161,6 +164,7 @@ const deliveryPageStart = computed(() => (
 const deliveryPageEnd = computed(() => Math.min(recentEmailDeliveries.value.length, deliveryPage.value * DELIVERY_LOG_PAGE_SIZE));
 const paginatedRecentEmailDeliveries = computed(() => {
   const start = (deliveryPage.value - 1) * DELIVERY_LOG_PAGE_SIZE;
+
   return recentEmailDeliveries.value.slice(start, start + DELIVERY_LOG_PAGE_SIZE);
 });
 const blastDeliveryPageCount = computed(() => Math.max(1, Math.ceil(recentEventBlasts.value.length / DELIVERY_LOG_PAGE_SIZE)));
@@ -170,15 +174,19 @@ const blastDeliveryPageStart = computed(() => (
 const blastDeliveryPageEnd = computed(() => Math.min(recentEventBlasts.value.length, blastDeliveryPage.value * DELIVERY_LOG_PAGE_SIZE));
 const paginatedRecentEventBlasts = computed(() => {
   const start = (blastDeliveryPage.value - 1) * DELIVERY_LOG_PAGE_SIZE;
+
   return recentEventBlasts.value.slice(start, start + DELIVERY_LOG_PAGE_SIZE);
 });
 const paginatedLogs = computed(() => {
   const start = (page.value - 1) * AUDIT_LOG_PAGE_SIZE;
+
   return orderedLogs.value.slice(start, start + AUDIT_LOG_PAGE_SIZE);
 });
 const actorLogCounts = computed(() => orderedLogs.value.reduce((counts, log) => {
   const key = actorKey(log);
+
   counts.set(key, (counts.get(key) ?? 0) + 1);
+
   return counts;
 }, new Map<string, number>()));
 const visibleLogGroups = computed<AuditLogGroup[]>(() => {
@@ -189,6 +197,7 @@ const visibleLogGroups = computed<AuditLogGroup[]>(() => {
   return paginatedLogs.value.reduce<AuditLogGroup[]>((groups, log) => {
     const key = actorKey(log);
     let group = groups.find((item) => item.key === key);
+
     if (!group) {
       group = {
         key,
@@ -199,6 +208,7 @@ const visibleLogGroups = computed<AuditLogGroup[]>(() => {
       groups.push(group);
     }
     group.logs.push(log);
+
     return groups;
   }, []);
 });
@@ -298,6 +308,7 @@ function actorRoleLabel(role: string | null): string {
   if (role === 'owner') return 'Owner';
   if (role === 'organizer') return 'Organizer';
   if (role === 'volunteer') return 'Volunteer';
+
   return 'System';
 }
 
@@ -309,6 +320,7 @@ function healthLabel(level: EmailHealthLevel): string {
   if (level === 'warning') return 'Watch';
   if (level === 'high') return 'Near limit';
   if (level === 'exhausted') return 'Limit reached';
+
   return 'Healthy';
 }
 
@@ -316,6 +328,7 @@ function healthTone(level: EmailHealthLevel): string {
   if (level === 'warning') return 'border-dc-yellow bg-dc-yellow/15 text-dc-ink';
   if (level === 'high') return 'border-dc-pink bg-dc-pink/10 text-dc-pink';
   if (level === 'exhausted') return 'border-red-600 bg-red-50 text-red-700';
+
   return 'border-emerald-500 bg-emerald-50 text-emerald-700';
 }
 
@@ -323,18 +336,21 @@ function deliverySourceLabel(source: RecentEmailDelivery['source']): string {
   if (source === 'community_submission') return 'Community listing';
   if (source === 'speaker_archive') return 'Speaker archive';
   if (source === 'speaker_proposal') return 'Speaker proposal';
+
   return 'Registration';
 }
 
 function deliveryStatusLabel(status: RecentEmailDelivery['status']): string {
   if (status === 'accepted') return 'Accepted';
   if (status === 'failed') return 'Failed';
+
   return 'Queued';
 }
 
 function deliveryDetail(delivery: RecentEmailDelivery): string {
   if (delivery.status === 'accepted') return 'Accepted by Resend';
   if (delivery.status === 'failed') return delivery.last_error ?? 'Provider did not accept the request';
+
   return 'Awaiting delivery attempt';
 }
 
@@ -343,6 +359,7 @@ function blastStatusLabel(status: RecentEventBlast['status']): string {
   if (status === 'scheduled') return 'Scheduled';
   if (status === 'needs_capacity') return 'Needs capacity';
   if (status === 'failed') return 'Failed';
+
   return 'Preparing';
 }
 
@@ -351,6 +368,7 @@ function blastStatusTone(status: RecentEventBlast['status']): string {
   if (status === 'scheduled') return 'audit-log-broadcast-status--scheduled';
   if (status === 'needs_capacity') return 'audit-log-broadcast-status--needs-capacity';
   if (status === 'failed') return 'audit-log-broadcast-status--failed';
+
   return 'audit-log-broadcast-status--preparing';
 }
 
@@ -358,6 +376,7 @@ function archivedEventRestoreLabel(event: ArchivedEvent): string {
   if (event.can_restore) return 'Restorable';
   if (event.restore_blocker === 'expired') return 'Expired';
   if (event.restore_blocker === 'event_ended') return 'Event ended';
+
   return 'Locked';
 }
 
@@ -365,6 +384,7 @@ function archivedEventRestoreDetail(event: ArchivedEvent): string {
   if (event.can_restore && event.restore_until) return `Can restore until ${formatDateTime(event.restore_until)}.`;
   if (event.restore_blocker === 'expired') return 'The restore window has expired.';
   if (event.restore_blocker === 'event_ended') return 'The event has ended, so restoring it would serve stale public links.';
+
   return 'This archived event cannot be restored.';
 }
 
@@ -400,6 +420,7 @@ function metadataKeyLabel(key: string): string {
 function metadataValue(value: unknown): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+
   return JSON.stringify(value);
 }
 
@@ -425,6 +446,7 @@ function clearFilters() {
 function selectSection(section: AuditLogSection) {
   if (activeSection.value === section) return;
   const order: AuditLogSection[] = ['activity', 'email-delivery', 'email-previews', 'short-links', 'archived-events'];
+
   activeSectionTransition.value = order.indexOf(section) > order.indexOf(activeSection.value) ? 'forward' : 'backward';
   activeSection.value = section;
 }
@@ -434,16 +456,19 @@ function shortLinkDestinationLabel(destination: 'monthly_cfp' | 'event_registrat
   if (destination === 'conference_cfp') return 'Conference CFP';
   if (destination === 'monthly_cfp') return 'Monthly CFP';
   if (destination === 'event_feedback') return 'Event feedback';
+
   return 'Registration';
 }
 
 function toggleShortLinkMenu(linkId: string, event: MouseEvent) {
   if (openShortLinkMenuId.value === linkId) {
     closeShortLinkMenu();
+
     return;
   }
 
   const trigger = event.currentTarget;
+
   if (!(trigger instanceof HTMLElement)) return;
 
   const rect = trigger.getBoundingClientRect();
@@ -451,6 +476,7 @@ function toggleShortLinkMenu(linkId: string, event: MouseEvent) {
   const menuHeight = 128;
   const gutter = 8;
   const openAbove = rect.bottom + gutter + menuHeight > window.innerHeight;
+
   shortLinkMenuPosition.value = {
     left: Math.min(Math.max(gutter, rect.right - menuWidth), window.innerWidth - menuWidth - gutter),
     top: openAbove
@@ -485,6 +511,7 @@ async function copyShortLink(linkId: string, value: string) {
 
 function handleDocumentPointerDown(event: PointerEvent) {
   const target = event.target;
+
   if (target instanceof Element && target.closest('[data-short-link-menu]')) return;
   closeShortLinkMenu();
 }
@@ -499,6 +526,7 @@ function closeAuditDrawer() {
   if (!selectedAuditLogId.value) return;
   selectedAuditLogId.value = null;
   const trigger = auditDrawerTrigger;
+
   auditDrawerTrigger = null;
   void nextTick(() => trigger?.focus());
 }
@@ -506,10 +534,12 @@ function closeAuditDrawer() {
 function handleAuditDrawerKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && openShortLinkMenuId.value) {
     closeShortLinkMenu();
+
     return;
   }
   if (event.key === 'Escape' && selectedAuditLog.value) {
     closeAuditDrawer();
+
     return;
   }
 
@@ -519,6 +549,7 @@ function handleAuditDrawerKeydown(event: KeyboardEvent) {
   ));
   const first = focusable[0];
   const last = focusable.at(-1);
+
   if (!first || !last) return;
 
   if (event.shiftKey && document.activeElement === first) {
@@ -1915,7 +1946,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
 }
-
 
 .audit-log-short-links__toolbar {
   display: grid;

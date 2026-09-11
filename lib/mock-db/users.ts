@@ -10,16 +10,19 @@ export async function getAllUsers(): Promise<User[]> {
 
 export async function getUserById(id: string): Promise<User | undefined> {
   const users = await readData<User>(FILE);
+
   return users.find(u => u.id === id);
 }
 
 export async function getUserByDeviceId(deviceId: string): Promise<User | undefined> {
   const users = await readData<User>(FILE);
+
   return users.find(u => u.device_id === deviceId);
 }
 
 export async function getUserByEmail(email: string): Promise<User | undefined> {
   const users = await readData<User>(FILE);
+
   return users.find(u => u.email === email);
 }
 
@@ -42,7 +45,9 @@ export async function createUser(
     id: generateId(),
     created_at: now(),
   };
+
   await updateData<User, void>(FILE, (users) => ({ data: [...users, newUser], result: undefined }));
+
   return newUser;
 }
 
@@ -52,10 +57,13 @@ export async function updateUser(
 ): Promise<User> {
   return updateData<User, User>(FILE, (users) => {
     const index = users.findIndex(u => u.id === id);
+
     if (index === -1) throw new Error(`User ${id} not found`);
     const user = { ...users[index], ...updates };
     const next = [...users];
+
     next[index] = user;
+
     return { data: next, result: user };
   });
 }

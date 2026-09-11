@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/supabase/event-submissions', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/event-submissions')>('@/lib/supabase/event-submissions');
+
   return {
     ...actual,
     createEventSubmission: mocks.create,
@@ -46,11 +47,13 @@ vi.mock('@/lib/supabase/event-submissions', async () => {
 
 vi.mock('@/lib/public-rate-limit', async () => {
   const actual = await vi.importActual<typeof import('@/lib/public-rate-limit')>('@/lib/public-rate-limit');
+
   return { ...actual, consumePublicRateLimit: mocks.rateLimit };
 });
 
 vi.mock('@/lib/supabase/media', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/media')>('@/lib/supabase/media');
+
   return {
     ...actual,
     uploadEventSubmissionCover: mocks.uploadCover,
@@ -70,11 +73,13 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
     session_id: 'session-1',
     expires_at: '2099-01-01T00:00:00.000Z',
   };
+
   return {
     ...actual,
     getAdminSession: vi.fn(async () => session),
     requireAdmin: mocks.requireAdmin.mockImplementation(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
+
       return null;
     }),
     recordAdminAudit: mocks.audit,
@@ -295,6 +300,7 @@ describe('community event submissions', () => {
     mocks.requireAdmin.mockClear();
     const { default: app } = await import('./app');
     const form = new FormData();
+
     Object.entries(validPayload()).forEach(([key, value]) => form.set(key, value));
     form.set('cover', validJpegFile('community-event.jpg'));
 
@@ -329,6 +335,7 @@ describe('community event submissions', () => {
   it('notifies the submission channel after saving a validated proposal', async () => {
     vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
     const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -345,10 +352,12 @@ describe('community event submissions', () => {
       text: string;
       blocks: Array<{ type: string; image_url?: string; elements?: Array<{ url?: string }> }>;
     };
+
     expect(slackPayload).toMatchObject({
       text: 'New event submission: Community systems workshop',
     });
     const reviewButton = slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0];
+
     expect(reviewButton?.url).toBe(`http://localhost/organizer-console/events/submissions?submission=${submission.id}`);
     expect(slackPayload.blocks.find((block) => block.type === 'image')?.image_url)
       .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
@@ -357,6 +366,7 @@ describe('community event submissions', () => {
   it('does not fail submission intake when the submission channel is unavailable', async () => {
     vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
     const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('unavailable', { status: 503 }));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -403,8 +413,10 @@ describe('community event submissions', () => {
     const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
     const capability = `${linkId}.${signature}`;
+
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     const { EventSubmissionStorageError } = await import('@/lib/supabase/event-submissions');
+
     mocks.getManagement.mockRejectedValue(new EventSubmissionStorageError(
       'This event has ended and can no longer be updated.',
       'not_found',
@@ -438,6 +450,7 @@ describe('community event submissions', () => {
     const linkId = '30000000-0000-4000-8000-000000000001';
     const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     mocks.getManagement.mockResolvedValue({
       link_id: linkId,
@@ -460,6 +473,7 @@ describe('community event submissions', () => {
     const linkId = '30000000-0000-4000-8000-000000000001';
     const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
     mocks.getManagement.mockResolvedValue({
@@ -470,6 +484,7 @@ describe('community event submissions', () => {
       amendment: submittedAmendment,
     });
     const slackFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('ok', { status: 200 }));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -484,6 +499,7 @@ describe('community event submissions', () => {
       text: string;
       blocks: Array<{ type: string; elements?: Array<{ url?: string }> }>;
     };
+
     expect(slackPayload.text).toBe(`Community event update requested: ${submission.title}`);
     expect(slackPayload.blocks.find((block) => block.type === 'actions')?.elements?.[0]?.url)
       .toBe(`http://localhost/organizer-console/events/submissions?submission=${submission.id}`);
@@ -494,6 +510,7 @@ describe('community event submissions', () => {
     const linkId = '30000000-0000-4000-8000-000000000001';
     const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
+
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     vi.stubEnv('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', 'https://hooks.slack.com/services/test/submissions');
     mocks.getManagement.mockResolvedValue({
@@ -521,6 +538,7 @@ describe('community event submissions', () => {
     const secret = 'management-link-secret-for-tests-2026';
     const signature = crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
     const capability = `${linkId}.${signature}`;
+
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     mocks.getManagement.mockResolvedValue({
       link_id: linkId,
@@ -531,6 +549,7 @@ describe('community event submissions', () => {
     });
     mocks.saveAmendment.mockResolvedValue({ id: 'amendment-1', cover_url: 'https://storage.example.test/cover.jpg' });
     const form = new FormData();
+
     form.set('starts_at', '2099-09-20T10:00:00.000Z');
     form.set('ends_at', '2099-09-20T14:00:00.000Z');
     form.set('location_type', 'in_person');
@@ -597,6 +616,7 @@ describe('community event submissions', () => {
       hostname: 'untrusted.example.com',
     }), { status: 200 })));
     const form = new FormData();
+
     Object.entries(validPayload()).forEach(([key, value]) => form.set(key, value));
     form.set('turnstile_token', 'valid-looking-token');
     form.set('cover', validJpegFile('community-event.jpg'));
@@ -650,6 +670,7 @@ describe('community event submissions', () => {
   it('lets organizers copy an active management link without sending email', async () => {
     const secret = 'management-link-secret-for-tests-2026';
     const linkId = '30000000-0000-4000-8000-000000000001';
+
     vi.stubEnv('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', secret);
     mocks.getActiveManagementLink.mockResolvedValue({
       id: linkId,
@@ -680,6 +701,7 @@ describe('community event submissions', () => {
 
   it('does not disclose an expired or revoked management link to organizers', async () => {
     const { EventSubmissionStorageError } = await import('@/lib/supabase/event-submissions');
+
     mocks.getActiveManagementLink.mockRejectedValue(new EventSubmissionStorageError(
       'This event link is no longer available.',
       'not_found',
@@ -856,6 +878,7 @@ describe('community event submissions', () => {
     );
 
     const error = 'Email provider rejected the message or recipient details; delivery can be retried after the details are corrected. Provider detail: The from address is not verified';
+
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({ error });
     expect(mocks.updateEmail).toHaveBeenCalledWith('delivery-rejected-detail-1', {
@@ -900,8 +923,10 @@ describe('community event submissions', () => {
           attachments: [],
         }), { status: 200, headers: { 'Content-Type': 'application/json' } });
       }
+
       return new Response('', { status: 200 });
     });
+
     vi.stubGlobal('fetch', fetchMock);
 
     const { default: app } = await import('./app');
@@ -938,6 +963,7 @@ describe('community event submissions', () => {
     );
 
     const error = 'Slack rejected the notification (HTTP 403): invalid_token.';
+
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({ error });
     expect(mocks.getReply).toHaveBeenCalledWith(submission.id, '20000000-0000-4000-8000-000000000001', expect.anything());
@@ -972,6 +998,7 @@ describe('community event submissions', () => {
     vi.stubEnv('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', 'reply-token-secret-for-tests-2026');
     vi.stubEnv('RESEND_INBOUND_WEBHOOK_SECRET', `whsec_${Buffer.from('webhook-secret').toString('base64')}`);
     const fetchMock = vi.fn();
+
     vi.stubGlobal('fetch', fetchMock);
     const payload = JSON.stringify({
       type: 'email.received',

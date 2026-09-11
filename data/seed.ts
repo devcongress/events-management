@@ -6,13 +6,17 @@ import { calculatePoints } from '../lib/scoring';
 // Helper to create dates relative to today
 const daysAgo = (days: number) => {
   const date = new Date();
+
   date.setDate(date.getDate() - days);
+
   return date.toISOString();
 };
 
 const daysFromNow = (days: number) => {
   const date = new Date();
+
   date.setDate(date.getDate() + days);
+
   return date.toISOString();
 };
 

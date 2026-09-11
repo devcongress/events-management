@@ -6,6 +6,7 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase
 import { participantDisplayNameKey } from '@/lib/system-design-participant-identity';
 
 const FILE = 'quiz-participants';
+
 type QuizParticipantRow = Database['public']['Tables']['quiz_participants']['Row'];
 type QuizParticipantUpdate = Partial<Omit<QuizParticipant, 'id' | 'joined_at' | 'nickname_used'>>;
 
@@ -36,6 +37,7 @@ export async function getAllQuizParticipants(): Promise<QuizParticipant[]> {
       .order('joined_at', { ascending: true });
 
     if (error) throw new Error('Unable to load quiz participants');
+
     return (data ?? []).map(fromSupabaseRow);
   }
 
@@ -51,10 +53,12 @@ export async function getQuizParticipantById(id: string): Promise<QuizParticipan
       .maybeSingle();
 
     if (error) throw new Error('Unable to load quiz participant');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
 
   const participants = await readData<QuizParticipant>(FILE);
+
   return participants.find((participant) => participant.id === id);
 }
 
@@ -67,10 +71,12 @@ export async function getQuizParticipantsBySession(sessionId: string): Promise<Q
       .order('joined_at', { ascending: true });
 
     if (error) throw new Error('Unable to load room participants');
+
     return (data ?? []).map(fromSupabaseRow);
   }
 
   const participants = await readData<QuizParticipant>(FILE);
+
   return participants.filter((participant) => participant.quiz_session_id === sessionId);
 }
 
@@ -87,10 +93,12 @@ export async function getQuizParticipantBySessionAndUser(
       .maybeSingle();
 
     if (error) throw new Error('Unable to load quiz participant');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
 
   const participants = await readData<QuizParticipant>(FILE);
+
   return participants.find((participant) => (
     participant.quiz_session_id === sessionId && participant.user_id === userId
   ));
@@ -126,10 +134,12 @@ export async function createQuizParticipant(
 
     if (error?.code === '23505') {
       const existing = await getQuizParticipantBySessionAndUser(data.quiz_session_id, data.user_id);
+
       if (existing) return existing;
       if (options.enforceUniqueName) throw new QuizParticipantNicknameTakenError();
     }
     if (error || !stored) throw new Error('Unable to join this quiz room');
+
     return fromSupabaseRow(stored);
   }
 
@@ -137,6 +147,7 @@ export async function createQuizParticipant(
     const existing = participants.find((participant) => (
       participant.quiz_session_id === data.quiz_session_id && participant.user_id === data.user_id
     ));
+
     if (existing) return { data: participants, result: existing };
 
     if (options.enforceUniqueName) {
@@ -145,6 +156,7 @@ export async function createQuizParticipant(
         participant.quiz_session_id === data.quiz_session_id
         && participantDisplayNameKey(participant.nickname_used) === nicknameKey
       ));
+
       if (nicknameTaken) throw new QuizParticipantNicknameTakenError();
     }
 
@@ -168,15 +180,19 @@ export async function updateQuizParticipant(
       .single();
 
     if (error || !data) throw new Error(`Quiz participant ${id} not found`);
+
     return fromSupabaseRow(data);
   }
 
   return updateData<QuizParticipant, QuizParticipant>(FILE, (participants) => {
     const index = participants.findIndex((participant) => participant.id === id);
+
     if (index === -1) throw new Error(`Quiz participant ${id} not found`);
 
     const updated = { ...participants[index]!, ...updates };
+
     participants[index] = updated;
+
     return { data: participants, result: updated };
   });
 }
@@ -199,6 +215,7 @@ export async function renameQuizParticipant(
 
     if (error?.code === '23505') return { participant: null, nicknameTaken: true };
     if (error) throw new Error('Unable to update participant name');
+
     return {
       participant: data ? fromSupabaseRow(data) : null,
       nicknameTaken: false,
@@ -209,6 +226,7 @@ export async function renameQuizParticipant(
     const index = participants.findIndex((participant) => (
       participant.id === id && participant.quiz_session_id === sessionId
     ));
+
     if (index === -1) return { data: participants, result: { participant: null, nicknameTaken: false } };
 
     const nicknameKey = participantDisplayNameKey(nickname);
@@ -217,10 +235,13 @@ export async function renameQuizParticipant(
       && participant.quiz_session_id === sessionId
       && participantDisplayNameKey(participant.nickname_used) === nicknameKey
     ));
+
     if (nicknameTaken) return { data: participants, result: { participant: null, nicknameTaken: true } };
 
     const renamed = { ...participants[index]!, nickname_used: nickname };
+
     participants[index] = renamed;
+
     return { data: participants, result: { participant: renamed, nicknameTaken: false } };
   });
 }
@@ -233,6 +254,7 @@ export async function deleteQuizParticipant(id: string): Promise<void> {
       .eq('id', id);
 
     if (error) throw new Error('Unable to delete quiz participant');
+
     return;
   }
 
@@ -251,11 +273,13 @@ export async function deleteQuizParticipantsBySession(sessionId: string): Promis
       .select('id');
 
     if (error) throw new Error('Unable to clear room participants');
+
     return data?.length ?? 0;
   }
 
   return updateData<QuizParticipant, number>(FILE, (participants) => {
     const retained = participants.filter((participant) => participant.quiz_session_id !== sessionId);
+
     return {
       data: retained,
       result: participants.length - retained.length,
@@ -269,7 +293,9 @@ export async function mergeQuizParticipantUsers(targetUserId: string, sourceUser
       p_target_user_id: targetUserId,
       p_source_user_id: sourceUserId,
     });
+
     if (error) throw new Error('Unable to merge quiz participant history');
+
     return;
   }
 
@@ -290,11 +316,13 @@ export async function mergeQuizParticipantUsers(targetUserId: string, sourceUser
       if (participant.user_id !== sourceUserId) continue;
 
       const targetParticipant = participantBySession.get(participant.quiz_session_id);
+
       if (targetParticipant) {
         targetParticipant.total_score += participant.total_score;
         targetParticipant.current_streak = Math.max(targetParticipant.current_streak, participant.current_streak);
       } else {
         const reassigned = { ...participant, user_id: targetUserId };
+
         participantBySession.set(participant.quiz_session_id, reassigned);
         retained.push(reassigned);
       }

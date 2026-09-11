@@ -9,6 +9,7 @@ function compactLines(lines: string[]): string {
     .reduce<string[]>((result, line) => {
       if (!line.trim() && result.at(-1) === '') return result;
       result.push(line);
+
       return result;
     }, [])
     .join('\n')
@@ -35,12 +36,14 @@ export function presentEventSubmissionReply(body: string): EventSubmissionReplyP
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const replyBoundary = replyBoundaryIndex(lines);
   const quoteStart = replyBoundary >= 0 ? replyBoundary : quoteMarkerIndex(lines);
+
   if (quoteStart < 0) {
     return { message: compactLines(lines) || '(No message body)', quotedMessage: null };
   }
 
   const message = compactLines(lines.slice(0, quoteStart));
   const quotedMessage = cleanQuotedMessage(lines.slice(replyBoundary >= 0 ? quoteStart + 1 : quoteStart));
+
   return {
     message: message || '(No message body)',
     quotedMessage: quotedMessage || null,

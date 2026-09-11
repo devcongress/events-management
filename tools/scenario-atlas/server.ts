@@ -32,13 +32,16 @@ async function updateScenario(request: Request, scenarioId: string): Promise<Res
   if (!isAllowedMutation(request)) return json({ error: 'Cross-origin Atlas mutations are forbidden.' }, 403);
   if (!scenarioIds.has(scenarioId)) return json({ error: 'Unknown scenario.' }, 404);
   const length = Number(request.headers.get('content-length') ?? 0);
+
   if (length > 8192) return json({ error: 'Request body is too large.' }, 413);
 
   try {
     const body = await request.json() as { status?: unknown; note?: unknown };
     const status = storedStatusSchema.parse(body.status);
     const note = typeof body.note === 'string' ? body.note.trim().slice(0, 2000) : '';
+
     database.write(scenarioId, status, note);
+
     return json(applyScenarioState(catalog, database.readAll()));
   } catch {
     return json({ error: 'Status must be untested, verified, or failed.' }, 400);
@@ -50,28 +53,35 @@ const server = Bun.serve({
   port,
   async fetch(request) {
     const url = new URL(request.url);
+
     if (!isLoopbackHostname(url.hostname)) return new Response('Scenario Atlas is available only on loopback.', { status: 403 });
 
     if (request.method === 'GET' && url.pathname === '/api/health') return json({ localOnly: true, catalogVersion: catalog.version });
     if (request.method === 'GET' && url.pathname === '/api/catalog') return json(applyScenarioState(catalog, database.readAll()));
     const scenarioStatusMatch = url.pathname.match(/^\/api\/scenarios\/([^/]+)\/status$/);
+
     if (request.method === 'PUT' && scenarioStatusMatch) {
       return updateScenario(request, decodeURIComponent(scenarioStatusMatch[1]));
     }
     if (request.method === 'POST' && url.pathname === '/api/reset') {
       if (!isAllowedMutation(request)) return json({ error: 'Cross-origin Atlas mutations are forbidden.' }, 403);
       database.reset();
+
       return json(applyScenarioState(catalog, {}));
     }
 
     if (url.pathname === '/favicon.ico') return new Response(null, { status: 204 });
     const staticPath = url.pathname === '/' ? '/index.html' : url.pathname;
+
     if (staticPath.startsWith('/fonts/')) {
       const fontName = staticPath.slice('/fonts/'.length);
+
       if (!/^inter-(400|600|700)\.woff2$/.test(fontName)) return new Response('Not found', { status: 404 });
+
       return new Response(Bun.file(join(repoRoot, 'public/fonts', fontName)), { headers: { 'content-type': 'font/woff2' } });
     }
     if (!(staticPath in mimeTypes)) return new Response('Not found', { status: 404 });
+
     return new Response(Bun.file(join(appRoot, staticPath.slice(1))), {
       headers: {
         'content-type': mimeTypes[staticPath],

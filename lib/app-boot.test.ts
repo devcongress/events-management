@@ -14,6 +14,7 @@ const pagesWorker = await readFile(new URL('../public/_worker.js', import.meta.u
 // @ts-expect-error Import it directly so the test exercises the real response transformation.
 const pagesWorkerModule = await import('../public/_worker.js');
 const pagesClassifierSource = pagesWorker.match(/function publicBootVariant\(pathname\) \{[\s\S]*?\n\}/)?.[0];
+
 if (!pagesClassifierSource) throw new Error('Pages boot classifier is missing.');
 const pagesPublicBootVariant = new Function(`${pagesClassifierSource}; return publicBootVariant;`)() as (pathname: string) => string;
 
@@ -51,6 +52,7 @@ describe('app boot route variants', () => {
 
   it('renders and rewrites the first-paint variant without changing the shell contract', () => {
     const publicMarkup = renderAppBootMarkup('/cfp/event-id');
+
     expect(publicMarkup).toContain('data-app-boot-variant="cfp"');
     expect(publicMarkup).toContain('<div class="app-boot__organizer" hidden>');
     expect(publicMarkup).toContain('data-app-boot-public="registration" class="app-boot__public" hidden');
@@ -58,6 +60,7 @@ describe('app boot route variants', () => {
 
     const staticHtml = renderAppBootMarkup('/organizer-console');
     const rewrittenHtml = applyAppBootVariant(staticHtml, '/feedback/event-id');
+
     expect(rewrittenHtml).toContain('data-app-boot-variant="feedback"');
     expect(rewrittenHtml).toContain('aria-label="Loading the feedback form"');
     expect(rewrittenHtml).toContain('<div class="app-boot__organizer" hidden>');

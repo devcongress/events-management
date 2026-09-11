@@ -10,24 +10,29 @@ const OPTIONAL_COVER_MESSAGE = 'Use a full URL or a site-local path that starts 
 const OPTIONAL_MAP_MESSAGE = 'Add an HTTPS Google Maps link for the Ghana venue.';
 const OPTIONAL_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
+
 export const MONTHLY_EVENT_DEFAULT_START_TIME = '09:00';
 export const MONTHLY_EVENT_DEFAULT_END_TIME = '16:00';
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
+
   return trimmed.length > 0 ? trimmed : null;
 }
 
 function isValidCalendarValue(value: string): boolean {
   const dateOnly = ISO_DATE_PATTERN.test(value);
   const localDateTime = LOCAL_DATE_TIME_PATTERN.test(value);
+
   if (!dateOnly && !localDateTime) {
     return value.includes('T') && !Number.isNaN(new Date(value).getTime());
   }
 
   const candidate = dateOnly ? `${value}T00:00:00.000Z` : `${value}:00.000Z`;
   const parsed = new Date(candidate);
+
   if (Number.isNaN(parsed.getTime())) return false;
+
   return dateOnly
     ? parsed.toISOString().startsWith(`${value}T00:00:00.000Z`)
     : parsed.toISOString().startsWith(`${value}:00.000Z`);
@@ -42,6 +47,7 @@ function normalizeEventDateValue(value: string): string {
 function eventDateTimestamp(value: string): number | null {
   if (!isValidCalendarValue(value)) return null;
   const timestamp = new Date(normalizeEventDateValue(value)).getTime();
+
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
@@ -56,11 +62,13 @@ export function syncEventEndDate(
   defaultEndTime?: string,
 ): string {
   const nextStartTimestamp = eventDateTimestamp(nextStart);
+
   if (nextStartTimestamp === null) return currentEnd;
 
   if (!currentEnd && /^\d{2}:\d{2}$/.test(defaultEndTime ?? '')) {
     const defaultEnd = `${nextStart.slice(0, 10)}T${defaultEndTime}`;
     const defaultEndTimestamp = eventDateTimestamp(defaultEnd);
+
     if (defaultEndTimestamp !== null && defaultEndTimestamp > nextStartTimestamp) {
       return defaultEnd;
     }
@@ -68,6 +76,7 @@ export function syncEventEndDate(
 
   const previousStartTimestamp = eventDateTimestamp(previousStart);
   const currentEndTimestamp = eventDateTimestamp(currentEnd);
+
   if (
     previousStartTimestamp === null
     && currentEndTimestamp !== null
@@ -87,9 +96,11 @@ export function eventEndDateError(start: string, end: string): string | null {
   if (!end.trim()) return null;
 
   const endTimestamp = eventDateTimestamp(end);
+
   if (endTimestamp === null) return 'Choose a valid end date and time.';
 
   const startTimestamp = eventDateTimestamp(start);
+
   if (startTimestamp !== null && endTimestamp <= startTimestamp) {
     return 'End date must be after the event start.';
   }
@@ -100,6 +111,7 @@ export function eventEndDateError(start: string, end: string): string | null {
 function isFullUrl(value: string): boolean {
   try {
     const url = new URL(value);
+
     return ['http:', 'https:'].includes(url.protocol) && url.hostname.length > 0;
   } catch {
     return false;
@@ -143,6 +155,7 @@ export const createEventFormSchema = z.object({
   registration_closes_at: z.string().trim().optional().default(''),
 }).superRefine((value, ctx) => {
   const endDateError = eventEndDateError(value.event_date, value.end_date);
+
   if (endDateError) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

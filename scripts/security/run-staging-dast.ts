@@ -8,6 +8,7 @@ import {
 } from './deployed-security';
 
 const rawTarget = process.env.STAGING_DAST_URL;
+
 if (!rawTarget) {
   throw new Error('STAGING_DAST_URL is required. No staging target is configured in this repository.');
 }

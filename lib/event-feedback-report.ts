@@ -43,11 +43,13 @@ export interface EventFeedbackReport {
 
 function roundedAverage(values: number[]): number | null {
   if (values.length === 0) return null;
+
   return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
 }
 
 function roundedPercent(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
+
   return Math.round((numerator / denominator) * 100);
 }
 
@@ -67,12 +69,14 @@ export function buildEventFeedbackReport(
   for (const submission of submissions) {
     for (const answer of submission.answers) {
       const question = questionsById.get(answer.question_id);
+
       if (!question) continue;
 
       if (question.type === 'rating' && isEventFeedbackRating(answer.value)) {
         ratings.push(answer.value);
         ratingCounts.set(answer.value, (ratingCounts.get(answer.value) ?? 0) + 1);
         const questionRatings = ratingsByQuestion.get(question.id) ?? [];
+
         questionRatings.push(answer.value);
         ratingsByQuestion.set(question.id, questionRatings);
       }
@@ -84,6 +88,7 @@ export function buildEventFeedbackReport(
 
       if (question.type === 'yes_no' && typeof answer.value === 'boolean') {
         const counts = binaryByQuestion.get(question.id) ?? { yes: 0, no: 0 };
+
         counts[answer.value ? 'yes' : 'no'] += 1;
         binaryByQuestion.set(question.id, counts);
       }
@@ -96,6 +101,7 @@ export function buildEventFeedbackReport(
 
   const ratingDistribution = ([1, 2, 3, 4, 5] as const).map((rating) => {
     const count = ratingCounts.get(rating) ?? 0;
+
     return {
       rating,
       count,
@@ -108,6 +114,7 @@ export function buildEventFeedbackReport(
     .sort((left, right) => left.order_index - right.order_index)
     .map((question) => {
       const questionRatings = ratingsByQuestion.get(question.id) ?? [];
+
       return {
         questionId: question.id,
         label: question.label,
@@ -127,6 +134,7 @@ export function buildEventFeedbackReport(
     .map((question) => {
       const counts = binaryByQuestion.get(question.id) ?? { yes: 0, no: 0 };
       const total = counts.yes + counts.no;
+
       return {
         questionId: question.id,
         label: question.label,

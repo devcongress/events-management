@@ -37,9 +37,11 @@ const REQUIRED_SECURITY_HEADERS: Array<[string, string, string?]> = [
 
 function normalizedBaseUrl(value: string): URL {
   const url = new URL(value);
+
   url.pathname = url.pathname.replace(/\/+$/, '');
   url.search = '';
   url.hash = '';
+
   return url;
 }
 
@@ -57,6 +59,7 @@ export function assertSafeStagingTarget(rawTarget: string, confirmation: string 
   if (confirmation !== hostname) {
     throw new Error(`Set DAST_CONFIRM_NON_PRODUCTION=${hostname} after confirming this deployment uses non-production data and secrets.`);
   }
+
   return target;
 }
 
@@ -75,6 +78,7 @@ async function request(target: URL, path: string, init?: RequestInit): Promise<R
 function securityHeaderChecks(response: Response, label: string): SecurityCheck[] {
   return REQUIRED_SECURITY_HEADERS.map(([name, expected, qualifier]) => {
     const actual = response.headers.get(name);
+
     return check(
       `header:${label}:${name}${qualifier ? `:${qualifier}` : ''}`,
       actual?.toLowerCase().includes(expected.toLowerCase()) === true,
@@ -87,10 +91,12 @@ function securityHeaderChecks(response: Response, label: string): SecurityCheck[
 export async function runPassiveDeploymentChecks(target: URL, expectedAppOrigin = target.origin): Promise<SecurityCheck[]> {
   const checks: SecurityCheck[] = [];
   const root = await request(target, '/');
+
   checks.push(check('root:status', root.status === 200, 'Root returned 200.', `Root returned ${root.status}.`));
   checks.push(...securityHeaderChecks(root, 'root'));
 
   const health = await request(target, '/api/health');
+
   checks.push(check('health:status', health.status === 200, 'Health returned 200.', `Health returned ${health.status}.`));
   checks.push(...securityHeaderChecks(health, 'health'));
   checks.push(check(
@@ -107,6 +113,7 @@ export async function runPassiveDeploymentChecks(target: URL, expectedAppOrigin 
   ));
 
   const session = await request(target, '/api/auth/session');
+
   checks.push(check('session:status', session.status === 200, 'Anonymous session probe returned 200.', `Anonymous session probe returned ${session.status}.`));
   checks.push(check(
     'session:cache-control',
@@ -116,6 +123,7 @@ export async function runPassiveDeploymentChecks(target: URL, expectedAppOrigin 
   ));
 
   const protectedRoute = await request(target, '/api/admin/organizers');
+
   checks.push(check(
     'auth:protected-route',
     protectedRoute.status === 401,
@@ -126,6 +134,7 @@ export async function runPassiveDeploymentChecks(target: URL, expectedAppOrigin 
   const publicApi = await request(target, '/api/public/meetups', {
     headers: { Origin: 'https://security-probe.invalid' },
   });
+
   checks.push(check('public-api:status', publicApi.status === 200, 'Public meetups returned 200.', `Public meetups returned ${publicApi.status}.`));
   checks.push(check(
     'public-api:cors',
@@ -147,6 +156,7 @@ export async function runPassiveDeploymentChecks(target: URL, expectedAppOrigin 
       'Access-Control-Request-Method': 'GET',
     },
   });
+
   checks.push(check(
     'cors:allowed-origin',
     allowedPreflight.status === 204
@@ -164,6 +174,7 @@ export async function runPassiveDeploymentChecks(target: URL, expectedAppOrigin 
         'Access-Control-Request-Method': 'GET',
       },
     });
+
     checks.push(check(
       `cors:reject:${new URL(untrustedOrigin).hostname}`,
       !rejectedPreflight.headers.has('access-control-allow-origin'),
@@ -182,6 +193,7 @@ export async function runActiveStagingChecks(target: URL): Promise<SecurityCheck
     headers: { 'Content-Type': 'application/json', Origin: target.origin },
     body: JSON.stringify({ join_code: 'ABC234', device_id: crypto.randomUUID(), padding: 'x'.repeat(70 * 1024) }),
   });
+
   checks.push(check(
     'active:quiz-body-limit',
     oversizedJoin.status === 413,
@@ -194,6 +206,7 @@ export async function runActiveStagingChecks(target: URL): Promise<SecurityCheck
     headers: { 'Content-Type': 'application/json', Origin: target.origin },
     body: '{',
   });
+
   checks.push(check(
     'active:malformed-json',
     malformedJoin.status === 400,
@@ -206,6 +219,7 @@ export async function runActiveStagingChecks(target: URL): Promise<SecurityCheck
     headers: { 'Content-Type': 'application/json', Origin: target.origin },
     body: '{}',
   });
+
   checks.push(check(
     'active:submission-validation',
     invalidSubmission.status === 400,
@@ -218,6 +232,7 @@ export async function runActiveStagingChecks(target: URL): Promise<SecurityCheck
     headers: { 'Content-Type': 'application/json', Origin: target.origin },
     body: '{}',
   });
+
   checks.push(check(
     'active:unauthenticated-write',
     unauthenticatedWrite.status === 401,
@@ -255,6 +270,8 @@ export function printReport(report: SecurityScanReport): void {
 
 export function deployedTarget(rawTarget: string): URL {
   const target = normalizedBaseUrl(rawTarget);
+
   if (target.protocol !== 'https:') throw new Error('Deployed verification requires HTTPS.');
+
   return target;
 }

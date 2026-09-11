@@ -51,12 +51,15 @@ function clearFileSelection() {
 function handleFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
+
   if (!file) return;
 
   const validationError = validateMeetupImageFile(file);
+
   if (validationError) {
     fileError.value = validationError;
     input.value = '';
+
     return;
   }
 
@@ -67,6 +70,7 @@ function handleFileChange(event: Event) {
 
 function handleUrlInput(event: Event) {
   const value = (event.target as HTMLInputElement).value;
+
   emit('update:modelValue', value);
   if (value && props.selectedFile) {
     clearFileSelection();

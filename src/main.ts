@@ -30,6 +30,7 @@ void router.replace(initialPath)
       ? (await import('./PublicApp.vue')).default
       : (await import('./App.vue')).default;
     const app = createApp(RootView).use(VueQueryPlugin, { queryClient }).use(router);
+
     app.mount('#app');
     installButtonPressFeedback();
   });

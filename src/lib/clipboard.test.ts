@@ -8,6 +8,7 @@ afterEach(() => {
 describe('copyTextToClipboard', () => {
   it('resolves only after the Clipboard API confirms the write', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
+
     vi.stubGlobal('navigator', { clipboard: { writeText } });
 
     await expect(copyTextToClipboard('https://example.com')).resolves.toBeUndefined();
@@ -23,6 +24,7 @@ describe('copyTextToClipboard', () => {
       remove: vi.fn(),
     };
     const execCommand = vi.fn(() => true);
+
     vi.stubGlobal('navigator', {});
     vi.stubGlobal('document', {
       createElement: vi.fn(() => textarea),
@@ -43,6 +45,7 @@ describe('copyTextToClipboard', () => {
       select: vi.fn(),
       remove: vi.fn(),
     };
+
     vi.stubGlobal('navigator', {});
     vi.stubGlobal('document', {
       createElement: vi.fn(() => textarea),

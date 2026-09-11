@@ -24,10 +24,12 @@ export async function createMockEventBlast(input: Omit<EventBlast, 'id' | 'creat
     created_at: timestamp,
     updated_at: timestamp,
   };
+
   await updateData<EventBlast, void>(BLASTS_FILE, (blasts) => ({
     data: [...blasts, blast],
     result: undefined,
   }));
+
   return blast;
 }
 
@@ -37,8 +39,10 @@ export async function updateMockEventBlast(
 ): Promise<EventBlast | undefined> {
   return updateData<EventBlast, EventBlast | undefined>(BLASTS_FILE, (blasts) => {
     const index = blasts.findIndex((blast) => blast.id === id);
+
     if (index < 0) return { data: blasts, result: undefined };
     blasts[index] = { ...blasts[index], ...input, updated_at: now() };
+
     return { data: blasts, result: blasts[index] };
   });
 }

@@ -31,6 +31,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
         });
       }
       c.set('adminSession', session());
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -58,8 +59,10 @@ async function setupPublishedTalk() {
     storage_path: null,
     slides_uploaded_at: null,
   });
+
   await talks.updateTalk(talk.id, { status: 'published' });
   const app = (await import('./app')).default;
+
   return { app, talks, talk };
 }
 
@@ -95,6 +98,7 @@ describe('published archive-item status changes', () => {
 
   it('does not let an organizer unpublish a talk', async () => {
     const { app, talks, talk } = await setupPublishedTalk();
+
     mocks.role = 'organizer';
 
     const response = await app.request(`http://localhost/api/talks/${talk.id}`, {

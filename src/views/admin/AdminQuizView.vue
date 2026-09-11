@@ -70,23 +70,29 @@ const quizPaused = true;
 const quizCreationPaused = true;
 const playUrl = computed(() => {
   if (!session.value) return '';
+
   return `${window.location.origin}/play/${session.value.join_code}`;
 });
 let pollTimer: number | undefined;
 
 async function fetchSession() {
   const sessionsResponse = await fetch(`/api/quiz/sessions?eventId=${route.params.eventId}`);
+
   if (!sessionsResponse.ok) {
     loading.value = false;
+
     return;
   }
   const sessions: QuizSession[] = await sessionsResponse.json();
+
   if (sessions.length === 0) {
     session.value = null;
     loading.value = false;
+
     return;
   }
   const response = await fetch(`/api/quiz/sessions/${sessions[0].id}`);
+
   if (response.ok) {
     session.value = await response.json();
     await refreshQrCode();
@@ -100,9 +106,11 @@ async function refreshQrCode() {
   // lazy-loaded qrcode chunk) for builder-mode refetches after each edit.
   if (!session.value || !liveMode.value) {
     qrCodeUrl.value = null;
+
     return;
   }
   const { toDataURL } = await import('qrcode');
+
   qrCodeUrl.value = await toDataURL(playUrl.value, {
     margin: 1,
     width: 280,
@@ -121,6 +129,7 @@ async function fetchLiveState() {
     body: JSON.stringify({ session_id: session.value.id }),
   });
   const response = await fetch(`/api/quiz/state?sessionId=${session.value.id}`);
+
   if (response.ok) liveState.value = await response.json();
 }
 
@@ -130,6 +139,7 @@ async function createSession() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ event_id: route.params.eventId }),
   });
+
   if (response.ok) await fetchSession();
 }
 
@@ -150,6 +160,7 @@ async function addQuestion() {
       points: Number(form.points),
     }),
   });
+
   if (response.ok) {
     form.question_text = '';
     form.options = ['', '', '', ''];
@@ -157,6 +168,7 @@ async function addQuestion() {
     await fetchSession();
   } else {
     const payload = await response.json().catch(() => ({}));
+
     builderError.value = payload.error ?? 'Failed to add question';
   }
   saving.value = false;
@@ -164,36 +176,43 @@ async function addQuestion() {
 
 async function deleteExistingQuestion(questionId: string) {
   const response = await fetch(`/api/quiz/questions/${questionId}`, { method: 'DELETE' });
+
   if (response.ok) await fetchSession();
 }
 
 function nextQuestionOrderIndex() {
   if (!session.value || session.value.questions.length === 0) return 0;
+
   return Math.max(...session.value.questions.map((question) => question.order_index)) + 1;
 }
 
 function handlePaperFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
+
   paperError.value = '';
   paperSuccess.value = '';
   paperSummary.value = null;
 
   if (!file) {
     paperFile.value = null;
+
     return;
   }
 
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
   if (!isPdf) {
     paperFile.value = null;
     paperError.value = 'Upload a PDF file.';
+
     return;
   }
 
   if (file.size > PAPER_FILE_MAX_BYTES) {
     paperFile.value = null;
     paperError.value = 'PDF must be 5MB or smaller.';
+
     return;
   }
 
@@ -209,6 +228,7 @@ async function generatePaperQuiz() {
   paperSummary.value = null;
 
   const formData = new FormData();
+
   formData.append('file', paperFile.value);
   formData.append('question_count', String(paperQuestionCount.value));
 
@@ -275,6 +295,7 @@ async function saveEditedQuestion() {
     await fetchSession();
   } else {
     const payload = await response.json().catch(() => ({}));
+
     builderError.value = payload.error ?? 'Failed to update question';
   }
 
@@ -313,8 +334,10 @@ async function showScoreboard() {
 async function nextQuestion() {
   if (!session.value) return;
   const nextIndex = session.value.current_question_index + 1;
+
   if (nextIndex >= session.value.questions.length) {
     await patchSession({ status: 'finished', question_phase: null, finished_at: new Date().toISOString() });
+
     return;
   }
   await patchSession({

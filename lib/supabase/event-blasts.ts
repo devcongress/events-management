@@ -13,9 +13,11 @@ function toEventBlast(row: BlastRow): EventBlast {
       if (!recipient || typeof recipient !== 'object' || Array.isArray(recipient)) return [];
       const email = recipient.email;
       const name = recipient.name;
+
       return typeof email === 'string' && typeof name === 'string' ? [{ email, name }] : [];
     })
     : [];
+
   return { ...row, recipient_snapshot };
 }
 
@@ -40,7 +42,9 @@ export async function getSupabaseEventBlasts(
     .select('*')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false });
+
   if (error) throw new EventBlastStorageError(error.code ?? null);
+
   return data.map(toEventBlast);
 }
 
@@ -54,7 +58,9 @@ export async function getRecentSupabaseEventBlasts(
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
+
   if (error) throw new EventBlastStorageError(error.code ?? null);
+
   return data.map(toEventBlast);
 }
 
@@ -64,7 +70,9 @@ export async function createSupabaseEventBlast(
 ): Promise<EventBlast | null> {
   if (!canUseSupabaseEventBlasts(c)) return null;
   const { data, error } = await getSupabaseAdminClient(c).from('event_blasts').insert(input).select('*').single();
+
   if (error) throw new EventBlastStorageError(error.code ?? null);
+
   return toEventBlast(data);
 }
 
@@ -80,6 +88,8 @@ export async function updateSupabaseEventBlast(
     .eq('id', id)
     .select('*')
     .maybeSingle();
+
   if (error) throw new EventBlastStorageError(error.code ?? null);
+
   return data ? toEventBlast(data) : data;
 }

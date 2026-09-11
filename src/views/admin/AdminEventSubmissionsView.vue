@@ -64,6 +64,7 @@ const submissionsQuery = useQuery({
 });
 const linkedSubmissionId = computed(() => {
   const value = route.query.submission;
+
   return typeof value === 'string' && value.length <= 128 ? value : null;
 });
 const linkedSubmissionsQuery = useQuery({
@@ -102,9 +103,11 @@ interface AmendmentChange {
 const selectedAmendmentChanges = computed<AmendmentChange[]>(() => {
   const submission = selectedSubmission.value;
   const amendment = selectedSubmittedAmendment.value;
+
   if (!submission || !amendment) return [];
 
   const changes: AmendmentChange[] = [];
+
   if (amendmentScheduleChanged(submission, amendment)) {
     changes.push({
       label: 'Schedule',
@@ -149,6 +152,7 @@ const selectedAmendmentChanges = computed<AmendmentChange[]>(() => {
       requestedUrl: amendment.cover_url,
     });
   }
+
   return changes;
 });
 
@@ -165,8 +169,10 @@ watch(activeFilter, () => {
 watch([linkedSubmissionId, () => linkedSubmissionsQuery.data.value], ([submissionId, response]) => {
   if (!submissionId) return;
   const submission = response?.submissions.find((item) => item.id === submissionId);
+
   if (!submission) return;
   const matchingFilter = submissionQueueStatus(submission);
+
   if (activeFilter.value !== matchingFilter) activeFilter.value = matchingFilter;
   selectedId.value = submission.id;
   void nextTick(() => drawerCloseButton.value?.focus());
@@ -206,10 +212,12 @@ function closeDrawerInternal(clearDeepLink: boolean) {
   selectedId.value = null;
   if (clearDeepLink && linkedSubmissionId.value) {
     const query = { ...route.query };
+
     delete query.submission;
     void router.replace({ query });
   }
   const trigger = drawerTrigger;
+
   drawerTrigger = null;
   void nextTick(() => trigger?.focus());
 }
@@ -217,6 +225,7 @@ function closeDrawerInternal(clearDeepLink: boolean) {
 function handleWindowKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && selectedSubmission.value) {
     closeDrawer();
+
     return;
   }
 
@@ -226,6 +235,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
   ));
   const first = focusable[0];
   const last = focusable.at(-1);
+
   if (!first || !last) return;
 
   if (event.shiftKey && document.activeElement === first) {
@@ -262,6 +272,7 @@ const approveMutation = useMutation({
 const rejectMutation = useMutation({
   mutationFn: (submission: EventSubmission) => {
     if (!rejectionCategory.value) throw new Error('Choose a rejection reason.');
+
     return rejectEventSubmission(submission.id, {
       category: rejectionCategory.value,
       organizer_message: organizerMessage.value,
@@ -320,6 +331,7 @@ const retryReplySlackMutation = useMutation({
 
 function setRetryingEmailKind(kind: EventSubmissionEmailKind, retrying: boolean) {
   const next = new Set(retryingEmailKinds.value);
+
   if (retrying) next.add(kind);
   else next.delete(kind);
   retryingEmailKinds.value = next;
@@ -331,6 +343,7 @@ function isRetryingEmail(kind: EventSubmissionEmailKind) {
 
 function setRetryingReply(replyId: string, retrying: boolean) {
   const next = new Set(retryingReplyIds.value);
+
   if (retrying) next.add(replyId);
   else next.delete(replyId);
   retryingReplyIds.value = next;
@@ -349,10 +362,12 @@ function resetRejectionForm() {
 
 async function copyManagementLink(submissionId: string) {
   const operation = ++managementLinkCopyOperation;
+
   managementLinkCopySubmissionId.value = submissionId;
   managementLinkCopyState.value = 'copying';
   try {
     const { management_url: managementUrl } = await fetchEventSubmissionManagementLink(submissionId);
+
     await copyTextToClipboard(managementUrl);
     if (operation !== managementLinkCopyOperation) return;
     managementLinkCopyState.value = 'copied';
@@ -403,6 +418,7 @@ function formatSchedule(startsAt: string, endsAt: string, timezone: string) {
 function formatLocation(locationType: EventSubmissionAmendment['location_type'], venueName: string | null, venueAddress: string | null) {
   if (locationType === 'online') return 'Online';
   const place = [venueName, venueAddress].filter(Boolean).join(', ');
+
   return `${formatLabel(locationType)}${place ? ` · ${place}` : ''}`;
 }
 
@@ -432,6 +448,7 @@ function statusClass(status: EventSubmissionQueueFilter) {
   if (status === 'updates') return 'border-dc-pink/40 bg-dc-pink/5 text-dc-pink';
   if (status === 'approved') return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (status === 'rejected') return 'border-destructive/40 bg-destructive/5 text-destructive';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-ink';
 }
 
@@ -442,30 +459,35 @@ function rejectionCategoryLabel(category: EventSubmissionRejectionCategory | nul
 function emailKindLabel(kind: EventSubmissionEmailKind) {
   if (kind === 'receipt') return 'Submission receipt';
   if (kind === 'approved') return 'Approval notification';
+
   return 'Rejection notification';
 }
 
 function emailStatusLabel(delivery: EventSubmissionEmailDelivery) {
   if (delivery.status === 'accepted') return 'Accepted';
   if (delivery.status === 'failed') return 'Failed';
+
   return 'Queued';
 }
 
 function emailStatusClass(delivery: EventSubmissionEmailDelivery) {
   if (delivery.status === 'accepted') return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (delivery.status === 'failed') return 'border-destructive/40 bg-destructive/5 text-destructive';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-ink';
 }
 
 function replySlackStatusLabel(reply: EventSubmissionReply) {
   if (reply.slack_status === 'sent') return 'Slack notified';
   if (reply.slack_status === 'failed') return 'Slack failed';
+
   return 'Slack pending';
 }
 
 function replySlackStatusClass(reply: EventSubmissionReply) {
   if (reply.slack_status === 'sent') return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (reply.slack_status === 'failed') return 'border-destructive/40 bg-destructive/5 text-destructive';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-ink';
 }
 

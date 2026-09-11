@@ -6,6 +6,7 @@ describe('event Slack announcements', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -20,6 +21,7 @@ describe('event Slack announcements', () => {
     });
 
     const payload = JSON.parse(String(requests[0]?.body)) as { text: string; blocks: Array<{ elements?: unknown[] }> };
+
     expect(payload.text).toContain('Registration page details changed');
     expect(payload.blocks.at(-1)?.elements).toHaveLength(2);
   });
@@ -27,6 +29,7 @@ describe('event Slack announcements', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -45,6 +48,7 @@ describe('event Slack announcements', () => {
     const payload = JSON.parse(String(requests[0]?.body)) as {
       blocks: Array<{ type: string; image_url?: string }>;
     };
+
     expect(payload.blocks.find((block) => block.type === 'image')?.image_url)
       .toBe('https://em.devcongress.org/images/event-announcement-fallback.png');
   });
@@ -53,6 +57,7 @@ describe('event Slack announcements', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -70,6 +75,7 @@ describe('event Slack announcements', () => {
     const payload = JSON.parse(String(requests[0]?.body)) as {
       blocks: Array<{ type: string; text?: { text?: string } }>;
     };
+
     expect(payload.blocks.some((block) => block.type === 'actions')).toBe(false);
     expect(payload.blocks.find((block) => block.text?.text?.includes('Open event'))?.text?.text)
       .toBe('<https://devcongress.org/events/community-design-night|Open event →>');
@@ -79,6 +85,7 @@ describe('event Slack announcements', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -95,6 +102,7 @@ describe('event Slack announcements', () => {
     });
 
     const payload = JSON.parse(String(requests[0]?.body)) as { blocks: Array<{ text?: { text?: string } }> };
+
     expect(payload.blocks.find((block) => block.text?.text?.includes('September meetup'))?.text?.text)
       .toContain('9:00 am–4:00 pm GMT');
   });
@@ -103,6 +111,7 @@ describe('event Slack announcements', () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       calls.push({ url: String(input), init: init ?? {} });
+
       return new Response(JSON.stringify({ ok: true, channel: 'C0123456789', ts: '1788900000.123456' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -121,6 +130,7 @@ describe('event Slack announcements', () => {
     };
 
     const reference = await sendEditableEventAddedToSlack({ ...message, channelId: 'C0123456789' });
+
     await updateEditableEventAddedToSlack({ ...message, ...reference });
 
     expect(reference).toEqual({ channelId: 'C0123456789', messageTs: '1788900000.123456' });
@@ -188,6 +198,7 @@ describe('event Slack announcements', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -206,6 +217,7 @@ describe('event Slack announcements', () => {
     const payload = JSON.parse(String(requests[0]?.body)) as {
       blocks: Array<{ type: string }>;
     };
+
     expect(payload.blocks.some((block) => block.type === 'image')).toBe(false);
   });
 });
@@ -215,6 +227,7 @@ describe('event submission Slack review cards', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -240,6 +253,7 @@ describe('event submission Slack review cards', () => {
         elements?: Array<{ style?: string; url?: string; text?: { text?: string } | string }>;
       }>;
     };
+
     expect(payload.blocks[0]).toMatchObject({
       type: 'header',
       text: { text: 'New community event submission' },
@@ -249,6 +263,7 @@ describe('event submission Slack review cards', () => {
     expect(String(payload.blocks.find((block) => block.type === 'context')?.elements?.[0]?.text))
       .toContain('Amina Mensah');
     const action = payload.blocks.find((block) => block.type === 'actions')?.elements?.[0];
+
     expect(action).toMatchObject({ style: 'primary', url: 'https://em.devcongress.org/organizer-console/events/submissions?submission=test' });
     expect(action?.text && typeof action.text === 'object' ? action.text.text : action?.text).toBe('Review submission →');
   });
@@ -257,6 +272,7 @@ describe('event submission Slack review cards', () => {
     const requests: RequestInit[] = [];
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(init ?? {});
+
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
 
@@ -279,12 +295,14 @@ describe('event submission Slack review cards', () => {
         elements?: Array<{ style?: string; url?: string; text?: { text?: string } | string }>;
       }>;
     };
+
     expect(payload.text).toBe('Community event update requested: Community design night');
     expect(payload.blocks[0]).toMatchObject({
       type: 'header',
       text: { text: 'Community event update requested' },
     });
     const action = payload.blocks.find((block) => block.type === 'actions')?.elements?.[0];
+
     expect(action).toMatchObject({
       style: 'primary',
       url: 'https://em.devcongress.org/organizer-console/events/submissions?submission=test',

@@ -21,10 +21,12 @@ export function isLocalOrPrivateHostname(hostname: string): boolean {
 
 export function safeHttpUrl(value: string | null | undefined): string | null {
   const candidate = value?.trim();
+
   if (!candidate || candidate.length > MAX_PUBLIC_URL_LENGTH) return null;
 
   try {
     const url = new URL(candidate);
+
     if (
       (url.protocol !== 'http:' && url.protocol !== 'https:')
       || url.username
@@ -46,12 +48,15 @@ export function safeHttpUrl(value: string | null | undefined): string | null {
  */
 export function safePublicResourceUrl(value: string | null | undefined): string | null {
   const url = safeHttpUrl(value);
+
   if (!url) return null;
 
   try {
     const parsed = new URL(url);
+
     if (parsed.protocol !== 'https:' || isLocalOrPrivateHostname(parsed.hostname)) return null;
     parsed.hostname = parsed.hostname.toLowerCase();
+
     return parsed.toString();
   } catch {
     return null;
@@ -60,6 +65,7 @@ export function safePublicResourceUrl(value: string | null | undefined): string 
 
 export function safeWebsiteUrl(value: string | null | undefined): string | null {
   const candidate = value?.trim();
+
   if (!candidate || candidate.length > MAX_PUBLIC_URL_LENGTH) return null;
 
   if (candidate.startsWith('/') && !candidate.startsWith('//')) {

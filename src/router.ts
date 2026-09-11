@@ -108,6 +108,7 @@ function storedAdminOAuthRedirect(): string {
 
 async function redirectCommunitySubmissionWorkspace(to: { params: Record<string, unknown> }) {
   const eventId = typeof to.params.eventId === 'string' ? to.params.eventId : '';
+
   if (!eventId) return true;
 
   try {
@@ -115,6 +116,7 @@ async function redirectCommunitySubmissionWorkspace(to: { params: Record<string,
       queryKey: queryKeys.event(eventId),
       queryFn: () => fetchEventById(eventId),
     });
+
     return isCommunitySubmissionEvent(event)
       ? { path: adminPath(`events/${eventId}`) }
       : true;
@@ -127,6 +129,7 @@ async function redirectCommunitySubmissionWorkspace(to: { params: Record<string,
 
 async function redirectCommunitySubmissionEvent(to: { params: Record<string, unknown> }) {
   const eventId = typeof to.params.eventId === 'string' ? to.params.eventId : '';
+
   if (!eventId) return true;
 
   try {
@@ -134,6 +137,7 @@ async function redirectCommunitySubmissionEvent(to: { params: Record<string, unk
       queryKey: queryKeys.event(eventId),
       queryFn: () => fetchEventById(eventId),
     });
+
     if (isCommunitySubmissionEvent(event)) {
       return { path: adminPath(`events/${eventId}/community`) };
     }
@@ -253,11 +257,13 @@ export const router = createRouter({
 
 async function volunteerCanOpenRoute(path: string, yearParam: unknown): Promise<boolean> {
   const year = typeof yearParam === 'string' ? yearParam : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+
   try {
     const workspace = await queryClient.fetchQuery({
       queryKey: queryKeys.annualConferenceWorkPlan(year),
       queryFn: () => fetchAnnualConferenceWorkPlan(year),
     });
+
     return volunteerCanAccessOrganizerPath(path, workspace.permissions.capabilities);
   } catch {
     return volunteerCanAccessOrganizerPath(path);
@@ -280,11 +286,13 @@ router.beforeEach(async (to, from) => {
   }
 
   const requiresOrganizer = isAdminPath(to.path) || to.meta.requiresOrganizer === true;
+
   if (!requiresOrganizer || to.path === adminPath('login') || to.path === adminPath('auth/callback')) {
     return true;
   }
 
   const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+
   if (cachedSession?.authenticated) {
     // Background revalidation on navigation, deduped by the default 30s
     // staleTime so tab-hopping within an event doesn't fire a request per click.
@@ -303,6 +311,7 @@ router.beforeEach(async (to, from) => {
       conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
       query: to.query,
     });
+
     if (
       cachedSession.user?.role === 'volunteer'
       && isPhone
@@ -312,6 +321,7 @@ router.beforeEach(async (to, from) => {
       if (viewportRedirect?.path.startsWith(adminPath('mobile/annual-conference/'))) {
         return viewportRedirect;
       }
+
       return {
         path: mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined),
         query: { section: 'overview' },
@@ -336,6 +346,7 @@ router.beforeEach(async (to, from) => {
       queryKey: queryKeys.adminSession,
       queryFn: fetchAdminSession,
     });
+
     if (session.authenticated) {
       const isPhone = matchesOrganizerPhoneViewport();
       const viewportRedirect = organizerViewportRedirect({
@@ -347,6 +358,7 @@ router.beforeEach(async (to, from) => {
         conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
         query: to.query,
       });
+
       if (
         session.user?.role === 'volunteer'
         && isPhone
@@ -356,6 +368,7 @@ router.beforeEach(async (to, from) => {
         if (viewportRedirect?.path.startsWith(adminPath('mobile/annual-conference/'))) {
           return viewportRedirect;
         }
+
         return {
           path: mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined),
           query: { section: 'overview' },

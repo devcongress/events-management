@@ -32,6 +32,7 @@ export function mobileAnnualConferencePath(year: string = ACTIVE_ANNUAL_CONFEREN
 
 export function annualConferencePath(path = '', year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year): string {
   const editionPath = `annual-conference/${year}`;
+
   return adminPath(path ? `${editionPath}/${path.replace(/^\/+/, '')}` : editionPath);
 }
 
@@ -41,6 +42,7 @@ export function annualConferenceEditionsForNavigation(
   currentEdition?: AnnualConferenceEdition,
 ): AnnualConferenceEdition[] {
   if (role !== 'volunteer') return editions;
+
   return currentEdition ? [currentEdition] : [];
 }
 

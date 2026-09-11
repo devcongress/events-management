@@ -105,22 +105,26 @@ const domainAssessmentCache = new Map<string, CachedDomainAssessment>();
 
 function normalizeEmail(value: string): { normalizedEmail: string; domain: string } | null {
   const normalizedEmail = value.trim().toLowerCase();
+
   if (!normalizedEmail || normalizedEmail.length > 254 || /[\s\u0000-\u001f\u007f]/u.test(normalizedEmail)) {
     return null;
   }
 
   const atIndex = normalizedEmail.lastIndexOf('@');
+
   if (atIndex <= 0 || atIndex !== normalizedEmail.indexOf('@') || atIndex === normalizedEmail.length - 1) {
     return null;
   }
 
   const localPart = normalizedEmail.slice(0, atIndex);
   const rawDomain = normalizedEmail.slice(atIndex + 1);
+
   if (localPart.length > 64 || rawDomain.length > 253 || rawDomain.startsWith('.') || rawDomain.endsWith('.')) {
     return null;
   }
 
   let domain: string;
+
   try {
     domain = new URL(`https://${rawDomain}`).hostname;
   } catch {
@@ -129,6 +133,7 @@ function normalizeEmail(value: string): { normalizedEmail: string; domain: strin
 
   if (!domain || domain !== rawDomain || !domain.includes('.')) return null;
   const labels = domain.split('.');
+
   if (labels.some((label) => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u.test(label))) {
     return null;
   }
@@ -143,6 +148,7 @@ function emailWithDomain(normalizedEmail: string, domain: string): string {
 function cacheDomainAssessment(domain: string, value: DomainAssessment, now: number): void {
   if (domainAssessmentCache.size >= MAX_DOMAIN_CACHE_ENTRIES) {
     const oldestKey = domainAssessmentCache.keys().next().value as string | undefined;
+
     if (oldestKey) domainAssessmentCache.delete(oldestKey);
   }
   domainAssessmentCache.set(domain, {
@@ -170,15 +176,18 @@ function reportDnsFailure(
 
 function dnsErrorCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+
   return typeof error.code === 'string' ? error.code : undefined;
 }
 
 function validDnsRecords(type: DnsRecordType, value: unknown): value is string[] | MxRecord[] {
   if (!Array.isArray(value)) return false;
   if (type !== 'MX') return value.every((record) => typeof record === 'string' && record.length > 0);
+
   return value.every((record) => {
     if (!record || typeof record !== 'object') return false;
     const mx = record as { exchange?: unknown; priority?: unknown };
+
     return typeof mx.exchange === 'string' && typeof mx.priority === 'number';
   });
 }
@@ -197,11 +206,13 @@ async function queryNativeDns<T extends string | MxRecord>(
       new Promise<never>((_resolve, reject) => {
         timeout = setTimeout(() => {
           const error = new Error('DNS query timed out.');
+
           error.name = 'DnsTimeoutError';
           reject(error);
         }, options.timeoutMs ?? DNS_TIMEOUT_MS);
       }),
     ]);
+
     if (!validDnsRecords(type, value)) {
       reportDnsFailure(options, {
         resolver: 'cloudflare_native',
@@ -209,11 +220,14 @@ async function queryNativeDns<T extends string | MxRecord>(
         failureKind: 'invalid_response',
         durationMs: Date.now() - startedAt,
       });
+
       return { status: 'unavailable' };
     }
+
     return { status: 'available', records: value as T[] };
   } catch (error) {
     const errorCode = dnsErrorCode(error);
+
     if (errorCode === 'ENODATA' || errorCode === 'ENOTFOUND') {
       return { status: 'absent', errorCode };
     }
@@ -225,6 +239,7 @@ async function queryNativeDns<T extends string | MxRecord>(
       errorName: error instanceof Error ? error.name : 'UnknownError',
       durationMs: Date.now() - startedAt,
     });
+
     return { status: 'unavailable' };
   } finally {
     if (timeout) clearTimeout(timeout);
@@ -237,16 +252,19 @@ async function assessDomain(
 ): Promise<DomainAssessment> {
   const now = options.now?.() ?? Date.now();
   const cached = domainAssessmentCache.get(domain);
+
   if (cached && cached.expiresAt > now) return cached.value;
   if (cached) domainAssessmentCache.delete(domain);
 
   const resolver = options.dnsResolver ?? nativeDnsResolver;
   const mx = await queryNativeDns('MX', () => resolver.resolveMx(domain), options);
   let assessment: DomainAssessment;
+
   if (mx.status === 'unavailable') {
     assessment = { status: 'unknown', reason: 'dns_unavailable' };
   } else if (mx.status === 'available' && mx.records.length > 0) {
     const nullMx = mx.records.some((record) => record.priority === 0 && record.exchange.trim() === '');
+
     assessment = nullMx
       ? {
           status: 'invalid',
@@ -261,6 +279,7 @@ async function assessDomain(
     ]);
     const hasAddress = (a.status === 'available' && a.records.length > 0)
       || (aaaa.status === 'available' && aaaa.records.length > 0);
+
     if (hasAddress) {
       assessment = { status: 'deliverable', reason: 'mail_domain_available' };
     } else if (a.status === 'unavailable' || aaaa.status === 'unavailable') {
@@ -282,6 +301,7 @@ async function assessDomain(
   }
 
   cacheDomainAssessment(domain, assessment, now);
+
   return assessment;
 }
 
@@ -290,6 +310,7 @@ export async function assessPublicEmail(
   options: PublicEmailPreflightOptions = {},
 ): Promise<PublicEmailPreflightResult> {
   const normalized = normalizeEmail(email);
+
   if (!normalized) {
     return {
       status: 'invalid',
@@ -301,8 +322,10 @@ export async function assessPublicEmail(
   }
 
   const suggestedDomain = COMMON_EMAIL_DOMAIN_TYPOS.get(normalized.domain);
+
   if (suggestedDomain) {
     const suggestion = emailWithDomain(normalized.normalizedEmail, suggestedDomain);
+
     return {
       status: 'invalid',
       normalizedEmail: normalized.normalizedEmail,
@@ -333,6 +356,7 @@ export async function assessPublicEmail(
   }
 
   const result = await assessDomain(normalized.domain, options);
+
   return {
     ...result,
     normalizedEmail: normalized.normalizedEmail,

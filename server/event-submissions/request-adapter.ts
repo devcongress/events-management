@@ -32,6 +32,7 @@ export function createEventSubmissionRequestAdapter(
     announcePublished: async (submission) => {
       if (!submission.approved_event_id) return;
       const event = await dependencies.findEvent(submission.approved_event_id);
+
       if (event) await dependencies.announcePublished(event);
     },
     notifyAmendmentSubmitted: dependencies.notifyAmendmentSubmitted,

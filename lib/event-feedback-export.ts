@@ -12,6 +12,7 @@ function answerValueCopy(answer: EventFeedbackSubmission['answers'][number]): st
   if (answer.value === null || answer.value === '') return 'No answer';
   if (answer.value === EVENT_FEEDBACK_NOT_ATTENDED) return 'Did not attend';
   if (typeof answer.value === 'boolean') return answer.value ? 'Yes' : 'No';
+
   return String(answer.value);
 }
 
@@ -29,6 +30,7 @@ function submissionAverageRating(
     .filter((value): value is number => value !== null);
 
   if (ratings.length === 0) return null;
+
   return Math.round((ratings.reduce((sum, value) => sum + value, 0) / ratings.length) * 10) / 10;
 }
 
@@ -45,6 +47,7 @@ function submissionNotAttendedCount(
 function safeSpreadsheetCell(value: string | number): string {
   const normalized = String(value);
   const formulaSafe = /^[=+\-@\t\r]/.test(normalized) ? `'${normalized}` : normalized;
+
   return /[",\n\r]/.test(formulaSafe) ? `"${formulaSafe.replace(/"/g, '""')}"` : formulaSafe;
 }
 
@@ -76,6 +79,7 @@ export function buildEventFeedbackCsv(
       submissionNotAttendedCount(submission, questionsById),
       ...orderedQuestions.map((question) => {
         const answer = answersByQuestionId.get(question.id);
+
         return answer ? answerValueCopy(answer) : 'No answer';
       }),
     ];

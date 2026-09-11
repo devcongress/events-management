@@ -30,6 +30,7 @@ const meetupQuery = useQuery({
   queryKey: computed(() => queryKeys.adminEventPreviewDetail(meetupSlug.value)),
   queryFn: async () => {
     const payload = await fetchAdminEventPreviewDetail(meetupSlug.value);
+
     return payload.data;
   },
   enabled: computed(() => Boolean(meetupSlug.value)),
@@ -44,6 +45,7 @@ const folderPhotos = computed(() => (meetup.value?.photos ?? []).filter((photo) 
 const isQuarterlyMeetup = computed(() => meetup.value?.series_type === 'quarterly');
 const stackedImagePhotos = computed(() => {
   const photos = imagePhotos.value;
+
   if (photos.length === 0) return [];
 
   const visibleCount = Math.min(3, photos.length);
@@ -86,12 +88,14 @@ function formatTime(value: string) {
 
 function statusBadgeClass(status: PublicMeetup['status']) {
   if (status === 'live') return 'border-dc-pink/80 text-white';
+
   return 'border-white/70 text-white/85';
 }
 
 function statusLabel(status: PublicMeetup['status']) {
   if (status === 'live') return 'Live now';
   if (status === 'upcoming') return 'Upcoming';
+
   return 'Past';
 }
 
@@ -124,6 +128,7 @@ function isInternalAppHref(value: string) {
 
   try {
     const url = new URL(value);
+
     return url.origin === window.location.origin;
   } catch {
     return false;
@@ -134,11 +139,13 @@ function toInternalAppPath(value: string) {
   if (value.startsWith('/')) return value;
 
   const url = new URL(value);
+
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function speakerSocialLabel(platform: PublicMeetupSpeaker['socials'][number]['platform']) {
   if (platform === 'github') return 'GitHub';
+
   return 'Website';
 }
 
@@ -189,6 +196,7 @@ function rotateMeetupPhotos() {
   if (isMeetupPhotoShifting.value || imagePhotos.value.length <= 1) return;
 
   const nextMeetupPhoto = (activeMeetupPhoto.value + 1) % imagePhotos.value.length;
+
   isMeetupPhotoShifting.value = true;
 
   meetupPhotoShiftTimer = window.setTimeout(() => {

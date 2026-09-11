@@ -129,10 +129,12 @@ function initialCompletedCutoff(template: ChecklistTemplateItem[], status: Event
   if (!status) return -1;
 
   const statusRank = STATUS_ORDER.indexOf(status);
+
   if (statusRank === -1) return -1;
 
   for (let index = template.length - 1; index >= 0; index -= 1) {
     const statusOnComplete = template[index].status_on_complete;
+
     if (statusOnComplete !== null && STATUS_ORDER.indexOf(statusOnComplete) <= statusRank) {
       return index;
     }
@@ -144,6 +146,7 @@ function initialCompletedCutoff(template: ChecklistTemplateItem[], status: Event
 function normalizeToTemplate(eventItems: EventChecklistItem[], template: ChecklistTemplateItem[]): EventChecklistItem[] {
   return template.flatMap((templateItem, index) => {
     const item = eventItems.find((candidate) => candidate.label === templateItem.label);
+
     if (!item) return [];
 
     return [{
@@ -224,6 +227,7 @@ async function backfillMissingTemplateItems(
     const currentEventItems = current.filter((item) => item.event_id === eventId);
     const labels = new Set(currentEventItems.map((item) => item.label));
     const additions = missingItems.filter((item) => !labels.has(item.label));
+
     return {
       data: [...current, ...additions],
       result: normalizeToTemplate([...currentEventItems, ...additions], template),
@@ -244,6 +248,7 @@ export async function getEventChecklist(
 
   if (eventItems.length > 0) {
     const activeEventItems = eventItems.filter((item) => !item.disabled_at);
+
     if (status && status !== 'draft' && activeEventItems.length > 0 && activeEventItems.every((item) => !item.completed)) {
       const completedCutoff = initialCompletedCutoff(template, status);
       const timestamp = now();
@@ -251,6 +256,7 @@ export async function getEventChecklist(
         if (item.event_id !== eventId || item.disabled_at) return item;
 
         const completed = item.order_index <= completedCutoff;
+
         return {
           ...item,
           completed,
@@ -259,10 +265,12 @@ export async function getEventChecklist(
           updated_at: timestamp,
         };
       });
+
       await updateData<EventChecklistItem, void>(FILE, (current) => ({
         data: current.map((item) => {
           if (item.event_id !== eventId || item.disabled_at) return item;
           const completed = item.order_index <= completedCutoff;
+
           return { ...item, completed, completed_at: completed ? timestamp : null,
             completed_by: completed ? 'System' : null, updated_at: timestamp };
         }),
@@ -279,10 +287,12 @@ export async function getEventChecklist(
   }
 
   const defaults = createDefaultChecklist(eventId, status, event);
+
   await updateData<EventChecklistItem, void>(FILE, (current) => ({
     data: current.some((item) => item.event_id === eventId) ? current : [...current, ...defaults],
     result: undefined,
   }));
+
   return defaults;
 }
 
@@ -293,14 +303,18 @@ export async function updateEventChecklistItem(
 ): Promise<EventChecklistItem> {
   return updateData<EventChecklistItem, EventChecklistItem>(FILE, (items) => {
     const next = [...items];
+
     if (!next.some((item) => item.event_id === eventId)) next.push(...createDefaultChecklist(eventId));
     const index = next.findIndex((item) => item.event_id === eventId && item.id === itemId);
+
     if (index === -1) throw new Error(`Checklist item ${itemId} not found`);
     if (next[index].disabled_at) throw new Error(`Checklist item ${itemId} is disabled`);
     const timestamp = now();
     const item = { ...next[index], completed: updates.completed, completed_at: updates.completed ? timestamp : null,
       completed_by: updates.completed ? updates.completed_by ?? 'Organizer' : null, updated_at: timestamp };
+
     next[index] = item;
+
     return { data: next, result: item };
   });
 }
@@ -313,12 +327,16 @@ export async function setEventChecklistItemDisabled(
 ): Promise<EventChecklistItem> {
   return updateData<EventChecklistItem, EventChecklistItem>(FILE, (items) => {
     const index = items.findIndex((item) => item.event_id === eventId && item.id === itemId);
+
     if (index === -1) throw new Error(`Checklist item ${itemId} not found`);
     if (disabled && items[index].completed) throw new Error('Completed checklist items cannot be disabled');
     const timestamp = now();
     const item = { ...items[index], disabled_at: disabled ? timestamp : null,
       disabled_by: disabled ? disabledBy : null, updated_at: timestamp };
-    const next = [...items]; next[index] = item;
+    const next = [...items];
+
+ next[index] = item;
+
     return { data: next, result: item };
   });
 }

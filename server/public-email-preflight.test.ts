@@ -5,6 +5,7 @@ beforeEach(async () => {
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
   vi.resetModules();
   const { resetLocalPublicRateLimits } = await import('../lib/public-rate-limit');
+
   resetLocalPublicRateLimits();
 });
 

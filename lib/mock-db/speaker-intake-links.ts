@@ -7,6 +7,7 @@ import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase
 
 const FILE = 'speaker-intake-links';
 const TOKEN_BYTES = 32;
+
 type SpeakerIntakeLinkRow = Database['public']['Tables']['speaker_intake_links']['Row'];
 
 function normalizeArchiveItemKind(value: SpeakerIntakeLink['kind']): ArchiveItemKind {
@@ -69,10 +70,12 @@ export async function getSpeakerIntakeLinksByEvent(eventId: string): Promise<Spe
       .order('created_at', { ascending: false });
 
     if (error) throw new Error('Unable to load archive request links');
+
     return (data ?? []).map(fromSupabaseRow);
   }
 
   const links = await readData<SpeakerIntakeLink>(FILE);
+
   return links
     .map(normalizeSpeakerIntakeLink)
     .filter((link) => link.event_id === eventId)
@@ -95,6 +98,7 @@ export async function createSpeakerIntakeLink(data: {
   requested_fields?: ArchiveMaterialField[];
 }): Promise<{ link: SpeakerIntakeLink; token: string }> {
   const token = data.token ?? crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+
   if (!token || token.length > 128) throw new Error('Archive request token is invalid');
   const tokenHash = hashSpeakerIntakeToken(token);
   const createdAt = now();
@@ -157,6 +161,7 @@ export async function createSpeakerIntakeLink(data: {
       .single();
 
     if (error || !stored) throw new Error('Unable to create archive request link');
+
     return { link: fromSupabaseRow(stored), token };
   }
 
@@ -177,11 +182,13 @@ export async function getSpeakerIntakeLinkById(linkId: string): Promise<SpeakerI
       .maybeSingle();
 
     if (error) throw new Error('Unable to verify archive request link');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
 
   const links = await readData<SpeakerIntakeLink>(FILE);
   const link = links.find((item) => item.id === linkId);
+
   return link ? normalizeSpeakerIntakeLink(link) : undefined;
 }
 
@@ -219,6 +226,7 @@ export async function updateSpeakerIntakeLinkEmailDeliveries(
         email_last_attempt_at: attemptedAt,
         email_last_error: update.status === 'failed' ? update.error ?? 'Email send failed' : null,
       };
+
       if (update.status === 'accepted') {
         changes.email_sent_at = attemptedAt;
       }
@@ -232,6 +240,7 @@ export async function updateSpeakerIntakeLinkEmailDeliveries(
         .single();
 
       if (error || !data) throw new Error('Unable to update archive request email status');
+
       return fromSupabaseRow(data);
     }));
 
@@ -255,6 +264,7 @@ export async function updateSpeakerIntakeLinkEmailDeliveries(
       if (link.event_id !== eventId) return link;
 
       const update = updatesById.get(link.id);
+
       if (!update) return link;
 
       const updatedLink: SpeakerIntakeLink = {
@@ -267,7 +277,9 @@ export async function updateSpeakerIntakeLinkEmailDeliveries(
         email_last_error: update.status === 'failed' ? update.error ?? 'Email send failed' : null,
         updated_at: attemptedAt,
       };
+
       updatedLinks.push(updatedLink);
+
       return updatedLink;
     });
 
@@ -290,6 +302,7 @@ export async function deleteSpeakerIntakeLink(eventId: string, linkId: string): 
 
     if (error) throw new Error('Unable to remove archive request link');
     if (!data) throw new Error('Archive request link not found');
+
     return fromSupabaseRow(data);
   }
 
@@ -328,6 +341,7 @@ export async function deleteActiveSpeakerIntakeLinksBySubmission(
     }
 
     const { data: removable, error: selectError } = await query;
+
     if (selectError) throw new Error('Unable to verify superseded archive request links');
     if (!removable?.length) return [];
 
@@ -336,7 +350,9 @@ export async function deleteActiveSpeakerIntakeLinksBySubmission(
       .from('speaker_intake_links')
       .delete()
       .in('id', removableIds);
+
     if (deleteError) throw new Error('Unable to remove superseded archive request links');
+
     return removable.map(fromSupabaseRow);
   }
 
@@ -371,11 +387,13 @@ export async function getSpeakerIntakeLinkByToken(eventId: string, token: string
       .maybeSingle();
 
     if (error) throw new Error('Unable to verify archive request link');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
 
   const links = await readData<SpeakerIntakeLink>(FILE);
   const link = links.find((item) => item.event_id === eventId && item.token_hash === tokenHash);
+
   return link ? normalizeSpeakerIntakeLink(link) : undefined;
 }
 
@@ -390,11 +408,13 @@ export async function getSpeakerIntakeLinkByCapability(token: string): Promise<S
       .maybeSingle();
 
     if (error) throw new Error('Unable to verify archive request link');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
 
   const links = await readData<SpeakerIntakeLink>(FILE);
   const link = links.find((item) => item.token_hash === tokenHash);
+
   return link ? normalizeSpeakerIntakeLink(link) : undefined;
 }
 
@@ -404,9 +424,11 @@ export async function claimSpeakerIntakeLink(
 ): Promise<{ link: SpeakerIntakeLink; claimId: string | null }> {
   if (!isSupabaseRuntimeEnabled()) {
     const link = await getSpeakerIntakeLinkByToken(eventId, token);
+
     if (!link) throw new Error('Archive request link is invalid');
     if (link.used_at) throw new Error('Archive request link has already been used');
     if (speakerIntakeLinkExpired(link)) throw new Error('Archive request link has expired');
+
     return { link, claimId: null };
   }
 
@@ -432,6 +454,7 @@ export async function claimSpeakerIntakeLink(
     if (error.message.includes('speaker_intake_link_invalid')) {
       throw new Error('Archive request link is invalid');
     }
+
     throw new Error('Unable to claim archive request link');
   }
   if (!data) throw new Error('Archive request link is invalid');
@@ -494,9 +517,11 @@ export async function consumeSpeakerIntakeLink(
       if (error.message.includes('speaker_intake_link_invalid')) {
         throw new Error('Archive request link is invalid');
       }
+
       throw new Error('Unable to consume archive request link');
     }
     if (!data) throw new Error('Archive request link is invalid');
+
     return fromSupabaseRow(data);
   }
 
@@ -525,6 +550,7 @@ export async function consumeSpeakerIntakeLink(
       updated_at: now(),
     };
     const nextLinks = [...normalizedLinks];
+
     nextLinks[index] = updatedLink;
 
     return {

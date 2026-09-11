@@ -18,6 +18,7 @@ function checkpointStatus(scenarios: RuntimeScenario[], terminal = false): Store
   if (terminal) return 'verified';
   if (scenarios.some((scenario) => scenario.status === 'failed')) return 'failed';
   if (scenarios.length > 0 && scenarios.every((scenario) => scenario.status === 'verified')) return 'verified';
+
   return 'untested';
 }
 
@@ -39,12 +40,14 @@ export function applyScenarioState(catalog: AtlasCatalog, state: ScenarioStateMa
           : stored;
 
         if (stoppedBeforeStage === null && stored !== 'verified') stoppedBeforeStage = checkpoint.stage;
+
         return { ...checkpoint, scenarios, status };
       });
       const allScenarios = checkpoints.flatMap((checkpoint) => checkpoint.scenarios);
       const failed = allScenarios.filter((scenario) => scenario.status === 'failed').length;
       const verified = allScenarios.filter((scenario) => scenario.status === 'verified').length;
       const first = checkpoints.find((checkpoint) => checkpoint.status !== 'verified');
+
       return {
         ...workflow,
         checkpoints,

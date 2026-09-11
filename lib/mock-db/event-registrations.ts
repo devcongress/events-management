@@ -58,8 +58,10 @@ export async function createMockRegistrationCampaign(input: {
     created_at: timestamp,
     updated_at: timestamp,
   };
+
   campaigns.push(campaign);
   await writeData(CAMPAIGNS_FILE, campaigns);
+
   return campaign;
 }
 
@@ -78,9 +80,11 @@ export async function updateMockRegistrationCampaign(
 ): Promise<EventRegistrationCampaign | undefined> {
   return updateData<EventRegistrationCampaign, EventRegistrationCampaign | undefined>(CAMPAIGNS_FILE, (campaigns) => {
     const index = campaigns.findIndex((campaign) => campaign.event_id === eventId);
+
     if (index < 0) return { data: campaigns, result: undefined };
 
     campaigns[index] = { ...campaigns[index], ...input, updated_at: now() };
+
     return { data: campaigns, result: campaigns[index] };
   });
 }
@@ -91,9 +95,11 @@ export async function registerMockForEvent(input: {
   email: string;
 }): Promise<EventRegistration> {
   const campaign = await getMockRegistrationCampaign(input.event_id);
+
   if (!campaign) throw new Error('registration_unavailable');
 
   const availability = registrationAvailability(campaign);
+
   if (!availability.available) throw new Error('registration_closed');
 
   const normalizedEmail = input.email.trim().toLowerCase();
@@ -102,6 +108,7 @@ export async function registerMockForEvent(input: {
       registration.campaign_id === campaign.id
       && registration.email.trim().toLowerCase() === normalizedEmail
     ));
+
     if (existingIndex >= 0 && registrations[existingIndex].status !== 'cancelled') {
       throw new Error('registration_duplicate');
     }
@@ -115,6 +122,7 @@ export async function registerMockForEvent(input: {
       confirmedCount,
       waitlistEnabled: campaign.waitlist_enabled,
     });
+
     if (!status) throw new Error('registration_full');
 
     const timestamp = now();
@@ -134,6 +142,7 @@ export async function registerMockForEvent(input: {
 
     if (existingIndex >= 0) registrations[existingIndex] = next;
     else registrations.push(next);
+
     return { data: registrations, result: next };
   });
 
@@ -155,8 +164,10 @@ export async function registerMockForEvent(input: {
       created_at: existingIndex >= 0 ? deliveries[existingIndex].created_at : timestamp,
       updated_at: timestamp,
     };
+
     if (existingIndex >= 0) deliveries[existingIndex] = delivery;
     else deliveries.push(delivery);
+
     return { data: deliveries, result: undefined };
   });
 
@@ -165,18 +176,22 @@ export async function registerMockForEvent(input: {
 
 export async function getMockEventRegistrations(eventId: string): Promise<EventRegistration[]> {
   const campaign = await getMockRegistrationCampaign(eventId);
+
   if (!campaign) return [];
   const deliveries = await readData<MockEmailDelivery>(EMAILS_FILE);
   const latestDeliveryByRegistration = new Map<string, MockEmailDelivery>();
+
   for (const delivery of [...deliveries].sort((first, second) => (
     first.updated_at.localeCompare(second.updated_at)
   ))) {
     latestDeliveryByRegistration.set(delivery.registration_id, delivery);
   }
+
   return (await readData<EventRegistration>(REGISTRATIONS_FILE))
     .filter((registration) => registration.campaign_id === campaign.id)
     .map((registration) => {
       const delivery = latestDeliveryByRegistration.get(registration.id);
+
       return {
         ...registration,
         email_status: delivery?.status ?? registration.email_status,
@@ -197,8 +212,10 @@ export async function getMockRegistrationAttendanceSources(
     readData<EventRegistration>(REGISTRATIONS_FILE),
   ]);
   const registrationsByCampaign = new Map<string, EventRegistration[]>();
+
   for (const registration of registrations) {
     const group = registrationsByCampaign.get(registration.campaign_id) ?? [];
+
     group.push(registration);
     registrationsByCampaign.set(registration.campaign_id, group);
   }
@@ -216,9 +233,12 @@ export async function getMockRegistrationAttendanceSources(
 export async function checkInMockRegistration(registrationId: string): Promise<string | undefined> {
   return updateData<EventRegistration, string | undefined>(REGISTRATIONS_FILE, (registrations) => {
     const index = registrations.findIndex((registration) => registration.id === registrationId);
+
     if (index < 0) return { data: registrations, result: undefined };
     const checkedInAt = now();
+
     registrations[index] = { ...registrations[index], checked_in_at: checkedInAt, updated_at: checkedInAt };
+
     return { data: registrations, result: checkedInAt };
   });
 }
@@ -226,6 +246,7 @@ export async function checkInMockRegistration(registrationId: string): Promise<s
 export async function undoCheckInMockRegistration(registrationId: string): Promise<boolean> {
   return updateData<EventRegistration, boolean>(REGISTRATIONS_FILE, (registrations) => {
     const index = registrations.findIndex((registration) => registration.id === registrationId);
+
     if (index < 0 || !registrations[index].checked_in_at) {
       return { data: registrations, result: false };
     }
@@ -235,6 +256,7 @@ export async function undoCheckInMockRegistration(registrationId: string): Promi
       checked_in_at: null,
       updated_at: now(),
     };
+
     return { data: registrations, result: true };
   });
 }
@@ -248,6 +270,7 @@ export async function cancelMockRegistration(registrationId: string): Promise<{
     promotedRegistrationId: string | null;
   }>(REGISTRATIONS_FILE, (registrations) => {
     const index = registrations.findIndex((registration) => registration.id === registrationId);
+
     if (index < 0 || registrations[index].status === 'cancelled') {
       return {
         data: registrations,
@@ -258,6 +281,7 @@ export async function cancelMockRegistration(registrationId: string): Promise<{
     const timestamp = now();
     const shouldPromote = registrations[index].status === 'confirmed';
     const campaignId = registrations[index].campaign_id;
+
     registrations[index] = {
       ...registrations[index],
       status: 'cancelled',
@@ -276,8 +300,10 @@ export async function cancelMockRegistration(registrationId: string): Promise<{
           || first.id.localeCompare(second.id)
         ))[0]
       : undefined;
+
     if (promoted) {
       const promotedIndex = registrations.findIndex((registration) => registration.id === promoted.id);
+
       registrations[promotedIndex] = {
         ...registrations[promotedIndex],
         status: 'confirmed',
@@ -323,8 +349,10 @@ export async function cancelMockRegistration(registrationId: string): Promise<{
       created_at: existingIndex >= 0 ? activeDeliveries[existingIndex].created_at : timestamp,
       updated_at: timestamp,
     };
+
     if (existingIndex >= 0) activeDeliveries[existingIndex] = delivery;
     else activeDeliveries.push(delivery);
+
     return { data: activeDeliveries, result: undefined };
   });
 
@@ -334,17 +362,20 @@ export async function cancelMockRegistration(registrationId: string): Promise<{
 export async function deleteMockRegistration(registrationId: string): Promise<boolean> {
   const deleted = await updateData<EventRegistration, boolean>(REGISTRATIONS_FILE, (registrations) => {
     const nextRegistrations = registrations.filter((registration) => registration.id !== registrationId);
+
     return {
       data: nextRegistrations,
       result: nextRegistrations.length !== registrations.length,
     };
   });
+
   if (!deleted) return false;
 
   await updateData<MockEmailDelivery, void>(EMAILS_FILE, (deliveries) => ({
     data: deliveries.filter((delivery) => delivery.registration_id !== registrationId),
     result: undefined,
   }));
+
   return true;
 }
 
@@ -380,6 +411,7 @@ export async function getMockPendingRegistrationEmails(
     .slice(0, input.limit ?? 100)
     .map((delivery) => {
       const registration = registrationsById.get(delivery.registration_id)!;
+
       return {
         delivery_id: delivery.id,
         registration_id: registration.id,
@@ -403,6 +435,7 @@ export async function updateMockRegistrationEmailDelivery(
 ): Promise<void> {
   await updateData<MockEmailDelivery, void>(EMAILS_FILE, (deliveries) => {
     const index = deliveries.findIndex((delivery) => delivery.id === deliveryId);
+
     if (index < 0) return { data: deliveries, result: undefined };
     deliveries[index] = {
       ...deliveries[index],
@@ -412,6 +445,7 @@ export async function updateMockRegistrationEmailDelivery(
       last_error: input.last_error ?? null,
       updated_at: now(),
     };
+
     return { data: deliveries, result: undefined };
   });
 }

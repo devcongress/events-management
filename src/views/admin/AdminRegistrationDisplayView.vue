@@ -33,12 +33,14 @@ const unavailableCopy = computed(() => {
   if (!registrationData.value?.managed_internally) {
     return 'This event does not have an internal registration campaign yet.';
   }
+
   return 'Open registration in Form & capacity first. The QR code becomes available when the public form is accepting guests.';
 });
 const returnPath = computed(() => adminPath(`events/${encodeURIComponent(eventId.value)}/registrations`));
 
 const eventDateCopy = computed(() => {
   if (!event.value) return '';
+
   return new Intl.DateTimeFormat('en-GH', {
     weekday: 'short',
     month: 'short',
@@ -65,10 +67,12 @@ async function loadDisplay() {
 
   try {
     const payload = await fetchEventRegistrations(eventId.value);
+
     registrationData.value = payload;
     if (payload.managed_internally && registrationAvailability(payload.campaign).available && payload.public_url) {
       try {
         const shortLink = await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+
         shortLinkUrl.value = shortLink.url;
       } catch {
         shortLinkUrl.value = null;
@@ -91,6 +95,7 @@ async function copyRegistrationLink() {
     const shortLink = shortLinkUrl.value
       ? { url: shortLinkUrl.value }
       : await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+
     shortLinkUrl.value = shortLink.url;
     await copyTextToClipboard(shortLink.url);
     copyState.value = 'copied';

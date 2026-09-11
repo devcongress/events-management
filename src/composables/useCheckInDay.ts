@@ -5,6 +5,7 @@ import { isEventCheckInDay } from '@/lib/event-check-in';
 export function useCheckInDay(event: () => Pick<Event, 'event_date' | 'timezone'> | null | undefined) {
   const now = ref(new Date());
   let timer: ReturnType<typeof setTimeout> | undefined;
+
   function refresh() {
     clearTimeout(timer);
     now.value = new Date();
@@ -18,5 +19,6 @@ export function useCheckInDay(event: () => Pick<Event, 'event_date' | 'timezone'
     clearTimeout(timer);
     document.removeEventListener('visibilitychange', refresh);
   });
+
   return computed(() => isEventCheckInDay(event(), now.value));
 }

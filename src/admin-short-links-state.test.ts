@@ -26,6 +26,7 @@ function renderState(props: {
     ) => void;
   };
   let html = '';
+
   component.ssrRender({
     ...props,
     $props: props,
@@ -35,6 +36,7 @@ function renderState(props: {
       },
     },
   }, (chunk) => { html += chunk; }, null, {}, props, {}, {}, {});
+
   return html;
 }
 

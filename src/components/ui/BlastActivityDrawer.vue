@@ -28,6 +28,7 @@ const statusLabel = computed(() => {
   if (props.blast.status === 'scheduled') return 'Scheduled';
   if (props.blast.status === 'sent') return 'Sent';
   if (props.blast.status === 'needs_capacity') return 'Needs email capacity';
+
   return 'Needs attention';
 });
 
@@ -36,6 +37,7 @@ const statusClass = computed(() => {
   if (props.blast?.status === 'scheduled') return 'border-sky-300 bg-sky-50 text-sky-800';
   if (props.blast?.status === 'needs_capacity') return 'border-amber-300 bg-amber-50 text-amber-800';
   if (props.blast?.status === 'failed') return 'border-red-300 bg-red-50 text-red-700';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 });
 
@@ -60,6 +62,7 @@ const issueDetails = computed(() => {
       tone: 'error' as const,
     };
   }
+
   return {
     title: 'Current activity',
     message: 'The audience is being prepared in safe batches. Delivery begins automatically when every confirmed guest is ready.',
@@ -82,6 +85,7 @@ function lockPage() {
   document.body.style.overflow = 'hidden';
   document.documentElement.style.overflow = 'hidden';
   const app = document.querySelector<HTMLElement>('#app');
+
   appWasInert = app?.hasAttribute('inert') ?? false;
   if (!appWasInert) app?.setAttribute('inert', '');
   document.addEventListener('keydown', handleKeydown);
@@ -91,6 +95,7 @@ function unlockPage() {
   document.body.style.overflow = previousBodyOverflow;
   document.documentElement.style.overflow = previousDocumentOverflow;
   const app = document.querySelector<HTMLElement>('#app');
+
   if (!appWasInert) app?.removeAttribute('inert');
   document.removeEventListener('keydown', handleKeydown);
   previouslyFocused?.focus();
@@ -106,13 +111,16 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     requestClose();
+
     return;
   }
   if (event.key !== 'Tab' || !panelRef.value) return;
   const focusable = [...panelRef.value.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+
   if (!focusable.length) return;
   const first = focusable[0];
   const last = focusable.at(-1)!;
+
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();

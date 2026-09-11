@@ -33,23 +33,28 @@ const allQuestionsReleased = computed(() => Boolean(session.value && releasedCou
 const skippedQuestions = computed(() => session.value?.questions.filter((question) => (session.value?.skipped_question_ids ?? []).includes(question.id)) ?? []);
 const secondsUntilStart = computed(() => {
   const activeSession = session.value;
+
   if (!activeSession || !['presenting', 'answering'].includes(activeSession.question_phase ?? '') || !activeSession.question_started_at) return null;
+
   return Math.max(0, Math.ceil((new Date(activeSession.question_started_at).getTime() - nowMs.value) / 1000));
 });
 const secondsRemaining = computed(() => {
   if (session.value?.question_phase !== 'answering' || !currentQuestion.value || !session.value.question_started_at) return null;
   if (secondsUntilStart.value && secondsUntilStart.value > 0) return currentQuestion.value.time_limit_seconds;
   const endsAt = new Date(session.value.question_started_at).getTime() + (currentQuestion.value.time_limit_seconds * 1000);
+
   return Math.max(0, Math.ceil((endsAt - nowMs.value) / 1000));
 });
 const presenterTimer = computed(() => {
   if (secondsRemaining.value === null) return null;
   const minutes = Math.floor(secondsRemaining.value / 60);
+
   return `${minutes}:${String(secondsRemaining.value % 60).padStart(2, '0')}`;
 });
 
 function syncToLiveClock(serverNow: string) {
   const serverNowMs = new Date(serverNow).getTime();
+
   if (Number.isFinite(serverNowMs)) clockOffsetMs.value = serverNowMs - Date.now();
 }
 const answerDistribution = computed(() => Array.from({ length: 4 }, (_, optionIndex) => (
@@ -63,8 +68,10 @@ const answersRemaining = computed(() => Math.max(0, participantsCount.value - (l
 const answersComplete = computed(() => participantsCount.value > 0 && answersRemaining.value === 0);
 const rankedLeaderboard = computed(() => {
   let scoredRank = 0;
+
   return (liveState.value?.leaderboard ?? []).map((entry) => {
     const scoreRank = entry.total_score > 0 ? ++scoredRank : null;
+
     return { ...entry, scoreRank };
   });
 });
@@ -73,6 +80,7 @@ function medalForRank(rank: number | null): { label: string; symbol: string; ton
   if (rank === 1) return { label: 'Gold medal', symbol: '🥇', tone: 'gold' };
   if (rank === 2) return { label: 'Silver medal', symbol: '🥈', tone: 'silver' };
   if (rank === 3) return { label: 'Bronze medal', symbol: '🥉', tone: 'bronze' };
+
   return null;
 }
 
@@ -89,16 +97,20 @@ async function fetchPresenterState() {
   pollInFlight = true;
   try {
     const response = await fetch(`/api/quiz/sessions/${sessionId.value}`);
+
     if (!response.ok) {
       error.value = response.status === 401 ? 'Organizer access is required for this presentation.' : 'Unable to load this presentation.';
       loading.value = false;
+
       return;
     }
 
     session.value = await response.json();
     const stateResponse = await fetch(`/api/quiz/state?sessionId=${sessionId.value}&presenter=true`);
+
     if (stateResponse.ok) {
       const nextState = await stateResponse.json() as QuizStateResponse;
+
       liveState.value = nextState;
       syncToLiveClock(nextState.server_now);
     }
@@ -112,6 +124,7 @@ async function fetchPresenterState() {
 async function buildQrCode() {
   if (!playUrl.value) return;
   const { toDataURL } = await import('qrcode');
+
   qrCodeUrl.value = await toDataURL(playUrl.value, {
     margin: 1,
     width: 320,
@@ -131,9 +144,11 @@ async function runAction(path: string, body?: Record<string, unknown>) {
     } : {}),
   });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) error.value = payload.error ?? 'The presentation could not advance.';
   await fetchPresenterState();
   actionPending.value = false;
+
   return response.ok;
 }
 

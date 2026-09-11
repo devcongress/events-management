@@ -78,6 +78,7 @@ async function submitApplication() {
 
   try {
     const emailCheck = await preflightPublicEmail(form.email);
+
     form.email = emailCheck.normalized_email;
     submissionStage.value = 'submitting';
     const response = await fetch('/api/volunteer-applications', {
@@ -100,6 +101,7 @@ async function submitApplication() {
       const retryDuration = Number.isFinite(payload.retry_after_seconds)
         ? payload.retry_after_seconds
         : retryAfterHeader;
+
       if (
         (response.status === 429 || response.status === 503)
         && typeof retryDuration === 'number'
@@ -112,6 +114,7 @@ async function submitApplication() {
         turnstileToken.value = '';
         turnstileWidget.value?.reset();
       }
+
       return;
     }
 

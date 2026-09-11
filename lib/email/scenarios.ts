@@ -24,16 +24,21 @@ function subjectText(value: string, fallback: string): string {
     .replace(/\s+/g, ' ')
     .trim() || fallback;
   const characters = Array.from(normalized);
+
   if (characters.length <= EMAIL_SUBJECT_MAX_LENGTH) return normalized;
+
   return `${characters.slice(0, EMAIL_SUBJECT_MAX_LENGTH - 1).join('').trimEnd()}…`;
 }
 
 function eventSubject(prefix: string, eventName: string, fallback = 'DevCongress event'): string {
   const normalizedName = subjectText(eventName, fallback);
+
   if (isTestEventTitle(normalizedName)) {
     const unmarkedName = normalizedName.slice(TEST_EVENT_PREFIX.length).trim() || fallback;
+
     return subjectText(`${TEST_EVENT_PREFIX} ${prefix}${unmarkedName}`, `${TEST_EVENT_PREFIX} ${prefix}${fallback}`);
   }
+
   return subjectText(`${prefix}${normalizedName}`, `${prefix}${fallback}`);
 }
 

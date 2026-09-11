@@ -32,11 +32,13 @@ function parseCsvLine(line: string): string[] {
   }
 
   values.push(value);
+
   return values;
 }
 
 function parseCsv(csv: string): Record<string, string>[] {
   const normalized = csv.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+
   if (!normalized) return [];
 
   const [headerLine, ...lines] = normalized.split('\n').filter((line) => line.trim().length > 0);
@@ -44,6 +46,7 @@ function parseCsv(csv: string): Record<string, string>[] {
 
   return lines.map((line) => {
     const values = parseCsvLine(line);
+
     return Object.fromEntries(headers.map((header, index) => [header, values[index]?.trim() ?? '']));
   });
 }
@@ -60,19 +63,23 @@ function normalizeStatus(value: string): LumaAttendanceApprovalStatus {
 
 function optionalValue(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? '';
+
   return trimmed.length > 0 ? trimmed : null;
 }
 
 function parseDateValue(value: string | undefined): string | null {
   const trimmed = optionalValue(value);
+
   if (!trimmed) return null;
 
   const date = new Date(trimmed);
+
   return Number.isNaN(date.getTime()) ? trimmed : date.toISOString();
 }
 
 export function parseLumaAttendanceCsv(eventId: string, csv: string): LumaAttendanceRecord[] {
   const rows = parseCsv(csv);
+
   if (rows.length === 0) return [];
 
   const columns = new Set(Object.keys(rows[0]));
@@ -105,6 +112,7 @@ function summarizeBreakdown(records: LumaAttendanceRecord[], getLabel: (record: 
 
   for (const record of records) {
     const label = getLabel(record) ?? 'Unspecified';
+
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
 

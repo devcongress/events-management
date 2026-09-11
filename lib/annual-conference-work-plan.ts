@@ -696,9 +696,11 @@ export function defaultAnnualConferencePhaseScope(
     (left, right) => left.sort_order - right.sort_order || left.starts_on.localeCompare(right.starts_on),
   );
   const current = orderedPhases.find((phase) => today >= phase.starts_on && today <= phase.ends_on);
+
   if (current) return current.id;
 
   const next = orderedPhases.find((phase) => phase.starts_on > today);
+
   return next?.id ?? orderedPhases.at(-1)?.id ?? 'all';
 }
 
@@ -708,6 +710,7 @@ export function filterAnnualConferenceTasksByPhase(
 ): AnnualConferenceTask[] {
   if (phaseScope === 'all') return tasks;
   if (phaseScope === 'unassigned') return tasks.filter((task) => !task.phase_id);
+
   return tasks.filter((task) => task.phase_id === phaseScope);
 }
 
@@ -722,10 +725,13 @@ export function createAnnualConferenceOwnerDirectory(
 
   const registerAlias = (value: string, member: AnnualConferenceOwnerMember) => {
     const alias = normalizeAnnualConferenceOwnerAlias(value);
+
     if (!alias) return;
     const existing = membersByAlias.get(alias);
+
     if (existing && existing.email.trim().toLowerCase() !== member.email.trim().toLowerCase()) {
       membersByAlias.set(alias, null);
+
       return;
     }
     if (existing === null) return;
@@ -734,6 +740,7 @@ export function createAnnualConferenceOwnerDirectory(
 
   for (const member of members) {
     const email = member.email.trim();
+
     registerAlias(email, member);
     registerAlias(member.display_name ?? '', member);
     registerAlias(email.split('@')[0] ?? '', member);
@@ -742,14 +749,17 @@ export function createAnnualConferenceOwnerDirectory(
   const resolve = (value: string): AnnualConferenceOwnerIdentity => {
     const rawValue = value.trim();
     const member = membersByAlias.get(normalizeAnnualConferenceOwnerAlias(rawValue));
+
     if (member) {
       const email = member.email.trim().toLowerCase();
+
       return {
         key: `member:${email}`,
         filter_value: email,
         label: member.display_name?.trim() || member.email,
       };
     }
+
     return {
       key: `legacy:${rawValue.toLowerCase()}`,
       filter_value: rawValue,
@@ -761,6 +771,7 @@ export function createAnnualConferenceOwnerDirectory(
     resolve,
     matches(left, right) {
       if (!left?.trim() || !right?.trim()) return false;
+
       return resolve(left).key === resolve(right).key;
     },
   };
@@ -784,6 +795,7 @@ export function summarizeAnnualConferenceTasksByOwner(
       pending: 0,
       total: 0,
     };
+
     summary.total += 1;
     if (task.status === 'done') summary.complete += 1;
     else summary.pending += 1;
@@ -803,6 +815,7 @@ export function resolveAnnualConferenceOwnerFilter(
   const matchingTask = tasks.find((task) => (
     directory.matches(task.accountable_owner, requestedOwner)
   ));
+
   return matchingTask?.accountable_owner
     ? directory.resolve(matchingTask.accountable_owner).filter_value
     : null;
@@ -820,6 +833,7 @@ export function validateAnnualConferencePhaseDates(
     && input.starts_on <= phase.ends_on
     && input.ends_on >= phase.starts_on
   ));
+
   return overlaps ? 'Phase dates cannot overlap another phase.' : null;
 }
 
@@ -829,10 +843,12 @@ export function validateAnnualConferenceTaskSchedule(
 ): string | null {
   if (!input.phase_id) return null;
   const phase = phases.find((item) => item.id === input.phase_id);
+
   if (!phase) return 'The selected phase does not belong to this conference edition.';
   if (input.target_date && input.target_date > phase.ends_on) {
     return `Target date must be on or before ${phase.ends_on}, the end of ${phase.name}.`;
   }
+
   return null;
 }
 
@@ -845,6 +861,7 @@ export function validateAnnualConferenceTaskDependencies(
 
   const dependencyIds = input.dependency_task_ids ?? [];
   const uniqueIds = new Set(dependencyIds);
+
   if (uniqueIds.size !== dependencyIds.length) {
     return 'Choose each prerequisite task only once.';
   }
@@ -853,6 +870,7 @@ export function validateAnnualConferenceTaskDependencies(
   }
 
   const taskIds = new Set(tasks.map((task) => task.id));
+
   if ([...uniqueIds].some((dependencyId) => !taskIds.has(dependencyId))) {
     return 'Every prerequisite must belong to this conference edition.';
   }
@@ -872,8 +890,10 @@ export function validateAnnualConferenceTaskDependencies(
     if (visiting.has(task) || visited.has(task)) return false;
     visiting.add(task);
     const reaches = (prerequisitesByTaskId.get(task) ?? []).some(reachesCurrentTask);
+
     visiting.delete(task);
     visited.add(task);
+
     return reaches;
   }
 
@@ -892,6 +912,7 @@ export function summarizeAnnualConferenceDependencies(
   for (const dependent of tasks) {
     const dependencyIds = [...new Set(dependent.dependency_task_ids)]
       .filter((dependencyId) => dependencyId !== dependent.id && tasksById.has(dependencyId));
+
     dependencyIdsByTask.set(dependent.id, dependencyIds);
     for (const dependencyId of dependencyIds) {
       edges.push({ prerequisite: tasksById.get(dependencyId)!, dependent });
@@ -912,6 +933,7 @@ export function summarizeAnnualConferenceDependencies(
   for (const edge of edges) {
     if (edge.prerequisite.status === 'done' || edge.dependent.status === 'done') continue;
     const dependents = dependentsByPrerequisite.get(edge.prerequisite.id) ?? [];
+
     dependents.push(edge.dependent);
     dependentsByPrerequisite.set(edge.prerequisite.id, dependents);
   }
@@ -946,10 +968,12 @@ function uniqueOwnershipValues(values: readonly string[]): string[] {
   return values.reduce<string[]>((result, value) => {
     const trimmed = value.trim();
     const key = ownershipKey(trimmed);
+
     if (seen.has(key)) return result;
 
     seen.add(key);
     result.push(trimmed);
+
     return result;
   }, []);
 }
@@ -959,6 +983,7 @@ function sameOwner(
   right: string | null | undefined,
 ): boolean {
   if (left == null || right == null) return left == null && right == null;
+
   return ownershipKey(left) === ownershipKey(right);
 }
 
@@ -1008,16 +1033,19 @@ export function validateAnnualConferenceTaskOwnership<
   const activeEmails = new Map(
     uniqueOwnershipValues(activeOrganizerEmails).map((email) => {
       const normalizedEmail = ownershipKey(email);
+
       return [normalizedEmail, normalizedEmail] as const;
     }),
   );
 
   let accountableOwner = input.accountable_owner;
+
   if ('accountable_owner' in input && accountableOwner != null) {
     if (existing && sameOwner(accountableOwner, existing.accountable_owner)) {
       accountableOwner = existing.accountable_owner;
     } else {
       const activeEmail = activeEmails.get(ownershipKey(accountableOwner));
+
       if (!activeEmail) {
         return {
           ok: false,
@@ -1029,8 +1057,10 @@ export function validateAnnualConferenceTaskOwnership<
   }
 
   let collaborators = input.collaborators;
+
   if ('collaborators' in input && collaborators !== undefined) {
     const uniqueCollaborators = uniqueOwnershipValues(collaborators);
+
     if (existing && sameCollaborators(uniqueCollaborators, existing.collaborators)) {
       collaborators = uniqueOwnershipValues(existing.collaborators);
     } else {
@@ -1039,16 +1069,21 @@ export function validateAnnualConferenceTaskOwnership<
           .map((collaborator) => [ownershipKey(collaborator), collaborator] as const),
       );
       const invalidCollaborators: string[] = [];
+
       collaborators = uniqueCollaborators.flatMap((collaborator) => {
         const collaboratorKey = ownershipKey(collaborator);
         const existingCollaborator = existingCollaborators.get(collaboratorKey);
+
         if (existingCollaborator) return [existingCollaborator];
 
         const activeEmail = activeEmails.get(collaboratorKey);
+
         if (!activeEmail) {
           invalidCollaborators.push(collaborator);
+
           return [];
         }
+
         return [activeEmail];
       });
 
@@ -1124,10 +1159,12 @@ export function annualConferenceWorkstreamCounts(
   const result = Object.fromEntries(
     ANNUAL_CONFERENCE_WORKSTREAMS.map((workstream) => [workstream, { total: 0, done: 0 }]),
   ) as Record<AnnualConferenceWorkstream, { total: number; done: number }>;
+
   for (const task of tasks) {
     result[task.workstream].total += 1;
     if (task.status === 'done') result[task.workstream].done += 1;
   }
+
   return result;
 }
 
@@ -1157,6 +1194,7 @@ export function calculateAnnualConferenceHealth(
 
   for (const task of tasks) {
     const isDone = task.status === 'done';
+
     if (isDone) done += 1;
     if (task.target_date) scheduled += 1;
     if (task.phase_id) classified += 1;
@@ -1172,6 +1210,7 @@ export function calculateAnnualConferenceHealth(
 
     if (task.phase_id) {
       const counts = phaseCounts.get(task.phase_id);
+
       if (counts) {
         counts.total += 1;
         if (isDone) counts.done += 1;
@@ -1195,6 +1234,7 @@ export function calculateAnnualConferenceHealth(
 
   const currentPhaseHealth = phaseHealth.find((health) => {
     const phase = phases.find((item) => item.id === health.phase_id);
+
     return Boolean(phase && today >= phase.starts_on && today <= phase.ends_on);
   });
   const planningConfidence = total === 0
@@ -1202,6 +1242,7 @@ export function calculateAnnualConferenceHealth(
     : percent(scheduled + classified + assigned, total * 3);
 
   let readiness: AnnualConferenceReadiness = 'on_track';
+
   if (total > 0 && done === total) readiness = 'complete';
   else if (scheduled < total || classified < total) readiness = 'needs_planning';
   else if (overdue > 0 || blocked > 0) readiness = 'off_track';

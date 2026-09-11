@@ -105,6 +105,7 @@ describe('quiz state helpers', () => {
 
   it('preserves timed auto-reveal for the separate quiz flow', async () => {
     const { advanceQuizSessionState } = await import('./quiz-state');
+
     getQuizSessionById.mockResolvedValue({ ...activeSession, purpose: 'quiz' });
 
     const result = await advanceQuizSessionState('session-1');
@@ -117,6 +118,7 @@ describe('quiz state helpers', () => {
 
   it('withholds the answer until reveal, then returns the attendee result', async () => {
     const { buildQuizStateResponse } = await import('./quiz-state');
+
     getResponsesByQuestion.mockResolvedValue([response]);
     getResponseByQuestionAndUser.mockResolvedValue(response);
 
@@ -132,12 +134,14 @@ describe('quiz state helpers', () => {
       includeAnswerDistribution: true,
       includePresenterLeaderboard: true,
     });
+
     expect(presenterState?.answer_distribution).toBeUndefined();
     expect(presenterState?.leaderboard[0]?.nickname).toBe('Ada');
     expect(presenterState?.leaderboard[0]?.correct_answers).toBe(1);
 
     getQuizSessionById.mockResolvedValue({ ...activeSession, question_phase: 'revealing' });
     const revealedState = await buildQuizStateResponse('session-1', 'user-1');
+
     expect(revealedState?.player_result).toMatchObject({ is_correct: true, correct_index: 2, points_awarded: 500 });
     expect(revealedState?.participants_count).toBe(1);
     expect(revealedState?.answers_count).toBe(1);
@@ -147,6 +151,7 @@ describe('quiz state helpers', () => {
       includeAnswerDistribution: true,
       includePresenterLeaderboard: true,
     });
+
     expect(presenterRevealState?.answer_distribution?.[2]).toEqual({
       option_index: 2,
       count: 1,
@@ -156,9 +161,11 @@ describe('quiz state helpers', () => {
 
   it('keeps a presenter-preview question private until its timer is opened', async () => {
     const { buildQuizStateResponse } = await import('./quiz-state');
+
     getQuizSessionById.mockResolvedValue({ ...activeSession, question_phase: 'presenting', question_started_at: null });
 
     const participantState = await buildQuizStateResponse('session-1', 'user-1');
+
     expect(participantState?.session.question_phase).toBe('presenting');
     expect(participantState?.current_question).toBeNull();
     expect(participantState?.question_started_at).toBeNull();
@@ -166,12 +173,14 @@ describe('quiz state helpers', () => {
     const presenterState = await buildQuizStateResponse('session-1', null, {
       includePresenterQuestion: true,
     });
+
     expect(presenterState?.current_question).toEqual(expect.objectContaining({ question_text: question.question_text }));
     expect(presenterState?.current_question).not.toEqual(expect.objectContaining({ correct_index: expect.any(Number) }));
   });
 
   it('automatically opens a presenter-preview question at its server-scheduled start time', async () => {
     const { advanceQuizSessionState } = await import('./quiz-state');
+
     getQuizSessionById.mockResolvedValue({
       ...activeSession,
       question_phase: 'presenting',
@@ -188,9 +197,11 @@ describe('quiz state helpers', () => {
 
   it('returns the final leaderboard to the presenter and only the requesting player standing publicly', async () => {
     const { buildQuizStateResponse } = await import('./quiz-state');
+
     getQuizSessionById.mockResolvedValue({ ...activeSession, status: 'finished', question_phase: null });
 
     const playerState = await buildQuizStateResponse('session-1', 'user-1');
+
     expect(playerState?.leaderboard).toEqual([]);
     expect(playerState?.player_standing).toEqual({
       rank: 1,
@@ -203,6 +214,7 @@ describe('quiz state helpers', () => {
       includeAnswerDistribution: true,
       includePresenterLeaderboard: true,
     });
+
     expect(presenterState?.leaderboard).toEqual([
       expect.objectContaining({ user_id: 'user-1', nickname: 'Ada', rank: 1, total_score: 500, correct_answers: 0 }),
     ]);
@@ -211,6 +223,7 @@ describe('quiz state helpers', () => {
 
   it('keeps correct-answer totals on the final presenter board when no question is active', async () => {
     const { buildQuizStateResponse } = await import('./quiz-state');
+
     getQuizSessionById.mockResolvedValue({
       ...activeSession,
       status: 'finished',

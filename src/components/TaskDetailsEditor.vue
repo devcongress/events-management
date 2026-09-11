@@ -17,6 +17,7 @@ const editor = useEditor({
   },
 });
 const count = computed(() => editor.value ? taskDetailsText(editor.value.getJSON() as TaskDetailsNode).length : 0);
+
 defineExpose({ focus: () => editor.value?.commands.focus() });
 watch(() => props.disabled, (disabled) => editor.value?.setEditable(!disabled));
 watch([() => props.modelValue, () => props.format], () => {

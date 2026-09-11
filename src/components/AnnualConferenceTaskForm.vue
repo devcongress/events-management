@@ -120,6 +120,7 @@ const collaboratorOptions = computed(() => {
   const options = activeOrganizers.value.map((organizer) => {
     const value = organizerValue(organizer);
     const isAccountableOwner = value === form.accountable_owner;
+
     return {
       value,
       label: organizerLabel(organizer),
@@ -155,10 +156,12 @@ const collaboratorSelectionText = computed(() => {
 
   const names = form.collaborators.map((selectedValue) => {
     const organizer = activeOrganizers.value.find((item) => organizerValue(item) === selectedValue);
+
     return organizer?.display_name?.trim() || organizerNameFromValue(selectedValue);
   });
 
   if (names.length <= 2) return names.join(', ');
+
   return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
 });
 const collaboratorDropdownDisabled = computed(() => (
@@ -181,7 +184,9 @@ const dependencySelectionText = computed(() => {
   const names = form.dependency_task_ids
     .map((taskId) => taskById.get(taskId)?.title)
     .filter((title): title is string => Boolean(title));
+
   if (names.length <= 2) return names.join(', ');
+
   return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
 });
 
@@ -191,12 +196,14 @@ function organizerValue(organizer: OrganizerMembership): string {
 
 function organizerLabel(organizer: OrganizerMembership): string {
   const name = organizer.display_name?.trim() || organizerNameFromValue(organizer.email);
+
   return organizer.role === 'volunteer' ? `${name} · Volunteer` : name;
 }
 
 function organizerNameFromValue(value: string): string {
   if (!value.includes('@')) return value;
   const localPart = value.split('@')[0];
+
   return localPart
     .split(/[._-]+/)
     .filter(Boolean)
@@ -207,6 +214,7 @@ function organizerNameFromValue(value: string): string {
 function resetForm() {
   detailsError.value = '';
   const task = props.task;
+
   form.title = task?.title ?? '';
   form.details = task?.details ?? '';
   form.details_format = task?.details_format ?? 'plain_text';
@@ -242,6 +250,7 @@ function submitForm() {
   } catch {
     detailsError.value = 'Keep details within 2,000 characters and use fewer nested lists or formatting changes.';
     detailsEditor.value?.focus();
+
     return;
   }
   emit('submit', {
