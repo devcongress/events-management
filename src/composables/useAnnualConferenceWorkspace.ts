@@ -47,7 +47,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
     refetchOnWindowFocus: options.refetchOnWindowFocus,
   });
   const organizersQuery = useQuery({
-    queryKey: queryKeys.adminOrganizers,
+    queryKey: computed(() => queryKeys.annualConferenceTaskMembers(options.year.value)),
     queryFn: () => api.getOrganizers(options.year.value),
     enabled: options.loadOrganizers
       ?? computed(() => Boolean(

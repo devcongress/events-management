@@ -469,6 +469,7 @@ export const queryKeys = {
   volunteerApplications: (year: string) => ['volunteer-applications', year] as const,
   annualConferenceVolunteerTeam: (year: string) => ['annual-conference-volunteer-team', year] as const,
   annualConferenceAccess: (year: string) => ['annual-conference-access', year] as const,
+  annualConferenceTaskMembers: (year: string) => ['annual-conference-task-members', year] as const,
   eventSubmissions: (status: EventSubmissionQueueFilter | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
