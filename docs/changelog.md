@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-11 — Assignee-linked work-plan scope
+
+- Make assignee cards on the Annual Conference Overview resolve owners against the complete work plan, then open the ledger at **Entire conference** filtered to that person.
+- Preserve the current-phase default when organizers visit Work Plan directly without an assignee query.
+
 ## 2026-09-11 — Native monthly attendance overview
 
 - Feed native monthly meetup registrations and check-ins into the Monthly Attendance overview automatically; completed native events no longer ask organizers for a Luma CSV.
