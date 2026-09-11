@@ -8,6 +8,7 @@ import type { Database, Json } from '@/types/supabase';
 
 export const ADMIN_SESSION_COOKIE = 'devcon_admin';
 const HOST_ADMIN_SESSION_COOKIE = '__Host-devcon_admin';
+
 export const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 export const ADMIN_SESSION_IDLE_TIMEOUT_SECONDS = 60 * 30;
 // Bump last_seen_at at most once per interval so normal organizer work does
@@ -39,6 +40,7 @@ let browserSafeClient: BrowserSafeSupabaseClient | null = null;
 export function isAdminSessionIdle(lastSeenAt: string | null, nowMs = Date.now()): boolean {
   if (!lastSeenAt) return true;
   const lastSeenAtMs = new Date(lastSeenAt).getTime();
+
   return !Number.isFinite(lastSeenAtMs)
     || nowMs - lastSeenAtMs >= ADMIN_SESSION_IDLE_TIMEOUT_SECONDS * 1000;
 }
@@ -120,11 +122,13 @@ function getBrowserSafeSupabaseClient(c: Context): BrowserSafeSupabaseClient {
 
 function adminEventsPath(c: Context): string {
   const basePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
+
   return `${basePath}/events`;
 }
 
 function adminLoginPath(c: Context): string {
   const basePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
+
   return `${basePath}/login`;
 }
 
@@ -144,7 +148,9 @@ function bytesToHex(bytes: ArrayBuffer): string {
 
 function newSessionToken(): string {
   const bytes = new Uint8Array(32);
+
   crypto.getRandomValues(bytes);
+
   return btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -170,12 +176,14 @@ async function findActiveMembershipByEmail(c: Context, email: string) {
     .maybeSingle();
 
   if (error) throw error;
+
   return data;
 }
 
 async function createAdminSessionForUser(c: Context, input: { userId: string; email: string }) {
   const email = normalizeEmail(input.email);
   const membership = await findActiveMembershipByEmail(c, email);
+
   if (!membership) {
     return { ok: false as const, status: 403, error: 'This account is not allowed to access the organizer console.' };
   }
@@ -216,6 +224,7 @@ async function createAdminSessionForUser(c: Context, input: { userId: string; em
   });
 
   setCookie(c, sessionCookieName(c), sessionToken, sessionCookieOptions(c));
+
   return { ok: true as const };
 }
 
@@ -234,6 +243,7 @@ export async function completeSupabaseAdminToken(c: Context, accessToken: string
 
 export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
   const token = getCookie(c, sessionCookieName(c));
+
   if (!token) return { authenticated: false };
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -252,6 +262,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
   }
 
   const membership = Array.isArray(data.admin_memberships) ? data.admin_memberships[0] : data.admin_memberships;
+
   if (!membership || membership.status !== 'active') {
     return { authenticated: false };
   }
@@ -261,6 +272,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
   }
 
   const lastSeenAtMs = data.last_seen_at ? new Date(data.last_seen_at).getTime() : 0;
+
   if (Date.now() - lastSeenAtMs > ADMIN_SESSION_LAST_SEEN_THROTTLE_MS) {
     void getSupabaseAdminClient(c)
       .from('admin_sessions')
@@ -284,6 +296,7 @@ export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
 export async function revokeAdminSession(c: Context): Promise<void> {
   const cookieName = sessionCookieName(c);
   const token = getCookie(c, cookieName);
+
   if (token && isSupabaseAdminAuthConfigured(c)) {
     await getSupabaseAdminClient(c)
       .from('admin_sessions')
@@ -318,11 +331,13 @@ export function assertAdminOrigin(c: Context): globalThis.Response | null {
   }
 
   const origin = c.req.header('origin');
+
   if (!origin) {
     return c.json({ error: 'Request origin is required' }, 403);
   }
 
   const requestOrigin = new URL(c.req.url).origin;
+
   if (origin === requestOrigin || configuredFrontendOrigins(c).has(origin)) {
     return null;
   }
@@ -374,6 +389,7 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
   // re-check roles reuse it instead of paying for another Supabase round trip.
   const cached = c.get('adminSession') as AdminSession | undefined;
   const session = cached ?? await getAdminSession(c);
+
   if (!session.authenticated) {
     console.warn(JSON.stringify({
       event: 'admin_access_denied',
@@ -381,10 +397,12 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
       method: c.req.method,
       path: securitySafeRequestPath(c.req.path),
     }));
+
     return c.json({ error: 'Admin session required' }, 401);
   }
 
   const originError = assertAdminOrigin(c);
+
   if (originError) return originError;
 
   if (!roles.includes(session.role)) {
@@ -395,9 +413,11 @@ export async function requireAdmin(c: Context, roles: AdminRole[] = ['owner', 'o
       method: c.req.method,
       path: securitySafeRequestPath(c.req.path),
     }));
+
     return c.json({ error: 'This account does not have access to this resource' }, 403);
   }
 
   if (!cached) c.set('adminSession', session);
+
   return null;
 }

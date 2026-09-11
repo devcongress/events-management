@@ -72,6 +72,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
 
   watch([phases, options.today], ([availablePhases, currentDate]) => {
     const selectedPhaseStillExists = availablePhases.some((phase) => phase.id === phaseScope.value);
+
     if (
       phaseScopeInitialized.value
       && (selectedPhaseStillExists || phaseScope.value === 'all' || phaseScope.value === 'unassigned')

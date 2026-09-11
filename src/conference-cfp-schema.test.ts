@@ -68,6 +68,7 @@ describe('Annual Conference CFP contract', () => {
   it('provides an open-form link for an open conference call', () => {
     const view = read('src/views/admin/AdminAnnualConferenceSpeakersView.vue');
     const link = view.match(/<a\s[^>]*:href="speakersQuery\.data\.value\.call\.public_path"[^>]*>[\s\S]*?<\/a>/)?.[0];
+
     expect(link).toBeDefined();
     expect(link).toContain('v-if="speakersQuery.data.value.call.open"');
     expect(link).toContain('target="_blank"');
@@ -79,6 +80,7 @@ describe('Annual Conference CFP contract', () => {
 
   it('confirms receipt on-page and offers another proposal without promising an email', () => {
     const view = read('src/views/CfpView.vue');
+
     expect(view).toContain('Proposal received.');
     expect(view).toContain('Submit another proposal');
     expect(view).toContain("form.learning_outcomes = ['']");

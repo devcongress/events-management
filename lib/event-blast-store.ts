@@ -24,6 +24,7 @@ export async function getEventBlasts(eventId: string, c?: Context): Promise<Even
 
 export async function getRecentEventBlasts(limit: number, c?: Context): Promise<EventBlastAuditEntry[]> {
   const blasts = (await getRecentSupabaseEventBlasts(limit, c)) ?? await getRecentMockEventBlasts(limit);
+
   return blasts.map(({ id, subject, status, recipient_count, scheduled_for, sent_at, created_at, updated_at }) => ({
     id,
     subject,
@@ -46,5 +47,6 @@ export async function updateEventBlast(
   c?: Context,
 ): Promise<EventBlast | undefined> {
   const result = await updateSupabaseEventBlast(id, input, c);
+
   return result !== null ? result : updateMockEventBlast(id, input);
 }

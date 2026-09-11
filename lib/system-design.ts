@@ -2,6 +2,7 @@ import type { PublicMeetupScheduleItem } from '@/types';
 
 export function hasSystemDesignTitleMarker(title: string): boolean {
   const normalizedTitle = title.trim().toLowerCase();
+
   return normalizedTitle.includes('system design') || normalizedTitle.includes('architecture scenario');
 }
 
@@ -26,6 +27,7 @@ export function findSystemDesignSource(
   for (const item of items) {
     if (!isSystemDesignSessionItem(item)) continue;
     const source = item.resources.find((resource) => Boolean(resource.url?.trim()));
+
     if (source) return source;
   }
 
@@ -52,6 +54,7 @@ export function canonicalizeSystemDesignSchedule<T extends PublicMeetupScheduleI
 
     if (item.type !== 'system_design' && isSystemDesignSessionItem(item) && explicitCursor < explicitSessions.length) {
       const explicit = explicitSessions[explicitCursor]?.item;
+
       explicitCursor += 1;
 
       if (!explicit) return [item];

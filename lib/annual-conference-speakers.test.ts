@@ -8,6 +8,7 @@ let tempRoot: string;
 
 async function store() {
   vi.resetModules();
+
   return import('./annual-conference-speakers');
 }
 
@@ -60,6 +61,7 @@ describe('Annual Conference speaker scope', () => {
       abstract: 'A second, independently reviewed proposal.',
       bio: 'Updated speaker profile.',
     });
+
     expect(secondProposal.speaker_profile_id).toBe(submission.speaker_profile_id);
 
     const session = await createAnnualConferenceSession({
@@ -84,6 +86,7 @@ describe('Annual Conference speaker scope', () => {
       expires_at: '2099-12-31T23:59:59.000Z',
       workspace_session_id: session.id,
     });
+
     await updateAnnualConferenceSpeakerSubmission(submission.id, {
       status: 'selected',
       selected_intake_link_id: link.id,
@@ -91,6 +94,7 @@ describe('Annual Conference speaker scope', () => {
     });
 
     const storedLinks = await fs.readFile(path.join(tempRoot, 'data', 'annual-conference-speaker-intake-links.json'), 'utf-8');
+
     expect(storedLinks).not.toContain(token);
     expect(await getAnnualConferenceSpeakerSubmissions('edition-2026')).toHaveLength(2);
     await expect(getAnnualConferenceSpeakerIntakeLink('edition-2027', token)).resolves.toBeUndefined();
@@ -137,6 +141,7 @@ describe('Annual Conference speaker scope', () => {
       tokenSecret: 'test-speaker-link-secret-that-is-at-least-32-bytes',
       allowAccepted: true,
     });
+
     expect(replacement.submission.decision_email_attempt_count).toBe(0);
     expect(replacement.submission.decision_email_last_attempt_at).toBeNull();
     await expect(getAnnualConferenceSpeakerSubmission(secondProposal.id)).resolves.toMatchObject({ status: 'submitted' });

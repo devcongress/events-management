@@ -23,6 +23,7 @@ export async function loadTurnstile(): Promise<TurnstileGlobal> {
       const handleReady = () => {
         if (window.turnstile) {
           resolve(window.turnstile);
+
           return;
         }
 
@@ -36,10 +37,12 @@ export async function loadTurnstile(): Promise<TurnstileGlobal> {
       if (existingScript) {
         existingScript.addEventListener('load', handleReady, { once: true });
         existingScript.addEventListener('error', handleError, { once: true });
+
         return;
       }
 
       const script = document.createElement('script');
+
       script.id = TURNSTILE_SCRIPT_ID;
       script.src = TURNSTILE_SCRIPT_SRC;
       script.async = true;
@@ -49,6 +52,7 @@ export async function loadTurnstile(): Promise<TurnstileGlobal> {
       document.head.appendChild(script);
     }).catch((error) => {
       turnstileScriptPromise = null;
+
       throw error;
     });
   }

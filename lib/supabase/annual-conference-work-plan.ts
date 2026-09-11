@@ -46,7 +46,9 @@ export async function listSupabaseAnnualConferenceEditions(
     .from('annual_conference_editions')
     .select('*')
     .order('year', { ascending: false });
+
   if (result.error) throw new Error(result.error.message);
+
   return result.data.map(toEdition);
 }
 
@@ -69,7 +71,9 @@ export async function createSupabaseAnnualConferenceEdition(
     .insert(insert)
     .select('*')
     .single();
+
   if (result.error) throw new Error(result.error.message);
+
   return toEdition(result.data);
 }
 
@@ -85,7 +89,9 @@ export async function updateSupabaseAnnualConferenceSpeakerCallStatus(
     .eq('id', editionId)
     .select('*')
     .maybeSingle();
+
   if (error) throw new Error(error.message);
+
   return data ? toEdition(data) : undefined;
 }
 
@@ -101,7 +107,9 @@ export async function updateSupabaseAnnualConferenceSpeakerLogisticsDeadline(
     .eq('id', editionId)
     .select('*')
     .maybeSingle();
+
   if (error) throw new Error(error.message);
+
   return data ? toEdition(data) : undefined;
 }
 
@@ -161,6 +169,7 @@ export async function createSupabaseAnnualConferencePhase(
     .order('sort_order', { ascending: false })
     .limit(1)
     .maybeSingle();
+
   if (latest.error) throw new Error(latest.error.message);
   const insert: PhaseInsert = {
     edition_id: editionId,
@@ -172,7 +181,9 @@ export async function createSupabaseAnnualConferencePhase(
     updated_by_email: actorEmail,
   };
   const result = await client.from('annual_conference_phases').insert(insert).select('*').single();
+
   if (result.error) throw new Error(result.error.message);
+
   return toPhase(result.data);
 }
 
@@ -191,7 +202,9 @@ export async function updateSupabaseAnnualConferencePhase(
     .eq('id', phaseId)
     .select('*')
     .maybeSingle();
+
   if (result.error) throw new Error(result.error.message);
+
   return result.data ? toPhase(result.data) : undefined;
 }
 
@@ -208,7 +221,9 @@ export async function deleteSupabaseAnnualConferencePhase(
     .eq('id', phaseId)
     .select('id')
     .maybeSingle();
+
   if (result.error) throw new Error(result.error.message);
+
   return Boolean(result.data);
 }
 
@@ -233,7 +248,9 @@ export async function reorderSupabaseAnnualConferencePhases(
     .from('annual_conference_phases')
     .upsert(rows, { onConflict: 'id' })
     .select('*');
+
   if (result.error) throw new Error(result.error.message);
+
   return result.data.map(toPhase).sort((left, right) => left.sort_order - right.sort_order);
 }
 
@@ -286,6 +303,7 @@ export async function createSupabaseAnnualConferenceTask(
     .single();
 
   if (result.error) throw new Error(result.error.message);
+
   return toTask(result.data);
 }
 
@@ -317,5 +335,6 @@ export async function updateSupabaseAnnualConferenceTask(
     .maybeSingle();
 
   if (result.error) throw new Error(result.error.message);
+
   return result.data ? toTask(result.data) : undefined;
 }

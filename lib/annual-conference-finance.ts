@@ -182,6 +182,7 @@ export function hydrateAnnualConferenceFinanceEntries(
   receipts: readonly AnnualConferenceFinanceIncomeReceipt[],
 ): AnnualConferenceFinanceEntry[] {
   const receiptsByEntry = new Map<string, number>();
+
   for (const receipt of receipts) {
     receiptsByEntry.set(receipt.entry_id, (receiptsByEntry.get(receipt.entry_id) ?? 0) + receipt.amount_minor);
   }
@@ -192,6 +193,7 @@ export function hydrateAnnualConferenceFinanceEntries(
     }
     const receiptTotal = receiptsByEntry.get(entry.id) ?? 0;
     const received = receiptTotal || (entry.status === 'received' ? entry.amount_minor : 0);
+
     return {
       ...entry,
       received_amount_minor: received,
@@ -223,6 +225,7 @@ export function summarizeAnnualConferenceFinance(
   for (const budget of budgets) {
     plannedBudget += budget.amount_minor;
     const category = categorySummary.get(budget.category);
+
     if (category) category.planned_minor += budget.amount_minor;
   }
 
@@ -232,6 +235,7 @@ export function summarizeAnnualConferenceFinance(
       const outstanding = entry.status === 'cancelled'
         ? 0
         : entry.outstanding_amount_minor || Math.max(entry.amount_minor - received, 0);
+
       incomeExpected += outstanding;
       incomeReceived += received;
       continue;
@@ -240,11 +244,13 @@ export function summarizeAnnualConferenceFinance(
     if (entry.status === 'committed' || entry.status === 'paid') {
       committed += entry.amount_minor;
       const category = categorySummary.get(entry.category);
+
       if (category) category.committed_minor += entry.amount_minor;
     }
     if (entry.status === 'paid') {
       paid += entry.amount_minor;
       const category = categorySummary.get(entry.category);
+
       if (category) category.paid_minor += entry.amount_minor;
     }
   }

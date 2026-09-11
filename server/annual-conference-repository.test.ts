@@ -12,6 +12,7 @@ vi.mock('@/lib/supabase/annual-conference-work-plan', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/annual-conference-work-plan')>(
     '@/lib/supabase/annual-conference-work-plan',
   );
+
   return {
     ...actual,
     getSupabaseAnnualConferenceWorkPlan: mocks.supabaseWorkspace,
@@ -23,6 +24,7 @@ vi.mock('@/lib/mock-db/annual-conference-work-plan', async () => {
   const actual = await vi.importActual<typeof import('@/lib/mock-db/annual-conference-work-plan')>(
     '@/lib/mock-db/annual-conference-work-plan',
   );
+
   return {
     ...actual,
     getMockAnnualConferenceWorkPlan: mocks.mockWorkspace,

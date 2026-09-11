@@ -20,6 +20,7 @@ const PHASES_FILE = 'annual-conference-phases';
 
 function seededTasks(tasks: AnnualConferenceTask[]): AnnualConferenceTask[] {
   const source = tasks.length > 0 ? tasks : ANNUAL_CONFERENCE_2026_SEED_TASKS;
+
   return source.map((task) => ({
     ...task,
     phase_id: task.phase_id ?? null,
@@ -33,6 +34,7 @@ export async function getMockAnnualConferenceWorkPlan(
 ): Promise<{ edition: AnnualConferenceEdition; phases: AnnualConferencePhase[]; tasks: AnnualConferenceTask[] } | undefined> {
   const editions = await listMockAnnualConferenceEditions();
   const edition = editions.find((item) => item.year === year);
+
   if (!edition) return undefined;
   const storedPhases = await readData<AnnualConferencePhase>(PHASES_FILE);
   const phases = storedPhases.length > 0 ? storedPhases : ANNUAL_CONFERENCE_2026_PHASES;
@@ -49,6 +51,7 @@ export async function listMockAnnualConferenceEditions(): Promise<AnnualConferen
   const editions = stored.some((edition) => edition.id === ANNUAL_CONFERENCE_2026_EDITION.id)
     ? stored
     : [ANNUAL_CONFERENCE_2026_EDITION, ...stored];
+
   return editions.map((edition) => ({ ...edition })).sort((a, b) => b.year - a.year);
 }
 
@@ -73,6 +76,7 @@ export async function createMockAnnualConferenceEdition(
       created_at: timestamp,
       updated_at: timestamp,
     };
+
     return { data: [...current, edition], result: edition };
   });
 }
@@ -86,9 +90,12 @@ export async function updateMockAnnualConferenceSpeakerCallStatus(
       ? current
       : [ANNUAL_CONFERENCE_2026_EDITION, ...current];
     const index = editions.findIndex((edition) => edition.id === editionId);
+
     if (index < 0) return { data: editions, result: undefined };
     const next = [...editions];
+
     next[index] = { ...next[index], speaker_call_status: speakerCallStatus, updated_at: now() };
+
     return { data: next, result: next[index] };
   });
 }
@@ -102,9 +109,12 @@ export async function updateMockAnnualConferenceSpeakerLogisticsDeadline(
       ? current
       : [ANNUAL_CONFERENCE_2026_EDITION, ...current];
     const index = editions.findIndex((edition) => edition.id === editionId);
+
     if (index < 0) return { data: editions, result: undefined };
     const next = [...editions];
+
     next[index] = { ...next[index], speaker_logistics_deadline: deadline, updated_at: now() };
+
     return { data: next, result: next[index] };
   });
 }
@@ -130,6 +140,7 @@ export async function createMockAnnualConferencePhase(
       created_at: timestamp,
       updated_at: timestamp,
     };
+
     return { data: [...phases, phase], result: phase };
   });
 }
@@ -143,9 +154,12 @@ export async function updateMockAnnualConferencePhase(
   return updateData<AnnualConferencePhase, AnnualConferencePhase | undefined>(PHASES_FILE, (current) => {
     const phases = current.length > 0 ? current : ANNUAL_CONFERENCE_2026_PHASES;
     const index = phases.findIndex((phase) => phase.edition_id === editionId && phase.id === phaseId);
+
     if (index === -1) return { data: phases, result: undefined };
     const updated = { ...phases[index], ...input, updated_by_email: actorEmail, updated_at: now() };
+
     phases[index] = updated;
+
     return { data: phases, result: updated };
   });
 }
@@ -157,14 +171,17 @@ export async function deleteMockAnnualConferencePhase(
   const deleted = await updateData<AnnualConferencePhase, boolean>(PHASES_FILE, (current) => {
     const phases = current.length > 0 ? current : ANNUAL_CONFERENCE_2026_PHASES;
     const next = phases.filter((phase) => phase.edition_id !== editionId || phase.id !== phaseId);
+
     return { data: next, result: next.length !== phases.length };
   });
+
   if (deleted) {
     await updateData<AnnualConferenceTask, null>(FILE, (current) => ({
       data: seededTasks(current).map((task) => task.phase_id === phaseId ? { ...task, phase_id: null } : task),
       result: null,
     }));
   }
+
   return deleted;
 }
 
@@ -180,6 +197,7 @@ export async function reorderMockAnnualConferencePhases(
     const next = phases.map((phase) => phase.edition_id === editionId && order.has(phase.id)
       ? { ...phase, sort_order: order.get(phase.id)!, updated_by_email: actorEmail, updated_at: timestamp }
       : phase);
+
     return {
       data: next,
       result: next.filter((phase) => phase.edition_id === editionId)
@@ -239,6 +257,7 @@ export async function updateMockAnnualConferenceTask(
   return updateData<AnnualConferenceTask, AnnualConferenceTask | undefined>(FILE, (current) => {
     const tasks = seededTasks(current);
     const index = tasks.findIndex((task) => task.edition_id === editionId && task.id === taskId);
+
     if (index === -1) return { data: tasks, result: undefined };
 
     const timestamp = now();
@@ -256,6 +275,7 @@ export async function updateMockAnnualConferenceTask(
         ? input.status === 'done' ? timestamp : null
         : tasks[index].completed_at,
     };
+
     tasks[index] = task;
 
     return {

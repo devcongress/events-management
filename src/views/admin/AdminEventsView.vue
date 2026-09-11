@@ -186,6 +186,7 @@ const createButtonLabel = computed(() => {
   if (createProgress.value === 'preparing-cover') return 'PREPARING COVER…';
   if (createProgress.value === 'uploading-cover') return 'UPLOADING COVER…';
   if (createProgress.value === 'creating') return 'CREATING…';
+
   return 'CREATE EVENT + REGISTRATION';
 });
 const usingGoogleMapsLocation = computed(() => (
@@ -256,9 +257,11 @@ function handleSlugInput(event: Event) {
 
 function normalizeWebsiteSlug() {
   const normalized = toEventSlug(form.slug);
+
   if (!normalized) {
     slugWasEdited.value = false;
     form.slug = generatedSlug.value;
+
     return;
   }
   form.slug = normalized;
@@ -272,6 +275,7 @@ function resetWebsiteSlug() {
 
 function optionalLocalDateTimeToIso(value: string | null): string | null {
   if (!value) return null;
+
   return new Date(value).toISOString();
 }
 
@@ -281,8 +285,10 @@ async function createEvent() {
   normalizeWebsiteSlug();
 
   const parsed = createEventFormSchema.safeParse(form);
+
   if (!parsed.success) {
     createError.value = parsed.error.issues[0]?.message ?? 'Check the event details.';
+
     return;
   }
 
@@ -294,6 +300,7 @@ async function createEvent() {
     const compressedCoverFile = originalCoverFile
       ? await compressMeetupImageForUpload(originalCoverFile)
       : null;
+
     createProgress.value = 'creating';
     const result = await createNativeEvent({
       ...payload,
@@ -304,6 +311,7 @@ async function createEvent() {
       },
     });
     let coverUploadError: string | null = null;
+
     if (compressedCoverFile && originalCoverFile) {
       createProgress.value = 'uploading-cover';
       try {
@@ -312,6 +320,7 @@ async function createEvent() {
           createCoverUploadProgress.value = percent;
         });
         const savedPercent = compressionSavingsPercent(originalCoverFile, compressedCoverFile);
+
         notify.success(`Cover uploaded${savedPercent > 0 ? ` (${savedPercent}% smaller)` : ''}.`);
       } catch (error) {
         coverUploadError = error instanceof Error ? error.message : 'Unable to upload the cover image.';
@@ -348,6 +357,7 @@ async function confirmDeleteEvent(mode: 'archive' | 'hard' = deleteMode.value) {
   if (!eventPendingDelete.value) return;
 
   const event = eventPendingDelete.value;
+
   deletePending.value = true;
 
   try {
@@ -410,6 +420,7 @@ function isCommunityEvent(event: CommunityEvent): boolean {
 
 function removalMessage(event: CommunityEvent): string {
   const eventMonth = formatEventMonth(event.event_date);
+
   return `Choose how to remove ${eventMonth}. Archive hides it now and keeps a short recovery window. Permanent delete removes its EMS records immediately.`;
 }
 
@@ -419,12 +430,14 @@ function statusMeta(status: string) {
 
 function lifecycleIndex(status: string): number {
   const index = lifecycleStages.findIndex((stage) => stage.status === status);
+
   return index === -1 ? 0 : index;
 }
 
 function lifecyclePopoverPositionClass(index: number): string {
   if (index === 0) return 'lifecycle-stage-popover--start';
   if (index === lifecycleStages.length - 1) return 'lifecycle-stage-popover--end';
+
   return 'lifecycle-stage-popover--center';
 }
 
@@ -447,6 +460,7 @@ function statusActionPath(event: CommunityEvent): string {
   };
 
   const subsection = subsectionByStatus[event.status];
+
   return adminPath(`events/${event.id}${subsection ? `/${subsection}` : ''}`);
 }
 

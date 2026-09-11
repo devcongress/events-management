@@ -40,12 +40,14 @@ let placementFrame: number | null = null;
 function parseDate(value: string): Date | null {
   if (!value) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+
   if (!match) return null;
   const [, yearValue, monthValue, dayValue] = match;
   const year = Number(yearValue);
   const month = Number(monthValue) - 1;
   const day = Number(dayValue);
   const parsed = new Date(year, month, day);
+
   if (
     Number.isNaN(parsed.getTime())
     || parsed.getFullYear() !== year
@@ -54,15 +56,19 @@ function parseDate(value: string): Date | null {
   ) {
     return null;
   }
+
   return parsed;
 }
 
 function parseTime(value: string): { hour: string; minute: string } | null {
   const match = /T(\d{2}):(\d{2})/.exec(value);
+
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
+
   if (hour > 23 || minute > 59) return null;
+
   return { hour: match[1], minute: match[2] };
 }
 
@@ -70,6 +76,7 @@ function toDateValue(date: Date): string {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');
   const day = `${date.getDate()}`.padStart(2, '0');
+
   return `${year}-${month}-${day}`;
 }
 
@@ -90,8 +97,10 @@ const displayValue = computed(() => {
     twoDigits(selectedDate.value.getMonth() + 1),
     selectedDate.value.getFullYear(),
   ].join('/');
+
   if (props.mode === 'date') return formattedDate;
   const time = selectedTime.value;
+
   return `${formattedDate} · ${time?.hour ?? '00'}:${time?.minute ?? '00'}`;
 });
 
@@ -135,21 +144,25 @@ const calendarDays = computed(() => {
 
     if (dayNumber <= 0) {
       const date = new Date(year, month - 1, daysInPreviousMonth + dayNumber);
+
       return { date, currentMonth: false };
     }
 
     if (dayNumber > daysInMonth) {
       const date = new Date(year, month + 1, dayNumber - daysInMonth);
+
       return { date, currentMonth: false };
     }
 
     const date = new Date(year, month, dayNumber);
+
     return { date, currentMonth: true };
   });
 });
 
 function isSameDay(a: Date | null, b: Date | null): boolean {
   if (!a || !b) return false;
+
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
@@ -164,6 +177,7 @@ function dateAriaLabel(date: Date): string {
     month: 'long',
     year: 'numeric',
   }).format(date);
+
   return isToday(date) ? `${label}, today` : label;
 }
 
@@ -202,12 +216,14 @@ function setActiveDate(date: Date) {
 
 function chooseDate(date: Date) {
   const nextDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
   monthCursor.value = new Date(date.getFullYear(), date.getMonth(), 1);
   if (props.mode === 'datetime') {
     draftDate.value = nextDate;
     activeDate.value = nextDate;
     void focusDate(nextDate);
     schedulePlacementUpdate();
+
     return;
   }
   emit('update:modelValue', toDateValue(nextDate));
@@ -216,12 +232,14 @@ function chooseDate(date: Date) {
 
 function chooseToday() {
   const now = new Date();
+
   if (props.mode === 'datetime') {
     draftDate.value = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     draftHour.value = defaultTime.value?.hour ?? twoDigits(now.getHours());
     draftMinute.value = defaultTime.value?.minute ?? twoDigits(now.getMinutes());
     void focusDate(now);
     schedulePlacementUpdate();
+
     return;
   }
   chooseDate(now);
@@ -234,12 +252,15 @@ function clearDate() {
 
 function normalizeTimeValue(value: string, maximum: number): string {
   const number = Number(value.replace(/\D/g, ''));
+
   if (!Number.isFinite(number)) return '00';
+
   return twoDigits(Math.min(Math.max(number, 0), maximum));
 }
 
 function updateDraftTime(event: Event, part: 'hour' | 'minute') {
   const value = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 2);
+
   if (part === 'hour') {
     draftHour.value = value;
   } else {
@@ -269,6 +290,7 @@ function shiftVisibleMonth(offset: number) {
     1,
   );
   const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+
   activeDate.value = new Date(
     targetMonth.getFullYear(),
     targetMonth.getMonth(),
@@ -312,6 +334,7 @@ function togglePicker() {
 
 function viewportBounds() {
   const visualViewport = window.visualViewport;
+
   return visualViewport
     ? {
         top: visualViewport.offsetTop,
@@ -331,6 +354,7 @@ function updatePlacement() {
     preferredWidth: props.mode === 'datetime' ? 336 : 320,
     maxWidth: 344,
   });
+
   placement.value = position.placement;
   panelStyle.value = {
     position: 'fixed',
@@ -356,6 +380,7 @@ function schedulePlacementUpdate() {
 
 function moveActiveDate(dayOffset: number) {
   const nextDate = new Date(activeDate.value);
+
   nextDate.setDate(nextDate.getDate() + dayOffset);
   void focusDate(nextDate);
 }
@@ -372,6 +397,7 @@ function moveActiveMonth(monthOffset: number) {
     targetMonth.getMonth(),
     Math.min(activeDate.value.getDate(), lastDay),
   );
+
   void focusDate(nextDate);
 }
 
@@ -380,6 +406,7 @@ function handleCalendarKeydown(event: KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
     closePicker(true);
+
     return;
   }
   if (!(event.target instanceof HTMLElement) || !event.target.hasAttribute('data-date')) return;
@@ -395,6 +422,7 @@ function handleCalendarKeydown(event: KeyboardEvent) {
     PageDown: () => moveActiveMonth(1),
   };
   const move = moves[event.key];
+
   if (!move) return;
   event.preventDefault();
   move();
@@ -402,6 +430,7 @@ function handleCalendarKeydown(event: KeyboardEvent) {
 
 function eventIsInsidePicker(event: Event): boolean {
   const target = event.target as Node;
+
   return Boolean(root.value?.contains(target) || calendarPanel.value?.contains(target));
 }
 
@@ -424,6 +453,7 @@ function handleEscape(event: KeyboardEvent) {
 
 function handlePickerOpen(event: Event) {
   const detail = (event as CustomEvent<{ id?: string }>).detail;
+
   if (detail?.id !== datePickerId) {
     closePicker();
   }
@@ -464,6 +494,7 @@ watch(open, async (isOpen) => {
     const now = new Date();
     const initialDate = selectedDate.value ?? now;
     const initialTime = selectedTime.value;
+
     draftDate.value = new Date(initialDate.getFullYear(), initialDate.getMonth(), initialDate.getDate());
     draftHour.value = initialTime?.hour ?? defaultTime.value?.hour ?? twoDigits(now.getHours());
     draftMinute.value = initialTime?.minute ?? defaultTime.value?.minute ?? twoDigits(now.getMinutes());

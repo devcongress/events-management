@@ -9,11 +9,13 @@ describe('organizer session idle expiry', () => {
 
   it('keeps a session active before the 30-minute idle limit', () => {
     const lastSeenAt = new Date(now - (ADMIN_SESSION_IDLE_TIMEOUT_SECONDS - 1) * 1000).toISOString();
+
     expect(isAdminSessionIdle(lastSeenAt, now)).toBe(false);
   });
 
   it('expires a session at the 30-minute idle limit', () => {
     const lastSeenAt = new Date(now - ADMIN_SESSION_IDLE_TIMEOUT_SECONDS * 1000).toISOString();
+
     expect(isAdminSessionIdle(lastSeenAt, now)).toBe(true);
   });
 

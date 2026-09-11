@@ -10,6 +10,7 @@ let tempRoot: string;
 
 async function importChecklistStore() {
   vi.resetModules();
+
   return import('./event-checklists');
 }
 
@@ -75,6 +76,7 @@ describe('event checklists', () => {
   it('hides old monthly checklist rows when an existing event is quarterly', async () => {
     const { getEventChecklist } = await importChecklistStore();
     const monthlyEvent = eventFixture({ status: 'completed' });
+
     await getEventChecklist(monthlyEvent.id, monthlyEvent.status, monthlyEvent);
 
     const quarterlyEvent = eventFixture({

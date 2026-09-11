@@ -6,9 +6,13 @@ type Recap = { event: { name: string; event_date: string }; title: string; facil
 const route = useRoute();
 const recap = ref<Recap | null>(null);
 const error = ref('');
+
 onMounted(async () => {
   const response = await fetch(`/api/public/system-design/${encodeURIComponent(String(route.params.eventId))}`);
-  if (!response.ok) { error.value = 'This learning recap is not available yet.'; return; }
+
+  if (!response.ok) { error.value = 'This learning recap is not available yet.';
+
+ return; }
   recap.value = await response.json();
 });
 </script>

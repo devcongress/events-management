@@ -40,6 +40,7 @@ export function annualConferenceErrorStatus(error: AnnualConferenceServiceError)
   if (error.code === 'not_found') return 404;
   if (error.code === 'conflict') return 409;
   if (error.code === 'dependency_unavailable') return 500;
+
   return 400;
 }
 
@@ -64,9 +65,11 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
 
   async function workspace(year: number) {
     const value = await repository.getWorkspace(year);
+
     if (!value) {
       throw new AnnualConferenceServiceError('not_found', `Annual conference ${year} was not found.`);
     }
+
     return value;
   }
 
@@ -83,7 +86,9 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
 
   async function verifiedOrganizerEmails(message: string): Promise<string[]> {
     const emails = await dependencies.activeOrganizerEmails();
+
     if (!emails) throw new AnnualConferenceServiceError('dependency_unavailable', message);
+
     return emails;
   }
 
@@ -94,12 +99,14 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
 
     async getWorkspace(year: number) {
       const value = await workspace(year);
+
       return presentAnnualConferenceWorkspace(value, await actorForEdition(value.edition.id));
     },
 
     async createEdition(input: AnnualConferenceEditionCreateInput) {
       const editions = await repository.listEditions();
       const latestEdition = editions[0];
+
       if (!latestEdition || !canCreateAnnualConferenceEdition(actor, latestEdition)) {
         throw new AnnualConferenceServiceError(
           'forbidden',
@@ -117,10 +124,12 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       }
 
       const planningOwnerEmail = input.task_creator_email ?? latestEdition.task_creator_email;
+
       if (input.task_creator_email) {
         const emails = dependencies.activePlanningOwnerEmails
           ? await dependencies.activePlanningOwnerEmails()
           : await dependencies.activeOrganizerEmails();
+
         if (!emails) throw new AnnualConferenceServiceError('dependency_unavailable', 'Unable to verify the selected planning owner.');
         if (!emails.map((email) => email.trim().toLowerCase()).includes(planningOwnerEmail)) {
           throw new AnnualConferenceServiceError(
@@ -131,40 +140,48 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       }
 
       const edition = await repository.createEdition(input, planningOwnerEmail);
+
       await dependencies.audit({
         action: 'annual_conference.edition.create',
         targetType: 'annual_conference_edition',
         targetId: edition.id,
         metadata: { year: edition.year, task_creator_email: edition.task_creator_email },
       });
+
       return edition;
     },
 
     async createPhase(year: number, input: AnnualConferencePhaseCreateInput) {
       const plan = await workspace(year);
       const editionActor = await actorForEdition(plan.edition.id);
+
       if (!canManageAnnualConferencePhases(editionActor, plan.edition) || !actor.email) {
         throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const dateError = validateAnnualConferencePhaseDates(input, plan.phases);
+
       if (dateError) throw new AnnualConferenceServiceError('invalid_input', dateError);
       const phase = await repository.createPhase(plan.edition.id, input, actor.email);
+
       await dependencies.audit({
         action: 'annual_conference.phase.create',
         targetType: 'annual_conference_phase',
         targetId: phase.id,
         metadata: { edition_year: year, name: phase.name },
       });
+
       return phase;
     },
 
     async reorderPhases(year: number, phaseIds: string[]) {
       const plan = await workspace(year);
       const editionActor = await actorForEdition(plan.edition.id);
+
       if (!canManageAnnualConferencePhases(editionActor, plan.edition) || !actor.email) {
         throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const uniqueIds = new Set(phaseIds);
+
       if (uniqueIds.size !== plan.phases.length || plan.phases.some((phase) => !uniqueIds.has(phase.id))) {
         throw new AnnualConferenceServiceError('invalid_input', 'Phase order must contain every phase exactly once.');
       }
@@ -174,28 +191,33 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         phaseIds.map((id) => phaseById.get(id)!),
         actor.email,
       );
+
       await dependencies.audit({
         action: 'annual_conference.phase.reorder',
         targetType: 'annual_conference_edition',
         targetId: plan.edition.id,
         metadata: { edition_year: year, phase_ids: phaseIds },
       });
+
       return { phases };
     },
 
     async updatePhase(year: number, phaseId: string, input: AnnualConferencePhaseUpdateInput) {
       const plan = await workspace(year);
       const editionActor = await actorForEdition(plan.edition.id);
+
       if (!canManageAnnualConferencePhases(editionActor, plan.edition) || !actor.email) {
         throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const existing = plan.phases.find((phase) => phase.id === phaseId);
+
       if (!existing) throw new AnnualConferenceServiceError('not_found', 'Annual conference phase was not found.');
       const proposed = {
         starts_on: input.starts_on ?? existing.starts_on,
         ends_on: input.ends_on ?? existing.ends_on,
       };
       const dateError = validateAnnualConferencePhaseDates(proposed, plan.phases, existing.id);
+
       if (dateError) throw new AnnualConferenceServiceError('invalid_input', dateError);
       if (plan.tasks.some((task) => task.phase_id === existing.id && task.target_date && task.target_date > proposed.ends_on)) {
         throw new AnnualConferenceServiceError(
@@ -204,6 +226,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         );
       }
       const phase = await repository.updatePhase(plan.edition.id, existing.id, input, actor.email);
+
       if (!phase) throw new AnnualConferenceServiceError('not_found', 'Annual conference phase was not found.');
       await dependencies.audit({
         action: 'annual_conference.phase.update',
@@ -211,18 +234,22 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         targetId: phase.id,
         metadata: { edition_year: year, changed_fields: Object.keys(input) },
       });
+
       return phase;
     },
 
     async deletePhase(year: number, phaseId: string) {
       const plan = await workspace(year);
       const editionActor = await actorForEdition(plan.edition.id);
+
       if (!canManageAnnualConferencePhases(editionActor, plan.edition)) {
         throw new AnnualConferenceServiceError('forbidden', 'Only a platform owner or this edition’s planning owner can manage phases.');
       }
       const phase = plan.phases.find((item) => item.id === phaseId);
+
       if (!phase) throw new AnnualConferenceServiceError('not_found', 'Annual conference phase was not found.');
       const deleted = await repository.deletePhase(plan.edition.id, phase.id);
+
       if (!deleted) throw new AnnualConferenceServiceError('not_found', 'Annual conference phase was not found.');
       await dependencies.audit({
         action: 'annual_conference.phase.delete',
@@ -230,6 +257,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         targetId: phase.id,
         metadata: { edition_year: year, name: phase.name },
       });
+
       return {
         deleted: true as const,
         tasks_unassigned: plan.tasks.filter((task) => task.phase_id === phase.id).length,
@@ -239,6 +267,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
     async createTask(year: number, input: AnnualConferenceTaskCreateInput) {
       const plan = await workspace(year);
       const editionActor = await actorForEdition(plan.edition.id);
+
       if (!canCreateAnnualConferenceTasks(editionActor, plan.edition) || !actor.email) {
         throw new AnnualConferenceServiceError(
           'forbidden',
@@ -246,15 +275,19 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         );
       }
       const scheduleError = validateAnnualConferenceTaskSchedule(input, plan.phases);
+
       if (scheduleError) throw new AnnualConferenceServiceError('invalid_input', scheduleError);
       const emails = await verifiedOrganizerEmails(
         'Unable to verify active organizers before assigning task ownership. Please try again.',
       );
       const ownership = validateAnnualConferenceTaskOwnership(input, emails);
+
       if (!ownership.ok) throw new AnnualConferenceServiceError('invalid_input', ownership.error);
       const dependencyError = validateAnnualConferenceTaskDependencies(ownership.value, plan.tasks);
+
       if (dependencyError) throw new AnnualConferenceServiceError('invalid_input', dependencyError);
       const task = await repository.createTask(plan.edition, ownership.value, actor.email);
+
       await dependencies.audit({
         action: 'annual_conference.task.create',
         targetType: 'annual_conference_task',
@@ -266,6 +299,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
           accountable_owner: task.accountable_owner,
         },
       });
+
       return presentAnnualConferenceTask(task, editionActor);
     },
 
@@ -273,11 +307,13 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       const plan = await workspace(year);
       const editionActor = await actorForEdition(plan.edition.id);
       const existing = plan.tasks.find((task) => task.id === taskId);
+
       if (!existing) throw new AnnualConferenceServiceError('not_found', 'Annual conference task was not found.');
       if (!canUpdateAnnualConferenceTask(editionActor, plan.edition, existing, input)) {
         const message = actor.role === 'volunteer'
           ? 'Volunteers can only update the status of tasks assigned to them.'
           : 'Only a platform owner, planning owner, or task owner/collaborator can edit this task.';
+
         throw new AnnualConferenceServiceError('forbidden', message);
       }
 
@@ -288,6 +324,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
           { status: input.status },
           actorEmail('conference-volunteer'),
         );
+
         if (!task) throw new AnnualConferenceServiceError('not_found', 'Annual conference task was not found.');
         await dependencies.audit({
           action: 'annual_conference.task.status_update',
@@ -295,24 +332,29 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
           targetId: task.id,
           metadata: { edition_year: year, status: task.status },
         });
+
         return presentAnnualConferenceTask(task, editionActor);
       }
 
       let activeOrganizerEmails: string[] = [];
+
       if (annualConferenceOwnershipNeedsActiveOrganizerLookup(input, existing)) {
         activeOrganizerEmails = await verifiedOrganizerEmails(
           'Unable to verify active organizers before assigning task ownership. Please try again.',
         );
       }
       const ownership = validateAnnualConferenceTaskOwnership(input, activeOrganizerEmails, existing);
+
       if (!ownership.ok) throw new AnnualConferenceServiceError('invalid_input', ownership.error);
       const dependencyError = validateAnnualConferenceTaskDependencies(ownership.value, plan.tasks, existing.id);
+
       if (dependencyError) throw new AnnualConferenceServiceError('invalid_input', dependencyError);
       const proposedSchedule = {
         phase_id: 'phase_id' in input ? input.phase_id : existing.phase_id,
         target_date: 'target_date' in input ? input.target_date : existing.target_date,
       };
       const scheduleError = validateAnnualConferenceTaskSchedule(proposedSchedule, plan.phases);
+
       if (scheduleError) throw new AnnualConferenceServiceError('invalid_input', scheduleError);
       const task = await repository.updateTask(
         plan.edition.id,
@@ -320,6 +362,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         ownership.value,
         actorEmail('local-organizer'),
       );
+
       if (!task) throw new AnnualConferenceServiceError('not_found', 'Annual conference task was not found.');
       await dependencies.audit({
         action: 'annual_conference.task.update',
@@ -327,6 +370,7 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
         targetId: task.id,
         metadata: { edition_year: year, title: task.title, changed_fields: Object.keys(ownership.value) },
       });
+
       return presentAnnualConferenceTask(task, editionActor);
     },
   };

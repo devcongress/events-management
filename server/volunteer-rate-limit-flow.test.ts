@@ -11,6 +11,7 @@ vi.mock('@/server/http/public-intake-protection', async () => {
   const actual = await vi.importActual<typeof import('@/server/http/public-intake-protection')>(
     '@/server/http/public-intake-protection',
   );
+
   return {
     ...actual,
     assessPublicSubmissionEmail: mocks.assessEmail,

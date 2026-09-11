@@ -34,6 +34,7 @@ describe('public meetup cover versioning', () => {
 
   it('does not rewrite externally hosted covers', () => {
     const cover = 'https://images.example.com/event-cover.jpg';
+
     expect(versionPublicMeetupMediaUrl(cover, 'revision')).toBe(cover);
   });
 });

@@ -28,6 +28,7 @@ export class AtlasDatabase {
     const rows = this.database.query<StateRow, []>(
       'SELECT scenario_id, status, note, updated_at FROM scenario_state ORDER BY scenario_id',
     ).all();
+
     return Object.fromEntries(rows.map((row) => [row.scenario_id, {
       status: row.status,
       note: row.note,

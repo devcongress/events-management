@@ -97,6 +97,7 @@ function assertMeetup(value: unknown, label: string): asserts value is PublicMee
   meetup.schedule.forEach((item, index) => {
     assert(item && typeof item === 'object', `${label}.schedule[${index}] must be an object`);
     const resources = (item as { resources?: unknown }).resources;
+
     assert(Array.isArray(resources), `${label}.schedule[${index}].resources must be an array`);
     resources.forEach((resource, resourceIndex) => {
       assert(resource && typeof resource === 'object', `${label}.schedule[${index}].resources[${resourceIndex}] must be an object`);
@@ -117,6 +118,7 @@ async function getJson<T>(route: string): Promise<{ response: globalThis.Respons
     headers: { Origin: origin },
   });
   const payload = await response.json() as JsonResponse<T>;
+
   return { response, payload };
 }
 
@@ -127,6 +129,7 @@ function assertPublicHeaders(response: globalThis.Response, label: string) {
 }
 
 const list = await getJson<PublicMeetup[]>('/api/public/meetups');
+
 assertPublicHeaders(list.response, 'GET /api/public/meetups');
 assert(Array.isArray(list.payload.data), 'meetups response data must be an array');
 assert(list.payload.data.length > 0, 'meetups response must include at least one meetup');
@@ -134,19 +137,23 @@ assert(list.payload.meta?.source === 'devcongress-comm', 'meetups meta.source mu
 assert(list.payload.meta?.version === 1, 'meetups meta.version must be 1');
 
 const firstMeetup = list.payload.data[0];
+
 assertMeetup(firstMeetup, 'meetups[0]');
 
 const detail = await getJson<PublicMeetup>(`/api/public/meetups/${firstMeetup.slug}`);
+
 assertPublicHeaders(detail.response, 'GET /api/public/meetups/:slug');
 assertMeetup(detail.payload.data, 'meetup detail');
 assert(detail.payload.data.id === firstMeetup.id, 'meetup detail must match list item id');
 
 const talks = await getJson<unknown[]>(`/api/public/meetups/${firstMeetup.slug}/talks`);
+
 assertPublicHeaders(talks.response, 'GET /api/public/meetups/:slug/talks');
 assert(Array.isArray(talks.payload.data), 'meetup talks data must be an array');
 talks.payload.data.forEach((item, index) => {
   assert(item && typeof item === 'object', `meetup talks data[${index}] must be an object`);
   const archiveItem = item as Record<string, unknown>;
+
   assert(
     archiveItem.kind === 'talk' || archiveItem.kind === 'product_demo',
     `meetup talks data[${index}].kind must be talk or product_demo`,

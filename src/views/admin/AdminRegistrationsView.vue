@@ -90,6 +90,7 @@ const settings = reactive({
   opens_at: '',
   closes_at: '',
 });
+
 type RegistrationPageLocationMode = 'venue' | 'maps';
 type RegistrationPageDetailsDraft = {
   name: string;
@@ -173,6 +174,7 @@ const data = computed(() => registrationQuery.data.value ?? null);
 const registrationDisplayPath = computed(() => adminPath(`registration-display/${encodeURIComponent(eventId.value)}`));
 const registrationLastUpdatedLabel = computed(() => {
   const updatedAt = registrationQuery.dataUpdatedAt.value;
+
   if (!updatedAt) return 'Not updated yet';
 
   return `Updated ${new Intl.DateTimeFormat('en-GH', {
@@ -208,6 +210,7 @@ const blastActivityPageStartIndex = computed(() => blasts.value.length === 0 ? 0
 const blastActivityPageEndIndex = computed(() => Math.min(blastActivityPage.value * BLAST_ACTIVITY_PAGE_SIZE, blasts.value.length));
 const paginatedBlasts = computed(() => {
   const start = (blastActivityPage.value - 1) * BLAST_ACTIVITY_PAGE_SIZE;
+
   return blasts.value.slice(start, start + BLAST_ACTIVITY_PAGE_SIZE);
 });
 const confirmedBlastRecipients = computed(() => displayedRegistrations.value.filter((registration) => registration.status === 'confirmed').length);
@@ -222,22 +225,26 @@ const blastTemplates = computed(() => {
   const eventDate = data.value?.event.event_date
     ? formatDateTime(data.value.event.event_date)
     : 'the event day';
+
   return eventBlastStarters(eventName, eventDate);
 });
 const registrationOverviewPhase = computed<RegistrationOverviewPhase>(() => {
   const summary = workspaceSummary.value;
   const event = data.value?.event;
+
   if (!summary || !event) return 'before';
   if (summary.eventEnded) return 'after';
   if (event.status === 'live') return 'live';
 
   const eventStartMs = new Date(event.event_date).getTime();
+
   return Number.isFinite(eventStartMs) && eventStartMs <= Date.now()
     ? 'live'
     : 'before';
 });
 const registrationAvailabilityState = computed(() => {
   const campaign = data.value?.campaign;
+
   return campaign
     ? registrationAvailability(campaign)
     : { available: false as const, reason: 'draft' as const };
@@ -245,6 +252,7 @@ const registrationAvailabilityState = computed(() => {
 const registrationIsOpen = computed(() => registrationAvailabilityState.value.available);
 const registrationCanReopen = computed(() => {
   const availability = registrationAvailabilityState.value;
+
   return !availability.available
     && registrationOverviewPhase.value === 'before'
     && (availability.reason === 'closed' || availability.reason === 'ended');
@@ -311,6 +319,7 @@ const registrationOverview = computed(() => {
   const progressPercent = summary.capacity > 0
     ? Math.min(100, Math.round((summary.going / summary.capacity) * 100))
     : 0;
+
   return {
     phase,
     primaryValue: summary.going,
@@ -325,6 +334,7 @@ const registrationOverview = computed(() => {
 });
 const registrationOverviewDetails = computed(() => {
   const summary = workspaceSummary.value;
+
   if (!summary) return [];
 
   const details: Array<{
@@ -427,6 +437,7 @@ const canRequestSettingsSave = computed(() => Boolean(
 ));
 const settingsReviewRows = computed(() => {
   const baseline = savedSettings.value;
+
   if (!baseline) return [];
 
   return changedSettingFields.value.map((field) => ({
@@ -448,6 +459,7 @@ const guestStatusOptions = computed<Array<{
   count: number;
 }>>(() => {
   const summary = workspaceSummary.value;
+
   if (!summary) return [];
 
   return [
@@ -478,6 +490,7 @@ const guestPageStartIndex = computed(() => filteredRegistrations.value.length ==
 const guestPageEndIndex = computed(() => Math.min(guestPage.value * REGISTRATION_GUEST_PAGE_SIZE, filteredRegistrations.value.length));
 const paginatedRegistrations = computed(() => {
   const start = (guestPage.value - 1) * REGISTRATION_GUEST_PAGE_SIZE;
+
   return filteredRegistrations.value.slice(start, start + REGISTRATION_GUEST_PAGE_SIZE);
 });
 const emailRegistrations = computed(() => [...displayedRegistrations.value].sort((first, second) => {
@@ -485,8 +498,10 @@ const emailRegistrations = computed(() => [...displayedRegistrations.value].sort
     if (status === 'failed') return 0;
     if (status === 'pending') return 1;
     if (status === 'accepted') return 2;
+
     return 3;
   };
+
   return rank(first.email_status) - rank(second.email_status)
     || first.name.localeCompare(second.name, 'en-GH', { sensitivity: 'base' });
 }));
@@ -497,6 +512,7 @@ const emailPageStartIndex = computed(() => emailRegistrations.value.length === 0
 const emailPageEndIndex = computed(() => Math.min(emailPage.value * REGISTRATION_EMAIL_PAGE_SIZE, emailRegistrations.value.length));
 const paginatedEmailRegistrations = computed(() => {
   const start = (emailPage.value - 1) * REGISTRATION_EMAIL_PAGE_SIZE;
+
   return emailRegistrations.value.slice(start, start + REGISTRATION_EMAIL_PAGE_SIZE);
 });
 
@@ -513,10 +529,12 @@ watch([
     opens_at: toLocalDateTime(campaign.opens_at),
     closes_at: toLocalDateTime(campaign.closes_at),
   };
+
   Object.assign(settings, snapshot);
   savedSettings.value = { ...snapshot };
   const effectiveReserve = protectedReserve ?? campaign.blast_transactional_reserve ?? 0;
   const allocationSnapshot = `${campaign.blast_transactional_reserve ?? 'default'}:${effectiveReserve}:${allocatable ?? 'unknown'}`;
+
   if (savedBlastReserve.value !== allocationSnapshot) {
     blastReserve.value = effectiveReserve.toString();
     blastSafeToSend.value = allocatable === null ? '' : Math.max(0, allocatable - effectiveReserve).toString();
@@ -527,6 +545,7 @@ watch([
 watch(() => data.value?.event, (event) => {
   if (!event) return;
   const mapUrl = safeGoogleMapsUrl(event.location?.url);
+
   pageLocationPlaceId.value = '';
   const snapshot: RegistrationPageDetailsDraft = {
     name: event.name,
@@ -537,6 +556,7 @@ watch(() => data.value?.event, (event) => {
     location_name: mapUrl ? '' : event.location?.label ?? event.location?.name ?? '',
     location_url: mapUrl ?? '',
   };
+
   Object.assign(pageDetails, snapshot);
   savedPageDetails.value = { ...snapshot };
 }, { immediate: true });
@@ -582,6 +602,7 @@ function toLocalDateTime(value: string | null): string {
   if (!value) return '';
   const date = new Date(value);
   const offset = date.getTimezoneOffset() * 60_000;
+
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
@@ -602,6 +623,7 @@ function settingLabel(field: RegistrationSettingsField): string {
   if (field === 'description') return 'Registration introduction';
   if (field === 'capacity') return 'Capacity';
   if (field === 'opens_at') return 'Opens at';
+
   return 'Closes at';
 }
 
@@ -618,6 +640,7 @@ function displaySettingValue(
   if (field === 'opens_at' || field === 'closes_at') {
     return value ? formatDateTime(new Date(String(value)).toISOString()) : 'Not scheduled';
   }
+
   return String(value);
 }
 
@@ -631,6 +654,7 @@ function guestStatusLabel(registration: EventRegistration): string | null {
   }
   if (registration.status === 'waitlisted') return 'Waitlisted';
   if (registration.status === 'cancelled') return 'Cancelled';
+
   return null;
 }
 
@@ -642,6 +666,7 @@ function guestStatusClass(registration: EventRegistration): string {
   ) {
     return 'border-red-300 bg-red-50 text-red-700';
   }
+
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 
@@ -649,6 +674,7 @@ function emailStatusLabel(status: EventRegistration['email_status']): string {
   if (status === 'accepted') return 'Accepted';
   if (status === 'pending') return 'Queued';
   if (status === 'failed') return 'Failed';
+
   return 'Not queued';
 }
 
@@ -656,6 +682,7 @@ function emailStatusClass(status: EventRegistration['email_status']): string {
   if (status === 'accepted') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
   if (status === 'failed') return 'border-red-300 bg-red-50 text-red-700';
   if (status === 'pending') return 'border-amber-300 bg-amber-50 text-amber-800';
+
   return 'border-dc-border bg-dc-paper-warm text-dc-gray';
 }
 
@@ -664,6 +691,7 @@ function blastStatusLabel(status: EventBlast['status']): string {
   if (status === 'scheduled') return 'Scheduled';
   if (status === 'sent') return 'Sent';
   if (status === 'needs_capacity') return 'Needs email capacity';
+
   return 'Needs attention';
 }
 
@@ -672,6 +700,7 @@ function blastStatusClass(status: EventBlast['status']): string {
   if (status === 'sent') return 'border-emerald-300 bg-emerald-50 text-emerald-800';
   if (status === 'scheduled') return 'border-sky-300 bg-sky-50 text-sky-800';
   if (status === 'needs_capacity') return 'border-amber-300 bg-amber-50 text-amber-800';
+
   return 'border-red-300 bg-red-50 text-red-700';
 }
 
@@ -692,6 +721,7 @@ function selectWorkspaceTab(tab: RegistrationWorkspaceTab) {
 
   const currentIndex = workspaceTabs.findIndex((item) => item.id === activeWorkspaceTab.value);
   const nextIndex = workspaceTabs.findIndex((item) => item.id === tab);
+
   workspacePanelTransition.value = nextIndex >= currentIndex
     ? 'registration-panel-forward'
     : 'registration-panel-backward';
@@ -717,6 +747,7 @@ async function manuallyRefreshRegistration() {
       registrationQuery.refetch(),
       managedInternally.value ? blastsQuery.refetch() : Promise.resolve(),
     ]);
+
     if (registrationResult.isError) {
       notify.error('Unable to refresh registrations. The last loaded figures are still shown.');
     }
@@ -746,6 +777,7 @@ async function reopenRegistration() {
 
 function applyBlastTemplate(templateId: string) {
   const template = blastTemplates.value.find((item) => item.id === templateId);
+
   if (!template) return;
   blastSubject.value = template.subject;
   blastBody.value = template.body;
@@ -760,6 +792,7 @@ async function sendBlast() {
       body: blastBody.value.trim(),
       scheduled_for: toIso(blastScheduledFor.value),
     });
+
     await refresh();
     blastComposerOpen.value = false;
     blastPreviewOpen.value = false;
@@ -787,6 +820,7 @@ async function retryBlast(blast: EventBlast) {
   blastRetryId.value = blast.id;
   try {
     const result = await retryEventBlast(eventId.value, blast.id);
+
     await refresh();
     notify.success(
       result.delivery === 'preparing'
@@ -815,10 +849,12 @@ async function saveBlastReserve() {
   const trimmed = blastReserve.value.trim();
   const reserve = Number(trimmed);
   const allocatable = blastAllocatableToday.value;
+
   if (!Number.isInteger(reserve) || reserve < 0 || (allocatable !== null && reserve > allocatable)) {
     notify.error(allocatable === null
       ? 'Wait for provider capacity before saving this allocation.'
       : `Reserve must be a whole number between 0 and ${allocatable} today.`);
+
     return;
   }
 
@@ -826,6 +862,7 @@ async function saveBlastReserve() {
   blastReserveSaveSummary.value = null;
   try {
     const campaign = await updateEventRegistrationCampaign(eventId.value, { blast_transactional_reserve: reserve });
+
     queryClient.setQueryData(queryKeys.eventRegistrations(eventId.value), (current: typeof data.value) => (
       current ? { ...current, campaign } : current
     ));
@@ -833,6 +870,7 @@ async function saveBlastReserve() {
     const capacity = blastsQuery.data.value?.capacity;
     const effectiveReserve = capacity?.protected_reserve ?? campaign.blast_transactional_reserve;
     const safeToday = capacity?.safe_recipients_today;
+
     blastReserveSaveSummary.value = capacity?.known && effectiveReserve !== null && effectiveReserve !== undefined && safeToday !== null && safeToday !== undefined
       ? `Saved: ${effectiveReserve} held back · ${safeToday} safe to send today.`
       : `Saved: ${effectiveReserve ?? 'delivery default'} held back. Safe-send capacity is awaiting the provider.`;
@@ -850,9 +888,11 @@ function draftAllocationSummary(reserve: number, safeToday: number): string {
 
 function updateReserveAllocation() {
   const allocatable = blastAllocatableToday.value;
+
   if (allocatable === null) return;
   const reserve = Math.min(allocatable, Math.max(0, Number.parseInt(blastReserve.value, 10) || 0));
   const safeToday = allocatable - reserve;
+
   blastReserve.value = reserve.toString();
   blastSafeToSend.value = safeToday.toString();
   blastReserveSaveSummary.value = draftAllocationSummary(reserve, safeToday);
@@ -860,9 +900,11 @@ function updateReserveAllocation() {
 
 function updateSafeAllocation() {
   const allocatable = blastAllocatableToday.value;
+
   if (allocatable === null) return;
   const safeToday = Math.min(allocatable, Math.max(0, Number.parseInt(blastSafeToSend.value, 10) || 0));
   const reserve = allocatable - safeToday;
+
   blastSafeToSend.value = safeToday.toString();
   blastReserve.value = reserve.toString();
   blastReserveSaveSummary.value = draftAllocationSummary(reserve, safeToday);
@@ -871,6 +913,7 @@ function updateSafeAllocation() {
 async function handleRegistrationOverviewAction() {
   if (canUsePublicRegistrationForm.value) {
     await copyPublicLink();
+
     return;
   }
   selectWorkspaceTab('form');
@@ -902,8 +945,10 @@ async function savePageDetails() {
   const mapUrl = pageDetails.location_mode === 'maps'
     ? safeGoogleMapsUrl(pageDetails.location_url)
     : null;
+
   if (pageDetails.location_mode === 'maps' && !mapUrl) {
     notify.error('Add a complete HTTPS Google Maps share link.');
+
     return;
   }
 
@@ -912,6 +957,7 @@ async function savePageDetails() {
     const locationName = pageDetails.location_mode === 'maps'
       ? 'Google Maps location'
       : pageDetails.location_name.trim();
+
     await updateEventById(eventId.value, {
       name: pageDetails.name.trim(),
       description: pageDetails.description.trim(),
@@ -940,6 +986,7 @@ async function copyPublicLink() {
     const shortLink = publicShortLinkUrl.value
       ? { url: publicShortLinkUrl.value }
       : await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+
     publicShortLinkUrl.value = shortLink.url;
     await copyTextToClipboard(shortLink.url);
     publicLinkCopyState.value = 'copied';
@@ -962,6 +1009,7 @@ async function prepareRegistrationShareLink() {
   if (!canUsePublicRegistrationForm.value) return;
   try {
     const shortLink = await ensureAdminShortLink({ destination: 'event_registration', event_id: eventId.value });
+
     if (canUsePublicRegistrationForm.value) publicShortLinkUrl.value = shortLink.url;
   } catch {
     // The direct internal URL remains available while the short-link service recovers.
@@ -990,6 +1038,7 @@ async function checkIn(registration: EventRegistration) {
 
 async function confirmCheckInUndo() {
   const registration = pendingCheckInUndo.value;
+
   if (!registration || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
   try {
@@ -1006,10 +1055,12 @@ async function confirmCheckInUndo() {
 
 async function confirmCancellation() {
   const registration = pendingCancellation.value;
+
   if (!registration || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
   try {
     const result = await cancelEventRegistration(eventId.value, registration.id);
+
     await refresh();
     notify.success(
       result.promoted_registration_id
@@ -1029,6 +1080,7 @@ async function retryEmails() {
   retryPending.value = true;
   try {
     const result = await processEventRegistrationEmails(eventId.value);
+
     await refresh();
     notify.success(
       result.delayed_count > 0

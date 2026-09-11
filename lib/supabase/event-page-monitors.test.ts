@@ -44,12 +44,15 @@ describe('event page monitor persistence', () => {
   it('clears reviewed differences and schedules the next cadence when an approved amendment is rebaselined', async () => {
     vi.stubEnv('APP_DATA_SOURCE', 'local-json');
     const pageFetch = vi.fn();
+
     vi.stubGlobal('fetch', pageFetch);
     vi.resetModules();
     const { ensureEventPageMonitor, rebaselineEventPageMonitor, saveEventPageMonitor } = await import('./event-page-monitors');
     const event = externalEvent('event-approved-amendment');
+
     await ensureEventPageMonitor(event);
     const lastCheckedAt = '2026-08-22T09:31:47.310Z';
+
     await saveEventPageMonitor(event.id, {
       status: 'changed',
       last_checked_at: lastCheckedAt,

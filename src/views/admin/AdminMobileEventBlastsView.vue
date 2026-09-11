@@ -109,6 +109,7 @@ function blastStatusLabel(status: EventBlast['status']): string {
   if (status === 'scheduled') return 'Scheduled';
   if (status === 'sent') return 'Sent';
   if (status === 'needs_capacity') return 'Needs capacity';
+
   return 'Needs attention';
 }
 
@@ -120,6 +121,7 @@ watch([
   if (!campaign) return;
   const effectiveReserve = protectedReserve ?? campaign.blast_transactional_reserve ?? 0;
   const allocationSnapshot = `${campaign.blast_transactional_reserve ?? 'default'}:${effectiveReserve}:${allocatable ?? 'unknown'}`;
+
   if (savedBlastReserve.value !== allocationSnapshot) {
     blastReserve.value = effectiveReserve.toString();
     blastSafeToSend.value = allocatable === null ? '' : Math.max(0, allocatable - effectiveReserve).toString();
@@ -129,6 +131,7 @@ watch([
 
 function applyBlastTemplate(templateId: string) {
   const template = blastTemplates.value.find((item) => item.id === templateId);
+
   if (!template) return;
   blastSubject.value = template.subject;
   blastBody.value = template.body;
@@ -154,16 +157,19 @@ async function saveBlastReserve() {
   const trimmed = blastReserve.value.trim();
   const reserve = Number(trimmed);
   const allocatable = blastAllocatableToday.value;
+
   if (!Number.isInteger(reserve) || reserve < 0 || (allocatable !== null && reserve > allocatable)) {
     notify.error(allocatable === null
       ? 'Wait for provider capacity before saving this allocation.'
       : `Reserve must be a whole number between 0 and ${allocatable} today.`);
+
     return;
   }
   blastReservePending.value = true;
   blastReserveSaveSummary.value = null;
   try {
     const campaign = await updateEventRegistrationCampaign(eventId.value, { blast_transactional_reserve: reserve });
+
     queryClient.setQueryData(queryKeys.eventRegistrations(eventId.value), (current: typeof registrationData.value) => (
       current ? { ...current, campaign } : current
     ));
@@ -171,6 +177,7 @@ async function saveBlastReserve() {
     const capacity = blastsQuery.data.value?.capacity;
     const effectiveReserve = capacity?.protected_reserve ?? campaign.blast_transactional_reserve;
     const safeToday = capacity?.safe_recipients_today;
+
     blastReserveSaveSummary.value = capacity?.known && effectiveReserve !== null && effectiveReserve !== undefined && safeToday !== null && safeToday !== undefined
       ? `Saved: ${effectiveReserve} held back · ${safeToday} safe to send today.`
       : `Saved: ${effectiveReserve ?? 'delivery default'} held back. Safe-send capacity is awaiting the provider.`;
@@ -188,9 +195,11 @@ function draftAllocationSummary(reserve: number, safeToday: number): string {
 
 function updateReserveAllocation() {
   const allocatable = blastAllocatableToday.value;
+
   if (allocatable === null) return;
   const reserve = Math.min(allocatable, Math.max(0, Number.parseInt(blastReserve.value, 10) || 0));
   const safeToday = allocatable - reserve;
+
   blastReserve.value = reserve.toString();
   blastSafeToSend.value = safeToday.toString();
   blastReserveSaveSummary.value = draftAllocationSummary(reserve, safeToday);
@@ -198,9 +207,11 @@ function updateReserveAllocation() {
 
 function updateSafeAllocation() {
   const allocatable = blastAllocatableToday.value;
+
   if (allocatable === null) return;
   const safeToday = Math.min(allocatable, Math.max(0, Number.parseInt(blastSafeToSend.value, 10) || 0));
   const reserve = allocatable - safeToday;
+
   blastSafeToSend.value = safeToday.toString();
   blastReserve.value = reserve.toString();
   blastReserveSaveSummary.value = draftAllocationSummary(reserve, safeToday);
@@ -215,6 +226,7 @@ async function sendBlast() {
       body: blastBody.value.trim(),
       scheduled_for: toIso(blastScheduledFor.value),
     });
+
     await refreshBlasts();
     previewOpen.value = false;
     composerOpen.value = false;
@@ -242,6 +254,7 @@ async function retryBlast(blast: EventBlast) {
   blastRetryId.value = blast.id;
   try {
     const result = await retryEventBlast(eventId.value, blast.id);
+
     await refreshBlasts();
     notify.success(
       result.delivery === 'preparing'
@@ -266,6 +279,7 @@ function warnBeforeBrowserExit(event: BeforeUnloadEvent) {
 function finishPendingLeave(shouldLeave: boolean) {
   leaveConfirmationOpen.value = false;
   const resolve = resolvePendingLeave;
+
   resolvePendingLeave = null;
   resolve?.(shouldLeave);
 }
@@ -278,6 +292,7 @@ onBeforeRouteLeave(() => {
   if (resolvePendingLeave) return false;
 
   leaveConfirmationOpen.value = true;
+
   return new Promise<boolean>((resolve) => {
     resolvePendingLeave = resolve;
   });

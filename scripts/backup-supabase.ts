@@ -100,6 +100,7 @@ export function parseBackupArguments(args: string[]): BackupArguments {
       preflight = true;
       continue;
     }
+
     throw new Error(`Unknown argument: ${argument}`);
   }
 
@@ -115,21 +116,25 @@ export function parseBucketNames(value: string | undefined): string[] {
   if (buckets.length === 0) throw new Error('SUPABASE_BACKUP_BUCKETS must include at least one bucket.');
 
   const uniqueBuckets = [...new Set(buckets)];
+
   for (const bucket of uniqueBuckets) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/.test(bucket)) {
       throw new Error(`Invalid Supabase Storage bucket name: ${bucket}`);
     }
   }
+
   return uniqueBuckets;
 }
 
 export function isPathInside(parent: string, candidate: string): boolean {
   const pathFromParent = relative(resolve(parent), resolve(candidate));
+
   return pathFromParent === '' || (!pathFromParent.startsWith(`..${sep}`) && pathFromParent !== '..' && !isAbsolute(pathFromParent));
 }
 
 export function safeStorageDestination(bucketRoot: string, objectPath: string): string {
   const segments = objectPath.split('/');
+
   if (
     segments.length === 0
     || segments.some((segment) => !segment || segment === '.' || segment === '..' || segment.includes('\0'))
@@ -138,9 +143,11 @@ export function safeStorageDestination(bucketRoot: string, objectPath: string): 
   }
 
   const destination = resolve(bucketRoot, ...segments);
+
   if (!isPathInside(bucketRoot, destination) || destination === resolve(bucketRoot)) {
     throw new Error(`Storage object escapes its bucket directory: ${objectPath}`);
   }
+
   return destination;
 }
 
@@ -191,6 +198,7 @@ after success and also cleaned up when a backup step fails.`);
 function loadLocalEnvironment() {
   for (const filename of ['.env.local', '.env.backup.local']) {
     const environmentPath = resolve(REPO_ROOT, filename);
+
     if (existsSync(environmentPath) && (statSync(environmentPath).mode & 0o077) !== 0) {
       throw new Error(`${filename} contains secrets and must use file mode 600.`);
     }
@@ -198,6 +206,7 @@ function loadLocalEnvironment() {
       loadEnvFile(environmentPath);
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+
       if (code !== 'ENOENT') throw error;
     }
   }
@@ -205,7 +214,9 @@ function loadLocalEnvironment() {
 
 function requireEnvironment(name: string): string {
   const value = process.env[name]?.trim();
+
   if (!value) throw new Error(`${name} is required.`);
+
   return value;
 }
 
@@ -219,6 +230,7 @@ function loadConfig(): BackupConfig {
   const storageConcurrency = Number(storageConcurrencyValue);
 
   let parsedDatabaseUrl: URL;
+
   try {
     parsedDatabaseUrl = new URL(databaseUrl);
   } catch {
@@ -232,6 +244,7 @@ function loadConfig(): BackupConfig {
   }
 
   let parsedSupabaseUrl: URL;
+
   try {
     parsedSupabaseUrl = new URL(supabaseUrl);
   } catch {
@@ -278,15 +291,18 @@ async function runCommand(command: string, args: string[], secrets: string[] = [
     });
     let stdout = '';
     let stderr = '';
+
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk; });
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
     child.on('error', rejectCommand);
     child.on('close', (code, signal) => {
       if (code === 0) {
         resolveCommand({ stdout, stderr });
+
         return;
       }
       const details = redact([stderr, stdout].filter(Boolean).join('\n').trim(), secrets);
+
       rejectCommand(new Error(`${command} failed${signal ? ` with signal ${signal}` : ` with exit code ${code}`}${details ? `:\n${details}` : '.'}`));
     });
   });
@@ -297,6 +313,7 @@ async function checkDependencies(config: BackupConfig) {
   const supabase = await runCommand('supabase', ['--version'], secrets);
   const docker = await runCommand('docker', ['version', '--format', '{{.Server.Version}}'], secrets);
   const age = await runCommand('age', ['--version'], secrets);
+
   await runCommand('tar', ['--version'], secrets);
 
   if (!docker.stdout.trim()) throw new Error('Docker/OrbStack is installed but its container runtime is not available.');
@@ -335,6 +352,7 @@ async function dumpDatabase(config: BackupConfig, databaseDirectory: string): Pr
       migrationHistory = 'not-present';
       console.log('Database: supabase_migrations is not present; recording that state and continuing');
       const markerName = 'migration-history.json';
+
       await writeFile(join(databaseDirectory, markerName), `${JSON.stringify({
         status: 'not-present',
         schema: 'supabase_migrations',
@@ -358,12 +376,14 @@ async function listStorageObjects(client: SupabaseClient, bucket: string): Promi
         offset,
         sortBy: { column: 'name', order: 'asc' },
       });
+
       if (result.error) {
         throw new Error(`Unable to list Storage bucket ${bucket}${prefix ? ` at ${prefix}` : ''}: ${result.error.message}`);
       }
 
       for (const entry of result.data) {
         const objectPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+
         if (entry.id === null) await visit(objectPath);
         else objects.push(objectPath);
       }
@@ -373,6 +393,7 @@ async function listStorageObjects(client: SupabaseClient, bucket: string): Promi
   }
 
   await visit('');
+
   return objects.sort();
 }
 
@@ -383,6 +404,7 @@ async function downloadStorageBucket(
   concurrency: number,
 ): Promise<StorageSummary> {
   const bucketRoot = join(storageDirectory, bucket);
+
   await mkdir(bucketRoot, { recursive: true, mode: 0o700 });
   const objectPaths = await listStorageObjects(client, bucket);
   let nextIndex = 0;
@@ -391,13 +413,17 @@ async function downloadStorageBucket(
   async function worker() {
     while (nextIndex < objectPaths.length) {
       const objectPath = objectPaths[nextIndex];
+
       nextIndex += 1;
       const result = await client.storage.from(bucket).download(objectPath);
+
       if (result.error) throw new Error(`Unable to download ${bucket}/${objectPath}: ${result.error.message}`);
 
       const destination = safeStorageDestination(bucketRoot, objectPath);
+
       await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
       const bytes = Buffer.from(await result.data.arrayBuffer());
+
       await writeFile(destination, bytes, { mode: 0o600 });
       downloadedBytes += bytes.byteLength;
     }
@@ -408,6 +434,7 @@ async function downloadStorageBucket(
     () => worker(),
   ));
   const failedWorker = workerResults.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+
   if (failedWorker) throw failedWorker.reason;
 
   return { bucket, bytes: downloadedBytes, objects: objectPaths.length };
@@ -427,20 +454,25 @@ async function downloadStorage(config: BackupConfig, storageDirectory: string): 
       storageDirectory,
       config.storageConcurrency,
     );
+
     summaries.push(summary);
     console.log(`Storage: ${bucket} — ${summary.objects} objects, ${summary.bytes} bytes`);
   }
+
   return summaries;
 }
 
 async function sha256File(filename: string): Promise<string> {
   const hash = createHash('sha256');
+
   await new Promise<void>((resolveHash, rejectHash) => {
     const stream = createReadStream(filename);
+
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('error', rejectHash);
     stream.on('end', resolveHash);
   });
+
   return hash.digest('hex');
 }
 
@@ -449,11 +481,14 @@ async function inventoryFiles(root: string): Promise<ManifestFile[]> {
 
   async function visit(directory: string) {
     const entries = await readdir(directory, { withFileTypes: true });
+
     for (const entry of entries) {
       const filename = join(directory, entry.name);
+
       if (entry.isDirectory()) await visit(filename);
       else if (entry.isFile()) {
         const details = await stat(filename);
+
         files.push({
           path: relative(root, filename).split(sep).join('/'),
           sha256: await sha256File(filename),
@@ -464,6 +499,7 @@ async function inventoryFiles(root: string): Promise<ManifestFile[]> {
   }
 
   await visit(root);
+
   return files.sort((left, right) => left.path.localeCompare(right.path));
 }
 
@@ -489,6 +525,7 @@ async function createManifest(
     storage,
     files,
   };
+
   await writeFile(
     join(stagingDirectory, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -503,8 +540,10 @@ function backupTimestamp(date = new Date()): string {
 async function executeBackup(config: BackupConfig) {
   await mkdir(config.outputDirectory, { recursive: true, mode: 0o700 });
   const outputRoot = await realpath(config.outputDirectory);
+
   await chmod(outputRoot, 0o700);
   const repositoryRoot = await realpath(REPO_ROOT);
+
   if (isPathInside(repositoryRoot, outputRoot)) {
     throw new Error('The resolved backup destination is inside the repository. Choose a private external directory.');
   }
@@ -521,6 +560,7 @@ async function executeBackup(config: BackupConfig) {
     await chmod(stagingDirectory, 0o700);
     const database = await dumpDatabase(config, join(stagingDirectory, 'database'));
     const storage = await downloadStorage(config, join(stagingDirectory, 'storage'));
+
     await createManifest(config, stagingDirectory, createdAt, database, storage);
 
     console.log('Archive: packaging plaintext staging data');
@@ -540,6 +580,7 @@ async function executeBackup(config: BackupConfig) {
       .then(() => { throw new Error(`Backup archive already exists: ${finalArchive}`); })
       .catch((error) => {
         const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+
         if (code !== 'ENOENT') throw error;
       });
     await rename(temporaryEncryptedArchive, finalArchive);
@@ -554,16 +595,20 @@ async function executeBackup(config: BackupConfig) {
 
 async function main() {
   const args = parseBackupArguments(process.argv.slice(2));
+
   if (args.help) {
     printHelp();
+
     return;
   }
 
   loadLocalEnvironment();
   const config = loadConfig();
+
   await checkDependencies(config);
   if (args.preflight) {
     console.log('Preflight passed. No backup data was read or written.');
+
     return;
   }
 
@@ -571,6 +616,7 @@ async function main() {
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
+
 if (import.meta.url === invokedPath) {
   main().catch((error) => {
     console.error(error instanceof Error ? `Backup failed: ${error.message}` : 'Backup failed.');

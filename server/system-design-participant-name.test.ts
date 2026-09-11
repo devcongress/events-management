@@ -59,6 +59,7 @@ describe('System Design participant name endpoint', () => {
       created_at: '2026-07-31T20:01:00.000Z',
     }];
     const { writeData } = await import('@/lib/mock-db');
+
     await writeData('quiz-sessions', [session]);
     await writeData('quiz-participants', participants);
     await writeData('users', users);
@@ -68,21 +69,25 @@ describe('System Design participant name endpoint', () => {
     const missingDeviceState = await app.request(
       `http://localhost/api/quiz/state?sessionId=${sessionId}&userId=${userId}`,
     );
+
     expect(missingDeviceState.status).toBe(403);
 
     const privatePresenterSession = await app.request(`http://localhost/api/quiz/sessions/${sessionId}`);
+
     expect(privatePresenterSession.status).toBe(401);
 
     const wrongDeviceState = await app.request(
       `http://localhost/api/quiz/state?sessionId=${sessionId}&userId=${userId}`,
       { headers: { 'X-Quiz-Device-ID': '77777777-7777-4777-8777-777777777777' } },
     );
+
     expect(wrongDeviceState.status).toBe(403);
 
     const ownedState = await app.request(
       `http://localhost/api/quiz/state?sessionId=${sessionId}&userId=${userId}`,
       { headers: { 'X-Quiz-Device-ID': deviceId } },
     );
+
     expect(ownedState.status).toBe(200);
 
     const wrongDeviceAnswer = await app.request('http://localhost/api/quiz/answer', {
@@ -95,6 +100,7 @@ describe('System Design participant name endpoint', () => {
         answer_index: 0,
       }),
     });
+
     expect(wrongDeviceAnswer.status).toBe(403);
 
     const wrongDevice = await app.request(endpoint, {
@@ -102,6 +108,7 @@ describe('System Design participant name endpoint', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: '77777777-7777-4777-8777-777777777777', nickname: 'Ama' }),
     });
+
     expect(wrongDevice.status).toBe(403);
 
     const duplicate = await app.request(endpoint, {
@@ -109,6 +116,7 @@ describe('System Design participant name endpoint', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: deviceId, nickname: 'calm owl' }),
     });
+
     expect(duplicate.status).toBe(409);
 
     const renamed = await app.request(endpoint, {
@@ -116,6 +124,7 @@ describe('System Design participant name endpoint', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: deviceId, nickname: 'Ama' }),
     });
+
     expect(renamed.status).toBe(200);
     await expect(renamed.json()).resolves.toEqual({ display_name: 'Ama', avatar_seed: participantId });
 
@@ -125,6 +134,7 @@ describe('System Design participant name endpoint', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ device_id: deviceId, nickname: 'Kojo' }),
     });
+
     expect(afterStart.status).toBe(409);
     await expect(afterStart.json()).resolves.toMatchObject({ code: 'name_edit_closed' });
   });

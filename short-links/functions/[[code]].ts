@@ -19,6 +19,7 @@ type ShortLinkPagesContext = {
 
 export async function onRequest(context: ShortLinkPagesContext): Promise<Response> {
   const pathname = new URL(context.request.url).pathname;
+
   if (STATIC_ASSET_PATHS.has(pathname)) return context.next();
   if (LEGACY_SPEAKER_EMAIL_ASSET_PATHS.has(pathname)) {
     return new Response(null, {
@@ -29,5 +30,6 @@ export async function onRequest(context: ShortLinkPagesContext): Promise<Respons
       },
     });
   }
+
   return resolveShortLinkRequest(context.request, context.env);
 }

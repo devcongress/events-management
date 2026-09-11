@@ -21,6 +21,7 @@ const pending = ref(false);
 const urlInput = ref<HTMLInputElement | null>(null);
 const addButton = ref<HTMLButtonElement | null>(null);
 const heading = ref<HTMLElement | null>(null);
+
 async function restoreFocus() {
   pending.value = false;
   await nextTick();
@@ -44,7 +45,10 @@ function closeEditor() { editing.value = null; adding.value = false; error.value
 async function save() {
   if (pending.value) return;
   const normalized = normalizeTaskResourceUrl(url.value);
-  if (!normalized) { error.value = 'Enter a complete http:// or https:// link.'; urlInput.value?.focus(); return; }
+
+  if (!normalized) { error.value = 'Enter a complete http:// or https:// link.'; urlInput.value?.focus();
+
+ return; }
   pending.value = true;
   error.value = '';
   try {
@@ -52,6 +56,7 @@ async function save() {
     const result = editing.value
       ? await updateAnnualConferenceTaskResource(props.year, props.taskId, editing.value, input)
       : await createAnnualConferenceTaskResource(props.year, props.taskId, input);
+
     queryClient.setQueryData<AnnualConferenceTaskResourcesResponse>(queryKey, (current) => current ? {
       ...current, resources: editing.value ? current.resources.map((item) => item.id === result.resource.id ? result.resource : item) : [...current.resources, result.resource],
     } : current);

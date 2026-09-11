@@ -17,11 +17,13 @@ const session = {
 
 vi.mock('@/lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/admin-auth')>('@/lib/supabase/admin-auth');
+
   return {
     ...actual,
     getAdminSession: vi.fn(async () => session),
     requireAdmin: vi.fn(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -30,6 +32,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
 
 vi.mock('@/lib/supabase/server', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/server')>('@/lib/supabase/server');
+
   return {
     ...actual,
     getSupabaseAdminClient: vi.fn(() => ({
@@ -42,6 +45,7 @@ vi.mock('@/lib/supabase/server', async () => {
             error: null,
           })),
         };
+
         return builder;
       }),
     })),
@@ -110,6 +114,7 @@ describe('Annual Conference proposal lifecycle', () => {
   it('treats 150 bio words as guidance while keeping the bio required', async () => {
     vi.resetModules();
     const providerFetch = vi.fn();
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
 
@@ -131,6 +136,7 @@ describe('Annual Conference proposal lifecycle', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
@@ -143,10 +149,12 @@ describe('Annual Conference proposal lifecycle', () => {
     const decision = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'not_selected' }),
     });
+
     expect(decision.status).toBe(200);
     await expect(decision.json()).resolves.toMatchObject({ decision_email: { status: 'accepted' } });
     expect(providerFetch).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(String(providerFetch.mock.calls[0]?.[1]?.body));
+
     expect(payload[0].subject).toContain('Update on your DevCongress');
     expect(payload[0].text).toContain('A careful rejection');
 
@@ -159,6 +167,7 @@ describe('Annual Conference proposal lifecycle', () => {
     const timestamp = String(Math.floor(Date.now() / 1000));
     const webhookSecret = Buffer.from('annual-conference-webhook-secret');
     const signature = crypto.createHmac('sha256', webhookSecret).update(`${webhookId}.${timestamp}.${webhookBody}`).digest('base64');
+
     expect((await app.request('http://localhost/api/webhooks/resend', {
       method: 'POST',
       headers: { 'svix-id': webhookId, 'svix-timestamp': timestamp, 'svix-signature': 'v1,invalid' },
@@ -174,6 +183,7 @@ describe('Annual Conference proposal lifecycle', () => {
       },
       body: webhookBody,
     });
+
     expect(webhook.status).toBe(204);
     const duplicate = await app.request('http://localhost/api/webhooks/resend', {
       method: 'POST',
@@ -185,6 +195,7 @@ describe('Annual Conference proposal lifecycle', () => {
       },
       body: webhookBody,
     });
+
     expect(duplicate.status).toBe(204);
 
     const staleBody = JSON.stringify({
@@ -194,6 +205,7 @@ describe('Annual Conference proposal lifecycle', () => {
     });
     const staleId = 'msg_annual_rejection_stale_bounce';
     const staleSignature = crypto.createHmac('sha256', webhookSecret).update(`${staleId}.${timestamp}.${staleBody}`).digest('base64');
+
     expect((await app.request('http://localhost/api/webhooks/resend', {
       method: 'POST',
       headers: {
@@ -216,6 +228,7 @@ describe('Annual Conference proposal lifecycle', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', resendFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
@@ -225,6 +238,7 @@ describe('Annual Conference proposal lifecycle', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...proposal('Incomplete outcomes'), learning_outcomes: ['One', 'Two'] }),
     });
+
     expect(incomplete.status).toBe(400);
 
     for (const title of ['Reliable systems in emerging markets', 'Teaching incident response']) {
@@ -233,10 +247,12 @@ describe('Annual Conference proposal lifecycle', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(proposal(title)),
       });
+
       expect(response.status).toBe(202);
     }
 
     const submissions = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
+
     expect(submissions).toHaveLength(2);
     expect(submissions[0].speaker_profile_id).toBe(submissions[1].speaker_profile_id);
 
@@ -247,6 +263,7 @@ describe('Annual Conference proposal lifecycle', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'selected' }),
     });
+
     expect(decision.status).toBe(200);
     await expect(decision.json()).resolves.toMatchObject({
       submission: { id: accepted.id, status: 'selected' },
@@ -256,12 +273,15 @@ describe('Annual Conference proposal lifecycle', () => {
     await expect(speakerStore.getAnnualConferenceSpeakerSubmission(untouched.id)).resolves.toMatchObject({ status: 'submitted' });
 
     const resendPayload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
+
     expect(resendPayload[0].text).toContain('/conference-speakers/2026/');
     const privateUrl = resendPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
+
     expect(privateUrl).toBeTruthy();
     const token = new URL(privateUrl!).pathname.split('/').at(-1)!;
 
     const workspace = await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`);
+
     expect(workspace.status).toBe(200);
     await expect(workspace.json()).resolves.toMatchObject({
       link: { purpose: 'conference_speaker_workspace' },
@@ -281,10 +301,12 @@ describe('Annual Conference proposal lifecycle', () => {
         preferred_workshop_capacity: null,
       }),
     });
+
     expect((await save('Projector')).status).toBe(200);
     expect((await save('Projector and lapel microphone')).status).toBe(200);
 
     const refreshed = await app.request(`http://localhost/api/conferences/2026/speaker-intake/${token}`);
+
     await expect(refreshed.json()).resolves.toMatchObject({
       prefill: { technical_requirements: 'Projector and lapel microphone', availability_confirmed: true },
     });
@@ -301,6 +323,7 @@ describe('Annual Conference proposal lifecycle', () => {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }));
+
     vi.stubGlobal('fetch', resendFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
@@ -310,6 +333,7 @@ describe('Annual Conference proposal lifecycle', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(proposal('Recovering acceptance delivery')),
     });
+
     expect(submitted.status).toBe(202);
     const [proposalRecord] = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
 
@@ -318,6 +342,7 @@ describe('Annual Conference proposal lifecycle', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'selected' }),
     });
+
     expect(decision.status).toBe(200);
     await expect(decision.json()).resolves.toMatchObject({
       submission: { id: proposalRecord.id, status: 'selected' },
@@ -325,20 +350,24 @@ describe('Annual Conference proposal lifecycle', () => {
     });
     const failedPayload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body));
     const failedUrl = failedPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
+
     expect(failedUrl).toBeTruthy();
 
     const retry = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${proposalRecord.id}/resend-workspace-email`, {
       method: 'POST',
     });
+
     expect(retry.status).toBe(200);
     await expect(retry.json()).resolves.toMatchObject({ decision_email: { status: 'accepted' } });
     const retryPayload = JSON.parse(String(resendFetch.mock.calls[1]?.[1]?.body));
     const retryUrl = retryPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
+
     expect(retryUrl).toBeTruthy();
     expect(retryUrl).toBe(failedUrl);
 
     const failedToken = new URL(failedUrl!).pathname.split('/').at(-1)!;
     const retryToken = new URL(retryUrl!).pathname.split('/').at(-1)!;
+
     expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${failedToken}`)).status).toBe(200);
     expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${retryToken}`)).status).toBe(200);
   });
@@ -347,12 +376,15 @@ describe('Annual Conference proposal lifecycle', () => {
     vi.resetModules();
     const editionsPath = path.join(tempRoot, 'data', 'annual-conference-editions.json');
     const editions = JSON.parse(await fs.readFile(editionsPath, 'utf8'));
+
     editions[0].speaker_logistics_deadline = null;
     await fs.writeFile(editionsPath, JSON.stringify(editions), 'utf8');
     const providerFetch = vi.fn();
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Deadline required')),
     })).status).toBe(202);
@@ -360,6 +392,7 @@ describe('Annual Conference proposal lifecycle', () => {
     const decision = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     });
+
     expect(decision.status).toBe(409);
     expect(providerFetch).not.toHaveBeenCalled();
     await expect(speakerStore.getAnnualConferenceSpeakerSubmission(record.id)).resolves.toMatchObject({ status: 'submitted' });
@@ -372,9 +405,11 @@ describe('Annual Conference proposal lifecycle', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'resend-rejection-retry' }] }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       }));
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Retry this rejection')),
     })).status).toBe(202);
@@ -382,6 +417,7 @@ describe('Annual Conference proposal lifecycle', () => {
     const decision = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'not_selected' }),
     });
+
     await expect(decision.json()).resolves.toMatchObject({ decision_email: { status: 'failed' } });
     await speakerStore.updateAnnualConferenceSpeakerSubmission(record.id, {
       decision_email_last_attempt_at: '2026-09-07T00:00:00.000Z',
@@ -389,6 +425,7 @@ describe('Annual Conference proposal lifecycle', () => {
     const retry = await app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', {
       method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' },
     });
+
     expect(retry.status).toBe(200);
     await expect(retry.json()).resolves.toMatchObject({ accepted: [record.id], failed: [] });
     expect(providerFetch).toHaveBeenCalledTimes(2);
@@ -399,13 +436,16 @@ describe('Annual Conference proposal lifecycle', () => {
     const providerFetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       data: [{ id: `resend-recovery-${providerFetch.mock.calls.length}` }],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Recover one proposal only')),
     })).status).toBe(202);
     const [record] = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
+
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     })).status).toBe(200);
@@ -415,25 +455,33 @@ describe('Annual Conference proposal lifecycle', () => {
     const correction = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/decision-email-recipient`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speaker_email: 'ama.corrected@example.com', confirmed: true }),
     });
+
     expect(correction.status).toBe(200);
     const corrected = await speakerStore.getAnnualConferenceSpeakerSubmission(record.id);
+
     expect(corrected).toMatchObject({ decision_email_recipient: 'ama.corrected@example.com', decision_email_attempt_count: 1 });
     const correctedPayload = JSON.parse(String(providerFetch.mock.calls[1]?.[1]?.body));
+
     expect(correctedPayload[0].to).toEqual(['ama.corrected@example.com']);
     const correctedUrl = correctedPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
+
     expect(correctedUrl).not.toBe(originalUrl);
     const originalToken = new URL(originalUrl!).pathname.split('/').at(-1)!;
+
     expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${originalToken}`)).status).toBe(410);
 
     const replacement = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/replace-workspace-email`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true }),
     });
+
     expect(replacement.status).toBe(200);
     const replacementPayload = JSON.parse(String(providerFetch.mock.calls[2]?.[1]?.body));
     const replacementUrl = replacementPayload[0].text.match(/https?:\/\/[^\s]+\/conference-speakers\/2026\/[^\s]+/)?.[0];
+
     expect(replacementUrl).not.toBe(correctedUrl);
     const correctedToken = new URL(correctedUrl!).pathname.split('/').at(-1)!;
     const replacementToken = new URL(replacementUrl!).pathname.split('/').at(-1)!;
+
     expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${correctedToken}`)).status).toBe(410);
     expect((await app.request(`http://localhost/api/conferences/2026/speaker-intake/${replacementToken}`)).status).toBe(200);
   });
@@ -443,13 +491,16 @@ describe('Annual Conference proposal lifecycle', () => {
     const providerFetch = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'resend-permanent-failure' }] }), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Do not resend complaints')),
     })).status).toBe(202);
     const [record] = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
+
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     })).status).toBe(200);
@@ -461,6 +512,7 @@ describe('Annual Conference proposal lifecycle', () => {
       retryable: false,
     });
     const retry = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-workspace-email`, { method: 'POST' });
+
     expect(retry.status).toBe(409);
     expect(providerFetch).toHaveBeenCalledTimes(1);
   });
@@ -470,9 +522,11 @@ describe('Annual Conference proposal lifecycle', () => {
     const providerFetch = vi.fn(async () => new Response(JSON.stringify({ message: 'invalid recipient' }), {
       status: 422, headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Rejected by provider immediately')),
     })).status).toBe(202);
@@ -480,12 +534,14 @@ describe('Annual Conference proposal lifecycle', () => {
     const decision = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     });
+
     await expect(decision.json()).resolves.toMatchObject({ decision_email: { status: 'failed' } });
     await expect(speakerStore.getAnnualConferenceSpeakerSubmission(record.id)).resolves.toMatchObject({
       decision_email_retryable: false,
       decision_email_provider_id: null,
     });
     const retry = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-workspace-email`, { method: 'POST' });
+
     expect(retry.status).toBe(409);
     expect(providerFetch).toHaveBeenCalledTimes(1);
   });
@@ -497,13 +553,16 @@ describe('Annual Conference proposal lifecycle', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'resend-manual-after-exhaustion' }] }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       }));
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Retry manually after exhaustion')),
     })).status).toBe(202);
     const [record] = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
+
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'not_selected' }),
     })).status).toBe(200);
@@ -514,6 +573,7 @@ describe('Annual Conference proposal lifecycle', () => {
       decision_email_retryable: false,
     });
     const retry = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/resend-decision-email`, { method: 'POST' });
+
     expect(retry.status).toBe(200);
     await expect(retry.json()).resolves.toMatchObject({ decision_email: { status: 'accepted' } });
     expect(providerFetch).toHaveBeenCalledTimes(2);
@@ -531,17 +591,21 @@ describe('Annual Conference proposal lifecycle', () => {
       if (requestCount === 1) return new Response(JSON.stringify({ message: 'temporarily unavailable' }), { status: 503 });
       markRetryStarted();
       await retryReleased;
+
       return new Response(JSON.stringify({ data: [{ id: 'resend-scheduled-race' }] }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       });
     });
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Do not race corrections')),
     })).status).toBe(202);
     const [record] = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
+
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'not_selected' }),
     })).status).toBe(200);
@@ -550,10 +614,12 @@ describe('Annual Conference proposal lifecycle', () => {
     const scheduledRetry = app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', {
       method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' },
     });
+
     await retryStarted;
     const correction = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/decision-email-recipient`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speaker_email: 'new-address@example.com', confirmed: true }),
     });
+
     expect(correction.status).toBe(409);
     releaseRetry();
     expect((await scheduledRetry).status).toBe(200);
@@ -577,31 +643,38 @@ describe('Annual Conference proposal lifecycle', () => {
       if (requestCount === 1) return new Response(JSON.stringify({ message: 'temporarily unavailable' }), { status: 503 });
       markRetryStarted();
       await retryReleased;
+
       return new Response(JSON.stringify({ data: [{ id: 'resend-selected-scheduled-race' }] }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       });
     });
+
     vi.stubGlobal('fetch', providerFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
+
     expect((await app.request('http://localhost/api/cfp/conferences/2026', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(proposal('Do not race selected corrections')),
     })).status).toBe(202);
     const [record] = await speakerStore.getAnnualConferenceSpeakerSubmissions('20260000-0000-4000-8000-000000000001');
+
     expect((await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'selected' }),
     })).status).toBe(200);
     const failed = await speakerStore.getAnnualConferenceSpeakerSubmission(record.id);
+
     await speakerStore.updateAnnualConferenceSpeakerSubmission(record.id, { decision_email_last_attempt_at: '2020-01-01T00:00:00.000Z' });
     await speakerStore.updateAnnualConferenceSpeakerIntakeLink(failed!.selected_intake_link_id!, { email_last_attempt_at: '2020-01-01T00:00:00.000Z' });
 
     const scheduledRetry = app.request('http://localhost/api/internal/annual-conference-speaker-emails/retry', {
       method: 'POST', headers: { 'x-scheduled-job-secret': 'test-scheduled-job-secret-that-is-at-least-32-bytes' },
     });
+
     await retryStarted;
     const correction = await app.request(`http://localhost/api/annual-conference/2026/speaker-submissions/${record.id}/decision-email-recipient`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ speaker_email: 'new-selected-address@example.com', confirmed: true }),
     });
+
     expect(correction.status).toBe(409);
     releaseRetry();
     expect((await scheduledRetry).status).toBe(200);
@@ -620,6 +693,7 @@ describe('Annual Conference proposal lifecycle', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', resendFetch);
     const app = (await import('./app')).default;
     const speakerStore = await import('@/lib/annual-conference-speakers');
@@ -637,8 +711,10 @@ describe('Annual Conference proposal lifecycle', () => {
     });
 
     const responses = await Promise.all([decide('selected'), decide('not_selected')]);
+
     expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
     const final = await speakerStore.getAnnualConferenceSpeakerSubmission(record.id);
+
     expect(['selected', 'not_selected']).toContain(final?.status);
     if (final?.status === 'selected') {
       expect(final.selected_session_id).toBeTruthy();

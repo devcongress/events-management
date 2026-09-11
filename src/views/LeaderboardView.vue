@@ -70,6 +70,7 @@ async function fetchData() {
     leaderboards.monthly = [];
     loading.value = false;
     requestAnimationFrame(updateModeSwitcherScope);
+
     return;
   }
 
@@ -77,6 +78,7 @@ async function fetchData() {
     fetchLeaderboard('all-time'),
     fetchLeaderboard('monthly'),
   ]);
+
   leaderboards['all-time'] = allTimeLeaderboard;
   leaderboards.monthly = monthlyLeaderboard;
   page.value = Math.min(page.value, pageCount.value);
@@ -86,7 +88,9 @@ async function fetchData() {
 
 async function fetchLeaderboard(mode: LeaderboardMode): Promise<LeaderboardEntry[]> {
   const response = await fetch(`/api/leaderboard?type=${mode}`);
+
   if (!response.ok) return [];
+
   return response.json();
 }
 
@@ -99,13 +103,16 @@ async function setMode(mode: LeaderboardMode) {
 function updateModeSwitcherScope() {
   const panel = leaderboardPanel.value;
   const scrollArea = document.querySelector('main');
+
   if (!panel || !scrollArea) {
     keepModeSwitcherSticky.value = true;
+
     return;
   }
 
   const panelRect = panel.getBoundingClientRect();
   const scrollRect = scrollArea.getBoundingClientRect();
+
   keepModeSwitcherSticky.value = panelRect.bottom > scrollRect.top + 160;
 }
 
@@ -129,8 +136,10 @@ async function submitClaim() {
     });
 
     const data = await response.json();
+
     if (!response.ok) {
       accountError.value = data.error || 'Failed to claim profile';
+
       return;
     }
 
@@ -161,8 +170,10 @@ async function submitMerge() {
     });
 
     const data = await response.json();
+
     if (!response.ok) {
       accountError.value = data.error || 'Failed to merge profiles';
+
       return;
     }
 
@@ -180,12 +191,14 @@ function rankLabel(rank: number): string {
   if (rank === 1) return '01';
   if (rank === 2) return '02';
   if (rank === 3) return '03';
+
   return `#${rank}`;
 }
 
 onMounted(async () => {
   await fetchData();
   const scrollArea = document.querySelector('main');
+
   scrollArea?.addEventListener('scroll', updateModeSwitcherScope, { passive: true });
   window.addEventListener('resize', updateModeSwitcherScope);
   updateModeSwitcherScope();
@@ -193,6 +206,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   const scrollArea = document.querySelector('main');
+
   scrollArea?.removeEventListener('scroll', updateModeSwitcherScope);
   window.removeEventListener('resize', updateModeSwitcherScope);
 });

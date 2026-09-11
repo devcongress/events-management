@@ -110,6 +110,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
 
       if (command.kind === 'approve') {
         const submission = await repository.approve(submissionId, actor.email, command.publish);
+
         await audit({
           action: command.publish ? 'event_submission.approve_and_publish' : 'event_submission.approve_as_draft',
           targetType: 'event_submission',
@@ -120,6 +121,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
           if (dependencies.announcePublished) await dependencies.announcePublished(submission);
           await dependencies.queueEmail({ submissionId: submission.id, kind: 'approved' });
         }
+
         return { submission, eventId: submission.approved_event_id };
       }
 
@@ -129,6 +131,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
           organizer_message: command.organizerMessage,
           internal_note: command.internalNote,
         });
+
         await audit({
           action: 'event_submission.reject',
           targetType: 'event_submission',
@@ -140,10 +143,12 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
           },
         });
         await dependencies.queueEmail({ submissionId: submission.id, kind: 'rejected' });
+
         return { submission, eventId: null };
       }
 
       const submission = await repository.withdraw(submissionId, actor.email, command.organizerMessage);
+
       await audit({
         action: 'event_submission.withdraw',
         targetType: 'event_submission',
@@ -151,6 +156,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
         metadata: { approved_event_id: submission.approved_event_id },
       });
       await dependencies.queueEmail({ submissionId: submission.id, kind: 'withdrawn' });
+
       return { submission, eventId: submission.approved_event_id };
     },
 
@@ -161,12 +167,14 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
 
       async copyLink(input: { submissionId: string; actor: EventSubmissionActor }): Promise<ActiveEventSubmissionManagementLink> {
         const link = await repository.activeManagementLink(input.submissionId);
+
         await audit({
           action: 'event_submission.management_link_copied',
           targetType: 'event_submission',
           targetId: input.submissionId,
           metadata: { expires_at: link.expires_at },
         });
+
         return link;
       },
 
@@ -175,15 +183,18 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
         changes: Parameters<EventSubmissionLifecycleRepository['saveAmendment']>[1];
       }): Promise<EventSubmissionAmendment> {
         const management = await repository.management(input.linkId);
+
         return repository.saveAmendment(management.submission.id, input.changes);
       },
 
       async submit(input: { linkId: string }): Promise<EventSubmissionAmendment> {
         const management = await repository.management(input.linkId);
         const amendment = await repository.submitAmendment(management.submission.id);
+
         if (dependencies.notifyAmendmentSubmitted) {
           await dependencies.notifyAmendmentSubmitted({ management, amendment });
         }
+
         return amendment;
       },
 
@@ -199,6 +210,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
           input.approve,
           input.organizerMessage,
         );
+
         await audit({
           action: input.approve ? 'event_submission_amendment.approve' : 'event_submission_amendment.reject',
           targetType: 'event_submission_amendment',
@@ -215,6 +227,7 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
         if (input.approve && dependencies.syncApprovedEventAnnouncement) {
           await dependencies.syncApprovedEventAnnouncement({ submissionId: amendment.submission_id }).catch(() => undefined);
         }
+
         return amendment;
       },
     },

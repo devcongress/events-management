@@ -19,6 +19,7 @@ beforeEach(async () => {
   vi.stubEnv('TURNSTILE_SECRET_KEY', '');
   vi.resetModules();
   const { resetLocalPublicRateLimits } = await import('@/lib/public-rate-limit');
+
   resetLocalPublicRateLimits();
   mocks.getVolunteerApplicationByEmail.mockResolvedValue(null);
   mocks.createVolunteerApplication.mockResolvedValue({

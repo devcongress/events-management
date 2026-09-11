@@ -87,17 +87,22 @@ function newResponseToken(): string {
   if (crypto.randomUUID) return crypto.randomUUID();
 
   const bytes = new Uint8Array(16);
+
   crypto.getRandomValues(bytes);
+
   return Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function getOrCreateResponseToken(): string {
   try {
     const existing = window.localStorage.getItem(responseTokenStorageKey());
+
     if (existing) return existing;
 
     const token = newResponseToken();
+
     window.localStorage.setItem(responseTokenStorageKey(), token);
+
     return token;
   } catch {
     return newResponseToken();
@@ -122,6 +127,7 @@ function hasSubmittedMarker(): boolean {
 
 function answerValue(questionId: string): string | number {
   const value = answers[questionId];
+
   return typeof value === 'string' || typeof value === 'number' ? value : '';
 }
 
@@ -140,6 +146,7 @@ function normalizeQuestionLabel(value: string): string {
       if (word === word.toUpperCase() && word.length > 1) {
         return word.charAt(0) + word.slice(1).toLowerCase();
       }
+
       return word;
     })
     .join(' ');
@@ -152,9 +159,12 @@ function previewDraftStorageKey(): string {
 function readPreviewDraft(): PreviewDraftPayload | null {
   try {
     const raw = window.localStorage.getItem(previewDraftStorageKey());
+
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PreviewDraftPayload>;
+
     if (!parsed || !Array.isArray(parsed.questions)) return null;
+
     return {
       title: typeof parsed.title === 'string' ? parsed.title : '',
       intro: typeof parsed.intro === 'string' || parsed.intro === null ? parsed.intro : null,
@@ -171,11 +181,14 @@ async function fetchFeedbackForm() {
 
   const previewQuery = route.query.preview === '1' ? '?preview=1' : '';
   const response = await fetch(`/api/feedback/events/${route.params.eventId}${previewQuery}`);
+
   if (response.ok) {
     const data = await response.json() as FeedbackPublicResponse;
+
     event.value = data.event;
     previewMode.value = Boolean(data.preview_mode);
     const previewDraft = previewMode.value ? readPreviewDraft() : null;
+
     campaign.value = previewDraft
       ? {
         ...data.campaign,
@@ -194,6 +207,7 @@ async function fetchFeedbackForm() {
     }
   } else {
     const payload = await response.json().catch(() => ({}));
+
     error.value = payload.error ?? 'Feedback is not open for this event, or the 3-day response window has closed.';
   }
 
@@ -230,6 +244,7 @@ async function submitFeedback() {
     submitted.value = true;
   } else {
     const payload = await response.json().catch(() => ({}));
+
     error.value = payload.error ?? 'Unable to submit feedback';
     if (turnstileActive) {
       turnstileToken.value = '';

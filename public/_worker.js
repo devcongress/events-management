@@ -34,6 +34,7 @@ const CONTENT_SECURITY_POLICY = [
 
 function withSecurityHeaders(response) {
   const headers = new Headers(response.headers);
+
   headers.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
   headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
@@ -52,6 +53,7 @@ function withSecurityHeaders(response) {
 
 function publicBootVariant(pathname) {
   const path = pathname.replace(/\/+$/, '') || '/';
+
   if (path.startsWith('/r/')) return 'registration';
   if (path.startsWith('/register/')) return 'registration';
   if (path.startsWith('/cfp/')) return 'cfp';
@@ -63,11 +65,13 @@ function publicBootVariant(pathname) {
   if (path === '/event-amendments' || path.startsWith('/event-amendments/')) return 'speaker';
   if (path === '/volunteer' || path.startsWith('/volunteer/')) return 'volunteer';
   if (path.startsWith('/learn/system-design/')) return 'learning-room';
+
   return 'organizer';
 }
 
 async function withRouteAwareBoot(response, pathname) {
   const contentType = response.headers.get('content-type') ?? '';
+
   if (!contentType.includes('text/html')) return response;
 
   const html = await response.text();
@@ -91,6 +95,7 @@ async function withRouteAwareBoot(response, pathname) {
     );
 
   const headers = new Headers(response.headers);
+
   headers.delete('content-encoding');
   headers.delete('content-length');
 
@@ -112,13 +117,16 @@ async function withRouteAwareBoot(response, pathname) {
 async function proxyApiRequest(request) {
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL(incomingUrl.pathname, WORKER_API_ORIGIN);
+
   targetUrl.search = incomingUrl.search;
 
   const headers = new Headers(request.headers);
+
   headers.delete('host');
 
   const cacheablePublicRead = isCacheablePublicApiRead(request, incomingUrl);
   const requestOrigin = headers.get('origin');
+
   if (cacheablePublicRead) {
     // Cache one origin-neutral upstream response, then attach the narrow
     // browser CORS header after the cache lookup. This prevents one allowed
@@ -152,6 +160,7 @@ function isCacheablePublicApiRead(request, url) {
   if (url.search || request.headers.has('authorization') || request.headers.has('cookie')) return false;
 
   const path = url.pathname;
+
   return path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
@@ -163,12 +172,14 @@ function isCacheablePublicApiRead(request, url) {
 
 function withPublicReadCors(response, requestOrigin) {
   const headers = new Headers(response.headers);
+
   if (requestOrigin && PUBLIC_API_ALLOWED_ORIGINS.has(requestOrigin)) {
     headers.set('access-control-allow-origin', requestOrigin);
   } else {
     headers.delete('access-control-allow-origin');
   }
   const vary = headers.get('vary')?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
+
   if (!vary.some((value) => value.toLowerCase() === 'origin')) vary.push('Origin');
   headers.set('vary', vary.join(', '));
 
@@ -221,7 +232,9 @@ if (!globalThis.sessionStorage?.getItem(key)) {
     if (contentType.includes('text/html')) {
       const routeAwareResponse = await withRouteAwareBoot(response, url.pathname);
       const headers = new Headers(routeAwareResponse.headers);
+
       headers.set('cache-control', 'no-store');
+
       return withSecurityHeaders(new Response(routeAwareResponse.body, {
         status: routeAwareResponse.status,
         statusText: routeAwareResponse.statusText,

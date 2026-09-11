@@ -52,6 +52,7 @@ export function attendanceImportFromRegistrationSource(
   attendanceMonth: string,
 ): EventAttendanceImport {
   const records = attendanceRecordsFromRegistrations(source.event_id, source.registrations);
+
   return {
     id: `native-registration-${source.event_id}`,
     event_id: source.event_id,

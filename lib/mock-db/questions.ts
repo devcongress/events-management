@@ -6,6 +6,7 @@ import { DEFAULT_TIME_LIMIT, DEFAULT_POINTS } from '@/lib/constants';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 
 const FILE = 'questions';
+
 type QuestionRow = Database['public']['Tables']['quiz_questions']['Row'];
 
 function fromSupabaseRow(row: QuestionRow): Question {
@@ -31,9 +32,12 @@ export async function getAllQuestions(): Promise<Question[]> {
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient()
       .from('quiz_questions').select('*').order('created_at', { ascending: true });
+
     if (error) throw new Error('Unable to load quiz questions');
+
     return (data ?? []).map(fromSupabaseRow);
   }
+
   return readData<Question>(FILE);
 }
 
@@ -41,10 +45,13 @@ export async function getQuestionById(id: string): Promise<Question | undefined>
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient()
       .from('quiz_questions').select('*').eq('id', id).maybeSingle();
+
     if (error) throw new Error('Unable to load quiz question');
+
     return data ? fromSupabaseRow(data) : undefined;
   }
   const questions = await readData<Question>(FILE);
+
   return questions.find((question) => question.id === id);
 }
 
@@ -52,10 +59,13 @@ export async function getQuestionsBySession(sessionId: string): Promise<Question
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient()
       .from('quiz_questions').select('*').eq('quiz_session_id', sessionId).order('order_index');
+
     if (error) throw new Error('Unable to load session questions');
+
     return (data ?? []).map(fromSupabaseRow);
   }
   const questions = await readData<Question>(FILE);
+
   return questions.filter((question) => question.quiz_session_id === sessionId)
     .sort((left, right) => left.order_index - right.order_index);
 }
@@ -73,12 +83,16 @@ export async function createQuestion(
     points: data.points ?? DEFAULT_POINTS,
     created_at: now(),
   };
+
   if (isSupabaseRuntimeEnabled()) {
     const { data: stored, error } = await getSupabaseAdminClient()
       .from('quiz_questions').insert(newQuestion).select('*').single();
+
     if (error || !stored) throw new Error('Unable to create quiz question');
+
     return fromSupabaseRow(stored);
   }
+
   return updateData<Question, Question>(FILE, (questions) => ({
     data: [...questions, newQuestion],
     result: newQuestion,
@@ -92,14 +106,20 @@ export async function updateQuestion(
   if (isSupabaseRuntimeEnabled()) {
     const { data, error } = await getSupabaseAdminClient()
       .from('quiz_questions').update(updates).eq('id', id).select('*').single();
+
     if (error || !data) throw new Error(`Question ${id} not found`);
+
     return fromSupabaseRow(data);
   }
+
   return updateData<Question, Question>(FILE, (questions) => {
     const index = questions.findIndex((question) => question.id === id);
+
     if (index === -1) throw new Error(`Question ${id} not found`);
     const updated = { ...questions[index]!, ...updates };
+
     questions[index] = updated;
+
     return { data: questions, result: updated };
   });
 }
@@ -107,7 +127,9 @@ export async function updateQuestion(
 export async function deleteQuestion(id: string): Promise<void> {
   if (isSupabaseRuntimeEnabled()) {
     const { error } = await getSupabaseAdminClient().from('quiz_questions').delete().eq('id', id);
+
     if (error) throw new Error('Unable to delete quiz question');
+
     return;
   }
   await updateData<Question, void>(FILE, (questions) => ({
@@ -122,16 +144,21 @@ export async function reorderQuestions(sessionId: string, questionIds: string[])
       p_session_id: sessionId,
       p_question_ids: questionIds,
     });
+
     if (error) throw new Error('Unable to reorder quiz questions');
+
     return;
   }
   await updateData<Question, void>(FILE, (questions) => {
     const orderById = new Map(questionIds.map((id, index) => [id, index]));
+
     for (const question of questions) {
       if (question.quiz_session_id !== sessionId) continue;
       const orderIndex = orderById.get(question.id);
+
       if (orderIndex !== undefined) question.order_index = orderIndex;
     }
+
     return { data: questions, result: undefined };
   });
 }

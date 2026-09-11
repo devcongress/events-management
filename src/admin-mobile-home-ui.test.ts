@@ -17,6 +17,11 @@ const conferenceNavSource = readFileSync(
   new URL('./components/AnnualConferenceNav.vue', import.meta.url),
   'utf8',
 );
+const desktopVolunteerSource = readFileSync(
+  new URL('./views/admin/AdminVolunteerView.vue', import.meta.url),
+  'utf8',
+);
+const globalStylesSource = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 
 describe('mobile organizer entry points', () => {
   it('turns the organizer home into two direct, thumb-sized workspace choices', () => {
@@ -34,6 +39,8 @@ describe('mobile organizer entry points', () => {
     expect(mobileConferenceSource).toContain('v-if="canManageEditions" class="conference-mobile__edition-bar"');
     expect(conferenceNavSource).toContain('v-if="canManageEditions" class="min-w-44 max-w-56');
     expect(conferenceNavSource).toContain('{{ currentEdition?.label ?? `December ${year}` }}');
+    expect(conferenceNavSource).toContain('class="mt-4 flex flex-wrap items-start justify-between gap-4 pt-4"');
+    expect(conferenceNavSource).not.toContain('gap-4 border-t border-dc-border pt-4');
   });
 
   it('keeps the volunteer conference overview focused and removes organizer navigation', () => {
@@ -51,5 +58,17 @@ describe('mobile organizer entry points', () => {
     expect(desktopConferenceSource).toContain('No tasks assigned yet');
     expect(desktopConferenceSource).toContain('No action required');
     expect(desktopConferenceSource).toContain('font-family: var(--font-sans), system-ui, sans-serif');
+  });
+
+  it('keeps mobile volunteer actions and directory filters together while scrolling', () => {
+    expect(mobileConferenceSource).toContain('class="volunteer-directory-sticky"');
+    expect(mobileConferenceSource).toContain('.volunteer-directory-sticky { position: sticky;');
+    expect(mobileConferenceSource).not.toContain('.volunteer-directory-tools { position: sticky;');
+  });
+
+  it('removes the volunteer panel shadow without suppressing application scrollbars', () => {
+    expect(desktopVolunteerSource).toContain('class="editorial-panel volunteer-directory-panel overflow-hidden"');
+    expect(desktopVolunteerSource).toContain('.volunteer-directory-panel {\n  box-shadow: none;');
+    expect(globalStylesSource).not.toContain('.app-main::-webkit-scrollbar');
   });
 });

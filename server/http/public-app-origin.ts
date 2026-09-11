@@ -4,6 +4,7 @@ import { envValue } from '@/server/env';
 function isLocalRequestOrigin(origin: string): boolean {
   try {
     const { hostname } = new URL(origin);
+
     return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
   } catch {
     return false;
@@ -12,6 +13,7 @@ function isLocalRequestOrigin(origin: string): boolean {
 
 export function publicAppOrigin(c: Context): string {
   const requestOrigin = new URL(c.req.url).origin;
+
   if (envValue('NODE_ENV', c) !== 'production' && isLocalRequestOrigin(requestOrigin)) {
     return requestOrigin;
   }

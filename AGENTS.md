@@ -45,3 +45,10 @@ Use `$ui-animations` (`/Users/TT/.codex/skills/ui-animations/SKILL.md`) for all 
 - Add subtle `:active { transform: scale(0.97); }` feedback to pressable controls unless it would fight a larger interaction.
 - Gate hover motion with `@media (hover: hover) and (pointer: fine)`.
 - Respect `prefers-reduced-motion` by removing movement and disabling repeated motion.
+
+## Code Readability
+
+- Separate imports, declaration groups, and terminal control flow with a single blank line so code remains easy to scan.
+- Do not stack multiple empty lines or use blank lines as arbitrary vertical padding.
+- Run `pnpm lint:fix` after writing JavaScript, TypeScript, or Vue code, then run `pnpm lint` before committing; these commands cover the active project source.
+- The ESLint spacing policy is the source of truth; do not manually collapse logical sections that the fixer separates.

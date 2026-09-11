@@ -6,11 +6,13 @@ describe('admin auth rate limit', () => {
     const email = `organizer-${Date.now()}@devcongress.org`;
     const ip = '203.0.113.10';
     const first = evaluateAdminOtpRateLimit({ email, ip }, 1_000);
+
     expect(first.allowed).toBe(true);
 
     recordAdminOtpRequest({ email, ip }, 1_000);
 
     const blocked = evaluateAdminOtpRateLimit({ email, ip }, 20_000);
+
     expect(blocked.allowed).toBe(false);
     expect(blocked.retryAfterMs).toBeGreaterThan(0);
   });
@@ -20,11 +22,13 @@ describe('admin auth rate limit', () => {
 
     for (let index = 0; index < 5; index += 1) {
       const email = `organizer-${Date.now()}-${index}@devcongress.org`;
+
       expect(evaluateAdminOtpRateLimit({ email, ip }, 1_000 + index).allowed).toBe(true);
       recordAdminOtpRequest({ email, ip }, 1_000 + index);
     }
 
     const blocked = evaluateAdminOtpRateLimit({ email: `organizer-${Date.now()}-blocked@devcongress.org`, ip }, 2_000);
+
     expect(blocked.allowed).toBe(false);
   });
 

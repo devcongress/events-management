@@ -7,16 +7,20 @@ import { VOLUNTEER_PUBLIC_PATH } from '../lib/volunteer-intake-routes.ts';
 
 const event = { id: 'ui-fixture', name: 'DevCongress form preview', event_date: '2026-12-19T10:00:00Z', status: 'cfp_open', location: { name: 'Accra' } };
 const server = await createServer({ configFile: false, cacheDir: 'node_modules/.vite-public-form-tests', plugins: [vue()], resolve: { alias: { '@': process.cwd() } }, server: { host: '127.0.0.1', port: 0 } });
+
 await server.listen();
 const browser = await chromium.launch({ headless: true });
+
 try {
   for (const width of [320, 390, 1280]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
+
     page.setDefaultTimeout(10000);
     page.on('pageerror', error => console.error(error.message));
     await page.route('**/api/**', route => {
       if (route.request().method() !== 'GET') return route.abort();
       const url = route.request().url();
+
       return route.fulfill({ json: url.includes('speaker-intake')
         ? { event, link: {}, prefill: { title: 'Building tools', session_type: '60-minute workshop', learning_outcomes: ['Understand tools', 'Build a tool', 'Evaluate a tool'] } }
         : { event, available: true, campaign: { description: 'Join our community event.' } } });
@@ -28,8 +32,14 @@ try {
     ]) {
       await page.goto(`${server.resolvedUrls.local[0]}${url.slice(1)}`);
       const input = page.locator(selector);
-      await input.waitFor().catch(async error => { console.error(await page.locator('body').innerText()); throw error; });
-      const styles = await input.evaluate(el => { const s = getComputedStyle(el); return { height: el.getBoundingClientRect().height, border: s.borderWidth, radius: s.borderRadius, font: s.fontSize }; });
+
+      await input.waitFor().catch(async error => { console.error(await page.locator('body').innerText());
+
+ throw error; });
+      const styles = await input.evaluate(el => { const s = getComputedStyle(el);
+
+ return { height: el.getBoundingClientRect().height, border: s.borderWidth, radius: s.borderRadius, font: s.fontSize }; });
+
       assert.deepEqual(styles, { height: 50, border: '1px', radius: '8px', font: '16px' }, `${name} at ${width}px`);
       await input.focus();
       assert.match(await input.evaluate(el => getComputedStyle(el).boxShadow), /232, 17, 127/);

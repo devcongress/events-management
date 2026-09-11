@@ -56,6 +56,7 @@ function eventTiming(startsAt: string | null | undefined, endsAt: string | null 
   if (!startsAt) return 'Not set';
 
   const start = new Date(startsAt);
+
   if (!endsAt) return `${accraDate.format(start)} · ${accraTime.format(start)}`;
 
   const end = new Date(endsAt);
@@ -63,12 +64,14 @@ function eventTiming(startsAt: string | null | undefined, endsAt: string | null 
   const endDate = accraDate.format(end);
   const startTime = accraTime.format(start);
   const endTime = accraTime.format(end);
+
   if (startDate !== endDate) return `${startDate}, ${startTime} → ${endDate}, ${endTime}`;
 
   const endPeriod = endTime.match(/\s([ap]m)$/i)?.[1];
   const compactStartTime = endPeriod && startTime.toLowerCase().endsWith(endPeriod.toLowerCase())
     ? startTime.slice(0, -(endPeriod.length + 1))
     : startTime;
+
   return `${startDate} · ${compactStartTime}–${endTime}`;
 }
 function loadDraft(value: CommunityEvent) {
@@ -83,10 +86,12 @@ async function load() {
   loading.value = true;
   try {
     const loaded = await fetchEventById(eventId.value);
+
     event.value = loaded;
     loadDraft(loaded);
     try {
       const slack = await fetchEventSlackAnnouncement(loaded.id);
+
       slackAnnouncement.value = slack.announcement;
       slackEligible.value = slack.eligible;
       slackWebsite.value = slack.website;
@@ -100,6 +105,7 @@ async function load() {
     }
     try {
       const monitoring = await fetchEventPageMonitor(loaded.id);
+
       pageMonitor.value = monitoring.monitor;
       monitorEligible.value = monitoring.eligible;
       organizerContact.value = monitoring.organizer_contact;
@@ -122,18 +128,22 @@ const monitorStatus = computed(() => {
   if (pageMonitor.value.status === 'changed') return 'Changes need review';
   if (pageMonitor.value.status === 'warning') return 'Temporary check warning';
   if (pageMonitor.value.status === 'unavailable') return 'Page unavailable';
+
   return 'Page cannot be monitored';
 });
 const monitorStatusClass = computed(() => {
   if (pageMonitor.value?.status === 'changed' || pageMonitor.value?.status === 'unavailable' || pageMonitor.value?.status === 'unmonitorable') return 'text-red-700';
   if (pageMonitor.value?.status === 'warning') return 'text-amber-700';
   if (pageMonitor.value?.status === 'unchanged') return 'text-green-700';
+
   return 'text-dc-ink';
 });
 const monitorNeedsReview = computed(() => ['changed', 'unavailable', 'unmonitorable'].includes(pageMonitor.value?.status ?? ''));
+
 function monitorTimestamp(value: string | null | undefined) {
   if (!value) return 'Not yet';
   const date = new Date(value);
+
   return `${accraDate.format(date)} · ${accraTime.format(date)}`;
 }
 function monitorFieldLabel(field: string) {
@@ -143,8 +153,10 @@ function monitorDifferenceValue(field: string, value: string | null, fallback: s
   if (!value) return fallback;
   if (field === 'starts_at' || field === 'ends_at') {
     const date = new Date(value);
+
     if (!Number.isNaN(date.getTime())) return `${accraDate.format(date)} · ${accraTime.format(date)}`;
   }
+
   return value;
 }
 const organizerMailto = computed(() => {
@@ -168,13 +180,16 @@ const organizerMailto = computed(() => {
     'Thank you,',
     'DevCongress',
   ].join('\n');
+
   return `mailto:${encodeURIComponent(organizerContact.value.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 });
+
 async function checkRegistrationPage() {
   if (!event.value || monitorLoading.value) return;
   monitorLoading.value = true;
   try {
     const result = await checkEventPageNow(event.value.id);
+
     pageMonitor.value = result.monitor;
     monitorEligible.value = result.eligible;
     organizerContact.value = result.organizer_contact;
@@ -207,6 +222,7 @@ async function refreshPublicationStatus() {
   publicationRefreshing.value = true;
   try {
     const result = await fetchEventSlackAnnouncement(event.value.id);
+
     slackAnnouncement.value = result.announcement;
     slackEligible.value = result.eligible;
     slackWebsite.value = result.website;
@@ -222,6 +238,7 @@ async function sendSlackAnnouncement() {
   slackLoading.value = true;
   try {
     const result = await sendEventSlackAnnouncement(event.value.id);
+
     slackAnnouncement.value = result.announcement;
     slackEligible.value = result.eligible;
     slackWebsite.value = result.website;
@@ -255,6 +272,7 @@ async function save() {
       stream_url: draft.location_type === 'in_person' ? null : draft.online_url || null,
       registration_url: draft.registration_url || null,
     });
+
     event.value = updated;
     editing.value = false;
     notify.success('Community event updated.');
@@ -267,17 +285,23 @@ async function save() {
 async function uploadCover(eventInput: Event) {
   const input = eventInput.target as HTMLInputElement;
   const file = input.files?.[0];
+
   if (!file || !event.value) return;
   const validation = validateMeetupImageFile(file);
-  if (validation) { error.value = validation; return; }
+
+  if (validation) { error.value = validation;
+
+ return; }
   coverSaving.value = true; error.value = '';
   try {
     coverUploadProgress.value = null;
     const compressed = await compressMeetupImageForUpload(file);
+
     coverUploadProgress.value = 0;
     const response = await uploadEventMedia(event.value.id, compressed, 'cover', (percent) => {
       coverUploadProgress.value = percent;
     });
+
     if (response.event) event.value = response.event;
     notify.success('Cover image updated.');
   } catch (cause) {

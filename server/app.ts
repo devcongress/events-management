@@ -259,6 +259,7 @@ app.onError((error, c) => {
   }
 
   const requestId = c.get('requestId') as string | undefined;
+
   console.error(JSON.stringify({
     event: 'unhandled_request_error',
     request_id: requestId ?? null,
@@ -266,11 +267,13 @@ app.onError((error, c) => {
     path: securitySafeRequestPath(c.req.path),
     error_name: safeErrorName(error),
   }));
+
   return c.json({ error: 'An unexpected error occurred. Please try again.' }, 500);
 });
 
 app.use('*', async (c, next) => {
   const requestId = c.req.header('cf-ray') ?? crypto.randomUUID();
+
   c.set('requestId', requestId);
   if (c.req.path.startsWith('/api/')) {
     // API responses are private by default. Purpose-built public read routes
@@ -337,10 +340,12 @@ const PAYLOAD_REQUEST_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 function bodyLimitForPayloadMethods(maxSize: number) {
   const limit = bodyLimit({ maxSize, onError: bodyTooLarge });
+
   return (c: Context, next: () => Promise<void>) => {
     // Every DELETE handler is bodyless. Skipping the limiter for bodyless
     // methods avoids reconstructing an empty adapter stream in local Hono.
     if (!PAYLOAD_REQUEST_METHODS.has(c.req.method)) return next();
+
     return limit(c, next);
   };
 }
@@ -477,6 +482,7 @@ const eventSubmissionSchema = z.object({
   timezone: z.string().trim().min(1).max(80).refine((value) => {
     try {
       new Intl.DateTimeFormat('en', { timeZone: value }).format();
+
       return true;
     } catch {
       return false;
@@ -496,6 +502,7 @@ const eventSubmissionSchema = z.object({
 }).strict().superRefine((value, ctx) => {
   const startsAt = new Date(value.starts_at).getTime();
   const endsAt = new Date(value.ends_at).getTime();
+
   if (startsAt <= Date.now()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['starts_at'], message: 'Choose a future start time.' });
   }
@@ -654,6 +661,7 @@ const annualConferenceFinanceEntrySchema = z.object({
   const allowedStatuses = value.kind === 'expense'
     ? ANNUAL_CONFERENCE_FINANCE_EXPENSE_STATUSES
     : ANNUAL_CONFERENCE_FINANCE_INCOME_STATUSES;
+
   if (!allowedStatuses.includes(value.status as never)) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -707,6 +715,7 @@ const shortLinkCreateSchema = z.object({
 }).strict();
 const CFP_ABSTRACT_WORD_LIMIT = 120;
 const CFP_BIO_WORD_LIMIT = 80;
+
 function normalizeArchiveItemKind(value: unknown): ArchiveItemKind {
   return value === 'product_demo' ? 'product_demo' : 'talk';
 }
@@ -717,6 +726,7 @@ function canOpenCfpForEvent(event: Pick<Event, 'name' | 'series_type' | 'event_d
   if (resolveEventSeriesType(event) !== 'monthly') return false;
 
   const eventDateMs = new Date(event.event_date).getTime();
+
   return Number.isFinite(eventDateMs) && eventDateMs > nowMs;
 }
 const speakerSubmissionCreateSchema = adminCreateTalkSchema
@@ -1002,6 +1012,7 @@ async function auditAdminAction(c: Context, input: {
 
 async function quizDeviceOwnsUser(userId: string, deviceId: string): Promise<boolean> {
   const user = await getUserById(userId);
+
   return Boolean(user && user.device_id === deviceId && !user.merged_into_user_id);
 }
 
@@ -1011,6 +1022,7 @@ function corsOrigin(origin: string | undefined, c: Context): string | undefined 
   const allowedOrigins = configuredFrontendOrigins(c);
   const localDevelopmentOrigin = envValue('NODE_ENV', c) === 'development'
     && origin.startsWith('http://localhost:');
+
   if (allowedOrigins.has(origin) || localDevelopmentOrigin) {
     return origin;
   }
@@ -1043,6 +1055,7 @@ function publicApiCorsOrigin(origin: string | undefined, c: Context): string | u
   if (envValue('NODE_ENV', c) === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) {
     return origin;
   }
+
   return undefined;
 }
 
@@ -1082,6 +1095,7 @@ function isSpeakerTalkIntakeRequest(path: string, method: string): boolean {
 
 function isPublicEventRegistrationRequest(path: string, method: string): boolean {
   const eventRegistrationPath = /^\/api\/registration\/events\/[^/]+$/;
+
   return (method === 'GET' && (
     eventRegistrationPath.test(path)
     || /^\/api\/registration\/events\/[^/]+\/calendar\.ics$/.test(path)
@@ -1157,23 +1171,28 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
 function shortLinkResolverAuthorized(c: Context): boolean {
   const expected = secureSharedSecret(envValue('SHORT_LINK_RESOLVER_TOKEN', c));
   const received = c.req.header('x-short-link-resolver-token')?.trim();
+
   if (!expected || !received) return false;
   const expectedBuffer = Buffer.from(expected);
   const receivedBuffer = Buffer.from(received);
+
   return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 function scheduledJobAuthorized(c: Context): boolean {
   const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
   const received = c.req.header('x-scheduled-job-secret')?.trim();
+
   if (!expected || !received) return false;
   const expectedBuffer = Buffer.from(expected);
   const receivedBuffer = Buffer.from(received);
+
   return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 function shortLinkPublicUrl(code: string, c: Context): string {
   const origin = (envValue('SHORT_LINK_PUBLIC_ORIGIN', c) ?? 'https://go.devcongress.org').replace(/\/+$/, '');
+
   return `${origin}/${code}`;
 }
 
@@ -1183,6 +1202,7 @@ async function shortLinkDestinationPath(link: {
   conference_edition_id: string | null;
 }, c: Context): Promise<string | null> {
   const staticDestinationPath = staticShortLinkDestinationPath(link.destination);
+
   if (staticDestinationPath) return staticDestinationPath;
 
   if (link.destination === 'conference_cfp') {
@@ -1190,23 +1210,28 @@ async function shortLinkDestinationPath(link: {
     const repository = createAnnualConferenceRepository(c);
     const editions = await repository.listEditions();
     const edition = editions.find((candidate) => candidate.id === link.conference_edition_id);
+
     return edition?.speaker_call_status === 'open' ? `/speak/c/${edition.year}` : null;
   }
 
   if (!link.event_id) return null;
   const event = await getEventById(link.event_id, c);
+
   if (!event?.slug) return null;
   if (link.destination === 'monthly_cfp') {
     return event.series_type === 'monthly' && event.status === 'cfp_open' ? `/cfp/${event.slug}` : null;
   }
   if (link.destination === 'event_registration') {
     const campaign = await getRegistrationCampaign(event.id, c);
+
     return campaign?.status === 'open' ? `/r/${event.slug}` : null;
   }
   if (link.destination === 'event_feedback') {
     const campaign = await getFeedbackCampaignByEventStore(event.id, c);
+
     return campaign && isFeedbackCampaignOpen(event, campaign) ? `/feedback/${event.id}` : null;
   }
+
   return null;
 }
 
@@ -1217,11 +1242,13 @@ async function prepareShortLinkTarget(input: z.infer<typeof shortLinkCreateSchem
 }> {
   let eventId: string | null = null;
   let conferenceEditionId: string | null = null;
+
   if (input.destination === 'volunteer_intake') {
     // The evergreen volunteer form is a single global public destination.
   } else if (input.destination === 'conference_cfp') {
     if (!input.conference_year) throw new ShortLinkStorageError('Choose an open conference Call for Speakers.', 'not_found');
     const edition = await getAnnualConferenceEditionByYear(input.conference_year, c);
+
     if (!edition || edition.speaker_call_status !== 'open') throw new ShortLinkStorageError('That conference Call for Speakers is not open.', 'not_found');
     conferenceEditionId = edition.id;
   } else {
@@ -1233,7 +1260,9 @@ async function prepareShortLinkTarget(input: z.infer<typeof shortLinkCreateSchem
     event_id: eventId,
     conference_edition_id: conferenceEditionId,
   }, c);
+
   if (!destinationPath) throw new ShortLinkStorageError('That public destination is not currently open.', 'not_found');
+
   return { eventId, conferenceEditionId, destinationPath };
 }
 
@@ -1264,6 +1293,7 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
   ]);
   const registrationCampaignByEventId = new Map(registrationCampaigns.map((campaign) => [campaign.event_id, campaign]));
   const feedbackCampaignByEventId = new Map(feedbackCampaigns.map((campaign) => [campaign.event_id, campaign]));
+
   return {
     events,
     editions,
@@ -1278,6 +1308,7 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
       ...events
         .filter((event) => {
           const campaign = feedbackCampaignByEventId.get(event.id);
+
           return campaign ? isFeedbackCampaignOpen(event, campaign) : false;
         })
         .map((event) => ({ destination: 'event_feedback' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` })),
@@ -1334,6 +1365,7 @@ const credentialedApiCors = cors({
 app.use('/api/*', async (c, next) => {
   if (c.req.path.startsWith('/api/public/')) {
     await next();
+
     return;
   }
 
@@ -1343,34 +1375,42 @@ app.use('/api/*', async (c, next) => {
 app.use('/api/*', async (c, next) => {
   if (c.req.method === 'OPTIONS' || isUnauthenticatedApiRequest(c.req.path, c.req.method)) {
     await next();
+
     return;
   }
 
   const adminError = await requireAdmin(c, adminRolesForApiRequest(c.req.path, c.req.method));
+
   if (adminError && !(isLogoutPath(c.req.path) && adminError.status === 401)) return adminError;
   await next();
 });
 
 async function getAllEvents(c?: Context): Promise<Event[]> {
   const events = (await getSupabaseCommunityEvents(c)) ?? await getAllMockEvents();
+
   return events.map((event) => withPublicEventCover(canonicalizeEventSchedule(event)));
 }
 
 async function getEventById(id: string, c?: Context): Promise<Event | undefined> {
   const event = await getSupabaseCommunityEventById(id, c);
+
   if (event !== null) return event ? canonicalizeEventSchedule(event) : event;
   const fallback = await getMockEventById(id);
+
   return fallback ? withPublicEventCover(canonicalizeEventSchedule(fallback)) : fallback;
 }
 
 async function getEventByRegistrationKey(key: string, c?: Context): Promise<Event | undefined> {
   const event = await getSupabaseCommunityEventBySlug(key, c);
+
   if (event !== null) {
     if (event) return canonicalizeEventSchedule(event);
+
     return getEventById(key, c);
   }
 
   const fallback = (await getAllMockEvents()).find((candidate) => candidate.slug === key);
+
   return fallback ? withPublicEventCover(canonicalizeEventSchedule(fallback)) : getEventById(key, c);
 }
 
@@ -1395,7 +1435,9 @@ async function createEvent(data: {
   publish_to_website?: boolean;
 }, c?: Context): Promise<Event> {
   const event = await createSupabaseCommunityEvent(data, c);
+
   if (event) return canonicalizeEventSchedule(event);
+
   return canonicalizeEventSchedule(await createMockEvent({
     name: data.name,
     description: data.description,
@@ -1416,16 +1458,21 @@ async function createEvent(data: {
 
 async function updateEvent(id: string, updates: Partial<Omit<Event, 'id' | 'created_at'>>, c?: Context): Promise<Event> {
   const event = await updateSupabaseCommunityEvent(id, updates, c);
+
   if (event !== null && event !== undefined) return canonicalizeEventSchedule(event);
+
   return canonicalizeEventSchedule(await updateMockEvent(id, updates));
 }
 
 async function deleteEvent(id: string, c?: Context): Promise<boolean> {
   const deleted = await deleteSupabaseCommunityEvent(id, c);
+
   if (deleted !== null) return deleted;
   const existing = await getMockEventById(id);
+
   if (!existing) return false;
   await deleteMockEvent(id);
+
   return true;
 }
 
@@ -1435,10 +1482,13 @@ async function archiveEvent(
   c?: Context,
 ): Promise<Event | undefined> {
   const archived = await archiveSupabaseCommunityEvent(id, input, c);
+
   if (archived !== null) return archived ? canonicalizeEventSchedule(archived) : archived;
   const existing = await getMockEventById(id);
+
   if (!existing) return undefined;
   await deleteMockEvent(id);
+
   return withPublicEventCover(canonicalizeEventSchedule({
     ...existing,
     publish_to_website: false,
@@ -1452,7 +1502,9 @@ async function archiveEvent(
 
 async function restoreArchivedEvent(id: string, c?: Context): Promise<Event | undefined> {
   const restored = await restoreSupabaseArchivedCommunityEvent(id, c);
+
   if (restored !== null) return restored ? canonicalizeEventSchedule(restored) : restored;
+
   return undefined;
 }
 
@@ -1462,23 +1514,29 @@ async function getArchivedEvents(c?: Context): Promise<ArchivedCommunityEvent[]>
 
 async function getFeedbackCampaignByEventStore(eventId: string, c?: Context): Promise<FeedbackCampaign | undefined> {
   const campaign = await getSupabaseFeedbackCampaignByEvent(eventId, c);
+
   if (campaign !== null) return campaign;
+
   return getFeedbackCampaignByEvent(eventId);
 }
 
 async function getFeedbackCampaignsByEventStore(eventIds: readonly string[], c?: Context): Promise<FeedbackCampaign[]> {
   const campaigns = await getSupabaseFeedbackCampaignsByEventIds(eventIds, c);
+
   if (campaigns !== null) return campaigns;
   const eventIdSet = new Set(eventIds);
+
   return (await getAllFeedbackCampaigns()).filter((campaign) => eventIdSet.has(campaign.event_id));
 }
 
 async function getOrCreateFeedbackCampaignStore(eventId: string, c?: Context): Promise<FeedbackCampaign> {
   const existing = await getSupabaseFeedbackCampaignByEvent(eventId, c);
+
   if (existing !== null) {
     if (existing) return existing;
     const campaign = createDefaultFeedbackCampaign(eventId);
     const created = await createSupabaseFeedbackCampaign(campaign, c);
+
     if (created) return created;
   }
 
@@ -1491,9 +1549,11 @@ async function updateFeedbackCampaignStore(
   c?: Context,
 ): Promise<FeedbackCampaign> {
   let campaign = await updateSupabaseFeedbackCampaign(eventId, updates, c);
+
   if (campaign !== null) {
     if (campaign) return campaign;
     const created = await createSupabaseFeedbackCampaign(createDefaultFeedbackCampaign(eventId), c);
+
     if (created) {
       campaign = await updateSupabaseFeedbackCampaign(eventId, updates, c);
       if (campaign) return campaign;
@@ -1505,13 +1565,17 @@ async function updateFeedbackCampaignStore(
 
 async function deleteFeedbackCampaignByEventStore(eventId: string, c?: Context): Promise<FeedbackCampaign | null> {
   const campaign = await deleteSupabaseFeedbackCampaignByEvent(eventId, c);
+
   if (campaign !== null && campaign !== undefined) return campaign;
+
   return deleteFeedbackCampaignByEvent(eventId);
 }
 
 async function getFeedbackSubmissionsByEventStore(eventId: string, c?: Context): Promise<EventFeedbackSubmission[]> {
   const submissions = await getSupabaseFeedbackSubmissionsByEvent(eventId, c);
+
   if (submissions !== null) return submissions;
+
   return getFeedbackSubmissionsByEvent(eventId);
 }
 
@@ -1520,7 +1584,9 @@ async function createEventFeedbackSubmissionStore(
   c?: Context,
 ): Promise<EventFeedbackSubmission> {
   const submission = await createSupabaseEventFeedbackSubmission(data, c);
+
   if (submission) return submission;
+
   return createEventFeedbackSubmission(data);
 }
 
@@ -1555,19 +1621,24 @@ function eventSlug(event: Event): string {
 
 function toWebsiteDateTime(value: string): string {
   const iso = new Date(value).toISOString();
+
   return `${iso.slice(0, 19)}+00:00`;
 }
 
 function meetupEndDate(start: string): string {
   const date = new Date(start);
+
   date.setHours(date.getHours() + 3);
+
   return toWebsiteDateTime(date.toISOString());
 }
 
 function publicMeetupStatus(event: Event): PublicMeetup['status'] {
   const status = resolveEventStatus(event);
+
   if (status === 'live') return 'live';
   if (status === 'completed') return 'past';
+
   return 'upcoming';
 }
 
@@ -1612,10 +1683,12 @@ function normalizePublicSchedule(value: Event['schedule']): PublicMeetupSchedule
     ...item,
     resources: item.resources.flatMap((resource) => {
       const url = safeHttpUrl(resource.url);
+
       return url ? [{ ...resource, url }] : [];
     }),
     shared_links: item.shared_links?.flatMap((link) => {
       const url = safeHttpUrl(link);
+
       return url ? [url] : [];
     }) ?? [],
   }));
@@ -1628,6 +1701,7 @@ function normalizeEventVideos(value: unknown): NonNullable<Event['videos']> {
     if (!video || typeof video !== 'object') return [];
     const candidate = video as { title?: unknown; embed_url?: unknown };
     const embedUrl = safeHttpUrl(typeof candidate.embed_url === 'string' ? candidate.embed_url : null);
+
     if (!embedUrl) return [];
 
     return [{
@@ -1754,6 +1828,7 @@ function publicSlidesUrl(talk: Talk): string | null {
   if (talk.slides_type === 'url' && validExternalUrl(talk.slides_url)) {
     return talk.slides_url;
   }
+
   return null;
 }
 
@@ -1784,6 +1859,7 @@ async function publicArchivePayload(c: Context) {
     .filter((talk) => talk.status === 'published')
     .flatMap((talk) => {
       const event = eventById.get(talk.event_id);
+
       return event ? [toPublicArchiveTalk(talk, event)] : [];
     })
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
@@ -1798,6 +1874,7 @@ async function publicArchivePayload(c: Context) {
 
 async function publicArchiveEventPayload(eventId: string, c: Context): Promise<PublicArchiveEventResponse | null> {
   const event = await getEventById(eventId, c);
+
   if (!event || !isPublicArchiveEvent(event)) {
     return null;
   }
@@ -1850,11 +1927,14 @@ async function publicArchiveEventPayload(eventId: string, c: Context): Promise<P
 
 async function publicSystemDesignRecapPayload(eventId: string, c: Context) {
   const event = await getEventById(eventId, c);
+
   if (!event || !event.publish_to_website || event.publication_status === 'draft' || !isSystemDesignArchived(event)) return null;
   const scheduleSession = (event.schedule ?? []).find((item) => isSystemDesignSessionItem(item));
   const learningSession = (await getQuizSessionsByEvent(event.id)).find((session) => session.purpose === 'system_design_learning');
+
   if (!scheduleSession || !learningSession) return null;
   const questions = await getQuestionsBySession(learningSession.id);
+
   return {
     event: { id: event.id, name: event.name, event_date: event.event_date },
     title: systemDesignDisplayTitle(scheduleSession),
@@ -1874,6 +1954,7 @@ async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
     .filter((talk) => talk.status === 'published')
     .flatMap((talk) => {
       const event = eventById.get(talk.event_id);
+
       return event ? [toPublicArchiveTalk(talk, event)] : [];
     })
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
@@ -1894,6 +1975,7 @@ async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
 
 async function buildPublicMeetups(origin: string, c?: Context) {
   const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
+
   return events
     .filter((event) => event.ownership !== 'external' && (event.publish_to_website ?? event.status !== 'draft'))
     .map((event) => toPublicMeetup(event, talks.filter((talk) => talk.event_id === event.id), origin))
@@ -1941,9 +2023,11 @@ async function buildPublicEvents(c?: Context): Promise<PublicEvent[]> {
 
 async function publicEventPreviewMeetups(c: Context): Promise<PublicMeetup[]> {
   const supabasePreview = await getSupabasePublicEventPreviewMeetups(publicAppOrigin(c), c);
+
   if (supabasePreview) return supabasePreview;
 
   const [events, talks] = await Promise.all([getAllEvents(c), getAllTalks()]);
+
   return events
     .filter((event) => (
       event.publication_status === 'published'
@@ -1973,38 +2057,49 @@ async function publicMeetupsForApi(c: Context): Promise<PublicMeetup[]> {
 
 function eventSubmissionManagementSignature(linkId: string, c: Context): string | null {
   const secret = secureSharedSecret(envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c));
+
   if (!secret) return null;
+
   return crypto.createHmac('sha256', secret).update(linkId).digest('base64url');
 }
 
 function eventSubmissionManagementUrl(linkId: string, c: Context): string | null {
   const signature = eventSubmissionManagementSignature(linkId, c);
+
   if (!signature) return null;
 
   const url = new URL('/event-amendments', publicAppOrigin(c));
+
   url.hash = new URLSearchParams({ capability: `${linkId}.${signature}` }).toString();
+
   return url.toString();
 }
 
 function verifiedEventSubmissionManagementLink(raw: string, c: Context): string | null {
   const [linkId, signature, ...rest] = raw.split('.');
+
   if (!linkId || !signature || rest.length || !z.string().uuid().safeParse(linkId).success) return null;
   const expected = eventSubmissionManagementSignature(linkId, c);
+
   if (!expected || signature.length !== expected.length) return null;
+
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) ? linkId : null;
 }
 
 function eventSubmissionManagementCapability(c: Context): string {
   const legacyPathCapability = c.req.param('capability')?.trim();
+
   if (legacyPathCapability) return legacyPathCapability;
 
   const authorization = c.req.header('authorization')?.trim() ?? '';
   const match = authorization.match(/^Bearer\s+(.+)$/i);
+
   return match?.[1]?.trim() ?? '';
 }
 
 function publicRegistrationUrl(event: Event, c: Context): string {
   const key = event.slug?.trim() || event.id;
+
   return new URL(`/r/${encodeURIComponent(key)}`, publicRegistrationOrigin({
     requestOrigin: new URL(c.req.url).origin,
     configuredOrigin: envValue('PUBLIC_APP_URL', c) ?? envValue('PUBLIC_FRONTEND_ORIGIN', c),
@@ -2014,19 +2109,24 @@ function publicRegistrationUrl(event: Event, c: Context): string {
 
 function publicEventDetailsUrl(event: Event, c: Context): string {
   const url = new URL(publicRegistrationUrl(event, c));
+
   url.searchParams.set('view', 'details');
+
   return url.toString();
 }
 
 function publicWebsiteEventUrl(event: Event, c: Context): string {
   const websiteOrigin = safeHttpUrl(envValue('PUBLIC_WEBSITE_ORIGIN', c) ?? '') ?? 'https://devcongress.org';
   const key = event.slug?.trim() || event.id;
+
   return new URL(`/events/${encodeURIComponent(key)}`, websiteOrigin).toString();
 }
 
 function publicWebsiteEventReadinessUrl(event: Event, c: Context): string {
   const url = new URL(publicWebsiteEventUrl(event, c));
+
   url.searchParams.set('readiness', '1');
+
   return url.toString();
 }
 
@@ -2038,13 +2138,16 @@ type EventWebsitePublication = {
 
 async function eventWebsitePublication(event: Event, c: Context): Promise<EventWebsitePublication> {
   const url = publicWebsiteEventUrl(event, c);
+
   if (event.publish_to_website === false || event.publication_status === 'draft') {
     return { state: 'not_published', url, http_status: null };
   }
 
   const availability = await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c));
+
   if (availability.available) return { state: 'published', url, http_status: availability.status };
   if (availability.status === 404) return { state: 'pending', url, http_status: availability.status };
+
   return { state: 'failed', url, http_status: availability.status };
 }
 
@@ -2055,8 +2158,10 @@ function eventWebsitePublicationFromDispatch(
   status: number | null,
 ): EventWebsitePublication {
   const url = publicWebsiteEventUrl(event, c);
+
   if (available) return { state: 'published', url, http_status: status };
   if (status === 404) return { state: 'pending', url, http_status: status };
+
   return { state: 'failed', url, http_status: status };
 }
 
@@ -2065,6 +2170,7 @@ async function eventSlackAnnouncementPermalink(
   c: Context,
 ): Promise<string | null> {
   const botToken = envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim();
+
   if (
     !botToken
     || announcement?.status !== 'sent'
@@ -2085,6 +2191,7 @@ async function eventSlackAnnouncementPermalink(
       error_name: error instanceof SlackWebhookError ? error.name : safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return null;
   }
 }
@@ -2094,6 +2201,7 @@ function slackEventCoverUrl(event: Event, _c: Context): string {
   // request-derived origin. Event media is served publicly from EMS.
   const eventAssetsOrigin = 'https://em.devcongress.org';
   const cover = safeWebsiteUrl(publicEventCoverUrl(event.cover));
+
   if (cover?.startsWith('https://')) return cover;
   if (cover?.startsWith('/') && !cover.startsWith('//')) {
     return absoluteAppUrl(eventAssetsOrigin, cover);
@@ -2105,6 +2213,7 @@ function slackEventCoverUrl(event: Event, _c: Context): string {
 function eventIsEligibleForSlackAnnouncement(event: Event): boolean {
   if (event.publish_to_website === false || event.publication_status === 'draft') return false;
   const endsAt = event.end_date ?? event.event_date;
+
   return Number.isFinite(new Date(endsAt).getTime()) && new Date(endsAt).getTime() >= Date.now();
 }
 
@@ -2155,15 +2264,18 @@ function eventSlackDeliveryConfigured(c: Context): boolean {
     envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim()
     && envValue('SLACK_EVENTS_CHANNEL_ID', c)?.trim(),
   );
+
   return webhookConfigured || editableConfigured;
 }
 
 async function syncSentEventSlackAnnouncement(event: Event, c: Context): Promise<void> {
   const botToken = envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim();
+
   if (!botToken) return;
 
   try {
     const announcement = await getEventSlackAnnouncement(event.id, c);
+
     if (
       announcement?.status !== 'sent'
       || !announcement.provider_channel_id
@@ -2179,6 +2291,7 @@ async function syncSentEventSlackAnnouncement(event: Event, c: Context): Promise
     await completeEventSlackAnnouncementUpdate(event.id, { succeeded: true }, c);
   } catch (error) {
     const errorMessage = error instanceof SlackWebhookError ? error.message : 'Slack message update failed.';
+
     await completeEventSlackAnnouncementUpdate(event.id, { succeeded: false, errorMessage }, c).catch(() => undefined);
     console.warn(JSON.stringify({
       event: 'event_slack_announcement_update_failed',
@@ -2208,9 +2321,11 @@ async function notifyEventsChannel(
   const botToken = envValue('SLACK_EVENTS_BOT_TOKEN', c)?.trim();
   const channelId = envValue('SLACK_EVENTS_CHANNEL_ID', c)?.trim();
   const editableDeliveryConfigured = Boolean(botToken && channelId);
+
   if (webhookUrl || editableDeliveryConfigured) {
     const websiteUrl = publicWebsiteEventUrl(event, c);
     const website = await checkPublicEventAvailability(publicWebsiteEventReadinessUrl(event, c));
+
     if (!website.available) {
       console.warn(JSON.stringify({
         event: 'event_added_slack_notification_waiting_for_website',
@@ -2220,6 +2335,7 @@ async function notifyEventsChannel(
         website_status: website.status,
         request_id: c.get('requestId') ?? null,
       }));
+
       return {
         announcement: await getEventSlackAnnouncement(event.id, c),
         dispatched: false,
@@ -2230,6 +2346,7 @@ async function notifyEventsChannel(
   }
 
   let claimed;
+
   try {
     claimed = await claimEventSlackAnnouncement(event.id, source, Boolean(options.allowRetry), c);
   } catch (error) {
@@ -2240,6 +2357,7 @@ async function notifyEventsChannel(
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return { announcement: null, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
@@ -2256,22 +2374,26 @@ async function notifyEventsChannel(
       null,
       c,
     );
+
     return { announcement, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 
   try {
     const messageInput = eventSlackMessageInput(event, c, source);
     let providerReference = null;
+
     if (editableDeliveryConfigured && botToken && channelId) {
       providerReference = await sendEditableEventAddedToSlack({ botToken, channelId, ...messageInput });
     } else {
       await sendEventAddedToSlack({ webhookUrl: webhookUrl!, ...messageInput });
     }
     const announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, true, null, providerReference, c);
+
     return { announcement, dispatched: true, websiteReady: true, websiteStatus: null };
   } catch (error) {
     const errorMessage = error instanceof SlackWebhookError ? error.message : 'Slack notification failed.';
     let announcement: EventSlackAnnouncement | null = null;
+
     try {
       announcement = await completeEventSlackAnnouncement(event.id, claimed.attempt_token, false, errorMessage, null, c);
     } catch (completionError) {
@@ -2290,6 +2412,7 @@ async function notifyEventsChannel(
       error: errorMessage,
       request_id: c.get('requestId') ?? null,
     }));
+
     return { announcement, dispatched: false, websiteReady: true, websiteStatus: null };
   }
 }
@@ -2308,12 +2431,14 @@ async function retryEligibleEventSlackAnnouncements(c: Context) {
   for (const event of events) {
     if (!eventIsEligibleForSlackAnnouncement(event)) continue;
     const existing = await getEventSlackAnnouncement(event.id, c);
+
     if (existing?.status === 'sent' || existing?.status === 'failed') continue;
 
     checked += 1;
     const result = await notifyEventsChannel(event, announcementSource(event), c, {
       allowRetry: false,
     });
+
     if (!result.websiteReady) waitingForWebsite += 1;
     else if (result.dispatched) sent += 1;
     else if (result.announcement?.status === 'failed') failed += 1;
@@ -2337,6 +2462,7 @@ async function eventPageMonitorOrganizerContact(event: Event, c: Context) {
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return null;
   }
 }
@@ -2345,13 +2471,16 @@ function monitorAlertDetail(monitor: EventPageMonitor): string {
   if (monitor.status === 'changed') {
     return monitor.differences.map((difference) => difference.field.replace(/_/g, ' ')).join(', ') || 'Page details changed';
   }
+
   return monitor.last_error || 'The source page needs review.';
 }
 
 async function alertEventPageMonitor(event: Event, monitor: EventPageMonitor, c: Context): Promise<EventPageMonitor> {
   const fingerprint = monitor.last_change_fingerprint;
+
   if (!fingerprint || monitor.last_alerted_fingerprint === fingerprint || monitor.status === 'warning' || monitor.status === 'unchanged' || monitor.status === 'pending') return monitor;
   const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+
   if (!webhookUrl) return monitor;
   try {
     await sendEventPageMonitoringAlertToSlack({
@@ -2362,6 +2491,7 @@ async function alertEventPageMonitor(event: Event, monitor: EventPageMonitor, c:
       sourceUrl: monitor.source_url,
       dashboardUrl: eventPageMonitorDashboardUrl(event.id, c),
     });
+
     return saveEventPageMonitor(event.id, { last_alerted_fingerprint: fingerprint }, c);
   } catch (error) {
     console.warn(JSON.stringify({
@@ -2370,20 +2500,24 @@ async function alertEventPageMonitor(event: Event, monitor: EventPageMonitor, c:
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return monitor;
   }
 }
 
 async function checkEventPage(event: Event, c: Context): Promise<EventPageMonitor | null> {
   const current = await ensureEventPageMonitor(event, c);
+
   if (!current) return null;
   const checkedAt = new Date();
   const nextCheckAt = nextEventPageCheckAt(event.event_date, event.end_date, checkedAt);
   const inspection = await inspectEventPage(current.source_url);
   let saved: EventPageMonitor;
+
   if (inspection.ok && inspection.snapshot) {
     const differences = compareEventPageSnapshots(current.baseline, inspection.snapshot);
     const fingerprint = monitorDifferenceFingerprint(differences);
+
     saved = await saveEventPageMonitor(event.id, {
       status: differences.length > 0 ? 'changed' : 'unchanged',
       last_observed: inspection.snapshot,
@@ -2404,6 +2538,7 @@ async function checkEventPage(event: Event, c: Context): Promise<EventPageMonito
     const fingerprint = status === 'warning' ? null : monitorDifferenceFingerprint([{
       field: 'final_url', expected: current.source_url, observed: `${status}:${inspection.http_status ?? 'network'}:${inspection.error ?? ''}`,
     }]);
+
     saved = await saveEventPageMonitor(event.id, {
       status,
       differences: [],
@@ -2415,13 +2550,16 @@ async function checkEventPage(event: Event, c: Context): Promise<EventPageMonito
       last_change_fingerprint: fingerprint,
     }, c);
   }
+
   return alertEventPageMonitor(event, saved, c);
 }
 
 async function rebaselineApprovedAmendmentMonitor(submissionId: string, c: Context): Promise<void> {
   const eventId = await getApprovedEventIdForSubmission(submissionId, c);
+
   if (!eventId) return;
   const event = await getEventById(eventId, c);
+
   if (!event) return;
   await rebaselineEventPageMonitor(event, c);
 }
@@ -2445,20 +2583,24 @@ async function dispatchApprovedAmendmentMonitorRebaseline(submissionId: string, 
 
 async function checkDueEventPages(c: Context) {
   const events = await getAllEvents(c);
+
   for (const event of events) await ensureEventPageMonitor(event, c);
   const due = await listDueEventPageMonitors(8, c);
   let checked = 0;
   let changed = 0;
   let unavailable = 0;
   let failed = 0;
+
   for (const monitor of due) {
     const event = events.find((candidate) => candidate.id === monitor.event_id);
+
     if (!event) {
       await saveEventPageMonitor(monitor.event_id, { enabled: false, next_check_at: null }, c).catch(() => undefined);
       continue;
     }
     try {
       const result = await checkEventPage(event, c);
+
       if (!result) {
         await saveEventPageMonitor(event.id, { enabled: false, next_check_at: null }, c).catch(() => undefined);
         continue;
@@ -2471,11 +2613,13 @@ async function checkDueEventPages(c: Context) {
       console.warn(JSON.stringify({ event: 'event_page_monitor_check_failed', event_id: event.id, error_name: safeErrorName(error) }));
     }
   }
+
   return { checked, changed, unavailable, failed };
 }
 
 async function notifyEventSubmissionChannel(submission: EventSubmission, c: Context): Promise<void> {
   const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+
   if (!webhookUrl) return;
 
   try {
@@ -2507,6 +2651,7 @@ async function notifyEventSubmissionAmendmentChannel(
   c: Context,
 ): Promise<void> {
   const webhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+
   if (!webhookUrl) return;
 
   try {
@@ -2532,12 +2677,15 @@ async function notifyEventSubmissionAmendmentChannel(
 
 function eventSubmissionDashboardUrl(submissionId: string, c: Context): string {
   const url = new URL('/organizer-console/events/submissions', publicAppOrigin(c));
+
   url.searchParams.set('submission', submissionId);
+
   return url.toString();
 }
 
 function publicRegistrationCalendarUrl(event: Event, c: Context): string {
   const key = event.slug?.trim() || event.id;
+
   return new URL(
     `/api/registration/events/${encodeURIComponent(key)}/calendar.ics`,
     publicAppOrigin(c),
@@ -2557,6 +2705,7 @@ async function sendPendingRegistrationConfirmationEmails(
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailFrom = EMAIL_SENDERS.events.from;
   const emailReplyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return { configured: false, accepted: [], failed: [] };
   }
@@ -2567,6 +2716,7 @@ async function sendPendingRegistrationConfirmationEmails(
     statuses: options.statuses,
     kinds: options.kinds,
   }, c);
+
   if (pending.length === 0) {
     return { configured: true, accepted: [], failed: [] };
   }
@@ -2584,6 +2734,7 @@ async function sendPendingRegistrationConfirmationEmails(
       status: delivery.registration_status,
       kind: delivery.kind,
     });
+
     return {
       from: emailFrom,
       to: [delivery.email],
@@ -2601,11 +2752,13 @@ async function sendPendingRegistrationConfirmationEmails(
       idempotencyKey: `registration-${batchDigest}`,
       emails,
     });
+
     await recordResendEmailHealth(c, result.quota);
     await Promise.all(pending.map((delivery, index) => updateRegistrationEmailDelivery(delivery.delivery_id, {
       status: 'accepted',
       provider_id: result.ids[index],
     }, c)));
+
     return {
       configured: true,
       accepted: pending.map((delivery) => delivery.registration_id),
@@ -2615,6 +2768,7 @@ async function sendPendingRegistrationConfirmationEmails(
     const message = error instanceof ResendBatchError && error.status === 429
       ? 'Email provider daily quota reached; delivery will be retried.'
       : 'Email provider did not accept this delivery; it can be retried.';
+
     await Promise.all(pending.map((delivery) => updateRegistrationEmailDelivery(delivery.delivery_id, {
       status: 'failed',
       last_error: message,
@@ -2625,6 +2779,7 @@ async function sendPendingRegistrationConfirmationEmails(
       recipient_count: pending.length,
       provider_status: error instanceof ResendBatchError ? error.status : null,
     }));
+
     return {
       configured: true,
       accepted: [],
@@ -2664,11 +2819,13 @@ async function sendPendingEventSubmissionEmails(
   } = {},
 ): Promise<{ configured: boolean; accepted: string[]; failed: string[]; failureMessage?: string }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+
   if (!resendApiKey) {
     return { configured: false, accepted: [], failed: [] };
   }
 
   const pending = await getPendingEventSubmissionEmails(options, c);
+
   if (pending.length === 0) {
     return { configured: true, accepted: [], failed: [] };
   }
@@ -2677,6 +2834,7 @@ async function sendPendingEventSubmissionEmails(
     && !envValue('EVENT_SUBMISSION_MANAGEMENT_TOKEN_SECRET', c)?.trim()
   ) {
     console.error(JSON.stringify({ event: 'event_submission_management_token_secret_missing', request_id: c.get('requestId') ?? null }));
+
     return { configured: false, accepted: [], failed: [] };
   }
 
@@ -2713,12 +2871,14 @@ async function sendPendingEventSubmissionEmails(
       idempotencyKey: `event-submission-${batchDigest}`,
       emails,
     });
+
     await recordResendEmailHealth(c, result.quota);
     await Promise.all(pending.map((delivery, index) => updateEventSubmissionEmailDelivery(
       delivery.delivery_id,
       { status: 'accepted', provider_id: result.ids[index] },
       c,
     )));
+
     return {
       configured: true,
       accepted: pending.map((delivery) => delivery.delivery_id),
@@ -2726,6 +2886,7 @@ async function sendPendingEventSubmissionEmails(
     };
   } catch (error) {
     const message = eventSubmissionEmailFailureMessage(error);
+
     await Promise.all(pending.map((delivery) => updateEventSubmissionEmailDelivery(
       delivery.delivery_id,
       { status: 'failed', last_error: message },
@@ -2738,6 +2899,7 @@ async function sendPendingEventSubmissionEmails(
       recipient_count: pending.length,
       provider_status: error instanceof ResendBatchError ? error.status : null,
     }));
+
     return {
       configured: true,
       accepted: [],
@@ -2778,6 +2940,7 @@ function appendProviderDetail(message: string, error: ResendBatchError): string 
 async function handleResendInboundWebhook(c: Context): Promise<globalThis.Response> {
   const rawBody = await c.req.text();
   const webhookSecret = envValue('RESEND_INBOUND_WEBHOOK_SECRET', c)?.trim();
+
   if (!webhookSecret) return c.json({ error: 'Inbound email webhook is not configured.' }, 503);
 
   const signatureValid = verifyResendWebhookSignature({
@@ -2787,21 +2950,25 @@ async function handleResendInboundWebhook(c: Context): Promise<globalThis.Respon
     signatures: c.req.header('svix-signature') ?? null,
     secret: webhookSecret,
   });
+
   if (!signatureValid) return c.json({ error: 'Invalid webhook signature.' }, 401);
 
   let payload: unknown;
+
   try {
     payload = JSON.parse(rawBody);
   } catch {
     return c.json({ error: 'Invalid webhook payload.' }, 400);
   }
   const parsedPayload = resendInboundWebhookSchema.safeParse(payload);
+
   if (!parsedPayload.success) return c.json({ error: 'Invalid webhook payload.' }, 400);
   if (parsedPayload.data.type !== 'email.received') return c.body(null, 204);
 
   const replyDomain = envValue('EVENT_SUBMISSION_REPLY_DOMAIN', c)?.trim();
   const replySecret = envValue('EVENT_SUBMISSION_REPLY_TOKEN_SECRET', c)?.trim();
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
+
   if (!replyDomain || !replySecret || !resendApiKey) {
     return c.json({ error: 'Inbound email processing is not configured.' }, 503);
   }
@@ -2809,6 +2976,7 @@ async function handleResendInboundWebhook(c: Context): Promise<globalThis.Respon
   const recipient = parsedPayload.data.data.to
     .map((address) => parseEventSubmissionReplyRecipient(address, replyDomain, replySecret))
     .find((value) => value !== null);
+
   if (!recipient) return c.body(null, 204);
 
   const receivedEmail = await retrieveResendReceivedEmail({
@@ -2829,9 +2997,11 @@ async function handleResendInboundWebhook(c: Context): Promise<globalThis.Respon
     received_at: receivedAt,
     attachments: receivedEmail.attachments.slice(0, 20),
   }, c);
+
   if (!result.created) return c.body(null, 204);
 
   const slackWebhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+
   if (!slackWebhookUrl) return c.body(null, 204);
 
   try {
@@ -2899,6 +3069,7 @@ async function sendPendingSpeakerRejectionEmails(
 ): Promise<{ configured: boolean; accepted: string[]; failed: string[] }> {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return { configured: false, accepted: [], failed: [] };
   }
@@ -2909,6 +3080,7 @@ async function sendPendingSpeakerRejectionEmails(
 
   for (const submission of pending) {
     const event = await getEventById(submission.event_id, c);
+
     if (!event) {
       await updateSpeakerDecisionEmailDelivery(submission.id, {
         status: 'failed',
@@ -2924,6 +3096,7 @@ async function sendPendingSpeakerRejectionEmails(
       talkTitle: submission.title,
     });
     const idempotencyKey = submission.decision_email_idempotency_key ?? `speaker-rejected-${submission.id}`;
+
     await updateSpeakerDecisionEmailDelivery(submission.id, { status: 'pending' });
 
     try {
@@ -2937,6 +3110,7 @@ async function sendPendingSpeakerRejectionEmails(
           ...content,
         }],
       });
+
       await recordResendEmailHealth(c, result.quota);
       await updateSpeakerDecisionEmailDelivery(submission.id, {
         status: 'accepted',
@@ -2995,6 +3169,7 @@ async function sendPendingSelectedSpeakerEmails(
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
   const secret = envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c);
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success || !secureSharedSecret(secret)) {
     return { configured: false, accepted: [], failed: [] };
   }
@@ -3024,6 +3199,7 @@ async function sendPendingSelectedSpeakerEmails(
         || !submission.selected_intake_link_id
       ) continue;
       const link = linksById.get(submission.selected_intake_link_id);
+
       if (
         !link
         || link.purpose !== 'selected_speaker_confirmation'
@@ -3035,6 +3211,7 @@ async function sendPendingSelectedSpeakerEmails(
 
       const idempotencyKey = link.email_idempotency_key ?? selectedSpeakerEmailIdempotencyKey(event.id, link.id);
       const shortUrl = selectedSpeakerShortUrlForLink(link, c);
+
       if (!shortUrl) {
         await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
           id: link.id,
@@ -3052,6 +3229,7 @@ async function sendPendingSelectedSpeakerEmails(
         privateUrl: shortUrl,
         expiresAt: link.expires_at,
       });
+
       await updateSpeakerIntakeLinkEmailDeliveries(event.id, [{
         id: link.id,
         status: 'pending',
@@ -3068,6 +3246,7 @@ async function sendPendingSelectedSpeakerEmails(
             ...content,
           }],
         });
+
         try {
           await recordResendEmailHealth(c, result.quota);
         } catch (error) {
@@ -3096,6 +3275,7 @@ async function sendPendingSelectedSpeakerEmails(
       }
     }
   }
+
   return { configured: true, accepted, failed };
 }
 
@@ -3110,6 +3290,7 @@ async function dispatchSelectedSpeakerEmails(
       error_name: safeErrorName(error),
     }));
   });
+
   try {
     c.executionCtx.waitUntil(task);
   } catch {
@@ -3144,6 +3325,7 @@ function eventSubmissionLifecycleForRequest(c: Context) {
     syncApprovedEventAnnouncement: async ({ submissionId }) => {
       const eventId = await getApprovedEventIdForSubmission(submissionId, c);
       const event = eventId ? await getEventById(eventId, c) : null;
+
       if (event) await syncSentEventSlackAnnouncement(event, c);
     },
   });
@@ -3157,11 +3339,14 @@ function operationsReadModelForRequest(c: Context) {
         .select('id, actor_email, actor_role, action, target_type, target_id, metadata, ip_address, user_agent, request_method, request_path, created_at')
         .order('created_at', { ascending: false })
         .limit(filters.limit);
+
       if (filters.actor) query = query.ilike('actor_email', `%${filters.actor}%`);
       if (filters.action) query = query.eq('action', filters.action);
       if (filters.targetType) query = query.eq('target_type', filters.targetType);
       const { data, error } = await query;
+
       if (error) throw new OperationsReadModelError('Unable to load audit log.');
+
       return data ?? [];
     },
     emailHealth: () => getEmailDeliveryHealth(c),
@@ -3184,6 +3369,7 @@ function feedbackActivityLabelKey(label: string): string {
 function feedbackScheduleActivityLabel(item: PublicMeetupScheduleItem): string {
   const title = item.title.trim();
   const lead = item.lead?.trim();
+
   if (!lead || title.toLowerCase().includes(lead.toLowerCase())) {
     return title;
   }
@@ -3193,9 +3379,11 @@ function feedbackScheduleActivityLabel(item: PublicMeetupScheduleItem): string {
 
 function isFeedbackScheduleActivity(item: PublicMeetupScheduleItem): boolean {
   const title = item.title.trim();
+
   if (!title) return false;
   if (item.type === 'break' || item.type === 'networking') return false;
   if (/^welcome\b/i.test(title)) return false;
+
   return true;
 }
 
@@ -3206,6 +3394,7 @@ function feedbackActivityLabelsForEvent(event: Event, eventTalks: Talk[]): strin
   function addLabel(label: string) {
     const normalized = label.trim();
     const key = feedbackActivityLabelKey(normalized);
+
     if (!normalized || seen.has(key)) return;
     seen.add(key);
     labels.push(normalized);
@@ -3230,6 +3419,7 @@ function isDefaultFeedbackCampaign(campaign: FeedbackCampaign): boolean {
   if (campaign.intro !== 'Tell us what landed, what dragged, and what should change next month.') return false;
 
   const labels = campaign.questions.map((question) => question.label);
+
   return labels.length === 4
     && labels.includes('How would you rate today\'s event?')
     && labels.includes('Which talk or session was most useful?')
@@ -3270,6 +3460,7 @@ async function hydrateDefaultFeedbackCampaignFromEvent(event: Event, campaign: F
   if (!isDefaultFeedbackCampaign(campaign)) return campaign;
 
   const labels = feedbackActivityLabelsForEvent(event, eventTalks);
+
   if (labels.length === 0) return campaign;
 
   return updateFeedbackCampaignStore(event.id, {
@@ -3283,6 +3474,7 @@ function normalizeEventFeedbackResponseToken(input: unknown): string | null {
   if (typeof input !== 'string') return null;
 
   const token = input.trim();
+
   if (token.length < EVENT_FEEDBACK_TOKEN_MIN_CHARS || token.length > EVENT_FEEDBACK_TOKEN_MAX_CHARS) {
     return null;
   }
@@ -3318,6 +3510,7 @@ async function hasSupabaseFeedbackResponseToken(
     .limit(1);
 
   if (error) return false;
+
   return Boolean(data?.length);
 }
 
@@ -3362,16 +3555,20 @@ function normalizeFeedbackSubmissionAnswers(
   }
 
   const rawAnswers = new Map<string, unknown>();
+
   for (const item of input) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const raw = item as Partial<FeedbackAnswer>;
     const questionId = String(raw.question_id ?? '');
+
     if (questionId) rawAnswers.set(questionId, raw.value);
   }
 
   const answers: FeedbackAnswer[] = [];
+
   for (const question of campaign.questions) {
     const normalized = normalizeEventFeedbackAnswer(question, rawAnswers.get(question.id));
+
     if (!normalized.valid) {
       return { answers: [], valid: false };
     }
@@ -3388,23 +3585,29 @@ function extractGoogleSlidesPresentationId(input: string): string | null {
   if (!URL.canParse(input)) return null;
 
   const url = new URL(input);
+
   if (url.hostname !== 'docs.google.com') return null;
 
   const match = url.pathname.match(/\/presentation\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]+)/);
+
   return match?.[1] ?? null;
 }
 
 function googleSlidesExportUrl(input: string): string | null {
   const presentationId = extractGoogleSlidesPresentationId(input);
+
   if (!presentationId) return null;
+
   return `https://docs.google.com/presentation/d/${presentationId}/export/txt`;
 }
 
 function googleDocumentExportUrl(input: string): string | null {
   if (!URL.canParse(input)) return null;
   const url = new URL(input);
+
   if (url.hostname !== 'docs.google.com') return null;
   const match = url.pathname.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+
   return match?.[1] ? `https://docs.google.com/document/d/${match[1]}/export?format=txt` : null;
 }
 
@@ -3426,6 +3629,7 @@ function slideTextLines(text: string): string[] {
 
 function isLikelyPresenterLine(line: string): boolean {
   const lower = line.toLowerCase();
+
   return lower.includes('@') || lower.includes('linkedin') || lower.includes('twitter') || lower.includes('everywhere');
 }
 
@@ -3446,6 +3650,7 @@ function titleCandidateScore(line: string, frequency: number): number {
 
 function inferSlidesTitle(lines: string[], fallbackTitle?: string): string {
   const frequencies = new Map<string, number>();
+
   for (const line of lines) {
     frequencies.set(line, (frequencies.get(line) ?? 0) + 1);
   }
@@ -3461,6 +3666,7 @@ function summarizeList(items: string[]): string {
   if (items.length === 0) return '';
   if (items.length === 1) return items[0];
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
+
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
@@ -3480,6 +3686,7 @@ function inferSlidesSummary(text: string, title: string, lead?: string): string 
     if (/^\d+$/.test(line)) return false;
     if (line.toLowerCase() === normalizedTitle) return false;
     if (isLikelyPresenterLine(line)) return false;
+
     return true;
   });
 
@@ -3518,10 +3725,12 @@ async function readTextResponseWithLimit(response: globalThis.Response, maxBytes
 
   while (true) {
     const { done, value } = await reader.read();
+
     if (done) break;
     receivedBytes += value.byteLength;
     if (receivedBytes > maxBytes) {
       await reader.cancel();
+
       throw new Error('This Google Slides deck is too large to import safely.');
     }
     text += decoder.decode(value, { stream: true });
@@ -3536,6 +3745,7 @@ async function fetchGoogleSlidesDraft(input: {
   lead?: string;
 }): Promise<{ title: string; content: string; summary: string; export_url: string }> {
   const exportUrl = googleSlidesExportUrl(input.promptUrl);
+
   if (!exportUrl) {
     throw new Error('Use a public Google Slides presentation link to generate a draft.');
   }
@@ -3556,15 +3766,18 @@ async function fetchGoogleSlidesDraft(input: {
   }
 
   const contentLength = Number(response.headers.get('content-length'));
+
   if (Number.isFinite(contentLength) && contentLength > GOOGLE_SLIDES_MAX_TEXT_CHARS) {
     throw new Error('This Google Slides deck is too large to import safely.');
   }
 
   const rawText = await readTextResponseWithLimit(response, GOOGLE_SLIDES_MAX_BYTES);
+
   if (rawText.length > GOOGLE_SLIDES_MAX_TEXT_CHARS) {
     throw new Error('This Google Slides deck is too large to import safely.');
   }
   const text = normalizeSlideText(rawText);
+
   if (!text) {
     throw new Error('Google Slides returned an empty deck export.');
   }
@@ -3583,21 +3796,27 @@ async function fetchGoogleSlidesDraft(input: {
 async function fetchSystemDesignSourceText(promptUrl: string, fallbackTitle?: string): Promise<{ title: string; content: string }> {
   if (googleSlidesExportUrl(promptUrl)) {
     const draft = await fetchGoogleSlidesDraft({ promptUrl, fallbackTitle });
+
     return { title: draft.title, content: draft.content };
   }
   const exportUrl = googleDocumentExportUrl(promptUrl);
+
   if (!exportUrl) throw new Error('Use a public Google Slides or Google Docs link for the System Design source.');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GOOGLE_SLIDES_FETCH_TIMEOUT_MS);
   const response = await fetch(exportUrl, { signal: controller.signal, headers: { Accept: 'text/plain' } }).finally(() => clearTimeout(timeout));
+
   if (!response.ok) throw new Error(response.status === 403 ? 'This Google Doc is not publicly readable. Open sharing first.' : 'Could not read this Google Doc.');
   const content = normalizeSlideText(await readTextResponseWithLimit(response, GOOGLE_SLIDES_MAX_BYTES));
+
   if (!content) throw new Error('Google Docs returned an empty document export.');
+
   return { title: fallbackTitle?.trim() || 'System Design source', content };
 }
 
 function eventMonthKey(value: string): string {
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) {
     return value.slice(0, 7);
   }
@@ -3607,6 +3826,7 @@ function eventMonthKey(value: string): string {
 
 function eventMonthLabel(monthKey: string): string {
   const date = new Date(`${monthKey}-01T00:00:00.000Z`);
+
   if (Number.isNaN(date.getTime())) {
     return monthKey;
   }
@@ -3620,6 +3840,7 @@ function formatInsightPercent(value: number | null): number | null {
 
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
+
   return Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1));
 }
 
@@ -3639,6 +3860,7 @@ function buildFeedbackInsights(
   for (const submission of submissions) {
     for (const answer of submission.answers) {
       const question = questionsById.get(answer.question_id);
+
       if (!question) continue;
 
       if (question.type === 'rating' && isEventFeedbackRating(answer.value)) {
@@ -3711,6 +3933,7 @@ function eventUpdatesForCompletedChecklistItem(item: EventChecklistItem): Partia
 
 function supabaseProjectRef(c?: Context): string | null {
   const supabaseUrl = envValue('VITE_SUPABASE_URL', c);
+
   if (!supabaseUrl) return null;
 
   try {
@@ -3752,6 +3975,7 @@ app.get('/api/health/supabase', async (c) => {
       request_id: c.get('requestId') ?? null,
       error_code: error.code ?? null,
     }));
+
     return c.json({
       ok: false,
       configured: true,
@@ -3766,6 +3990,7 @@ app.get('/api/health/supabase', async (c) => {
 
 app.get('/api/health/data-sources', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const supabaseConfigured = isSupabaseServerConfigured(c);
@@ -3812,6 +4037,7 @@ app.get('/api/health/data-sources', async (c) => {
 
 app.get('/api/health/supabase/community-events', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -3832,6 +4058,7 @@ app.get('/api/health/supabase/community-events', async (c) => {
       request_id: c.get('requestId') ?? null,
       error_code: error.code ?? null,
     }));
+
     return c.json({
       ok: false,
       configured: true,
@@ -3846,6 +4073,7 @@ app.get('/api/health/supabase/community-events', async (c) => {
 
 app.get('/api/health/supabase/storage', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -3865,6 +4093,7 @@ app.get('/api/health/supabase/storage', async (c) => {
       request_id: c.get('requestId') ?? null,
       error_name: error.name ?? null,
     }));
+
     return c.json({
       ok: false,
       configured: true,
@@ -3931,6 +4160,7 @@ app.post('/api/feedback', async (c) => {
   }
 
   const parsed = routeFeedbackSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your feedback and try again.' }, 400);
   }
@@ -3945,6 +4175,7 @@ app.post('/api/feedback', async (c) => {
     submittedAction: body.turnstile_action,
     expectedAction: ROUTE_FEEDBACK_TURNSTILE_ACTION,
   });
+
   if (turnstileError) return turnstileError;
 
   const clientKey = publicClientKey(c);
@@ -3954,6 +4185,7 @@ app.post('/api/feedback', async (c) => {
     maxAttempts: 1,
     windowSeconds: 10 * 60,
   }, 'Feedback was recently received from this device. Please wait before sending another note.');
+
   if (cooldownError) return cooldownError;
 
   const dailyLimitError = await enforcePublicRateLimit(c, {
@@ -3962,6 +4194,7 @@ app.post('/api/feedback', async (c) => {
     maxAttempts: 3,
     windowSeconds: 24 * 60 * 60,
   }, 'This device has reached the feedback limit for today.');
+
   if (dailyLimitError) return dailyLimitError;
 
   const supabase = getSupabaseAdminClient(c);
@@ -4013,6 +4246,7 @@ app.post('/api/feedback', async (c) => {
       request_id: c.get('requestId') ?? null,
       error_code: error.code ?? null,
     }));
+
     return c.json({ error: 'Unable to save feedback. Please try again.' }, 500);
   }
 
@@ -4021,6 +4255,7 @@ app.post('/api/feedback', async (c) => {
 
 app.get('/api/feedback/inbox', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -4052,6 +4287,7 @@ app.get('/api/feedback/inbox', async (c) => {
   }
 
   const rows = data ?? [];
+
   return c.json({
     submissions: rows,
     summary: {
@@ -4066,6 +4302,7 @@ app.get('/api/feedback/inbox', async (c) => {
 
 app.patch('/api/feedback/inbox/:feedbackId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -4109,6 +4346,7 @@ app.patch('/api/feedback/inbox/:feedbackId', async (c) => {
 
 app.post('/api/feedback/inbox/archive-resolved', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (!isSupabaseServerConfigured(c)) {
@@ -4140,6 +4378,7 @@ app.post('/api/feedback/inbox/archive-resolved', async (c) => {
 
 app.get('/api/feedback/monthly', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const [events, talks] = await Promise.all([
@@ -4155,12 +4394,14 @@ app.get('/api/feedback/monthly', async (c) => {
 
   for (const submission of submissions) {
     const eventSubmissions = submissionsByEvent.get(submission.event_id) ?? [];
+
     eventSubmissions.push(submission);
     submissionsByEvent.set(submission.event_id, eventSubmissions);
   }
 
   for (const talk of talks) {
     const eventTalks = talksByEvent.get(talk.event_id) ?? [];
+
     eventTalks.push(talk);
     talksByEvent.set(talk.event_id, eventTalks);
   }
@@ -4199,6 +4440,7 @@ app.get('/api/feedback/monthly', async (c) => {
 
     for (const answer of eventSubmissions.flatMap((submission) => submission.answers)) {
       const question = campaign.questions.find((item) => item.id === answer.question_id);
+
       if (question?.type === 'rating' && isEventFeedbackRating(answer.value)) {
         monthBucket.rating_values.push(answer.value);
       }
@@ -4209,6 +4451,7 @@ app.get('/api/feedback/monthly', async (c) => {
 
     if (insights.top_talk_label) {
       const current = monthBucket.top_talk_counts.get(insights.top_talk_label) ?? { label: insights.top_talk_label, count: 0 };
+
       current.count += insights.top_talk_count;
       monthBucket.top_talk_counts.set(insights.top_talk_label, current);
     }
@@ -4264,6 +4507,7 @@ app.get('/api/feedback/monthly', async (c) => {
 
 app.get('/api/events/:eventId/feedback-campaign', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -4300,6 +4544,7 @@ app.get('/api/events/:eventId/feedback-campaign', async (c) => {
 
 app.patch('/api/events/:eventId/feedback-campaign', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -4355,6 +4600,7 @@ app.patch('/api/events/:eventId/feedback-campaign', async (c) => {
 
 app.delete('/api/events/:eventId/feedback-campaign', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -4365,6 +4611,7 @@ app.delete('/api/events/:eventId/feedback-campaign', async (c) => {
   }
 
   const removedCampaign = await deleteFeedbackCampaignByEventStore(eventId, c);
+
   if (!removedCampaign) {
     return c.json({ error: 'Feedback form not found' }, 404);
   }
@@ -4462,6 +4709,7 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   }
 
   const parsed = eventFeedbackSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your feedback and try again.' }, 400);
   }
@@ -4472,6 +4720,7 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
     submittedAction: body.turnstile_action,
     expectedAction: EVENT_FEEDBACK_TURNSTILE_ACTION,
   });
+
   if (turnstileError) return turnstileError;
 
   const rateLimitError = await enforcePublicRateLimit(c, {
@@ -4480,9 +4729,11 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
     maxAttempts: 5,
     windowSeconds: 60 * 60,
   }, 'This device has sent several feedback responses. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
 
   const normalized = normalizeFeedbackSubmissionAnswers(campaign, body.answers);
+
   if (!normalized.valid) {
     return c.json({ error: 'One or more feedback answers are invalid.' }, 400);
   }
@@ -4491,10 +4742,12 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer.value]));
   const missingRequired = campaign.questions.some((question) => {
     const value = answersByQuestion.get(question.id);
+
     return question.required && !isEventFeedbackAnswerPresent(value);
   });
   const textAnswerTooLong = campaign.questions.some((question) => {
     const value = answersByQuestion.get(question.id);
+
     return question.type === 'text' && typeof value === 'string' && value.length > EVENT_FEEDBACK_COMMENT_MAX_CHARS;
   });
 
@@ -4513,6 +4766,7 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   );
   const invalidTalkSelection = campaign.questions.some((question) => {
     const value = answersByQuestion.get(question.id);
+
     return question.type === 'talk_select'
       && typeof value === 'string'
       && value.length > 0
@@ -4524,6 +4778,7 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   }
 
   const responseToken = normalizeEventFeedbackResponseToken(body.response_token);
+
   if (!responseToken) {
     return c.json({ error: 'Refresh this feedback form and try again.' }, 400);
   }
@@ -4540,6 +4795,7 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
   }
 
   const serializedAnswers = JSON.stringify(answers);
+
   if (serializedAnswers.length > FEEDBACK_SUBMISSION_MESSAGE_MAX_CHARS) {
     return c.json({ error: 'Your response is too long. Please shorten the written comments a little.' }, 400);
   }
@@ -4560,6 +4816,7 @@ app.post('/api/feedback/events/:eventId/submissions', async (c) => {
 
 app.post('/api/public/email-preflight', async (c) => {
   const parsed = publicEmailPreflightSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Enter a valid email address.' }, 400);
   }
@@ -4570,9 +4827,11 @@ app.post('/api/public/email-preflight', async (c) => {
     maxAttempts: 20,
     windowSeconds: 10 * 60,
   }, 'Too many email checks. Please wait a few minutes and try again.');
+
   if (rateLimitError) return rateLimitError;
 
   const result = await assessPublicSubmissionEmail(c, parsed.data.email);
+
   if (result.status === 'invalid') {
     return c.json(publicEmailErrorPayload(result), 422);
   }
@@ -4586,6 +4845,7 @@ app.post('/api/public/email-preflight', async (c) => {
 
 app.post('/api/volunteer-applications', async (c) => {
   const parsed = volunteerApplicationSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your details and try again.' }, 400);
   }
@@ -4595,15 +4855,18 @@ app.post('/api/volunteer-applications', async (c) => {
     submittedAction: parsed.data.turnstile_action,
     expectedAction: VOLUNTEER_INTAKE_TURNSTILE_ACTION,
   });
+
   if (turnstileError) return turnstileError;
 
   const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.email);
+
   if (emailAssessment.status === 'invalid') {
     return c.json(publicEmailErrorPayload(emailAssessment), 422);
   }
 
   const normalizedEmail = normalizedVolunteerEmailKey(emailAssessment.normalizedEmail);
   const existingApplication = await getVolunteerApplicationByEmail(normalizedEmail);
+
   if (existingApplication) {
     return c.json({ accepted: true }, 202);
   }
@@ -4614,6 +4877,7 @@ app.post('/api/volunteer-applications', async (c) => {
     maxAttempts: VOLUNTEER_EMAIL_RETRY_LIMIT.maxAttempts,
     windowSeconds: VOLUNTEER_EMAIL_RETRY_LIMIT.windowSeconds,
   }, 'We have received several attempts for this email address. Please try again later.');
+
   if (emailRetryError) return emailRetryError;
 
   const result = await createVolunteerApplication({
@@ -4632,19 +4896,24 @@ app.post('/api/volunteer-applications', async (c) => {
 
 app.get('/api/admin/volunteer-applications', async (c) => {
   const applications = await getVolunteerApplications();
+
   return c.json({ applications });
 });
 
 app.get('/api/annual-conference/:year/team', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const year = Number(yearParam);
   const capabilityError = await requireAnnualConferenceCapability(c, year, 'volunteers.view_team');
+
   if (capabilityError) return capabilityError;
   try {
     const team = await listAnnualConferenceVolunteerTeam(year, c);
+
     return c.json({
       members: team.map(({ email: _email, ...member }) => member),
     });
@@ -4655,13 +4924,17 @@ app.get('/api/annual-conference/:year/team', async (c) => {
 
 app.get('/api/annual-conference/:year/task-members', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated) return c.json({ error: 'Conference access required.' }, 401);
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   if (session.role === 'volunteer') {
     const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'work_plan.manage');
+
     if (capabilityError) return capabilityError;
   }
   const { data, error } = await getSupabaseAdminClient(c)
@@ -4669,16 +4942,21 @@ app.get('/api/annual-conference/:year/task-members', async (c) => {
     .select('id, email, display_name, role, status, last_login_at, created_at')
     .eq('status', 'active')
     .order('display_name', { ascending: true });
+
   if (error) return internalErrorResponse(c, 'annual_conference_task_members_read_failed', error, 'Unable to load conference members.');
+
   return c.json({ organizers: data ?? [], auth_mode: 'supabase' });
 });
 
 app.get('/api/annual-conference/:year/volunteer-applications', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'volunteers.review_applications');
+
   if (capabilityError) return capabilityError;
   const year = Number(yearParam);
   const [applications, team] = await Promise.all([
@@ -4686,9 +4964,11 @@ app.get('/api/annual-conference/:year/volunteer-applications', async (c) => {
     listAnnualConferenceVolunteerTeam(year, c),
   ]);
   const activeVolunteerByEmail = new Map(team.map((member) => [member.email.trim().toLowerCase(), member.id]));
+
   return c.json({
     applications: applications.map((application) => {
       const membershipId = activeVolunteerByEmail.get(application.email.trim().toLowerCase()) ?? null;
+
       return {
         ...application,
         membership_id: membershipId,
@@ -4700,12 +4980,16 @@ app.get('/api/annual-conference/:year/volunteer-applications', async (c) => {
 
 app.get('/api/annual-conference/:year/access-grants', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   try {
     const access = await listAnnualConferenceAccessMembers(Number(yearParam), c);
+
     if (!access) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
+
     return c.json(access);
   } catch (error) {
     return internalErrorResponse(c, 'annual_conference_access_read_failed', error, 'Unable to load conference responsibilities.');
@@ -4714,14 +4998,19 @@ app.get('/api/annual-conference/:year/access-grants', async (c) => {
 
 app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.membership_id) return c.json({ error: 'Owner session required.' }, 401);
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const membershipId = z.string().uuid().safeParse(c.req.param('membershipId'));
+
   if (!membershipId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
   const parsed = annualConferenceAccessGrantSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: 'Choose a supported conference responsibility.' }, 400);
 
   try {
@@ -4732,6 +5021,7 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
       enabled: parsed.data.enabled,
       grantedByMembershipId: session.membership_id,
     }, c);
+
     if (!result) return c.json({ error: `Annual conference ${yearParam} was not found.` }, 404);
     if (result === 'not_found') return c.json({ error: 'Member was not found.' }, 404);
     if (result === 'inactive') return c.json({ error: 'Responsibilities can only be assigned to active members.' }, 400);
@@ -4745,6 +5035,7 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
       targetId: membershipId.data,
       metadata: { edition_year: Number(yearParam), capability: parsed.data.capability },
     });
+
     return c.json({ capability: parsed.data.capability, enabled: parsed.data.enabled });
   } catch (error) {
     return internalErrorResponse(c, 'annual_conference_access_update_failed', error, 'Unable to update conference responsibilities.');
@@ -4753,19 +5044,24 @@ app.patch('/api/annual-conference/:year/access-grants/:membershipId', async (c) 
 
 app.get('/api/annual-conference/editions', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
   const service = await annualConferenceServiceForRequest(c);
+
   return c.json({ editions: await service.listEditions() });
 });
 
 app.post('/api/annual-conference/editions', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
   const parsed = annualConferenceEditionCreateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the edition details.' }, 400);
 
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.createEdition(parsed.data), 201);
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -4774,15 +5070,18 @@ app.post('/api/annual-conference/editions', async (c) => {
 
 app.get('/api/annual-conference/:year/work-plan', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
 
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
 
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.getWorkspace(Number(yearParam)));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -4794,143 +5093,180 @@ registerAnnualConferenceTaskResourceRoutes(app);
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
   const capabilityError = await requireAnnualConferenceCapability(c, Number(yearParam), 'finance.view');
+
   if (capabilityError) return capabilityError;
 
   try {
     const service = await annualConferenceFinanceServiceForRequest(c);
+
     return c.json(await service.getFinance(Number(yearParam)));
   } catch (error) {
     if (error instanceof AnnualConferenceFinanceServiceError) {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
+
     return internalErrorResponse(c, 'annual_conference_finance_read_failed', error, 'Unable to load conference finance.');
   }
 });
 
 app.post('/api/annual-conference/:year/finance/budgets', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
   const parsed = annualConferenceFinanceBudgetSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the budget details.' }, 400);
   }
 
   try {
     const service = await annualConferenceFinanceServiceForRequest(c);
+
     return c.json(await service.createBudgetLine(Number(yearParam), parsed.data), 201);
   } catch (error) {
     if (error instanceof AnnualConferenceFinanceServiceError) {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
+
     return internalErrorResponse(c, 'annual_conference_finance_budget_create_failed', error, 'Unable to save the budget line.');
   }
 });
 
 app.post('/api/annual-conference/:year/finance/entries', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
   const parsed = annualConferenceFinanceEntrySchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the finance record.' }, 400);
   }
 
   try {
     const service = await annualConferenceFinanceServiceForRequest(c);
+
     return c.json(await service.createEntry(Number(yearParam), parsed.data as AnnualConferenceFinanceEntryInput), 201);
   } catch (error) {
     if (error instanceof AnnualConferenceFinanceServiceError) {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
+
     return internalErrorResponse(c, 'annual_conference_finance_entry_create_failed', error, 'Unable to save the finance record.');
   }
 });
 
 app.patch('/api/annual-conference/:year/finance/entries/:entryId/expected', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const entryId = z.string().uuid().safeParse(c.req.param('entryId'));
+
   if (!entryId.success) return c.json({ error: 'Finance record identifier is invalid.' }, 400);
   const parsed = annualConferenceFinanceIncomeExpectationAmendmentSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the revised expected amount.' }, 400);
 
   try {
     const service = await annualConferenceFinanceServiceForRequest(c);
+
     return c.json(await service.amendIncomeExpectation(Number(yearParam), entryId.data, parsed.data));
   } catch (error) {
     if (error instanceof AnnualConferenceFinanceServiceError) {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
+
     return internalErrorResponse(c, 'annual_conference_finance_income_amend_failed', error, 'Unable to amend the expected income.');
   }
 });
 
 app.post('/api/annual-conference/:year/finance/entries/:entryId/receipts', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const entryId = z.string().uuid().safeParse(c.req.param('entryId'));
+
   if (!entryId.success) return c.json({ error: 'Finance record identifier is invalid.' }, 400);
   const parsed = annualConferenceFinanceIncomeReceiptSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the payment receipt.' }, 400);
 
   try {
     const service = await annualConferenceFinanceServiceForRequest(c);
+
     return c.json(await service.recordIncomeReceipt(Number(yearParam), entryId.data, parsed.data), 201);
   } catch (error) {
     if (error instanceof AnnualConferenceFinanceServiceError) {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
+
     return internalErrorResponse(c, 'annual_conference_finance_income_receipt_create_failed', error, 'Unable to record the payment receipt.');
   }
 });
 
 app.post('/api/annual-conference/:year/finance/entries/:entryId/cancel', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const entryId = z.string().uuid().safeParse(c.req.param('entryId'));
+
   if (!entryId.success) return c.json({ error: 'Finance record identifier is invalid.' }, 400);
   const parsed = annualConferenceFinanceIncomeCancellationSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Explain why this expectation is no longer expected.' }, 400);
 
   try {
     const service = await annualConferenceFinanceServiceForRequest(c);
+
     return c.json(await service.cancelIncomeExpectation(Number(yearParam), entryId.data, parsed.data));
   } catch (error) {
     if (error instanceof AnnualConferenceFinanceServiceError) {
       return c.json({ error: error.message }, annualConferenceFinanceErrorStatus(error));
     }
+
     return internalErrorResponse(c, 'annual_conference_finance_income_cancel_failed', error, 'Unable to cancel the expected income.');
   }
 });
 
 app.post('/api/annual-conference/:year/phases', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const parsed = annualConferencePhaseCreateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase details.' }, 400);
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.createPhase(Number(yearParam), parsed.data), 201);
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -4939,13 +5275,17 @@ app.post('/api/annual-conference/:year/phases', async (c) => {
 
 app.put('/api/annual-conference/:year/phases/order', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const parsed = annualConferencePhaseOrderSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase order.' }, 400);
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.reorderPhases(Number(yearParam), parsed.data.phase_ids));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -4954,13 +5294,17 @@ app.put('/api/annual-conference/:year/phases/order', async (c) => {
 
 app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   const parsed = annualConferencePhaseUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the phase changes.' }, 400);
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.updatePhase(Number(yearParam), c.req.param('phaseId'), parsed.data));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -4969,11 +5313,14 @@ app.patch('/api/annual-conference/:year/phases/:phaseId', async (c) => {
 
 app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) return c.json({ error: 'Conference year must use four digits.' }, 400);
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.deletePhase(Number(yearParam), c.req.param('phaseId')));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -4982,20 +5329,24 @@ app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
 
 app.post('/api/annual-conference/:year/work-plan', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
 
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
 
   const parsed = annualConferenceTaskCreateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the task details.' }, 400);
   }
 
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.createTask(Number(yearParam), parsed.data), 201);
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -5004,20 +5355,24 @@ app.post('/api/annual-conference/:year/work-plan', async (c) => {
 
 app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
   if (adminError) return adminError;
 
   const yearParam = c.req.param('year');
+
   if (!/^\d{4}$/.test(yearParam)) {
     return c.json({ error: 'Conference year must use four digits.' }, 400);
   }
 
   const parsed = annualConferenceTaskUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the task changes.' }, 400);
   }
 
   try {
     const service = await annualConferenceServiceForRequest(c);
+
     return c.json(await service.updateTask(Number(yearParam), c.req.param('taskId'), parsed.data));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
@@ -5032,20 +5387,25 @@ app.get('/api/auth/admin/callback', async (c) => {
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : defaultAdminRedirectPath(c);
   const clientOrigin = publicAppOrigin(c);
   const clientCallback = new URL(`${basePath}/auth/callback`, clientOrigin);
+
   clientCallback.searchParams.set('next', safeNext);
 
   if (callbackError) {
     clientCallback.searchParams.set('error', 'oauth_failed');
+
     return c.redirect(clientCallback.toString());
   }
 
   if (!code) {
     const loginUrl = new URL(`${basePath}/login`, clientOrigin);
+
     loginUrl.searchParams.set('error', 'Google organizer sign-in did not return a code. Please try again.');
+
     return c.redirect(loginUrl.toString());
   }
 
   clientCallback.searchParams.set('code', code);
+
   return c.redirect(clientCallback.toString());
 });
 
@@ -5055,6 +5415,7 @@ app.post('/api/auth/admin/exchange', async (c) => {
   }
 
   const parsed = adminTokenExchangeSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: 'Google organizer sign-in could not be completed. Please try again.' }, 400);
   }
@@ -5065,9 +5426,11 @@ app.post('/api/auth/admin/exchange', async (c) => {
     maxAttempts: 10,
     windowSeconds: 10 * 60,
   }, 'Too many sign-in attempts. Please wait a few minutes and try again.');
+
   if (rateLimitError) return rateLimitError;
 
   const result = await completeSupabaseAdminToken(c, parsed.data.access_token);
+
   if (!result.ok) {
     return c.json({ error: result.error }, { status: result.status as 401 | 403 | 500 });
   }
@@ -5084,11 +5447,13 @@ app.post('/api/auth/logout', async (c) => {
     targetType: 'admin_session',
   });
   await revokeAdminSession(c);
+
   return c.json({ authenticated: false });
 });
 
 app.get('/api/admin/organizers', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const { data, error } = await getSupabaseAdminClient(c)
@@ -5108,6 +5473,7 @@ app.get('/api/admin/organizers', async (c) => {
 
 app.post('/api/admin/organizers', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -5115,11 +5481,13 @@ app.post('/api/admin/organizers', async (c) => {
   }
 
   const session = await getAdminSession(c);
+
   if (!session.authenticated) {
     return c.json({ error: 'Admin session required' }, 401);
   }
   const body = await c.req.json().catch(() => ({}));
   const parsed = addOrganizerSchema.safeParse(body);
+
   if (!parsed.success) {
     return c.json({ error: 'Enter a valid email, display name, and role.' }, 400);
   }
@@ -5215,6 +5583,7 @@ app.post('/api/admin/organizers', async (c) => {
 
 app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -5222,16 +5591,19 @@ app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
   }
 
   const session = await getAdminSession(c);
+
   if (!session.authenticated || session.role !== 'owner') {
     return c.json({ error: 'Only owners can change member roles.' }, 403);
   }
 
   const organizerId = c.req.param('organizerId');
+
   if (organizerId === session.membership_id) {
     return c.json({ error: 'You cannot change your own role.' }, 400);
   }
 
   const parsed = updateOrganizerRoleSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: 'Choose Organizer or Volunteer.' }, 400);
   }
@@ -5291,6 +5663,7 @@ app.patch('/api/admin/organizers/:organizerId/role', async (c) => {
 
 app.delete('/api/admin/organizers/:organizerId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -5298,6 +5671,7 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
   }
 
   const session = await getAdminSession(c);
+
   if (!session.authenticated) {
     return c.json({ error: 'Admin session required' }, 401);
   }
@@ -5375,6 +5749,7 @@ app.delete('/api/admin/organizers/:organizerId', async (c) => {
 
 app.post('/api/admin/organizers/:organizerId/enable', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -5382,11 +5757,13 @@ app.post('/api/admin/organizers/:organizerId/enable', async (c) => {
   }
 
   const session = await getAdminSession(c);
+
   if (!session.authenticated || session.role !== 'owner') {
     return c.json({ error: 'Only owners can re-enable member access.' }, 403);
   }
 
   const organizerId = z.string().uuid().safeParse(c.req.param('organizerId'));
+
   if (!organizerId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
   if (organizerId.data === session.membership_id) {
     return c.json({ error: 'Your membership is already active.' }, 400);
@@ -5397,6 +5774,7 @@ app.post('/api/admin/organizers/:organizerId/enable', async (c) => {
     .select('id, email, display_name, role, status, last_login_at, created_at')
     .eq('id', organizerId.data)
     .maybeSingle();
+
   if (existingMembershipError) return c.json({ error: 'Unable to verify member access.' }, 500);
   if (!existingMembership) return c.json({ error: 'Member was not found.' }, 404);
   if (existingMembership.status === 'active') return c.json(existingMembership);
@@ -5407,6 +5785,7 @@ app.post('/api/admin/organizers/:organizerId/enable', async (c) => {
     .eq('id', organizerId.data)
     .select('id, email, display_name, role, status, last_login_at, created_at')
     .maybeSingle();
+
   if (error) return c.json({ error: 'Unable to re-enable member access.' }, 500);
   if (!data) return c.json({ error: 'Member was not found.' }, 404);
 
@@ -5425,6 +5804,7 @@ app.post('/api/admin/organizers/:organizerId/enable', async (c) => {
 
 app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   if (!isSupabaseAdminAuthConfigured(c)) {
@@ -5432,11 +5812,13 @@ app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
   }
 
   const session = await getAdminSession(c);
+
   if (!session.authenticated || session.role !== 'owner') {
     return c.json({ error: 'Only owners can permanently remove member access.' }, 403);
   }
 
   const organizerId = z.string().uuid().safeParse(c.req.param('organizerId'));
+
   if (!organizerId.success) return c.json({ error: 'Member identifier is invalid.' }, 400);
   if (organizerId.data === session.membership_id) {
     return c.json({ error: 'You cannot permanently remove your own membership.' }, 400);
@@ -5447,6 +5829,7 @@ app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
     .select('id, email, display_name, role, status')
     .eq('id', organizerId.data)
     .maybeSingle();
+
   if (existingMembershipError) return c.json({ error: 'Unable to verify member access.' }, 500);
   if (!existingMembership) return c.json({ error: 'Member was not found.' }, 404);
   if (existingMembership.status !== 'disabled') {
@@ -5459,6 +5842,7 @@ app.delete('/api/admin/organizers/:organizerId/permanent', async (c) => {
     .eq('id', organizerId.data)
     .select('id')
     .maybeSingle();
+
   if (error) return c.json({ error: 'Unable to permanently remove member access.' }, 500);
   if (!data) return c.json({ error: 'Member was not found.' }, 404);
 
@@ -5490,34 +5874,41 @@ app.post('/api/webhooks/resend/inbound', async (c) => {
         request_id: c.get('requestId') ?? null,
         provider_status: error.status,
       }));
+
       return c.json({ error: 'Inbound email could not be processed yet.' }, 502);
     }
     if (error instanceof EventSubmissionStorageError) {
       return c.json({ error: 'Inbound email could not be stored yet.' }, 503);
     }
+
     throw error;
   }
 });
 
 app.get('/api/admin/event-submissions', async (c) => {
   const parsed = eventSubmissionListQuerySchema.safeParse({ status: c.req.query('status') });
+
   if (!parsed.success) return c.json({ error: 'Invalid submission status.' }, 400);
 
   try {
     const submissions = await eventSubmissionLifecycleForRequest(c).list(parsed.data.status as EventSubmissionQueueFilter | undefined);
+
     return c.json({ submissions });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       return c.json({ error: 'Unable to load event submissions.' }, 503);
     }
+
     throw error;
   }
 });
 
 app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
   const parsed = eventSubmissionApproveSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: 'Choose whether to publish the approved event.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
 
   try {
@@ -5526,21 +5917,26 @@ app.post('/api/admin/event-submissions/:submissionId/approve', async (c) => {
       actor: { email: session.email, userId: session.user_id, role: session.role },
       command: { kind: 'approve', publish: parsed.data.publish },
     });
+
     return c.json({ submission: result.submission, event_id: result.eventId });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       if (error.code === 'not_found') return c.json({ error: error.message }, 404);
       if (error.code === 'already_rejected') return c.json({ error: error.message }, 409);
+
       return c.json({ error: 'Unable to approve event submission.' }, 503);
     }
+
     throw error;
   }
 });
 
 app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
   const parsed = eventSubmissionRejectSchema.safeParse(await c.req.json().catch(() => ({})));
+
   if (!parsed.success) return c.json({ error: 'Choose a valid rejection reason and check the message lengths.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
 
   try {
@@ -5554,21 +5950,26 @@ app.post('/api/admin/event-submissions/:submissionId/reject', async (c) => {
         internalNote: parsed.data.internal_note,
       },
     });
+
     return c.json({ submission: result.submission });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       if (error.code === 'not_found') return c.json({ error: error.message }, 404);
       if (error.code === 'already_approved') return c.json({ error: error.message }, 409);
+
       return c.json({ error: 'Unable to reject event submission.' }, 503);
     }
+
     throw error;
   }
 });
 
 app.post('/api/admin/event-submission-amendments/:amendmentId/review', async (c) => {
   const parsed = eventSubmissionAmendmentDecisionSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: 'Check the amendment decision.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
   try {
     const amendment = await eventSubmissionLifecycleForRequest(c).management.review({
@@ -5577,17 +5978,21 @@ app.post('/api/admin/event-submission-amendments/:amendmentId/review', async (c)
       approve: parsed.data.approve,
       organizerMessage: parsed.data.organizer_message,
     });
+
     return c.json({ amendment });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+
     throw error;
   }
 });
 
 app.post('/api/admin/event-submissions/:submissionId/withdraw', async (c) => {
   const parsed = z.object({ organizer_message: z.string().trim().min(1, 'Add a message for the organizer.').max(1200) }).strict().safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Add a removal message.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
   try {
     const result = await eventSubmissionLifecycleForRequest(c).review({
@@ -5595,41 +6000,50 @@ app.post('/api/admin/event-submissions/:submissionId/withdraw', async (c) => {
       actor: { email: session.email, userId: session.user_id, role: session.role },
       command: { kind: 'withdraw', organizerMessage: parsed.data.organizer_message },
     });
+
     return c.json({ submission: result.submission });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+
     throw error;
   }
 });
 
 app.post('/api/admin/event-submissions/:submissionId/management-link', async (c) => {
   const submissionId = eventSubmissionIdSchema.safeParse(c.req.param('submissionId'));
+
   if (!submissionId.success) return c.json({ error: 'Invalid event submission.' }, 400);
 
   try {
     const session = c.get('adminSession') ?? await getAdminSession(c);
+
     if (!session.authenticated || !session.email) return c.json({ error: 'Organizer session required.' }, 401);
     const link = await eventSubmissionLifecycleForRequest(c).management.copyLink({
       submissionId: submissionId.data,
       actor: { email: session.email, userId: session.user_id, role: session.role },
     });
     const managementUrl = eventSubmissionManagementUrl(link.id, c);
+
     if (!managementUrl) {
       console.error(JSON.stringify({ event: 'event_submission_management_token_secret_missing', request_id: c.get('requestId') ?? null }));
+
       return c.json({ error: 'Event management links are not configured.' }, 503);
     }
     c.header('Cache-Control', 'no-store');
+
     return c.json({ management_url: managementUrl, expires_at: link.expires_at });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 503);
     }
+
     throw error;
   }
 });
 
 app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async (c) => {
   const parsedKind = eventSubmissionEmailKindSchema.safeParse(c.req.param('kind'));
+
   if (!parsedKind.success) return c.json({ error: 'Unknown submission email type.' }, 400);
 
   try {
@@ -5639,6 +6053,7 @@ app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async 
       statuses: ['pending', 'failed'],
       limit: 1,
     });
+
     if (!result.configured) {
       return c.json({ error: 'Community event email delivery is not configured.' }, 503);
     }
@@ -5655,11 +6070,13 @@ app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async 
       targetId: c.req.param('submissionId'),
       metadata: { kind: parsedKind.data },
     });
+
     return c.json({ accepted: true, kind: parsedKind.data });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       return c.json({ error: 'Unable to retry this submission email.' }, 503);
     }
+
     throw error;
   }
 });
@@ -5667,6 +6084,7 @@ app.post('/api/admin/event-submissions/:submissionId/emails/:kind/retry', async 
 app.post('/api/admin/event-submissions/:submissionId/replies/:replyId/slack/retry', async (c) => {
   const submissionId = eventSubmissionIdSchema.safeParse(c.req.param('submissionId'));
   const replyId = eventSubmissionIdSchema.safeParse(c.req.param('replyId'));
+
   if (!submissionId.success || !replyId.success) {
     return c.json({ error: 'Invalid submission reply.' }, 400);
   }
@@ -5674,9 +6092,12 @@ app.post('/api/admin/event-submissions/:submissionId/replies/:replyId/slack/retr
   try {
     const reply = await getEventSubmissionReply(submissionId.data, replyId.data, c);
     const slackWebhookUrl = envValue('SLACK_EVENT_SUBMISSION_WEBHOOK_URL', c)?.trim();
+
     if (!slackWebhookUrl) {
       const error = 'Slack notifications are not configured.';
+
       await updateEventSubmissionReplySlackStatus(reply.id, { status: 'failed', error }, c);
+
       return c.json({ error }, 503);
     }
 
@@ -5697,9 +6118,11 @@ app.post('/api/admin/event-submissions/:submissionId/replies/:replyId/slack/retr
         targetId: submissionId.data,
         metadata: { reply_id: reply.id, outcome: 'sent' },
       });
+
       return c.json({ sent: true });
     } catch (error) {
       const message = error instanceof SlackWebhookError ? error.message : 'Slack notification failed.';
+
       await updateEventSubmissionReplySlackStatus(reply.id, { status: 'failed', error: message }, c);
       await auditAdminAction(c, {
         action: 'event_submission.reply_slack_retry',
@@ -5707,19 +6130,23 @@ app.post('/api/admin/event-submissions/:submissionId/replies/:replyId/slack/retr
         targetId: submissionId.data,
         metadata: { reply_id: reply.id, outcome: 'failed' },
       });
+
       return c.json({ error: message }, 502);
     }
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) {
       if (error.code === 'not_found') return c.json({ error: error.message }, 404);
+
       return c.json({ error: 'Unable to retry this Slack notification.' }, 503);
     }
+
     throw error;
   }
 });
 
 app.get('/api/admin/audit-log', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const parsed = auditLogQuerySchema.safeParse({
@@ -5742,12 +6169,14 @@ app.get('/api/admin/audit-log', async (c) => {
     }));
   } catch (error) {
     if (error instanceof OperationsReadModelError) return c.json({ error: error.message }, 500);
+
     throw error;
   }
 });
 
 app.get('/api/admin/email-previews', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const catalog = emailPreviewCatalog();
@@ -5762,11 +6191,14 @@ app.get('/api/admin/email-previews', async (c) => {
 
 app.get('/api/admin/email-previews/:previewId/html', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const previewId = z.string().regex(/^[a-z0-9_]+$/).safeParse(c.req.param('previewId'));
+
   if (!previewId.success) return c.json({ error: 'Email preview not found.' }, 404);
   const preview = emailPreviewCatalog().previews.find((candidate) => candidate.id === previewId.data);
+
   if (!preview) return c.json({ error: 'Email preview not found.' }, 404);
 
   return c.html(preview.html, 200, {
@@ -5777,6 +6209,7 @@ app.get('/api/admin/email-previews/:previewId/html', async (c) => {
 
 app.get('/api/admin/archived-events', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   try {
@@ -5791,8 +6224,10 @@ app.get('/api/admin/archived-events', async (c) => {
 
 app.get('/api/admin/short-links', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.membership_id) return c.json({ error: 'Owner access required.' }, 401);
   try {
     const [existingLinks, openDestinations] = await Promise.all([
@@ -5807,6 +6242,7 @@ app.get('/api/admin/short-links', async (c) => {
         conferenceEditionId: link.conference_edition_id,
       })));
     let reconciledOpenDestination = false;
+
     for (const target of openDestinations.targets) {
       if (activeTargetKeys.has(shortLinkTargetKey(target))) continue;
       reconciledOpenDestination = true;
@@ -5816,6 +6252,7 @@ app.get('/api/admin/short-links', async (c) => {
         conferenceEditionId: target.conferenceEditionId,
         createdByMembershipId: session.membership_id,
       }, c);
+
       if (created) {
         await auditAdminAction(c, {
           action: 'short_link.created', targetType: 'short_link', targetId: link.id,
@@ -5826,6 +6263,7 @@ app.get('/api/admin/short-links', async (c) => {
     const links = reconciledOpenDestination ? await listShortLinks(c) : existingLinks;
     const eventById = new Map(openDestinations.events.map((event) => [event.id, event]));
     const editionById = new Map(openDestinations.editions.map((edition) => [edition.id, edition]));
+
     return c.json({
       links: links.map((link) => ({
         ...link,
@@ -5846,10 +6284,13 @@ app.get('/api/admin/short-links', async (c) => {
 
 app.post('/api/admin/short-links/ensure', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
   if (adminError) return adminError;
   const parsed = shortLinkCreateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: 'Choose a valid public destination.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.membership_id) return c.json({ error: 'Organizer access required.' }, 401);
 
   try {
@@ -5860,53 +6301,67 @@ app.post('/api/admin/short-links/ensure', async (c) => {
       conferenceEditionId,
       createdByMembershipId: session.membership_id,
     }, c);
+
     if (created) {
       await auditAdminAction(c, {
         action: 'short_link.created', targetType: 'short_link', targetId: link.id,
         metadata: { code: link.code, destination: link.destination, destination_path: destinationPath },
       });
     }
+
     return c.json({ ...link, url: shortLinkPublicUrl(link.code, c), destination_path: destinationPath, created });
   } catch (error) {
     if (error instanceof ShortLinkStorageError && error.code === 'not_found') return c.json({ error: error.message }, 409);
+
     return internalErrorResponse(c, 'short_link_ensure_failed', error, 'Unable to prepare the short link.');
   }
 });
 
 app.post('/api/admin/short-links/:linkId/regenerate', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const linkId = z.string().uuid().safeParse(c.req.param('linkId'));
+
   if (!linkId.success) return c.json({ error: 'Invalid short link.' }, 400);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || !session.membership_id) return c.json({ error: 'Owner access required.' }, 401);
   try {
     const link = await regenerateActiveShortLink({ linkId: linkId.data, createdByMembershipId: session.membership_id }, c);
+
     await auditAdminAction(c, {
       action: 'short_link.regenerated', targetType: 'short_link', targetId: link.id,
       metadata: { code: link.code, destination: link.destination },
     });
+
     return c.json({ ...link, url: shortLinkPublicUrl(link.code, c) });
   } catch (error) {
     if (error instanceof ShortLinkStorageError && error.code === 'not_found') return c.json({ error: error.message }, 404);
+
     return internalErrorResponse(c, 'short_link_regenerate_failed', error, 'Unable to regenerate the short link.');
   }
 });
 
 app.delete('/api/admin/short-links/:linkId', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
   const linkId = z.string().uuid().safeParse(c.req.param('linkId'));
+
   if (!linkId.success) return c.json({ error: 'Invalid short link.' }, 400);
   try {
     const link = await revokeShortLink(linkId.data, c);
+
     await auditAdminAction(c, {
       action: 'short_link.revoked', targetType: 'short_link', targetId: link.id,
       metadata: { code: link.code, destination: link.destination },
     });
+
     return c.json(link);
   } catch (error) {
     if (error instanceof ShortLinkStorageError && error.code === 'not_found') return c.json({ error: error.message }, 404);
+
     return internalErrorResponse(c, 'short_link_revoke_failed', error, 'Unable to revoke the short link.');
   }
 });
@@ -5914,20 +6369,26 @@ app.delete('/api/admin/short-links/:linkId', async (c) => {
 app.get('/api/internal/short-links/:code', async (c) => {
   if (!shortLinkResolverAuthorized(c)) return c.json({ error: 'Not found.' }, 404);
   const code = c.req.param('code');
+
   if (!isSupportedShortLinkCode(code)) return c.json({ error: 'Not found.' }, 404);
   try {
     if (MARKETING_SHORT_LINK_CODE_PATTERN.test(code)) {
       const link = await resolveShortLink(code, c);
+
       if (!link) return c.json({ error: 'Not found.' }, 404);
       const destinationPath = await shortLinkDestinationPath(link, c);
+
       if (!destinationPath) return c.json({ error: 'Not found.' }, 404);
+
       return c.json({ destination_path: destinationPath }, 200, { 'Cache-Control': 'no-store' });
     }
 
     const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+
     if (!secret) return c.json({ error: 'Not found.' }, 404);
 
     let link: SpeakerIntakeLink | undefined;
+
     if (SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) {
       link = await getSpeakerIntakeLinkByCapability(code);
       if (!link || !verifySelectedSpeakerShortCode(code, link.id, link.event_id, secret)) {
@@ -5935,6 +6396,7 @@ app.get('/api/internal/short-links/:code', async (c) => {
       }
     } else if (LEGACY_SPEAKER_INTAKE_SHORT_LINK_CODE_PATTERN.test(code)) {
       const linkId = selectedSpeakerLinkIdFromShortCode(code);
+
       if (!linkId) return c.json({ error: 'Not found.' }, 404);
       link = await getSpeakerIntakeLinkById(linkId);
       if (!link || !verifyLegacySelectedSpeakerShortCode(code, link.id, link.event_id, secret)) {
@@ -5953,10 +6415,12 @@ app.get('/api/internal/short-links/:code', async (c) => {
     const submission = link.speaker_submission_id
       ? await getSpeakerSubmissionById(link.speaker_submission_id)
       : null;
+
     if (selectedSpeakerIntakeLinkError(link, submission, link.event_id)) {
       return c.json({ error: 'Not found.' }, 404);
     }
     const destinationPath = `/speaker-talks/${encodeURIComponent(link.event_id)}/${encodeURIComponent(code)}`;
+
     return c.json({ destination_path: destinationPath }, 200, { 'Cache-Control': 'no-store' });
   } catch (error) {
     return internalErrorResponse(c, 'short_link_resolve_failed', error, 'Not found.');
@@ -6053,6 +6517,7 @@ app.get('/api/overview', async (c) => {
 
 app.get('/api/public/meetups', async (c) => {
   setPublicApiCache(c);
+
   return c.json({
     data: await publicMeetupsForApi(c),
     meta: {
@@ -6064,6 +6529,7 @@ app.get('/api/public/meetups', async (c) => {
 
 app.get('/api/public/events', async (c) => {
   setPublicApiCache(c);
+
   return c.json({
     data: await publicEventsForApi(c),
     meta: {
@@ -6075,12 +6541,14 @@ app.get('/api/public/events', async (c) => {
 
 app.get('/api/public/events/:slug', async (c) => {
   const slug = c.req.param('slug').trim();
+
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,239}$/.test(slug)) {
     return c.json({ error: 'Event not found' }, 404);
   }
 
   setPublicApiCache(c);
   const event = (await publicEventsForApi(c)).find((item) => item.slug === slug);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
 
   return c.json({
@@ -6094,6 +6562,7 @@ app.get('/api/public/events/:slug', async (c) => {
 
 app.get('/api/admin/events-preview', async (c) => {
   c.header('Cache-Control', 'private, no-store');
+
   return c.json({
     data: await publicEventPreviewMeetups(c),
     meta: {
@@ -6118,14 +6587,18 @@ app.get('/api/admin/events-preview/:slug', async (c) => {
 
 async function openEventSubmissionManagement(c: Context) {
   const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
+
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 30, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
   try {
     const management = await eventSubmissionLifecycleForRequest(c).management.open(linkId);
+
     return c.json({ management });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 503);
+
     throw error;
   }
 }
@@ -6135,16 +6608,21 @@ app.get('/api/public/event-submissions/manage/:capability', openEventSubmissionM
 
 async function saveEventSubmissionManagement(c: Context) {
   const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
+
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
   const parsed = eventSubmissionAmendmentSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the event changes.' }, 400);
   try {
     const amendment = await eventSubmissionLifecycleForRequest(c).management.saveDraft({ linkId, changes: parsed.data });
+
     return c.json({ amendment });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+
     throw error;
   }
 }
@@ -6156,24 +6634,29 @@ app.put('/api/public/event-submissions/manage/:capability', saveEventSubmissionM
 // drafts remain under the small public JSON ceiling.
 async function saveEventSubmissionManagementWithCover(c: Context) {
   const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
+
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
 
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 10, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
 
   try {
     await eventSubmissionLifecycleForRequest(c).management.open(linkId);
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+
     throw error;
   }
 
   const form = await c.req.raw.formData().catch(() => null);
+
   if (!form) return c.json({ error: 'Choose a cover image and check the event changes.' }, 400);
 
   const values: Record<string, string> = {};
   let cover: File | null = null;
   const allowedFields = new Set([...Object.keys(eventSubmissionAmendmentSchema.shape), 'cover']);
+
   for (const [key, value] of form.entries()) {
     if (!allowedFields.has(key) || values[key] !== undefined || (key === 'cover' && cover)) {
       return c.json({ error: 'Check the event changes.' }, 400);
@@ -6190,13 +6673,16 @@ async function saveEventSubmissionManagementWithCover(c: Context) {
   if (!cover) return c.json({ error: 'Choose a cover image.' }, 400);
 
   const parsed = eventSubmissionAmendmentSchema.safeParse(values);
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the event changes.' }, 400);
   const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
+
   if (fileError) return c.json({ error: fileError }, 400);
 
   try {
     const uploadedCover = await uploadEventSubmissionCover(cover, c);
     let amendment;
+
     try {
       amendment = await eventSubmissionLifecycleForRequest(c).management.saveDraft({
         linkId,
@@ -6204,11 +6690,14 @@ async function saveEventSubmissionManagementWithCover(c: Context) {
       });
     } catch (error) {
       await removeMeetupMedia(uploadedCover.path, c);
+
       throw error;
     }
+
     return c.json({ amendment });
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+
     throw error;
   }
 }
@@ -6218,14 +6707,18 @@ app.put('/api/public/event-submissions/manage/:capability/with-cover', saveEvent
 
 async function submitEventSubmissionManagement(c: Context) {
   const linkId = verifiedEventSubmissionManagementLink(eventSubmissionManagementCapability(c), c);
+
   if (!linkId) return c.json({ error: 'This event link is no longer available.' }, 404);
   const rateLimitError = await enforcePublicRateLimit(c, { action: `event_submission_manage_submit:${linkId}`, clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 60 * 60 }, 'This event link has received several attempts. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
   try {
     const amendment = await eventSubmissionLifecycleForRequest(c).management.submit({ linkId });
+
     return c.json({ amendment }, 202);
   } catch (error) {
     if (error instanceof EventSubmissionStorageError) return c.json({ error: error.message }, error.code === 'not_found' ? 404 : 409);
+
     throw error;
   }
 }
@@ -6249,6 +6742,7 @@ function eventSubmissionValidationError(parsed: { error: z.ZodError<PublicEventS
     Object.entries(parsed.error.flatten().fieldErrors)
       .flatMap(([field, messages]) => messages?.[0] ? [[field, messages[0]]] : []),
   );
+
   return { error: { code: 'validation_failed', message: 'Check the event details and try again.', field_errors: fieldErrors } };
 }
 
@@ -6267,12 +6761,14 @@ async function submitPublicEventSubmission(
   }
 
   const expectedHostnames = eventSubmissionTurnstileHostnames(c);
+
   if (envValue('NODE_ENV', c) === 'production' && expectedHostnames.length === 0) {
     console.error(JSON.stringify({
       event: 'turnstile_configuration_missing',
       action: EVENT_SUBMISSION_TURNSTILE_ACTION,
       request_id: c.get('requestId') ?? null,
     }));
+
     return c.json({
       error: {
         code: 'verification_unavailable',
@@ -6282,6 +6778,7 @@ async function submitPublicEventSubmission(
   }
 
   const turnstileSecret = envValue('TURNSTILE_SECRET_KEY', c)?.trim();
+
   if (!turnstileSecret) {
     if (envValue('NODE_ENV', c) === 'production' || parsedData.turnstile_token) {
       return c.json({
@@ -6307,6 +6804,7 @@ async function submitPublicEventSubmission(
       expectedAction: EVENT_SUBMISSION_TURNSTILE_ACTION,
       expectedHostname: expectedHostnames,
     });
+
     if (!verification.ok) {
       return c.json({
         error: {
@@ -6332,8 +6830,10 @@ async function submitPublicEventSubmission(
     },
   ]) {
     const rateLimit = await consumePublicRateLimit(c, limit);
+
     if (!rateLimit.allowed) {
       c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+
       return c.json({
         error: {
           code: rateLimit.unavailable ? 'submission_unavailable' : 'rate_limited',
@@ -6346,6 +6846,7 @@ async function submitPublicEventSubmission(
   }
 
   const emailAssessment = await assessPublicSubmissionEmail(c, parsedData.organizer_email);
+
   if (emailAssessment.status === 'invalid') {
     return c.json({
       error: {
@@ -6359,6 +6860,7 @@ async function submitPublicEventSubmission(
 
   if (cover) {
     const fileError = validateMeetupMediaFile(cover) ?? await validateMeetupMediaContent(cover);
+
     if (fileError) return c.json({ error: { code: 'validation_failed', message: fileError, field_errors: { cover: fileError } } }, 400);
   }
 
@@ -6366,13 +6868,16 @@ async function submitPublicEventSubmission(
     const { turnstile_action: _action, turnstile_token: _token, ...input } = parsedData;
     const uploadedCover = cover ? await uploadEventSubmissionCover(cover, c) : null;
     let submission;
+
     try {
       submission = await eventSubmissionLifecycleForRequest(c).submit({ ...input, cover_url: uploadedCover?.publicUrl ?? null });
     } catch (error) {
       if (uploadedCover) await removeMeetupMedia(uploadedCover.path, c);
+
       throw error;
     }
     await notifyEventSubmissionChannel(submission, c);
+
     return c.json({
       data: {
         id: submission.id,
@@ -6390,13 +6895,16 @@ async function submitPublicEventSubmission(
         },
       }, 503);
     }
+
     throw error;
   }
 }
 
 app.post('/api/public/event-submissions', async (c) => {
   const parsed = eventSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json(eventSubmissionValidationError(parsed), 400);
+
   return submitPublicEventSubmission(c, parsed.data, null);
 });
 
@@ -6416,14 +6924,17 @@ app.post('/api/public/event-submissions/with-cover', async (c) => {
     maxAttempts: 10,
     windowSeconds: 60 * 60,
   }, 'Too many event submission uploads. Please try again later.');
+
   if (parseLimitError) return parseLimitError;
 
   const form = await c.req.raw.formData().catch(() => null);
+
   if (!form) return c.json({ error: { code: 'validation_failed', message: 'Choose an image and check the event details.', field_errors: {} } }, 400);
 
   const values: Record<string, string> = {};
   let cover: File | null = null;
   const allowedFields = new Set([...Object.keys(eventSubmissionSchema.shape), 'cover']);
+
   for (const [key, value] of form.entries()) {
     if (!allowedFields.has(key) || values[key] !== undefined || (key === 'cover' && cover)) {
       return c.json({ error: { code: 'validation_failed', message: 'Check the event details and try again.', field_errors: {} } }, 400);
@@ -6439,19 +6950,24 @@ app.post('/api/public/event-submissions/with-cover', async (c) => {
   }
   if (!cover) return c.json({ error: { code: 'validation_failed', message: 'Choose a cover image.', field_errors: { cover: 'Choose a cover image.' } } }, 400);
   const parsed = eventSubmissionSchema.safeParse(values);
+
   if (!parsed.success) return c.json(eventSubmissionValidationError(parsed), 400);
+
   return submitPublicEventSubmission(c, parsed.data, cover);
 });
 
 app.get('/api/public/archive', async (c) => {
   setPublicApiCache(c);
+
   return c.json(await publicArchivePayload(c));
 });
 
 app.get('/api/public/system-design/:eventId', async (c) => {
   setPublicApiCache(c);
   const payload = await publicSystemDesignRecapPayload(c.req.param('eventId'), c);
+
   if (!payload) return c.json({ error: 'System Design recap not available' }, 404);
+
   return c.json(payload);
 });
 
@@ -6468,6 +6984,7 @@ app.get('/api/public/archive/:eventId', async (c) => {
 
 app.get('/api/public/home', async (c) => {
   setPublicApiCache(c);
+
   return c.json(await publicHomePayload(c));
 });
 
@@ -6512,6 +7029,7 @@ app.get('/api/public/meetups/:slug/talks', async (c) => {
 app.get('/api/cfp/events/:eventId', async (c) => {
   c.header('Cache-Control', 'no-store');
   const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
+
   if (!event || event.status !== 'cfp_open' || !canOpenCfpForEvent(event)) {
     return c.json({ error: 'CFP event not found' }, 404);
   }
@@ -6529,6 +7047,7 @@ app.get('/api/cfp/events/:eventId', async (c) => {
 app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
   const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign || campaign.status === 'draft') {
     return c.json({ error: 'Event calendar not found.' }, 404);
   }
@@ -6542,6 +7061,7 @@ app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
     eventUrl: publicEventDetailsUrl(event, c),
     updatedAt: event.updated_at,
   });
+
   if (!calendar) {
     return c.json({ error: 'Event calendar not found.' }, 404);
   }
@@ -6556,11 +7076,13 @@ app.get('/api/registration/events/:eventId/calendar.ics', async (c) => {
 app.get('/api/registration/events/:eventId', async (c) => {
   const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign || campaign.status === 'draft') {
     return c.json({ available: false, error: 'Registration is not available for this event.' }, 404);
   }
 
   const availability = registrationAvailability(campaign);
+
   return c.json({
     available: availability.available,
     unavailable_reason: availability.available ? null : availability.reason,
@@ -6586,12 +7108,14 @@ app.get('/api/registration/events/:eventId', async (c) => {
 
 app.post('/api/registration/events/:eventId', async (c) => {
   const parsed = eventRegistrationSubmissionSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Please check your details and try again.' }, 400);
   }
 
   const event = await getEventByRegistrationKey(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign || campaign.status === 'draft') {
     return c.json({ error: 'Registration is not available for this event.' }, 404);
   }
@@ -6601,6 +7125,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
     submittedAction: parsed.data.turnstile_action,
     expectedAction: EVENT_REGISTRATION_TURNSTILE_ACTION,
   });
+
   if (turnstileError) return turnstileError;
 
   const clientKey = publicClientKey(c);
@@ -6610,6 +7135,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
     maxAttempts: 5,
     windowSeconds: 10 * 60,
   }, 'Too many registration attempts. Please wait a few minutes and try again.');
+
   if (clientLimitError) return clientLimitError;
 
   const emailLimitError = await enforcePublicRateLimit(c, {
@@ -6618,9 +7144,11 @@ app.post('/api/registration/events/:eventId', async (c) => {
     maxAttempts: 3,
     windowSeconds: 24 * 60 * 60,
   }, 'Too many registration attempts. Please try again later.');
+
   if (emailLimitError) return emailLimitError;
 
   const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.email);
+
   if (emailAssessment.status === 'invalid') {
     return c.json(publicEmailErrorPayload(emailAssessment), 422);
   }
@@ -6631,6 +7159,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
       name: parsed.data.name,
       email: parsed.data.email,
     }, c);
+
     await dispatchRegistrationConfirmationEmails(event, c, {
       registrationId: registration.id,
       limit: 1,
@@ -6643,6 +7172,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
     }, 202);
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
+
     if (message.includes('registration_duplicate')) {
       return c.json({
         accepted: true,
@@ -6663,6 +7193,7 @@ app.post('/api/registration/events/:eventId', async (c) => {
       event_id: event.id,
       error_name: safeErrorName(error),
     }));
+
     return c.json({ error: 'We could not save your registration. Please try again.' }, 500);
   }
 });
@@ -6673,9 +7204,11 @@ app.get('/api/events', async (c) => {
 
 app.get('/api/admin/venues/search', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const queryResult = z.string().trim().min(2).max(120).safeParse(c.req.query('q'));
+
   if (!queryResult.success) {
     return c.json({ error: 'Enter at least two characters to search Ghana venues.' }, 400);
   }
@@ -6686,15 +7219,18 @@ app.get('/api/admin/venues/search', async (c) => {
     maxAttempts: 60,
     windowSeconds: 60,
   }, 'Too many venue searches. Wait a moment and try again.');
+
   if (rateLimitError) return rateLimitError;
 
   const apiKey = envValue('GOOGLE_MAPS_PLACES_API_KEY', c)?.trim();
+
   if (!apiKey) {
     return c.json({ error: 'Venue search is not configured.' }, 503);
   }
 
   try {
     const venues = await searchGhanaVenues({ query: queryResult.data, apiKey });
+
     return c.json({ venues });
   } catch (error) {
     console.error(JSON.stringify({
@@ -6703,12 +7239,14 @@ app.get('/api/admin/venues/search', async (c) => {
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return c.json({ error: 'Venue search is temporarily unavailable.' }, 502);
   }
 });
 
 app.post('/api/events', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const body = await c.req.json();
@@ -6740,6 +7278,7 @@ app.post('/api/events', async (c) => {
   }
 
   const payload = toCreateEventApiPayload(parsed.data);
+
   // Older API clients can create hybrid events without the organizer form's
   // explicit location mode. Preserve their validated conference link while
   // keeping the new organizer workflow mutually exclusive.
@@ -6748,6 +7287,7 @@ app.post('/api/events', async (c) => {
   }
 
   let event: Event | null = null;
+
   try {
     event = await createEvent({
       ...payload,
@@ -6785,6 +7325,7 @@ app.post('/api/events', async (c) => {
     if (event) {
       await deleteEvent(event.id, c).catch(() => undefined);
     }
+
     return internalErrorResponse(c, 'event_create_failed', error, 'Unable to create the event.');
   }
 });
@@ -6801,9 +7342,11 @@ app.get('/api/events/:eventId', async (c) => {
 
 app.get('/api/events/:eventId/slack-announcement', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
   if (adminError) return adminError;
 
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
 
   const eligible = eventIsEligibleForSlackAnnouncement(event);
@@ -6812,6 +7355,7 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
     getEventSlackAnnouncement(event.id, c),
   ]);
   const slackUrl = await eventSlackAnnouncementPermalink(announcement, c);
+
   return c.json({
     announcement,
     eligible,
@@ -6824,14 +7368,17 @@ app.get('/api/events/:eventId/slack-announcement', async (c) => {
 
 app.get('/api/events/:eventId/page-monitor', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
   if (adminError) return adminError;
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   try {
     const [monitor, organizerContact] = await Promise.all([
       ensureEventPageMonitor(event, c),
       eventPageMonitorOrganizerContact(event, c),
     ]);
+
     return c.json({ monitor, eligible: Boolean(monitor), organizer_contact: organizerContact });
   } catch (error) {
     return internalErrorResponse(c, 'event_page_monitor_read_failed', error, 'Unable to load registration page monitoring.');
@@ -6840,26 +7387,32 @@ app.get('/api/events/:eventId/page-monitor', async (c) => {
 
 app.post('/api/events/:eventId/page-monitor/check', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
   if (adminError) return adminError;
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   try {
     const current = await ensureEventPageMonitor(event, c);
+
     if (!current) return c.json({ error: 'Monitoring requires a future, published external event with a public HTTPS registration page.' }, 409);
     if (current.last_checked_at) {
       const canCheckAt = Date.parse(current.last_checked_at) + EVENT_PAGE_MONITOR_MANUAL_COOLDOWN_MS;
+
       if (canCheckAt > Date.now()) {
         return c.json({ error: 'This page was checked recently. Wait a few minutes before checking again.', can_check_at: new Date(canCheckAt).toISOString() }, 429);
       }
     }
     const monitor = await checkEventPage(event, c);
     const organizerContact = await eventPageMonitorOrganizerContact(event, c);
+
     await auditAdminAction(c, {
       action: 'event.registration_page.check',
       targetType: 'event',
       targetId: event.id,
       metadata: { status: monitor?.status ?? 'not_eligible', differences: monitor?.differences.map((difference) => difference.field) ?? [] },
     });
+
     return c.json({ monitor, eligible: Boolean(monitor), organizer_contact: organizerContact });
   } catch (error) {
     return internalErrorResponse(c, 'event_page_monitor_manual_check_failed', error, 'Unable to check the registration page.');
@@ -6871,7 +7424,9 @@ app.post('/api/internal/slack-announcements/retry', async (c) => {
 
   try {
     const result = await retryEligibleEventSlackAnnouncements(c);
+
     console.info(JSON.stringify({ event: 'scheduled_event_slack_announcement_retry', ...result }));
+
     return c.json({ ok: true, ...result });
   } catch (error) {
     console.error(JSON.stringify({
@@ -6879,6 +7434,7 @@ app.post('/api/internal/slack-announcements/retry', async (c) => {
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return c.json({ error: 'Slack announcement retry failed.' }, 500);
   }
 });
@@ -6887,7 +7443,9 @@ app.post('/api/internal/event-page-monitors/check-due', async (c) => {
   if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
   try {
     const result = await checkDueEventPages(c);
+
     console.info(JSON.stringify({ event: 'scheduled_event_page_monitor_checks', ...result }));
+
     return c.json({ ok: true, ...result });
   } catch (error) {
     console.error(JSON.stringify({
@@ -6895,6 +7453,7 @@ app.post('/api/internal/event-page-monitors/check-due', async (c) => {
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return c.json({ error: 'Event page monitoring failed.' }, 500);
   }
 });
@@ -6906,7 +7465,9 @@ app.post('/api/internal/speaker-rejection-emails/retry', async (c) => {
       statuses: ['pending', 'failed'],
       limit: 20,
     });
+
     console.info(JSON.stringify({ event: 'scheduled_speaker_rejection_email_retry', ...result }));
+
     return c.json({ ok: true, ...result });
   } catch (error) {
     console.error(JSON.stringify({
@@ -6914,6 +7475,7 @@ app.post('/api/internal/speaker-rejection-emails/retry', async (c) => {
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return c.json({ error: 'Speaker rejection email retry failed.' }, 500);
   }
 });
@@ -6925,7 +7487,9 @@ app.post('/api/internal/selected-speaker-emails/retry', async (c) => {
       statuses: ['pending', 'failed'],
       limit: 20,
     });
+
     console.info(JSON.stringify({ event: 'scheduled_selected_speaker_email_retry', ...result }));
+
     return c.json({ ok: true, ...result });
   } catch (error) {
     console.error(JSON.stringify({
@@ -6933,15 +7497,18 @@ app.post('/api/internal/selected-speaker-emails/retry', async (c) => {
       error_name: safeErrorName(error),
       request_id: c.get('requestId') ?? null,
     }));
+
     return c.json({ error: 'Selected-speaker email retry failed.' }, 500);
   }
 });
 
 app.post('/api/events/:eventId/slack-announcement', async (c) => {
   const adminError = await requireAdmin(c, ['owner', 'organizer']);
+
   if (adminError) return adminError;
 
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   if (!eventIsEligibleForSlackAnnouncement(event)) {
     return c.json({ error: 'Only current or future published events can be announced in Slack.' }, 409);
@@ -6978,11 +7545,13 @@ app.post('/api/events/:eventId/slack-announcement', async (c) => {
 
 app.get('/api/events/:eventId/registrations', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) {
     return c.json({ error: 'Event not found.' }, 404);
   }
 
   const campaign = await getRegistrationCampaign(event.id, c);
+
   if (!campaign) {
     return c.json({
       managed_internally: false as const,
@@ -6995,6 +7564,7 @@ app.get('/api/events/:eventId/registrations', async (c) => {
   }
 
   const registrations = await getEventRegistrations(event.id, c);
+
   return c.json({
     managed_internally: true as const,
     event,
@@ -7008,9 +7578,11 @@ app.get('/api/events/:eventId/registrations', async (c) => {
 app.get('/api/events/:eventId/blasts', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
   try {
     const [blasts, health, outbox] = await Promise.all([getEventBlasts(event.id, c), getEmailDeliveryHealth(c), getEmailOutboxSummary(c)]);
+
     return c.json({
       blasts,
       capacity: assessBlastCapacity({ recipientCount: 0, health, outbox, protectedReserve: campaign.blast_transactional_reserve ?? blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)) }),
@@ -7022,6 +7594,7 @@ app.get('/api/events/:eventId/blasts', async (c) => {
       event_id: event.id,
       provider_code: error.code,
     }));
+
     return c.json({
       error: 'Blast history is unavailable. Check the event-blasts database migration, then try again.',
       code: 'blast_storage_unavailable',
@@ -7032,17 +7605,21 @@ app.get('/api/events/:eventId/blasts', async (c) => {
 function eventBlastFailureMessage(error: unknown): string {
   if (error instanceof ResendBroadcastError) {
     const providerDetail = error.providerMessage ? ` Resend says: ${error.providerMessage}` : '';
+
     return `${error.message}${providerDetail} The blast was saved as Needs attention and can be retried.`;
   }
+
   return 'The blast could not be delivered. It was saved as Needs attention and can be retried.';
 }
 
 app.post('/api/events/:eventId/blasts', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
 
   const parsed = eventBlastRequestSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the blast details.' }, 400);
   }
@@ -7050,6 +7627,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   const recipients = (await getEventRegistrations(event.id, c))
     .filter((registration) => registration.status === 'confirmed')
     .map((registration) => ({ email: registration.email, name: registration.name }));
+
   if (recipients.length === 0) {
     return c.json({ error: 'A blast needs at least one confirmed guest.' }, 409);
   }
@@ -7069,6 +7647,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
     outbox,
     protectedReserve: campaign.blast_transactional_reserve ?? blastTransactionalReserve(envValue('RESEND_BLAST_TRANSACTIONAL_RESERVE', c)),
   });
+
   if (!scheduledFor && !capacity.can_send_now) {
     const deferred = await createEventBlast({
       event_id: event.id, subject: parsed.data.subject, body: parsed.data.body, status: 'needs_capacity', recipient_count: recipients.length,
@@ -7076,16 +7655,19 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       recipient_snapshot: recipients, prepared_recipient_count: 0, preparation_error: null,
       created_by_email: session.authenticated ? session.email : null,
     }, c);
+
     await auditAdminAction(c, {
       action: 'event.blast.deferred_for_capacity', targetType: 'event_blast', targetId: deferred.id,
       metadata: { event_id: event.id, recipient_count: recipients.length, safe_recipients_today: capacity.safe_recipients_today, protected_reserve: capacity.protected_reserve, queued_transactional: capacity.queued_transactional },
     });
+
     return c.json({
       blast: deferred, delivery: 'needs_capacity' as const, capacity,
       error: `This blast would use protected email capacity. ${capacity.safe_recipients_today ?? 0} recipients can send safely today; schedule it for a quieter time or reduce the audience.`,
     }, 202);
   }
   let blast;
+
   try {
     blast = await createEventBlast({
       event_id: event.id,
@@ -7109,6 +7691,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       event_id: event.id,
       provider_code: error.code,
     }));
+
     return c.json({
       error: 'This blast could not be saved. Check the event-blasts database migration, then try again.',
       code: 'blast_storage_unavailable',
@@ -7118,26 +7701,31 @@ app.post('/api/events/:eventId/blasts', async (c) => {
   const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
   const from = EMAIL_SENDERS.events.from;
   const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
+
   if (!apiKey || !replyTo || !z.string().email().safeParse(replyTo).success) {
     const unavailable = await updateEventBlast(blast.id, {
       status: 'needs_capacity',
       preparation_error: 'Email broadcasts are not configured. Add the Resend broadcast key and reply-to address, then retry.',
     }, c);
+
     await auditAdminAction(c, {
       action: 'event.blast.needs_capacity',
       targetType: 'event_blast',
       targetId: blast.id,
       metadata: { event_id: event.id, recipient_count: recipients.length, reason: 'not_configured' },
     });
+
     return c.json({ blast: unavailable ?? blast, delivery: 'needs_capacity' as const, capacity }, 202);
   }
 
   const preparationQueue = c.env.EVENT_BLAST_PREPARATION_QUEUE;
+
   if (!preparationQueue) {
     const unavailable = await updateEventBlast(blast.id, {
       status: 'failed',
       preparation_error: 'Background blast preparation is not configured. Deploy the Worker queue binding, then retry.',
     }, c);
+
     return c.json({ blast: unavailable ?? blast, delivery: 'failed' as const, capacity, error: unavailable?.preparation_error }, 503);
   }
 
@@ -7148,6 +7736,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       provider_segment_id: segmentId,
       preparation_error: null,
     }, c);
+
     if (!prepared) throw new EventBlastStorageError('blast_not_found_after_prepare');
     await preparationQueue.send({ event_id: event.id, blast_id: blast.id, offset: 0 });
     await auditAdminAction(c, {
@@ -7156,6 +7745,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       targetId: blast.id,
       metadata: { event_id: event.id, recipient_count: recipients.length, batch_size: EVENT_BLAST_PREPARATION_BATCH_SIZE },
     });
+
     return c.json({ blast: prepared, delivery: 'preparing' as const, capacity }, 202);
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
@@ -7164,6 +7754,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       ? 'needs_capacity'
       : 'failed';
     const updated = await updateEventBlast(blast.id, { status, preparation_error: eventBlastFailureMessage(error) }, c);
+
     await auditAdminAction(c, {
       action: status === 'needs_capacity' ? 'event.blast.needs_capacity' : 'event.blast.failed',
       targetType: 'event_blast',
@@ -7178,6 +7769,7 @@ app.post('/api/events/:eventId/blasts', async (c) => {
       provider_status: providerStatus,
       provider_message: providerMessage,
     }));
+
     return c.json({
       blast: updated ?? blast,
       delivery: status, capacity,
@@ -7195,26 +7787,32 @@ const eventBlastPreparationMessageSchema = z.object({
 function eventBlastPreparationError(error: unknown): string {
   if (error instanceof ResendBroadcastError) {
     const detail = error.providerMessage ? ` Resend says: ${error.providerMessage}` : '';
+
     return `${error.message}${detail}`;
   }
+
   return 'The email audience could not be prepared. No guests were emailed.';
 }
 
 app.post('/api/internal/event-blasts/prepare', async (c) => {
   if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
   const parsed = eventBlastPreparationMessageSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) return c.json({ error: 'Invalid preparation message.' }, 400);
 
   const message: EventBlastPreparationMessage = parsed.data;
   const event = await getEventById(message.event_id, c);
+
   if (!event) return c.json({ ok: true, skipped: 'event_missing' });
   const blast = (await getEventBlasts(event.id, c)).find((item) => item.id === message.blast_id);
+
   if (!blast || blast.status !== 'preparing') return c.json({ ok: true, skipped: 'not_preparing' });
   if (!blast.provider_segment_id) {
     await updateEventBlast(blast.id, {
       status: 'failed',
       preparation_error: 'The email audience could not be prepared because its Resend segment is missing. No guests were emailed.',
     }, c);
+
     return c.json({ ok: true, skipped: 'segment_missing' });
   }
   // The queue consumer is deliberately serial. Ignore a duplicate or stale message
@@ -7224,28 +7822,34 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
   const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
   const replyTo = envValue('REGISTRATION_EMAIL_REPLY_TO', c)?.trim();
   const queue = c.env.EVENT_BLAST_PREPARATION_QUEUE;
+
   if (!apiKey || !replyTo || !z.string().email().safeParse(replyTo).success || !queue) {
     await updateEventBlast(blast.id, {
       status: 'failed',
       preparation_error: 'Background blast preparation is not configured. No guests were emailed.',
     }, c);
+
     return c.json({ ok: true, skipped: 'not_configured' });
   }
 
   try {
     const recipients = blast.recipient_snapshot.slice(message.offset, message.offset + EVENT_BLAST_PREPARATION_BATCH_SIZE);
+
     if (recipients.length > 0) {
       await addResendBroadcastRecipients({ apiKey, segmentId: blast.provider_segment_id, recipients });
       const preparedCount = message.offset + recipients.length;
+
       await updateEventBlast(blast.id, { prepared_recipient_count: preparedCount, preparation_error: null }, c);
       if (preparedCount < blast.recipient_snapshot.length) {
         await queue.send({ event_id: event.id, blast_id: blast.id, offset: preparedCount });
+
         return c.json({ ok: true, prepared_recipient_count: preparedCount });
       }
     }
 
     const current = (await getEventBlasts(event.id, c)).find((item) => item.id === blast.id) ?? blast;
     let broadcastId = current.provider_broadcast_id;
+
     if (!broadcastId) {
       broadcastId = await createResendBroadcastDraft({
         apiKey,
@@ -7272,6 +7876,7 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
       sent_at: current.scheduled_for ? null : new Date().toISOString(),
       preparation_error: null,
     }, c);
+
     await auditAdminAction(c, {
       action: current.scheduled_for ? 'event.blast.schedule' : 'event.blast.send',
       targetType: 'event_blast',
@@ -7279,11 +7884,13 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
       metadata: { event_id: event.id, recipient_count: current.recipient_count, scheduled_for: current.scheduled_for },
     });
     console.info(JSON.stringify({ event: 'event_blast_preparation_complete', event_id: event.id, blast_id: blast.id, recipient_count: current.recipient_count, status }));
+
     return c.json({ ok: true, status, blast: updated });
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
     const status = providerStatus === 402 || providerStatus === 403 || providerStatus === 429 ? 'needs_capacity' : 'failed';
     const errorMessage = eventBlastPreparationError(error);
+
     await updateEventBlast(blast.id, { status, preparation_error: errorMessage }, c);
     await auditAdminAction(c, {
       action: status === 'needs_capacity' ? 'event.blast.needs_capacity' : 'event.blast.failed',
@@ -7292,6 +7899,7 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
       metadata: { event_id: event.id, recipient_count: blast.recipient_count, provider_status: providerStatus },
     });
     console.error(JSON.stringify({ event: 'event_blast_preparation_failed', event_id: event.id, blast_id: blast.id, prepared_recipient_count: blast.prepared_recipient_count, provider_status: providerStatus, error: errorMessage }));
+
     return c.json({ ok: true, status, error: errorMessage });
   }
 });
@@ -7299,9 +7907,11 @@ app.post('/api/internal/event-blasts/prepare', async (c) => {
 app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign) return c.json({ error: 'Registration campaign not found.' }, 404);
 
   const blast = (await getEventBlasts(event.id, c)).find((item) => item.id === c.req.param('blastId'));
+
   if (!blast) return c.json({ error: 'Blast not found.' }, 404);
   if (blast.status !== 'failed' && blast.status !== 'needs_capacity') {
     return c.json({ error: 'Only a blast that needs attention can be retried.' }, 409);
@@ -7310,14 +7920,17 @@ app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
   if (!blast.provider_broadcast_id) {
     const queue = c.env.EVENT_BLAST_PREPARATION_QUEUE;
     const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
+
     if (!queue || !apiKey) {
       return c.json({ error: 'The blast audience cannot be resumed because its background queue or broadcast configuration is unavailable.' }, 503);
     }
     let segmentId = blast.provider_segment_id;
+
     try {
       if (!segmentId) segmentId = await createResendBroadcastSegment({ apiKey, eventName: event.name });
     } catch (error) {
       const updated = await updateEventBlast(blast.id, { status: 'failed', preparation_error: eventBlastPreparationError(error) }, c);
+
       return c.json({ blast: updated ?? blast, delivery: 'failed' as const, error: eventBlastPreparationError(error) }, 502);
     }
     const resumed = await updateEventBlast(blast.id, {
@@ -7325,11 +7938,14 @@ app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
       provider_segment_id: segmentId,
       preparation_error: null,
     }, c);
+
     await queue.send({ event_id: event.id, blast_id: blast.id, offset: blast.prepared_recipient_count });
+
     return c.json({ blast: resumed ?? blast, delivery: 'preparing' as const }, 202);
   }
 
   const apiKey = envValue('RESEND_BROADCASTS_API_KEY', c)?.trim();
+
   if (!apiKey) return c.json({ error: 'Email broadcasts are not configured.' }, 503);
 
   try {
@@ -7343,17 +7959,20 @@ app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
       status,
       sent_at: blast.scheduled_for ? null : new Date().toISOString(),
     }, c);
+
     await auditAdminAction(c, {
       action: 'event.blast.retry',
       targetType: 'event_blast',
       targetId: blast.id,
       metadata: { event_id: event.id, recipient_count: blast.recipient_count },
     });
+
     return c.json({ blast: updated ?? blast, delivery: status }, 201);
   } catch (error) {
     const providerStatus = error instanceof ResendBroadcastError ? error.status : null;
     const providerMessage = error instanceof ResendBroadcastError ? error.providerMessage : undefined;
     const updated = await updateEventBlast(blast.id, { status: 'failed' }, c);
+
     console.warn(JSON.stringify({
       event: 'event_blast_retry_delayed',
       event_id: event.id,
@@ -7361,6 +7980,7 @@ app.post('/api/events/:eventId/blasts/:blastId/retry', async (c) => {
       provider_status: providerStatus,
       provider_message: providerMessage,
     }));
+
     return c.json({
       blast: updated ?? blast,
       delivery: 'failed' as const,
@@ -7373,11 +7993,13 @@ app.patch('/api/events/:eventId/registrations', async (c) => {
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
   const campaign = event ? await getRegistrationCampaign(event.id, c) : undefined;
+
   if (!event || !campaign) {
     return c.json({ error: 'Registration campaign not found.' }, 404);
   }
 
   const parsed = eventRegistrationCampaignUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the registration settings.' }, 400);
   }
@@ -7385,16 +8007,19 @@ app.patch('/api/events/:eventId/registrations', async (c) => {
   if (parsed.data.capacity !== undefined) {
     const registrations = await getEventRegistrations(eventId, c);
     const confirmed = registrations.filter((registration) => registration.status === 'confirmed').length;
+
     if (parsed.data.capacity < confirmed) {
       return c.json({ error: `Capacity cannot be lower than the ${confirmed} confirmed guests.` }, 409);
     }
   }
 
   const updated = await updateRegistrationCampaign(eventId, parsed.data, c);
+
   if (!updated) {
     return c.json({ error: 'Registration campaign not found.' }, 404);
   }
   const { description: _description, ...auditedSettings } = parsed.data;
+
   await auditAdminAction(c, {
     action: 'event.registration_campaign.update',
     targetType: 'event',
@@ -7404,18 +8029,21 @@ app.patch('/api/events/:eventId/registrations', async (c) => {
       registration_introduction_updated: parsed.data.description !== undefined,
     },
   });
+
   return c.json(updated);
 });
 
 app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c) => {
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) return c.json({ error: 'Event not found.' }, 404);
   if (!isEventCheckInDay(event)) {
     return c.json({ error: CHECK_IN_DAY_MESSAGE }, 409);
   }
   const registrations = await getEventRegistrations(eventId, c);
   const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+
   if (!registration) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
@@ -7429,6 +8057,7 @@ app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c
     session.authenticated ? session.email : null,
     c,
   );
+
   if (!checkedInAt) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
@@ -7438,6 +8067,7 @@ app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c
     targetId: registration.id,
     metadata: { event_id: eventId },
   });
+
   return c.json({ checked_in_at: checkedInAt });
 });
 
@@ -7445,6 +8075,7 @@ app.delete('/api/events/:eventId/registrations/:registrationId/check-in', async 
   const eventId = c.req.param('eventId');
   const registrations = await getEventRegistrations(eventId, c);
   const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+
   if (!registration) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
@@ -7456,6 +8087,7 @@ app.delete('/api/events/:eventId/registrations/:registrationId/check-in', async 
   }
 
   const undone = await undoCheckInRegistration(registration.id, c);
+
   if (!undone) {
     return c.json({ error: 'Guest check-in was not found.' }, 404);
   }
@@ -7465,22 +8097,26 @@ app.delete('/api/events/:eventId/registrations/:registrationId/check-in', async 
     targetId: registration.id,
     metadata: { event_id: eventId },
   });
+
   return c.json({ ok: true });
 });
 
 app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) => {
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) {
     return c.json({ error: 'Event not found.' }, 404);
   }
   const registrations = await getEventRegistrations(eventId, c);
   const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+
   if (!registration) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
 
   const result = await cancelRegistration(registration.id, c);
+
   if (!result.cancelled) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
@@ -7512,6 +8148,7 @@ app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) 
       }));
     }
   }
+
   return c.json({
     ok: true,
     promoted_registration_id: result.promotedRegistrationId,
@@ -7520,6 +8157,7 @@ app.post('/api/events/:eventId/registrations/:registrationId/cancel', async (c) 
 
 app.delete('/api/events/:eventId/registrations/:registrationId', async (c) => {
   const runtime = envValue('NODE_ENV', c)?.trim().toLowerCase();
+
   if (runtime !== 'development' && runtime !== 'test') {
     return c.json({ error: 'Not found.' }, 404);
   }
@@ -7527,11 +8165,13 @@ app.delete('/api/events/:eventId/registrations/:registrationId', async (c) => {
   const eventId = c.req.param('eventId');
   const registrations = await getEventRegistrations(eventId, c);
   const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
+
   if (!registration) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
 
   const deleted = await deleteRegistration(registration.id, c);
+
   if (!deleted) {
     return c.json({ error: 'Guest registration not found.' }, 404);
   }
@@ -7541,17 +8181,20 @@ app.delete('/api/events/:eventId/registrations/:registrationId', async (c) => {
     targetId: registration.id,
     metadata: { event_id: eventId },
   });
+
   return c.json({ ok: true });
 });
 
 app.post('/api/events/:eventId/registration-emails/process', async (c) => {
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) {
     return c.json({ error: 'Event not found.' }, 404);
   }
   const result = await sendPendingRegistrationConfirmationEmails(event, c, {
     statuses: ['failed'],
   });
+
   if (!result.configured) {
     return c.json({ error: 'Registration email sending is not configured.' }, 503);
   }
@@ -7561,6 +8204,7 @@ app.post('/api/events/:eventId/registration-emails/process', async (c) => {
     targetId: event.id,
     metadata: { accepted_count: result.accepted.length, delayed_count: result.failed.length },
   });
+
   return c.json({
     accepted_count: result.accepted.length,
     delayed_count: result.failed.length,
@@ -7569,15 +8213,18 @@ app.post('/api/events/:eventId/registration-emails/process', async (c) => {
 
 app.post('/api/events/:eventId/system-design/draft', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
   }
 
   const body = await c.req.json().catch(() => null);
   const parsed = systemDesignDraftRequestSchema.safeParse(body);
+
   if (!parsed.success) {
     return c.json({ error: 'A valid prompt_url is required.' }, 400);
   }
@@ -7609,28 +8256,35 @@ app.post('/api/events/:eventId/system-design/draft', async (c) => {
 
 app.post('/api/events/:eventId/system-design/learning-room/questions/generate', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   const body = await c.req.json().catch(() => ({}));
   const sessionId = typeof body.session_id === 'string' ? body.session_id : '';
+
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) return c.json({ error: 'A valid learning room is required.' }, 400);
   const session = await getQuizSessionById(sessionId);
+
   if (!session || session.event_id !== event.id || session.purpose !== 'system_design_learning') {
     return c.json({ error: 'This learning room does not belong to the selected System Design session.' }, 409);
   }
   const mutationError = systemDesignMutationError(event, session);
+
   if (mutationError) return c.json({ error: mutationError }, 409);
   if (session.status === 'waiting' || session.status === 'active') {
     return c.json({ error: 'Finish the current presentation before changing its question set.' }, 409);
   }
   const source = findSystemDesignSource(event.schedule ?? []);
+
   if (!source) return c.json({ error: 'Add the related System Design docs URL first.' }, 422);
 
   try {
     const existing = await getQuestionsBySession(session.id);
     const generatedCount = session.generated_question_count ?? existing.filter((question) => question.authoring_source === 'generated').length;
     const remainingCount = Math.max(0, 10 - generatedCount);
+
     if (remainingCount === 0) return c.json({ questions: [], source_title: source.title, remaining_generation_count: 0 });
     const existingText = new Set(existing.map((question) => normalizeQuestionConceptKey(question.question_text)));
     const draft = await fetchSystemDesignSourceText(source.url, source.title);
@@ -7638,11 +8292,14 @@ app.post('/api/events/:eventId/system-design/learning-room/questions/generate', 
     const questions = generateQuestionDraftsFromText(draft.content, 24)
       .filter((question) => {
         const concept = normalizeQuestionConceptKey(question.question_text);
+
         if (!concept || newConcepts.has(concept)) return false;
         newConcepts.add(concept);
+
         return true;
       })
       .slice(0, remainingCount);
+
     if (questions.length === 0) return c.json({ error: 'The linked docs do not contain a new concept that is distinct from your existing questions.' }, 422);
     const created = await Promise.all(questions.map((question, index) => createQuestion({
       quiz_session_id: session.id,
@@ -7661,7 +8318,9 @@ app.post('/api/events/:eventId/system-design/learning-room/questions/generate', 
     const updatedSession = isSupabaseRuntimeEnabled(c)
       ? await getQuizSessionById(session.id)
       : await updateQuizSession(session.id, { generated_question_count: generatedCount + created.length });
+
     await auditAdminAction(c, { action: 'system_design.learning_room.generate_questions', targetType: 'quiz_session', targetId: session.id, metadata: { source_url: source.url, created_question_count: created.length, generated_question_count: updatedSession?.generated_question_count ?? generatedCount + created.length } });
+
     return c.json({ questions: created, source_title: source.title, remaining_generation_count: 10 - (updatedSession?.generated_question_count ?? generatedCount + created.length) }, 201);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Could not read the related System Design source.' }, 422);
@@ -7670,6 +8329,7 @@ app.post('/api/events/:eventId/system-design/learning-room/questions/generate', 
 
 app.delete('/api/events/:eventId', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -7679,6 +8339,7 @@ app.delete('/api/events/:eventId', async (c) => {
 
   try {
     let event: Event | undefined;
+
     try {
       event = await getEventById(eventId, c);
     } catch (error) {
@@ -7691,6 +8352,7 @@ app.delete('/api/events/:eventId', async (c) => {
 
     if (mode === 'hard') {
       const deleted = await deleteEvent(eventId, c);
+
       if (!deleted) {
         return c.json({ error: 'Event not found' }, 404);
       }
@@ -7718,6 +8380,7 @@ app.delete('/api/events/:eventId', async (c) => {
       deletedByEmail: session.authenticated ? session.email : null,
       reason,
     }, c);
+
     if (!archived) {
       return c.json({ error: 'Event not found' }, 404);
     }
@@ -7744,18 +8407,21 @@ app.delete('/api/events/:eventId', async (c) => {
     if (error instanceof Error && error.message.includes('event_already_archived')) {
       return c.json({ error: 'This event is already archived.' }, 409);
     }
+
     return internalErrorResponse(c, 'event_delete_failed', error, 'Unable to remove the event.');
   }
 });
 
 app.post('/api/events/:eventId/restore', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
 
   try {
     const restored = await restoreArchivedEvent(eventId, c);
+
     if (!restored) {
       return c.json({ error: 'Archived event not found.' }, 404);
     }
@@ -7785,12 +8451,14 @@ app.post('/api/events/:eventId/restore', async (c) => {
         return c.json({ error: 'This event is not archived.' }, 409);
       }
     }
+
     return internalErrorResponse(c, 'event_restore_failed', error, 'Unable to restore the event.');
   }
 });
 
 app.get('/api/events/:eventId/checklist', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -7801,6 +8469,7 @@ app.get('/api/events/:eventId/checklist', async (c) => {
   }
 
   const items = await getEventChecklist(eventId, event.status, event);
+
   return c.json({
     event_status: event.status,
     progress: checklistProgress(items),
@@ -7810,6 +8479,7 @@ app.get('/api/events/:eventId/checklist', async (c) => {
 
 app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -7905,10 +8575,12 @@ app.patch('/api/events/:eventId/checklist/:itemId', async (c) => {
 
 app.patch('/api/events/:eventId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   try {
     const parsed = eventUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Invalid event update.' }, 400);
     }
@@ -7923,6 +8595,7 @@ app.patch('/api/events/:eventId', async (c) => {
 
     if (body.schedule !== undefined) {
       const learningRooms = (await getQuizSessionsByEvent(event.id)).filter((session) => session.purpose === 'system_design_learning');
+
       if (learningRooms.some((session) => systemDesignMutationError(event, session))) {
         return c.json({ error: 'The System Design session is locked or archived, so its brief cannot be changed.' }, 409);
       }
@@ -7933,13 +8606,16 @@ app.patch('/api/events/:eventId', async (c) => {
     }
 
     let normalizedLocation = body.location;
+
     if (body.location) {
       const locationInput = body.location;
+
       if (Object.prototype.hasOwnProperty.call(locationInput, 'url')) {
         const rawLocationUrl = locationInput.url;
         const locationUrl = rawLocationUrl === null || rawLocationUrl === ''
           ? null
           : safeGoogleMapsUrl(rawLocationUrl);
+
         if (rawLocationUrl !== null && rawLocationUrl !== '' && !locationUrl) {
           return c.json({ error: 'Location URL must be an HTTPS Google Maps link.' }, 400);
         }
@@ -7964,6 +8640,7 @@ app.patch('/api/events/:eventId', async (c) => {
     };
 
     const updatedEvent = await updateEvent(eventId, updates, c);
+
     await ensureEventPageMonitor(updatedEvent, c).catch((monitorError) => {
       console.warn(JSON.stringify({ event: 'event_page_monitor_refresh_failed', event_id: eventId, error_name: safeErrorName(monitorError) }));
     });
@@ -7981,6 +8658,7 @@ app.patch('/api/events/:eventId', async (c) => {
     } else if (Object.keys(updates).some((field) => SLACK_MESSAGE_EVENT_FIELDS.has(field))) {
       await syncSentEventSlackAnnouncement(updatedEvent, c);
     }
+
     return c.json(updatedEvent);
   } catch (error) {
     return internalErrorResponse(c, 'event_update_failed', error, 'Unable to update the event.');
@@ -7989,9 +8667,11 @@ app.patch('/api/events/:eventId', async (c) => {
 
 app.delete('/api/events/:eventId/system-design', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   if (isSystemDesignArchived(event)) {
     return c.json({ error: 'This System Design session is archived after the event day and is now read-only.' }, 409);
@@ -8004,12 +8684,14 @@ app.delete('/api/events/:eventId/system-design', async (c) => {
   try {
     await Promise.all(learningRooms.map((session) => deleteQuizSession(session.id)));
     const updatedEvent = await updateEvent(event.id, { schedule: normalizePublicSchedule(schedule) }, c);
+
     await auditAdminAction(c, {
       action: 'event.system_design.remove',
       targetType: 'event',
       targetId: event.id,
       metadata: { deleted_learning_room_count: learningRooms.length },
     });
+
     return c.json(updatedEvent);
   } catch (error) {
     return internalErrorResponse(c, 'system_design_remove_failed', error, 'Unable to remove the System Design session.');
@@ -8018,15 +8700,18 @@ app.delete('/api/events/:eventId/system-design', async (c) => {
 
 app.post('/api/events/:eventId/media', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
   }
 
   let formData: FormData;
+
   try {
     formData = await c.req.raw.formData();
   } catch {
@@ -8034,6 +8719,7 @@ app.post('/api/events/:eventId/media', async (c) => {
   }
 
   const uploadedFile = formData.get('file');
+
   if (!(uploadedFile instanceof File)) {
     return c.json({ error: 'An image file is required' }, 400);
   }
@@ -8041,12 +8727,14 @@ app.post('/api/events/:eventId/media', async (c) => {
   const purposeValue = formData.get('purpose');
   const purpose = purposeValue === 'cover' ? 'cover' : 'photo';
   const validationError = validateMeetupMediaFile(uploadedFile);
+
   if (validationError) {
     return c.json({ error: validationError }, 400);
   }
 
   try {
     const contentValidationError = await validateMeetupMediaContent(uploadedFile);
+
     if (contentValidationError) {
       return c.json({ error: contentValidationError }, 400);
     }
@@ -8087,21 +8775,26 @@ type SpeakerTalkIntakeInput = z.infer<typeof speakerTalkIntakeSchema>;
 
 function addDays(date: Date, days: number): Date {
   const next = new Date(date);
+
   next.setDate(next.getDate() + days);
+
   return next;
 }
 
 function speakerIntakeLinkStatus(link: Pick<SpeakerIntakeLink, 'used_at' | 'expires_at'>): 'active' | 'used' | 'expired' {
   if (link.used_at) return 'used';
+
   return speakerIntakeLinkExpired(link) ? 'expired' : 'active';
 }
 
 function speakerIntakeLinkDurationDays(link: Pick<SpeakerIntakeLink, 'created_at' | 'expires_at'>): number | null {
   const createdAt = new Date(link.created_at).getTime();
   const expiresAt = new Date(link.expires_at).getTime();
+
   if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) return null;
 
   const durationDays = Math.round((expiresAt - createdAt) / (24 * 60 * 60 * 1000));
+
   return durationDays > 0 ? durationDays : null;
 }
 
@@ -8159,12 +8852,15 @@ function serializeSpeakerIntakeLink(link: Pick<
 function selectedSpeakerShortUrlForLink(link: SpeakerIntakeLink, c: Context): string | null {
   if (link.purpose !== 'selected_speaker_confirmation') return null;
   const secret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
+
   if (!secret) return null;
 
   const code = selectedSpeakerShortCode(link.id, link.event_id, secret);
+
   if (speakerIntakeTokenHash(code) === link.token_hash) return shortLinkPublicUrl(code, c);
 
   const legacyCode = legacySelectedSpeakerShortCode(link.id, link.event_id, secret);
+
   return speakerIntakeTokenHash(legacyCode) === link.token_hash
     ? shortLinkPublicUrl(legacyCode, c)
     : null;
@@ -8226,6 +8922,7 @@ function archiveMaterialsFollowUpLinkError(
   eventId: string,
 ): { error: string; status: 410 } | null {
   if (link.purpose !== 'archive_materials_follow_up') return null;
+
   return talk && link.talk_id === talk.id && talk.event_id === eventId
     ? null
     : { error: 'This archive update link is no longer available.', status: 410 };
@@ -8233,9 +8930,11 @@ function archiveMaterialsFollowUpLinkError(
 
 function missingArchiveMaterialFields(talk: Talk): ArchiveMaterialField[] {
   const missing: ArchiveMaterialField[] = [];
+
   if (!talk.abstract?.trim()) missing.push('abstract');
   if (!talk.bio?.trim()) missing.push('bio');
   if (!validExternalUrl(talk.slides_url) && !talk.storage_path) missing.push('slides_url');
+
   return missing;
 }
 
@@ -8243,6 +8942,7 @@ function normalizeSlidesUrl(slidesUrl: string | null): string | null {
   if (!slidesUrl) return null;
 
   const normalized = safePublicResourceUrl(slidesUrl);
+
   if (!normalized) {
     throw new Error('Resource URL must be a secure public HTTPS URL');
   }
@@ -8336,6 +9036,7 @@ function serializeSpeakerSubmission<T extends { kind?: ArchiveItemKind }>(submis
 function speakerSubmissionCounts(submissions: Array<Pick<SpeakerSubmission, 'status'>>): Record<SpeakerSubmissionStatus, number> {
   return submissions.reduce<Record<SpeakerSubmissionStatus, number>>((counts, submission) => {
     counts[submission.status] += 1;
+
     return counts;
   }, {
     submitted: 0,
@@ -8422,6 +9123,7 @@ async function prepareSelectedSpeakerEmailPreviews(
     let link = submission.selected_intake_link_id
       ? linksById.get(submission.selected_intake_link_id) ?? null
       : null;
+
     if (link?.email_status === 'accepted') {
       alreadySentCount += 1;
       continue;
@@ -8435,6 +9137,7 @@ async function prepareSelectedSpeakerEmailPreviews(
     // Reissue only unsent links so previewing never duplicates a delivered email.
     if (!link || !shortUrl || speakerIntakeLinkStatus(link) !== 'active' || link.email_status === 'failed') {
       const created = await createSelectedSpeakerLinkForSubmission(submission, 7, c);
+
       link = created.link;
       shortUrl = selectedSpeakerShortUrlForLink(link, c);
       await updateSpeakerSubmission(submission.id, { selected_intake_link_id: link.id });
@@ -8449,6 +9152,7 @@ async function prepareSelectedSpeakerEmailPreviews(
       privateUrl: shortUrl,
       expiresAt: link.expires_at,
     });
+
     previews.push({
       submission_id: submission.id,
       link_id: link.id,
@@ -8472,6 +9176,7 @@ app.get('/api/events/:eventId/talks', async (c) => {
 
 app.get('/api/events/:eventId/speaker-submissions', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -8496,16 +9201,20 @@ app.get('/api/events/:eventId/speaker-submissions', async (c) => {
 
 app.post('/api/events/:eventId/speaker-submissions/test', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated || session.role !== 'owner' || !session.email || !z.string().email().safeParse(session.email).success) {
     return c.json({ error: 'Owner session email is unavailable.' }, 403);
   }
   const parsed = ownerTestSpeakerSubmissionSchema.safeParse(await c.req.json().catch(() => ({})));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the test proposal request.' }, 400);
 
   const event = await getEventById(c.req.param('eventId'), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   const rateLimit = await consumePublicRateLimit(c, {
     action: 'speaker_test_proposal_create',
@@ -8513,14 +9222,17 @@ app.post('/api/events/:eventId/speaker-submissions/test', async (c) => {
     maxAttempts: 5,
     windowSeconds: 10 * 60,
   });
+
   if (!rateLimit.allowed) {
     c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+
     return c.json({ error: rateLimit.unavailable ? 'Test proposal creation is temporarily unavailable.' : 'Wait a few minutes before creating another test proposal.' }, rateLimit.unavailable ? 503 : 429);
   }
 
   const existing = (await getSpeakerSubmissionsByEvent(event.id)).find((submission) => (
     submission.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE && submission.status === 'submitted'
   ));
+
   if (existing) return c.json({ created: false, submission: serializeSpeakerSubmission(existing) });
 
   try {
@@ -8537,6 +9249,7 @@ app.post('/api/events/:eventId/speaker-submissions/test', async (c) => {
       resource_url: null,
     });
     const submission = await updateSpeakerSubmission(created.id, { internal_note: OWNER_ONLY_TEST_SPEAKER_NOTE });
+
     try {
       await auditAdminAction(c, {
         action: 'speaker_submission.owner_test_created',
@@ -8547,6 +9260,7 @@ app.post('/api/events/:eventId/speaker-submissions/test', async (c) => {
     } catch (error) {
       console.warn(JSON.stringify({ event: 'speaker_test_proposal_audit_failed', submission_id: submission.id, error_name: safeErrorName(error) }));
     }
+
     return c.json({ created: true, submission: serializeSpeakerSubmission(submission) }, 201);
   } catch (error) {
     return internalErrorResponse(c, 'speaker_test_proposal_create_failed', error, 'Unable to create the owner-only test proposal.');
@@ -8555,11 +9269,14 @@ app.post('/api/events/:eventId/speaker-submissions/test', async (c) => {
 
 app.get('/api/speaker-submissions/:submissionId/rejection-email/preview', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const submission = await getSpeakerSubmissionById(c.req.param('submissionId'));
+
   if (!submission) return c.json({ error: 'Presentation proposal not found' }, 404);
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (
     submission.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE
     && (!session.authenticated || session.role !== 'owner')
@@ -8571,6 +9288,7 @@ app.get('/api/speaker-submissions/:submissionId/rejection-email/preview', async 
   }
 
   const event = await getEventById(submission.event_id, c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   const content = speakerProposalRejectionEmail({
     eventName: event.name,
@@ -8588,6 +9306,7 @@ app.get('/api/speaker-submissions/:submissionId/rejection-email/preview', async 
 
 app.patch('/api/speaker-submissions/:submissionId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const body = await c.req.json().catch(() => ({}));
@@ -8603,6 +9322,7 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
     return c.json({ error: 'Presentation proposal not found' }, 404);
   }
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (
     existing.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE
     && (!session.authenticated || session.role !== 'owner')
@@ -8615,6 +9335,7 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
   if (parsed.data.status === 'not_selected' || parsed.data.status === 'selected') {
     const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
     const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+
     if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
       return c.json({ error: `Speaker email sending is not configured. The proposal was not ${parsed.data.status === 'selected' ? 'selected' : 'rejected'}.` }, 503);
     }
@@ -8625,16 +9346,19 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
 
   let selectedLink: SpeakerIntakeLink | null = null;
   let decisionCommitted = false;
+
   try {
 
     if (parsed.data.status === 'selected') {
       const result = await createSelectedSpeakerLinkForSubmission(existing, parsed.data.expires_in_days, c);
+
       selectedLink = result.link;
       const [pendingLink] = await updateSpeakerIntakeLinkEmailDeliveries(existing.event_id, [{
         id: selectedLink.id,
         status: 'pending',
         idempotency_key: selectedSpeakerEmailIdempotencyKey(existing.event_id, selectedLink.id),
       }]);
+
       selectedLink = pendingLink ?? selectedLink;
     }
 
@@ -8651,6 +9375,7 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
         decision_email_last_error: null,
       } : {}),
     });
+
     decisionCommitted = true;
     await deleteActiveSpeakerIntakeLinksBySubmission(
       existing.event_id,
@@ -8705,17 +9430,20 @@ app.patch('/api/speaker-submissions/:submissionId', async (c) => {
       if (selectedLink) {
         await deleteSpeakerIntakeLink(existing.event_id, selectedLink.id).catch(() => undefined);
       }
+
       return c.json({ error: error.message }, 409);
     }
     if (selectedLink && !decisionCommitted) {
       await deleteSpeakerIntakeLink(existing.event_id, selectedLink.id).catch(() => undefined);
     }
+
     return c.json({ error: error instanceof Error ? error.message : 'Failed to update presentation proposal' }, 400);
   }
 });
 
 app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -8736,6 +9464,7 @@ app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
         submission.id === link.speaker_submission_id
         && submission.internal_note === OWNER_ONLY_TEST_SPEAKER_NOTE
       )));
+
   return c.json({
     event_month: eventMonthKey(event.event_date),
     links: visibleLinks.map((link) => serializeAdminSpeakerIntakeLink(link, c)),
@@ -8744,6 +9473,7 @@ app.get('/api/events/:eventId/speaker-intake-links', async (c) => {
 
 app.post('/api/events/:eventId/selected-speaker-emails/preview', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (!secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c))) {
@@ -8754,14 +9484,17 @@ app.post('/api/events/:eventId/selected-speaker-emails/preview', async (c) => {
 
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   const session = c.get('adminSession') ?? await getAdminSession(c);
   const selection = selectedSpeakerEmailSelectionSchema.safeParse(await c.req.json().catch(() => ({})));
+
   if (!selection.success) {
     return c.json({ error: selection.error.issues[0]?.message ?? 'Check the selected speakers' }, 400);
   }
 
   const release = await acquireSpeakerIntakeSubmissionLock(`selected-speaker-email:${eventId}`);
+
   try {
     const prepared = await prepareSelectedSpeakerEmailPreviews(
       event,
@@ -8769,6 +9502,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/preview', async (c) => {
       selection.data.submission_ids,
       session.authenticated && session.role === 'owner',
     );
+
     return c.json({
       ready_count: prepared.previews.length,
       already_sent_count: prepared.alreadySentCount,
@@ -8784,9 +9518,11 @@ app.post('/api/events/:eventId/selected-speaker-emails/preview', async (c) => {
 
 app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (
     !session.authenticated
     || session.role !== 'owner'
@@ -8797,16 +9533,19 @@ app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
   }
 
   const parsed = selectedSpeakerEmailTestSchema.safeParse(await c.req.json().catch(() => ({})));
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the test email request.' }, 400);
   }
 
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
 
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return c.json({ error: 'Speaker email sending is not configured.' }, 503);
   }
@@ -8817,8 +9556,10 @@ app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
     maxAttempts: 5,
     windowSeconds: 10 * 60,
   });
+
   if (!rateLimit.allowed) {
     c.header('Retry-After', String(rateLimit.retryAfterSeconds));
+
     return c.json({
       error: rateLimit.unavailable
         ? 'Test email sending is temporarily unavailable. Please try again shortly.'
@@ -8842,6 +9583,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
     .digest('hex');
 
   let result: Awaited<ReturnType<typeof sendResendEmailBatch>>;
+
   try {
     result = await sendResendEmailBatch({
       apiKey: resendApiKey,
@@ -8861,6 +9603,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
       event_id: eventId,
       provider_status: error instanceof ResendBatchError ? error.status : null,
     }));
+
     return c.json({ error: 'The email provider did not accept the test email. Try again.' }, 502);
   }
 
@@ -8902,24 +9645,29 @@ app.post('/api/events/:eventId/selected-speaker-emails/test', async (c) => {
 
 app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   const session = c.get('adminSession') ?? await getAdminSession(c);
   const selection = selectedSpeakerEmailSelectionSchema.safeParse(await c.req.json().catch(() => ({})));
+
   if (!selection.success) {
     return c.json({ error: selection.error.issues[0]?.message ?? 'Check the selected speakers' }, 400);
   }
 
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return c.json({ error: 'Speaker email sending is not configured.' }, 503);
   }
 
   const release = await acquireSpeakerIntakeSubmissionLock(`selected-speaker-email:${eventId}`);
+
   try {
     const prepared = await prepareSelectedSpeakerEmailPreviews(
       event,
@@ -8927,6 +9675,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
       selection.data.submission_ids,
       session.authenticated && session.role === 'owner',
     );
+
     if (prepared.previews.length === 0) {
       return c.json({
         sent_count: 0,
@@ -8940,6 +9689,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
       .update(`${eventId}:${linkIds.join(':')}`)
       .digest('hex');
     const idempotencyKey = `speaker-selected-${idempotencyDigest}`;
+
     await updateSpeakerIntakeLinkEmailDeliveries(eventId, prepared.previews.map((preview) => ({
       id: preview.link_id,
       status: 'pending',
@@ -8947,6 +9697,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
     })));
 
     let providerIds: string[];
+
     try {
       const result = await sendResendEmailBatch({
         apiKey: resendApiKey,
@@ -8960,6 +9711,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
           text: preview.text,
         })),
       });
+
       await recordResendEmailHealth(c, result.quota);
       providerIds = result.ids;
     } catch (error) {
@@ -8975,6 +9727,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
         recipient_count: prepared.previews.length,
         provider_status: error instanceof ResendBatchError ? error.status : null,
       }));
+
       return c.json({ error: 'The email provider did not accept the selected-speaker email. You can preview and retry.', sent_count: 0 }, 502);
     }
 
@@ -8984,6 +9737,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
       provider_id: providerIds[index] ?? null,
       idempotency_key: idempotencyKey,
     })));
+
     await auditAdminAction(c, {
       action: 'speaker_selected_email.batch_send',
       targetType: 'event',
@@ -9010,6 +9764,7 @@ app.post('/api/events/:eventId/selected-speaker-emails/send', async (c) => {
 
 app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -9042,6 +9797,7 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
 
   if (duplicateActiveSpeaker) {
     const itemLabel = parsed.data.kind === 'product_demo' ? 'product demo' : 'talk';
+
     return c.json({
       error: `An active ${itemLabel} archive request already exists for ${parsed.data.speaker_email}.`,
     }, 409);
@@ -9081,10 +9837,12 @@ app.post('/api/events/:eventId/speaker-intake-links', async (c) => {
 
 app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
   const event = await getEventById(eventId, c);
+
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
   }
@@ -9098,17 +9856,20 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailFrom = EMAIL_SENDERS.speakers.from;
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     return c.json({ error: 'Speaker email sending is not configured.' }, 503);
   }
 
   const body = await c.req.json().catch(() => ({}));
   const parsed = speakerIntakeEmailBatchSchema.safeParse(body);
+
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the selected speakers' }, 400);
   }
 
   const releaseEmailSendLock = await acquireSpeakerIntakeSubmissionLock(`archive-email:${eventId}`);
+
   try {
     const existingLinks = await getSpeakerIntakeLinksByEvent(eventId);
     const programItemsByIndex = new Map(
@@ -9116,6 +9877,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
     );
     const recipients = parsed.data.recipients.map((recipient) => {
       const item = programItemsByIndex.get(recipient.program_item_index);
+
       if (!item) {
         return {
           index: recipient.program_item_index,
@@ -9131,6 +9893,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
       };
     });
     const invalidProgramItem = recipients.find((recipient) => !recipient.item);
+
     if (invalidProgramItem) {
       return c.json({ error: 'One of the selected program items is no longer available.' }, 400);
     }
@@ -9155,6 +9918,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
         })
       ));
       const acceptedLink = matchingItemLinks.find((link) => link.email_status === 'accepted');
+
       if (acceptedLink) {
         alreadyAccepted.push(acceptedLink);
         continue;
@@ -9174,6 +9938,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
         speaker_email: speakerEmail,
         talk_title: item.title,
       });
+
       workingLinks.push(created.link);
       pendingSends.push({ link: created.link, token: created.token, item });
     }
@@ -9191,6 +9956,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
       .update(`${eventId}:${linkIds.join(':')}`)
       .digest('hex');
     const idempotencyKey = `speaker-archive-${idempotencyDigest}`;
+
     await updateSpeakerIntakeLinkEmailDeliveries(eventId, pendingSends.map(({ link }) => ({
       id: link.id,
       status: 'pending',
@@ -9219,12 +9985,14 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
     });
 
     let providerIds: string[];
+
     try {
       const result = await sendResendEmailBatch({
         apiKey: resendApiKey,
         idempotencyKey,
         emails,
       });
+
       await recordResendEmailHealth(c, result.quota);
       providerIds = result.ids;
     } catch (error) {
@@ -9240,6 +10008,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
         recipient_count: pendingSends.length,
         provider_status: error instanceof ResendBatchError ? error.status : null,
       }));
+
       return c.json({
         error: 'The email provider did not accept the request. No successful send was recorded; you can retry.',
         sent_count: 0,
@@ -9253,6 +10022,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
       provider_id: providerIds[index],
       idempotency_key: idempotencyKey,
     })));
+
     await auditAdminAction(c, {
       action: 'speaker_intake_email.batch_send',
       targetType: 'event',
@@ -9276,6 +10046,7 @@ app.post('/api/events/:eventId/speaker-intake-emails', async (c) => {
 
 app.delete('/api/events/:eventId/speaker-intake-links/:linkId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -9288,6 +10059,7 @@ app.delete('/api/events/:eventId/speaker-intake-links/:linkId', async (c) => {
 
   try {
     const link = await deleteSpeakerIntakeLink(eventId, linkId);
+
     await auditAdminAction(c, {
       action: 'speaker_intake_link.delete',
       targetType: 'speaker_intake_link',
@@ -9307,22 +10079,27 @@ app.delete('/api/events/:eventId/speaker-intake-links/:linkId', async (c) => {
 
 app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
+
   if (adminError) return adminError;
 
   const talk = await getTalkById(c.req.param('talkId'));
+
   if (!talk) return c.json({ error: 'Archive item not found' }, 404);
   if (!talk.speaker_email || !z.string().email().safeParse(talk.speaker_email).success) {
     return c.json({ error: 'This archive item needs a valid presenter email before a follow-up can be sent.' }, 400);
   }
 
   const event = await getEventById(talk.event_id, c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
 
   const parsed = archiveMaterialsFollowUpRequestSchema.safeParse(await c.req.json().catch(() => ({})));
+
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the requested details.' }, 400);
 
   const missingFields = new Set(missingArchiveMaterialFields(talk));
   const alreadyPresent = parsed.data.requested_fields.find((field) => !missingFields.has(field));
+
   if (alreadyPresent) return c.json({ error: 'Only details that are currently missing can be requested.' }, 409);
 
   const activeLink = (await getSpeakerIntakeLinksByEvent(talk.event_id)).find((link) => (
@@ -9331,6 +10108,7 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
     && speakerIntakeLinkStatus(link) === 'active'
     && link.email_status !== 'failed'
   ));
+
   if (activeLink) return c.json({ error: 'An active materials follow-up is already open for this archive item.' }, 409);
 
   const { link, token } = await createSpeakerIntakeLink({
@@ -9346,6 +10124,7 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
     requested_fields: parsed.data.requested_fields,
   });
   const idempotencyKey = `archive-materials-${crypto.createHash('sha256').update(link.id).digest('hex')}`;
+
   await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
     id: link.id,
     status: 'pending',
@@ -9365,6 +10144,7 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
   });
   const resendApiKey = envValue('RESEND_API_KEY', c)?.trim();
   const emailReplyTo = envValue('SPEAKER_EMAIL_REPLY_TO', c)?.trim();
+
   if (!resendApiKey || !emailReplyTo || !z.string().email().safeParse(emailReplyTo).success) {
     await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
       id: link.id,
@@ -9372,6 +10152,7 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
       idempotency_key: idempotencyKey,
       error: 'Speaker email sending is not configured.',
     }]);
+
     return c.json({ error: 'Speaker email sending is not configured. The follow-up was not sent; update email configuration and retry.' }, 503);
   }
 
@@ -9386,6 +10167,7 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
         ...content,
       }],
     });
+
     await recordResendEmailHealth(c, quota);
     const [acceptedLink] = await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
       id: link.id,
@@ -9393,12 +10175,14 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
       provider_id: ids[0],
       idempotency_key: idempotencyKey,
     }]);
+
     await auditAdminAction(c, {
       action: 'talk.materials_follow_up.send',
       targetType: 'talk',
       targetId: talk.id,
       metadata: { event_id: talk.event_id, link_id: link.id, requested_fields: link.requested_fields },
     });
+
     return c.json({ link: serializeSpeakerIntakeLink(acceptedLink) }, 201);
   } catch (error) {
     await updateSpeakerIntakeLinkEmailDeliveries(talk.event_id, [{
@@ -9413,6 +10197,7 @@ app.post('/api/talks/:talkId/materials-follow-up', async (c) => {
       talk_id: talk.id,
       provider_status: error instanceof ResendBatchError ? error.status : null,
     }));
+
     return c.json({ error: 'The email provider did not accept the request. You can retry.' }, 502);
   }
 });
@@ -9446,6 +10231,7 @@ app.get('/api/events/:eventId/speaker-intake/:token', async (c) => {
     ? await getTalkById(link!.talk_id)
     : undefined;
   const followUpLinkError = archiveMaterialsFollowUpLinkError(link!, followUpTalk, eventId);
+
   if (followUpLinkError) {
     return c.json({ error: followUpLinkError.error }, followUpLinkError.status);
   }
@@ -9481,6 +10267,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
     maxAttempts: 10,
     windowSeconds: 60 * 60,
   }, 'This private form has received several attempts. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
 
   const event = await getEventById(eventId, c);
@@ -9490,6 +10277,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
   }
 
   const releaseSubmissionLock = await acquireSpeakerIntakeSubmissionLock(`${eventId}:${token}`);
+
   try {
     const link = await getSpeakerIntakeLinkByToken(eventId, token);
     const linkError = speakerIntakeLinkError(link);
@@ -9514,32 +10302,40 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
       ? await getTalkById(activeLink.talk_id)
       : undefined;
     const followUpLinkError = archiveMaterialsFollowUpLinkError(activeLink, followUpTalk, eventId);
+
     if (followUpLinkError) {
       return c.json({ error: followUpLinkError.error }, followUpLinkError.status);
     }
 
     let claimId: string | null = null;
+
     try {
       const claim = await claimSpeakerIntakeLink(eventId, token);
+
       claimId = claim.claimId;
       let talk: Talk;
       let createdTalk = false;
 
       if (activeLink.purpose === 'archive_materials_follow_up') {
         const parsed = archiveMaterialsFollowUpSubmissionSchema.safeParse(body);
+
         if (!parsed.success) {
           return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the requested archive details' }, 400);
         }
 
         const requestedFields = new Set(activeLink.requested_fields ?? []);
+
         if (requestedFields.size === 0) return c.json({ error: 'This archive update link is invalid.' }, 410);
         const suppliedFields = Object.keys(body);
         const unexpectedField = suppliedFields.find((field) => !requestedFields.has(field as ArchiveMaterialField));
+
         if (unexpectedField) return c.json({ error: 'This link can only update the details requested by the organizer.' }, 400);
         const missingField = [...requestedFields].find((field) => parsed.data[field] === undefined);
+
         if (missingField) return c.json({ error: 'Complete every requested detail before submitting.' }, 400);
 
         const updates: Partial<Talk> = {};
+
         if (requestedFields.has('abstract')) updates.abstract = parsed.data.abstract!;
         if (requestedFields.has('bio')) updates.bio = parsed.data.bio!;
         if (requestedFields.has('slides_url')) {
@@ -9551,6 +10347,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
         talk = await updateTalk(followUpTalk!.id, updates);
       } else if (selectedSpeakerLink) {
         const parsed = selectedSpeakerDetailsSchema.safeParse(body);
+
         if (!parsed.success) {
           return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the presenter details' }, 400);
         }
@@ -9561,10 +10358,12 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           parsed.data,
           normalizeArchiveItemKind(activeLink.kind),
         );
+
         talk = result.talk;
         createdTalk = true;
       } else {
         const parsed = speakerBackfillDetailsSchema.safeParse(body);
+
         if (!parsed.success) {
           return c.json({ error: parsed.error.issues[0]?.message ?? 'Check the archive item details' }, 400);
         }
@@ -9580,6 +10379,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           speaker_email: activeLink.speaker_email,
           title: activeLink.talk_title,
         });
+
         talk = result.talk;
         createdTalk = true;
       }
@@ -9588,6 +10388,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
         await consumeSpeakerIntakeLink(eventId, token, talk.id, claimId);
       } catch (error) {
         if (createdTalk) await deleteTalk(talk.id);
+
         throw error;
       }
       claimId = null;
@@ -9596,6 +10397,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           selected_talk_id: talk.id,
         });
       }
+
       return c.json(talk, 201);
     } catch (error) {
       await releaseSpeakerIntakeLinkClaim(eventId, token, claimId);
@@ -9607,6 +10409,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
           : message.includes('already being submitted')
             ? 409
           : 400;
+
       return c.json({
         error: status === 400 ? 'Unable to submit archive item details. Please check the form and try again.' : message,
       }, status);
@@ -9618,6 +10421,7 @@ app.post('/api/events/:eventId/speaker-intake/:token', async (c) => {
 
 app.post('/api/events/:eventId/talks', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -9654,6 +10458,7 @@ app.post('/api/events/:eventId/talks', async (c) => {
     return c.json(updatedTalk, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to add archive item';
+
     return c.json({
       error: message,
     }, message.includes('already been submitted') || message.includes('already exists') ? 409 : 400);
@@ -9666,6 +10471,7 @@ app.get('/api/events/:eventId/speakers', async (c) => {
 
 app.get('/api/attendance/monthly', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const [events, csvImports] = await Promise.all([
@@ -9681,6 +10487,7 @@ app.get('/api/attendance/monthly', async (c) => {
   const nativeEventIds = new Set(nativeSources.map((source) => source.event_id));
   const nativeImports = nativeSources.flatMap((source) => {
     const event = nativeEventById.get(source.event_id);
+
     return event
       ? [attendanceImportFromRegistrationSource(source, attendanceMonthForEvent(event))]
       : [];
@@ -9713,6 +10520,7 @@ app.get('/api/attendance/monthly', async (c) => {
 
 app.get('/api/events/:eventId/attendance', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -9759,6 +10567,7 @@ app.get('/api/events/:eventId/attendance', async (c) => {
 
 app.post('/api/events/:eventId/attendance/import', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -9769,6 +10578,7 @@ app.post('/api/events/:eventId/attendance/import', async (c) => {
   }
 
   const uploadWindow = attendanceUploadWindowForEvent(event);
+
   if (!uploadWindow.available) {
     return c.json({
       error: uploadWindow.reason ?? 'Attendance CSV upload is not open for this meetup month.',
@@ -9825,6 +10635,7 @@ app.post('/api/events/:eventId/attendance/import', async (c) => {
 
 app.delete('/api/events/:eventId/attendance', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const eventId = c.req.param('eventId');
@@ -9836,6 +10647,7 @@ app.delete('/api/events/:eventId/attendance', async (c) => {
 
   await removeAttendanceImport(eventId);
   const uploadWindow = attendanceUploadWindowForEvent(event);
+
   await auditAdminAction(c, {
     action: 'attendance.csv.remove',
     targetType: 'event',
@@ -9855,6 +10667,7 @@ app.delete('/api/events/:eventId/attendance', async (c) => {
 
 app.post('/api/events/:eventId/speakers', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const body = await c.req.json();
@@ -9870,12 +10683,14 @@ app.post('/api/events/:eventId/speakers', async (c) => {
       email,
       name,
     });
+
     await auditAdminAction(c, {
       action: 'speaker.allowlist.add',
       targetType: 'event_speaker',
       targetId: speaker.id,
       metadata: { event_id: c.req.param('eventId'), email: speaker.email },
     });
+
     return c.json(speaker, 201);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : 'Failed to add speaker' }, 400);
@@ -9884,10 +10699,12 @@ app.post('/api/events/:eventId/speakers', async (c) => {
 
 app.delete('/api/events/:eventId/speakers/:speakerId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   try {
     const speakerId = c.req.param('speakerId');
+
     await removeSpeaker(speakerId);
     await auditAdminAction(c, {
       action: 'speaker.allowlist.remove',
@@ -9895,6 +10712,7 @@ app.delete('/api/events/:eventId/speakers/:speakerId', async (c) => {
       targetId: speakerId,
       metadata: { event_id: c.req.param('eventId') },
     });
+
     return c.json({ ok: true });
   } catch (error) {
     return internalErrorResponse(c, 'event_speaker_remove_failed', error, 'Unable to remove the speaker.');
@@ -9909,6 +10727,7 @@ app.post('/api/events/:eventId/validate-speaker', async (c) => {
   }
 
   const speaker = await getSpeakerByEmail(c.req.param('eventId'), String(email).trim());
+
   return c.json({
     valid: Boolean(speaker),
     speaker: speaker ?? undefined,
@@ -9918,6 +10737,7 @@ app.post('/api/events/:eventId/validate-speaker', async (c) => {
 app.get('/api/talks', async (c) => {
   const eventId = c.req.query('eventId');
   const talks = await getAllTalks();
+
   return c.json(eventId ? talks.filter((talk) => talk.event_id === eventId) : talks);
 });
 
@@ -9930,6 +10750,7 @@ app.patch('/api/talks/:talkId', async (c) => {
 
   if (requestedStatus) {
     const adminError = await requireAdmin(c);
+
     if (adminError) return adminError;
 
     if (!['accepted', 'rejected', 'slides_received', 'published'].includes(requestedStatus)) {
@@ -9937,6 +10758,7 @@ app.patch('/api/talks/:talkId', async (c) => {
     }
 
     const existingTalk = await getTalkById(talkId);
+
     if (!existingTalk) return c.json({ error: 'Talk not found' }, 404);
     previousStatus = existingTalk.status;
 
@@ -9946,6 +10768,7 @@ app.patch('/api/talks/:talkId', async (c) => {
       }
 
       const ownerError = await requireAdmin(c, ['owner']);
+
       if (ownerError) return ownerError;
     }
 
@@ -9956,6 +10779,7 @@ app.patch('/api/talks/:talkId', async (c) => {
     const normalizedSlidesUrl = typeof body.slides_url === 'string'
       ? safePublicResourceUrl(body.slides_url)
       : null;
+
     if (!normalizedSlidesUrl) {
       return c.json({ error: 'Resource URL must be a secure public HTTPS URL' }, 400);
     }
@@ -9966,6 +10790,7 @@ app.patch('/api/talks/:talkId', async (c) => {
     updates.slides_uploaded_at = now();
     if (!requestedStatus) {
       const existingTalk = await getTalkById(talkId);
+
       if (!existingTalk) return c.json({ error: 'Talk not found' }, 404);
       if (!['accepted', 'slides_received', 'published'].includes(existingTalk.status)) {
         return c.json({ error: 'Slides can only be updated for accepted or published talks' }, 400);
@@ -9980,6 +10805,7 @@ app.patch('/api/talks/:talkId', async (c) => {
 
   try {
     const updatedTalk = await updateTalk(talkId, updates);
+
     if (body.status) {
       await auditAdminAction(c, {
         action: previousStatus === 'published' && requestedStatus !== 'published'
@@ -9990,6 +10816,7 @@ app.patch('/api/talks/:talkId', async (c) => {
         metadata: { status: updatedTalk.status, event_id: updatedTalk.event_id },
       });
     }
+
     return c.json(updatedTalk);
   } catch (error) {
     return internalErrorResponse(c, 'talk_update_failed', error, 'Unable to update the archive item.');
@@ -9998,6 +10825,7 @@ app.patch('/api/talks/:talkId', async (c) => {
 
 app.post('/api/talks/:talkId/reminder', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const talk = await getTalkById(c.req.param('talkId'));
@@ -10014,12 +10842,14 @@ app.post('/api/talks/:talkId/reminder', async (c) => {
     reminder_sent_count: talk.reminder_sent_count + 1,
     last_reminder_sent_at: now(),
   });
+
   await auditAdminAction(c, {
     action: 'talk.slides.reminder',
     targetType: 'talk',
     targetId: talk.id,
     metadata: { event_id: talk.event_id, reminder_sent_count: updatedTalk.reminder_sent_count },
   });
+
   return c.json(updatedTalk);
 });
 
@@ -10036,6 +10866,7 @@ app.post('/api/cfp', async (c) => {
     submittedAction: parsed.data.turnstile_action,
     expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
   });
+
   if (turnstileError) return turnstileError;
 
   const rateLimitError = await enforcePublicRateLimit(c, {
@@ -10044,9 +10875,11 @@ app.post('/api/cfp', async (c) => {
     maxAttempts: 5,
     windowSeconds: 60 * 60,
   }, 'This device has sent several proposals. Please try again later.');
+
   if (rateLimitError) return rateLimitError;
 
   const event = await getEventById(parsed.data.event_id, c);
+
   if (!event) {
     return c.json({ error: 'Event not found' }, 404);
   }
@@ -10060,6 +10893,7 @@ app.post('/api/cfp', async (c) => {
   }
 
   const emailAssessment = await assessPublicSubmissionEmail(c, parsed.data.speaker_email);
+
   if (emailAssessment.status === 'invalid') {
     return c.json(publicEmailErrorPayload(emailAssessment), 422);
   }
@@ -10084,12 +10918,14 @@ app.post('/api/cfp', async (c) => {
     }, 202);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to submit presentation proposal';
+
     if (message.includes('already been submitted')) {
       return c.json({
         accepted: true,
         message: 'If this proposal is eligible, it has been added for organizer review.',
       }, 202);
     }
+
     return c.json({ error: 'The proposal could not be submitted. Please check the form and try again.' }, 400);
   }
 });
@@ -10140,6 +10976,7 @@ function eventEndOfDayMs(event: Pick<Event, 'event_date' | 'end_date' | 'timezon
     timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(new Date(raw)).reduce<Record<string, string>>((result, part) => {
     result[part.type] = part.value;
+
     return result;
   }, {});
   const year = Number(parts.year);
@@ -10151,10 +10988,13 @@ function eventEndOfDayMs(event: Pick<Event, 'event_date' | 'end_date' | 'timezon
     timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23', minute: '2-digit', second: '2-digit',
   }).formatToParts(new Date(utc)).reduce<Record<string, string>>((result, part) => {
     result[part.type] = part.value;
+
     return result;
   }, {});
   const offset = Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day), Number(local.hour), Number(local.minute), Number(local.second)) - utc;
+
   utc -= offset;
+
   return utc;
 }
 
@@ -10164,6 +11004,7 @@ function isSystemDesignArchived(event: Pick<Event, 'event_date' | 'end_date' | '
 
 function systemDesignMutationError(event: Event, session?: QuizSession): string | null {
   if (isSystemDesignArchived(event)) return 'This System Design session is archived after the event day and is now read-only.';
+
   return null;
 }
 
@@ -10171,6 +11012,7 @@ app.get('/api/quiz/sessions', async (c) => {
   const eventId = c.req.query('eventId');
   const purpose = c.req.query('purpose');
   const sessions = eventId ? await getQuizSessionsByEvent(eventId) : await getAllQuizSessions();
+
   return c.json(sessions.filter((session) => purpose === 'system_design_learning'
     ? session.purpose === 'system_design_learning'
     : session.purpose !== 'system_design_learning'));
@@ -10178,17 +11020,22 @@ app.get('/api/quiz/sessions', async (c) => {
 
 app.post('/api/quiz/sessions', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const { event_id, purpose } = await c.req.json();
+
   if (!event_id) {
     return c.json({ error: 'event_id is required' }, 400);
   }
   const event = await getEventById(String(event_id), c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   const sessionPurpose = purpose === 'system_design_learning' ? 'system_design_learning' : 'quiz';
+
   if (sessionPurpose === 'system_design_learning') {
     const systemDesignSource = findSystemDesignSource(event.schedule ?? []);
+
     if (!systemDesignSource) {
       return c.json({ error: 'Add the related System Design prompt link before creating the learning room.' }, 422);
     }
@@ -10201,25 +11048,30 @@ app.post('/api/quiz/sessions', async (c) => {
     expires_at: sessionPurpose === 'system_design_learning' ? null : event.end_date ?? null,
     purpose: sessionPurpose,
   });
+
   await auditAdminAction(c, {
     action: 'quiz.session.create',
     targetType: 'quiz_session',
     targetId: session.id,
     metadata: { event_id },
   });
+
   return c.json(session, 201);
 });
 
 app.get('/api/quiz/sessions/:sessionId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const existing = await getQuizSessionById(c.req.param('sessionId'));
+
   if (existing?.purpose === 'system_design_learning' && existing.question_phase === 'presenting') {
     await advanceQuizSessionState(existing.id);
   }
   const current = await getQuizSessionById(c.req.param('sessionId'));
   const session = current ? await expireQuizSessionIfNeeded(current, c) : undefined;
+
   if (!session) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -10228,6 +11080,7 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
   const event = session.purpose === 'system_design_learning'
     ? await getEventById(session.event_id, c)
     : null;
+
   return c.json({
     ...session,
     session,
@@ -10239,26 +11092,32 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
 
 app.patch('/api/quiz/sessions/:sessionId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   try {
     const sessionId = c.req.param('sessionId');
     const existingSession = await getQuizSessionById(sessionId);
+
     if (existingSession?.purpose === 'system_design_learning') {
       const event = await getEventById(existingSession.event_id, c);
+
       if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and read-only.' }, 409);
     }
     const parsed = quizSessionUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
     if (!parsed.success) {
       return c.json({ error: parsed.error.issues[0]?.message ?? 'Invalid quiz session update.' }, 400);
     }
     const session = await updateQuizSession(sessionId, parsed.data);
+
     await auditAdminAction(c, {
       action: 'quiz.session.update',
       targetType: 'quiz_session',
       targetId: sessionId,
       metadata: { changed_fields: Object.keys(parsed.data).sort(), status: session.status },
     });
+
     return c.json(session);
   } catch (error) {
     return internalErrorResponse(c, 'quiz_session_update_failed', error, 'Unable to update the quiz session.');
@@ -10267,19 +11126,23 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
 
 app.post('/api/quiz/sessions/:sessionId/presentation', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const session = await getQuizSessionById(c.req.param('sessionId'));
+
   if (!session) return c.json({ error: 'Session not found' }, 404);
   if (session.purpose !== 'system_design_learning') {
     return c.json({ error: 'Only System Design learning rooms can use this presentation flow.' }, 409);
   }
 
   const event = await getEventById(session.event_id, c);
+
   if (!event) return c.json({ error: 'Event not found' }, 404);
   if (isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
 
   const questions = await getQuestionsBySession(session.id);
+
   if (questions.length === 0) {
     return c.json({ error: 'Add at least one reviewed question before opening the presentation view.' }, 409);
   }
@@ -10289,24 +11152,30 @@ app.post('/api/quiz/sessions/:sessionId/presentation', async (c) => {
   }
 
   const prepared = await prepareSystemDesignPresentationRun(session, questions);
+
   await auditAdminAction(c, {
     action: 'system_design.learning_room.open_presentation',
     targetType: 'quiz_session',
     targetId: session.id,
     metadata: { removed_participant_count: prepared.removedParticipants, removed_response_count: prepared.removedResponses },
   });
+
   return c.json(prepared.session);
 });
 
 app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const existing = await getQuizSessionById(c.req.param('sessionId'));
+
   if (!existing) return c.json({ error: 'Session not found' }, 404);
   const session = await expireQuizSessionIfNeeded(existing, c);
+
   if (session.purpose === 'system_design_learning') {
     const event = await getEventById(session.event_id, c);
+
     if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
   }
   if (session.status === 'finished') return c.json({ error: 'This live session has ended.' }, 409);
@@ -10315,28 +11184,34 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
     const hostedSession = session.purpose === 'system_design_learning'
       ? await presentNextSystemDesignQuestion(session.id)
       : null;
+
     if (hostedSession) {
       const latestQuestionId = hostedSession.released_question_ids?.at(-1) ?? null;
+
       await auditAdminAction(c, {
         action: 'quiz.question.present', targetType: 'quiz_session', targetId: session.id,
         metadata: { question_id: latestQuestionId, released_count: hostedSession.released_question_ids?.length ?? 0 },
       });
+
       return c.json(hostedSession);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
+
     if (message.includes('all_questions_released')) {
       return c.json({ error: 'All prepared questions have been released.' }, 409);
     }
     if (message.includes('session_finished')) {
       return c.json({ error: 'This live session has ended.' }, 409);
     }
+
     throw error;
   }
 
   const questions = await getQuestionsBySession(session.id);
   const releasedQuestionIds = session.released_question_ids ?? [];
   const question = nextUnreleasedLearningQuestion(questions, [...releasedQuestionIds, ...(session.skipped_question_ids ?? [])]);
+
   if (!question) return c.json({ error: 'All prepared questions have been released.' }, 409);
 
   const updated = await updateQuizSession(session.id, {
@@ -10348,25 +11223,33 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
     started_at: session.started_at ?? new Date().toISOString(),
     released_question_ids: [...releasedQuestionIds, question.id],
   });
+
   await auditAdminAction(c, {
     action: 'quiz.question.present', targetType: 'quiz_session', targetId: session.id,
     metadata: { question_id: question.id, released_count: updated.released_question_ids?.length ?? 0 },
   });
+
   return c.json(updated);
 });
 
 app.post('/api/quiz/sessions/:sessionId/skip', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
   const session = await getQuizSessionById(c.req.param('sessionId'));
+
   if (!session || session.purpose !== 'system_design_learning') return c.json({ error: 'System Design learning room not found.' }, 404);
   const event = await getEventById(session.event_id, c);
+
   if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is no longer live.' }, 409);
   const questions = await getQuestionsBySession(session.id);
+
   try {
     const skipped = await skipSystemDesignQuestion(session, questions);
+
     if (!isSupabaseRuntimeEnabled(c)) await rebuildSystemDesignScores(session.id, questions);
     await auditAdminAction(c, { action: 'system_design.learning_room.skip_question', targetType: 'quiz_session', targetId: session.id, metadata: { question_index: session.current_question_index } });
+
     return c.json(skipped);
   } catch (error) {
     return c.json({ error: 'There is no active question to skip.' }, 409);
@@ -10375,16 +11258,22 @@ app.post('/api/quiz/sessions/:sessionId/skip', async (c) => {
 
 app.post('/api/quiz/sessions/:sessionId/reopen-skipped/:questionId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
   const session = await getQuizSessionById(c.req.param('sessionId'));
+
   if (!session || session.purpose !== 'system_design_learning') return c.json({ error: 'System Design learning room not found.' }, 404);
   const event = await getEventById(session.event_id, c);
+
   if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is no longer live.' }, 409);
   const question = await getQuestionById(c.req.param('questionId'));
+
   if (!question || question.quiz_session_id !== session.id) return c.json({ error: 'Question not found.' }, 404);
   try {
     const reopened = await reopenSystemDesignQuestion(session, question);
+
     await auditAdminAction(c, { action: 'system_design.learning_room.reopen_skipped_question', targetType: 'quiz_session', targetId: session.id, metadata: { question_id: question.id } });
+
     return c.json(reopened);
   } catch {
     return c.json({ error: 'Only a skipped question can be reopened.' }, 409);
@@ -10393,12 +11282,16 @@ app.post('/api/quiz/sessions/:sessionId/reopen-skipped/:questionId', async (c) =
 
 app.post('/api/quiz/sessions/:sessionId/reveal', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
   const existing = await getQuizSessionById(c.req.param('sessionId'));
+
   if (!existing) return c.json({ error: 'Session not found' }, 404);
   const session = await expireQuizSessionIfNeeded(existing, c);
+
   if (session.purpose === 'system_design_learning') {
     const event = await getEventById(session.event_id, c);
+
     if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
   }
   if (session.status !== 'active' || session.question_phase !== 'answering') {
@@ -10408,18 +11301,22 @@ app.post('/api/quiz/sessions/:sessionId/reveal', async (c) => {
     const hostedSession = session.purpose === 'system_design_learning'
       ? await revealSystemDesignQuestion(session.id)
       : null;
+
     if (hostedSession) return c.json(hostedSession);
   } catch (error) {
     if (error instanceof Error && error.message.includes('question_not_ready_to_reveal')) {
       return c.json({ error: 'There is no question ready to reveal.' }, 409);
     }
+
     throw error;
   }
+
   return c.json(await updateQuizSession(session.id, { question_phase: 'revealing', phase_started_at: new Date().toISOString() }));
 });
 
 app.post('/api/quiz/questions', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const body = await c.req.json();
@@ -10430,11 +11327,14 @@ app.post('/api/quiz/questions', async (c) => {
   }
 
   const targetSession = await getQuizSessionById(String(quiz_session_id));
+
   if (!targetSession) return c.json({ error: 'Session not found' }, 404);
   if (targetSession.purpose === 'system_design_learning') {
     const event = await getEventById(targetSession.event_id, c);
+
     if (!event) return c.json({ error: 'Event not found' }, 404);
     const mutationError = systemDesignMutationError(event, targetSession);
+
     if (mutationError) return c.json({ error: mutationError }, 409);
   }
   const explanationRequired = targetSession.purpose === 'system_design_learning';
@@ -10445,6 +11345,7 @@ app.post('/api/quiz/questions', async (c) => {
     explanation,
     explanationRequired,
   );
+
   if (validationError) {
     return c.json({ error: validationError }, 400);
   }
@@ -10462,17 +11363,20 @@ app.post('/api/quiz/questions', async (c) => {
     difficulty: body.difficulty === 'foundational' || body.difficulty === 'advanced' ? body.difficulty : 'intermediate',
     category: typeof body.category === 'string' ? body.category.trim().slice(0, 80) || null : null,
   });
+
   await auditAdminAction(c, {
     action: 'quiz.question.create',
     targetType: 'quiz_question',
     targetId: question.id,
     metadata: { quiz_session_id: question.quiz_session_id, order_index: question.order_index },
   });
+
   return c.json(question, 201);
 });
 
 app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   if (envValue('ENABLE_PDF_QUIZ_UPLOADS', c) !== 'true') {
@@ -10480,6 +11384,7 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
   }
 
   const session = await getQuizSessionById(c.req.param('sessionId'));
+
   if (!session) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -10489,6 +11394,7 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
   }
 
   let formData: FormData;
+
   try {
     formData = await c.req.raw.formData();
   } catch {
@@ -10496,17 +11402,20 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
   }
 
   const uploadedFile = formData.get('file');
+
   if (!(uploadedFile instanceof File)) {
     return c.json({ error: 'A PDF file is required' }, 400);
   }
 
   const fileValidationError = validatePaperQuizFile(uploadedFile);
+
   if (fileValidationError) {
     return c.json({ error: fileValidationError }, 400);
   }
 
   const arrayBuffer = await uploadedFile.arrayBuffer();
   const bytes = new Uint8Array(arrayBuffer);
+
   if (!hasPdfHeader(bytes)) {
     return c.json({ error: 'Uploaded file does not look like a valid PDF' }, 400);
   }
@@ -10521,6 +11430,7 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
       event: 'pdf_extraction_failed',
       error_name: safeErrorName(error),
     }));
+
     return c.json({ error: 'Could not extract text from this PDF. Try a text-based, non-password-protected PDF.' }, 422);
   }
 
@@ -10531,6 +11441,7 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
   }
 
   const drafts = generateQuestionDraftsFromText(extractedText, requestedQuestionCount);
+
   if (drafts.length === 0) {
     return c.json({ error: 'Could not identify enough quiz-worthy terms in this PDF. Try a longer paper or add questions manually.' }, 422);
   }
@@ -10581,11 +11492,13 @@ app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
 
 app.patch('/api/quiz/questions/:questionId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   try {
     const questionId = c.req.param('questionId');
     const existingQuestion = await getQuestionById(questionId);
+
     if (!existingQuestion) {
       return c.json({ error: 'Question not found' }, 404);
     }
@@ -10593,10 +11506,13 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     const body = await c.req.json();
     const updates: Partial<Omit<Question, 'id' | 'created_at'>> = {};
     const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
+
     if (targetSession?.purpose === 'system_design_learning') {
       const event = await getEventById(targetSession.event_id, c);
+
       if (!event) return c.json({ error: 'Event not found' }, 404);
       const mutationError = systemDesignMutationError(event, targetSession);
+
       if (mutationError) return c.json({ error: mutationError }, 409);
     }
     const explanationRequired = targetSession?.purpose === 'system_design_learning';
@@ -10613,6 +11529,7 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     if (body.order_index !== undefined) updates.order_index = Number(body.order_index);
     if (body.time_limit_seconds !== undefined) {
       const timeLimitSeconds = Number(body.time_limit_seconds);
+
       if (!Number.isInteger(timeLimitSeconds) || timeLimitSeconds < 5 || timeLimitSeconds > 300) {
         return c.json({ error: 'time_limit_seconds must be a whole number between 5 and 300' }, 400);
       }
@@ -10637,18 +11554,21 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
         updates.explanation ?? existingQuestion.explanation,
         explanationRequired,
       );
+
       if (validationError) {
         return c.json({ error: validationError }, 400);
       }
     }
 
     const question = await updateQuestion(questionId, updates);
+
     await auditAdminAction(c, {
       action: 'quiz.question.update',
       targetType: 'quiz_question',
       targetId: questionId,
       metadata: { quiz_session_id: question.quiz_session_id, changed_fields: Object.keys(updates).sort() },
     });
+
     return c.json(question);
   } catch (error) {
     return internalErrorResponse(c, 'quiz_question_update_failed', error, 'Unable to update the quiz question.');
@@ -10657,17 +11577,22 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
 
 app.delete('/api/quiz/questions/:questionId', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   try {
     const questionId = c.req.param('questionId');
     const existingQuestion = await getQuestionById(questionId);
+
     if (existingQuestion) {
       const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
+
       if (targetSession?.purpose === 'system_design_learning') {
         const event = await getEventById(targetSession.event_id, c);
+
         if (!event) return c.json({ error: 'Event not found' }, 404);
         const mutationError = systemDesignMutationError(event, targetSession);
+
         if (mutationError) return c.json({ error: mutationError }, 409);
       }
     }
@@ -10678,6 +11603,7 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
       targetId: questionId,
       metadata: { quiz_session_id: existingQuestion?.quiz_session_id ?? null },
     });
+
     return c.json({ ok: true });
   } catch (error) {
     return internalErrorResponse(c, 'quiz_question_delete_failed', error, 'Unable to remove the quiz question.');
@@ -10686,17 +11612,22 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
 
 app.post('/api/quiz/questions/reorder', async (c) => {
   const adminError = await requireAdmin(c);
+
   if (adminError) return adminError;
 
   const { session_id, question_ids } = await c.req.json();
+
   if (!session_id || !Array.isArray(question_ids)) {
     return c.json({ error: 'session_id and question_ids are required' }, 400);
   }
   const targetSession = await getQuizSessionById(String(session_id));
+
   if (targetSession?.purpose === 'system_design_learning') {
     const event = await getEventById(targetSession.event_id, c);
+
     if (!event) return c.json({ error: 'Event not found' }, 404);
     const mutationError = systemDesignMutationError(event, targetSession);
+
     if (mutationError) return c.json({ error: mutationError }, 409);
   }
   await reorderQuestions(session_id, question_ids);
@@ -10706,11 +11637,13 @@ app.post('/api/quiz/questions/reorder', async (c) => {
     targetId: String(session_id),
     metadata: { question_count: question_ids.length },
   });
+
   return c.json({ ok: true });
 });
 
 app.post('/api/quiz/join', async (c) => {
   const parsed = quizJoinSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: 'A valid join code and device are required' }, 400);
   }
@@ -10722,6 +11655,7 @@ app.post('/api/quiz/join', async (c) => {
     maxAttempts: 240,
     windowSeconds: 60,
   }, 'Too many room joins were attempted from this network. Please wait a moment.');
+
   if (clientRateLimitError) return clientRateLimitError;
 
   const deviceRateLimitError = await enforcePublicRateLimit(c, {
@@ -10730,10 +11664,12 @@ app.post('/api/quiz/join', async (c) => {
     maxAttempts: 12,
     windowSeconds: 60,
   }, 'Too many room joins were attempted from this device. Please wait a moment.');
+
   if (deviceRateLimitError) return deviceRateLimitError;
 
   const foundSession = await getQuizSessionByCode(join_code);
   const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
+
   if (!session) {
     return c.json({ error: 'Invalid join code' }, 404);
   }
@@ -10748,6 +11684,7 @@ app.post('/api/quiz/join', async (c) => {
 
   const systemDesignLearningRoom = session.purpose === 'system_design_learning';
   const requestedNickname = nickname.slice(0, 20);
+
   if (!systemDesignLearningRoom && !requestedNickname) {
     return c.json({ error: 'Enter a nickname to join this quiz.', code: 'nickname_required' }, 400);
   }
@@ -10756,6 +11693,7 @@ app.post('/api/quiz/join', async (c) => {
   const existingParticipant = user
     ? await getQuizParticipantBySessionAndUser(session.id, user.id)
     : undefined;
+
   if (existingParticipant && user) {
     return c.json({
       session_id: session.id,
@@ -10781,8 +11719,10 @@ app.post('/api/quiz/join', async (c) => {
   }
 
   let participant: QuizParticipant | undefined;
+
   if (systemDesignLearningRoom) {
     const maxAliasAttempts = 8;
+
     for (let attempt = 0; attempt < maxAliasAttempts; attempt += 1) {
       try {
         participant = await createQuizParticipant({
@@ -10794,6 +11734,7 @@ app.post('/api/quiz/join', async (c) => {
       } catch (error) {
         if (!(error instanceof QuizParticipantNicknameTakenError)) throw error;
         const latestParticipants = await getQuizParticipantsBySession(session.id);
+
         participantNickname = generateParticipantAlias(
           latestParticipants.map((roomParticipant) => roomParticipant.nickname_used),
         );
@@ -10843,15 +11784,18 @@ app.patch('/api/quiz/participants/:participantId/name', async (c) => {
     maxAttempts: 12,
     windowSeconds: 60,
   }, 'Too many name changes. Please wait a moment and try again.');
+
   if (rateLimitError) return rateLimitError;
 
   const participant = await getQuizParticipantById(participantId);
+
   if (!participant) return c.json({ error: 'Participant not found.' }, 404);
 
   const [session, user] = await Promise.all([
     getQuizSessionById(participant.quiz_session_id),
     getUserById(participant.user_id),
   ]);
+
   if (!session || session.purpose !== 'system_design_learning') {
     return c.json({ error: 'Participant not found.' }, 404);
   }
@@ -10863,6 +11807,7 @@ app.patch('/api/quiz/participants/:participantId/name', async (c) => {
   }
 
   const result = await renameQuizParticipant(participant.id, session.id, nickname);
+
   if (result.nicknameTaken) {
     return c.json({ error: 'That name is already in use in this room.', code: 'nickname_taken' }, 409);
   }
@@ -10876,6 +11821,7 @@ app.patch('/api/quiz/participants/:participantId/name', async (c) => {
 
 app.post('/api/quiz/answer', async (c) => {
   const parsed = quizAnswerSchema.safeParse(await c.req.json().catch(() => null));
+
   if (!parsed.success) {
     return c.json({ error: 'A valid session, participant device, and answer are required' }, 400);
   }
@@ -10887,6 +11833,7 @@ app.post('/api/quiz/answer', async (c) => {
     maxAttempts: 12,
     windowSeconds: 60,
   }, 'Too many answers were submitted. Please wait a moment.');
+
   if (rateLimitError) return rateLimitError;
 
   if (!await quizDeviceOwnsUser(user_id, device_id)) {
@@ -10895,8 +11842,10 @@ app.post('/api/quiz/answer', async (c) => {
 
   const foundSession = await getQuizSessionById(session_id);
   const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
+
   if (session?.purpose === 'system_design_learning') {
     const event = await getEventById(session.event_id, c);
+
     if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived.' }, 409);
   }
   if (!session || session.status !== 'active') {
@@ -10912,11 +11861,14 @@ app.post('/api/quiz/answer', async (c) => {
 
   try {
     const atomicResult = await submitQuizAnswerAtomically(session_id, user_id, answer_index);
+
     if (atomicResult) {
       const user = await getUserById(user_id);
+
       if (session.purpose !== 'system_design_learning' && user && !user.merged_into_user_id) {
         await updateUser(user.id, { total_points: user.total_points + atomicResult.points_awarded });
       }
+
       return c.json(session.purpose === 'system_design_learning'
         ? { accepted: true }
         : atomicResult);
@@ -10929,8 +11881,10 @@ app.post('/api/quiz/answer', async (c) => {
         too_late: 'Answer submitted too late',
         participant_missing: 'Participant not found',
       } as const;
+
       return c.json({ error: messageByReason[error.reason] }, 400);
     }
+
     throw error;
   }
 
@@ -10942,6 +11896,7 @@ app.post('/api/quiz/answer', async (c) => {
   }
 
   const existing = await getResponseByQuestionAndUser(currentQuestion.id, user_id);
+
   if (existing) {
     return c.json({ error: 'Already answered this question' }, 400);
   }
@@ -10981,6 +11936,7 @@ app.post('/api/quiz/answer', async (c) => {
     current_streak: newStreak,
   });
   const user = await getUserById(user_id);
+
   if (session.purpose !== 'system_design_learning' && user && !user.merged_into_user_id) {
     await updateUser(user.id, {
       total_points: user.total_points + totalPoints,
@@ -11003,6 +11959,7 @@ app.get('/api/quiz/state', async (c) => {
     userId: c.req.query('userId'),
     presenter: c.req.query('presenter'),
   });
+
   if (!parsed.success) {
     return c.json({ error: 'A valid session and participant device are required.' }, 400);
   }
@@ -11012,6 +11969,7 @@ app.get('/api/quiz/state', async (c) => {
 
   if (presenterStateRequested) {
     const adminError = await requireAdmin(c);
+
     if (adminError) return adminError;
   } else if (userId && (
     !deviceId.success
@@ -11021,6 +11979,7 @@ app.get('/api/quiz/state', async (c) => {
   }
 
   const foundSession = await getQuizSessionById(sessionId);
+
   if (!foundSession) return c.json({ error: 'Session not found' }, 404);
   if (foundSession.purpose === 'system_design_learning' && foundSession.question_phase === 'presenting') {
     await advanceQuizSessionState(sessionId);
@@ -11031,6 +11990,7 @@ app.get('/api/quiz/state', async (c) => {
     includePresenterLeaderboard: presenterStateRequested,
     includePresenterQuestion: presenterStateRequested,
   });
+
   if (!stateResponse) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -11047,6 +12007,7 @@ app.post('/api/quiz/state/advance', async (c) => {
   }
 
   const result = await advanceQuizSessionState(sessionId);
+
   if (!result.session) {
     return c.json({ error: 'Session not found' }, 404);
   }
@@ -11086,6 +12047,7 @@ app.post('/api/users/claim', async (c) => {
   }
 
   const existingDeviceUser = await getUserByDeviceId(device_id);
+
   if (existingDeviceUser && existingDeviceUser.id !== user.id && !existingDeviceUser.merged_into_user_id) {
     return c.json({
       error: 'This device is already linked to another profile. Merge that profile into your claimed one instead.',
@@ -11232,6 +12194,7 @@ function hasPdfHeader(bytes: Uint8Array): boolean {
 
 function parseRequestedQuestionCount(value: FormDataEntryValue | null): number {
   const parsed = Number(value ?? PAPER_QUIZ_DEFAULT_QUESTION_COUNT);
+
   if (!Number.isFinite(parsed)) {
     return PAPER_QUIZ_DEFAULT_QUESTION_COUNT;
   }
@@ -11285,9 +12248,11 @@ function normalizeQuestionConceptKey(question: string): string {
 
 function inferSystemDesignCategory(question: string): string {
   const value = question.toLowerCase();
+
   if (/lock|transaction|concurrent|atomic|seat/.test(value)) return 'Consistency';
   if (/cache|replica|scale|load/.test(value)) return 'Scalability';
   if (/model|schema|relationship|data/.test(value)) return 'Data modelling';
+
   return 'Architecture trade-offs';
 }
 
@@ -11308,14 +12273,17 @@ export function generateQuestionDraftsFromText(text: string, requestedCount: num
   const sentenceOptions = (correctSentence: string, candidates: typeof sentences): string[] => {
     const unique = [truncateText(correctSentence, 150)];
     const seen = new Set(unique.map((sentence) => sentence.toLowerCase()));
+
     for (const candidate of candidates) {
       const sentence = truncateText(candidate.sentence, 150);
+
       if (!seen.has(sentence.toLowerCase())) {
         unique.push(sentence);
         seen.add(sentence.toLowerCase());
       }
       if (unique.length === 4) break;
     }
+
     return unique.length === 4 ? stableShuffle(unique) : [];
   };
 
@@ -11325,6 +12293,7 @@ export function generateQuestionDraftsFromText(text: string, requestedCount: num
     }
 
     const answer = candidate.terms.find((term) => !usedAnswers.has(normalizeTermKey(term)));
+
     if (!answer) {
       continue;
     }
@@ -11340,6 +12309,7 @@ export function generateQuestionDraftsFromText(text: string, requestedCount: num
     }
 
     const correctIndex = options.findIndex((option) => normalizeTermKey(option) === normalizeTermKey(answer));
+
     if (correctIndex < 0) {
       continue;
     }
@@ -11350,6 +12320,7 @@ export function generateQuestionDraftsFromText(text: string, requestedCount: num
     if (format === 1) {
       const evidenceOptions = sentenceOptions(candidate.sentence, sentences.filter((entry) => entry.sentence !== candidate.sentence));
       const evidenceIndex = evidenceOptions.findIndex((option) => option === truncateText(candidate.sentence, 150));
+
       if (evidenceIndex >= 0) {
         drafts.push({
           question_text: `Which detail from the source most directly supports the use of ${answer}?`,
@@ -11366,6 +12337,7 @@ export function generateQuestionDraftsFromText(text: string, requestedCount: num
         && normalizeTermKey(term) !== normalizeTermKey(relatedTerm)
       )).slice(0, 16));
       const relationshipIndex = relationshipOptions.findIndex((option) => normalizeTermKey(option) === normalizeTermKey(relatedTerm));
+
       if (relationshipOptions.length !== 4 || relationshipIndex < 0) continue;
       drafts.push({
         question_text: `Within the source, ${answer} is most directly connected to which concern?`,
@@ -11424,6 +12396,7 @@ function generateSystemDesignConceptDrafts(text: string): QuestionDraft[] {
     'Students choose a time, then discover the faculty. Which model best matches that rule?',
     ['Store the booking against a scheduled slot, which links to its faculty', 'Store only the faculty on the student', 'Store the time as free text on the faculty', 'Remove the faculty from the model'], 0,
     'The chosen unit is the scheduled slot. Its relationship to faculty can be resolved after the student selects the time.');
+
   return drafts;
 }
 
@@ -11473,6 +12446,7 @@ function extractTerms(text: string, limit: number): string[] {
     }
 
     const current = counts.get(key) ?? { term, count: 0, score: termScore(term) };
+
     current.count += 1;
     current.score += 1;
     counts.set(key, current);
@@ -11502,9 +12476,11 @@ function isUsableTerm(term: string, key: string): boolean {
 
 function termScore(term: string): number {
   let score = Math.min(term.length, 14);
+
   if (/[A-Z]/.test(term.slice(1))) score += 4;
   if (/[0-9+#./-]/.test(term)) score += 3;
   if (term.length >= 8) score += 2;
+
   return score;
 }
 
@@ -11514,6 +12490,7 @@ function pickOptions(answer: string, distractors: string[]): string[] {
 
   for (const distractor of distractors) {
     const key = normalizeTermKey(distractor);
+
     if (!seen.has(key)) {
       unique.push(distractor);
       seen.add(key);
@@ -11533,16 +12510,19 @@ function stableShuffle(options: string[]): string[] {
 
 function hashString(value: string): number {
   let hash = 0;
+
   for (let index = 0; index < value.length; index += 1) {
     hash = ((hash << 5) - hash) + value.charCodeAt(index);
     hash |= 0;
   }
+
   return Math.abs(hash);
 }
 
 function blankSentence(sentence: string, answer: string): string {
   const escaped = answer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const blanked = sentence.replace(new RegExp(`\\b${escaped}\\b`, 'i'), '_____');
+
   return truncateText(blanked, 210);
 }
 
@@ -11659,6 +12639,7 @@ async function mergeParticipantRecords(target: User, source: User) {
 
 async function mergeResponseRecords(target: User, source: User) {
   const responses = await readData<Response>('responses');
+
   for (const response of responses) {
     if (response.user_id === source.id) {
       response.user_id = target.id;

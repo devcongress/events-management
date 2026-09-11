@@ -44,6 +44,7 @@ const websitePresentation = computed(() => {
       : 'The public page could not be reached.',
     tone: 'failed',
   };
+
   return {
     label: 'Not published',
     detail: 'Publish this event when it is ready for the public website.',
@@ -53,6 +54,7 @@ const websitePresentation = computed(() => {
 
 const slackPresentation = computed(() => {
   const announcement = props.announcement;
+
   if (announcement?.status === 'sent') {
     return announcement.message_update_last_error
       ? {
@@ -90,6 +92,7 @@ const slackPresentation = computed(() => {
       : 'Past events cannot be announced again.',
     tone: 'neutral',
   };
+
   return {
     label: 'Not sent',
     detail: 'The event is ready to announce in the Slack events channel.',
@@ -104,6 +107,7 @@ const lastSuccessfulSlackResult = computed(() => {
   if (props.announcement?.sent_at) {
     return `Sent ${accraTimestamp.format(new Date(props.announcement.sent_at))}`;
   }
+
   return null;
 });
 
@@ -111,6 +115,7 @@ function toneClass(tone: string) {
   if (tone === 'success') return 'bg-green-600';
   if (tone === 'pending') return 'bg-amber-500';
   if (tone === 'failed') return 'bg-red-600';
+
   return 'bg-dc-gray';
 }
 </script>

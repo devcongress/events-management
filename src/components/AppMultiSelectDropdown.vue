@@ -48,11 +48,13 @@ const triggerText = computed(() => {
     .filter((label): label is string => Boolean(label));
 
   if (labels.length === 1) return labels[0];
+
   return `${selectedCount.value} selected`;
 });
 const estimatedMenuHeight = computed(() => {
   const optionHeight = 46;
   const menuPaddingAndFooter = 66;
+
   return Math.min(330, props.options.length * optionHeight + menuPaddingAndFooter);
 });
 
@@ -69,16 +71,19 @@ function selectedOptionShape(index: number): string {
   if (!joinsPrevious && !joinsNext) return 'rounded';
   if (!joinsPrevious) return 'rounded-t rounded-b-none';
   if (!joinsNext) return 'rounded-t-none rounded-b border-t border-dc-pink/10';
+
   return 'rounded-none border-t border-dc-pink/10';
 }
 
 function toggleValue(value: DropdownValue) {
   const option = props.options.find((item) => item.value === value);
+
   if (!option || option.disabled) return;
 
   const nextValue = isSelected(value)
     ? props.modelValue.filter((selectedValue) => selectedValue !== value)
     : [...props.modelValue, value];
+
   emit('update:modelValue', nextValue);
 }
 
@@ -103,6 +108,7 @@ function toggleDropdown(event?: MouseEvent) {
 
   if (open.value) {
     closeDropdown();
+
     return;
   }
 
@@ -113,6 +119,7 @@ function toggleDropdown(event?: MouseEvent) {
 
 function viewportBounds() {
   const visualViewport = window.visualViewport;
+
   return visualViewport
     ? {
         top: visualViewport.offsetTop,
@@ -127,6 +134,7 @@ function updatePlacement() {
   if (!root.value || !open.value) return;
 
   const rect = root.value.getBoundingClientRect();
+
   if (props.teleport) {
     const position = calculateFloatingPosition({
       anchor: rect,
@@ -135,6 +143,7 @@ function updatePlacement() {
       preferredWidth: Math.max(rect.width, menuPanel.value?.offsetWidth ?? 176),
       align: props.menuAlign === 'right' ? 'right' : 'left',
     });
+
     placement.value = position.placement;
     menuStyle.value = {
       position: 'fixed',
@@ -145,12 +154,14 @@ function updatePlacement() {
       maxWidth: 'calc(100vw - 1rem)',
     };
     menuScrollStyle.value = { maxHeight: `${Math.max(0, Math.min(256, position.maxHeight - 50))}px` };
+
     return;
   }
 
   const spacing = 8;
   const spaceBelow = window.innerHeight - rect.bottom - spacing;
   const spaceAbove = rect.top - spacing;
+
   placement.value = spaceBelow < estimatedMenuHeight.value && spaceAbove > spaceBelow ? 'top' : 'bottom';
 }
 
@@ -168,6 +179,7 @@ function schedulePlacementUpdate() {
 
 function eventIsInsideDropdown(event: Event): boolean {
   const target = event.target as Node;
+
   return Boolean(root.value?.contains(target) || menuPanel.value?.contains(target));
 }
 
@@ -181,6 +193,7 @@ function handleEscape(event: KeyboardEvent) {
 
 function handleDropdownOpen(event: Event) {
   const detail = (event as CustomEvent<{ id?: string }>).detail;
+
   if (detail?.id !== dropdownId) closeDropdown();
 }
 
@@ -212,6 +225,7 @@ watch(open, async (isOpen) => {
     placement.value = 'bottom';
     menuStyle.value = {};
     menuScrollStyle.value = {};
+
     return;
   }
 

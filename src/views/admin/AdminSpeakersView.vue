@@ -18,6 +18,7 @@ async function fetchAll() {
     fetch(`/api/events/${route.params.eventId}`),
     fetch(`/api/events/${route.params.eventId}/speakers`),
   ]);
+
   if (eventResponse.ok) event.value = await eventResponse.json();
   if (speakersResponse.ok) speakers.value = await speakersResponse.json();
   loading.value = false;
@@ -31,12 +32,14 @@ async function addNewSpeaker() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
+
   if (response.ok) {
     form.email = '';
     form.name = '';
     await fetchAll();
   } else {
     const data = await response.json();
+
     error.value = data.error || 'Failed to add speaker';
   }
   adding.value = false;
@@ -44,6 +47,7 @@ async function addNewSpeaker() {
 
 async function removeExistingSpeaker(speakerId: string) {
   const response = await fetch(`/api/events/${route.params.eventId}/speakers/${speakerId}`, { method: 'DELETE' });
+
   if (response.ok) await fetchAll();
 }
 

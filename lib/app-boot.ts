@@ -254,6 +254,7 @@ export function renderAppBootMarkup(pathname = '/'): string {
 
 export function applyAppBootVariant(html: string, pathname: string): string {
   const variant = appBootVariantForPathname(pathname);
+
   return html
     .replace(
       new RegExp(`${APP_BOOT_VARIANT_ATTRIBUTE}="[^"]+"`),

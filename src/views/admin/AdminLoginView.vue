@@ -92,6 +92,7 @@ const defaultActionLabel = computed(() => {
   if (failureCopy.value) return failureCopy.value.actionLabel;
   if (!authResolved.value) return 'Checking access…';
   if (loading.value) return 'Opening Google…';
+
   return 'Continue with Google';
 });
 
@@ -99,6 +100,7 @@ const defaultAccessNote = computed(() => {
   if (failureCopy.value) return failureCopy.value.note;
   if (!authResolved.value) return 'Your destination will be preserved while we check.';
   if (!authConfigured.value) return 'Ask an owner to configure Supabase organizer access.';
+
   return 'Access is limited to approved DevCongress organizers.';
 });
 
@@ -134,6 +136,7 @@ const surfaceShowGoogleMark = computed(() => (
 function isLocalBrowserOrigin(origin: string): boolean {
   try {
     const { hostname } = new URL(origin);
+
     return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
   } catch {
     return false;
@@ -149,17 +152,21 @@ async function login() {
 
   try {
     const supabase = getSupabaseBrowserClient();
+
     if (!supabase) {
       internalError.value = 'Google organizer sign-in is not configured yet.';
+
       return;
     }
 
     if (isLocalBrowserOrigin(window.location.origin) && window.location.origin !== LOCAL_GOOGLE_OAUTH_ORIGIN) {
       internalError.value = `Google sign-in only works on ${LOCAL_GOOGLE_OAUTH_ORIGIN} locally. Restart there.`;
+
       return;
     }
 
     const callbackUrl = new URL('/api/auth/admin/callback', window.location.origin);
+
     callbackUrl.searchParams.set('next', redirectTo.value);
 
     window.sessionStorage.setItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY, redirectTo.value);
@@ -186,6 +193,7 @@ async function login() {
 async function handlePrimaryAction() {
   if (props.managed) {
     emit('primary');
+
     return;
   }
 
@@ -198,6 +206,7 @@ onMounted(async () => {
   const callbackError = route.query.error;
   const parsedFailureReason = parseAdminAuthFailureReason(route.query.auth_reason)
     ?? (typeof callbackError === 'string' && callbackError ? 'oauth_failed' : null);
+
   if (parsedFailureReason) {
     failureReason.value = parsedFailureReason;
     await router.replace({
@@ -216,6 +225,7 @@ onMounted(async () => {
       queryKey: queryKeys.adminSession,
       queryFn: fetchAdminSession,
     });
+
     authConfigured.value = session.auth_configured;
     if (session.authenticated) {
       await router.replace(redirectTo.value);

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CommunityMasthead from '@/src/components/CommunityMasthead.vue';
+
 const mastheadStats = [
   { value: 'Soon', label: 'quiz', tone: 'yellow' as const },
   { value: '5MB', label: 'future PDF cap', tone: 'info' as const },

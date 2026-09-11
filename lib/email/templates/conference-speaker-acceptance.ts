@@ -46,5 +46,6 @@ export function conferenceSpeakerAcceptanceEmail(input: {
     '',
     `Updates close ${deadlineLabel}. Please do not forward this link.`,
   ].join('\n');
+
   return { subject, html, text };
 }

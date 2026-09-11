@@ -50,6 +50,7 @@ export function normalizeTaskResourceUrl(value: string): string | null {
 
 export function normalizeTaskResourceLabel(value: string | null | undefined): string | null {
   const label = value?.trim() ?? '';
+
   return label || null;
 }
 

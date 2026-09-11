@@ -49,12 +49,14 @@ export function createAnnualConferenceTaskResourceRepository(c?: Context): Annua
         creatorEmailConstraint,
         c,
       );
+
       return resource === null
         ? updateMockAnnualConferenceTaskResource(taskId, resourceId, input, actorEmail, creatorEmailConstraint)
         : resource;
     },
     async delete(taskId, resourceId, creatorEmailConstraint) {
       const deleted = await deleteSupabaseAnnualConferenceTaskResource(taskId, resourceId, creatorEmailConstraint, c);
+
       return deleted === null
         ? deleteMockAnnualConferenceTaskResource(taskId, resourceId, creatorEmailConstraint)
         : deleted;

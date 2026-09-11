@@ -43,16 +43,19 @@ let placementFrame: number | null = null;
 const estimatedMenuHeight = computed(() => {
   const optionHeight = 42;
   const menuPadding = 12;
+
   return Math.min(288, props.options.length * optionHeight + menuPadding);
 });
 
 const selectedLabel = computed(() => {
   const exactOption = props.options.find((option) => option.value === props.modelValue);
+
   return exactOption?.label ?? props.placeholder ?? props.options[0]?.label ?? 'Select';
 });
 const triggerClasses = computed(() => {
   if (props.density === 'slim') return 'min-h-8 px-2.5 py-1.5 text-xs';
   if (props.density === 'compact') return 'min-h-10 px-3 py-2 text-sm';
+
   return 'min-h-[50px] px-4 py-3 text-base';
 });
 const optionClasses = computed(() => props.density === 'slim'
@@ -68,6 +71,7 @@ const iconClasses = computed(() => props.density === 'slim'
 
 function choose(value: DropdownValue) {
   const option = props.options.find((item) => item.value === value);
+
   if (option?.disabled) return;
 
   emit('update:modelValue', value);
@@ -109,6 +113,7 @@ function toggle(event?: MouseEvent) {
 
 function viewportBounds() {
   const visualViewport = window.visualViewport;
+
   return visualViewport
     ? {
         top: visualViewport.offsetTop,
@@ -123,13 +128,16 @@ function updatePlacement() {
   if (!root.value || !open.value) return;
 
   const rect = root.value.getBoundingClientRect();
+
   if (!props.teleport) {
     const viewport = viewportBounds();
     const viewportBottom = viewport.top + viewport.height;
     const spacing = 8;
     const spaceBelow = viewportBottom - rect.bottom - spacing;
     const spaceAbove = rect.top - viewport.top - spacing;
+
     placement.value = spaceBelow < estimatedMenuHeight.value && spaceAbove > spaceBelow ? 'top' : 'bottom';
+
     return;
   }
 
@@ -141,6 +149,7 @@ function updatePlacement() {
     preferredWidth: naturalWidth,
     align: props.menuAlign === 'right' ? 'right' : 'left',
   });
+
   placement.value = position.placement;
   menuStyle.value = {
     position: 'fixed',
@@ -169,6 +178,7 @@ function schedulePlacementUpdate() {
 
 function eventIsInsideDropdown(event: Event): boolean {
   const target = event.target as Node;
+
   return Boolean(root.value?.contains(target) || menuPanel.value?.contains(target));
 }
 
@@ -190,6 +200,7 @@ function handleEscape(event: KeyboardEvent) {
 
 function handleDropdownOpen(event: Event) {
   const detail = (event as CustomEvent<{ id?: string }>).detail;
+
   if (detail?.id !== dropdownId) {
     closeDropdown();
   }

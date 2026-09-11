@@ -17,6 +17,7 @@ function statClass(tone: 'yellow' | 'info' | 'warm' = 'warm') {
     info: 'border-dc-info bg-dc-info-soft text-dc-info',
     warm: 'border-dc-border bg-dc-paper-warm text-dc-gray',
   };
+
   return tones[tone];
 }
 </script>

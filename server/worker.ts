@@ -11,6 +11,7 @@ export default {
   fetch: app.fetch,
   async scheduled(_controller: unknown, env: WorkerBindings, ctx: ExecutionContext) {
     const secret = secureSharedSecret(env.SLACK_EVENTS_RETRY_SECRET);
+
     if (!secret) return;
 
     const jobs = [
@@ -20,16 +21,19 @@ export default {
       { path: '/api/internal/selected-speaker-emails/retry', event: 'scheduled_selected_speaker_email_retry_http_failed' },
       { path: '/api/internal/annual-conference-speaker-emails/retry', event: 'scheduled_annual_conference_speaker_email_retry_http_failed' },
     ];
+
     for (const job of jobs) {
       const response = await app.fetch(new Request(`https://events-management.internal${job.path}`, {
         method: 'POST',
         headers: { 'x-scheduled-job-secret': secret },
       }), env, ctx);
+
       if (!response.ok) console.error(JSON.stringify({ event: job.event, status: response.status }));
     }
   },
   async queue(batch: QueueBatch, env: WorkerBindings, ctx: ExecutionContext) {
     const secret = secureSharedSecret(env.SLACK_EVENTS_RETRY_SECRET);
+
     if (!secret) throw new Error('Missing scheduled-job secret for event blast preparation.');
 
     for (const message of batch.messages) {
@@ -41,6 +45,7 @@ export default {
         },
         body: JSON.stringify(message.body),
       }), env, ctx);
+
       if (!response.ok) {
         throw new Error(`Event blast preparation returned ${response.status}.`);
       }

@@ -14,5 +14,6 @@ export function internalErrorResponse(
     path: securitySafeRequestPath(c.req.path),
     error_name: safeErrorName(error),
   }));
+
   return c.json({ error: publicMessage }, 500);
 }

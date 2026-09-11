@@ -17,14 +17,17 @@ function addMonths(date: Date, months: number): Date {
 
 export function attendanceMonthForDate(value: string | Date): string {
   const date = value instanceof Date ? value : new Date(value);
+
   return monthKey(date);
 }
 
 export function lastSaturdayOfMonth(date: Date): Date {
   const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
   const daysSinceSaturday = (lastDay.getUTCDay() - 6 + 7) % 7;
+
   lastDay.setUTCDate(lastDay.getUTCDate() - daysSinceSaturday);
   lastDay.setUTCHours(0, 0, 0, 0);
+
   return lastDay;
 }
 

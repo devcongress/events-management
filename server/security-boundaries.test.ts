@@ -11,12 +11,14 @@ afterEach(() => {
 describe('HTTP security boundaries', () => {
   it('keeps production Turnstile hostname binding on public domains only', () => {
     const match = productionWorkerConfig.match(/EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES\s*=\s*"([^"]+)"/);
+
     expect(match?.[1]).toBe('devcongress.org,www.devcongress.org');
     expect(match?.[1]).not.toMatch(/(?:^|,)(?:localhost|127\.0\.0\.1)(?:,|$)/);
   });
 
   it('keeps production public API CORS on explicit website origins', () => {
     const match = productionWorkerConfig.match(/PUBLIC_API_CORS_ORIGINS\s*=\s*"([^"]+)"/);
+
     expect(match?.[1]).toBe('https://devcongress.org,https://www.devcongress.org');
     expect(match?.[1]).not.toContain('*');
   });
@@ -66,6 +68,7 @@ describe('HTTP security boundaries', () => {
         'Access-Control-Request-Method': 'GET',
       },
     });
+
     expect(allowed.status).toBe(204);
     expect(allowed.headers.get('access-control-allow-origin')).toBe('https://events.example.com');
     expect(allowed.headers.get('access-control-allow-credentials')).toBe('true');
@@ -77,6 +80,7 @@ describe('HTTP security boundaries', () => {
         'Access-Control-Request-Method': 'GET',
       },
     });
+
     expect(rejected.status).toBe(204);
     expect(rejected.headers.get('access-control-allow-origin')).toBeNull();
   });
@@ -237,6 +241,7 @@ describe('HTTP security boundaries', () => {
     ];
 
     const responses = await Promise.all(requests);
+
     expect(responses.map((response) => response.status)).not.toContain(401);
     expect(responses.every((response) => response.status >= 400 && response.status < 500)).toBe(true);
   });

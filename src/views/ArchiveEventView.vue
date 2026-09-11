@@ -42,6 +42,7 @@ function slidesUrl(talk: PublicArchiveTalk): string | null {
 
   try {
     const url = new URL(talk.slides_url);
+
     return url.protocol === 'http:' || url.protocol === 'https:' ? talk.slides_url : null;
   } catch {
     return null;
@@ -76,6 +77,7 @@ function sharedLinkPath(value: string): string {
   try {
     const url = new URL(value);
     const path = `${url.pathname}${url.search}`.replace(/\/$/, '');
+
     return path && path !== '/' ? path : url.hostname.replace(/^www\./, '');
   } catch {
     return value;
@@ -84,6 +86,7 @@ function sharedLinkPath(value: string): string {
 
 function systemDesignResourceTitle(resource: PublicMeetupScheduleItem['resources'][number], index: number): string {
   const label = resource.title.trim();
+
   if (!label || (index === 0 && label.toLowerCase() === 'view scenario prompt')) {
     return index === 0 ? 'Prompt deck' : 'Resource link';
   }
@@ -97,6 +100,7 @@ function systemDesignResourceActionLabel(resource: PublicMeetupScheduleItem['res
 
   if (title.includes('sheet') || url.includes('/spreadsheets/')) return 'Open source sheet';
   if (title.includes('deck') || url.includes('/presentation/') || index === 0) return 'Open prompt deck';
+
   return 'Open resource';
 }
 
@@ -104,6 +108,7 @@ onMounted(async () => {
   try {
     const eventId = String(route.params.eventId);
     const payload = await fetchPublicArchiveEvent(eventId);
+
     event.value = payload.event;
     talks.value = payload.talks;
     systemDesignRecap.value = payload.system_design_recap ?? null;

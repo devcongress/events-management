@@ -38,21 +38,25 @@ onUnmounted(clearPendingSearch);
 
 async function runSearch() {
   const query = inputValue.value.trim();
+
   if (query.length < 2) {
     suggestions.value = [];
     open.value = false;
     error.value = '';
+
     return;
   }
 
   searchController?.abort();
   const controller = new AbortController();
+
   searchController = controller;
   loading.value = true;
   error.value = '';
 
   try {
     const response = await searchGhanaVenues(query, controller.signal);
+
     if (controller.signal.aborted) return;
     suggestions.value = response.venues;
     activeIndex.value = response.venues.length ? 0 : -1;
@@ -77,6 +81,7 @@ function scheduleSearch() {
 
 function handleInput(event: Event) {
   const value = (event.target as HTMLInputElement).value;
+
   inputValue.value = value;
   emit('update:modelValue', value);
   emit('update:placeId', '');
@@ -100,6 +105,7 @@ function handleKeydown(event: KeyboardEvent) {
       event.preventDefault();
       void runSearch();
     }
+
     return;
   }
 
@@ -112,6 +118,7 @@ function handleKeydown(event: KeyboardEvent) {
   } else if (event.key === 'Enter' && activeIndex.value >= 0) {
     event.preventDefault();
     const venue = suggestions.value[activeIndex.value];
+
     if (venue) selectVenue(venue);
   } else if (event.key === 'Escape') {
     event.preventDefault();

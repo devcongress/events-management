@@ -33,6 +33,7 @@ vi.mock('../lib/supabase/admin-auth', async () => {
         });
       }
       c.set('adminSession', { ...session, role: mockAdminRole.value });
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -70,6 +71,7 @@ describe('native event registration API', () => {
         ? new Response('', { status: 200 })
         : new Response('ok', { status: 200 })
     ));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -88,6 +90,7 @@ describe('native event registration API', () => {
     expect(response.status).toBe(201);
     expect(slackFetch).toHaveBeenCalledTimes(2);
     const slackCall = slackFetch.mock.calls.find(([input]) => String(input).startsWith('https://hooks.slack.com/'));
+
     expect(String(slackCall?.[0])).toEqual('https://hooks.slack.com/services/test/events');
     const slackPayload = JSON.parse(String(slackCall?.[1]?.body)) as {
       text: string;
@@ -97,10 +100,12 @@ describe('native event registration API', () => {
         text?: { text?: string };
       }>;
     };
+
     expect(slackPayload).toMatchObject({
       text: 'New event added: Events channel meetup',
     });
     const created = await response.clone().json() as { event: { id: string; slug?: string | null } };
+
     expect(slackPayload.blocks.find((block) => block.type === 'section')?.text?.text)
       .toContain('Thu, 20 Aug 2099 · 7:00 pm GMT');
     expect(slackPayload.blocks.find((block) => block.text?.text?.includes('Open event'))?.text?.text)
@@ -116,6 +121,7 @@ describe('native event registration API', () => {
     let slackUpdatesAvailable = true;
     const slackFetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
+
       if (url.startsWith('https://devcongress.org/')) return new Response('', { status: 200 });
       if (url === 'https://slack.com/api/chat.postMessage') {
         return new Response(JSON.stringify({ ok: true, channel: 'C0123456789', ts: '1788900000.123456' }), {
@@ -141,8 +147,10 @@ describe('native event registration API', () => {
           headers: { 'Content-Type': 'application/json' },
         });
       }
+
       return new Response('not found', { status: 404 });
     });
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -158,6 +166,7 @@ describe('native event registration API', () => {
         registration: { capacity: 100, opens_at: null, closes_at: null, waitlist_enabled: true, auto_confirm: true },
       }),
     });
+
     expect(createdResponse.status).toBe(201);
     const created = await createdResponse.json() as { event: { id: string } };
 
@@ -169,10 +178,12 @@ describe('native event registration API', () => {
         end_date: '2099-09-20T16:00:00.000Z',
       }),
     });
+
     expect(updateResponse.status).toBe(200);
 
     const postCall = slackFetch.mock.calls.find(([input]) => String(input) === 'https://slack.com/api/chat.postMessage');
     const updateCall = slackFetch.mock.calls.find(([input]) => String(input) === 'https://slack.com/api/chat.update');
+
     expect(postCall).toBeTruthy();
     expect(updateCall).toBeTruthy();
     expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
@@ -182,6 +193,7 @@ describe('native event registration API', () => {
     expect(String(updateCall?.[1]?.body)).toContain('9:00 am–4:00 pm GMT');
 
     const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+
     await expect(status.json()).resolves.toMatchObject({
       website: {
         state: 'published',
@@ -202,12 +214,14 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Editable Slack meetup, revised' }),
     });
+
     expect(updateDuringSlackOutage.status).toBe(200);
     await expect(updateDuringSlackOutage.json()).resolves.toMatchObject({
       name: 'Editable Slack meetup, revised',
     });
 
     const failedStatus = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+
     await expect(failedStatus.json()).resolves.toMatchObject({
       announcement: {
         status: 'sent',
@@ -223,6 +237,7 @@ describe('native event registration API', () => {
         ? new Response('', { status: 200 })
         : new Response('unavailable', { status: 503 })
     ));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -248,6 +263,7 @@ describe('native event registration API', () => {
         ? new Response('', { status: 404 })
         : new Response('not found', { status: 404 })
     ));
+
     vi.stubGlobal('fetch', websiteFetch);
     const { default: app } = await import('./app');
 
@@ -265,6 +281,7 @@ describe('native event registration API', () => {
     const created = await createdResponse.json() as { event: { id: string } };
 
     const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+
     await expect(status.json()).resolves.toMatchObject({
       eligible: true,
       website: {
@@ -284,6 +301,7 @@ describe('native event registration API', () => {
         ? new Response('', { status: 200 })
         : new Response(available ? 'ok' : 'unavailable', { status: available ? 200 : 503 })
     ));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -301,13 +319,16 @@ describe('native event registration API', () => {
     const created = await createdResponse.json() as { event: { id: string } };
 
     const failedStatus = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+
     await expect(failedStatus.json()).resolves.toMatchObject({ announcement: { status: 'failed', attempt_count: 1 }, eligible: true });
 
     available = true;
     const retry = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
+
     await expect(retry.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 2 }, dispatched: true });
 
     const repeated = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
+
     await expect(repeated.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 2 }, dispatched: false });
     expect(slackFetch).toHaveBeenCalledTimes(6);
   });
@@ -321,6 +342,7 @@ describe('native event registration API', () => {
         ? new Response('', { status: websiteReady ? 200 : 404 })
         : new Response('ok', { status: 200 })
     ));
+
     vi.stubGlobal('fetch', slackFetch);
     const { default: app } = await import('./app');
 
@@ -336,6 +358,7 @@ describe('native event registration API', () => {
       }),
     });
     const created = await createdResponse.json() as { event: { id: string } };
+
     expect(slackFetch).toHaveBeenCalledTimes(1);
     expect(String(slackFetch.mock.calls[0]?.[0])).toContain('?readiness=1');
 
@@ -344,10 +367,12 @@ describe('native event registration API', () => {
       method: 'POST',
       headers: { 'x-scheduled-job-secret': 'scheduled-retry-secret-for-tests-2026' },
     });
+
     await expect(retry.json()).resolves.toMatchObject({ ok: true, sent: 1, waiting_for_website: 0 });
     expect(slackFetch).toHaveBeenCalledTimes(3);
 
     const status = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`);
+
     await expect(status.json()).resolves.toMatchObject({ announcement: { status: 'sent', attempt_count: 1 } });
   });
 
@@ -365,9 +390,11 @@ describe('native event registration API', () => {
       }),
     });
     const created = await createdResponse.json() as { event: { id: string } };
+
     mockAdminRole.value = 'volunteer';
 
     const response = await app.request(`http://localhost/api/events/${created.event.id}/slack-announcement`, { method: 'POST' });
+
     expect(response.status).toBe(403);
   });
 
@@ -390,12 +417,14 @@ describe('native event registration API', () => {
     const organizerDeleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'DELETE',
     });
+
     expect(organizerDeleteResponse.status).toBe(403);
 
     mockAdminRole.value = 'owner';
     const deleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'DELETE',
     });
+
     expect(deleteResponse.status).toBe(200);
     await expect(deleteResponse.json()).resolves.toMatchObject({
       ok: true,
@@ -411,6 +440,7 @@ describe('native event registration API', () => {
     const repeatedDeleteResponse = await app.request(`http://localhost/api/events/${created.event.id}`, {
       method: 'DELETE',
     });
+
     expect(repeatedDeleteResponse.status).toBe(404);
     await expect(repeatedDeleteResponse.json()).resolves.toEqual({ error: 'Event not found' });
 
@@ -429,6 +459,7 @@ describe('native event registration API', () => {
     const hardDeleteResponse = await app.request(`http://localhost/api/events/${hardCreated.event.id}?mode=hard`, {
       method: 'DELETE',
     });
+
     expect(hardDeleteResponse.status).toBe(200);
     await expect(hardDeleteResponse.json()).resolves.toEqual({ ok: true, mode: 'hard' });
   });
@@ -468,6 +499,7 @@ describe('native event registration API', () => {
         },
       }],
     }), { status: 200 }));
+
     vi.stubGlobal('fetch', providerFetch);
 
     const { default: app } = await import('./app');
@@ -483,6 +515,7 @@ describe('native event registration API', () => {
       }],
     });
     const requestBody = JSON.parse(String(providerFetch.mock.calls[0]?.[1]?.body));
+
     expect(requestBody).toMatchObject({ includedRegionCodes: ['gh'], regionCode: 'gh' });
   });
 
@@ -500,6 +533,7 @@ describe('native event registration API', () => {
       }),
     });
     const created = await createdResponse.json() as { event: { id: string } };
+
     await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -544,6 +578,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ blast_transactional_reserve: 12 }),
     });
+
     expect(updated.status).toBe(200);
     await expect(updated.json()).resolves.toMatchObject({ blast_transactional_reserve: 12 });
 
@@ -552,6 +587,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ blast_transactional_reserve: null }),
     });
+
     expect(reset.status).toBe(200);
     await expect(reset.json()).resolves.toMatchObject({ blast_transactional_reserve: null });
 
@@ -560,6 +596,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ blast_transactional_reserve: -1 }),
     });
+
     expect(invalid.status).toBe(400);
   });
 
@@ -577,6 +614,7 @@ describe('native event registration API', () => {
       }),
     });
     const created = await createdResponse.json() as { event: { id: string } };
+
     await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -593,6 +631,7 @@ describe('native event registration API', () => {
     await expect(registrationResponse.json()).resolves.toMatchObject({ code: 'disposable_domain' });
     const registrationsResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`);
     const registrations = await registrationsResponse.json() as { registrations: unknown[] };
+
     expect(registrations.registrations).toEqual([]);
   });
 
@@ -603,16 +642,20 @@ describe('native event registration API', () => {
     let sendAttempts = 0;
     const providerFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+
       if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 200 });
       if (url.endsWith('/contacts')) return new Response(JSON.stringify({ id: 'contact-1' }), { status: 200 });
       if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 200 });
       if (url.endsWith('/broadcasts/broadcast-1/send')) {
         sendAttempts += 1;
         if (sendAttempts === 1) throw new Error('socket closed after provider accepted');
+
         return new Response(JSON.stringify({ id: 'send-1' }), { status: 200 });
       }
+
       return new Response('not found', { status: 404 });
     });
+
     vi.stubGlobal('fetch', providerFetch);
 
     const { default: app } = await import('./app');
@@ -628,6 +671,7 @@ describe('native event registration API', () => {
       }),
     });
     const created = await createdResponse.json() as { event: { id: string } };
+
     await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -646,6 +690,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject: 'Venue update', body: 'We have moved rooms.' }),
     }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
+
     expect(failed.status).toBe(202);
     expect(queuedMessages).toHaveLength(1);
     await app.fetch(new Request('http://localhost/api/internal/event-blasts/prepare', {
@@ -656,6 +701,7 @@ describe('native event registration API', () => {
     const failedHistory = await app.request(`http://localhost/api/events/${created.event.id}/blasts`);
     const failedPayload = await failedHistory.json() as { blasts: Array<{ id: string; status: string; provider_broadcast_id: string; preparation_error: string }> };
     const failedBlast = failedPayload.blasts[0];
+
     expect(failedBlast).toMatchObject({ status: 'failed', provider_broadcast_id: 'broadcast-1' });
     expect(failedBlast.preparation_error).toContain('could not be reached');
 
@@ -663,6 +709,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/blasts/${failedBlast.id}/retry`,
       { method: 'POST' },
     );
+
     expect(retried.status).toBe(201);
     await expect(retried.json()).resolves.toMatchObject({
       delivery: 'sent',
@@ -685,6 +732,7 @@ describe('native event registration API', () => {
       external_id: 'legacy-event',
       external_url: 'https://lu.ma/legacy-event',
     };
+
     await fs.writeFile(
       path.join(tempRoot, 'data', 'events.json'),
       JSON.stringify([legacyEvent]),
@@ -709,6 +757,7 @@ describe('native event registration API', () => {
     const unknownResponse = await app.request(
       'http://localhost/api/events/unknown-event/registrations',
     );
+
     expect(unknownResponse.status).toBe(404);
     await expect(unknownResponse.json()).resolves.toEqual({ error: 'Event not found.' });
   });
@@ -730,6 +779,7 @@ describe('native event registration API', () => {
 
     expect(createResponse.status).toBe(201);
     const created = await createResponse.json() as { event: { id: string; format: string; series_type: string | null } };
+
     expect(created.event.series_type).toBeNull();
     expect(created.event.format).toBe('conference');
 
@@ -738,6 +788,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ format: 'hackathon' }),
     });
+
     expect(formatUpdate.status).toBe(200);
     await expect(formatUpdate.json()).resolves.toMatchObject({ format: 'hackathon' });
 
@@ -746,6 +797,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ format: 'congress' }),
     });
+
     expect(invalidFormatUpdate.status).toBe(400);
 
     const invalidUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
@@ -753,6 +805,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ series_type: 'other' }),
     });
+
     expect(invalidUpdate.status).toBe(400);
 
     const unsafeMapUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
@@ -766,6 +819,7 @@ describe('native event registration API', () => {
         },
       }),
     });
+
     expect(unsafeMapUpdate.status).toBe(400);
 
     const registrationPageUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
@@ -783,9 +837,11 @@ describe('native event registration API', () => {
         },
       }),
     });
+
     expect(registrationPageUpdate.status).toBe(200);
 
     const updatedPublicForm = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
+
     expect(updatedPublicForm.status).toBe(200);
     await expect(updatedPublicForm.json()).resolves.toMatchObject({
       event: {
@@ -813,6 +869,7 @@ describe('native event registration API', () => {
         }],
       }),
     });
+
     expect(unsafeScheduleUpdate.status).toBe(400);
 
     const massAssignmentUpdate = await app.request(`http://localhost/api/events/${created.event.id}`, {
@@ -820,6 +877,7 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: 'replacement-id', created_at: '2020-01-01T00:00:00.000Z' }),
     });
+
     expect(massAssignmentUpdate.status).toBe(400);
   });
 
@@ -864,6 +922,7 @@ describe('native event registration API', () => {
         auto_confirm: boolean;
       };
     };
+
     expect(created.event.registration_url).toBe('http://localhost/r/august-2026-meetup');
     expect(created.event.stream_url).toBe('https://meet.google.com/abc-defg-hij');
     expect(created.event.status).toBe('upcoming');
@@ -877,6 +936,7 @@ describe('native event registration API', () => {
     });
 
     const initialPublicResponse = await app.request(`http://localhost/api/registration/events/${created.event.id}`);
+
     expect(initialPublicResponse.status).toBe(200);
     await expect(initialPublicResponse.json()).resolves.toMatchObject({
       available: true,
@@ -892,6 +952,7 @@ describe('native event registration API', () => {
         body: JSON.stringify({ description: 'Bring your questions and a laptop.' }),
       },
     );
+
     expect(introductionUpdateResponse.status).toBe(200);
     await expect(introductionUpdateResponse.json()).resolves.toMatchObject({
       description: 'Bring your questions and a laptop.',
@@ -900,6 +961,7 @@ describe('native event registration API', () => {
     const updatedIntroductionResponse = await app.request(
       `http://localhost/api/registration/events/${created.event.id}`,
     );
+
     expect(updatedIntroductionResponse.status).toBe(200);
     await expect(updatedIntroductionResponse.json()).resolves.toMatchObject({
       event: { description: 'A free community meetup.' },
@@ -914,6 +976,7 @@ describe('native event registration API', () => {
         body: JSON.stringify({ description: 'x'.repeat(2001) }),
       },
     );
+
     expect(oversizedIntroductionResponse.status).toBe(400);
 
     const policyOverrideResponse = await app.request(
@@ -924,9 +987,11 @@ describe('native event registration API', () => {
         body: JSON.stringify({ auto_confirm: false, waitlist_enabled: false }),
       },
     );
+
     expect(policyOverrideResponse.status).toBe(400);
 
     const slugPublicResponse = await app.request('http://localhost/api/registration/events/august-2026-meetup');
+
     expect(slugPublicResponse.status).toBe(200);
     await expect(slugPublicResponse.json()).resolves.toMatchObject({
       available: true,
@@ -936,12 +1001,14 @@ describe('native event registration API', () => {
     const calendarResponse = await app.request(
       'http://localhost/api/registration/events/august-2026-meetup/calendar.ics',
     );
+
     expect(calendarResponse.status).toBe(200);
     expect(calendarResponse.headers.get('content-type')).toBe('text/calendar; charset=utf-8');
     expect(calendarResponse.headers.get('content-disposition')).toBe(
       'attachment; filename="devcongress-august-meetup.ics"',
     );
     const calendar = await calendarResponse.text();
+
     expect(calendar).toContain('DTSTART;VALUE=DATE:20990829\r\n');
     expect(calendar).toContain('DTEND;VALUE=DATE:20990830\r\n');
     expect(calendar).toContain('LOCATION:Fido\\, Accra\r\n');
@@ -956,6 +1023,7 @@ describe('native event registration API', () => {
     );
 
     const confirmedResponse = await register('Ama Mensah', 'ama@example.com');
+
     expect(confirmedResponse.status).toBe(202);
     await expect(confirmedResponse.json()).resolves.toEqual({
       accepted: true,
@@ -963,6 +1031,7 @@ describe('native event registration API', () => {
     });
 
     const waitlistedResponse = await register('Kojo Owusu', 'kojo@example.com');
+
     expect(waitlistedResponse.status).toBe(202);
     await expect(waitlistedResponse.json()).resolves.toEqual({
       accepted: true,
@@ -970,6 +1039,7 @@ describe('native event registration API', () => {
     });
 
     const duplicateResponse = await register('Ama Again', 'AMA@example.com');
+
     expect(duplicateResponse.status).toBe(202);
     await expect(duplicateResponse.json()).resolves.toEqual({
       accepted: true,
@@ -977,6 +1047,7 @@ describe('native event registration API', () => {
     });
 
     const adminResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`);
+
     expect(adminResponse.status).toBe(200);
     const beforeCancellation = await adminResponse.json() as {
       managed_internally: boolean;
@@ -994,6 +1065,7 @@ describe('native event registration API', () => {
         email: string;
       }>;
     };
+
     expect(beforeCancellation).toMatchObject({
       managed_internally: true,
       public_url: 'http://localhost/r/august-2026-meetup',
@@ -1012,6 +1084,7 @@ describe('native event registration API', () => {
     const waitlisted = beforeCancellation.registrations.find((registration) => (
       registration.status === 'waitlisted'
     ));
+
     expect(confirmed).toBeDefined();
     expect(waitlisted).toBeDefined();
 
@@ -1019,6 +1092,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${confirmed!.id}/cancel`,
       { method: 'POST' },
     );
+
     expect(cancellationResponse.status).toBe(200);
     await expect(cancellationResponse.json()).resolves.toEqual({
       ok: true,
@@ -1028,6 +1102,7 @@ describe('native event registration API', () => {
     const afterCancellationResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations`,
     );
+
     expect(afterCancellationResponse.status).toBe(200);
     await expect(afterCancellationResponse.json()).resolves.toMatchObject({
       summary: {
@@ -1083,6 +1158,7 @@ describe('native event registration API', () => {
         body: JSON.stringify({ name: 'Test Guest', email: 'test-guest@example.com' }),
       },
     );
+
     expect(registerResponse.status).toBe(202);
     const registrationsResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations`,
@@ -1093,6 +1169,7 @@ describe('native event registration API', () => {
     const registered = registrationsPayload.registrations.find(
       (registration) => registration.email === 'test-guest@example.com',
     );
+
     expect(registered).toBeDefined();
 
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -1101,6 +1178,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${registered!.id}/check-in`,
       { method: 'POST' },
     );
+
     vi.useRealTimers();
     expect(checkInResponse.status).toBe(200);
 
@@ -1108,10 +1186,12 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${registered!.id}`,
       { method: 'DELETE' },
     );
+
     expect(deleteResponse.status).toBe(200);
     await expect(deleteResponse.json()).resolves.toEqual({ ok: true });
 
     const adminResponse = await app.request(`http://localhost/api/events/${created.event.id}/registrations`);
+
     expect(adminResponse.status).toBe(200);
     await expect(adminResponse.json()).resolves.toMatchObject({
       registrations: [],
@@ -1135,6 +1215,7 @@ describe('native event registration API', () => {
         body: JSON.stringify({ name: 'Protected Guest', email: 'protected@example.com' }),
       },
     );
+
     expect(secondRegisterResponse.status).toBe(202);
     const secondRegistrationsResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations`,
@@ -1145,6 +1226,7 @@ describe('native event registration API', () => {
     const secondRegistration = secondRegistrationsPayload.registrations.find(
       (registration) => registration.email === 'protected@example.com',
     );
+
     expect(secondRegistration).toBeDefined();
     vi.stubEnv('NODE_ENV', 'production');
 
@@ -1152,6 +1234,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${secondRegistration!.id}`,
       { method: 'DELETE' },
     );
+
     expect(productionDeleteResponse.status).toBe(404);
     await expect(productionDeleteResponse.json()).resolves.toEqual({ error: 'Not found.' });
 
@@ -1160,6 +1243,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${secondRegistration!.id}`,
       { method: 'DELETE' },
     );
+
     expect(unspecifiedRuntimeDeleteResponse.status).toBe(404);
     await expect(unspecifiedRuntimeDeleteResponse.json()).resolves.toEqual({ error: 'Not found.' });
 
@@ -1167,6 +1251,7 @@ describe('native event registration API', () => {
       path.join(tempRoot, 'data', 'event-registrations.json'),
       'utf-8',
     )) as Array<{ id: string }>;
+
     expect(registrationsFile).toContainEqual(
       expect.objectContaining({ id: secondRegistration!.id }),
     );
@@ -1223,6 +1308,7 @@ describe('native event registration API', () => {
       registrations: Array<{ id: string; status: string; checked_in_at: string | null }>;
     };
     const registration = registrationsPayload.registrations[0];
+
     expect(registration).toMatchObject({ status: 'confirmed', checked_in_at: null });
 
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -1232,6 +1318,7 @@ describe('native event registration API', () => {
         `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
         { method: 'POST' },
       );
+
       expect(blocked.status).toBe(409);
     }
     vi.setSystemTime(new Date('2026-08-30T00:00:00Z'));
@@ -1239,6 +1326,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
       { method: 'POST' },
     );
+
     vi.useRealTimers();
     expect(checkInResponse.status).toBe(200);
 
@@ -1246,12 +1334,14 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
       { method: 'DELETE' },
     );
+
     expect(undoResponse.status).toBe(200);
     await expect(undoResponse.json()).resolves.toEqual({ ok: true });
 
     const afterUndoResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations`,
     );
+
     await expect(afterUndoResponse.json()).resolves.toMatchObject({
       summary: { total: 1, confirmed: 1, checked_in: 0 },
       registrations: [expect.objectContaining({
@@ -1265,6 +1355,7 @@ describe('native event registration API', () => {
       `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
       { method: 'DELETE' },
     );
+
     expect(repeatedUndoResponse.status).toBe(409);
     await expect(repeatedUndoResponse.json()).resolves.toEqual({ error: 'Guest is not checked in.' });
   });
@@ -1283,6 +1374,7 @@ describe('native event registration API', () => {
         location: { name: 'Accra', label: 'Accra', url: null },
       }),
     });
+
     expect(createResponse.status).toBe(201);
     const created = await createResponse.json() as { event: { id: string } };
     const campaigns = JSON.parse(await fs.readFile(
@@ -1290,6 +1382,7 @@ describe('native event registration API', () => {
       'utf-8',
     )) as Array<{ id: string; event_id: string }>;
     const campaign = campaigns.find((item) => item.event_id === created.event.id);
+
     expect(campaign).toBeTruthy();
 
     await fs.writeFile(
@@ -1314,6 +1407,7 @@ describe('native event registration API', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-11T12:00:00.000Z'));
     const response = await app.request('http://localhost/api/attendance/monthly');
+
     vi.useRealTimers();
     expect(response.status).toBe(200);
     const payload = await response.json() as {
@@ -1330,6 +1424,7 @@ describe('native event registration API', () => {
     };
     const august = payload.ledger.find((month) => month.attendance_month === '2026-08');
     const eventAttendance = august?.events.find((item) => item.event.id === created.event.id);
+
     expect(eventAttendance).toMatchObject({
       source: 'native_registration',
       import: { source: 'native_registration', records: [] },
@@ -1409,6 +1504,7 @@ describe('native event registration API', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', providerFetch);
 
     const { default: app } = await import('./app');
@@ -1438,6 +1534,7 @@ describe('native event registration API', () => {
         end_date: '2026-08-29T21:00:00.000Z',
       }),
     });
+
     expect(eventUpdateResponse.status).toBe(200);
 
     await app.request(`http://localhost/api/events/${created.event.id}/registrations`, {
@@ -1462,6 +1559,7 @@ describe('native event registration API', () => {
     expect(providerFetch).toHaveBeenCalledTimes(1);
     const request = providerFetch.mock.calls[0]?.[1] as RequestInit;
     const emails = JSON.parse(String(request.body)) as Array<{ from: string; html: string; text: string }>;
+
     expect(emails[0]?.from).toBe('DevCongress Events <events@updates.devcongress.org>');
     expect(emails[0]?.html).toContain('Saturday, August 29, 2026');
     expect(emails[0]?.html).toContain('6:00 PM – 9:00 PM GMT');
@@ -1482,6 +1580,7 @@ describe('native event registration API', () => {
         body: JSON.stringify({ name: 'Kojo Owusu', email: 'kojo@example.com' }),
       },
     );
+
     expect(waitlistResponse.status).toBe(202);
     expect(providerFetch).toHaveBeenCalledTimes(2);
     const waitlistRequest = providerFetch.mock.calls[1]?.[1] as RequestInit;
@@ -1489,6 +1588,7 @@ describe('native event registration API', () => {
       subject: string;
       to: string[];
     }>;
+
     expect(waitlistEmails).toEqual([
       expect.objectContaining({
         subject: 'You are on the waitlist for DevCongress August Meetup',
@@ -1505,12 +1605,14 @@ describe('native event registration API', () => {
     const confirmedRegistration = registrations.registrations.find((item) => (
       item.email === 'ama@example.com'
     ));
+
     expect(confirmedRegistration).toBeDefined();
 
     const cancelResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations/${confirmedRegistration!.id}/cancel`,
       { method: 'POST' },
     );
+
     expect(cancelResponse.status).toBe(200);
     await expect(cancelResponse.json()).resolves.toMatchObject({
       ok: true,
@@ -1523,6 +1625,7 @@ describe('native event registration API', () => {
       text: string;
       to: string[];
     }>;
+
     expect(promotionEmails).toEqual([
       expect.objectContaining({
         subject: 'A place opened up for DevCongress August Meetup',

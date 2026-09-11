@@ -28,6 +28,7 @@ export default defineConfig(({ mode }) => {
           const pathname = context.originalUrl
             ? new URL(context.originalUrl, 'http://vite.local').pathname
             : '/';
+
           return html
             .replace('</head>', '    <link rel="stylesheet" href="/app-boot.css">\n  </head>')
             .replace('<div id="app"></div>', `<div id="app">${renderAppBootMarkup(pathname)}</div>`);

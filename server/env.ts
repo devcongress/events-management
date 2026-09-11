@@ -3,11 +3,13 @@ import { requestEnvValue } from '@/server/request-env';
 
 export function envValue(key: string, c?: Context): string | undefined {
   const honoEnvValue = c?.env?.[key];
+
   if (typeof honoEnvValue === 'string') {
     return honoEnvValue;
   }
 
   const scopedEnvValue = requestEnvValue(key);
+
   if (scopedEnvValue) {
     return scopedEnvValue;
   }

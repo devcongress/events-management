@@ -18,6 +18,7 @@ export interface QuizStateOptions {
 
 export async function advanceQuizSessionState(sessionId: string): Promise<QuizAdvanceResult> {
   let session = await getQuizSessionById(sessionId);
+
   if (!session) return { session: null, advanced: false };
 
   if (session.purpose === 'system_design_learning' && session.question_phase === 'presenting') {
@@ -25,6 +26,7 @@ export async function advanceQuizSessionState(sessionId: string): Promise<QuizAd
       return { session, advanced: false };
     }
     const hostedSession = await advanceSystemDesignQuestion(sessionId);
+
     if (hostedSession) {
       return { session: hostedSession, advanced: hostedSession.question_phase === 'answering' };
     }
@@ -32,10 +34,12 @@ export async function advanceQuizSessionState(sessionId: string): Promise<QuizAd
       question_phase: 'answering',
       phase_started_at: new Date().toISOString(),
     });
+
     return { session, advanced: true };
   }
 
   const hostedResult = await advanceHostedQuizSessionState(sessionId);
+
   if (hostedResult) return hostedResult;
 
   // System Design is discussion-led; the separate presenter controls reveal.
@@ -49,6 +53,7 @@ export async function advanceQuizSessionState(sessionId: string): Promise<QuizAd
   const questions = await getQuestionsBySession(sessionId);
   const currentQuestionIndex = session.current_question_index;
   const currentQuestion = questions.find((question) => question.order_index === currentQuestionIndex);
+
   if (!currentQuestion || !session.question_started_at) return { session, advanced: false };
 
   const elapsed = Date.now() - new Date(session.question_started_at).getTime();
@@ -58,12 +63,14 @@ export async function advanceQuizSessionState(sessionId: string): Promise<QuizAd
     getQuizParticipantsBySession(sessionId),
   ]);
   const allAnswered = responses.length >= participants.length && participants.length > 0;
+
   if (elapsed < timeLimit && !allAnswered) return { session, advanced: false };
 
   session = await updateQuizSession(sessionId, {
     question_phase: 'revealing',
     phase_started_at: new Date().toISOString(),
   });
+
   return { session, advanced: true };
 }
 
@@ -73,6 +80,7 @@ export async function buildQuizStateResponse(
   options: QuizStateOptions = {},
 ): Promise<QuizStateResponse | null> {
   const session = await getQuizSessionById(sessionId);
+
   if (!session) return null;
 
   // Fetch the session-scoped collections in parallel; each read is a full
@@ -98,12 +106,14 @@ export async function buildQuizStateResponse(
   let fullCurrentQuestion: Question | null = null;
 
   const mayViewCurrentQuestion = session.question_phase !== 'presenting' || options.includePresenterQuestion;
+
   if (hasCurrentQuestion && mayViewCurrentQuestion) {
     const question = questions.find((candidate) => candidate.order_index === session.current_question_index) ?? null;
 
     if (question) {
       fullCurrentQuestion = question;
       const { correct_index: _correctIndex, ...safeQuestion } = question;
+
       currentQuestion = safeQuestion;
       questionStartedAt = session.question_started_at || null;
     }
@@ -129,9 +139,11 @@ export async function buildQuizStateResponse(
       rank: index + 1,
       avatar_seed: participant.id,
     }));
+
   if (session.purpose === 'system_design_learning' && options.includePresenterLeaderboard && questions.length > 0) {
     const responseGroups = await Promise.all(questions.map((question) => getResponsesByQuestion(question.id)));
     const correctAnswers = new Map<string, number>();
+
     for (const response of responseGroups.flat()) {
       if (!response.is_correct) continue;
       correctAnswers.set(response.user_id, (correctAnswers.get(response.user_id) ?? 0) + 1);
@@ -155,6 +167,7 @@ export async function buildQuizStateResponse(
   )
     ? hostedAnalytics?.answer_distribution ?? [0, 1, 2, 3].map((optionIndex) => {
       const count = responses.filter((response) => response.answer_index === optionIndex).length;
+
       return {
         option_index: optionIndex,
         count,
@@ -164,6 +177,7 @@ export async function buildQuizStateResponse(
     : undefined;
 
   let playerResult: QuizStateResponse['player_result'] = undefined;
+
   if (userId && fullCurrentQuestion) {
     // Derive from the already-fetched responses instead of re-reading the
     // whole collection a second time.
@@ -171,6 +185,7 @@ export async function buildQuizStateResponse(
     const resultIsVisible = session.purpose !== 'system_design_learning'
       || session.question_phase === 'revealing'
       || session.question_phase === 'scoreboard';
+
     if (response && resultIsVisible) {
       const participant = participants.find((candidate) => candidate.user_id === userId);
       const leaderboardEntry = fullLeaderboard.find((candidate) => candidate.user_id === userId);
@@ -187,6 +202,7 @@ export async function buildQuizStateResponse(
   const playerStanding = session.purpose === 'system_design_learning' && session.status === 'finished' && userId
     ? (() => {
         const entry = fullLeaderboard.find((candidate) => candidate.user_id === userId);
+
         return entry ? {
           rank: entry.rank,
           nickname: entry.nickname,

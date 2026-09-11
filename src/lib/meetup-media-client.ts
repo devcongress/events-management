@@ -45,8 +45,10 @@ async function loadImageSource(file: File): Promise<HTMLImageElement | ImageBitm
   }
 
   const imageUrl = URL.createObjectURL(file);
+
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
+
     img.onload = () => {
       URL.revokeObjectURL(imageUrl);
       resolve(img);
@@ -65,9 +67,11 @@ async function browserSupportsWebpEncoding(): Promise<boolean> {
   if (!supportsWebpEncodingPromise) {
     supportsWebpEncodingPromise = (async () => {
       const canvas = document.createElement('canvas');
+
       canvas.width = 1;
       canvas.height = 1;
       const blob = await canvasToBlob(canvas, 'image/webp', 0.8).catch(() => null);
+
       return blob?.type === 'image/webp';
     })();
   }
@@ -83,10 +87,12 @@ export async function compressMeetupImageForUpload(file: File): Promise<File> {
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
   const canvas = document.createElement('canvas');
+
   canvas.width = width;
   canvas.height = height;
 
   const context = canvas.getContext('2d', { alpha: false });
+
   if (!context) {
     throw new Error('Could not prepare image compression');
   }
@@ -100,6 +106,7 @@ export async function compressMeetupImageForUpload(file: File): Promise<File> {
 
   for (const quality of qualities) {
     const blob = await canvasToBlob(canvas, mimeType, quality);
+
     bestBlob = blob;
     if (blob.size <= TARGET_IMAGE_MAX_BYTES) {
       break;
@@ -141,11 +148,13 @@ export async function uploadEventMedia(
   onProgress?: (percent: number) => void,
 ): Promise<{ event: CommunityEvent | null; media: { url: string; type: 'cover' | 'photo' } | null }> {
   const formData = new FormData();
+
   formData.append('file', file);
   formData.append('purpose', purpose);
 
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
+
     request.open('POST', `/api/events/${eventId}/media`);
 
     request.upload.onprogress = (event) => {
@@ -157,15 +166,18 @@ export async function uploadEventMedia(
     request.onerror = () => reject(new Error('Network error while uploading image'));
     request.onload = () => {
       let payload: unknown = {};
+
       try {
         payload = request.responseText ? JSON.parse(request.responseText) : {};
       } catch {
         reject(new Error('Unable to read image upload response'));
+
         return;
       }
 
       if (request.status >= 200 && request.status < 300) {
         resolve(payload as { event: CommunityEvent | null; media: { url: string; type: 'cover' | 'photo' } | null });
+
         return;
       }
 
@@ -173,6 +185,7 @@ export async function uploadEventMedia(
         && typeof payload.error === 'string'
         ? payload.error
         : 'Failed to upload image';
+
       reject(new Error(message));
     };
     request.send(formData);

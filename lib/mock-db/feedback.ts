@@ -66,6 +66,7 @@ export async function getAllFeedbackCampaigns(): Promise<FeedbackCampaign[]> {
 
 export async function getFeedbackCampaignByEvent(eventId: string): Promise<FeedbackCampaign | undefined> {
   const campaigns = await getAllFeedbackCampaigns();
+
   return campaigns.find((campaign) => campaign.event_id === eventId);
 }
 
@@ -78,8 +79,10 @@ export async function getOrCreateFeedbackCampaign(eventId: string): Promise<Feed
   }
 
   const campaign = createDefaultFeedbackCampaign(eventId);
+
   campaigns.push(campaign);
   await writeData(CAMPAIGNS_FILE, campaigns);
+
   return campaign;
 }
 
@@ -107,15 +110,18 @@ export async function updateFeedbackCampaign(
   };
 
   await writeData(CAMPAIGNS_FILE, campaigns);
+
   return campaigns[index];
 }
 
 export async function deleteFeedbackCampaignByEvent(eventId: string): Promise<FeedbackCampaign | null> {
   const campaigns = await getAllFeedbackCampaigns();
   const existing = campaigns.find((campaign) => campaign.event_id === eventId) ?? null;
+
   if (!existing) return null;
 
   await writeData(CAMPAIGNS_FILE, campaigns.filter((campaign) => campaign.event_id !== eventId));
+
   return existing;
 }
 
@@ -131,6 +137,7 @@ export async function createEventFeedbackSubmission(
 
   submissions.push(submission);
   await writeData(SUBMISSIONS_FILE, submissions);
+
   return submission;
 }
 
@@ -139,6 +146,7 @@ export async function getFeedbackSubmissionByResponseToken(
   responseTokenHash: string,
 ): Promise<EventFeedbackSubmission | undefined> {
   const submissions = await readData<EventFeedbackSubmission>(SUBMISSIONS_FILE);
+
   return submissions.find((submission) => (
     submission.event_id === eventId
     && submission.response_token_hash === responseTokenHash
@@ -147,6 +155,7 @@ export async function getFeedbackSubmissionByResponseToken(
 
 export async function getFeedbackSubmissionsByEvent(eventId: string): Promise<EventFeedbackSubmission[]> {
   const submissions = await readData<EventFeedbackSubmission>(SUBMISSIONS_FILE);
+
   return submissions
     .filter((submission) => submission.event_id === eventId)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());

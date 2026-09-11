@@ -14,6 +14,30 @@ export type VolunteerDirectoryRow = VolunteerDirectorySearchRow & {
   signedUpAt: string | null;
 };
 
+export type VolunteerDirectoryTask = {
+  id: string;
+  title: string;
+  status: string;
+  accountable_owner: string | null;
+  collaborators: string[];
+};
+
+export type VolunteerDirectoryAction = {
+  href: string;
+  label: string;
+  description: string;
+  primary?: boolean;
+};
+
+type VolunteerDirectoryActionOptions = {
+  role: 'owner' | 'organizer' | 'volunteer' | null;
+  year: string;
+  canViewAllTasks: boolean;
+  canAssignTasks: boolean;
+  workPlanPath: string;
+  accessPath: string;
+};
+
 type VolunteerApplicationDirectoryRecord = {
   id: string;
   membership_id: string | null;
@@ -63,12 +87,75 @@ export function buildVolunteerDirectoryRows(
     if (left.status === 'applicant' && left.signedUpAt && right.signedUpAt) {
       return new Date(right.signedUpAt).getTime() - new Date(left.signedUpAt).getTime();
     }
+
     return left.name.localeCompare(right.name);
   });
 }
 
 function searchableValue(value: string | null): string {
   return value?.trim().toLocaleLowerCase() ?? '';
+}
+
+function normalizedIdentity(value: string | null): string {
+  return searchableValue(value);
+}
+
+export function volunteerDirectoryAssignments<T extends VolunteerDirectoryTask>(
+  row: VolunteerDirectoryRow | null,
+  tasks: T[],
+): T[] {
+  if (!row) return [];
+
+  const identities = new Set(
+    [row.email, row.name]
+      .map(normalizedIdentity)
+      .filter(Boolean),
+  );
+
+  return tasks.filter((task) => [task.accountable_owner, ...task.collaborators]
+    .some((value) => identities.has(normalizedIdentity(value))));
+}
+
+export function volunteerDirectoryActions(
+  person: VolunteerDirectoryRow | null,
+  options: VolunteerDirectoryActionOptions,
+): VolunteerDirectoryAction[] {
+  if (!person || (options.role !== 'owner' && options.role !== 'organizer')) return [];
+
+  const actions: VolunteerDirectoryAction[] = [];
+
+  if (options.canViewAllTasks) {
+    const query = new URLSearchParams({ owner: person.email ?? person.name, phase: 'all' });
+
+    actions.push({
+      href: `${options.workPlanPath}?${query}`,
+      label: options.canAssignTasks ? 'Review or assign work' : 'View assigned work',
+      description: 'Open Work Plan filtered to this person.',
+      primary: true,
+    });
+  }
+
+  const applicationId = person.id.startsWith('application:') ? person.id.slice('application:'.length) : null;
+
+  if (person.status === 'applicant' && applicationId) {
+    const query = new URLSearchParams({ volunteer_application: applicationId, edition: options.year });
+
+    actions.push({
+      href: `${options.accessPath}?${query}`,
+      label: 'Set up workspace access',
+      description: 'Review and confirm access separately; this does not approve automatically.',
+    });
+  } else if (options.role === 'owner' && person.membershipId) {
+    const query = new URLSearchParams({ member: person.membershipId, edition: options.year });
+
+    actions.push({
+      href: `${options.accessPath}?${query}`,
+      label: 'Manage responsibilities',
+      description: 'Review edition access without changing team membership.',
+    });
+  }
+
+  return actions;
 }
 
 export function filterVolunteerDirectory<T extends VolunteerDirectorySearchRow>(

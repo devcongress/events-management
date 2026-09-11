@@ -27,7 +27,9 @@ const months = computed(() => (feedbackMonthsQuery.data.value?.months ?? []).fil
 const selectedMonth = computed(() => months.value.find((month) => month.month === selectedMonthKey.value) ?? months.value[0] ?? null);
 const availableYears = computed(() => {
   const years = new Set(months.value.map((month) => month.month.slice(0, 4)));
+
   years.add('2026');
+
   return Array.from(years).sort((a, b) => b.localeCompare(a));
 });
 const monthsForSelectedYear = computed(() => months.value
@@ -35,17 +37,21 @@ const monthsForSelectedYear = computed(() => months.value
   .sort((a, b) => Number(a.month.slice(5, 7)) - Number(b.month.slice(5, 7))));
 const eventPeriodsForSelectedYear = computed(() => {
   const activePeriods = monthsForSelectedYear.value.filter((month) => month.event_count > 0 || month.total_responses > 0);
+
   return activePeriods.length > 0 ? activePeriods : monthsForSelectedYear.value;
 });
+
 function currentFeedbackMonthKey(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
+
   return `${year}-${month}`;
 }
 
 function feedbackMonthQueryValue(): string | null {
   const value = route.query.month;
+
   return typeof value === 'string' && FEEDBACK_MONTH_QUERY_PATTERN.test(value) ? value : null;
 }
 
@@ -62,15 +68,18 @@ watch(months, (availableMonths) => {
   if (availableMonths.length === 0) {
     selectedMonthKey.value = '';
     selectedYear.value = '';
+
     return;
   }
 
   if (!selectedMonthKey.value || !availableMonths.some((month) => month.month === selectedMonthKey.value)) {
     const currentMonthKey = currentFeedbackMonthKey();
+
     selectedMonthKey.value = availableMonths.find((month) => month.month === currentMonthKey)?.month ?? availableMonths[0].month;
   }
 
   const monthYear = selectedMonthKey.value.slice(0, 4);
+
   if (!selectedYear.value || !availableYears.value.includes(selectedYear.value)) {
     selectedYear.value = monthYear;
   }
@@ -86,6 +95,7 @@ function eventStatusLabel(event: FeedbackMonthEvent): string {
   if (event.is_open) return 'Open now';
   if (!event.campaign_configured) return 'Ready';
   if (!event.campaign) return 'Not configured';
+
   return event.campaign.status.replace('_', ' ');
 }
 
@@ -93,11 +103,13 @@ function statusClass(event: FeedbackMonthEvent): string {
   if (event.is_open) return 'border-dc-success bg-dc-success-soft text-dc-success';
   if (!event.campaign_configured) return 'border-dc-info bg-dc-info-soft text-dc-info';
   if (event.campaign?.status === 'closed') return 'border-dc-border bg-dc-paper-warm text-dc-gray';
+
   return 'border-dc-ink bg-dc-yellow text-dc-ink';
 }
 
 function responseCountDisabled(event: FeedbackMonthEvent): boolean {
   const wasPublished = event.is_open || event.campaign?.status === 'active' || event.campaign?.status === 'closed';
+
   return event.response_count === 0 && !wasPublished;
 }
 
@@ -113,11 +125,13 @@ function setYear(year: string) {
   selectedYear.value = year;
   const currentMonthKey = currentFeedbackMonthKey();
   const yearMonths = months.value.filter((month) => month.month.startsWith(`${year}-`));
+
   selectedMonthKey.value = yearMonths.find((month) => month.month === currentMonthKey)?.month ?? yearMonths[0]?.month ?? '';
 }
 
 function monthShortLabel(month: FeedbackMonth): string {
   const date = new Date(`${month.month}-01T00:00:00.000Z`);
+
   return new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(date);
 }
 

@@ -32,6 +32,7 @@ describe('registration campaign collection store', () => {
       { id: 'campaign-2', event_id: 'event-2' },
       { id: 'campaign-3', event_id: 'event-3' },
     ];
+
     mocks.getSupabaseRegistrationCampaigns.mockResolvedValue(null);
     mocks.getAllMockRegistrationCampaigns.mockResolvedValue(campaigns);
 
@@ -45,6 +46,7 @@ describe('registration campaign collection store', () => {
 
   it('keeps batch attendance reads behind the existing registration store boundary', async () => {
     const sources = [{ event_id: 'event-1', campaign_updated_at: '2026-08-30T00:00:00.000Z', registrations: [] }];
+
     mocks.getSupabaseRegistrationAttendanceSources.mockResolvedValue(sources);
 
     await expect(getRegistrationAttendanceSources(['event-1'])).resolves.toEqual(sources);

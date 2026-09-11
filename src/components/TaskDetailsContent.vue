@@ -7,6 +7,7 @@ function renderNode(node: TaskDetailsNode): VNodeChild {
     return (node.marks ?? []).reduce<VNodeChild>((content, mark) => h({ bold: 'strong', italic: 'em', strike: 's' }[mark.type], {}, [content]), node.text ?? '');
   }
   const tags = { doc: 'div', paragraph: 'p', hardBreak: 'br', bulletList: 'ul', orderedList: 'ol', listItem: 'li' };
+
   return h(tags[node.type], node.type === 'orderedList' ? { start: node.attrs?.start ?? 1, type: node.attrs?.type ?? undefined } : {}, (node.content ?? []).map(renderNode));
 }
 

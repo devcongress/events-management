@@ -59,6 +59,7 @@ const sharedLinksDraftText = ref('');
 const outlineEditing = ref(false);
 const outlineSaving = ref(false);
 const outlineError = ref<string | null>(null);
+
 // draftId is UI-local: normalizeOutlineDrafts maps fields explicitly, so it
 // never leaks into the saved payload. It gives each editable row a stable key.
 interface OutlineDraftItem extends PublicMeetupScheduleItem {
@@ -289,6 +290,7 @@ function syncSharedLinksDraft() {
 
 function createOutlineDraft(item?: Partial<PublicMeetupScheduleItem>): OutlineDraftItem {
   outlineDraftSequence += 1;
+
   return {
     draftId: `outline-draft-${outlineDraftSequence}`,
     time: item?.time ?? '',
@@ -308,12 +310,14 @@ function syncOutlineDrafts() {
 
 function inferOutlineType(title: string): PublicMeetupScheduleItem['type'] {
   const normalized = title.toLowerCase();
+
   if (normalized.includes('break')) return 'break';
   if (normalized.includes('network')) return 'networking';
   if (normalized.includes('system design') || normalized.includes('architecture scenario')) return 'system_design';
   if (normalized.includes('demo')) return 'product_demo';
   if (normalized.includes('panel')) return 'panel';
   if (normalized.includes('session') || normalized.includes('address')) return 'open_discussion';
+
   return 'talk';
 }
 
@@ -359,6 +363,7 @@ function parseBulkOutline() {
 
   if (parsed.length === 0) {
     outlineError.value = 'Paste at least one outline item with a title.';
+
     return;
   }
 
@@ -370,9 +375,11 @@ function parseBulkOutline() {
 function syncSeriesTypeDraft() {
   if (!event.value) return;
   const seriesType = eventSeriesValueToSelection(resolveEventSeriesType(event.value));
+
   seriesTypeDraft.value = seriesType;
   savedSeriesType.value = seriesType;
   const format = event.value.format ?? 'meetup';
+
   eventFormatDraft.value = format;
   savedEventFormat.value = format;
 }
@@ -381,6 +388,7 @@ async function fetchChecklist(_eventId: string) {
   checklistError.value = null;
   try {
     const result = await workspace.checklistQuery.refetch();
+
     checklist.value = result.data?.items ?? [];
   } catch (error) {
     checklist.value = [];
@@ -403,6 +411,7 @@ async function fetchOverview() {
     syncSeriesTypeDraft();
     try {
       const slack = await fetchEventSlackAnnouncement(nextEvent.id);
+
       slackAnnouncement.value = slack.announcement;
       slackEligible.value = slack.eligible;
       slackWebsite.value = slack.website;
@@ -424,6 +433,7 @@ async function refreshPublicationStatus() {
   publicationRefreshing.value = true;
   try {
     const response = await fetchEventSlackAnnouncement(event.value.id);
+
     slackAnnouncement.value = response.announcement;
     slackEligible.value = response.eligible;
     slackWebsite.value = response.website;
@@ -440,6 +450,7 @@ async function sendSlackAnnouncement() {
   slackSending.value = true;
   try {
     const response = await sendEventSlackAnnouncement(event.value.id);
+
     slackAnnouncement.value = response.announcement;
     slackEligible.value = response.eligible;
     slackWebsite.value = response.website;
@@ -460,6 +471,7 @@ async function scrollToRequestedSection() {
   await nextTick();
   window.requestAnimationFrame(() => {
     const mediaSection = document.getElementById('event-media');
+
     if (!mediaSection) return;
 
     mediaSection.scrollIntoView({
@@ -494,6 +506,7 @@ async function publishEvent() {
       outlineError.value = error instanceof Error ? error.message : 'Check the outline rows before publishing.';
       publishError.value = 'Fix the program outline before publishing.';
       notify.error(publishError.value);
+
       return;
     }
   }
@@ -505,6 +518,7 @@ async function publishEvent() {
       sharedLinksError.value = error instanceof Error ? error.message : 'Check the shared recap links before publishing.';
       publishError.value = 'Fix the shared recap links before publishing.';
       notify.error(publishError.value);
+
       return;
     }
   } else if (nextSchedule && isQuarterlyEvent.value) {
@@ -527,6 +541,7 @@ async function publishEvent() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       throw new Error(payload.error ?? 'Failed to publish event');
     }
 
@@ -569,8 +584,10 @@ async function saveDescription() {
   if (!event.value || descriptionSaving.value) return;
 
   const nextDescription = descriptionDraft.value.trim();
+
   if (!nextDescription) {
     descriptionError.value = 'Add the public About copy before saving.';
+
     return;
   }
 
@@ -586,6 +603,7 @@ async function saveDescription() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       throw new Error(payload.error ?? 'Failed to update the event description');
     }
 
@@ -613,6 +631,7 @@ function parseSharedLinksDraft(): string[] {
   for (const link of uniqueLinks) {
     try {
       const parsedUrl = new URL(link);
+
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
         throw new Error('Unsupported protocol');
       }
@@ -670,18 +689,22 @@ async function saveSharedLinks() {
   if (!event.value || sharedLinksSaving.value) return;
   if (!isQuarterlyEvent.value) {
     sharedLinksError.value = 'Shared links are only available for quarterly meetups.';
+
     return;
   }
 
   let links: string[];
+
   try {
     links = parseSharedLinksDraft();
   } catch (error) {
     sharedLinksError.value = error instanceof Error ? error.message : 'Check the shared links.';
+
     return;
   }
 
   const schedule = scheduleWithSharedLinks(rawEventSchedule.value, links);
+
   sharedLinksSaving.value = true;
   sharedLinksError.value = null;
 
@@ -694,6 +717,7 @@ async function saveSharedLinks() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       throw new Error(payload.error ?? 'Failed to update shared recap links');
     }
 
@@ -746,9 +770,11 @@ function addSystemDesignScenario() {
 
 function moveOutlineRow(index: number, direction: -1 | 1) {
   const targetIndex = index + direction;
+
   if (targetIndex < 0 || targetIndex >= outlineDrafts.value.length) return;
 
   const [item] = outlineDrafts.value.splice(index, 1);
+
   if (!item) return;
   outlineDrafts.value.splice(targetIndex, 0, item);
 }
@@ -762,6 +788,7 @@ function removeOutlineRow(index: number) {
 
 function updateOutlineLead(index: number, value: string) {
   const item = outlineDrafts.value[index];
+
   if (!item) return;
   item.lead = value;
 }
@@ -772,6 +799,7 @@ function updateOutlineLeadFromEvent(index: number, inputEvent: Event) {
 
 function updateOutlineDescription(index: number, value: string) {
   const item = outlineDrafts.value[index];
+
   if (!item) return;
   item.description = value;
 }
@@ -786,15 +814,19 @@ function primaryResource(item: PublicMeetupScheduleItem) {
 
 function updateOutlineResourceTitle(index: number, value: string) {
   const item = outlineDrafts.value[index];
+
   if (!item) return;
   const current = primaryResource(item);
+
   item.resources = [{ title: value, url: current.url }];
 }
 
 function updateOutlineResourceUrl(index: number, value: string) {
   const item = outlineDrafts.value[index];
+
   if (!item) return;
   const current = primaryResource(item);
+
   item.resources = [{ title: current.title || 'Resource', url: value }];
 }
 
@@ -815,6 +847,7 @@ function normalizedOutlineResources(item: PublicMeetupScheduleItem): PublicMeetu
 
   try {
     const parsedUrl = new URL(url);
+
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       throw new Error('Unsupported protocol');
     }
@@ -864,10 +897,12 @@ async function saveOutline() {
   if (!event.value || outlineSaving.value) return;
 
   let schedule: PublicMeetupScheduleItem[];
+
   try {
     schedule = scheduleWithSharedLinks(normalizeOutlineDrafts(), isQuarterlyEvent.value ? eventSharedLinks.value : []);
   } catch (error) {
     outlineError.value = error instanceof Error ? error.message : 'Check the outline rows.';
+
     return;
   }
 
@@ -883,6 +918,7 @@ async function saveOutline() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       throw new Error(payload.error ?? 'Failed to update the program outline');
     }
 
@@ -918,6 +954,7 @@ async function saveEventProfile() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       throw new Error(payload.error ?? 'Failed to update the event profile');
     }
 
@@ -946,6 +983,7 @@ async function toggleChecklistItem(item: EventChecklistItem) {
 
     if (response.ok) {
       const payload = await response.json();
+
       checklist.value = payload.items ?? checklist.value;
       if (payload.event) {
         event.value = payload.event;
@@ -970,11 +1008,13 @@ function checklistAvailabilityActionLabel(item: EventChecklistItem): string {
   if (checklistDisablingId.value === item.id) return 'Saving';
   if (isArchiveRequestsChecklistItem(item)) return item.disabled_at ? 'Enable archive requests' : 'Disable archive requests';
   if (!isSystemDesignChecklistItem(item)) return item.disabled_at ? 'Enable' : 'Disable';
+
   return item.disabled_at ? 'Include this month' : 'Not this month';
 }
 
 function checklistDisabledCopy(item: EventChecklistItem): string {
   if (isArchiveRequestsChecklistItem(item)) return 'Archive requests are off for this event';
+
   return isSystemDesignChecklistItem(item)
     ? 'No system design session this month'
     : 'Disabled for this event';
@@ -1018,6 +1058,7 @@ async function setChecklistItemDisabled(item: EventChecklistItem, disabled: bool
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to update checklist item';
+
     notify.error(message);
   } finally {
     checklistDisablingId.value = null;
@@ -1043,6 +1084,7 @@ async function savePhotos(photos: NonNullable<CommunityEvent['photos']>, success
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       throw new Error(payload.error ?? 'Failed to update photos');
     }
 
@@ -1061,13 +1103,16 @@ async function addPhotoLink() {
   if (!event.value) return;
 
   const url = photoUrl.value.trim();
+
   if (!url) {
     photoError.value = 'Add a photo or gallery link first.';
+
     return;
   }
 
   if (!isWebsitePhotoUrl(url)) {
     photoError.value = 'Use a full URL or a site-local path starting with /.';
+
     return;
   }
 
@@ -1090,6 +1135,7 @@ async function removePhotoLink(index: number) {
   if (!event.value) return;
 
   const nextPhotos = eventPhotos.value.filter((_, photoIndex) => photoIndex !== index);
+
   await savePhotos(nextPhotos, 'Photo link removed');
 }
 
@@ -1097,9 +1143,11 @@ async function uploadMediaFile(file: File, purpose: 'cover' | 'photo') {
   if (!event.value || mediaUploadPurpose.value) return;
 
   const validationError = validateMeetupImageFile(file);
+
   if (validationError) {
     photoError.value = validationError;
     notify.error(validationError);
+
     return;
   }
 
@@ -1109,13 +1157,16 @@ async function uploadMediaFile(file: File, purpose: 'cover' | 'photo') {
 
   try {
     const compressedFile = await compressMeetupImageForUpload(file);
+
     mediaUploadProgress.value = 0;
     const payload = await uploadEventMedia(String(route.params.eventId), compressedFile, purpose, (percent) => {
       mediaUploadProgress.value = percent;
     });
+
     event.value = payload.event ?? event.value;
     await invalidateEventQueries();
     const savedPercent = compressionSavingsPercent(file, compressedFile);
+
     notify.success(
       purpose === 'cover'
         ? `Cover compressed and uploaded${savedPercent > 0 ? ` (${savedPercent}% smaller)` : ''}`
@@ -1133,6 +1184,7 @@ async function uploadMediaFile(file: File, purpose: 'cover' | 'photo') {
 async function handleMediaUpload(event: Event, purpose: 'cover' | 'photo') {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
+
   input.value = '';
 
   if (file) {

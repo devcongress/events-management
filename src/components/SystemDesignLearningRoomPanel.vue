@@ -72,6 +72,7 @@ function showWorkspaceError(message: string) {
     if (session.value) session.value = { ...session.value, system_design_archived: true };
     error.value = '';
     notify.warning(message);
+
     return;
   }
   error.value = message;
@@ -79,6 +80,7 @@ function showWorkspaceError(message: string) {
 
 function timerOptionsFor(seconds: number) {
   if (timerOptions.some((option) => option.value === seconds)) return timerOptions;
+
   return [...timerOptions, { value: seconds, label: `${seconds} seconds` }]
     .sort((left, right) => left.value - right.value);
 }
@@ -89,28 +91,35 @@ const canPresent = computed(() => questions.value.length > 0 && !systemDesignArc
 const generatedCount = computed(() => session.value?.generated_question_count ?? questions.value.filter((question) => question.authoring_source === 'generated').length);
 const generateLabel = computed(() => {
   const remaining = Math.max(0, 10 - generatedCount.value);
+
   if (generating.value) return 'Generating...';
   if (questions.value.length === 0) return `Generate up to ${remaining} questions`;
+
   return `Generate up to ${remaining} more`;
 });
 
 async function fetchSession() {
   error.value = '';
   const sessionsResponse = await fetch(`/api/quiz/sessions?eventId=${props.eventId}&purpose=system_design_learning`);
+
   if (!sessionsResponse.ok) {
     error.value = 'Unable to load the learning questions.';
     loading.value = false;
+
     return;
   }
 
   const sessions: QuizSession[] = await sessionsResponse.json();
+
   if (sessions.length === 0) {
     session.value = null;
     loading.value = false;
+
     return;
   }
 
   const response = await fetch(`/api/quiz/sessions/${sessions[0]!.id}`);
+
   if (response.ok) {
     session.value = await response.json();
   } else {
@@ -127,12 +136,15 @@ async function ensureSession(): Promise<SessionWithQuestions | null> {
     body: JSON.stringify({ event_id: props.eventId, purpose: 'system_design_learning' }),
   });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     showWorkspaceError(payload.error ?? 'Unable to prepare learning questions for this session.');
+
     return null;
   }
 
   session.value = { ...payload, questions: [], participantCount: 0 };
+
   return session.value;
 }
 
@@ -141,8 +153,10 @@ async function generateQuestions() {
   generating.value = true;
   error.value = '';
   const preparedSession = await ensureSession();
+
   if (!preparedSession) {
     generating.value = false;
+
     return;
   }
 
@@ -152,6 +166,7 @@ async function generateQuestions() {
     body: JSON.stringify({ session_id: preparedSession.id }),
   });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     showWorkspaceError(payload.error ?? 'Could not generate questions from the linked System Design source.');
   } else {
@@ -164,8 +179,10 @@ async function generateQuestions() {
 async function openPresenter() {
   if (!session.value || !canPresent.value || openingPresenter.value) return;
   const presenterWindow = window.open('about:blank', '_blank');
+
   if (!presenterWindow) {
     error.value = 'Allow pop-ups for this site so the presentation can open in a new tab.';
+
     return;
   }
   presenterWindow.opener = null;
@@ -174,13 +191,16 @@ async function openPresenter() {
   error.value = '';
   const response = await fetch(`/api/quiz/sessions/${session.value.id}/presentation`, { method: 'POST' });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     showWorkspaceError(payload.error ?? 'Unable to open the presentation view.');
     presenterWindow.close();
     openingPresenter.value = false;
+
     return;
   }
   const presenterUrl = new URL(router.resolve(systemDesignPresenterPath(session.value.id)).href, window.location.origin);
+
   presenterWindow.location.replace(presenterUrl.href);
   openingPresenter.value = false;
 }
@@ -220,6 +240,7 @@ async function saveEditedQuestion() {
     }),
   });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     showWorkspaceError(payload.error ?? 'Unable to update this question.');
   } else {
@@ -251,6 +272,7 @@ async function saveManualQuestion() {
     order_index: questions.value.length, difficulty: editForm.difficulty, category: editForm.category,
   }) });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) showWorkspaceError(payload.error ?? 'Unable to add the question.');
   else { cancelEditQuestion(); await fetchSession(); }
   saving.value = false;
@@ -266,6 +288,7 @@ async function updateQuestionTimer(questionId: string, value: string | number) {
     body: JSON.stringify({ time_limit_seconds: Number(value) }),
   });
   const payload = await response.json().catch(() => ({}));
+
   if (!response.ok) {
     showWorkspaceError(payload.error ?? 'Unable to update this question timer.');
   } else {
@@ -281,6 +304,7 @@ async function deleteQuestion(questionId: string) {
   if (!session.value || deletingQuestionId.value || movingQuestionId.value || systemDesignArchived.value) return;
 
   const previousQuestions = session.value.questions;
+
   deletingQuestionId.value = questionId;
   pendingDeleteQuestionId.value = null;
   session.value = {
@@ -290,10 +314,13 @@ async function deleteQuestion(questionId: string) {
 
   try {
     const response = await fetch(`/api/quiz/questions/${questionId}`, { method: 'DELETE' });
+
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       session.value = { ...session.value, questions: previousQuestions };
       showWorkspaceError(payload.error ?? 'Unable to remove this question.');
+
       return;
     }
     notify.success('Question removed.');
@@ -310,10 +337,12 @@ async function moveQuestion(questionId: string, direction: -1 | 1) {
   const questionIds = questions.value.map((question) => question.id);
   const currentIndex = questionIds.indexOf(questionId);
   const nextIndex = currentIndex + direction;
+
   if (currentIndex < 0 || nextIndex < 0 || nextIndex >= questionIds.length) return;
   [questionIds[currentIndex], questionIds[nextIndex]] = [questionIds[nextIndex]!, questionIds[currentIndex]!];
   const previousQuestions = session.value.questions;
   const orderedQuestions = questionIds.map((id) => previousQuestions.find((question) => question.id === id)!);
+
   movingQuestionId.value = questionId;
   session.value = { ...session.value, questions: orderedQuestions };
 
@@ -323,10 +352,13 @@ async function moveQuestion(questionId: string, direction: -1 | 1) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: session.value.id, question_ids: questionIds }),
     });
+
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       session.value = { ...session.value, questions: previousQuestions };
       showWorkspaceError(payload.error ?? 'Unable to reorder this question.');
+
       return;
     }
     notify.success(`Moved question to position ${nextIndex + 1}.`);

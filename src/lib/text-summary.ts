@@ -4,14 +4,17 @@ export function compactWhitespace(value: string): string {
 
 export function wordCount(value: string | null | undefined): number {
   const normalized = compactWhitespace(value ?? '');
+
   return normalized ? normalized.split(/\s+/).length : 0;
 }
 
 export function summarizeText(value: string | null | undefined, wordLimit: number): string {
   const normalized = compactWhitespace(value ?? '');
+
   if (!normalized) return '';
 
   const words = normalized.split(/\s+/);
+
   if (words.length <= wordLimit) {
     return normalized;
   }

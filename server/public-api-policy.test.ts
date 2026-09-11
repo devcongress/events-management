@@ -26,6 +26,7 @@ beforeEach(async () => {
     ownership: 'devcongress',
     submission_source: 'internal',
   }));
+
   await fs.writeFile(path.join('data', 'events.json'), JSON.stringify(events), 'utf-8');
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
   vi.resetModules();

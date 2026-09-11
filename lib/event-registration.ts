@@ -17,11 +17,13 @@ export function registrationAvailability(
   if (campaign.status === 'closed') return { available: false, reason: 'closed' };
 
   const opensAt = campaign.opens_at ? new Date(campaign.opens_at).getTime() : null;
+
   if (opensAt !== null && Number.isFinite(opensAt) && opensAt > nowMs) {
     return { available: false, reason: 'not_open' };
   }
 
   const closesAt = campaign.closes_at ? new Date(campaign.closes_at).getTime() : null;
+
   if (closesAt !== null && Number.isFinite(closesAt) && closesAt < nowMs) {
     return { available: false, reason: 'ended' };
   }
@@ -37,6 +39,7 @@ export function nextRegistrationStatus(input: {
 }): EventRegistrationStatus | null {
   if (input.autoConfirm && input.confirmedCount < input.capacity) return 'confirmed';
   if (input.waitlistEnabled) return 'waitlisted';
+
   return null;
 }
 

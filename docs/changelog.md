@@ -1,12 +1,20 @@
 # Changelog
 
+## 2026-09-11 — Enforced source readability spacing
+
+- Replace the obsolete Next.js ESLint configuration with a flat configuration for the active Vue and TypeScript application.
+- Enforce single blank-line separation after imports and declaration groups and before terminal control flow, while rejecting repeated empty lines.
+- Add project-wide auto-fix and verification scripts and normalize the active codebase to the same spacing policy.
+
 ## 2026-09-11 — Volunteer directory discovery and focused workspaces
 
 - Add case-insensitive volunteer-directory search across name, email, X, and Slack, with clickable All, Active, and Applicant counts on desktop and mobile.
 - Keep pagination totals and ranges aligned with the filtered result, reset paging when filters or editions change, and provide an explicit no-match recovery state.
 - Keep organizer and volunteer data capabilities intact while avoiding unnecessary application or edition-management reads for restricted volunteers.
 - Give mobile organizers direct Events and Conference entry points, and refine volunteer conference overviews on desktop and mobile with the existing app typography, a clear zero-assignment state, and no volunteer edition or back-navigation controls.
-- Keep the mobile volunteer search and lifecycle controls visible beneath the sticky conference header while directory rows scroll. No migration required.
+- Keep the mobile volunteer sharing actions, search, and lifecycle controls together beneath the sticky conference header while directory rows scroll.
+- Remove the redundant divider above Annual Conference page headings while preserving the active navigation indicator.
+- Remove the directory panel's protruding hard shadow without hiding the application's scrollbars. No migration required.
 
 ## 2026-09-11 — Independent website and Slack publication status
 

@@ -18,6 +18,7 @@ function titleCase(value: string): string {
 
 function formatEventDateForSlack(value: string, endValue?: string | null): string {
   const date = new Date(value);
+
   if (Number.isNaN(date.getTime())) return value;
 
   const dateLabel = new Intl.DateTimeFormat('en-GB', {
@@ -103,17 +104,21 @@ function eventAddedPayload(input: EventSlackMessageInput): Record<string, unknow
 
 function slackChannelId(value: string): string {
   const normalized = value.trim();
+
   if (!/^[CG][A-Z0-9]{8,31}$/.test(normalized)) {
     throw new SlackWebhookError('Slack events channel ID is invalid.');
   }
+
   return normalized;
 }
 
 function slackMessageTs(value: string): string {
   const normalized = value.trim();
+
   if (!/^\d{10,16}\.\d{6}$/.test(normalized)) {
     throw new SlackWebhookError('Slack message timestamp is invalid.');
   }
+
   return normalized;
 }
 
@@ -124,6 +129,7 @@ async function callSlackWebApi(input: {
   fetcher?: typeof fetch;
 }): Promise<Record<string, unknown>> {
   const token = input.botToken.trim();
+
   if (token.length < 20 || token.length > 500) {
     throw new SlackWebhookError('Slack bot credentials are invalid.');
   }
@@ -139,21 +145,26 @@ async function callSlackWebApi(input: {
       signal: AbortSignal.timeout(5_000),
     });
     const result = await response.json().catch(() => null) as Record<string, unknown> | null;
+
     if (!response.ok || result?.ok !== true) {
       const providerCode = typeof result?.error === 'string' && /^[a-z0-9_]{1,80}$/.test(result.error)
         ? ` (${result.error})`
         : '';
+
       throw new SlackWebhookError(`Slack rejected the notification${providerCode}.`);
     }
+
     return result;
   } catch (error) {
     if (error instanceof SlackWebhookError) throw error;
+
     throw new SlackWebhookError('Slack could not be reached.');
   }
 }
 
 function slackWebhookUrl(value: string): URL {
   let webhook: URL;
+
   try {
     webhook = new URL(value.trim());
   } catch {
@@ -162,6 +173,7 @@ function slackWebhookUrl(value: string): URL {
   if (webhook.protocol !== 'https:' || webhook.hostname !== 'hooks.slack.com') {
     throw new SlackWebhookError('Slack notification URL is invalid.');
   }
+
   return webhook;
 }
 
@@ -170,6 +182,7 @@ function publicSlackImageUrl(value: string | null | undefined): string | null {
 
   try {
     const url = new URL(value);
+
     return url.protocol === 'https:' ? url.toString() : null;
   } catch {
     return null;
@@ -190,6 +203,7 @@ async function postSlackWebhook(input: {
       body: JSON.stringify(input.payload),
       signal: AbortSignal.timeout(5_000),
     });
+
     if (!response.ok) {
       const detail = (await response.text())
         .replace(/[\r\n\t]+/g, ' ')
@@ -197,10 +211,12 @@ async function postSlackWebhook(input: {
         .trim()
         .slice(0, 160);
       const suffix = detail ? `: ${detail}` : '';
+
       throw new SlackWebhookError(`Slack rejected the notification (HTTP ${response.status})${suffix}.`);
     }
   } catch (error) {
     if (error instanceof SlackWebhookError) throw error;
+
     throw new SlackWebhookError('Slack could not be reached.');
   }
 }
@@ -380,6 +396,7 @@ export async function sendEventPageMonitoringAlertToSlack(input: {
       },
     ],
   };
+
   await postSlackWebhook({ webhookUrl: input.webhookUrl, payload, fetcher: input.fetcher });
 }
 
@@ -403,7 +420,9 @@ export async function sendEditableEventAddedToSlack(input: EventSlackMessageInpu
     fetcher: input.fetcher,
   });
   const returnedChannel = typeof result.channel === 'string' ? slackChannelId(result.channel) : channelId;
+
   if (typeof result.ts !== 'string') throw new SlackWebhookError('Slack did not return a message reference.');
+
   return { channelId: returnedChannel, messageTs: slackMessageTs(result.ts) };
 }
 
@@ -436,11 +455,13 @@ export async function getSlackMessagePermalink(input: SlackMessageReference & {
     },
     fetcher: input.fetcher,
   });
+
   if (typeof result.permalink !== 'string') {
     throw new SlackWebhookError('Slack did not return an announcement destination.');
   }
 
   let permalink: URL;
+
   try {
     permalink = new URL(result.permalink);
   } catch {
@@ -449,5 +470,6 @@ export async function getSlackMessagePermalink(input: SlackMessageReference & {
   if (permalink.protocol !== 'https:' || !permalink.hostname.endsWith('.slack.com')) {
     throw new SlackWebhookError('Slack returned an invalid announcement destination.');
   }
+
   return permalink.toString();
 }

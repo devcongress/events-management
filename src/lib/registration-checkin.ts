@@ -8,14 +8,17 @@ export function registrationNameInitial(name: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '');
   const initial = normalized.charAt(0).toUpperCase();
+
   return /^[A-Z]$/.test(initial) ? initial : '#';
 }
 
 export function registrationInitials(registrations: EventRegistration[]): string[] {
   const initials = new Set(registrations.map((registration) => registrationNameInitial(registration.name)));
+
   return [...initials].sort((first, second) => {
     if (first === '#') return 1;
     if (second === '#') return -1;
+
     return first.localeCompare(second);
   });
 }

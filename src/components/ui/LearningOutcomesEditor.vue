@@ -39,6 +39,7 @@ async function remove(index: number, event: MouseEvent) {
   await nextTick();
   const nextId = rowIds.value[Math.min(index, rowIds.value.length - 1)];
   const target = nextId === undefined ? 'button[data-add-outcome]' : `#${CSS.escape(`${id}-outcome-${nextId}`)}`;
+
   editor.value?.querySelector<HTMLElement>(target)?.focus();
 }
 </script>

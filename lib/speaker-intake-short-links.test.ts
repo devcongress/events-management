@@ -34,6 +34,7 @@ describe('selected speaker short links', () => {
 
   it('does not retain the capability when only its hash is persisted', () => {
     const code = selectedSpeakerShortCode(linkId, eventId, secret);
+
     expect(speakerIntakeTokenHash(code)).toMatch(/^[a-f0-9]{64}$/);
     expect(speakerIntakeTokenHash(code)).not.toContain(code);
   });

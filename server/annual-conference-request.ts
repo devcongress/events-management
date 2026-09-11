@@ -30,6 +30,7 @@ async function getActiveOrganizerEmails(c: Context): Promise<string[] | null> {
       .eq('status', 'active');
 
     if (error) return null;
+
     return (data ?? []).map((membership) => membership.email);
   } catch {
     return null;
@@ -43,7 +44,9 @@ async function getActivePlanningOwnerEmails(c: Context): Promise<string[] | null
       .select('email')
       .eq('status', 'active')
       .neq('role', 'volunteer');
+
     if (error) return null;
+
     return (data ?? []).map((membership) => membership.email);
   } catch {
     return null;
@@ -53,11 +56,13 @@ async function getActivePlanningOwnerEmails(c: Context): Promise<string[] | null
 export async function getAnnualConferenceEditionByYear(year: number, c?: Context) {
   const repository = createAnnualConferenceRepository(c);
   const editions = await repository.listEditions();
+
   return editions.find((edition) => edition.year === year);
 }
 
 export async function annualConferenceServiceForRequest(c: Context) {
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated) {
     throw new AnnualConferenceServiceError('forbidden', 'Conference access required.');
   }
@@ -74,6 +79,7 @@ export async function annualConferenceServiceForRequest(c: Context) {
 
 export async function annualConferenceFinanceServiceForRequest(c: Context) {
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated) {
     throw new AnnualConferenceFinanceServiceError('forbidden', 'Conference finance access required.');
   }
@@ -90,15 +96,18 @@ async function annualConferenceCapabilitiesForRequest(c: Context, year: number):
   editionId: string;
 } | undefined> {
   const session = c.get('adminSession') ?? await getAdminSession(c);
+
   if (!session.authenticated) return undefined;
   const editionResult = await getSupabaseAdminClient(c)
     .from('annual_conference_editions')
     .select('id, task_creator_email')
     .eq('year', year)
     .maybeSingle();
+
   if (editionResult.error) throw new Error(editionResult.error.message);
   if (!editionResult.data) return undefined;
   const grants = await getAnnualConferenceAccessGrants(editionResult.data.id, session.membership_id, c);
+
   return {
     editionId: editionResult.data.id,
     capabilities: effectiveAnnualConferenceCapabilities({
@@ -117,10 +126,12 @@ export async function requireAnnualConferenceCapability(
   capability: AnnualConferenceCapability,
 ): Promise<globalThis.Response | null> {
   const access = await annualConferenceCapabilitiesForRequest(c, year);
+
   if (!access) return c.json({ error: `Annual conference ${year} was not found.` }, 404);
   if (!hasAnnualConferenceCapability(access.capabilities, capability)) {
     return c.json({ error: 'This account has not been assigned that conference responsibility.' }, 403);
   }
+
   return null;
 }
 
@@ -128,5 +139,6 @@ export function annualConferenceServiceErrorResponse(c: Context, error: unknown)
   if (error instanceof AnnualConferenceServiceError) {
     return c.json({ error: error.message }, annualConferenceErrorStatus(error));
   }
+
   throw error;
 }

@@ -38,6 +38,7 @@ export async function searchGhanaVenues(input: {
 }): Promise<GhanaVenueSuggestion[]> {
   const query = input.query.trim();
   const apiKey = input.apiKey.trim();
+
   if (query.length < 2 || query.length > 120 || !apiKey) return [];
 
   const response = await (input.fetchImpl ?? fetch)(GOOGLE_PLACES_AUTOCOMPLETE_URL, {
@@ -68,12 +69,14 @@ export async function searchGhanaVenues(input: {
   }
 
   const payload = await response.json() as GooglePlacesAutocompleteResponse;
+
   return (payload.suggestions ?? []).flatMap((suggestion) => {
     const prediction = suggestion.placePrediction;
     const placeId = textValue(prediction?.placeId);
     const label = textValue(prediction?.text?.text);
     const name = textValue(prediction?.structuredFormat?.mainText?.text) || label;
     const address = textValue(prediction?.structuredFormat?.secondaryText?.text);
+
     return placeId && label && name ? [{ placeId, name, address, label }] : [];
   }).slice(0, 8);
 }

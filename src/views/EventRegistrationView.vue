@@ -42,7 +42,9 @@ const registrationQuery = useQuery({
 const registration = computed(() => registrationQuery.data.value ?? null);
 const registrationCoverSrc = computed(() => {
   const event = registration.value?.event;
+
   if (!event?.cover) return null;
+
   return versionPublicMeetupMediaUrl(event.cover, event.updated_at);
 });
 const detailsMapUrl = computed(() => safeGoogleMapsUrl(registration.value?.event.location?.url));
@@ -62,6 +64,7 @@ const canSubmit = computed(() => (
 function unavailableMessage(reason: string | null | undefined): string {
   if (reason === 'not_open') return 'Registration has not opened yet.';
   if (reason === 'ended' || reason === 'closed') return 'Registration is closed.';
+
   return 'Registration is not open yet.';
 }
 
@@ -74,6 +77,7 @@ async function submitRegistration() {
 
   try {
     const emailCheck = await preflightPublicEmail(form.email);
+
     form.email = emailCheck.normalized_email;
     submissionStage.value = 'submitting';
     registrationAttempted = true;

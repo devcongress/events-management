@@ -10,6 +10,7 @@ describe('security log redaction', () => {
 
   it('removes event-management capabilities from API and page paths', () => {
     const capability = '30000000-0000-4000-8000-000000000001.private-signature';
+
     expect(securitySafeRequestPath(
       `/api/public/event-submissions/manage/${capability}/with-cover`,
     )).toBe('/api/public/event-submissions/manage/[redacted]/with-cover');

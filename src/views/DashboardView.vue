@@ -57,6 +57,7 @@ function rankLabel(rank: number): string {
   if (rank === 1) return '01';
   if (rank === 2) return '02';
   if (rank === 3) return '03';
+
   return `#${rank}`;
 }
 
@@ -64,6 +65,7 @@ function rotateMeetupPhotos() {
   if (isMeetupPhotoShifting.value) return;
 
   const nextMeetupPhoto = (activeMeetupPhoto.value + 1) % meetupPhotos.length;
+
   isMeetupPhotoShifting.value = true;
 
   if (meetupPhotoShiftTimer !== undefined) {
@@ -77,6 +79,7 @@ function rotateMeetupPhotos() {
 
 onMounted(() => {
   const shouldReduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   if (!shouldReduceMotion) {
     meetupPhotoTimer = window.setInterval(rotateMeetupPhotos, 3600);
   }

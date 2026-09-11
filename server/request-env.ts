@@ -10,5 +10,6 @@ export function withRequestEnv<T>(env: RequestEnv | undefined, fn: () => Promise
 
 export function requestEnvValue(key: string): string | undefined {
   const value = requestEnvStorage.getStore()?.[key];
+
   return typeof value === 'string' ? value : undefined;
 }

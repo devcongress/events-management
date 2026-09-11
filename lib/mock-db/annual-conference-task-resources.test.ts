@@ -14,10 +14,14 @@ vi.mock('@/lib/mock-db', () => ({
   }) => {
     const operation = storage.queue.then(() => {
       const outcome = update(storage.rows.map((row) => ({ ...row })));
+
       storage.rows = outcome.data;
+
       return outcome.result;
     });
+
     storage.queue = operation.catch(() => undefined);
+
     return operation;
   }),
 }));

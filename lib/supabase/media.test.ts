@@ -68,11 +68,13 @@ describe('meetup media validation', () => {
       'cover.png',
       'image/png',
     );
+
     await expect(validateMeetupMediaContent(truncated)).resolves.toBe('Image dimensions could not be verified');
   });
 
   it('checks a large AVIF header without converting the whole bounded slice into function arguments', async () => {
     const bytes = new Uint8Array(512 * 1024);
+
     writeUint32(bytes, 0, 24);
     writeAscii(bytes, 4, 'ftyp');
     writeAscii(bytes, 8, 'avif');

@@ -73,6 +73,7 @@ describe('community event submission lifecycle', () => {
   it('delegates public intake and organizer listing without importing transport policy', async () => {
     const repo = repository();
     const created = { ...submission, review_status: 'pending' };
+
     vi.mocked(repo.create).mockResolvedValue(created);
     vi.mocked(repo.list).mockResolvedValue([created]);
     const lifecycle = createEventSubmissionLifecycle({ repository: repo, audit, queueEmail });

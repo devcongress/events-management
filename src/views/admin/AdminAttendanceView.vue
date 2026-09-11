@@ -116,16 +116,19 @@ const pageStartIndex = computed(() => filteredAttendanceRecords.value.length ===
 const pageEndIndex = computed(() => Math.min(currentPage.value * ATTENDANCE_PAGE_SIZE, filteredAttendanceRecords.value.length));
 const paginatedAttendanceRecords = computed(() => {
   const start = (currentPage.value - 1) * ATTENDANCE_PAGE_SIZE;
+
   return filteredAttendanceRecords.value.slice(start, start + ATTENDANCE_PAGE_SIZE);
 });
 const importButtonLabel = computed(() => {
   if (importing.value) return importStage.value === 'processing' ? 'Processing...' : 'Importing...';
+
   return attendanceImport.value ? 'Replace CSV' : 'Import CSV';
 });
 const importProgressCopy = computed(() => {
   if (importStage.value === 'reading') return `Reading CSV${importProgress.value === null ? '' : ` ${importProgress.value}%`}`;
   if (importStage.value === 'uploading') return `Uploading CSV${importProgress.value === null ? '' : ` ${importProgress.value}%`}`;
   if (importStage.value === 'processing') return 'Processing rows on server';
+
   return '';
 });
 const uploadBlockedCopy = computed(() => {
@@ -133,6 +136,7 @@ const uploadBlockedCopy = computed(() => {
   if (uploadUnlocksAt.value) {
     return `${uploadUnavailableReason.value ?? 'Attendance CSV upload is not open yet'} Opens ${formatDate(uploadUnlocksAt.value)}.`;
   }
+
   return uploadUnavailableReason.value ?? 'Attendance CSV upload is not open for this meetup month.';
 });
 
@@ -154,15 +158,18 @@ async function fetchAttendance() {
 
   if (response.ok) {
     const payload = await response.json() as AttendanceResponse;
+
     if (resolveEventSeriesType(payload.event) === 'quarterly') {
       await router.replace(adminPath(`events/${payload.event.id}/feedback`));
       loading.value = false;
+
       return;
     }
 
     hydrateAttendance(payload);
   } else {
     const payload = await response.json().catch(() => ({}));
+
     error.value = payload.error ?? 'Unable to load attendance analysis';
   }
 
@@ -173,6 +180,7 @@ function chooseCsv() {
   if (importing.value) return;
   if (!uploadAvailable.value) {
     error.value = uploadBlockedCopy.value;
+
     return;
   }
   if (fileInput.value) fileInput.value.value = '';
@@ -189,6 +197,7 @@ async function handleFileChange(event: Event) {
   if (file.size > ATTENDANCE_CSV_MAX_BYTES) {
     error.value = 'CSV must be 2MB or smaller.';
     input.value = '';
+
     return;
   }
 
@@ -241,6 +250,7 @@ function importCsvWithProgress(file: File, csv: string): Promise<AttendanceRespo
         payload = request.responseText ? JSON.parse(request.responseText) : {};
       } catch {
         reject(new Error('Unable to read attendance import response'));
+
         return;
       }
 
@@ -250,6 +260,7 @@ function importCsvWithProgress(file: File, csv: string): Promise<AttendanceRespo
         const errorMessage = typeof payload === 'object' && payload && 'error' in payload && typeof payload.error === 'string'
           ? payload.error
           : 'Unable to import attendance CSV';
+
         reject(new Error(errorMessage));
       }
     };
@@ -269,6 +280,7 @@ async function importCsv(file: File) {
   try {
     const csv = await readFileWithProgress(file);
     const payload = await importCsvWithProgress(file, csv);
+
     hydrateAttendance(payload);
     notify.success('Attendance import updated', {
       description: `${file.name} imported with ${payload.import?.row_count ?? 0} rows.`,
@@ -300,6 +312,7 @@ async function removeImport() {
     });
   } else {
     const payload = await response.json().catch(() => ({}));
+
     error.value = payload.error ?? 'Unable to remove attendance file';
   }
 
@@ -329,12 +342,14 @@ function attendanceOutcome(record: LumaAttendanceRecord): string {
   if (record.checked_in_at) return 'Came';
   if (record.approval_status === 'approved') return 'Missed';
   if (record.approval_status === 'pending') return 'Pending';
+
   return 'Declined';
 }
 
 function attendanceOutcomeClass(record: LumaAttendanceRecord): string {
   if (record.checked_in_at) return 'text-dc-success';
   if (record.approval_status === 'approved') return 'text-dc-pink';
+
   return 'text-dc-gray';
 }
 

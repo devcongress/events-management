@@ -46,23 +46,28 @@ const RECENT_DELIVERY_LIMIT = 16;
 
 function quotaLimit(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
+
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 export function parseResendQuotaUsage(value: string | null): number | null {
   if (!value) return null;
   const match = value.trim().match(/^(\d+)/);
+
   if (!match) return null;
   const parsed = Number.parseInt(match[1], 10);
+
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 export function emailHealthLevel(used: number | null, limit: number): EmailHealthLevel {
   if (used === null || limit <= 0) return 'healthy';
   const percentage = (used / limit) * 100;
+
   if (percentage >= 100) return 'exhausted';
   if (percentage >= 85) return 'high';
   if (percentage >= 70) return 'warning';
+
   return 'healthy';
 }
 
@@ -97,7 +102,9 @@ export async function getEmailDeliveryHealth(c?: Context): Promise<EmailDelivery
     .select('*')
     .eq('provider', 'resend')
     .maybeSingle();
+
   if (error) throw new Error(error.message);
+
   return data ? toEmailDeliveryHealth(data) : null;
 }
 
@@ -110,6 +117,7 @@ export async function getEmailOutboxSummary(c?: Context): Promise<EmailOutboxSum
     client.from('speaker_intake_links').select('email_status').not('email_status', 'is', null),
     client.from('speaker_submissions').select('decision_email_status').not('decision_email_status', 'is', null),
   ]);
+
   if (registrationResult.error) throw new Error(registrationResult.error.message);
   if (submissionResult.error) throw new Error(submissionResult.error.message);
   if (speakerResult.error) throw new Error(speakerResult.error.message);
@@ -121,6 +129,7 @@ export async function getEmailOutboxSummary(c?: Context): Promise<EmailOutboxSum
     ...speakerResult.data.map((delivery) => delivery.email_status),
     ...speakerProposalResult.data.map((delivery) => delivery.decision_email_status),
   ];
+
   return {
     pending: statuses.filter((status) => status === 'pending').length,
     failed: statuses.filter((status) => status === 'failed').length,
@@ -156,12 +165,14 @@ function registrationDeliveryLabel(kind: string): string {
 function submissionDeliveryLabel(kind: string): string {
   if (kind === 'approved') return 'Listing approved';
   if (kind === 'rejected') return 'Listing decision';
+
   return 'Submission receipt';
 }
 
 function speakerDeliveryLabel(purpose: string): string {
   if (purpose === 'archive_materials_follow_up') return 'Archive materials follow-up';
   if (purpose === 'selected_speaker_confirmation') return 'Selected presenter request';
+
   return 'Archive request';
 }
 
@@ -192,6 +203,7 @@ export async function getRecentEmailDeliveries(c?: Context): Promise<RecentEmail
       .order('updated_at', { ascending: false })
       .limit(RECENT_DELIVERY_LIMIT),
   ]);
+
   if (registrationResult.error) throw new Error(registrationResult.error.message);
   if (submissionResult.error) throw new Error(submissionResult.error.message);
   if (speakerResult.error) throw new Error(speakerResult.error.message);
@@ -226,6 +238,7 @@ export async function getRecentEmailDeliveries(c?: Context): Promise<RecentEmail
       occurred_at: recentDeliveryTimestamp(delivery),
       last_error: delivery.email_last_error,
     });
+
     return deliveries;
   }, []);
   const speakerProposalDeliveries = speakerProposalResult.data.reduce<RecentEmailDelivery[]>((deliveries, delivery) => {
@@ -239,6 +252,7 @@ export async function getRecentEmailDeliveries(c?: Context): Promise<RecentEmail
       occurred_at: recentDeliveryTimestamp(delivery),
       last_error: delivery.decision_email_last_error,
     });
+
     return deliveries;
   }, []);
 
@@ -264,6 +278,7 @@ export async function recordResendEmailHealth(
       .select('*')
       .eq('provider', 'resend')
       .maybeSingle();
+
     if (previousError) throw new Error(previousError.message);
 
     const dailyUsed = usage.dailyUsed ?? previous?.daily_quota_used ?? null;
@@ -283,12 +298,14 @@ export async function recordResendEmailHealth(
         monthly_level: monthlyLevel,
         last_provider_response_at: observedAt,
       }, { onConflict: 'provider' });
+
     if (error) throw new Error(error.message);
 
     const previousDailyLevel = previous?.daily_level as EmailHealthLevel | undefined;
     const previousMonthlyLevel = previous?.monthly_level as EmailHealthLevel | undefined;
     const raisedDaily = levelRank(dailyLevel) > levelRank(previousDailyLevel ?? 'healthy');
     const raisedMonthly = levelRank(monthlyLevel) > levelRank(previousMonthlyLevel ?? 'healthy');
+
     if (!raisedDaily && !raisedMonthly) return;
 
     await recordAdminAudit(c, {

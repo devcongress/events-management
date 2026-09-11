@@ -87,6 +87,7 @@ describe('Annual Conference service boundary', () => {
     });
 
     const result = await service.getWorkspace(2026);
+
     expect(result.tasks).toEqual([expect.objectContaining({ id: 'task-1', internal_note: null })]);
     expect(result.permissions.access_scope).toBe('assigned');
   });

@@ -71,9 +71,11 @@ const checkInSummary = computed(() => {
 });
 const eventContext = computed(() => {
   const event = eventQuery.data.value;
+
   if (!event) return null;
 
   const location = event.location?.label ?? event.location?.name;
+
   return [EVENT_DATE_FORMATTER.format(new Date(event.event_date)), location]
     .filter(Boolean)
     .join(' · ');
@@ -97,6 +99,7 @@ async function checkInGuest(registration: EventRegistration) {
 
 async function undoCheckInGuest() {
   const registration = pendingCheckInUndo.value;
+
   if (!eventId.value || !registration || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
 

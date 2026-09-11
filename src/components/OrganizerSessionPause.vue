@@ -14,6 +14,7 @@ const emit = defineEmits<{
 
 const remaining = computed(() => {
   const total = Math.max(0, props.remainingSeconds ?? 0);
+
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 });
 </script>

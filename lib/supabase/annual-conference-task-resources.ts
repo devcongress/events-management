@@ -24,7 +24,9 @@ export async function listSupabaseAnnualConferenceTaskResources(
     .eq('task_id', taskId)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
+
   if (error) throw new Error(error.message);
+
   return data;
 }
 
@@ -46,10 +48,13 @@ export async function createSupabaseAnnualConferenceTaskResource(
     })
     .select('*')
     .single();
+
   if (error) {
     if (error.message.includes(RESOURCE_LIMIT_ERROR)) throw new AnnualConferenceTaskResourceLimitError();
+
     throw new Error(error.message);
   }
+
   return data;
 }
 
@@ -66,11 +71,14 @@ export async function updateSupabaseAnnualConferenceTaskResource(
     .update({ ...input, updated_by_email: normalizeTaskResourceActorEmail(actorEmail) })
     .eq('task_id', taskId)
     .eq('id', resourceId);
+
   if (creatorEmailConstraint) {
     query = query.eq('created_by_email', normalizeTaskResourceActorEmail(creatorEmailConstraint));
   }
   const { data, error } = await query.select('*').maybeSingle();
+
   if (error) throw new Error(error.message);
+
   return data ?? undefined;
 }
 
@@ -82,10 +90,13 @@ export async function deleteSupabaseAnnualConferenceTaskResource(
 ): Promise<boolean | null> {
   if (!isSupabaseRuntimeEnabled(c)) return null;
   let query = resourceTable(c).delete().eq('task_id', taskId).eq('id', resourceId);
+
   if (creatorEmailConstraint) {
     query = query.eq('created_by_email', normalizeTaskResourceActorEmail(creatorEmailConstraint));
   }
   const { data, error } = await query.select('id').maybeSingle();
+
   if (error) throw new Error(error.message);
+
   return Boolean(data);
 }

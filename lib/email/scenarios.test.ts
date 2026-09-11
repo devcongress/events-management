@@ -10,6 +10,7 @@ describe('email scenario policy', () => {
 
   it('keeps scenario ids unique and assigns every scenario to a known sender', () => {
     const ids = EMAIL_SCENARIOS.map((scenario) => scenario.id);
+
     expect(new Set(ids).size).toBe(ids.length);
     expect(EMAIL_SCENARIOS.every((scenario) => EMAIL_SENDERS[scenario.sender])).toBe(true);
   });
@@ -42,6 +43,7 @@ describe('email scenario policy', () => {
 
   it('normalizes header controls and bounds every generated subject', () => {
     const subject = emailSubjects.communitySubmissionRejected(`Test event\r\nBcc: attacker@example.com ${'x'.repeat(220)}`);
+
     expect(subject).not.toMatch(/[\r\n]/);
     expect(Array.from(subject)).toHaveLength(EMAIL_SUBJECT_MAX_LENGTH);
     expect(subject.endsWith('…')).toBe(true);

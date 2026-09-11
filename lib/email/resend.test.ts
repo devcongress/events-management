@@ -96,9 +96,11 @@ describe('Resend broadcast client', () => {
   it('isolates recipients in a new segment and asks Resend to schedule the blast', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 200 });
       if (url.endsWith('/contacts')) return new Response(JSON.stringify({ id: 'contact-1' }), { status: 200 });
       if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 200 });
+
       return new Response(JSON.stringify({ method: init?.method }), { status: 404 });
     });
 
@@ -120,6 +122,7 @@ describe('Resend broadcast client', () => {
     })).resolves.toEqual({ broadcastId: 'broadcast-1', segmentId: 'segment-1' });
 
     const broadcastCall = fetcher.mock.calls.find(([url]) => String(url).endsWith('/broadcasts'));
+
     expect(broadcastCall?.[1]).toEqual(expect.objectContaining({
       method: 'POST',
       body: expect.stringContaining('"segment_id":"segment-1"'),
@@ -135,15 +138,18 @@ describe('Resend broadcast client', () => {
     let contactAttempts = 0;
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+
       if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 201 });
       if (url.endsWith('/contacts')) {
         contactAttempts += 1;
         if (contactAttempts === 1) {
           return new Response(JSON.stringify({ message: 'Too many requests.' }), { status: 429, headers: { 'retry-after': '0' } });
         }
+
         return new Response(JSON.stringify({ id: 'contact-1' }), { status: 201 });
       }
       if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 201 });
+
       return new Response('not found', { status: 404 });
     });
 
@@ -160,9 +166,11 @@ describe('Resend broadcast client', () => {
   it('cleans up the new segment if guest-list preparation fails', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
       if (url.endsWith('/segments') && init?.method === 'POST') return new Response(JSON.stringify({ id: 'segment-1' }), { status: 201 });
       if (url.endsWith('/contacts')) return new Response(JSON.stringify({ message: 'Invalid contact.' }), { status: 400 });
       if (url.endsWith('/segments/segment-1') && init?.method === 'DELETE') return new Response('{}', { status: 200 });
+
       return new Response('not found', { status: 404 });
     });
 
@@ -182,6 +190,7 @@ describe('Resend broadcast client', () => {
   it('sends a persisted broadcast separately so a retry cannot create another audience', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe('https://api.resend.com/broadcasts/broadcast-1/send');
+
       return new Response(JSON.stringify({ id: 'send-1' }), { status: 200 });
     });
 

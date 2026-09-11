@@ -28,6 +28,7 @@ const route = useRoute();
 const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year));
 const actionError = ref('');
+
 type FinanceDrawerMode = 'budget' | 'entry' | 'income';
 type IncomeDrawerStep = 'overview' | 'amend' | 'receipt' | 'cancel';
 const financeDrawerMode = ref<FinanceDrawerMode | null>(null);
@@ -85,8 +86,10 @@ const incomeCancellationForm = reactive({ reason: '' });
 const budgetMutation = useMutation({
   mutationFn: async () => {
     const amountMinor = amountToMinor(budgetForm.amount);
+
     if (amountMinor === null) throw new Error('Enter a valid GHS amount with up to two decimal places.');
     if (!budgetForm.label.trim()) throw new Error('Add a label for this budget line.');
+
     return createAnnualConferenceFinanceBudget(year.value, {
       category: budgetForm.category,
       label: budgetForm.label.trim(),
@@ -109,8 +112,10 @@ const budgetMutation = useMutation({
 const entryMutation = useMutation({
   mutationFn: async () => {
     const amountMinor = amountToMinor(entryForm.amount);
+
     if (amountMinor === null) throw new Error('Enter a valid GHS amount with up to two decimal places.');
     if (!entryForm.description.trim()) throw new Error('Add a description for this record.');
+
     return createAnnualConferenceFinanceEntry(year.value, {
       kind: entryForm.kind,
       category: entryForm.category,
@@ -141,9 +146,11 @@ const incomeAmendmentMutation = useMutation({
   mutationFn: async () => {
     const entry = selectedIncomeEntry.value;
     const amountMinor = amountToMinor(incomeAmendmentForm.amount);
+
     if (!entry) throw new Error('Choose an income expectation first.');
     if (amountMinor === null) throw new Error('Enter a valid revised GHS amount with up to two decimal places.');
     if (!incomeAmendmentForm.reason.trim()) throw new Error('Explain why the expected amount changed.');
+
     return amendAnnualConferenceFinanceIncomeExpectation(year.value, entry.id, {
       amount_minor: amountMinor,
       reason: incomeAmendmentForm.reason.trim(),
@@ -164,10 +171,12 @@ const incomeReceiptMutation = useMutation({
   mutationFn: async () => {
     const entry = selectedIncomeEntry.value;
     const amountMinor = amountToMinor(incomeReceiptForm.amount);
+
     if (!entry) throw new Error('Choose an income expectation first.');
     if (amountMinor === null) throw new Error('Enter a valid received GHS amount with up to two decimal places.');
     if (!incomeReceiptForm.received_date) throw new Error('Choose the date the payment was received.');
     if (!incomeReceiptForm.idempotency_key) incomeReceiptForm.idempotency_key = crypto.randomUUID();
+
     return recordAnnualConferenceFinanceIncomeReceipt(year.value, entry.id, {
       amount_minor: amountMinor,
       received_date: incomeReceiptForm.received_date,
@@ -190,8 +199,10 @@ const incomeReceiptMutation = useMutation({
 const incomeCancellationMutation = useMutation({
   mutationFn: async () => {
     const entry = selectedIncomeEntry.value;
+
     if (!entry) throw new Error('Choose an income expectation first.');
     if (!incomeCancellationForm.reason.trim()) throw new Error('Explain why this expectation is no longer expected.');
+
     return cancelAnnualConferenceFinanceIncomeExpectation(year.value, entry.id, {
       reason: incomeCancellationForm.reason.trim(),
     });
@@ -227,9 +238,11 @@ function changeEntryKind(value: string | number) {
 
 function amountToMinor(value: string): number | null {
   const normalized = value.trim().replace(/,/g, '');
+
   if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
   const [whole, fraction = ''] = normalized.split('.');
   const amount = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+
   return Number.isSafeInteger(amount) && amount <= 9_000_000_000_000 ? amount : null;
 }
 
@@ -259,6 +272,7 @@ function statusLabel(status: AnnualConferenceFinanceEntryStatus): string {
 function sourceLabel(entry: AnnualConferenceFinanceEntry): string {
   if (entry.source_type === 'ticket') return 'Ticketing';
   if (entry.source_type === 'sponsor') return 'Sponsorship';
+
   return 'Manual';
 }
 
@@ -272,6 +286,7 @@ const financeDrawerTitle = computed(() => {
   if (incomeDrawerStep.value === 'amend') return 'Amend expected income';
   if (incomeDrawerStep.value === 'receipt') return 'Record payment received';
   if (incomeDrawerStep.value === 'cancel') return 'Cancel expectation';
+
   return 'Manage income';
 });
 const financeDrawerDescription = computed(() => {
@@ -280,6 +295,7 @@ const financeDrawerDescription = computed(() => {
   if (incomeDrawerStep.value === 'amend') return 'Keep the original promise and record why the expected amount changed.';
   if (incomeDrawerStep.value === 'receipt') return 'Record money that has actually arrived. Partial payments stay visible.';
   if (incomeDrawerStep.value === 'cancel') return 'Use this only when no payment has been received and the commitment will not arrive.';
+
   return 'Review the commitment, its receipts, and the amount still outstanding.';
 });
 
@@ -290,6 +306,7 @@ function setPageInteractionLocked(locked: boolean) {
     previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     pageContent.value?.setAttribute('inert', '');
+
     return;
   }
 
@@ -353,6 +370,7 @@ function handleFinanceDrawerKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault();
     void closeFinanceDrawer();
+
     return;
   }
 
@@ -361,10 +379,12 @@ function handleFinanceDrawerKeydown(event: KeyboardEvent) {
   const focusable = Array.from(financeDrawerPanel.value.querySelectorAll<HTMLElement>(
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
   )).filter((element) => !element.hasAttribute('hidden'));
+
   if (focusable.length === 0) return;
 
   const first = focusable[0];
   const last = focusable[focusable.length - 1];
+
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last.focus();

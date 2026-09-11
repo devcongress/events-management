@@ -61,6 +61,7 @@ export function parseCleanupArguments(args: string[]): CleanupArguments {
 
     if (argument === '--scope') {
       const value = args[index + 1];
+
       if (value !== 'test-label' && value !== 'private-beta') {
         throw new Error('--scope must be either test-label or private-beta.');
       }
@@ -115,7 +116,9 @@ and email already delivered by the provider are intentionally retained.`);
 
 function requireEnvironment(name: string): string {
   const value = process.env[name]?.trim();
+
   if (!value) throw new Error(`${name} is required.`);
+
   return value;
 }
 
@@ -162,6 +165,7 @@ async function loadCandidates(client: AppSupabaseClient, scope: CleanupScope): P
     .filter((id): id is string => Boolean(id));
 
   let prefixedEvents: TestEvent[] = [];
+
   if (scope === 'test-label') {
     const prefixedEventsResult = await client
       .from('community_events')
@@ -176,8 +180,10 @@ async function loadCandidates(client: AppSupabaseClient, scope: CleanupScope): P
   }
 
   let linkedEvents: TestEvent[] = [];
+
   if (submissionIds.length > 0 || approvedEventIds.length > 0) {
     const filters: string[] = [];
+
     if (submissionIds.length > 0) filters.push(`source_submission_id.in.(${submissionIds.join(',')})`);
     if (approvedEventIds.length > 0) filters.push(`id.in.(${approvedEventIds.join(',')})`);
 
@@ -239,14 +245,18 @@ async function deleteByIds(
   if (ids.length === 0) return 0;
 
   const result = await client.from(table).delete().in('id', ids).select('id');
+
   if (result.error) throw new Error(`Unable to delete from ${table}: ${result.error.message}`);
+
   return result.data.length;
 }
 
 async function run() {
   const args = parseCleanupArguments(process.argv.slice(2));
+
   if (args.help) {
     printHelp();
+
     return;
   }
 
@@ -264,10 +274,12 @@ async function run() {
 
   const { client, projectHost } = createAdminClient();
   const candidates = await loadCandidates(client, args.scope);
+
   printCandidates(projectHost, candidates, args.scope);
 
   if (candidates.events.length === 0 && candidates.submissions.length === 0) {
     console.log('\nNothing to clean up.');
+
     return;
   }
 
@@ -276,7 +288,9 @@ async function run() {
     const command = args.scope === 'private-beta'
       ? `pnpm cleanup:private-beta-events -- --execute --confirm ${PRIVATE_BETA_DELETE_CONFIRMATION}`
       : `pnpm cleanup:test-events -- --execute --confirm ${DELETE_CONFIRMATION}`;
+
     console.log(command);
+
     return;
   }
 

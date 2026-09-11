@@ -9,8 +9,10 @@ const PUBLIC_MEETUP_MEDIA_PATH = '/storage/v1/object/public/meetup-media/';
 export function versionPublicMeetupMediaUrl(value: string, revision: string): string {
   try {
     const url = new URL(value);
+
     if (!url.pathname.includes(PUBLIC_MEETUP_MEDIA_PATH)) return value;
     url.searchParams.set('v', revision);
+
     return url.toString();
   } catch {
     return value;
@@ -20,6 +22,7 @@ export function versionPublicMeetupMediaUrl(value: string, revision: string): st
 export function canEmbedPublicMeetupMedia(value: string): boolean {
   try {
     const url = new URL(value);
+
     if (
       url.protocol !== 'https:'
       || url.username
@@ -30,6 +33,7 @@ export function canEmbedPublicMeetupMedia(value: string): boolean {
     }
 
     const hostname = url.hostname.toLowerCase();
+
     if (YOUTUBE_EMBED_HOSTS.has(hostname)) {
       return /^\/embed\/[a-z0-9_-]+\/?$/i.test(url.pathname);
     }

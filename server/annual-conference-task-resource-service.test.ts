@@ -136,11 +136,13 @@ describe('Annual Conference task resource authorization', () => {
 
   it('keeps elevated volunteers assignment- and creator-scoped', async () => {
     const unassignedTask = { ...task, accountable_owner: 'someone@example.com', collaborators: [] };
+
     workPlanRepository.getWorkspace = vi.fn(async () => ({ edition, phases: [], tasks: [unassignedTask] }));
     const unassigned = service(
       { role: 'volunteer', email: 'volunteer@example.com' },
       ['work_plan.manage'],
     );
+
     await expect(unassigned.list(2026, task.id)).rejects.toMatchObject({ code: 'forbidden' });
 
     workPlanRepository.getWorkspace = vi.fn(async () => ({ edition, phases: [], tasks: [task] }));
@@ -148,6 +150,7 @@ describe('Annual Conference task resource authorization', () => {
       { role: 'volunteer', email: 'volunteer@example.com' },
       ['work_plan.manage'],
     );
+
     await expect(assigned.update(2026, task.id, otherResource.id, { label: 'Changed' }))
       .rejects.toMatchObject({ code: 'forbidden' });
     expect(resourceRepository.update).not.toHaveBeenCalled();
@@ -155,6 +158,7 @@ describe('Annual Conference task resource authorization', () => {
 
   it('applies the volunteer creator predicate again in persistence', async () => {
     const subject = service({ role: 'volunteer', email: 'volunteer@example.com' });
+
     await subject.update(2026, task.id, ownResource.id, { label: null });
     await subject.delete(2026, task.id, ownResource.id);
 
@@ -174,6 +178,7 @@ describe('Annual Conference task resource authorization', () => {
 
   it('lets a task-editing organizer manage every resource but keeps other organizers read-only', async () => {
     const assigned = service({ role: 'organizer', email: 'organizer@example.com' });
+
     await expect(assigned.list(2026, task.id)).resolves.toMatchObject({
       resources: [{ can_manage: true }, { can_manage: true }],
       permissions: { can_add: true, can_manage_all: true },
@@ -182,6 +187,7 @@ describe('Annual Conference task resource authorization', () => {
     expect(resourceRepository.delete).toHaveBeenCalledWith(task.id, otherResource.id, undefined);
 
     const readOnly = service({ role: 'organizer', email: 'readonly@example.com' });
+
     await expect(readOnly.list(2026, task.id)).resolves.toMatchObject({
       resources: [{ can_manage: false }, { can_manage: false }],
       permissions: { can_add: false, can_manage_all: false },
@@ -194,6 +200,7 @@ describe('Annual Conference task resource authorization', () => {
 describe('Annual Conference task resource validation and limits', () => {
   it('rejects unsafe schemes and embedded credentials', async () => {
     const subject = service({ role: 'volunteer', email: 'volunteer@example.com' });
+
     await expect(subject.create(2026, task.id, { url: 'javascript:alert(1)' }))
       .rejects.toBeInstanceOf(AnnualConferenceTaskResourceServiceError);
     await expect(subject.create(2026, task.id, { url: 'https://user:secret@example.com' }))
@@ -203,6 +210,7 @@ describe('Annual Conference task resource validation and limits', () => {
 
   it('enforces the label limit in the service as well as the HTTP schema and database', async () => {
     const subject = service({ role: 'volunteer', email: 'volunteer@example.com' });
+
     await expect(subject.create(2026, task.id, {
       url: 'https://example.com/resource',
       label: 'x'.repeat(121),
@@ -213,6 +221,7 @@ describe('Annual Conference task resource validation and limits', () => {
   it('maps the atomic persistence cap to a conflict response', async () => {
     resourceRepository.create.mockRejectedValueOnce(new AnnualConferenceTaskResourceLimitError());
     const subject = service({ role: 'volunteer', email: 'volunteer@example.com' });
+
     await expect(subject.create(2026, task.id, { url: 'https://example.com/resource' }))
       .rejects.toMatchObject({ code: 'conflict' });
   });

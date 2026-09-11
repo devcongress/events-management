@@ -66,7 +66,9 @@ const systemDesignSessions = computed(() => {
 });
 const primaryLearningSource = computed(() => {
   const source = findSystemDesignSource(systemDesignSessions.value);
+
   if (!source) return null;
+
   return {
     title: source.title?.trim() || 'System Design source',
     url: source.url,
@@ -84,6 +86,7 @@ const pendingRemovalScenario = computed(() => (
 ));
 const pendingRemovalMessage = computed(() => {
   if (!pendingRemovalScenario.value) return '';
+
   return `Remove “${systemDesignDisplayTitle(pendingRemovalScenario.value)}” and its learning questions from this event? This ends any live presentation and cannot be undone.`;
 });
 const mutatingDrafts = computed(() => saving.value || generatingIndex.value !== null || removingIndex.value !== null);
@@ -107,13 +110,16 @@ function draftFromSession(session?: PublicMeetupScheduleItem): SystemDesignDraft
 
 function addFacilitator(draft: SystemDesignDraft) {
   const name = draft.facilitatorInput.trim();
+
   if (!name) return;
   if (name.length > 120) {
     notify.error('Keep facilitator names under 120 characters.');
+
     return;
   }
   if (draft.facilitators.some((facilitator) => facilitator.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0)) {
     notify.error('That facilitator is already listed.');
+
     return;
   }
   draft.facilitators.push(name);
@@ -173,6 +179,7 @@ function mergeSystemDesignSchedule(items: PublicMeetupScheduleItem[]): PublicMee
       if (!outlineSlotIndexSet.has(index)) return [item];
 
       const replacement = nextItems.shift();
+
       if (!replacement) {
         return [{
           ...item,
@@ -184,6 +191,7 @@ function mergeSystemDesignSchedule(items: PublicMeetupScheduleItem[]): PublicMee
       }
 
       const scenarioTitle = replacement.system_design_title?.trim() || replacement.title.trim();
+
       return [{
         ...item,
         lead: replacement.lead,
@@ -200,6 +208,7 @@ function mergeSystemDesignSchedule(items: PublicMeetupScheduleItem[]): PublicMee
   const merged = sourceSchedule.flatMap((item) => {
     if (item.type !== 'system_design') return [item];
     const replacement = nextItems.shift();
+
     if (!replacement) return [];
 
     return [{
@@ -286,8 +295,10 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
   if (generatingIndex.value !== null) return;
 
   const promptUrl = draft.promptUrl.trim();
+
   if (!draft.title.trim() && !promptUrl) {
     notify.error('Add a session title or docs URL before generating a draft.');
+
     return;
   }
 
@@ -297,6 +308,7 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
     if (!promptUrl) {
       draft.description = generatedDraftDescription(draft);
       await saveSystemDesign('Draft generated and saved.');
+
       return;
     }
 
@@ -327,6 +339,7 @@ async function generateDraftFromPrompt(draft: SystemDesignDraft, index: number) 
     await saveSystemDesign('Draft generated and saved.');
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : 'Unable to generate a draft from this prompt deck.';
+
     notify.error(message);
   } finally {
     generatingIndex.value = null;
@@ -337,10 +350,12 @@ async function saveSystemDesign(successMessage = 'System design notes saved'): P
   if (!event.value || saving.value) return false;
 
   let systemDesignItems: PublicMeetupScheduleItem[];
+
   try {
     systemDesignItems = normalizeDrafts();
   } catch (caught) {
     saveError.value = caught instanceof Error ? caught.message : 'Check the system design details.';
+
     return false;
   }
 
@@ -363,10 +378,12 @@ async function saveSystemDesign(successMessage = 'System design notes saved'): P
     syncDrafts();
     editing.value = systemDesignItems.length === 0;
     notify.success(systemDesignItems.length > 0 ? successMessage : 'System design section cleared');
+
     return true;
   } catch (caught) {
     saveError.value = caught instanceof Error ? caught.message : 'Unable to save system design notes';
     notify.error(saveError.value);
+
     return false;
   } finally {
     saving.value = false;
@@ -382,9 +399,11 @@ async function confirmSavedScenarioRemoval() {
   if (!event.value || mutatingDrafts.value) return;
 
   const index = pendingRemovalIndex.value;
+
   if (index === null) return;
 
   const scenario = systemDesignSessions.value[index];
+
   if (!scenario) return;
 
   removingIndex.value = index;

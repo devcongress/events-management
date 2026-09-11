@@ -230,6 +230,7 @@ describe('event Ghana map link', () => {
       location_name: 'Fido, Accra',
       require_ghana_venue_selection: true,
     });
+
     expect(typedOnly.success).toBe(false);
 
     const selected = createEventFormSchema.safeParse({
@@ -241,6 +242,7 @@ describe('event Ghana map link', () => {
       location_place_id: 'ghana-place-1',
       require_ghana_venue_selection: true,
     });
+
     expect(selected.success).toBe(true);
   });
 

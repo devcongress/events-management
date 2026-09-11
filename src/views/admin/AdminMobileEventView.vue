@@ -143,18 +143,22 @@ const eventStatusClass = computed(() => {
   if (event.value?.status === 'live') return 'mobile-event-status--live';
   if (event.value?.status === 'completed') return 'mobile-event-status--done';
   if (event.value?.status === 'draft') return 'mobile-event-status--draft';
+
   return 'mobile-event-status--upcoming';
 });
 const proposalDecisionTitle = computed(() => {
   if (!pendingProposalDecision.value) return '';
+
   return pendingProposalDecision.value.status === 'selected'
     ? 'Approve this proposal?'
     : 'Reject this proposal?';
 });
 const proposalDecisionMessage = computed(() => {
   const decision = pendingProposalDecision.value;
+
   if (!decision) return '';
   const proposal = `“${decision.submission.title}” by ${decision.submission.speaker_name}`;
+
   return decision.status === 'selected'
     ? `${proposal} will be approved and a private speaker form link will be prepared. No email is sent yet. This decision cannot be undone.`
     : `${proposal} will be rejected and removed from the pending review queue. This decision cannot be undone.`;
@@ -163,6 +167,7 @@ const proposalDecisionMessage = computed(() => {
 function applySection(section: MobileEventSection) {
   const currentIndex = sectionOrder.indexOf(activeSection.value);
   const nextIndex = sectionOrder.indexOf(section);
+
   panelTransition.value = nextIndex >= currentIndex
     ? 'mobile-event-panel-forward'
     : 'mobile-event-panel-back';
@@ -180,6 +185,7 @@ function selectSection(section: MobileEventSection) {
 
 watch(() => route.query.section, () => {
   const section = organizerMobileEventSection(route.query);
+
   if (section !== activeSection.value) applySection(section);
 });
 
@@ -199,6 +205,7 @@ function submissionStatusLabel(status: SpeakerSubmission['status']) {
   if (status === 'selected') return 'Selected';
   if (status === 'not_selected') return 'Not selected';
   if (status === 'withdrawn') return 'Withdrawn';
+
   return 'Pending';
 }
 
@@ -223,6 +230,7 @@ async function checkInGuest(registration: EventRegistration) {
 
 async function undoCheckInGuest() {
   const registration = pendingCheckInUndo.value;
+
   if (!eventId.value || !registration || actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
   try {
@@ -247,9 +255,11 @@ async function decideSubmission(submission: SpeakerSubmission, status: 'selected
     notify.success(status === 'selected'
       ? 'Proposal selected and private archive link prepared.'
       : 'Proposal marked as not selected.');
+
     return true;
   } catch (error) {
     notify.error(error instanceof Error ? error.message : 'Unable to update this proposal.');
+
     return false;
   } finally {
     decidingSubmissionId.value = null;
@@ -263,8 +273,10 @@ function requestProposalDecision(submission: SpeakerSubmission, status: 'selecte
 
 async function confirmProposalDecision() {
   const decision = pendingProposalDecision.value;
+
   if (!decision || decidingSubmissionId.value) return;
   const decided = await decideSubmission(decision.submission, decision.status);
+
   if (decided) pendingProposalDecision.value = null;
 }
 </script>

@@ -16,6 +16,7 @@ function normalizedScale(value: string): string {
 
 export function installButtonPressFeedback(root: Document = document): () => void {
   const defaultView = root.defaultView;
+
   if (!defaultView) return () => undefined;
   const view: Window = defaultView;
 
@@ -26,6 +27,7 @@ export function installButtonPressFeedback(root: Document = document): () => voi
 
   function buttonFromTarget(target: EventTarget | null): HTMLButtonElement | null {
     if (!(target instanceof Element)) return null;
+
     return target.closest<HTMLButtonElement>(BUTTON_SELECTOR);
   }
 
@@ -37,12 +39,14 @@ export function installButtonPressFeedback(root: Document = document): () => voi
   function animateButton(button: HTMLButtonElement, pressed: boolean) {
     if (reducedMotion.matches) {
       cancelAnimation(button);
+
       return;
     }
 
     const computed = view.getComputedStyle(button);
     const fromTranslate = normalizedTranslate(computed.translate);
     const fromScale = normalizedScale(computed.scale);
+
     cancelAnimation(button);
 
     const animation = button.animate(
@@ -72,6 +76,7 @@ export function installButtonPressFeedback(root: Document = document): () => voi
 
   function releasePointer(pointerId: number) {
     const button = activePointers.get(pointerId);
+
     if (!button) return;
 
     activePointers.delete(pointerId);
@@ -81,6 +86,7 @@ export function installButtonPressFeedback(root: Document = document): () => voi
 
   function releaseAll() {
     const buttons = new Set(activePointers.values());
+
     activePointers.clear();
     activeButtons.clear();
     buttons.forEach((button) => animateButton(button, false));
@@ -90,6 +96,7 @@ export function installButtonPressFeedback(root: Document = document): () => voi
     if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
 
     const button = buttonFromTarget(event.target);
+
     if (!button || activeButtons.has(button)) return;
 
     activePointers.set(event.pointerId, button);

@@ -17,6 +17,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
     session_id: 'session-1',
     expires_at: '2099-01-01T00:00:00.000Z',
   });
+
   return {
     ...actual,
     getAdminSession: vi.fn(async () => session()),
@@ -25,6 +26,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
         return new Response(JSON.stringify({ error: 'This account does not have access to this resource' }), { status: 403 });
       }
       c.set('adminSession', session());
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -64,8 +66,10 @@ async function setup() {
     storage_path: null,
     slides_uploaded_at: null,
   });
+
   await talks.updateTalk(talk.id, { status: 'published' });
   const app = (await import('./app')).default;
+
   return { app, links, talks, talk };
 }
 
@@ -91,6 +95,7 @@ afterEach(async () => {
 describe('archive materials follow-up', () => {
   it('sends an Owner-issued, existing-record-bound follow-up link', async () => {
     const resendFetch = vi.fn(async () => new Response(JSON.stringify({ data: [{ id: 'resend-follow-up' }] }), { status: 200 }));
+
     vi.stubGlobal('fetch', resendFetch);
     const { app, links, talk } = await setup();
 
@@ -152,6 +157,7 @@ describe('archive materials follow-up', () => {
 
   it('does not let an Organizer issue a materials follow-up', async () => {
     const { app, talk } = await setup();
+
     mocks.role = 'organizer';
 
     const response = await app.request(`http://localhost/api/talks/${talk.id}/materials-follow-up`, {

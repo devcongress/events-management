@@ -41,6 +41,7 @@ describe('organizer authentication contract', () => {
 
     expect(response.status).toBe(302);
     const location = response.headers.get('location') ?? '';
+
     expect(location).toContain('error=oauth_failed');
     expect(location).not.toContain('provider');
     expect(location).not.toContain('user%40example.com');
@@ -58,6 +59,7 @@ describe('organizer authentication contract', () => {
     await expect(response.json()).resolves.toEqual({ authenticated: false });
 
     const setCookie = response.headers.get('set-cookie') ?? '';
+
     expect(setCookie).toContain('__Host-devcon_admin=; Max-Age=0; Path=/; Secure');
     expect(setCookie).toContain('devcon_admin=; Max-Age=0; Path=/');
   });

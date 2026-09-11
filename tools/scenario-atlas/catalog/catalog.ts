@@ -22,6 +22,7 @@ export function validateCoverageContracts(catalog: AtlasCatalog): void {
     for (const [dimension, values] of Object.entries(workflow.coverageContract.required)) {
       for (const value of values) {
         const key = `${dimension}:${value}`;
+
         if (!covered.has(key) && !excluded.has(key)) {
           throw new Error(`${workflow.id} leaves required coverage unaccounted for: ${key}`);
         }
@@ -32,6 +33,8 @@ export function validateCoverageContracts(catalog: AtlasCatalog): void {
 
 export function loadCatalog(): AtlasCatalog {
   const catalog = atlasCatalogSchema.parse(rawCatalog);
+
   validateCoverageContracts(catalog);
+
   return catalog;
 }

@@ -83,6 +83,7 @@ export function createAnnualConferenceReadModel(input: {
         if (!task.target_date) undatedCount += 1;
         if (!task.phase_id || !task.target_date) planningGaps.push(task);
         const workstream = workstreamCounts[task.workstream];
+
         workstream.total += 1;
         if (task.status === 'done') workstream.done += 1;
         if (task.status === 'blocked') workstream.blocked += 1;
@@ -91,6 +92,7 @@ export function createAnnualConferenceReadModel(input: {
 
       const workstreams = ANNUAL_CONFERENCE_WORKSTREAMS.map((workstream) => {
         const counts = workstreamCounts[workstream];
+
         return {
           workstream,
           total: counts.total,

@@ -54,6 +54,7 @@ export async function createSupabaseRegistrationCampaign(
     .single();
 
   if (error) throw new Error(error.message);
+
   return data;
 }
 
@@ -70,6 +71,7 @@ export async function getSupabaseRegistrationCampaign(
     .maybeSingle();
 
   if (error) throw new Error(error.message);
+
   return data ?? undefined;
 }
 
@@ -86,6 +88,7 @@ export async function getSupabaseRegistrationCampaigns(
     .in('event_id', [...eventIds]);
 
   if (error) throw new Error(error.message);
+
   return data ?? [];
 }
 
@@ -104,6 +107,7 @@ export async function updateSupabaseRegistrationCampaign(
     .maybeSingle();
 
   if (error) throw new Error(error.message);
+
   return data ?? undefined;
 }
 
@@ -120,6 +124,7 @@ export async function registerSupabaseForEvent(
   });
 
   if (error) throw new Error(error.message);
+
   return toEventRegistration(data, null, {
     status: 'pending',
     kind: 'confirmation',
@@ -133,6 +138,7 @@ export async function getSupabaseEventRegistrations(
   if (!canUseSupabaseEventRegistrations(c)) return null;
 
   const campaign = await getSupabaseRegistrationCampaign(eventId, c);
+
   if (!campaign) return [];
 
   const client = getSupabaseAdminClient(c);
@@ -141,6 +147,7 @@ export async function getSupabaseEventRegistrations(
     .select('*')
     .eq('campaign_id', campaign.id)
     .order('created_at', { ascending: false });
+
   if (registrationsResult.error) throw new Error(registrationsResult.error.message);
   if (registrationsResult.data.length === 0) return [];
 
@@ -156,6 +163,7 @@ export async function getSupabaseEventRegistrations(
       .in('registration_id', registrationIds)
       .order('updated_at', { ascending: true }),
   ]);
+
   if (checkinsResult.error) throw new Error(checkinsResult.error.message);
   if (deliveriesResult.error) throw new Error(deliveriesResult.error.message);
 
@@ -163,6 +171,7 @@ export async function getSupabaseEventRegistrations(
     checkinsResult.data.map((checkin) => [checkin.registration_id, checkin.checked_in_at]),
   );
   const deliveriesByRegistration = new Map<string, EmailDeliveryRow>();
+
   for (const delivery of deliveriesResult.data) {
     deliveriesByRegistration.set(delivery.registration_id, delivery);
   }
@@ -182,6 +191,7 @@ export async function getSupabaseRegistrationAttendanceSources(
   if (eventIds.length === 0) return [];
 
   const campaigns = await getSupabaseRegistrationCampaigns(eventIds, c);
+
   if (!campaigns || campaigns.length === 0) return [];
 
   const client = getSupabaseAdminClient(c);
@@ -191,6 +201,7 @@ export async function getSupabaseRegistrationAttendanceSources(
     .select('id, campaign_id, name, email, normalized_email, status, confirmed_at, cancelled_at, created_at, updated_at')
     .in('campaign_id', campaignIds)
     .order('created_at', { ascending: false });
+
   if (registrationsResult.error) throw new Error(registrationsResult.error.message);
 
   const registrationIds = registrationsResult.data.map((registration) => registration.id);
@@ -200,14 +211,17 @@ export async function getSupabaseRegistrationAttendanceSources(
       .select('registration_id, checked_in_at')
       .in('registration_id', registrationIds)
     : { data: [], error: null };
+
   if (checkinsResult.error) throw new Error(checkinsResult.error.message);
 
   const checkinsByRegistration = new Map(
     checkinsResult.data.map((checkin) => [checkin.registration_id, checkin.checked_in_at]),
   );
   const registrationsByCampaign = new Map<string, EventRegistration[]>();
+
   for (const registration of registrationsResult.data) {
     const group = registrationsByCampaign.get(registration.campaign_id) ?? [];
+
     group.push(toEventRegistration(
       registration,
       checkinsByRegistration.get(registration.id) ?? null,
@@ -240,6 +254,7 @@ export async function checkInSupabaseRegistration(
     }, { onConflict: 'registration_id' });
 
   if (error) throw new Error(error.message);
+
   return checkedInAt;
 }
 
@@ -257,6 +272,7 @@ export async function undoCheckInSupabaseRegistration(
     .maybeSingle();
 
   if (error) throw new Error(error.message);
+
   return Boolean(data);
 }
 
@@ -275,6 +291,7 @@ export async function cancelSupabaseRegistration(
 
   if (error) throw new Error(error.message);
   const result = data?.[0];
+
   return {
     cancelled: result?.cancelled === true,
     promotedRegistrationId: result?.promoted_registration_id ?? null,
@@ -295,6 +312,7 @@ export async function deleteSupabaseRegistration(
     .maybeSingle();
 
   if (error) throw new Error(error.message);
+
   return Boolean(data);
 }
 
@@ -311,6 +329,7 @@ export async function getSupabasePendingRegistrationEmails(
   if (!canUseSupabaseEventRegistrations(c)) return null;
 
   const campaign = await getSupabaseRegistrationCampaign(eventId, c);
+
   if (!campaign) return [];
 
   const client = getSupabaseAdminClient(c);
@@ -319,11 +338,14 @@ export async function getSupabasePendingRegistrationEmails(
     .select('*')
     .eq('campaign_id', campaign.id)
     .neq('status', 'cancelled');
+
   if (registrationsError) throw new Error(registrationsError.message);
 
   const registrationsById = new Map(registrations.map((registration) => [registration.id, registration]));
+
   if (input.registrationId) {
     const registration = registrationsById.get(input.registrationId);
+
     registrationsById.clear();
     if (registration) registrationsById.set(registration.id, registration);
   }
@@ -337,10 +359,12 @@ export async function getSupabasePendingRegistrationEmails(
     .in('status', input.statuses ?? ['pending', 'failed'])
     .order('created_at', { ascending: true })
     .limit(input.limit ?? 100);
+
   if (deliveriesError) throw new Error(deliveriesError.message);
 
   return deliveries.flatMap((delivery) => {
     const registration = registrationsById.get(delivery.registration_id);
+
     return registration ? [toPendingEmail(delivery, registration)] : [];
   });
 }
@@ -363,6 +387,7 @@ export async function updateSupabaseRegistrationEmailDelivery(
     .select('attempts')
     .eq('id', deliveryId)
     .single();
+
   if (currentError) throw new Error(currentError.message);
 
   const { error } = await client

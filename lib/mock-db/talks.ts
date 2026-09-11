@@ -25,16 +25,19 @@ export async function getAllTalks(): Promise<Talk[]> {
 
 export async function getTalkById(id: string): Promise<Talk | undefined> {
   const talks = await readTalks();
+
   return talks.find(t => t.id === id);
 }
 
 export async function getTalksByEvent(eventId: string): Promise<Talk[]> {
   const talks = await readTalks();
+
   return talks.filter(t => t.event_id === eventId);
 }
 
 export async function getTalksBySpeaker(email: string): Promise<Talk[]> {
   const talks = await readTalks();
+
   return talks.filter(t => t.speaker_email === email);
 }
 
@@ -91,6 +94,7 @@ export async function updateTalk(
       updated_at: now(),
     };
     const nextTalks = [...talks];
+
     nextTalks[index] = updatedTalk;
 
     return {

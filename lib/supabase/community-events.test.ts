@@ -71,6 +71,7 @@ function mockPublicEventQuery(rows: CommunityEventRow[]) {
     order: vi.fn(),
     limit: vi.fn(),
   };
+
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
   query.neq.mockReturnValue(query);
@@ -78,6 +79,7 @@ function mockPublicEventQuery(rows: CommunityEventRow[]) {
   query.order.mockReturnValue(query);
   query.limit.mockResolvedValue({ data: rows, error: null });
   mocks.getSupabaseAdminClient.mockReturnValue({ from: vi.fn(() => query) });
+
   return query;
 }
 

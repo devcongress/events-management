@@ -8,6 +8,7 @@ export function isEventCheckInDay(event: Pick<Event, 'event_date' | 'timezone'> 
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: event.timezone || 'Africa/Accra', year: 'numeric', month: '2-digit', day: '2-digit',
     });
+
     return formatter.format(new Date(event.event_date)) === formatter.format(now);
   } catch {
     return false;

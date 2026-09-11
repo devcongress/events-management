@@ -34,7 +34,9 @@ const eventsQuery = useQuery({ queryKey: queryKeys.events, queryFn: fetchEvents 
 const events = computed(() => [...(eventsQuery.data.value ?? [])].sort((first, second) => {
   const firstCompleted = first.status === 'completed';
   const secondCompleted = second.status === 'completed';
+
   if (firstCompleted !== secondCompleted) return firstCompleted ? 1 : -1;
+
   return firstCompleted
     ? new Date(second.event_date).getTime() - new Date(first.event_date).getTime()
     : new Date(first.event_date).getTime() - new Date(second.event_date).getTime();
@@ -48,6 +50,7 @@ function eventStatusClass(status: EventStatus): string {
   if (status === 'live') return 'mobile-ops-status--live';
   if (status === 'completed') return 'mobile-ops-status--done';
   if (status === 'draft') return 'mobile-ops-status--draft';
+
   return 'mobile-ops-status--upcoming';
 }
 
@@ -55,6 +58,7 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
   const actions: MobileEventAction[] = [
     { label: 'Manage event', href: organizerPhoneEventPath(event.id), primary: true },
   ];
+
   if (event.registration_url && event.external_source !== 'luma') {
     actions.push({ label: 'Check in guests', href: organizerPhoneCheckInPath(event.id) });
   }
@@ -67,6 +71,7 @@ function eventActions(event: CommunityEvent): MobileEventAction[] {
   if (event.external_url) {
     actions.push({ label: 'Open source event', href: event.external_url, external: true });
   }
+
   return actions.slice(0, 3);
 }
 </script>

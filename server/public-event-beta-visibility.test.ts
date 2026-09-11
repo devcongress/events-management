@@ -23,6 +23,7 @@ vi.mock('../lib/supabase/admin-auth', async () => {
     getAdminSession: vi.fn(async () => session),
     requireAdmin: requireAdminMock.mockImplementation(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),

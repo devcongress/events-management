@@ -64,58 +64,76 @@ export function createAnnualConferenceFinanceRepository(c?: Context): AnnualConf
     if (!backend) {
       throw new Error('Annual Conference finance repository must load an edition before mutating it.');
     }
+
     return backend;
   }
 
   return {
     async getFinance(year) {
       const finance = await getSupabaseAnnualConferenceFinance(year, c);
+
       backend = finance === null ? 'mock' : 'supabase';
+
       return finance === null ? getMockAnnualConferenceFinance(year) : finance;
     },
 
     async createBudgetLine(editionId, input, actorEmail) {
       if (selectedBackend() === 'supabase') {
         const budget = await createSupabaseAnnualConferenceFinanceBudget(editionId, input, actorEmail, c);
+
         if (!budget) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+
         return budget;
       }
+
       return createMockAnnualConferenceFinanceBudget(editionId, input, actorEmail);
     },
 
     async createEntry(editionId, input, actorEmail) {
       if (selectedBackend() === 'supabase') {
         const entry = await createSupabaseAnnualConferenceFinanceEntry(editionId, input, actorEmail, c);
+
         if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+
         return entry;
       }
+
       return createMockAnnualConferenceFinanceEntry(editionId, input, actorEmail);
     },
 
     async amendIncomeExpectation(entryId, input, actorEmail) {
       if (selectedBackend() === 'supabase') {
         const entry = await amendSupabaseAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail, c);
+
         if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+
         return entry;
       }
+
       return amendMockAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail);
     },
 
     async recordIncomeReceipt(entryId, input, actorEmail) {
       if (selectedBackend() === 'supabase') {
         const entry = await recordSupabaseAnnualConferenceFinanceIncomeReceipt(entryId, input, actorEmail, c);
+
         if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+
         return entry;
       }
+
       return recordMockAnnualConferenceFinanceIncomeReceipt(entryId, input, actorEmail);
     },
 
     async cancelIncomeExpectation(entryId, input, actorEmail) {
       if (selectedBackend() === 'supabase') {
         const entry = await cancelSupabaseAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail, c);
+
         if (!entry) throw new Error('Supabase Annual Conference finance storage became unavailable during the request.');
+
         return entry;
       }
+
       return cancelMockAnnualConferenceFinanceIncomeExpectation(entryId, input, actorEmail);
     },
   };

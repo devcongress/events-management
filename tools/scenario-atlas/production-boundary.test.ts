@@ -6,6 +6,7 @@ describe('Scenario Atlas production isolation', () => {
     const viteConfig = readFileSync('vite.config.ts', 'utf8');
     const productionServer = readFileSync('server/index.ts', 'utf8');
     const appEntry = readFileSync('src/main.ts', 'utf8');
+
     expect(viteConfig).not.toContain('scenario-atlas');
     expect(productionServer).not.toContain('scenario-atlas');
     expect(appEntry).not.toContain('scenario-atlas');

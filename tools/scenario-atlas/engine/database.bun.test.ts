@@ -5,6 +5,7 @@ import { AtlasDatabase } from './database';
 describe('Scenario Atlas local database', () => {
   it('persists, updates, and resets local scenario state', () => {
     const database = new AtlasDatabase(':memory:');
+
     database.write('MOD-17', 'failed', 'Observed a conflicting decision.');
     expect(database.readAll()['MOD-17']).toMatchObject({
       status: 'failed',

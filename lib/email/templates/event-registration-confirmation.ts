@@ -46,10 +46,12 @@ function textLine(value: string, fallback = ''): string {
 
 function safeHttpUrl(value: string | null | undefined): string | null {
   const candidate = value?.trim();
+
   if (!candidate || candidate.length > 2048) return null;
 
   try {
     const url = new URL(candidate);
+
     if (
       (url.protocol !== 'https:' && url.protocol !== 'http:')
       || url.username
@@ -58,6 +60,7 @@ function safeHttpUrl(value: string | null | undefined): string | null {
     ) {
       return null;
     }
+
     return url.toString();
   } catch {
     return null;
@@ -67,6 +70,7 @@ function safeHttpUrl(value: string | null | undefined): string | null {
 function validDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
+
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -76,12 +80,15 @@ function eventDateRange(input: Pick<EventCalendarDetails, 'eventDate' | 'eventEn
   allDay: boolean;
 } | null {
   const start = validDate(input.eventDate);
+
   if (!start) return null;
 
   const allDay = DATE_ONLY_PATTERN.test(input.eventDate);
+
   if (allDay) {
     const end = validDate(input.eventEndDate);
     const inclusiveEnd = end && end.getTime() >= start.getTime() ? end : start;
+
     return {
       start,
       end: new Date(inclusiveEnd.getTime() + 24 * 60 * 60 * 1000),
@@ -90,6 +97,7 @@ function eventDateRange(input: Pick<EventCalendarDetails, 'eventDate' | 'eventEn
   }
 
   const suppliedEnd = validDate(input.eventEndDate);
+
   return {
     start,
     end: suppliedEnd && suppliedEnd.getTime() > start.getTime()
@@ -106,6 +114,7 @@ function formatEventSchedule(input: Pick<EventCalendarDetails, 'eventDate' | 'ev
   timeLabel: string;
 } {
   const range = eventDateRange(input);
+
   if (!range) {
     return {
       dateLabel: 'Date to be announced',
@@ -154,14 +163,17 @@ function formatEventSchedule(input: Pick<EventCalendarDetails, 'eventDate' | 'ev
 
 function toCalendarDate(date: Date, allDay: boolean): string {
   if (allDay) return date.toISOString().slice(0, 10).replaceAll('-', '');
+
   return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
 function googleCalendarUrl(input: EventCalendarDetails): string | null {
   const range = eventDateRange(input);
+
   if (!range) return null;
 
   const url = new URL('https://calendar.google.com/calendar/render');
+
   url.searchParams.set('action', 'TEMPLATE');
   url.searchParams.set('text', textLine(input.eventName, 'DevCongress event'));
   url.searchParams.set(
@@ -176,6 +188,7 @@ function googleCalendarUrl(input: EventCalendarDetails): string | null {
     ].filter(Boolean).join('\n\n'),
   );
   url.searchParams.set('location', textLine(input.locationName, 'Location to be announced'));
+
   return url.toString();
 }
 
@@ -195,6 +208,7 @@ function foldIcsLine(line: string): string {
   for (const character of Array.from(line)) {
     const characterBytes = encoder.encode(character).byteLength;
     const limit = segments.length === 0 ? 75 : 74;
+
     if (segment && bytes + characterBytes > limit) {
       segments.push(segment);
       segment = character;
@@ -215,6 +229,7 @@ function calendarFilename(eventName: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
+
   return `${slug || 'devcongress-event'}.ics`;
 }
 
@@ -223,6 +238,7 @@ export function eventRegistrationCalendarFile(input: EventRegistrationCalendarIn
   content: string;
 } | null {
   const range = eventDateRange(input);
+
   if (!range) return null;
 
   const eventName = textLine(input.eventName, 'DevCongress event');

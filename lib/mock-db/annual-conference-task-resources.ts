@@ -40,6 +40,7 @@ export async function createMockAnnualConferenceTaskResource(
       created_at: timestamp,
       updated_at: timestamp,
     };
+
     return { data: [...current, resource], result: resource };
   });
 }
@@ -60,6 +61,7 @@ export async function updateMockAnnualConferenceTaskResource(
       && resource.task_id === taskId
       && (!normalizedCreator || normalizeTaskResourceActorEmail(resource.created_by_email) === normalizedCreator)
     ));
+
     if (index < 0) return { data: current, result: undefined };
     const updated: AnnualConferenceTaskResource = {
       ...current[index],
@@ -68,7 +70,9 @@ export async function updateMockAnnualConferenceTaskResource(
       updated_at: now(),
     };
     const next = [...current];
+
     next[index] = updated;
+
     return { data: next, result: updated };
   });
 }
@@ -87,6 +91,7 @@ export async function deleteMockAnnualConferenceTaskResource(
       && resource.task_id === taskId
       && (!normalizedCreator || normalizeTaskResourceActorEmail(resource.created_by_email) === normalizedCreator)
     ));
+
     return { data: next, result: next.length !== current.length };
   });
 }

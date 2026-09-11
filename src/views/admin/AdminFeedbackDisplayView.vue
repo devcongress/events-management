@@ -27,6 +27,7 @@ const unavailableCopy = computed(() => {
 
 const eventDateCopy = computed(() => {
   if (!event.value) return '';
+
   return new Intl.DateTimeFormat('en', {
     weekday: 'short',
     month: 'short',
@@ -61,8 +62,10 @@ async function loadDisplay() {
 
     if (statusPayload.available && statusPayload.public_url) {
       let qrDestination = statusPayload.public_url;
+
       try {
         const shortLink = await ensureAdminShortLink({ destination: 'event_feedback', event_id: eventId.value });
+
         qrDestination = shortLink.url;
       } catch {
         // The direct event feedback URL stays available if the short-link service is unavailable.

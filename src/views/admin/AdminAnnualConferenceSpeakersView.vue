@@ -64,6 +64,7 @@ const speakersQuery = useQuery({
 const submissions = computed(() => speakersQuery.data.value?.submissions ?? []);
 const counts = computed(() => submissions.value.reduce<Record<SpeakerSubmissionStatus, number>>((total, submission) => {
   total[submission.status] += 1;
+
   return total;
 }, { submitted: 0, selected: 0, not_selected: 0, withdrawn: 0 }));
 const visibleSubmissions = computed(() => submissions.value
@@ -75,24 +76,29 @@ const paginatedSubmissions = computed(() => visibleSubmissions.value.slice((page
 const canManage = computed(() => speakersQuery.data.value?.permissions.can_manage === true);
 const approvalBlockedReason = computed(() => {
   const data = speakersQuery.data.value;
+
   if (!data?.email_delivery.configured) return 'Configure speaker decision email before accepting or rejecting proposals.';
   if (!data.email_delivery.workspace_links_configured) return 'Configure speaker workspace link signing before accepting proposals.';
   if (!data.call.logistics_deadline || new Date(data.call.logistics_deadline).getTime() <= Date.now()) return 'Set a future speaker logistics deadline before accepting proposals.';
+
   return null;
 });
 const selectedSubmission = computed(() => submissions.value.find((submission) => submission.id === selectedSubmissionId.value) ?? null);
 const canRecoverSelectedWorkspaceEmail = computed(() => {
   const submission = selectedSubmission.value;
+
   if (!submission || submission.status !== 'selected' || !submission.logistics || ['accepted', 'delivered'].includes(submission.decision_email_status ?? '')) return false;
   if (!['pending', 'failed'].includes(submission.decision_email_status ?? '')) return false;
   if (submission.decision_email_status === 'failed'
     && submission.decision_email_retryable === false
     && submission.decision_email_last_error !== 'Automatic email retries were exhausted. Review the recipient and retry manually.') return false;
   if (submission.decision_email_status !== 'pending' || !submission.decision_email_last_attempt_at) return true;
+
   return new Date(submission.decision_email_last_attempt_at).getTime() <= emailRecoveryClock.value - 5 * 60 * 1000;
 });
 let emailRecoveryTimer: number | undefined;
 let publicLinkCopyResetTimer: number | undefined;
+
 onMounted(() => {
   emailRecoveryTimer = window.setInterval(() => { emailRecoveryClock.value = Date.now(); }, 30_000);
 });
@@ -207,6 +213,7 @@ async function copyPublicLink() {
   publicLinkCopyState.value = 'copying';
   try {
     const shortLink = await ensureAdminShortLink({ destination: 'conference_cfp', conference_year: Number(year.value) });
+
     await copyTextToClipboard(shortLink.url);
     publicLinkCopyState.value = 'copied';
     if (publicLinkCopyResetTimer) window.clearTimeout(publicLinkCopyResetTimer);
@@ -239,6 +246,7 @@ function proposalStatusLabel(status: SpeakerSubmissionStatus): string {
 function toLocalDateTimeInput(value: string): string {
   const date = new Date(value);
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+
   return local.toISOString().slice(0, 16);
 }
 </script>

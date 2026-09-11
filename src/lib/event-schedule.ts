@@ -3,6 +3,7 @@ const EVENT_TIME_ZONE = 'Africa/Accra';
 function validDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
+
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -34,10 +35,12 @@ export function formatPublicEventSchedule(
   endsAt?: string | null,
 ): string {
   const start = validDate(startsAt);
+
   if (!start) return 'Time to be announced';
 
   const end = validDate(endsAt);
   const startLabel = `${dateFormatter.format(start)} at ${timeFormatter.format(start)}`;
+
   if (!end || end.getTime() <= start.getTime()) return startLabel;
 
   if (dateKey(start) === dateKey(end)) {

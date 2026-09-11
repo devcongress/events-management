@@ -8,6 +8,7 @@ let tempRoot: string;
 
 async function importMockDb() {
   vi.resetModules();
+
   return import('./index');
 }
 
@@ -32,6 +33,7 @@ describe('mock-db file store', () => {
 
   it('throws instead of hiding invalid JSON', async () => {
     const { readData } = await importMockDb();
+
     await fs.writeFile(path.join(tempRoot, 'data', 'broken.json'), '{not-json', 'utf-8');
 
     await expect(readData('broken')).rejects.toThrow('Unable to read data file');

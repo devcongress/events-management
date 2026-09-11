@@ -11,6 +11,7 @@ import { annualConferencePath, mobileAnnualConferencePath } from './annual-confe
 import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
 import { notify } from './lib/notify';
 import { shouldRedirectUnauthenticatedOrganizer } from './lib/organizer-session-continuation';
+import { shouldShowAuthenticatedAppHeader } from './lib/app-shell';
 import { queryClient } from './lib/query';
 import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from './system-design-participant-route';
 import {
@@ -126,7 +127,11 @@ const showOrganizerAccessSurface = computed(() => (
 const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
 const isConferenceVolunteer = computed(() => adminSessionQuery.data.value?.user?.role === 'volunteer');
 const currentOrganizerRole = computed(() => adminSessionQuery.data.value?.user?.role ?? null);
-const showAppHeader = computed(() => !isStandaloneRoute.value && isOrganizerAuthenticated.value);
+const showAppHeader = computed(() => shouldShowAuthenticatedAppHeader({
+  authenticated: isOrganizerAuthenticated.value,
+  isLoginRoute: isLoginRoute.value,
+  isStandaloneRoute: isStandaloneRoute.value,
+}));
 const showPrimaryNavigation = computed(() => (
   showAppHeader.value
   && isOrganizerAuthenticated.value
@@ -134,6 +139,7 @@ const showPrimaryNavigation = computed(() => (
 ));
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
+
   if (session?.authenticated && session.user?.role === 'volunteer') {
     return [];
   }
@@ -146,7 +152,9 @@ const adminLinks = computed(() => {
 });
 const adminEventId = computed(() => {
   const value = route.params.eventId;
+
   if (Array.isArray(value)) return value[0];
+
   return value || null;
 });
 const primaryLinks = computed(() => adminLinks.value);
@@ -186,11 +194,14 @@ const keyboardDismissStyle = computed(() => ({
 }));
 const adminReturnSource = computed(() => {
   const value = route.query.from;
+
   if (value === 'attendance' || value === 'feedback') return value;
+
   return null;
 });
 const adminFeedbackReturnMonth = computed(() => {
   const value = route.query.month;
+
   return typeof value === 'string' && /^\d{4}-\d{2}$/.test(value) ? value : null;
 });
 const adminReturnLink = computed(() => {
@@ -201,6 +212,7 @@ const adminReturnLink = computed(() => {
   if (adminReturnSource.value === 'feedback') {
     if (adminFeedbackReturnMonth.value) {
       const params = new URLSearchParams({ month: adminFeedbackReturnMonth.value });
+
       return { href: `${adminPath('feedback')}?${params.toString()}`, label: 'Feedback' };
     }
 
@@ -218,6 +230,7 @@ const activeNavHref = computed(() => {
     .flat()
     .filter((link) => {
       if (link.href === '/') return route.path === '/';
+
       return route.path === link.href || route.path.startsWith(`${link.href}/`);
     })
     .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
@@ -237,13 +250,16 @@ const annualConferenceSectionOrder = ['', 'work-plan', 'timeline', 'volunteers']
 
 function getAdminEventSection(path: string): { eventId: string; index: number } | null {
   const eventsBase = `${adminPath('events')}/`;
+
   if (!path.startsWith(eventsBase)) return null;
 
   const [eventId, section = ''] = path.slice(eventsBase.length).split('/');
+
   if (!eventId || eventId === 'new') return null;
 
   const normalizedSection = section === 'quiz' ? 'quiz' : section;
   const index = adminEventSectionOrder.indexOf(normalizedSection);
+
   if (index === -1) return null;
 
   return { eventId, index };
@@ -251,12 +267,15 @@ function getAdminEventSection(path: string): { eventId: string; index: number } 
 
 function getAnnualConferenceSection(path: string): { year: string; index: number } | null {
   const conferenceBase = `${adminPath('annual-conference')}/`;
+
   if (!path.startsWith(conferenceBase)) return null;
 
   const [year, section = '', extraSegment] = path.slice(conferenceBase.length).split('/');
+
   if (!/^\d{4}$/.test(year) || extraSegment) return null;
 
   const index = annualConferenceSectionOrder.indexOf(section);
+
   if (index === -1) return null;
 
   return { year, index };
@@ -265,6 +284,7 @@ function getAnnualConferenceSection(path: string): { year: string; index: number
 function updateRouteTransition(toPath: string, fromPath?: string) {
   if (!fromPath) {
     routeTransitionName.value = 'page';
+
     return;
   }
 
@@ -278,6 +298,7 @@ function updateRouteTransition(toPath: string, fromPath?: string) {
     && toConferenceSection.index !== fromConferenceSection.index
   ) {
     routeTransitionName.value = 'page-stable';
+
     return;
   }
 
@@ -286,6 +307,7 @@ function updateRouteTransition(toPath: string, fromPath?: string) {
 
   if (toSection && fromSection && toSection.eventId === fromSection.eventId && toSection.index !== fromSection.index) {
     routeTransitionName.value = toSection.index > fromSection.index ? 'page-tab-forward' : 'page-tab-back';
+
     return;
   }
 
@@ -308,6 +330,7 @@ function routeViewKey(routeForKey: typeof route) {
   if (routeForKey.name === 'admin-talks') {
     const value = routeForKey.params.eventId;
     const eventId = Array.isArray(value) ? value[0] : value;
+
     return `admin-talks:${String(eventId ?? '')}`;
   }
 
@@ -371,6 +394,7 @@ function clearLocalSupabaseSession() {
 function lockOrganizerSession() {
   if (organizerSessionEnding) return;
   const redirectPath = isLoginRoute.value ? adminPath('events') : route.fullPath;
+
   organizerSessionEnding = true;
   clearOrganizerSessionTimers();
   organizerSessionPauseState.value = null;
@@ -424,6 +448,7 @@ function scheduleOrganizerAbsoluteExpiry(expiresAt: string | undefined) {
   if (!expiresAt || organizerSessionEnding) return;
 
   const expiresAtMs = new Date(expiresAt).getTime();
+
   if (!Number.isFinite(expiresAtMs)) return;
   organizerAbsoluteExpiryTimer = window.setTimeout(lockOrganizerSession, Math.max(0, expiresAtMs - Date.now()));
 }
@@ -435,6 +460,7 @@ async function revalidateOrganizerSession() {
       queryFn: fetchAdminSession,
       staleTime: 0,
     });
+
     if (!session.authenticated) lockOrganizerSession();
   } catch {
     // A transient network error must not extend the server-side expiry.
@@ -451,8 +477,10 @@ async function staySignedIn() {
       queryFn: fetchAdminSession,
       staleTime: 0,
     });
+
     if (!session.authenticated) {
       lockOrganizerSession();
+
       return;
     }
 
@@ -540,13 +568,16 @@ function syncOrganizerViewportRoute() {
 function isEditableElement(element: Element | null): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false;
   if (element.isContentEditable) return true;
+
   return element.matches('input:not([type="hidden"]):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])');
 }
 
 function updateKeyboardInset() {
   const visualViewport = window.visualViewport;
+
   if (!visualViewport) {
     keyboardInset.value = 0;
+
     return;
   }
 
@@ -578,6 +609,7 @@ function syncAdminEventTabsObserver() {
 
   if (!adminEventTabsShell.value) {
     updateAdminEventTabsHeight();
+
     return;
   }
 
@@ -589,6 +621,7 @@ function handleDocumentPointerDown(event: PointerEvent) {
   if (!isMobileViewport() || !isEditableElement(document.activeElement)) return;
 
   const target = event.target;
+
   if (!(target instanceof Element)) return;
   if (target.closest('.keyboard-dismiss-control')) return;
   if (isEditableElement(target) || target.closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -606,12 +639,14 @@ async function logout() {
 
     if (!response.ok) {
       notify.error('Sign-out could not be completed. Please try again.');
+
       return;
     }
 
     clearOrganizerSessionTimers();
     organizerSessionPauseState.value = null;
     const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+
     queryClient.removeQueries({
       predicate: (query) => query.queryKey[0] !== queryKeys.adminSession[0],
     });
@@ -628,8 +663,10 @@ async function logout() {
     try {
       const { getSupabaseBrowserClient } = await import('@/lib/supabase/browser');
       const supabase = getSupabaseBrowserClient();
+
       if (supabase) {
         const { error } = await supabase.auth.signOut({ scope: 'local' });
+
         if (error) console.warn('Unable to clear the local Supabase browser session.', error);
       }
     } catch (error) {
@@ -694,6 +731,7 @@ watch(
         path: adminPath('login'),
         query: { redirect: routeFullPath },
       });
+
       return;
     }
 
@@ -707,6 +745,7 @@ watch(() => ({
 }), ({ authenticated, expiresAt }) => {
   if (!authenticated) {
     clearOrganizerSessionTimers();
+
     return;
   }
 

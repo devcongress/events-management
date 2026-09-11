@@ -115,6 +115,7 @@ const statusLabel = computed(() => {
   if (form.status === 'closed') return 'Closed';
   if (feedbackWindowHasNotOpened.value) return 'Scheduled';
   if (form.status === 'active' || feedbackWindowHasExpired.value) return 'Auto-closed';
+
   return form.auto_open_on_event_completion ? 'Scheduled' : 'Draft';
 });
 const completionRateCopy = computed(() => `${submissions.value.length} response${submissions.value.length === 1 ? '' : 's'}`);
@@ -137,6 +138,7 @@ const windowCopy = computed(() => {
 
   if (feedbackWindow.value.closes_at) {
     const closeLabel = FEEDBACK_WINDOW_FORMATTER.format(new Date(feedbackWindow.value.closes_at));
+
     return isOpen.value ? `Closes ${closeLabel}` : `Closed ${closeLabel}`;
   }
 
@@ -215,10 +217,12 @@ async function fetchCampaign() {
 
   try {
     const response = await fetch(`/api/events/${route.params.eventId}/feedback-campaign`);
+
     if (response.ok) {
       hydrateCampaign(await response.json());
     } else {
       const payload = await response.json().catch(() => ({}));
+
       error.value = payload.error ?? `Unable to load feedback campaign (${response.status})`;
     }
   } catch (loadError) {
@@ -249,10 +253,12 @@ async function saveCampaign(options: SaveCampaignOptions = {}) {
 
     if (response.ok) {
       const data = await response.json();
+
       hydrateCampaign({ ...data, submissions: submissions.value });
       notify.success(options.successMessage ?? 'Feedback campaign saved.', { id: 'feedback-campaign-saved' });
     } else {
       const payload = await response.json().catch(() => ({}));
+
       error.value = payload.error ?? 'Unable to save feedback campaign';
     }
   } catch {
@@ -280,6 +286,7 @@ function activityLabelKey(label: string): string {
 function scheduleActivityLabel(item: PublicMeetupScheduleItem): string {
   const title = item.title.trim();
   const lead = item.lead?.trim();
+
   if (!lead || title.toLowerCase().includes(lead.toLowerCase())) {
     return title;
   }
@@ -289,9 +296,11 @@ function scheduleActivityLabel(item: PublicMeetupScheduleItem): string {
 
 function isFeedbackActivity(item: PublicMeetupScheduleItem): boolean {
   const title = item.title.trim();
+
   if (!title) return false;
   if (item.type === 'break' || item.type === 'networking') return false;
   if (/^welcome\b/i.test(title)) return false;
+
   return true;
 }
 
@@ -301,6 +310,7 @@ function isDefaultCampaignDraft(campaign: FeedbackCampaign): boolean {
   if (campaign.intro !== 'Tell us what landed, what dragged, and what should change next month.') return false;
 
   const labels = campaign.questions.map((question) => question.label);
+
   return labels.length === 4
     && labels.includes('How would you rate today\'s event?')
     && labels.includes('Which talk or session was most useful?')
@@ -315,6 +325,7 @@ function buildActivityDrafts(sourceEvent: CommunityEvent, sourceTalks: Talk[]): 
   function addActivity(label: string, source: FeedbackActivityDraft['source']) {
     const normalizedLabel = label.trim();
     const key = activityLabelKey(normalizedLabel);
+
     if (!normalizedLabel || seen.has(key)) return;
     seen.add(key);
     drafts.push({
@@ -354,6 +365,7 @@ function generateQuestionsFromActivities() {
 
   if (selectedActivities.length === 0) {
     error.value = 'Add at least one activity before generating questions.';
+
     return;
   }
 
@@ -421,12 +433,14 @@ function setQuestionType(question: FeedbackQuestion, type: FeedbackQuestionType)
 
 function ratingBarHeight(count: number): string {
   if (count === 0 || ratingDistributionMaxCount.value === 0) return '0%';
+
   return `${Math.max(8, Math.round((count / ratingDistributionMaxCount.value) * 100))}%`;
 }
 
 function ratingBarColor(rating: number): string {
   if (rating >= 4) return '#e8117f';
   if (rating === 3) return '#f4df34';
+
   return '#111111';
 }
 
@@ -444,6 +458,7 @@ function downloadResponsesCsv() {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+
   link.href = blobUrl;
   link.download = `${eventLabel || 'event-feedback'}-responses.csv`;
   document.body.appendChild(link);
@@ -469,6 +484,7 @@ function openPreviewPublicForm() {
         options: [...question.options],
       })),
     };
+
     window.localStorage.setItem(previewDraftStorageKey(), JSON.stringify(draft));
   } catch {
     // The saved campaign remains available as the fallback preview.
@@ -534,6 +550,7 @@ async function removeFeedbackForm() {
   if (!event.value || removing.value) return;
 
   const confirmed = window.confirm(`Remove the feedback form for ${event.value.name}? Existing responses stay in the reports, but this form and its questions will be removed.`);
+
   if (!confirmed) return;
 
   removing.value = true;
@@ -547,7 +564,9 @@ async function removeFeedbackForm() {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
+
       error.value = payload.error ?? 'Unable to remove feedback form';
+
       return;
     }
 

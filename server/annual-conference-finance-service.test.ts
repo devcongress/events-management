@@ -83,6 +83,7 @@ function service(role: 'owner' | 'organizer', financeSnapshot = snapshot) {
     actor: { role, email: role === 'owner' ? 'owner@example.com' : 'organizer@example.com' },
     audit,
   });
+
   return { finance, repository, audit };
 }
 

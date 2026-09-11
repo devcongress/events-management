@@ -32,11 +32,13 @@ export function inferEventSeriesType(name: string | null | undefined): EventSeri
 
 export function resolveEventSeriesType(event: Pick<Event, 'name' | 'series_type'>): EventSeriesType | null {
   if (event.series_type === null) return null;
+
   return isEventSeriesType(event.series_type) ? event.series_type : inferEventSeriesType(event.name);
 }
 
 export function eventSeriesBadgeLabel(event: Pick<Event, 'name' | 'series_type'>): string | null {
   const seriesType = resolveEventSeriesType(event);
+
   return seriesType ? EVENT_SERIES_LABELS[seriesType] : null;
 }
 

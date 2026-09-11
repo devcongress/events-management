@@ -23,13 +23,16 @@ function textLine(value: string, fallback = ''): string {
 
 function safeHttpUrl(value: string | null | undefined): string | null {
   const candidate = value?.trim();
+
   if (!candidate || candidate.length > 2048) return null;
 
   try {
     const url = new URL(candidate);
+
     if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password || !url.hostname) {
       return null;
     }
+
     return url.toString();
   } catch {
     return null;
@@ -38,15 +41,19 @@ function safeHttpUrl(value: string | null | undefined): string | null {
 
 function eventDateRange(input: { eventDate: string; eventEndDate?: string | null }): { start: Date; end: Date; allDay: boolean } | null {
   const start = new Date(input.eventDate);
+
   if (Number.isNaN(start.getTime())) return null;
 
   const allDay = DATE_ONLY_PATTERN.test(input.eventDate);
   const suppliedEnd = input.eventEndDate ? new Date(input.eventEndDate) : null;
   const validEnd = suppliedEnd && !Number.isNaN(suppliedEnd.getTime()) ? suppliedEnd : null;
+
   if (allDay) {
     const inclusiveEnd = validEnd && validEnd.getTime() >= start.getTime() ? validEnd : start;
+
     return { start, end: new Date(inclusiveEnd.getTime() + 24 * 60 * 60 * 1000), allDay: true };
   }
+
   return {
     start,
     end: validEnd && validEnd.getTime() > start.getTime() ? validEnd : new Date(start.getTime() + DEFAULT_EVENT_DURATION_MS),
@@ -56,14 +63,17 @@ function eventDateRange(input: { eventDate: string; eventEndDate?: string | null
 
 function formatSchedule(input: { eventDate: string; eventEndDate?: string | null }): { date: string; month: string; day: string; time: string } {
   const range = eventDateRange(input);
+
   if (!range) return { date: 'Date to be announced', month: 'TBA', day: '—', time: 'Time to be announced' };
 
   const date = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: EVENT_TIME_ZONE }).format(range.start);
   const month = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: EVENT_TIME_ZONE }).format(range.start).toUpperCase();
   const day = new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: EVENT_TIME_ZONE }).format(range.start);
+
   if (range.allDay) return { date, month, day, time: 'Time to be announced' };
 
   const time = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: EVENT_TIME_ZONE });
+
   return { date, month, day, time: `${time.format(range.start)} – ${time.format(range.end)} GMT` };
 }
 
@@ -73,13 +83,16 @@ function calendarDate(value: Date, allDay: boolean): string {
 
 function googleCalendarUrl(input: { eventName: string; eventDate: string; eventEndDate?: string | null; locationName: string; eventUrl?: string | null }): string | null {
   const range = eventDateRange(input);
+
   if (!range) return null;
   const url = new URL('https://calendar.google.com/calendar/render');
+
   url.searchParams.set('action', 'TEMPLATE');
   url.searchParams.set('text', textLine(input.eventName, 'DevCongress event'));
   url.searchParams.set('dates', `${calendarDate(range.start, range.allDay)}/${calendarDate(range.end, range.allDay)}`);
   url.searchParams.set('details', ['Your place is confirmed for this DevCongress event.', safeHttpUrl(input.eventUrl) ? `Event details: ${safeHttpUrl(input.eventUrl)}` : null].filter(Boolean).join('\n\n'));
   url.searchParams.set('location', textLine(input.locationName, 'Location to be announced'));
+
   return url.toString();
 }
 

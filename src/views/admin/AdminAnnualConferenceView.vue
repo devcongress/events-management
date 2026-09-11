@@ -36,6 +36,7 @@ const organizersQuery = useQuery({
 const taskCompletionByPerson = computed(() => {
   const activeMembers = (organizersQuery.data.value?.organizers ?? [])
     .filter((member) => member.status === 'active');
+
   return summarizeAnnualConferenceTasksByOwner(tasks.value, activeMembers)
     .map((person) => ({
       ...person,
@@ -51,6 +52,7 @@ const taskCompletionByPerson = computed(() => {
 
 function formatConferenceDate(value: string | null | undefined): string {
   if (!value) return 'To be confirmed';
+
   return new Intl.DateTimeFormat('en-GH', {
     weekday: 'long',
     day: 'numeric',

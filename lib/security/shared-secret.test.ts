@@ -4,6 +4,7 @@ import { MINIMUM_SHARED_SECRET_BYTES, secureSharedSecret, sharedSecretStatus } f
 describe('shared application secrets', () => {
   it('accepts secrets containing at least 32 bytes after trimming', () => {
     const secret = 'a'.repeat(MINIMUM_SHARED_SECRET_BYTES);
+
     expect(secureSharedSecret(`  ${secret}  `)).toBe(secret);
   });
 

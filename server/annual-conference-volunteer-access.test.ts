@@ -54,6 +54,7 @@ const unrelatedTask: AnnualConferenceTask = {
 
 vi.mock('@/lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/admin-auth')>('@/lib/supabase/admin-auth');
+
   return {
     ...actual,
     getAdminSession: vi.fn(async () => mocks.session),
@@ -65,6 +66,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
         });
       }
       c.set('adminSession', mocks.session);
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -73,6 +75,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
 
 vi.mock('@/lib/supabase/server', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/server')>('@/lib/supabase/server');
+
   return {
     ...actual,
     getSupabaseAdminClient: vi.fn(() => ({
@@ -85,6 +88,7 @@ vi.mock('@/lib/supabase/server', async () => {
             error: null,
           })),
         };
+
         return builder;
       }),
     })),
@@ -186,6 +190,7 @@ describe('annual conference volunteer API access', () => {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ details, details_format: 'rich_text' }),
     });
+
     expect((await request()).status).toBe(403);
     expect(mocks.updateTask).not.toHaveBeenCalled();
     mocks.session.role = 'owner';
@@ -205,6 +210,7 @@ describe('annual conference volunteer API access', () => {
     const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-assigned', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
     });
+
     expect(response.status).toBe(400);
     expect(mocks.updateTask).not.toHaveBeenCalled();
   });

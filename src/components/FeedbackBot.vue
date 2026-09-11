@@ -74,6 +74,7 @@ const feedbackLimitMessage = computed(() => {
 
   if (cooldownRemaining > 0) {
     const minutes = Math.max(1, Math.ceil(cooldownRemaining / 60000));
+
     return `Feedback received. You can send another note in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
   }
 
@@ -108,6 +109,7 @@ function toggleOpen() {
       path: '/feedback',
       query: { from: route.fullPath },
     });
+
     return;
   }
 
@@ -127,8 +129,10 @@ function isMobileViewport() {
 
 function readSessionNumber(key: string, fallback = 0) {
   const value = window.sessionStorage.getItem(key);
+
   if (value === null) return fallback;
   const parsed = Number(value);
+
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
@@ -146,6 +150,7 @@ function persistSubmissionTimestamps(timestamps: number[]) {
 function readSubmissionTimestamps() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(FEEDBACK_SUBMISSIONS_KEY) ?? '[]');
+
     submissionTimestamps.value = Array.isArray(parsed)
       ? parsed.filter((value) => typeof value === 'number' && Number.isFinite(value))
       : [];
@@ -163,13 +168,16 @@ function recordSuccessfulSubmission() {
 
 function updateBotVisibility() {
   const views = readSessionNumber(FEEDBACK_SESSION_VIEWS_KEY) + 1;
+
   window.sessionStorage.setItem(FEEDBACK_SESSION_VIEWS_KEY, String(views));
   const nextView = readSessionNumber(FEEDBACK_NEXT_VIEW_KEY, FEEDBACK_SHOW_AFTER_VIEWS);
+
   visible.value = submitted.value || views >= nextView;
 }
 
 function snoozeFeedbackBot() {
   const views = readSessionNumber(FEEDBACK_SESSION_VIEWS_KEY);
+
   window.sessionStorage.setItem(FEEDBACK_NEXT_VIEW_KEY, String(views + FEEDBACK_SNOOZE_VIEWS));
   visible.value = false;
   open.value = false;
@@ -177,10 +185,12 @@ function snoozeFeedbackBot() {
 
 function syncFeedbackTextareaHeight() {
   const element = feedbackTextarea.value;
+
   if (!element) return;
 
   element.style.height = 'auto';
   const nextHeight = Math.min(element.scrollHeight, FEEDBACK_TEXTAREA_MAX_HEIGHT);
+
   element.style.height = `${nextHeight}px`;
   element.style.overflowY = element.scrollHeight > FEEDBACK_TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden';
 }
@@ -199,6 +209,7 @@ async function submitFeedback() {
 
   if (!canSubmit.value || !formValidation.success) {
     error.value = turnstileError.value || feedbackLimitMessage.value || validationMessage.value || null;
+
     return;
   }
 
@@ -227,6 +238,7 @@ async function submitFeedback() {
 
     if (!response.ok) {
       const data = await response.json().catch(() => null);
+
       throw new Error(data?.error ?? 'Unable to send feedback');
     }
 

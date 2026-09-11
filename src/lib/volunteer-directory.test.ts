@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildVolunteerDirectoryRows, filterVolunteerDirectory, type VolunteerDirectorySearchRow } from './volunteer-directory';
+import {
+  buildVolunteerDirectoryRows,
+  filterVolunteerDirectory,
+  volunteerDirectoryActions,
+  volunteerDirectoryAssignments,
+  type VolunteerDirectoryRow,
+  type VolunteerDirectorySearchRow,
+} from './volunteer-directory';
 
 const rows: VolunteerDirectorySearchRow[] = [
   {
@@ -57,5 +64,92 @@ describe('volunteer directory filtering', () => {
     expect(directory).toHaveLength(2);
     expect(directory.map((row) => row.name)).toEqual(['Abena Davidson', 'Mariam Yakubu']);
     expect(directory.find((row) => row.name === 'Mariam Yakubu')?.email).toBe('mariam@example.com');
+  });
+});
+
+describe('volunteer responsibility matching', () => {
+  const volunteer: VolunteerDirectoryRow = {
+    id: 'application-1',
+    membershipId: 'member-1',
+    name: 'Mariam Yakubu',
+    email: 'mariam@example.com',
+    xHandle: null,
+    slackName: null,
+    signedUpAt: null,
+    status: 'active',
+  };
+  const task = (overrides: Partial<{
+    id: string;
+    title: string;
+    status: string;
+    accountable_owner: string | null;
+    collaborators: string[];
+  }> = {}) => ({
+    id: 'task-1',
+    title: 'Venue walkthrough',
+    status: 'not_started',
+    accountable_owner: null,
+    collaborators: [],
+    ...overrides,
+  });
+
+  it('finds work assigned by email, display name, or collaborator identity', () => {
+    const tasks = [
+      task({ id: 'email', accountable_owner: 'MARIAM@example.com' }),
+      task({ id: 'name', accountable_owner: 'Mariam Yakubu' }),
+      task({ id: 'collaborator', collaborators: ['mariam@example.com'] }),
+      task({ id: 'other', accountable_owner: 'someone@example.com' }),
+    ];
+
+    expect(volunteerDirectoryAssignments(volunteer, tasks).map((item) => item.id))
+      .toEqual(['email', 'name', 'collaborator']);
+  });
+
+  it('returns no assignments before a person is selected', () => {
+    expect(volunteerDirectoryAssignments(null, [task()])).toEqual([]);
+  });
+});
+
+describe('volunteer next actions', () => {
+  const applicant: VolunteerDirectoryRow = {
+    id: 'application:application-1',
+    membershipId: null,
+    name: 'Mariam Yakubu',
+    email: 'mariam@example.com',
+    xHandle: null,
+    slackName: null,
+    signedUpAt: '2026-09-10T10:00:00.000Z',
+    status: 'applicant',
+  };
+  const options = {
+    role: 'organizer' as const,
+    year: '2026',
+    canViewAllTasks: true,
+    canAssignTasks: true,
+    workPlanPath: '/conference/2026/work-plan',
+    accessPath: '/people',
+  };
+
+  it('keeps access setup explicit and separate from assignment', () => {
+    const actions = volunteerDirectoryActions(applicant, options);
+
+    expect(actions.map((action) => action.label)).toEqual([
+      'Review or assign work',
+      'Set up workspace access',
+    ]);
+    expect(actions[1]?.href).toContain('volunteer_application=application-1');
+    expect(actions[1]?.description).toContain('does not approve automatically');
+  });
+
+  it('does not expose organizer actions to volunteers', () => {
+    expect(volunteerDirectoryActions(applicant, { ...options, role: 'volunteer' })).toEqual([]);
+  });
+
+  it('only lets owners manage an active member’s delegated responsibilities', () => {
+    const active = { ...applicant, id: 'member:member-1', membershipId: 'member-1', status: 'active' as const };
+
+    expect(volunteerDirectoryActions(active, options).some((action) => action.label === 'Manage responsibilities')).toBe(false);
+    expect(volunteerDirectoryActions(active, { ...options, role: 'owner' }).at(-1)?.href)
+      .toContain('member=member-1');
   });
 });

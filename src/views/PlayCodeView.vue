@@ -24,11 +24,13 @@ let clockTimer: number | undefined;
 const remaining = computed(() => {
   if (!state.value?.question_started_at || !state.value.current_question) return state.value?.current_question?.time_limit_seconds ?? 20;
   const elapsed = Math.floor((now.value - new Date(state.value.question_started_at).getTime()) / 1000);
+
   return Math.max(0, state.value.current_question.time_limit_seconds - elapsed);
 });
 
 const progress = computed(() => {
   const limit = state.value?.current_question?.time_limit_seconds ?? 20;
+
   return (remaining.value / limit) * 100;
 });
 
@@ -48,18 +50,22 @@ async function joinQuiz(name = '') {
 
   if (!response.ok) {
     const data = await response.json();
+
     if (data.code === 'nickname_required') {
       showNicknamePrompt.value = true;
       nicknameInput.value = nickname.value;
       joining.value = false;
+
       return;
     }
     joinError.value = data.error || 'Invalid quiz code or quiz not available';
     joining.value = false;
+
     return;
   }
 
   const data = await response.json();
+
   sessionId.value = data.session_id;
   userId.value = data.user_id;
   joining.value = false;
@@ -69,6 +75,7 @@ async function joinQuiz(name = '') {
 
 function submitNickname() {
   const name = nicknameInput.value.trim();
+
   if (!name) return;
   localStorage.setItem('quiz-nickname', name);
   nickname.value = name;
@@ -92,12 +99,15 @@ async function pollState() {
   const response = await fetch(`/api/quiz/state?${stateQuery.toString()}`, {
     headers: { 'X-Quiz-Device-ID': getDeviceId() },
   });
+
   if (response.ok) {
     const nextState = await response.json() as QuizStateResponse;
+
     if (state.value?.session.current_question_index !== nextState.session.current_question_index) {
       selectedAnswer.value = null;
     }
     state.value = nextState;
+
     return;
   }
 
@@ -133,9 +143,11 @@ onMounted(async () => {
 
   const activeResponse = await fetch('/api/quiz/active');
   const active = await activeResponse.json();
+
   if (!active.has_active_quiz) {
     joinError.value = 'No live quiz is available right now';
     joining.value = false;
+
     return;
   }
 

@@ -19,6 +19,7 @@ export function isEventFeedbackNotAttended(value: unknown): value is typeof EVEN
 
 export function isEventFeedbackAnswerPresent(value: unknown): boolean {
   if (value === null || value === undefined) return false;
+
   return typeof value !== 'string' || value.trim().length > 0;
 }
 
@@ -42,6 +43,7 @@ export function normalizeEventFeedbackAnswer(
     case 'choice': {
       if (typeof rawValue !== 'string') return { valid: false };
       const value = rawValue.trim();
+
       return question.options.includes(value)
         ? { valid: true, value }
         : { valid: false };

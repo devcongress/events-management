@@ -29,7 +29,7 @@ const mobileEventSource = readFileSync(
 describe('Annual Conference assignee work-plan routing', () => {
   it('passes the selected assignee from Overview and applies it across the entire conference', () => {
     expect(overviewSource).toContain('query: { owner: person.filterOwner }');
-    expect(workPlanSource).toContain('watch([() => route.fullPath, tasks, phases, organizerMembers]');
+    expect(workPlanSource).toContain('watch([() => route.fullPath, tasks, phases, organizerMembers, assignedAccess]');
     expect(workPlanSource).toContain('ownerDirectory.value.matches(task.accountable_owner, ownerFilter.value)');
     expect(workPlanSource).toContain('resolveAnnualConferenceOwnerFilter(tasks.value, context.owner, organizerMembers.value)');
     expect(workPlanSource).toContain("(context.owner ? 'all' : defaultAnnualConferencePhaseScope(phases.value, today.value))");
@@ -51,6 +51,14 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(mobileEventSource).toContain('void router.push({');
     expect(mobileEventSource).toContain('watch(() => route.query.section');
     expect(mobileConferenceSource).toContain('pushMobileConferenceContext({ task: taskId })');
-    expect(mobileConferenceSource).toContain('watch([() => route.fullPath, tasks, phases]');
+    expect(mobileConferenceSource).toContain('watch([() => route.fullPath, tasks, phases, assignedAccess]');
+  });
+
+  it('shows volunteer identity instead of an owner selector for assigned-only work plans', () => {
+    expect(workPlanSource).toContain('v-if="assignedAccess"');
+    expect(workPlanSource).toContain('Tasks for');
+    expect(workPlanSource).toContain('{{ currentMemberLabel }}');
+    expect(mobileConferenceSource).toContain('class="assigned-task-owner"');
+    expect(mobileConferenceSource).toContain('ownerFilter.value = assignedAccess.value ? \'all\'');
   });
 });

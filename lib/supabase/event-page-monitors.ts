@@ -34,11 +34,13 @@ const localMonitors = new Map<string, EventPageMonitor>();
 function eligible(event: Event): boolean {
   const external = event.ownership === 'external' || event.submission_source === 'public_submission' || Boolean(event.source_submission_id);
   const published = event.publish_to_website !== false && event.publication_status !== 'draft' && !event.deleted_at;
+
   return external && published && Boolean(baselineForEvent(event));
 }
 
 function sameSnapshot(left: EventPageMonitorSnapshot, right: EventPageMonitorSnapshot): boolean {
   const fields: Array<keyof EventPageMonitorSnapshot> = ['source_url', 'final_url', 'name', 'starts_at', 'ends_at', 'location', 'event_status', 'registration_url'];
+
   return fields.every((field) => left[field] === right[field]);
 }
 
@@ -48,10 +50,12 @@ async function configureEventPageMonitor(event: Event, forceReset: boolean, c?: 
   const checkedAt = new Date();
   const now = checkedAt.toISOString();
   const nextCheckAt = nextEventPageCheckAt(event.event_date, event.end_date, checkedAt);
+
   if (!nextCheckAt) return null;
 
   if (!isSupabaseRuntimeEnabled(c)) {
     const existing = localMonitors.get(event.id);
+
     if (!forceReset && existing && existing.source_url === baseline.source_url && sameSnapshot(existing.baseline, baseline)) return { ...existing };
     const monitor: EventPageMonitor = {
       event_id: event.id,
@@ -71,12 +75,15 @@ async function configureEventPageMonitor(event: Event, forceReset: boolean, c?: 
       created_at: existing?.created_at ?? now,
       updated_at: now,
     };
+
     localMonitors.set(event.id, monitor);
+
     return { ...monitor };
   }
 
   const client = getSupabaseAdminClient(c) as any;
   const { data: existing, error: readError } = await client.from('event_page_monitors').select('*').eq('event_id', event.id).maybeSingle();
+
   if (readError) throw new Error('Unable to load event page monitoring.');
   if (!forceReset && existing && existing.source_url === baseline.source_url && sameSnapshot(existing.baseline, baseline)) return existing as EventPageMonitor;
 
@@ -98,7 +105,9 @@ async function configureEventPageMonitor(event: Event, forceReset: boolean, c?: 
     updated_at: now,
   };
   const { data, error } = await client.from('event_page_monitors').upsert(row, { onConflict: 'event_id' }).select('*').single();
+
   if (error || !data) throw new Error('Unable to configure event page monitoring.');
+
   return data as EventPageMonitor;
 }
 
@@ -114,12 +123,15 @@ export async function getEventPageMonitor(eventId: string, c?: Context): Promise
   if (!isSupabaseRuntimeEnabled(c)) return localMonitors.get(eventId) ?? null;
   const client = getSupabaseAdminClient(c) as any;
   const { data, error } = await client.from('event_page_monitors').select('*').eq('event_id', eventId).maybeSingle();
+
   if (error) throw new Error('Unable to load event page monitoring.');
+
   return data as EventPageMonitor | null;
 }
 
 export async function listDueEventPageMonitors(limit: number, c?: Context): Promise<EventPageMonitor[]> {
   const now = new Date().toISOString();
+
   if (!isSupabaseRuntimeEnabled(c)) {
     return [...localMonitors.values()]
       .filter((monitor) => monitor.enabled && monitor.next_check_at && monitor.next_check_at <= now)
@@ -134,7 +146,9 @@ export async function listDueEventPageMonitors(limit: number, c?: Context): Prom
     .lte('next_check_at', now)
     .order('next_check_at', { ascending: true })
     .limit(limit);
+
   if (error) throw new Error('Unable to load due event page checks.');
+
   return (data ?? []) as EventPageMonitor[];
 }
 
@@ -144,11 +158,15 @@ export async function saveEventPageMonitor(
   c?: Context,
 ): Promise<EventPageMonitor> {
   const now = new Date().toISOString();
+
   if (!isSupabaseRuntimeEnabled(c)) {
     const existing = localMonitors.get(eventId);
+
     if (!existing) throw new Error('Event page monitoring is not configured.');
     const saved = { ...existing, ...update, updated_at: now };
+
     localMonitors.set(eventId, saved);
+
     return { ...saved };
   }
   const client = getSupabaseAdminClient(c) as any;
@@ -157,6 +175,8 @@ export async function saveEventPageMonitor(
     .eq('event_id', eventId)
     .select('*')
     .single();
+
   if (error || !data) throw new Error('Unable to save event page monitoring.');
+
   return data as EventPageMonitor;
 }

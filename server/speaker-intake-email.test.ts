@@ -20,6 +20,7 @@ vi.mock('../lib/supabase/admin-auth', async () => {
     getAdminSession: vi.fn(async () => session),
     requireAdmin: vi.fn(async (c: { set: (key: string, value: unknown) => void }) => {
       c.set('adminSession', session);
+
       return null;
     }),
     recordAdminAudit: vi.fn(async () => undefined),
@@ -61,6 +62,7 @@ async function importEmailModules() {
   vi.resetModules();
   const app = (await import('./app')).default;
   const links = await import('../lib/mock-db/speaker-intake-links');
+
   return { app, links };
 }
 
@@ -79,6 +81,7 @@ async function enableArchiveRequestsForTest(app: { request: (input: string, init
   const checklistResponse = await app.request(`http://localhost/api/events/${event.id}/checklist`);
   const checklist = await checklistResponse.json() as { items: Array<{ id: string; label: string }> };
   const archiveRequests = checklist.items.find((item) => item.label === 'Request archive materials');
+
   expect(archiveRequests).toBeDefined();
 
   const enableResponse = await app.request(`http://localhost/api/events/${event.id}/checklist/${archiveRequests!.id}`, {
@@ -86,6 +89,7 @@ async function enableArchiveRequestsForTest(app: { request: (input: string, init
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ disabled: false }),
   });
+
   expect(enableResponse.status).toBe(200);
 }
 
@@ -110,6 +114,7 @@ afterEach(async () => {
 describe('speaker intake email API', () => {
   it('rejects new archive requests until an organizer enables the workflow', async () => {
     const resendFetch = vi.fn();
+
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
 
@@ -117,6 +122,7 @@ describe('speaker intake email API', () => {
       recipients: [{ program_item_index: 0, speaker_email: 'ama@example.com' }],
       expires_in_days: 7,
     });
+
     expect(emailResponse.status).toBe(409);
     await expect(emailResponse.json()).resolves.toEqual({
       error: 'Archive requests are disabled for this event. Enable archive requests before creating a new request.',
@@ -127,6 +133,7 @@ describe('speaker intake email API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     });
+
     expect(linkResponse.status).toBe(409);
     expect(resendFetch).not.toHaveBeenCalled();
     await expect(links.getSpeakerIntakeLinksByEvent(event.id)).resolves.toEqual([]);
@@ -139,8 +146,10 @@ describe('speaker intake email API', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
+
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
+
     await enableArchiveRequestsForTest(app);
 
     const firstResponse = await requestSpeakerEmails(app, {
@@ -159,6 +168,7 @@ describe('speaker intake email API', () => {
     expect(resendFetch).toHaveBeenCalledTimes(1);
     const [, resendRequest] = resendFetch.mock.calls[0];
     const resendPayload = JSON.parse(String(resendRequest?.body));
+
     expect(resendPayload).toEqual([
       expect.objectContaining({
         from: 'DevCongress Speakers <speakers@updates.devcongress.org>',
@@ -172,6 +182,7 @@ describe('speaker intake email API', () => {
       }),
     ]);
     const savedLinks = await links.getSpeakerIntakeLinksByEvent(event.id);
+
     expect(savedLinks).toHaveLength(2);
     expect(savedLinks).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -213,8 +224,10 @@ describe('speaker intake email API', () => {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }));
+
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
+
     await enableArchiveRequestsForTest(app);
     const send = () => requestSpeakerEmails(app, {
       recipients: [{ program_item_index: 0, speaker_email: 'ama@example.com' }],
@@ -222,14 +235,18 @@ describe('speaker intake email API', () => {
     });
 
     const failedResponse = await send();
+
     expect(failedResponse.status).toBe(502);
     const [failedLink] = await links.getSpeakerIntakeLinksByEvent(event.id);
+
     expect(failedLink).toMatchObject({ email_status: 'failed' });
 
     const retryResponse = await send();
+
     expect(retryResponse.status).toBe(200);
     await expect(retryResponse.json()).resolves.toMatchObject({ sent_count: 1 });
     const [acceptedLink] = await links.getSpeakerIntakeLinksByEvent(event.id);
+
     expect(acceptedLink).toMatchObject({
       token: null,
       email_status: 'accepted',
@@ -245,8 +262,10 @@ describe('speaker intake email API', () => {
 
   it('rejects an invalid organizer-provided email before calling Resend', async () => {
     const resendFetch = vi.fn();
+
     vi.stubGlobal('fetch', resendFetch);
     const { app, links } = await importEmailModules();
+
     await enableArchiveRequestsForTest(app);
 
     const response = await requestSpeakerEmails(app, {

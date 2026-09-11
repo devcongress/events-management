@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/admin-auth')>('@/lib/supabase/admin-auth');
+
   return {
     ...actual,
     getAdminSession: vi.fn(async () => ({
@@ -29,6 +30,7 @@ vi.mock('@/lib/supabase/admin-auth', async () => {
 
 vi.mock('@/lib/supabase/annual-conference-work-plan', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/annual-conference-work-plan')>('@/lib/supabase/annual-conference-work-plan');
+
   return {
     ...actual,
     getSupabaseAnnualConferenceWorkPlan: vi.fn(async () => ({

@@ -106,6 +106,7 @@ export async function getSupabaseAnnualConferenceFinance(
         .order('received_date', { ascending: false })
         .order('created_at', { ascending: false }),
     ]);
+
   if (amendmentResult.error) throw new Error(amendmentResult.error.message);
   if (receiptResult.error) throw new Error(receiptResult.error.message);
 
@@ -141,7 +142,9 @@ export async function createSupabaseAnnualConferenceFinanceBudget(
     .insert(insert)
     .select('*')
     .single();
+
   if (result.error) throw new Error(result.error.message);
+
   return toBudget(result.data);
 }
 
@@ -173,7 +176,9 @@ export async function createSupabaseAnnualConferenceFinanceEntry(
     .insert(insert)
     .select('*')
     .single();
+
   if (result.error) throw new Error(result.error.message);
+
   return toEntry(result.data);
 }
 
@@ -190,7 +195,9 @@ export async function amendSupabaseAnnualConferenceFinanceIncomeExpectation(
     p_reason: input.reason,
     p_actor_email: actorEmail,
   });
+
   if (result.error) throw new Error(result.error.message);
+
   return toEntry(result.data);
 }
 
@@ -210,7 +217,9 @@ export async function recordSupabaseAnnualConferenceFinanceIncomeReceipt(
     p_actor_email: actorEmail,
     p_idempotency_key: input.idempotency_key,
   });
+
   if (result.error) throw new Error(result.error.message);
+
   return toEntry(result.data);
 }
 
@@ -226,6 +235,8 @@ export async function cancelSupabaseAnnualConferenceFinanceIncomeExpectation(
     p_reason: input.reason,
     p_actor_email: actorEmail,
   });
+
   if (result.error) throw new Error(result.error.message);
+
   return toEntry(result.data);
 }

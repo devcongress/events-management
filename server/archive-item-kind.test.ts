@@ -28,6 +28,7 @@ async function importArchiveModules() {
   const submissions = await import('../lib/mock-db/speaker-submissions');
   const talks = await import('../lib/mock-db/talks');
   const app = (await import('./app')).default;
+
   return { app, links, submissions, talks };
 }
 
@@ -103,6 +104,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       bio: 'Community builder.',
       resource_url: 'https://example.com/selected-demo-ready',
     });
+
     await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
     const { link, token } = await links.createSpeakerIntakeLink({
       event_id: event.id,
@@ -115,6 +117,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       speaker_email: submission.speaker_email,
       talk_title: submission.title,
     });
+
     await submissions.updateSpeakerSubmission(submission.id, {
       selected_intake_link_id: link.id,
     });
@@ -122,6 +125,7 @@ describe('archive item discriminator at the public intake boundary', () => {
     const prefillResponse = await app.request(
       `http://localhost/api/events/${event.id}/speaker-intake/${token}`,
     );
+
     expect(prefillResponse.status).toBe(200);
     await expect(prefillResponse.json()).resolves.toMatchObject({
       prefill: { slides_url: 'https://example.com/selected-demo-ready' },
@@ -179,6 +183,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       abstract: 'The organizer changed the selection decision.',
       bio: 'Community builder.',
     });
+
     await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
     const { link, token } = await links.createSpeakerIntakeLink({
       event_id: event.id,
@@ -191,6 +196,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       speaker_email: submission.speaker_email,
       talk_title: submission.title,
     });
+
     await submissions.updateSpeakerSubmission(submission.id, {
       selected_intake_link_id: link.id,
       status: 'not_selected',
@@ -225,6 +231,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       abstract: 'This proposal is intentionally mismatched in the test.',
       bio: 'Community builder.',
     });
+
     await submissions.updateSpeakerSubmission(submission.id, { status: 'selected' });
     const { link, token } = await links.createSpeakerIntakeLink({
       event_id: event.id,
@@ -237,6 +244,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       speaker_email: submission.speaker_email,
       talk_title: submission.title,
     });
+
     await submissions.updateSpeakerSubmission(submission.id, {
       selected_intake_link_id: link.id,
     });
@@ -278,6 +286,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       'A'.repeat(SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS + 1),
       'Community builder.',
     );
+
     expect(longAbstractResponse.status).toBe(400);
     await expect(longAbstractResponse.json()).resolves.toMatchObject({
       error: `Presentation summary must be ${SPEAKER_ARCHIVE_ABSTRACT_MAX_CHARACTERS} characters or fewer`,
@@ -287,6 +296,7 @@ describe('archive item discriminator at the public intake boundary', () => {
       'A concise presentation summary.',
       'B'.repeat(SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS + 1),
     );
+
     expect(longBioResponse.status).toBe(400);
     await expect(longBioResponse.json()).resolves.toMatchObject({
       error: `Presenter bio must be ${SPEAKER_ARCHIVE_BIO_MAX_CHARACTERS} characters or fewer`,
@@ -377,19 +387,24 @@ describe('archive item discriminator at the public intake boundary', () => {
       storage_path: null,
       slides_uploaded_at: '2026-07-25T12:00:00.000Z',
     });
+
     await talks.updateTalk(created.id, { status: 'published' });
 
     const archiveResponse = await app.request('http://localhost/api/public/archive');
+
     expect(archiveResponse.status).toBe(200);
     const archive = await archiveResponse.json();
+
     expect(archive.talks).toEqual([
       expect.objectContaining({ id: created.id, kind: 'product_demo' }),
     ]);
     expect(archive.archive_items).toEqual(archive.talks);
 
     const meetupsResponse = await app.request('http://localhost/api/public/meetups');
+
     expect(meetupsResponse.status).toBe(200);
     const meetups = await meetupsResponse.json();
+
     expect(meetups.data[0].schedule).toEqual(expect.arrayContaining([
       expect.objectContaining({
         title: 'Archived product demo',

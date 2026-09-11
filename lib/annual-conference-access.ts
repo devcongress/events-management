@@ -40,6 +40,7 @@ export type AnnualConferenceApiAdmission = 'member' | 'organizer' | 'owner';
 export function annualConferenceRolesForAdmission(admission: AnnualConferenceApiAdmission): AdminRole[] {
   if (admission === 'member') return ['owner', 'organizer', 'volunteer'];
   if (admission === 'owner') return ['owner'];
+
   return ['owner', 'organizer'];
 }
 
@@ -52,6 +53,7 @@ export function isAnnualConferenceTaskAssignedTo(
   email: string | null | undefined,
 ): boolean {
   const identity = normalizedIdentity(email);
+
   if (!identity) return false;
 
   return normalizedIdentity(task.accountable_owner) === identity
@@ -64,6 +66,7 @@ export function canEditAnnualConferenceTask(
   planningOwnerEmail: string | null | undefined,
 ): boolean {
   const memberIdentity = normalizedIdentity(memberEmail);
+
   if (!memberIdentity) return false;
 
   return memberIdentity === normalizedIdentity(planningOwnerEmail)
@@ -131,6 +134,7 @@ export function presentAnnualConferenceTask(
   actor: AnnualConferenceActor,
 ): AnnualConferenceTask {
   const capabilities = effectiveAnnualConferenceCapabilities({ role: actor.role, grants: actor.granted_capabilities });
+
   return actor.role === 'volunteer' && !hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
     ? { ...task, internal_note: null }
     : task;
@@ -142,6 +146,7 @@ export function presentAnnualConferenceWorkspace(
 ) {
   const permissions = annualConferenceCapabilities(actor, workspace.edition);
   const tasks = annualConferenceTasksForMember(workspace.tasks, actor, permissions.capabilities);
+
   return {
     ...workspace,
     tasks,
@@ -180,9 +185,11 @@ export function canUpdateAnnualConferenceTask(
   changes: AnnualConferenceTaskUpdateInput,
 ): boolean {
   const capabilities = annualConferenceCapabilities(actor, edition);
+
   if (capabilities.can_edit_all_tasks) return Boolean(normalizedIdentity(actor.email));
   if (actor.role === 'volunteer') {
     return volunteerCanUpdateAssignedTask(task, changes, actor.email);
   }
+
   return canEditAnnualConferenceTask(task, actor.email, edition.task_creator_email);
 }

@@ -493,6 +493,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
   const timeout = controller ? window.setTimeout(() => controller.abort(), 15_000) : null;
 
   let response: Response;
+
   try {
     response = await fetch(input, {
       ...init,
@@ -502,6 +503,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
     if (controller?.signal.aborted) {
       throw new Error('The request took too long. Check your connection and try again.');
     }
+
     throw error;
   } finally {
     if (timeout !== null) window.clearTimeout(timeout);
@@ -513,6 +515,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit)
     const message = payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
       ? payload.error
       : `Request failed: ${response.status}`;
+
     throw new Error(message);
   }
 
@@ -730,6 +733,7 @@ export function fetchEvents() {
 
 export function fetchEventSubmissions(status: EventSubmissionQueueFilter | 'all' = 'all') {
   const query = status === 'all' ? '' : `?status=${encodeURIComponent(status)}`;
+
   return fetchJson<AdminEventSubmissionsResponse>(`/api/admin/event-submissions${query}`, { credentials: 'include' });
 }
 
@@ -811,6 +815,7 @@ export function createNativeEvent(input: Record<string, unknown>) {
 
 export function searchGhanaVenues(query: string, signal?: AbortSignal) {
   const search = new URLSearchParams({ q: query });
+
   return fetchJson<{ venues: GhanaVenueSuggestion[] }>(`/api/admin/venues/search?${search}`, {
     credentials: 'include',
     signal,
@@ -917,6 +922,7 @@ export function checkEventPageNow(eventId: string) {
 
 export function deleteEventById(eventId: string, mode: 'archive' | 'hard' = 'archive') {
   const query = new URLSearchParams({ mode }).toString();
+
   return fetchJson<{ ok: true; mode: 'archive' | 'hard'; event?: Event }>(`/api/events/${eventId}?${query}`, {
     method: 'DELETE',
     credentials: 'include',
@@ -1140,10 +1146,12 @@ export function fetchAdminOrganizers() {
 
 export function fetchAdminAuditLog(filters: { actor?: string; action?: string; target_type?: string; limit?: string } = {}) {
   const params = new URLSearchParams();
+
   for (const [key, value] of Object.entries(filters)) {
     if (value) params.set(key, value);
   }
   const query = params.toString();
+
   return fetchJson<AdminAuditLogResponse>(`/api/admin/audit-log${query ? `?${query}` : ''}`, { credentials: 'include' });
 }
 

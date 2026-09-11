@@ -33,12 +33,14 @@ function formatDate(value: string) {
 function statusLabel(status: PublicMeetupStatus) {
   if (status === 'live') return '● Live';
   if (status === 'upcoming') return 'Upcoming';
+
   return 'Past';
 }
 
 function statusClass(status: PublicMeetupStatus) {
   if (status === 'live') return 'bg-dc-pink text-white';
   if (status === 'upcoming') return 'bg-dc-yellow text-dc-ink';
+
   return 'bg-dc-info-soft text-dc-info';
 }
 
@@ -49,6 +51,7 @@ function eventPreviewPath(meetup: PublicMeetup): string {
 function eventPreviewAction(status: PublicMeetupStatus): string {
   if (status === 'live') return 'See live event';
   if (status === 'upcoming') return 'Preview event';
+
   return 'View recap';
 }
 
