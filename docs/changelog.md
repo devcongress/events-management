@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-11 — Event-day-only check-in
+
+- Enable guest check-in only on the event's calendar date in its timezone (Africa/Accra for legacy events), including before the start time but never before or after that day.
+- Enforce the restriction on the server and all three desktop/mobile check-in screens; refresh UI availability at minute boundaries and when returning to the tab, without network polling.
+- Preserve existing undo-check-in correction behavior. No migration required.
+
 ## 2026-09-10 — Retire monthly meetup finances
 
 - Removed the monthly Finance tab, screen, API handlers, client contracts, and local/Supabase storage implementations. Annual Conference finances are unchanged.

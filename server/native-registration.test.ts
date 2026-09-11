@@ -1046,10 +1046,13 @@ describe('native event registration API', () => {
     );
     expect(registered).toBeDefined();
 
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-29T10:00:00Z'));
     const checkInResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations/${registered!.id}/check-in`,
       { method: 'POST' },
     );
+    vi.useRealTimers();
     expect(checkInResponse.status).toBe(200);
 
     const deleteResponse = await app.request(
@@ -1173,10 +1176,21 @@ describe('native event registration API', () => {
     const registration = registrationsPayload.registrations[0];
     expect(registration).toMatchObject({ status: 'confirmed', checked_in_at: null });
 
+    vi.useFakeTimers({ toFake: ['Date'] });
+    for (const date of ['2026-08-29T23:59:59Z', '2026-08-31T00:00:00Z']) {
+      vi.setSystemTime(new Date(date));
+      const blocked = await app.request(
+        `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
+        { method: 'POST' },
+      );
+      expect(blocked.status).toBe(409);
+    }
+    vi.setSystemTime(new Date('2026-08-30T00:00:00Z'));
     const checkInResponse = await app.request(
       `http://localhost/api/events/${created.event.id}/registrations/${registration.id}/check-in`,
       { method: 'POST' },
     );
+    vi.useRealTimers();
     expect(checkInResponse.status).toBe(200);
 
     const undoResponse = await app.request(

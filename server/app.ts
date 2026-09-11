@@ -204,6 +204,7 @@ import {
   annualConferenceFinanceErrorStatus,
 } from '@/server/annual-conference-finance-service';
 import { generateId, now } from '@/lib/utils';
+import { isEventCheckInDay, CHECK_IN_DAY_MESSAGE } from '@/lib/event-check-in';
 import { envValue } from '@/server/env';
 import { withRequestEnv } from '@/server/request-env';
 import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
@@ -7340,6 +7341,11 @@ app.patch('/api/events/:eventId/registrations', async (c) => {
 
 app.post('/api/events/:eventId/registrations/:registrationId/check-in', async (c) => {
   const eventId = c.req.param('eventId');
+  const event = await getEventById(eventId, c);
+  if (!event) return c.json({ error: 'Event not found.' }, 404);
+  if (!isEventCheckInDay(event)) {
+    return c.json({ error: CHECK_IN_DAY_MESSAGE }, 409);
+  }
   const registrations = await getEventRegistrations(eventId, c);
   const registration = registrations.find((item) => item.id === c.req.param('registrationId'));
   if (!registration) {

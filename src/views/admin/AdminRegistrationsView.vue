@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useCheckInDay } from "@/src/composables/useCheckInDay";
+import { CHECK_IN_DAY_MESSAGE } from "@/lib/event-check-in";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -63,6 +65,7 @@ const BLAST_ACTIVITY_PAGE_SIZE = 10;
 const route = useRoute();
 const queryClient = useQueryClient();
 const eventId = computed(() => String(route.params.eventId ?? ''));
+const checkInDay = useCheckInDay(() => data.value?.event);
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
@@ -971,6 +974,7 @@ watch([eventId, canUsePublicRegistrationForm], () => {
 }, { immediate: true });
 
 async function checkIn(registration: EventRegistration) {
+  if (!checkInDay.value) return;
   if (actionRegistrationId.value) return;
   actionRegistrationId.value = registration.id;
 
@@ -1392,10 +1396,11 @@ async function retryEmails() {
                   v-if="registration.status === 'confirmed' && !registration.checked_in_at"
                   type="button"
                   class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50"
-                  :disabled="Boolean(actionRegistrationId)"
+                  :disabled="!checkInDay || Boolean(actionRegistrationId)"
+                  :title="!checkInDay ? CHECK_IN_DAY_MESSAGE : undefined"
                   @click="checkIn(registration)"
                 >
-                  CHECK IN
+                  {{ checkInDay ? 'CHECK IN' : 'EVENT DAY ONLY' }}
                 </button>
                 <button
                   v-if="registration.status === 'confirmed' && registration.checked_in_at"
