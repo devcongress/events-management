@@ -668,6 +668,7 @@ export interface EventAttendanceImport {
   id: string;
   event_id: string;
   attendance_month?: string;
+  source?: 'luma_csv' | 'native_registration';
   source_filename: string | null;
   row_count: number;
   imported_at: string;
@@ -696,6 +697,7 @@ export interface EventAttendanceSummary {
 export interface AttendanceLedgerMonthEvent {
   event: Event;
   import: EventAttendanceImport | null;
+  source: 'luma_csv' | 'native_registration' | null;
   summary: EventAttendanceSummary;
   upload_status: 'uploaded' | 'missing';
   upload_available: boolean;

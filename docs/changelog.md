@@ -1,9 +1,17 @@
 # Changelog
 
+## 2026-09-11 — Native monthly attendance overview
+
+- Feed native monthly meetup registrations and check-ins into the Monthly Attendance overview automatically; completed native events no longer ask organizers for a Luma CSV.
+- Keep CSV uploads as the fallback for older monthly meetups without a native registration campaign.
+- Batch campaign, registration, and check-in reads across the ledger and continue redacting attendee rows from the overview response. No migration required.
+
 ## 2026-09-11 — Event-day-only check-in
 
 - Enable guest check-in only on the event's calendar date in its timezone (Africa/Accra for legacy events), including before the start time but never before or after that day.
 - Enforce the restriction on the server and all three desktop/mobile check-in screens; refresh UI availability at minute boundaries and when returning to the tab, without network polling.
+- Keep the normal **Check in** label visible when the action is disabled outside the event date instead of replacing it with policy text.
+- Rename the organizer guest-list action from **Cancel** to **Remove** while retaining the registration as a cancelled historical record and preserving waitlist promotion behavior; the API remains restricted to owners and organizers.
 - Preserve existing undo-check-in correction behavior. No migration required.
 
 ## 2026-09-10 — Retire monthly meetup finances

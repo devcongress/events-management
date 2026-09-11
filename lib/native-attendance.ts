@@ -1,4 +1,22 @@
-import type { EventRegistration, LumaAttendanceRecord } from '@/types';
+import { resolveEventSeriesType } from '@/lib/event-series';
+import { resolveEventStatus } from '@/lib/event-status';
+import type { Event, EventAttendanceImport, EventRegistration, LumaAttendanceRecord } from '@/types';
+
+export type RegistrationAttendanceSource = {
+  event_id: string;
+  campaign_updated_at: string;
+  registrations: EventRegistration[];
+};
+
+export function eventUsesNativeAttendance(event: Event): boolean {
+  return new Date(event.event_date).getTime() >= Date.UTC(2026, 7, 1)
+    && resolveEventSeriesType(event) === 'monthly'
+    && event.submission_source !== 'public_submission';
+}
+
+export function eventHasFinalNativeAttendance(event: Event, nowMs = Date.now()): boolean {
+  return eventUsesNativeAttendance(event) && resolveEventStatus(event, nowMs) === 'completed';
+}
 
 /**
  * Adapts the native registration ledger to the attendance read model.
@@ -27,4 +45,21 @@ export function attendanceRecordsFromRegistrations(
       ticket_name: registration.status === 'confirmed' ? 'Confirmed' : 'Waitlist',
       raw_row: {},
     }));
+}
+
+export function attendanceImportFromRegistrationSource(
+  source: RegistrationAttendanceSource,
+  attendanceMonth: string,
+): EventAttendanceImport {
+  const records = attendanceRecordsFromRegistrations(source.event_id, source.registrations);
+  return {
+    id: `native-registration-${source.event_id}`,
+    event_id: source.event_id,
+    attendance_month: attendanceMonth,
+    source: 'native_registration',
+    source_filename: null,
+    row_count: records.length,
+    imported_at: source.campaign_updated_at,
+    records,
+  };
 }

@@ -78,7 +78,7 @@ const pageEnd = computed(() => Math.min(filteredLedger.value.length, page.value 
 const paginatedLedger = computed(() => filteredLedger.value.slice((page.value - 1) * pageSize, page.value * pageSize));
 const completedMissing = computed(() => yearLedger.value.filter((item) => item.completed_event_count > 0 && !item.has_import));
 const uploadableMissing = computed(() => completedMissing.value.filter((item) => item.upload_available && primaryUploadEvent(item)));
-const selectedYearUploaded = computed(() => yearLedger.value.filter((item) => item.has_import).length);
+const selectedYearRecorded = computed(() => yearLedger.value.filter((item) => item.has_import).length);
 const selectedYearMissing = computed(() => yearLedger.value.filter((item) => !item.has_import).length);
 const importedYearLedger = computed(() => yearLedger.value.filter((item) => item.has_import));
 const yearMedianCheckedIn = computed(() => percentile(importedYearLedger.value.map((item) => item.summary.checked_in), 50));
@@ -230,6 +230,11 @@ function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
+function statusOptionLabel(option: 'all' | 'uploaded' | 'missing'): string {
+  if (option === 'uploaded') return 'Recorded';
+  return option;
+}
+
 function formatEventTurnout(summary: EventAttendanceSummary): string {
   const registrationRate = summary.total_registrations === 0
     ? 0
@@ -272,7 +277,7 @@ onMounted(fetchAttendanceLedger);
           <div>
             <p class="editorial-eyebrow">attendance command</p>
             <h1 class="text-[2.25rem] font-extrabold leading-none tracking-tight text-dc-ink/90 sm:text-5xl">Monthly attendance</h1>
-            <p class="mt-3 max-w-[34rem] text-base leading-7 text-dc-gray sm:text-lg">Track one Luma CSV per meetup month, spot missing uploads, and turn old exports into venue-planning signals.</p>
+            <p class="mt-3 max-w-[34rem] text-base leading-7 text-dc-gray sm:text-lg">Use native registrations and check-ins automatically, while keeping Luma CSV imports available for older meetups.</p>
           </div>
           <RouterLink
             v-if="uploadableMissing[0] && primaryUploadEvent(uploadableMissing[0])"
@@ -299,7 +304,7 @@ onMounted(fetchAttendanceLedger);
                   <p class="editorial-eyebrow mb-1">monthly ledger</p>
                   <h2 class="text-2xl font-bold tracking-tight text-dc-ink/90">{{ selectedYearLabel }} attendance</h2>
                   <p class="mt-2 font-mono text-[11px] font-semibold uppercase tracking-wide text-dc-gray">
-                    {{ selectedYearUploaded }} uploaded / {{ selectedYearMissing }} missing / room guide {{ yearP80CheckedIn || '-' }}
+                      {{ selectedYearRecorded }} recorded / {{ selectedYearMissing }} missing / room guide {{ yearP80CheckedIn || '-' }}
                   </p>
                 </div>
                 <div class="flex flex-col gap-2 lg:items-end">
@@ -325,7 +330,7 @@ onMounted(fetchAttendanceLedger);
                       :class="selectedStatus === option ? 'border-dc-ink bg-dc-yellow text-dc-ink' : 'border-dc-border bg-dc-paper text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
                       @click="selectedStatus = option"
                     >
-                      {{ option }}
+                      {{ statusOptionLabel(option) }}
                     </button>
                   </div>
                 </div>
@@ -390,7 +395,7 @@ onMounted(fetchAttendanceLedger);
                   <h2 class="text-xl font-bold tracking-tight text-dc-ink/90">Attendance patterns</h2>
                 </div>
                 <p class="shrink-0 font-mono text-[9px] font-semibold uppercase tracking-wide text-dc-gray">
-                  {{ selectedYearUploaded }}/{{ yearLedger.length }} CSVs
+                  {{ selectedYearRecorded }}/{{ yearLedger.length }} recorded
                 </p>
               </div>
 
@@ -437,7 +442,7 @@ onMounted(fetchAttendanceLedger);
                       <p class="mt-1 text-center font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-gray">{{ eventItem.label }}</p>
                     </div>
                   </div>
-                  <p v-else class="mt-4 text-xs leading-5 text-dc-gray">Upload a CSV to plot event turnout.</p>
+                  <p v-else class="mt-4 text-xs leading-5 text-dc-gray">Attendance appears after native check-ins or a legacy CSV import.</p>
                 </article>
 
                 <article class="flex min-h-[10.5rem] min-w-0 flex-col p-4">

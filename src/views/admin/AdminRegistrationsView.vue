@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useCheckInDay } from "@/src/composables/useCheckInDay";
-import { CHECK_IN_DAY_MESSAGE } from "@/lib/event-check-in";
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
@@ -1014,12 +1013,12 @@ async function confirmCancellation() {
     await refresh();
     notify.success(
       result.promoted_registration_id
-        ? `${registration.name}'s registration was cancelled. The next waitlisted guest now has the place.`
-        : `${registration.name}'s registration was cancelled.`,
+        ? `${registration.name} was removed from the active guest list. The next waitlisted guest now has the place.`
+        : `${registration.name} was removed from the active guest list.`,
     );
     pendingCancellation.value = null;
   } catch (error) {
-    notify.error(error instanceof Error ? error.message : 'Unable to cancel this registration.');
+    notify.error(error instanceof Error ? error.message : 'Unable to remove this registration.');
   } finally {
     actionRegistrationId.value = null;
   }
@@ -1397,10 +1396,9 @@ async function retryEmails() {
                   type="button"
                   class="editorial-action min-h-11 justify-center px-4 disabled:opacity-50"
                   :disabled="!checkInDay || Boolean(actionRegistrationId)"
-                  :title="!checkInDay ? CHECK_IN_DAY_MESSAGE : undefined"
                   @click="checkIn(registration)"
                 >
-                  {{ checkInDay ? 'CHECK IN' : 'EVENT DAY ONLY' }}
+                  {{ actionRegistrationId === registration.id ? 'CHECKING IN…' : 'CHECK IN' }}
                 </button>
                 <button
                   v-if="registration.status === 'confirmed' && registration.checked_in_at"
@@ -1419,7 +1417,7 @@ async function retryEmails() {
                   :disabled="Boolean(actionRegistrationId)"
                   @click="pendingCancellation = registration"
                 >
-                  Cancel
+                  Remove
                 </button>
               </div>
             </div>
@@ -1915,10 +1913,10 @@ async function retryEmails() {
 
     <ConfirmDialog
       :open="Boolean(pendingCancellation)"
-      title="Cancel registration?"
+      title="Remove registration?"
       :message="pendingCancellation ? `Remove ${pendingCancellation.name} from the active guest list?` : ''"
-      confirm-label="Cancel registration"
-      busy-label="Cancelling..."
+      confirm-label="Remove registration"
+      busy-label="Removing..."
       cancel-label="Keep registration"
       danger
       :busy="Boolean(actionRegistrationId)"

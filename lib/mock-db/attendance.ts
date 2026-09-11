@@ -148,11 +148,14 @@ export function buildAttendanceLedger(events: Event[], imports: EventAttendanceI
       return {
         event,
         import: attendanceImport,
+        source: attendanceImport
+          ? attendanceImport.source === 'native_registration' ? 'native_registration' : 'luma_csv'
+          : null,
         summary: buildAttendanceSummary(attendanceImport),
         upload_status: attendanceImport ? 'uploaded' : 'missing',
-        upload_available: uploadWindow.available,
-        upload_unavailable_reason: uploadWindow.reason,
-        upload_unlocks_at: uploadWindow.unlocks_at,
+        upload_available: attendanceImport ? false : uploadWindow.available,
+        upload_unavailable_reason: attendanceImport ? null : uploadWindow.reason,
+        upload_unlocks_at: attendanceImport ? null : uploadWindow.unlocks_at,
       };
     });
   const monthKeys = new Set<string>();

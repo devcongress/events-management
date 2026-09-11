@@ -10,7 +10,10 @@ vi.mock('./server', () => ({
   isSupabaseRuntimeEnabled: mocks.isSupabaseRuntimeEnabled,
 }));
 
-import { getSupabaseRegistrationCampaigns } from './event-registrations';
+import {
+  getSupabaseRegistrationAttendanceSources,
+  getSupabaseRegistrationCampaigns,
+} from './event-registrations';
 import { getSupabaseFeedbackCampaignsByEventIds } from './feedback-campaigns';
 
 function bulkQuery(rows: unknown[]) {
@@ -74,5 +77,56 @@ describe('short-link registry campaign reads', () => {
     await expect(getSupabaseRegistrationCampaigns([])).resolves.toEqual([]);
     await expect(getSupabaseFeedbackCampaignsByEventIds([])).resolves.toEqual([]);
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('loads native attendance for multiple events without per-event queries', async () => {
+    const campaignQuery = bulkQuery([
+      { id: 'campaign-1', event_id: 'event-1', updated_at: '2026-08-30T00:00:00.000Z' },
+      { id: 'campaign-2', event_id: 'event-2', updated_at: '2026-09-27T00:00:00.000Z' },
+    ]);
+    const registrationQuery = {
+      select: vi.fn(),
+      in: vi.fn(),
+      order: vi.fn(),
+    };
+    registrationQuery.select.mockReturnValue(registrationQuery);
+    registrationQuery.in.mockReturnValue(registrationQuery);
+    registrationQuery.order.mockResolvedValue({
+      data: [{
+        id: 'registration-1',
+        campaign_id: 'campaign-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        normalized_email: 'ada@example.com',
+        status: 'confirmed',
+        confirmed_at: '2026-08-29T09:00:00.000Z',
+        cancelled_at: null,
+        created_at: '2026-08-28T09:00:00.000Z',
+        updated_at: '2026-08-29T10:00:00.000Z',
+      }],
+      error: null,
+    });
+    const checkinQuery = bulkQuery([
+      { registration_id: 'registration-1', checked_in_at: '2026-08-29T10:05:00.000Z' },
+    ]);
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'event_registration_campaigns') return campaignQuery;
+      if (table === 'event_registrations') return registrationQuery;
+      if (table === 'event_registration_checkins') return checkinQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    await expect(getSupabaseRegistrationAttendanceSources(['event-1', 'event-2'])).resolves.toEqual([
+      expect.objectContaining({
+        event_id: 'event-1',
+        registrations: [expect.objectContaining({ id: 'registration-1', checked_in_at: '2026-08-29T10:05:00.000Z' })],
+      }),
+      expect.objectContaining({ event_id: 'event-2', registrations: [] }),
+    ]);
+
+    expect(mocks.from).toHaveBeenCalledTimes(3);
+    expect(campaignQuery.in).toHaveBeenCalledWith('event_id', ['event-1', 'event-2']);
+    expect(registrationQuery.in).toHaveBeenCalledWith('campaign_id', ['campaign-1', 'campaign-2']);
+    expect(checkinQuery.in).toHaveBeenCalledWith('registration_id', ['registration-1']);
   });
 });

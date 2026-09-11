@@ -1220,6 +1220,75 @@ describe('native event registration API', () => {
     await expect(repeatedUndoResponse.json()).resolves.toEqual({ error: 'Guest is not checked in.' });
   });
 
+  it('uses native registrations and check-ins in the monthly attendance overview', async () => {
+    const { default: app } = await import('./app');
+    const createResponse = await app.request('http://localhost/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'DevCongress August Native Attendance Meetup',
+        description: 'A native monthly meetup.',
+        event_date: '2026-08-29T09:00:00.000Z',
+        end_date: '2026-08-29T16:00:00.000Z',
+        series_type: 'monthly',
+        location: { name: 'Accra', label: 'Accra', url: null },
+      }),
+    });
+    expect(createResponse.status).toBe(201);
+    const created = await createResponse.json() as { event: { id: string } };
+    const campaigns = JSON.parse(await fs.readFile(
+      path.join(tempRoot, 'data', 'event-registration-campaigns.json'),
+      'utf-8',
+    )) as Array<{ id: string; event_id: string }>;
+    const campaign = campaigns.find((item) => item.event_id === created.event.id);
+    expect(campaign).toBeTruthy();
+
+    await fs.writeFile(
+      path.join(tempRoot, 'data', 'event-registrations.json'),
+      JSON.stringify([{
+        id: 'native-attendee-1',
+        campaign_id: campaign!.id,
+        name: 'Native Attendee',
+        email: 'native-attendee@example.com',
+        status: 'confirmed',
+        confirmed_at: '2026-08-28T09:00:00.000Z',
+        cancelled_at: null,
+        checked_in_at: '2026-08-29T09:05:00.000Z',
+        email_status: 'accepted',
+        email_kind: 'confirmation',
+        created_at: '2026-08-28T09:00:00.000Z',
+        updated_at: '2026-08-29T09:05:00.000Z',
+      }]),
+      'utf-8',
+    );
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-11T12:00:00.000Z'));
+    const response = await app.request('http://localhost/api/attendance/monthly');
+    vi.useRealTimers();
+    expect(response.status).toBe(200);
+    const payload = await response.json() as {
+      ledger: Array<{
+        attendance_month: string;
+        events: Array<{
+          event: { id: string };
+          source: string | null;
+          import: { source: string; records: unknown[] } | null;
+          summary: { total_registrations: number; checked_in: number };
+          upload_available: boolean;
+        }>;
+      }>;
+    };
+    const august = payload.ledger.find((month) => month.attendance_month === '2026-08');
+    const eventAttendance = august?.events.find((item) => item.event.id === created.event.id);
+    expect(eventAttendance).toMatchObject({
+      source: 'native_registration',
+      import: { source: 'native_registration', records: [] },
+      summary: { total_registrations: 1, checked_in: 1 },
+      upload_available: false,
+    });
+  });
+
   it('rejects an unsafe video conference link before creating the event', async () => {
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/events', {
