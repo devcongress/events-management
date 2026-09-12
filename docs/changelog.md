@@ -2,6 +2,10 @@
 
 ## 2026-09-11 — Permission-aware mobile organizer actions
 
+- Align mobile Home with the app's paper, cream, and ink palette, reserving brand pink and yellow for small status accents instead of full-card fills.
+- Present next actions as compact individual cards with dates beneath titles and a consistent trailing arrow, removing decorative numbering and internal dividers.
+- Pin mobile Home workspace shortcuts to the bottom of the viewport with safe-area padding and reserved scrolling space.
+- Replace the mobile next-actions loading message with non-interactive skeleton cards matching the action layout and an accessible loading announcement.
 - Replace the mobile organizer home's static workspace cards with at most three prioritized actions drawn from today's event operations and unfinished Annual Conference work.
 - Open native event-day check-in, the next event, or an exact conference task directly while preserving the task and workspace context.
 - Land phone organizers on the mobile Home after authentication restores only a broad Annual Conference overview; continue preserving exact task, event, check-in, desktop, and volunteer destinations.
