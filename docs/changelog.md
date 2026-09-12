@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-11 — Permission-aware mobile organizer actions
+
+- Replace the mobile organizer home's static workspace cards with at most three prioritized actions drawn from today's event operations and unfinished Annual Conference work.
+- Open native event-day check-in, the next event, or an exact conference task directly while preserving the task and workspace context.
+- Land phone organizers on the mobile Home after authentication restores only a broad Annual Conference overview; continue preserving exact task, event, check-in, desktop, and volunteer destinations.
+- Keep event operations unavailable to volunteers, rely on the server-filtered task response for assigned-only work, and expose explicit loading, partial-error, retry, and clear-for-now states.
+- Retain compact Events and Conference workspace shortcuts without adding a new API, polling loop, or organizer-directory read.
+
 ## 2026-09-11 — Actionable conference work-plan summaries
 
 - Consolidated phase, status, owner, and workstream filtering into one labelled work-plan control area, removing the repeated workstream and task-ledger framing.

@@ -171,6 +171,24 @@ export function matchesOrganizerPhoneViewport(
   return target?.matchMedia(ORGANIZER_PHONE_MEDIA_QUERY).matches ?? false;
 }
 
+export function organizerPostAuthLanding(
+  target: string,
+  role: 'owner' | 'organizer' | 'volunteer' | undefined,
+  isPhone: boolean,
+): string {
+  if (role === 'volunteer') return annualConferencePath();
+  if (!isPhone) return target;
+
+  const isConferenceOverview = new RegExp(`^${adminPath('annual-conference/')}\\d{4}/?$`).test(target);
+  const isMobileConferenceOverview = new RegExp(
+    `^${adminPath('mobile/annual-conference/')}\\d{4}/?(?:\\?section=overview)?$`,
+  ).test(target);
+
+  return isConferenceOverview || isMobileConferenceOverview
+    ? ORGANIZER_PHONE_ROUTE_PATH
+    : target;
+}
+
 export function organizerViewportRedirect({
   authenticated,
   isAdminRoute,
