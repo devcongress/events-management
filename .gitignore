@@ -58,3 +58,4 @@ next-env.d.ts
 
 # local Scenario Atlas state and evidence
 /.scenario-atlas/
+/artifacts/organizer-journeys/

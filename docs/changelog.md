@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-12 — Organizer browser regression coverage
+
+- Add isolated Chromium journeys for filtered navigation, volunteer permissions and intake, provider recovery, and check-in date gating against the built application.
+- Run the suite in CI with a three-minute budget and retained failure screenshots, traces, results, and server logs.
+- Document coverage boundaries and the remaining reliability backlog in `technical/organizer-journeys.md`.
+
 ## 2026-09-12 — Available event navigation
 
 - Remove the permanently unavailable Quiz tab and hide System Design when disabled for an event, preserving access when saved source material exists.
