@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-12 — Weekly Project Night recurrence
+
+- Add organizer-only enable, pause and skip controls for Thursday Project Night, including mobile.
+- Prepare drafts and publish one occurrence per Monday window through the existing scheduler and Slack website-ready gate.
+- Inherit the latest announcement cover until changed; keep occurrence data separate and audit automatic publication atomically.
+- Add API, isolated PostgreSQL and browser regression coverage. Production requires migration, deployment and explicit enablement.
+
 ## 2026-09-12 — Organizer browser regression coverage
 
 - Add isolated Chromium journeys for filtered navigation, volunteer permissions and intake, provider recovery, and check-in date gating against the built application.

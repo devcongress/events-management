@@ -218,6 +218,8 @@ import type { Context } from 'hono';
 import crypto from 'crypto';
 import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionAmendment, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
 import { projectNightPrimaryAction } from '@/lib/project-night-contact';
+import { isProjectNightEvent } from '@/lib/project-night-contact';
+import { advanceProjectNight, configureProjectNight, getProjectNightRecurrence } from '@/lib/supabase/project-night-recurrence';
 import type { FeedbackKind, FeedbackStatus, ShortLinkDestination } from '@/types/supabase';
 import { VOLUNTEER_PUBLIC_PATH } from '@/lib/volunteer-intake-routes';
 import { staticShortLinkDestinationPath } from '@/lib/short-link-destinations';
@@ -1156,6 +1158,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     || isPublicEventRegistrationRequest(path, method)
     || (method === 'POST' && (
       path === '/api/internal/slack-announcements/retry'
+      || path === '/api/internal/project-night/advance'
       || path === '/api/internal/event-page-monitors/check-due'
       || path === '/api/internal/speaker-rejection-emails/retry'
       || path === '/api/internal/selected-speaker-emails/retry'
@@ -7436,6 +7439,60 @@ app.post('/api/internal/slack-announcements/retry', async (c) => {
     }));
 
     return c.json({ error: 'Slack announcement retry failed.' }, 500);
+  }
+});
+
+app.get('/api/events/:eventId/recurrence', async (c) => {
+  const denied = await requireAdmin(c, ['owner', 'organizer']);
+
+  if (denied) return denied;
+  const event = await getEventById(c.req.param('eventId'), c);
+
+  if (!event || !isProjectNightEvent(event.name)) return c.json({ error: 'Project Night event not found.' }, 404);
+  try {
+    return c.json({ recurrence: await getProjectNightRecurrence(c) });
+  } catch (error) {
+    return internalErrorResponse(c, 'project_night_load_failed', error, 'Recurrence is unavailable. Check that its migration has been applied.');
+  }
+});
+
+app.post('/api/events/:eventId/recurrence', async (c) => {
+  const denied = await requireAdmin(c, ['owner', 'organizer']);
+
+  if (denied) return denied;
+  const body = z.object({ action: z.enum(['enable', 'pause', 'skip']) }).safeParse(await c.req.json().catch(() => null));
+
+  if (!body.success) return c.json({ error: 'Choose enable, pause, or skip.' }, 400);
+  const event = await getEventById(c.req.param('eventId'), c);
+
+  if (!event || !isProjectNightEvent(event.name)) return c.json({ error: 'Project Night event not found.' }, 404);
+  try {
+    const existing = await getProjectNightRecurrence(c);
+
+    if (!existing && body.data.action === 'enable' && (event.timezone !== 'Africa/Accra' || new Date(event.event_date).getUTCDay() !== 4)) {
+      return c.json({ error: 'Set Project Night to Thursday in Africa/Accra before enabling recurrence.' }, 409);
+    }
+    const recurrence = await configureProjectNight(event.id, body.data.action, c);
+
+    await auditAdminAction(c, { action: `event.recurrence.${body.data.action}`, targetType: 'event', targetId: event.id, metadata: { next_date: recurrence.next_date } });
+
+    return c.json({ recurrence });
+  } catch (error) {
+    return internalErrorResponse(c, 'project_night_update_failed', error, 'Unable to save Project Night recurrence.');
+  }
+});
+
+app.post('/api/internal/project-night/advance', async (c) => {
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+  try {
+    const eventId = await advanceProjectNight(c);
+    const event = eventId ? await getEventById(eventId, c) : null;
+
+    if (event && eventIsEligibleForSlackAnnouncement(event)) await notifyEventsChannel(event, announcementSource(event), c, { allowRetry: true });
+
+    return c.json({ ok: true, event_id: eventId });
+  } catch (error) {
+    return internalErrorResponse(c, 'project_night_advance_failed', error, 'Unable to process Project Night recurrence.');
   }
 });
 

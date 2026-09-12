@@ -13,6 +13,7 @@ import { resolveEventStatus } from '@/lib/event-status';
 import { EVENT_FORMAT_LABELS, EVENT_FORMATS } from '@/lib/event-format';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import EventPublicationStatusPanel from '@/src/components/EventPublicationStatusPanel.vue';
+import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import AdminEventOverviewPageSkeleton from '@/src/components/ui/page-skeletons/AdminEventOverviewPageSkeleton.vue';
 import {
@@ -1243,6 +1244,7 @@ onMounted(fetchOverview);
               </span>
             </div>
             <p v-if="publishError" class="event-overview-copy-error mt-3">{{ publishError }}</p>
+            <ProjectNightRecurrencePanel :key="event.id" class="mt-5" :event-id="event.id" :event-name="event.name" />
             <EventPublicationStatusPanel
               class="mt-5"
               :website="slackWebsite"

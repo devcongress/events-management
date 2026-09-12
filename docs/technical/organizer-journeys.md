@@ -8,11 +8,12 @@ The suite loads the production Vue build in headless Chromium and interacts with
 
 - Assignee navigation shows that person's tasks across phases; direct work-plan entry uses the current phase.
 - Volunteer navigation hides edition creation and avoids organizer event/edition reads.
+- Project Night recurrence enables, skips with confirmation and pauses, with phone and desktop panel screenshots.
 - Volunteer intake submits one request and shows confirmation.
 - An email-provider failure preserves form values and allows a successful retry.
 - Check-in is disabled before and after the event date; event-day interaction sends a mutation and updates the guest state.
 
-CI allows three minutes for the seven browser scenarios, within the existing 15-minute job budget. Build and browser installation are outside that step. Locator waits are bounded at eight seconds. `results.json` includes individual timings; failed journeys retain full-page screenshots and Playwright traces, and the static server log is always retained. Artifacts expire after seven days. Open a failure trace with `pnpm exec playwright show-trace artifacts/organizer-journeys/<name>.zip`.
+CI allows three minutes for the eight browser scenarios, within the existing 15-minute job budget. Build and browser installation are outside that step. Locator waits are bounded at eight seconds. `results.json` includes individual timings; failed journeys retain full-page screenshots and Playwright traces, and the static server log is always retained. Artifacts expire after seven days. Open a failure trace with `pnpm exec playwright show-trace artifacts/organizer-journeys/<name>.zip`.
 
 ## Reliability backlog and evidence limits
 

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
 import { adminPath } from '@/src/admin-routes';
 import {
   checkInEventRegistration,
@@ -334,6 +335,7 @@ async function confirmProposalDecision() {
         <Transition :name="panelTransition" mode="out-in">
           <main :key="activeSection" class="mobile-event-content">
             <template v-if="activeSection === 'overview'">
+              <ProjectNightRecurrencePanel :key="event.id" :event-id="event.id" :event-name="event.name" />
               <section class="mobile-event-section">
                 <header class="mobile-event-section-heading">
                   <span>At a glance</span>
