@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-12 — Conference speaker form copy
+
+- Remove the introductory single-proposal helper text from the conference application form. Keep the regular meetup introduction and submission behavior unchanged.
+
 ## 2026-09-12 — Weekly Project Night recurrence
 
 - Add organizer-only enable, pause and skip controls for Thursday Project Night, including mobile.
