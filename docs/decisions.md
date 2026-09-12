@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-090: Project Night recurrence uses an atomic database cursor
+
+**Date:** 2026-09-12
+
+**Decision:** Model only the requested Thursday Project Night series, not a generic recurrence engine. Reuse the existing 15-minute Worker scheduler. A singleton configuration and date-unique occurrence ledger serialize configuration, draft creation and Monday publication using a transaction-level advisory lock.
+
+**Why:** Concurrent cron invocations must not create duplicate events or publish a backlog. Each occurrence remains a canonical event so existing website availability checks and Slack delivery claims remain authoritative.
+
+**Tradeoffs:** This requires a database migration and supports one series only. Publication and Slack delivery are separate operations: the existing delivery path waits for the website, avoids recorded sent posts and exposes failed deliveries for organizer retry. No distributed exactly-once Slack guarantee is claimed.
+
 ## ADR-089: Retire Monthly Meetup Finance
 
 **Date:** 2026-09-10

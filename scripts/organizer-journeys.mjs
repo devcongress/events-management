@@ -110,6 +110,43 @@ try {
     await page.getByText('Bob current task', { exact: true }).waitFor();
     assert.equal(await page.getByText('Alice earlier task', { exact: true }).count(), 0);
   });
+  await journey('project-night-recurrence', async ({ page, responses, requests }) => {
+    const projectNight = { ...event, name: 'Project Night', event_date: '2026-09-17T18:30:00Z', end_date: '2026-09-17T21:00:00Z', ownership: 'external', publication_status: 'published', location: { name: 'Accra' } };
+    let recurrence = null;
+
+    responses.set('/api/events/fixture-event', { body: projectNight });
+    responses.set('/api/events/fixture-event/registrations', { body: { managed_internally: false, registrations: [] } });
+    responses.set('/api/events/fixture-event/speaker-submissions', { body: { submissions: [] } });
+    responses.set('/api/events/fixture-event/slack-announcement', { body: { announcement: null, eligible: true, website: { state: 'published', url: '' }, slack_url: null } });
+    responses.set('/api/events/fixture-event/page-monitor', { body: { monitor: null, eligible: false, organizer_contact: null } });
+    responses.set('/api/events/fixture-event/recurrence', request => {
+      if (request.method() === 'POST') {
+        const { action } = JSON.parse(request.postData());
+
+        recurrence = { source_event_id: event.id, enabled: action !== 'pause', next_date: action === 'skip' ? '2026-10-01' : '2026-09-24', cover_url: '/fixture.jpg' };
+      }
+
+      return { body: { recurrence } };
+    });
+    await page.goto(`${origin}/organizer-console/events/fixture-event/community`);
+    const panel = page.getByRole('region', { name: 'Project Night recurrence' });
+
+    await panel.getByRole('button', { name: 'ENABLE RECURRENCE', exact: true }).click();
+    await panel.getByText('ENABLED', { exact: true }).waitFor();
+    await panel.getByRole('button', { name: 'SKIP NEXT WEEK' }).click();
+    await panel.getByRole('button', { name: 'Yes, skip this week' }).click();
+    await panel.getByText('Thu, 1 Oct 2026', { exact: true }).waitFor();
+    await panel.scrollIntoViewIfNeeded();
+    await panel.screenshot({ path: `${artifacts}/project-night-mobile.png` });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${origin}/organizer-console/events/fixture-event/community`);
+    await panel.getByRole('button', { name: 'PAUSE RECURRENCE' }).waitFor();
+    await panel.screenshot({ path: `${artifacts}/project-night-desktop.png` });
+    await panel.getByRole('button', { name: 'PAUSE RECURRENCE' }).click();
+    await panel.getByText('PAUSED', { exact: true }).waitFor();
+    assert.deepEqual(requests.filter(request => request.path.endsWith('/recurrence') && request.method === 'POST').map(request => JSON.parse(request.body).action), ['enable', 'skip', 'pause']);
+  });
   await journey('volunteer-permissions', async ({ page, requests }) => {
     await page.goto(`${origin}/organizer-console/mobile/annual-conference/2026`);
     await page.getByText('No tasks assigned yet', { exact: true }).waitFor();

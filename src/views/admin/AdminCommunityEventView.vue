@@ -5,6 +5,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import EventPublicationStatusPanel from '@/src/components/EventPublicationStatusPanel.vue';
+import ProjectNightRecurrencePanel from '@/src/components/ProjectNightRecurrencePanel.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { checkEventPageNow, fetchEventById, fetchEventPageMonitor, fetchEventSlackAnnouncement, sendEventSlackAnnouncement, updateEventById, type EventPageMonitor, type EventPageMonitorOrganizerContact, type EventSlackAnnouncement, type EventSlackAnnouncementResponse } from '@/src/lib/api';
 import { compressMeetupImageForUpload, uploadEventMedia, validateMeetupImageFile } from '@/src/lib/meetup-media-client';
@@ -349,6 +350,7 @@ onMounted(load);
             <div class="border-b border-dc-line px-5 py-5"><dt class="font-mono text-xs font-bold tracking-[0.12em] text-dc-gray">PUBLIC LINKS</dt><dd class="mt-3 flex flex-wrap gap-2"><a v-if="event.registration_url" :href="event.registration_url" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">REGISTRATION ↗</a><a v-if="event.online_url || event.stream_url" :href="event.online_url || event.stream_url || undefined" target="_blank" rel="noreferrer" class="motion-press rounded border border-dc-ink bg-white px-3 py-2 font-mono text-[11px] font-bold tracking-[0.06em]">JOIN ONLINE ↗</a><span v-if="!event.registration_url && !event.online_url && !event.stream_url" class="text-sm text-dc-gray">No public links supplied.</span></dd></div>
           </dl>
         </aside>
+        <ProjectNightRecurrencePanel :key="event.id" class="lg:col-span-2" :event-id="event.id" :event-name="event.name" />
         <EventPublicationStatusPanel
           class="lg:col-span-2"
           :website="slackWebsite"

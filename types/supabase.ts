@@ -49,9 +49,24 @@ export type QuizPurpose = 'quiz' | 'system_design_learning';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
+export type ProjectNightRecurrenceRow = {
+  id: boolean;
+  source_event_id: string;
+  enabled: boolean;
+  next_date: string;
+  cover_url: string;
+  updated_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
+      project_night_recurrence: {
+        Row: ProjectNightRecurrenceRow;
+        Insert: Pick<ProjectNightRecurrenceRow, 'source_event_id' | 'next_date' | 'cover_url'> & Partial<ProjectNightRecurrenceRow>;
+        Update: Partial<ProjectNightRecurrenceRow>;
+        Relationships: [];
+      };
       admin_memberships: {
         Row: {
           id: string;
@@ -2043,6 +2058,14 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      configure_project_night: {
+        Args: { p_event_id: string; p_action: string };
+        Returns: ProjectNightRecurrenceRow;
+      };
+      advance_project_night: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
       register_for_event: {
         Args: {
           p_event_id: string;
