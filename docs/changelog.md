@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-12 — Available event navigation
+
+- Remove the permanently unavailable Quiz tab and hide System Design when disabled for an event, preserving access when saved source material exists.
+- Keep quarterly navigation and existing routes unchanged; cover eligible and ineligible navigation in tests.
+
 ## 2026-09-11 — Permission-aware mobile organizer actions
 
 - Align mobile Home with the app's paper, cream, and ink palette, reserving brand pink and yellow for small status accents instead of full-card fills.
