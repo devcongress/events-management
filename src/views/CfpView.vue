@@ -410,8 +410,8 @@ onMounted(async () => {
         <p class="editorial-subtitle">
           {{ event.name }} · {{ formatDate(event.event_date) }}
         </p>
-        <p class="mt-4 text-base leading-7 text-dc-gray">
-          {{ isConferenceCall ? 'Submit one complete talk proposal. You can return and submit another proposal separately.' : "Share something you've built, learned, or explored with the DevCongress community." }}
+        <p v-if="!isConferenceCall" class="mt-4 text-base leading-7 text-dc-gray">
+          Share something you've built, learned, or explored with the DevCongress community.
         </p>
       </div>
 
