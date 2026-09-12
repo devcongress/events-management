@@ -7,6 +7,7 @@ import { isSystemDesignWorkspaceDisabled } from '@/lib/event-checklist-policy';
 import { resolveEventSeriesType } from '@/lib/event-series';
 import { isSystemDesignSessionItem } from '@/lib/system-design';
 import { useEventWorkspace } from '@/src/composables/useEventWorkspace';
+import { eventNavigationTabs } from '@/src/lib/event-navigation';
 
 const props = defineProps<{
   eventId: string;
@@ -24,11 +25,6 @@ const tabsTrack = ref<HTMLElement | null>(null);
 const tabElements = ref<HTMLElement[]>([]);
 const indicator = ref({ left: 0, width: 0, ready: false });
 
-const quarterlyTabs: AdminEventTab[] = [
-  { href: '', label: 'Overview' },
-  { href: 'registrations', label: 'Registration' },
-  { href: 'feedback', label: 'Feedback' },
-];
 const { eventQuery, checklistQuery } = useEventWorkspace(() => props.eventId);
 const isQuarterlyEvent = computed(() => eventQuery.data.value ? resolveEventSeriesType(eventQuery.data.value) === 'quarterly' : false);
 const hasSavedSystemDesignSource = computed(() => (
@@ -41,21 +37,10 @@ const systemDesignDisabled = computed(() => isSystemDesignWorkspaceDisabled(
   checklistQuery.data.value?.items ?? [],
   hasSavedSystemDesignSource.value,
 ));
-const fullTabs = computed<AdminEventTab[]>(() => [
-  { href: '', label: 'Overview' },
-  { href: 'registrations', label: 'Registration' },
-  { href: 'talks', label: 'Talks' },
-  { href: 'quiz', label: 'Quiz', disabled: true, disabledReason: 'Quiz is unavailable for this event.' },
-  {
-    href: 'system-design',
-    label: 'System Design',
-    disabled: systemDesignDisabled.value,
-    disabledReason: systemDesignDisabled.value ? 'No system design session this month.' : undefined,
-  },
-  { href: 'feedback', label: 'Feedback' },
-  { href: 'attendance', label: 'Attendance' },
-]);
-const tabs = computed<AdminEventTab[]>(() => (isQuarterlyEvent.value ? quarterlyTabs : fullTabs.value));
+const tabs = computed<AdminEventTab[]>(() => eventNavigationTabs(
+  isQuarterlyEvent.value,
+  hasSavedSystemDesignSource.value || (Boolean(checklistQuery.data.value) && !systemDesignDisabled.value),
+));
 
 function tabPath(href: string) {
   return href ? adminPath(`events/${props.eventId}/${href}`) : adminPath(`events/${props.eventId}`);
