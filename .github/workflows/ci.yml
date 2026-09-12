@@ -49,6 +49,22 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Install journey browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Organizer browser journeys
+        timeout-minutes: 3
+        run: pnpm test:journeys
+
+      - name: Upload journey evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: organizer-journeys
+          path: artifacts/organizer-journeys/
+          if-no-files-found: ignore
+          retention-days: 7
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
