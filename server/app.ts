@@ -6225,6 +6225,42 @@ app.get('/api/admin/archived-events', async (c) => {
   }
 });
 
+app.get('/api/admin/presentation-forms', async (c) => {
+  const adminError = await requireAdmin(c, ['owner']);
+
+  if (adminError) return adminError;
+
+  try {
+    const { events, editions, targets } = await listOpenShortLinkTargets(c);
+    const openKeys = new Set(targets.map(shortLinkTargetKey));
+    const presentationTargets = targets.filter((target) => target.destination === 'volunteer_intake' || target.destination === 'conference_cfp');
+
+    for (const event of events.filter((item) => item.series_type === 'monthly')) {
+      presentationTargets.push({ destination: 'event_feedback', eventId: event.id, conferenceEditionId: null, destinationPath: `/feedback/${event.id}` });
+    }
+
+    return c.json({
+      forms: presentationTargets.map((target) => {
+        const event = events.find((item) => item.id === target.eventId);
+        const edition = editions.find((item) => item.id === target.conferenceEditionId);
+
+        return {
+          key: shortLinkTargetKey(target),
+          available: openKeys.has(shortLinkTargetKey(target)),
+          destination: target.destination,
+          event_id: target.eventId,
+          conference_year: edition?.year ?? null,
+          label: event?.name ?? edition?.name ?? 'Volunteer form',
+          event_date: event?.event_date ?? null,
+          series_type: event?.series_type ?? null,
+        };
+      }),
+    });
+  } catch (error) {
+    return internalErrorResponse(c, 'presentation_forms_read_failed', error, 'Unable to load available forms.');
+  }
+});
+
 app.get('/api/admin/short-links', async (c) => {
   const adminError = await requireAdmin(c, ['owner']);
 

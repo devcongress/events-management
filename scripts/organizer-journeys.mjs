@@ -18,13 +18,17 @@ const results = [];
 let browser;
 
 async function journey(name, run, { role = 'organizer', date = '2026-09-26T12:00:00Z' } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Africa/Accra', serviceWorkers: 'block' });
+  const context = await browser.newContext({ viewport: name === 'presentation-board' ? { width: 1280, height: 720 } : { width: 390, height: 844 }, timezoneId: 'Africa/Accra', serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
   const requests = [];
   const responses = new Map();
 
   page.on('pageerror', error => errors.push(error.message));
+  context.on('page', popup => {
+    popup.setDefaultTimeout(8000);
+    popup.on('pageerror', error => errors.push(error.message));
+  });
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
   await page.clock.setFixedTime(new Date(date));
   await page.addInitScript(() => {
@@ -86,6 +90,147 @@ try {
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   browser = await chromium.launch();
+  await journey('presentation-board', async ({ page, responses, requests }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const forms = [
+      { key: 'speaker', destination: 'conference_cfp', conference_year: 2026, label: 'December 2026' },
+      { key: 'volunteer', destination: 'volunteer_intake', label: 'Volunteer form' },
+      { key: 'feedback-sep', destination: 'event_feedback', event_id: 'sep', event_date: '2026-09-26T09:00:00Z', series_type: 'monthly', label: 'September Meetup' },
+      { key: 'feedback-oct', destination: 'event_feedback', event_id: 'oct', event_date: '2026-10-24T09:00:00Z', series_type: 'monthly', label: 'October Meetup' },
+      { key: 'registration', destination: 'event_registration', event_id: 'sep', event_date: '2026-09-26T09:00:00Z', series_type: 'monthly', label: 'September Meetup' },
+    ];
+
+    responses.set('/api/admin/presentation-forms', { body: { forms } });
+    responses.set('/api/admin/short-links/ensure', request => {
+      const input = JSON.parse(request.postData());
+
+      return { body: { url: `${origin}/s/${input.event_id ?? input.destination}` } };
+    });
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/admin/organizers', { body: { organizers: [] } });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026`);
+    await page.getByRole('link', { name: 'Present forms', exact: true }).click();
+    await page.waitForURL(`${origin}/organizer-console/present-forms`);
+    const present = page.getByRole('button', { name: 'Present ↗', exact: true });
+
+    await page.locator('.qr-tile img').nth(2).waitFor();
+    assert.equal(await page.locator('.qr-tile').count(), 3);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.getByRole('button', { name: /Meetup month/ }).click();
+    await page.getByRole('option', { name: 'October 2026', exact: true }).click();
+    await page.locator('.short-link[href$="/oct"]').waitFor();
+    assert.equal(await page.locator('.short-link[href$="/sep"]').count(), 0);
+    await page.getByRole('button', { name: /Meetup month/ }).click();
+    await page.getByRole('option', { name: 'November 2026', exact: true }).click();
+    await page.getByText('No monthly meetup feedback is open', { exact: false }).waitFor();
+    assert.equal(await page.locator('.qr-tile').count(), 2);
+    assert.equal(await page.getByRole('checkbox', { name: /Meetup feedback/ }).isDisabled(), true);
+    assert.equal(await page.getByRole('checkbox', { name: /Event registration/ }).count(), 0);
+    await page.locator('.qr-tile img').nth(1).waitFor();
+    async function openBoard() {
+      const opened = page.waitForEvent('popup');
+
+      await present.click();
+      const display = await opened;
+
+      await display.waitForURL('**/present-forms/display?**');
+      assert.equal(new URL(page.url()).pathname.endsWith('/present-forms'), true);
+
+      return display;
+    }
+    let releaseCatalog;
+    const catalogGate = new Promise(resolve => { releaseCatalog = resolve; });
+    const holdCatalog = async route => {
+      await catalogGate;
+      await route.fallback();
+    };
+
+    await page.context().route('**/api/admin/presentation-forms', holdCatalog);
+    const two = await openBoard();
+    let skeletonBox;
+
+    try {
+      await two.getByRole('region', { name: 'Loading form QR codes' }).waitFor();
+      await two.evaluate(() => document.fonts.ready);
+      assert.equal(await two.locator('.code-frame.board-skeleton').count(), 2);
+      assert.equal(await two.locator('.audience-card a').count(), 0);
+      skeletonBox = await two.locator('.code-frame').first().boundingBox();
+      await two.screenshot({ path: `${artifacts}/presentation-loading.png`, fullPage: true });
+    } finally {
+      releaseCatalog();
+      await page.context().unroute('**/api/admin/presentation-forms', holdCatalog);
+    }
+
+    await two.locator('.code-frame img').nth(1).waitFor();
+    const loadedBox = await two.locator('.code-frame').first().boundingBox();
+
+    assert.ok(Math.abs(skeletonBox.y - loadedBox.y) < 1);
+    assert.equal(skeletonBox.width, loadedBox.width);
+    assert.equal(await two.locator('[aria-busy="true"]').count(), 0);
+    await two.screenshot({ path: `${artifacts}/presentation-two.png`, fullPage: true });
+    assert.equal(await two.evaluate(() => document.querySelector('.audience-grid').getBoundingClientRect().bottom <= innerHeight), true);
+    await two.close();
+    await page.getByRole('button', { name: /Meetup month/ }).click();
+    await page.getByRole('option', { name: 'September 2026', exact: true }).click();
+    await page.locator('.qr-tile img').nth(2).waitFor();
+    await page.screenshot({ path: `${artifacts}/presentation-setup.png`, fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const three = await openBoard();
+
+    await three.locator('.code-frame img').nth(2).waitFor();
+    await three.screenshot({ path: `${artifacts}/presentation-three.png`, fullPage: true });
+    assert.equal(await three.evaluate(() => document.querySelector('.audience-grid').getBoundingClientRect().bottom <= innerHeight), true);
+    await three.close();
+    const demoOpened = page.waitForEvent('popup');
+
+    await page.getByRole('link', { name: /Preview three sample codes/ }).click();
+    const demo = await demoOpened;
+
+    await demo.locator('.code-frame img').nth(2).waitFor();
+    await demo.getByText('Demo · sample codes only').waitFor();
+    await demo.locator('.community-photos img').evaluateAll(images => Promise.all(images.map(img => img.decode())));
+    assert.equal(await demo.locator('.community-photos img').count(), 2);
+    assert.equal(await demo.locator('.card-heading').first().evaluate(element => getComputedStyle(element).textAlign), 'center');
+    assert.equal(await demo.locator('.card-url').first().evaluate(element => getComputedStyle(element).fontStyle), 'italic');
+    assert.equal(await demo.locator('.card-url').first().evaluate(element => getComputedStyle(element).color), 'rgb(201, 0, 118)');
+    await demo.getByRole('heading', { name: 'Help shape what’s next.' }).waitFor();
+    assert.equal(await demo.getByRole('button', { name: /Fullscreen/i }).count(), 0);
+    assert.equal(await demo.evaluate(() => document.querySelector('footer').getBoundingClientRect().bottom <= innerHeight), true);
+    await demo.screenshot({ path: `${artifacts}/presentation-demo-three.png`, fullPage: true });
+    await demo.locator('.peek-window').evaluate(element => {
+      for (const animation of element.getAnimations({ subtree: true })) {
+        animation.pause();
+        animation.currentTime = 3100;
+      }
+    });
+    assert.equal(await demo.locator('.hero-copy .peek-window').count(), 1);
+
+    const peekBox = await demo.locator('.peek-window').boundingBox();
+    const headlineBox = await demo.locator('h1').boundingBox();
+
+    assert.ok(peekBox.x >= headlineBox.x + headlineBox.width);
+    const qrBox = await demo.locator('.audience-grid').boundingBox();
+
+    assert.ok(peekBox.y + peekBox.height < qrBox.y);
+    await demo.screenshot({ path: `${artifacts}/presentation-peek-face.png`, fullPage: true });
+    await demo.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await demo.locator('.peek-face').evaluate(element => getComputedStyle(element).animationName), 'none');
+    assert.equal(await demo.locator('.peek-pupils').evaluate(element => getComputedStyle(element).animationName), 'none');
+    await demo.close();
+    responses.set('/api/admin/short-links/ensure', { status: 409, body: { error: 'That public destination is not currently open.' } });
+    const failed = await openBoard();
+
+    await failed.getByRole('alert').waitFor();
+    assert.equal(await failed.locator('.audience-card').count(), 0);
+    responses.set('/api/admin/short-links/ensure', { body: { url: `${origin}/s/recovered` } });
+    await failed.getByRole('button', { name: 'Retry', exact: true }).click();
+    await failed.locator('.code-frame img').nth(2).waitFor();
+    await failed.close();
+    assert.equal(await present.isEnabled(), true);
+    for (const checkbox of await page.getByRole('checkbox').all()) await checkbox.uncheck();
+    assert.equal(await present.isEnabled(), false);
+    assert.equal(requests.some(request => request.path.includes('presentation-forms')), true);
+  }, { role: 'owner' });
   await journey('filtered-navigation', async ({ page, responses }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const tasks = [

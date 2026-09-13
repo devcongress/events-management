@@ -92,6 +92,18 @@ The global Attendance Hub gives a month-by-month ledger for venue planning. Each
 
 ## Collect Feedback
 
+### Present several form QR codes together
+
+On desktop, sign in as an owner and choose **Present forms** in the main navigation, or visit `/organizer-console/present-forms`. This feature is desktop-only: it is hidden from phone navigation, and phone visits redirect to organizer Home. Attendees can still scan the displayed codes and complete the forms on their phones.
+
+1. Check **Meetup month**, which starts at the current Accra month.
+2. The current year's open conference speaker application, volunteer form, and that month's single open monthly meetup feedback form start selected. Closed feedback is visible but disabled; if multiple monthly feedback forms are open, select the intended event explicitly.
+3. Select from monthly meetup feedback, volunteers, and conference speaker applications, up to three. Unavailable feedback remains listed as **Not open yet**, disabled and unselected. Meetup speaker applications and event registration are not included. Changing month restores the defaults, and choices reset when you revisit the page.
+4. Choose **Present** to open the audience board in a new tab, preserving your setup. The new tab rechecks that the selected forms are still open. The audience screen has no fullscreen button or organizer controls.
+5. Attendees scan a QR code or type its short URL. Close the audience tab to return to setup. **Preview three sample codes** opens a labelled three-code layout demo; its sample links are not live forms and do not open a feedback campaign.
+
+Feedback is tied to an exact meetup, not a permanently rolling redirect. If no feedback is open for the chosen month, open the event's feedback first and refresh this board. The screen does not publish to Slack or change the forms themselves; it only ensures their existing short links exist.
+
 The Feedback section lets organizers prepare event-scoped feedback forms, choose required questions, preview the public form, and review anonymous responses. The attendee form does not ask for a name or email.
 
 Generated session questions require the attendee to choose either a rating from 1–5 or **Did not attend this session**. Missed sessions are counted separately in organizer reports and never reduce the session or speaker rating.

@@ -66,6 +66,8 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/events/:eventId/system-design` | Saved System Design scenario workspace plus five-question generation/review and presentation launch; saved sources keep this available for completed meetups |
 | `/organizer-console/events/:eventId/feedback` | Private event feedback campaign builder and response review |
 | `/organizer-console/feedback-display/:eventId` | Organizer-only TV-safe QR display for an open event feedback form |
+| `/organizer-console/present-forms` | Desktop-only, owner-only setup for up to three form QR codes; phone visits redirect to organizer Home |
+| `/organizer-console/present-forms/display` | Owner-only desktop audience board, opened in a new tab; supports a clearly labelled three-code sample demo |
 | `/organizer-console/attendance` | Monthly attendance ledger |
 | `/organizer-console/feedback` | Event feedback reports grouped by year and event period |
 | `/organizer-console/volunteers` | Compatibility redirect to `/organizer-console/annual-conference/2026/volunteers` |
