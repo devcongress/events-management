@@ -59,3 +59,7 @@ next-env.d.ts
 # local Scenario Atlas state and evidence
 /.scenario-atlas/
 /artifacts/organizer-journeys/
+
+# Local QR-board design explorations (approved assets live in public/presentation)
+/artifacts/qr-option-*.png
+/artifacts/qr-options.mjs

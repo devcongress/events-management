@@ -55,7 +55,7 @@ const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
 const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
 const ANNUAL_CONFERENCE_TITLE = 'DevCongress | Annual Conference';
 const SYSTEM_DESIGN_PARTICIPANT_TITLE = 'DevCongress | System Design Learning Room';
-const ownerOnlyPaths = new Set([adminPath('audit-log')]);
+const ownerOnlyPaths = new Set([adminPath('audit-log'), adminPath('present-forms'), adminPath('present-forms/display')]);
 const NotFoundView = () => import('./views/NotFoundView.vue');
 const FeedbackView = () => import('./views/FeedbackView.vue');
 const CfpView = () => import('./views/CfpView.vue');
@@ -219,6 +219,8 @@ export const router = createRouter({
     },
     { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
     { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
+    { path: adminPath('present-forms'), name: 'admin-present-forms', component: () => import('./views/admin/AdminPresentFormsView.vue') },
+    { path: adminPath('present-forms/display'), name: 'admin-present-forms-display', component: () => import('./views/admin/AdminFormBoardDisplayView.vue') },
     { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
     { path: adminPath('registration-display/:eventId'), name: 'admin-registration-display', component: AdminRegistrationDisplayView },
     { path: adminPath('annual-conference'), redirect: annualConferencePath() },

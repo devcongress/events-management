@@ -26,6 +26,10 @@ const SELECTED_SPEAKER_EMAIL_TEST_PATH = /^\/api\/events\/[^/]+\/selected-speake
 const OWNER_TEST_SPEAKER_SUBMISSION_PATH = /^\/api\/events\/[^/]+\/speaker-submissions\/test$/;
 
 export function adminRolesForApiRequest(path: string, method: string): AdminRole[] {
+  if (path === '/api/admin/presentation-forms') {
+    return OWNER_ROLES;
+  }
+
   if (method === 'POST' && (SELECTED_SPEAKER_EMAIL_TEST_PATH.test(path) || OWNER_TEST_SPEAKER_SUBMISSION_PATH.test(path))) {
     return OWNER_ROLES;
   }

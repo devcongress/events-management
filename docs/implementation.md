@@ -137,6 +137,14 @@
 
 ## Per-Module Breakdown
 
+### Form QR presentation board
+
+- `AdminPresentFormsView.vue` owns per-visit selection and QR preparation. Present synchronously opens `AdminFormBoardDisplayView.vue` in a new tab without an opener; that view revalidates availability and displays form labels, QR codes and short links without fullscreen controls. Its explicit demo mode uses three non-live sample links without creating or opening campaigns. `presentation-forms.ts` selects only the chosen Accra month's event forms and avoids guessing among multiple monthly feedback campaigns.
+- Owner-only `GET /api/admin/presentation-forms` reuses `listOpenShortLinkTargets` without minting links. Selected forms use the existing short-link ensure endpoint, revalidated before presentation, with the same URL encoded and displayed. No new storage or migration.
+- Navigation lives in `App.vue`; owner gates protect `/organizer-console/present-forms`. Phone navigation hides the link, and the viewport policy redirects phone visits to organizer Home.
+- The audience view uses the approved photo-collage flyer layout with local April 2026 photos in `public/presentation/`, light QR dividers and stationary black-on-white codes. Source photos: `Fido Dev-0440.jpg` and `Fido Dev-0509.jpg`; no external image dependency.
+- Coverage: `src/lib/presentation-forms.test.ts`, `server/admin-api-access.test.ts`, `src/organizer-viewport.test.ts`, and the isolated `presentation-board` browser journey (month changes, empty selection, two/three tiles, new tabs, demo photos and preparation failure recovery).
+
 ### Mock DB (`lib/mock-db/`)
 
 - **Entry point:** `lib/mock-db/index.ts`

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-13 — Form QR presentation board
+
+- Add an expressive decorative human face beside the headline, peeking over a small ledge and looking around every 18 seconds; reduced-motion users get a stationary face. QR codes remain unobstructed.
+
+- Preserve the audience board layout during loading with accessible, non-interactive skeletons matching the selected number of QR columns, headings and short links.
+
+- Center form headings over each QR code, style short links in readable italic pink, and add a faint decorative background asterisk outside the QR image surfaces.
+
+- Add desktop-only, owner-only **Present forms** setup in the normal organizer shell with shared controls and a month selector.
+- Offer monthly meetup feedback, volunteer intake and conference speaker applications. Default to available forms for the selected month; keep closed feedback visible and disabled without opening campaigns.
+- Open the audience board in a new tab, preserving setup and revalidating selected destinations. Encode and display the same existing short link; no migration required.
+- Apply the approved community-flyer design: two local April meetup photos, app typography and palette, light dividers, three aligned QR sections, and no fullscreen control.
+- Add an explicitly labelled three-code sample preview that cannot open live forms.
+- Protect development asset loading by binding public image URLs. Cover role access, phone redirects, month selection, popup presentation, photo loading and error recovery with regression tests.
 ## 2026-09-12 — Conference speaker form copy
 
 - Remove the introductory single-proposal helper text from the conference application form. Keep the regular meetup introduction and submission behavior unchanged.

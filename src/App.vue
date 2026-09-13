@@ -80,6 +80,7 @@ const adminBaseLinks: NavLink[] = [
   { href: adminPath('organizers'), label: 'People & Access' },
 ];
 const ownerAdminLinks: NavLink[] = [
+  { href: adminPath('present-forms'), label: 'Present forms' },
   { href: adminPath('audit-log'), label: 'Audit Log' },
 ];
 const isAdminRoute = computed(() => isAdminPath(route.path));
@@ -95,6 +96,7 @@ const isStandaloneRoute = computed(() => (
   || route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   || route.name === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
   || route.name === 'admin-feedback-display'
+  || route.name === 'admin-present-forms-display'
   || route.name === 'admin-registration-display'
   || route.name === 'admin-public-events-preview'
   || route.name === 'admin-public-event-preview'
@@ -145,7 +147,9 @@ const adminLinks = computed(() => {
   }
 
   if (session?.authenticated && session.user?.role === 'owner') {
-    return [...adminBaseLinks, ...ownerAdminLinks];
+    return [...adminBaseLinks, ...ownerAdminLinks.filter((link) => (
+      !phoneViewport.value || link.href !== adminPath('present-forms')
+    ))];
   }
 
   return adminBaseLinks;

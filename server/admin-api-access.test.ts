@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { adminRolesForApiRequest } from './admin-api-access';
 
 describe('admin API role policy', () => {
+  it('keeps the presentation form catalog owner-only', () => {
+    expect(adminRolesForApiRequest('/api/admin/presentation-forms', 'GET')).toEqual(['owner']);
+  });
+
   it('admits volunteers only to assigned-work reads and task status updates', () => {
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan', 'GET')).toContain('volunteer');
     expect(adminRolesForApiRequest('/api/annual-conference/2026/work-plan/task-1', 'PATCH')).toContain('volunteer');
