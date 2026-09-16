@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-16 — Backup workflow runtime environment fix
+
+- Initialize the temporary backup destination at workflow runtime, allowing GitHub Actions to validate and run the scheduled R2 backup workflow while preserving the existing private runner-storage behavior.
+
 ## 2026-09-16 — Automated encrypted Supabase backups
 
 - Add a daily and manually dispatchable GitHub Actions workflow that creates the existing encrypted database-and-Storage archive in temporary runner storage and uploads it to a private Cloudflare R2 bucket.
