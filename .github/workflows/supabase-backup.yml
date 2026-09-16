@@ -1,0 +1,69 @@
+name: Supabase backup
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Encrypt and upload Supabase backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+      R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+      R2_BACKUP_PREFIX: events-management/supabase
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+      SUPABASE_BACKUP_AGE_RECIPIENT: ${{ secrets.SUPABASE_BACKUP_AGE_RECIPIENT }}
+      SUPABASE_BACKUP_BUCKETS: meetup-media
+      SUPABASE_BACKUP_DIR: ${{ runner.temp }}/events-management-supabase
+      SUPABASE_BACKUP_STORAGE_CONCURRENCY: '4'
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e450dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: 10.24.0
+
+      - name: Setup Node
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install age
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes age
+
+      - name: Validate backup configuration
+        run: pnpm backup:supabase:check
+
+      - name: Create encrypted backup
+        id: backup
+        run: |
+          pnpm backup:supabase
+          archive_path="$(find "${SUPABASE_BACKUP_DIR}" -maxdepth 1 -type f -name 'events-management-supabase-*.tar.gz.age' -print -quit)"
+          test -n "${archive_path}"
+          echo "archive_path=${archive_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload and apply retention
+        run: pnpm backup:supabase:r2 -- "${{ steps.backup.outputs.archive_path }}" --prune

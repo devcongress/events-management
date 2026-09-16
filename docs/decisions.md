@@ -1,5 +1,23 @@
 # Architectural Decisions
 
+## ADR-091: Keep Encrypted Supabase Backups Outside Source Control
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Context:** The Free Supabase plan has no downloadable managed backups. The existing local command creates a complete logical database-and-Storage archive, but one manually created workstation copy does not provide current or independent recovery. Storing ZIP files in Git would retain sensitive historical data indefinitely, inflate every clone with binary snapshots, and place source and recovery data in the same compromise boundary.
+
+**Decision:** Continue producing client-side encrypted `.tar.gz.age` archives. Run the backup daily in GitHub Actions, upload only the encrypted artifact to a dedicated private Cloudflare R2 bucket through bucket-scoped Object Read & Write S3 credentials, and verify the remote size and SHA-256 metadata. Keep the private `age` identity outside GitHub, Cloudflare, the repository, and the archive directory. Preserve seven daily, four weekly, and twelve monthly recovery points; never prune unrecognized objects. Keep archives excluded from Git.
+
+**Tradeoffs:** GitHub Actions and R2 become part of the recovery pipeline, while the offline encryption identity remains a separate manual custody responsibility. Logical database and Storage capture is sequential rather than transactionally atomic. Scheduled success proves creation and upload, not restore correctness, so quarterly disposable-project restore drills remain mandatory.
+
+**Alternatives considered:** Commit ZIP archives to Git (rejected for confidentiality, history retention, repository growth, and shared failure domain), rely on a local LaunchAgent (rejected because the laptop must remain available), or upgrade solely for managed backups (not currently justified by project capacity and still does not replace an independently controlled recovery copy).
+
+**Revisit when:** The project adopts Supabase managed backups or point-in-time recovery, archive size makes single-part uploads unreliable, compliance requires immutable retention, or another independent backup provider is approved.
+
+---
+
 ## ADR-090: Project Night recurrence uses an atomic database cursor
 
 **Date:** 2026-09-12
