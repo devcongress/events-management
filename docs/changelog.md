@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-16 — Stable Project Night browser journey
+
+- Add the shared event-workspace checklist response to the Project Night recurrence fixture, so the strict browser harness continues to reject unknown requests without intermittently failing the recurrence journey.
+
 ## 2026-09-16 — Backup checkout action pin fix
 
 - Correct the immutable `actions/checkout` v6.0.2 revision used by the scheduled backup workflow so GitHub Actions can download the action and begin the backup job.

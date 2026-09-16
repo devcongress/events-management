@@ -8,7 +8,7 @@ The suite loads the production Vue build in headless Chromium and interacts with
 
 - Assignee navigation shows that person's tasks across phases; direct work-plan entry uses the current phase.
 - Volunteer navigation hides edition creation and avoids organizer event/edition reads.
-- Project Night recurrence enables, skips with confirmation and pauses, with phone and desktop panel screenshots.
+- Project Night recurrence enables, skips with confirmation and pauses, with phone and desktop panel screenshots; its fixture also supplies the shared event-workspace checklist read.
 - Volunteer intake submits one request and shows confirmation.
 - An email-provider failure preserves form values and allows a successful retry.
 - Check-in is disabled before and after the event date; event-day interaction sends a mutation and updates the guest state.
