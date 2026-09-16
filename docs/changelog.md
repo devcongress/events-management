@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-16 — Automated encrypted Supabase backups
+
+- Add a daily and manually dispatchable GitHub Actions workflow that creates the existing encrypted database-and-Storage archive in temporary runner storage and uploads it to a private Cloudflare R2 bucket.
+- Pin the Supabase CLI used by backup automation, verify each R2 object by size and SHA-256 metadata, and fail instead of overwriting a conflicting archive.
+- Retain the newest encrypted backup across seven daily, four weekly, and twelve monthly recovery points while leaving unknown bucket objects untouched.
+- Document bucket-scoped credentials, GitHub secret mapping, private encryption-key custody, first-run verification, and quarterly restore drills. Backup archives remain excluded from Git.
+
 ## 2026-09-13 — Form QR presentation board
 
 - Add an expressive decorative human face beside the headline, peeking over a small ledge and looking around every 18 seconds; reduced-motion users get a stationary face. QR codes remain unobstructed.
