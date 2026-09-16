@@ -68,7 +68,7 @@ The archive uses `tar` and gzip for packaging and `age` for encryption. Do not r
 
 1. installs the pinned Supabase CLI and `age`;
 2. validates the complete backup configuration and Docker runtime;
-3. creates the database and Storage archive in the GitHub runner's temporary directory;
+3. initializes an absolute temporary directory through GitHub's runtime environment file, then creates the database and Storage archive there;
 4. uploads only the encrypted `.tar.gz.age` file through R2's S3-compatible API;
 5. verifies the remote object size and SHA-256 metadata;
 6. removes expired encrypted objects according to the retention policy.
