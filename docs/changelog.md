@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-16 — Backup checkout action pin fix
+
+- Correct the immutable `actions/checkout` v6.0.2 revision used by the scheduled backup workflow so GitHub Actions can download the action and begin the backup job.
+
 ## 2026-09-16 — Backup workflow runtime environment fix
 
 - Initialize the temporary backup destination at workflow runtime, allowing GitHub Actions to validate and run the scheduled R2 backup workflow while preserving the existing private runner-storage behavior.
