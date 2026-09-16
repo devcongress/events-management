@@ -260,6 +260,13 @@ try {
     let recurrence = null;
 
     responses.set('/api/events/fixture-event', { body: projectNight });
+    responses.set('/api/events/fixture-event/checklist', {
+      body: {
+        event_status: projectNight.status,
+        progress: { completed: 0, total: 0, percent: 0 },
+        items: [],
+      },
+    });
     responses.set('/api/events/fixture-event/registrations', { body: { managed_internally: false, registrations: [] } });
     responses.set('/api/events/fixture-event/speaker-submissions', { body: { submissions: [] } });
     responses.set('/api/events/fixture-event/slack-announcement', { body: { announcement: null, eligible: true, website: { state: 'published', url: '' }, slack_url: null } });
