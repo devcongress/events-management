@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-16 — Node 20 Supabase Storage backup compatibility
+
+- Supply the backup-only Supabase client with an explicit `ws` transport, allowing the Storage stage to initialize on GitHub Actions Node 20 after the database dump completes.
+- Add a regression test that removes the native global `WebSocket`, preserving the exact runtime constraint that caused the failed first backup run.
+
 ## 2026-09-16 — Stable Project Night browser journey
 
 - Add the shared event-workspace checklist response to the Project Night recurrence fixture, so the strict browser harness continues to reject unknown requests without intermittently failing the recurrence journey.

@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadEnvFile } from 'node:process';
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_BUCKETS = ['meetup-media'];
@@ -440,10 +441,15 @@ async function downloadStorageBucket(
   return { bucket, bytes: downloadedBytes, objects: objectPaths.length };
 }
 
-async function downloadStorage(config: BackupConfig, storageDirectory: string): Promise<StorageSummary[]> {
-  const client = createClient(config.supabaseUrl, config.serviceRoleKey, {
+export function createBackupStorageClient(supabaseUrl: string, serviceRoleKey: string): SupabaseClient {
+  return createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    realtime: { transport: WebSocket },
   });
+}
+
+async function downloadStorage(config: BackupConfig, storageDirectory: string): Promise<StorageSummary[]> {
+  const client = createBackupStorageClient(config.supabaseUrl, config.serviceRoleKey);
   const summaries: StorageSummary[] = [];
 
   for (const bucket of config.buckets) {

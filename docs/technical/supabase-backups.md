@@ -73,6 +73,8 @@ The archive uses `tar` and gzip for packaging and `age` for encryption. Do not r
 5. verifies the remote object size and SHA-256 metadata;
 6. removes expired encrypted objects according to the retention policy.
 
+The backup script explicitly supplies a Node-compatible WebSocket transport to the Supabase client. This keeps Storage backups compatible with the workflow's Node 20 runtime; no browser application dependency is affected.
+
 Create one private R2 bucket dedicated to backups. Do not enable `r2.dev`, a custom public domain, or public access. Create an R2 S3 token with **Object Read & Write** permission scoped only to that bucket. Add these GitHub Actions repository secrets:
 
 | Secret | Value |

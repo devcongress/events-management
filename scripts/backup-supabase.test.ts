@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertMatchingSupabaseProject,
+  createBackupStorageClient,
   isPathInside,
   isMissingSchemaDumpError,
   parseBackupArguments,
@@ -56,5 +57,25 @@ describe('Supabase backup safeguards', () => {
       'supabase failed with exit code 1: pg_dump: error: no matching schemas were found',
     ))).toBe(true);
     expect(isMissingSchemaDumpError(new Error('connection refused'))).toBe(false);
+  });
+
+  it('constructs the Storage client without a native WebSocket', () => {
+    const originalWebSocket = globalThis.WebSocket;
+
+    try {
+      Object.defineProperty(globalThis, 'WebSocket', {
+        configurable: true,
+        value: undefined,
+      });
+
+      const client = createBackupStorageClient('https://example.supabase.co', 'service-role-key');
+
+      expect(client.storage.from('meetup-media')).toBeDefined();
+    } finally {
+      Object.defineProperty(globalThis, 'WebSocket', {
+        configurable: true,
+        value: originalWebSocket,
+      });
+    }
   });
 });
