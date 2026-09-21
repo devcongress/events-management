@@ -57,6 +57,7 @@ const submissionRow: EventSubmissionRow = {
 const approvedEventRow: Pick<CommunityEventRow,
   'starts_at'
   | 'ends_at'
+  | 'timezone'
   | 'location_type'
   | 'location_name'
   | 'location_label'
@@ -68,6 +69,7 @@ const approvedEventRow: Pick<CommunityEventRow,
 > = {
   starts_at: '2099-09-20T10:00:00.000Z',
   ends_at: '2099-09-20T14:00:00.000Z',
+  timezone: 'Africa/Accra',
   location_type: 'in_person',
   location_name: 'Accra Digital Center',
   location_label: 'Ring Road West, Accra',
@@ -146,6 +148,7 @@ describe('event submission management storage', () => {
       current_event: {
         starts_at: '2099-09-20T10:00:00.000Z',
         ends_at: '2099-09-20T14:00:00.000Z',
+        timezone: 'Africa/Accra',
         venue_name: 'Accra Digital Center',
         venue_address: 'Ring Road West, Accra',
         registration_url: 'https://example.com/new-register',
@@ -154,6 +157,6 @@ describe('event submission management storage', () => {
       amendment: null,
     });
     expect(from).toHaveBeenNthCalledWith(3, 'community_events');
-    expect(eventQuery.select).toHaveBeenCalledWith('starts_at, ends_at, location_type, location_name, location_label, venue_address, online_url, stream_url, registration_url, cover_url');
+    expect(eventQuery.select).toHaveBeenCalledWith('starts_at, ends_at, timezone, location_type, location_name, location_label, venue_address, online_url, stream_url, registration_url, cover_url');
   });
 });

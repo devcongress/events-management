@@ -5,11 +5,13 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
+import { dateTimeInputInTimeZoneToIso, isoToDateTimeInputInTimeZone } from '@/src/lib/event-submission-amendment';
 
 type Amendment = EventEditSource & { status: string; cover_url: string | null };
 type EventEditSource = {
   starts_at: string;
   ends_at: string;
+  timezone?: string;
   location_type: 'in_person' | 'online' | 'hybrid';
   venue_name: string | null;
   venue_address: string | null;
@@ -30,6 +32,7 @@ const unavailable = ref('');
 const submission = ref<Submission | null>(null);
 const currentEvent = ref<EventEditSource | null>(null);
 const amendment = ref<Amendment | null>(null);
+const loadedSchedule = ref({ starts_at: '', ends_at: '' });
 const coverFile = ref<File | null>(null);
 const coverPreviewUrl = ref('');
 let coverObjectUrl: string | null = null;
@@ -51,13 +54,13 @@ const locationOptions = [
 ];
 const isInReview = computed(() => amendment.value?.status === 'submitted');
 const currentCover = computed(() => coverPreviewUrl.value || amendment.value?.cover_url || submission.value?.cover_url || EVENT_ANNOUNCEMENT_FALLBACK_COVER);
+const eventTimeZone = computed(() => currentEvent.value?.timezone ?? submission.value?.timezone ?? 'UTC');
 
-function toLocal(iso: string) { return iso ? iso.slice(0, 16) : ''; }
 function payload() {
   return {
     ...form,
-    starts_at: new Date(form.starts_at).toISOString(),
-    ends_at: new Date(form.ends_at).toISOString(),
+    starts_at: dateTimeInputInTimeZoneToIso(form.starts_at, eventTimeZone.value, loadedSchedule.value.starts_at),
+    ends_at: dateTimeInputInTimeZoneToIso(form.ends_at, eventTimeZone.value, loadedSchedule.value.ends_at),
   };
 }
 function revokeCoverPreview() {
@@ -132,8 +135,9 @@ async function load() {
     const source = data.management.amendment ?? data.management.current_event ?? data.management.submission;
 
     amendment.value = data.management.amendment;
+    loadedSchedule.value = { starts_at: source.starts_at, ends_at: source.ends_at };
     Object.assign(form, {
-      starts_at: toLocal(source.starts_at), ends_at: toLocal(source.ends_at), location_type: source.location_type,
+      starts_at: isoToDateTimeInputInTimeZone(source.starts_at, eventTimeZone.value), ends_at: isoToDateTimeInputInTimeZone(source.ends_at, eventTimeZone.value), location_type: source.location_type,
       venue_name: source.venue_name || '', venue_address: source.venue_address || '', online_url: source.online_url || '',
       registration_url: source.registration_url || '', organizer_note: source.organizer_note || '',
     });
@@ -226,6 +230,7 @@ onBeforeUnmount(revokeCoverPreview);
             <AppDatePicker v-model="form.starts_at" label="Starts" mode="datetime" density="field" required />
             <AppDatePicker v-model="form.ends_at" label="Ends" mode="datetime" density="field" required />
           </section>
+          <p class="-mt-3 text-sm text-dc-gray">Times are shown in {{ eventTimeZone }}.</p>
           <AppDropdown v-model="form.location_type" :options="locationOptions" label="Event location" />
           <section v-if="form.location_type !== 'online'" class="grid gap-5 sm:grid-cols-2"><label class="grid gap-2 text-sm font-semibold">Venue name<input v-model="form.venue_name" class="app-form-control min-h-[50px] rounded border border-dc-line bg-white px-4 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15" required></label><label class="grid gap-2 text-sm font-semibold">Venue address <span class="font-normal text-dc-gray">Optional</span><input v-model="form.venue_address" class="app-form-control min-h-[50px] rounded border border-dc-line bg-white px-4 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15"></label></section>
           <label v-if="form.location_type !== 'in_person'" class="grid gap-2 text-sm font-semibold">Online event link<input v-model="form.online_url" class="app-form-control min-h-[50px] rounded border border-dc-line bg-white px-4 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15" type="url" required></label>

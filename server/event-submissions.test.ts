@@ -121,6 +121,7 @@ const submission = {
 const currentManagedEvent = {
   starts_at: '2099-09-20T09:00:00.000Z',
   ends_at: '2099-09-20T13:00:00.000Z',
+  timezone: 'Africa/Accra',
   location_type: 'in_person' as const,
   venue_name: 'Impact Hub Accra',
   venue_address: 'Osu, Accra',

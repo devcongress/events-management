@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-21 — Community amendment event-time correctness
+
+- Display and save amendment schedule fields in the approved event’s declared time zone instead of treating stored UTC timestamps as browser-local values.
+- Add focused date-time conversion coverage and an end-to-end browser journey for changing only an approved event’s time.
+
 ## 2026-09-21 — Desktop Work plan status board
 
 - Keep Work plan phase and owner controls, delivery progress, active shared-link filter chips, and the task drawer inside one shared workspace surface while replacing only its desktop task table with an EMS-native status board.
