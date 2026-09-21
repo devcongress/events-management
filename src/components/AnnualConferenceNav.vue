@@ -23,7 +23,7 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 
-type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'timeline' | 'volunteers' | 'speakers' | 'finance';
+type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'volunteers' | 'speakers' | 'finance';
 
 type AnnualConferenceNavLink = {
   href: string;
@@ -90,10 +90,6 @@ const canCreateEdition = computed(() => (
   && editions.value[0]?.year === currentEdition.value?.year
 ));
 const capabilities = computed(() => workPlanQuery.data.value?.permissions.capabilities ?? []);
-const canViewTimeline = computed(() => hasAnyAnnualConferenceCapability(
-  capabilities.value,
-  ['timeline.view', 'phases.manage'],
-));
 const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualConferenceCapability(
   capabilities.value,
   VOLUNTEER_SECTION_CAPABILITIES,
@@ -113,7 +109,6 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
     label: isVolunteer.value && workPlanQuery.data.value?.permissions.access_scope === 'assigned' ? 'My tasks' : 'Work plan',
     icon: 'work-plan',
   },
-  ...(canViewTimeline.value ? [{ href: annualConferencePath('timeline', year.value), label: 'Timeline', icon: 'timeline' as const }] : []),
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
@@ -231,10 +226,6 @@ function isActive(href: string): boolean {
             <template v-else-if="link.icon === 'work-plan'">
               <rect x="4" y="2.75" width="12" height="14.5" rx="1.5" />
               <path d="m7 7.25 1.25 1.25L10.5 6.25M11.75 7.5h1.5M7 11.25l1.25 1.25 2.25-2.25M11.75 11.5h1.5M7 15.25l1.25 1.25 2.25-2.25M11.75 15.5h1.5" />
-            </template>
-            <template v-else-if="link.icon === 'timeline'">
-              <circle cx="10" cy="10" r="6.5" />
-              <path d="M10 6.5v3.8l2.6 1.6" />
             </template>
             <template v-else-if="link.icon === 'volunteers'">
               <circle cx="7.25" cy="7" r="2.5" />

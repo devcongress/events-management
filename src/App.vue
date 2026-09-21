@@ -250,7 +250,7 @@ const appMainStyle = computed(() => ({
   '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
 }));
 const adminEventSectionOrder = ['', 'registrations', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
-const annualConferenceSectionOrder = ['', 'work-plan', 'timeline', 'volunteers'];
+const annualConferenceSectionOrder = ['', 'work-plan', 'volunteers'];
 
 function getAdminEventSection(path: string): { eventId: string; index: number } | null {
   const eventsBase = `${adminPath('events')}/`;

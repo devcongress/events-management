@@ -25,6 +25,8 @@ const props = defineProps<{
   menuAlign?: 'left' | 'right';
   menuClass?: string;
   teleport?: boolean;
+  ariaLabel?: string;
+  triggerClass?: string;
 }>();
 
 const emit = defineEmits<{
@@ -258,6 +260,7 @@ watch(open, async (isOpen) => {
       :class="[
         'app-form-control',
         triggerClasses,
+        triggerClass,
         label ? 'mt-2' : '',
         open ? 'border-dc-pink shadow-[0_0_0_3px_rgba(17,17,17,0.16)]' : 'border-dc-border',
       ]"
@@ -265,18 +268,21 @@ watch(open, async (isOpen) => {
       :data-form-density="!density || density === 'default' ? 'field' : density"
       :aria-expanded="open"
       :aria-controls="`${dropdownId}-menu`"
-      :aria-labelledby="label ? `${dropdownId}-label ${dropdownId}-value` : `${dropdownId}-value`"
+      :aria-label="ariaLabel"
+      :aria-labelledby="ariaLabel ? undefined : label ? `${dropdownId}-label ${dropdownId}-value` : `${dropdownId}-value`"
       :aria-required="required ? 'true' : undefined"
       aria-haspopup="listbox"
       @click.stop="toggle"
       @keydown="openWithKeyboard"
     >
-      <span :id="`${dropdownId}-value`" class="min-w-0 truncate">{{ selectedLabel }}</span>
-      <span class="motion-icon grid shrink-0 place-items-center rounded-full border border-dc-border text-dc-pink" :class="[iconClasses, open ? 'rotate-180 border-dc-pink' : '']">
-        <svg viewBox="0 0 20 20" class="size-3.5" fill="none" aria-hidden="true">
-          <path d="M5.5 8l4.5 4.5L14.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </span>
+      <slot name="trigger" :open="open" :selected-label="selectedLabel">
+        <span :id="`${dropdownId}-value`" class="min-w-0 truncate">{{ selectedLabel }}</span>
+        <span class="motion-icon grid shrink-0 place-items-center rounded-full border border-dc-border text-dc-pink" :class="[iconClasses, open ? 'rotate-180 border-dc-pink' : '']">
+          <svg viewBox="0 0 20 20" class="size-3.5" fill="none" aria-hidden="true">
+            <path d="M5.5 8l4.5 4.5L14.5 8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+      </slot>
     </button>
 
     <Teleport to="body" :disabled="!teleport">
