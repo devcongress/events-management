@@ -55,6 +55,7 @@ export type EventSubmissionManagement = {
 export type EventSubmissionManagedEvent = {
   starts_at: string;
   ends_at: string;
+  timezone: string;
   location_type: EventLocationType;
   venue_name: string | null;
   venue_address: string | null;
@@ -266,7 +267,7 @@ export async function getEventSubmissionManagement(linkId: string, c?: Context):
 
   if (!approvedEventId) throw new EventSubmissionStorageError('This event link is no longer available.', 'not_found');
   const { data: event, error: eventError } = await client.from('community_events')
-    .select('starts_at, ends_at, location_type, location_name, location_label, venue_address, online_url, stream_url, registration_url, cover_url')
+    .select('starts_at, ends_at, timezone, location_type, location_name, location_label, venue_address, online_url, stream_url, registration_url, cover_url')
     .eq('id', approvedEventId)
     .maybeSingle();
 
@@ -727,6 +728,7 @@ function toEventSubmission(
 function toEventSubmissionManagedEvent(row: Pick<CommunityEventRow,
   'starts_at'
   | 'ends_at'
+  | 'timezone'
   | 'location_type'
   | 'location_name'
   | 'location_label'
@@ -741,6 +743,7 @@ function toEventSubmissionManagedEvent(row: Pick<CommunityEventRow,
   return {
     starts_at: row.starts_at,
     ends_at: row.ends_at,
+    timezone: row.timezone,
     location_type: row.location_type,
     venue_name: venueName,
     venue_address: row.venue_address ?? row.location_label,

@@ -24,6 +24,7 @@ const submittedAmendment = {
 const currentEvent = {
   starts_at: '2099-01-01T10:00:00.000Z',
   ends_at: '2099-01-01T12:00:00.000Z',
+  timezone: 'Africa/Accra',
   location_type: 'online' as const,
   venue_name: 'Online',
   venue_address: 'Online',

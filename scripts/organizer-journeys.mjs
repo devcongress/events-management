@@ -418,6 +418,60 @@ try {
     await page.getByText('Save failed', { exact: true }).waitFor();
     await visibleBoard.getByLabel('Blocked tasks').getByRole('button', { name: 'Open Move this task instantly', exact: true }).first().waitFor();
   });
+  await journey('event-amendment-time', async ({ page, responses, requests }) => {
+    const managedEvent = {
+      title: 'Fixture community event',
+      starts_at: '2026-09-26T17:00:00.000Z',
+      ends_at: '2026-09-26T19:30:00.000Z',
+      timezone: 'Europe/Berlin',
+      location_type: 'in_person',
+      venue_name: 'Impact Hub Accra',
+      venue_address: 'Accra',
+      online_url: null,
+      registration_url: 'https://example.com/register',
+      cover_url: null,
+    };
+    let savedPayload = null;
+
+    responses.set('/api/public/event-submissions/management', request => {
+      if (request.method() === 'PUT') {
+        savedPayload = JSON.parse(request.postData());
+
+        return { body: { amendment: { ...savedPayload, status: 'draft', cover_url: null } } };
+      }
+
+      return {
+        body: {
+          management: {
+            link_id: 'fixture-link',
+            expires_at: '2026-09-26T11:00:00.000Z',
+            submission: managedEvent,
+            current_event: managedEvent,
+            amendment: null,
+          },
+        },
+      };
+    });
+    await page.goto(`${origin}/event-amendments/fixture-capability`);
+    await page.getByRole('heading', { name: 'Update event details', exact: true }).waitFor();
+    const datePickers = page.locator('button[aria-haspopup="dialog"]');
+
+    assert.equal(await datePickers.count(), 2);
+    const starts = datePickers.nth(0);
+
+    await starts.getByText('26/09/2026 · 19:00', { exact: true }).waitFor();
+    await starts.click();
+    const hour = page.getByRole('textbox', { name: 'Hour, 00 to 23', exact: true });
+
+    assert.equal(await hour.count(), 1);
+    await hour.fill('20');
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await starts.getByText('26/09/2026 · 20:00', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'SAVE DRAFT', exact: true }).click();
+    await page.getByText('Draft saved privately.', { exact: true }).waitFor();
+    assert.equal(savedPayload.starts_at, '2026-09-26T18:00:00.000Z');
+    assert.equal(requests.filter(request => request.path === '/api/public/event-submissions/management' && request.method === 'PUT').length, 1);
+  });
   await journey('project-night-recurrence', async ({ page, responses, requests }) => {
     const projectNight = { ...event, name: 'Project Night', event_date: '2026-09-17T18:30:00Z', end_date: '2026-09-17T21:00:00Z', ownership: 'external', publication_status: 'published', location: { name: 'Accra' } };
     let recurrence = null;
