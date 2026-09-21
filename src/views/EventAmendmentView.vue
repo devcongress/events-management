@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
@@ -29,6 +29,7 @@ const coverUploadProgress = ref<number | null>(null);
 const error = ref('');
 const saved = ref(false);
 const unavailable = ref('');
+const reviewing = ref(false);
 const submission = ref<Submission | null>(null);
 const currentEvent = ref<EventEditSource | null>(null);
 const amendment = ref<Amendment | null>(null);
@@ -36,9 +37,11 @@ const loadedSchedule = ref({ starts_at: '', ends_at: '' });
 const coverFile = ref<File | null>(null);
 const coverPreviewUrl = ref('');
 let coverObjectUrl: string | null = null;
+let hydratingSchedule = false;
 const form = reactive({
   starts_at: '',
   ends_at: '',
+  timezone: 'UTC',
   location_type: 'in_person' as Submission['location_type'],
   venue_name: '',
   venue_address: '',
@@ -54,7 +57,33 @@ const locationOptions = [
 ];
 const isInReview = computed(() => amendment.value?.status === 'submitted');
 const currentCover = computed(() => coverPreviewUrl.value || amendment.value?.cover_url || submission.value?.cover_url || EVENT_ANNOUNCEMENT_FALLBACK_COVER);
-const eventTimeZone = computed(() => currentEvent.value?.timezone ?? submission.value?.timezone ?? 'UTC');
+const eventTimeZone = computed(() => form.timezone || currentEvent.value?.timezone || submission.value?.timezone || 'UTC');
+const eventTimezoneOptions = computed(() => {
+  const zones = new Set(['Africa/Accra', 'Europe/Berlin', 'Europe/London', 'America/New_York', 'America/Los_Angeles', eventTimeZone.value]);
+
+  return Array.from(zones).filter(Boolean).map((value) => ({ value, label: value }));
+});
+const reviewSchedule = computed(() => {
+  try {
+    const changes = payload();
+    const format = (value: string, timeZone: string) => new Intl.DateTimeFormat('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone,
+      timeZoneName: 'short',
+    }).format(new Date(value));
+
+    return {
+      event: `${format(changes.starts_at, changes.timezone)} – ${format(changes.ends_at, changes.timezone)}`,
+      ghana: `${format(changes.starts_at, 'Africa/Accra')} – ${format(changes.ends_at, 'Africa/Accra')}`,
+    };
+  } catch {
+    return null;
+  }
+});
 
 function payload() {
   return {
@@ -62,6 +91,20 @@ function payload() {
     starts_at: dateTimeInputInTimeZoneToIso(form.starts_at, eventTimeZone.value, loadedSchedule.value.starts_at),
     ends_at: dateTimeInputInTimeZoneToIso(form.ends_at, eventTimeZone.value, loadedSchedule.value.ends_at),
   };
+}
+function changeTimeZone(previousTimeZone: string, nextTimeZone: string) {
+  if (!form.starts_at || !form.ends_at || previousTimeZone === nextTimeZone) return;
+
+  try {
+    const startsAt = dateTimeInputInTimeZoneToIso(form.starts_at, previousTimeZone, loadedSchedule.value.starts_at);
+    const endsAt = dateTimeInputInTimeZoneToIso(form.ends_at, previousTimeZone, loadedSchedule.value.ends_at);
+
+    loadedSchedule.value = { starts_at: startsAt, ends_at: endsAt };
+    form.starts_at = isoToDateTimeInputInTimeZone(startsAt, nextTimeZone);
+    form.ends_at = isoToDateTimeInputInTimeZone(endsAt, nextTimeZone);
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Choose a valid event time zone.';
+  }
 }
 function revokeCoverPreview() {
   if (coverObjectUrl) URL.revokeObjectURL(coverObjectUrl);
@@ -136,11 +179,17 @@ async function load() {
 
     amendment.value = data.management.amendment;
     loadedSchedule.value = { starts_at: source.starts_at, ends_at: source.ends_at };
+    const timezone = source.timezone ?? currentEvent.value?.timezone ?? submission.value?.timezone ?? 'UTC';
+
+    hydratingSchedule = true;
     Object.assign(form, {
-      starts_at: isoToDateTimeInputInTimeZone(source.starts_at, eventTimeZone.value), ends_at: isoToDateTimeInputInTimeZone(source.ends_at, eventTimeZone.value), location_type: source.location_type,
+      timezone,
+      starts_at: isoToDateTimeInputInTimeZone(source.starts_at, timezone), ends_at: isoToDateTimeInputInTimeZone(source.ends_at, timezone), location_type: source.location_type,
       venue_name: source.venue_name || '', venue_address: source.venue_address || '', online_url: source.online_url || '',
       registration_url: source.registration_url || '', organizer_note: source.organizer_note || '',
     });
+    await nextTick();
+    hydratingSchedule = false;
   } catch {
     unavailable.value = 'This event link could not be opened. Please try again later.';
   } finally {
@@ -199,6 +248,24 @@ async function submit() {
   }
 }
 
+function beginReview() {
+  try {
+    payload();
+    reviewing.value = true;
+    error.value = '';
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'Check the event time.';
+  }
+}
+
+watch(() => form.timezone, (nextTimeZone, previousTimeZone) => {
+  if (previousTimeZone && !hydratingSchedule) changeTimeZone(previousTimeZone, nextTimeZone);
+  reviewing.value = false;
+});
+watch(() => [form.starts_at, form.ends_at], () => {
+  reviewing.value = false;
+});
+
 onMounted(() => {
   if (route.params.capability && capability) {
     window.history.replaceState(
@@ -230,7 +297,8 @@ onBeforeUnmount(revokeCoverPreview);
             <AppDatePicker v-model="form.starts_at" label="Starts" mode="datetime" density="field" required />
             <AppDatePicker v-model="form.ends_at" label="Ends" mode="datetime" density="field" required />
           </section>
-          <p class="-mt-3 text-sm text-dc-gray">Times are shown in {{ eventTimeZone }}.</p>
+          <AppDropdown v-model="form.timezone" :options="eventTimezoneOptions" label="Event time zone" />
+          <p class="-mt-3 text-sm text-dc-gray">Changing the zone keeps the same instant. Edit the clock times after changing it if the event itself is moving.</p>
           <AppDropdown v-model="form.location_type" :options="locationOptions" label="Event location" />
           <section v-if="form.location_type !== 'online'" class="grid gap-5 sm:grid-cols-2"><label class="grid gap-2 text-sm font-semibold">Venue name<input v-model="form.venue_name" class="app-form-control min-h-[50px] rounded border border-dc-line bg-white px-4 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15" required></label><label class="grid gap-2 text-sm font-semibold">Venue address <span class="font-normal text-dc-gray">Optional</span><input v-model="form.venue_address" class="app-form-control min-h-[50px] rounded border border-dc-line bg-white px-4 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15"></label></section>
           <label v-if="form.location_type !== 'in_person'" class="grid gap-2 text-sm font-semibold">Online event link<input v-model="form.online_url" class="app-form-control min-h-[50px] rounded border border-dc-line bg-white px-4 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15" type="url" required></label>
@@ -238,7 +306,15 @@ onBeforeUnmount(revokeCoverPreview);
           <section><div class="flex items-baseline justify-between gap-3"><label class="text-sm font-semibold" for="cover">Cover image <span class="font-normal text-dc-gray">Optional</span></label><span class="font-mono text-[11px] font-bold uppercase tracking-wide text-dc-gray">AVIF · JPG · PNG · WEBP · 5MB</span></div><div class="mt-2 overflow-hidden rounded border border-dc-line bg-dc-paper-warm"><img :src="currentCover" alt="Current event cover" class="h-44 w-full object-cover sm:h-56"><UploadProgressBar v-if="saving && coverFile" :percent="coverUploadProgress" :label="coverUploadProgress === null ? 'Preparing cover' : 'Uploading cover'" /><label for="cover" class="motion-press flex cursor-pointer items-center justify-between gap-3 border-t border-dc-line bg-white px-4 py-3 text-sm font-semibold" :class="{ 'cursor-not-allowed opacity-60': saving || submitting }"><span>{{ coverFile ? coverFile.name : 'Choose a replacement cover' }}</span><span class="font-mono text-xs font-bold tracking-[0.08em] text-dc-pink">BROWSE →</span></label><input id="cover" class="sr-only" type="file" accept="image/avif,image/jpeg,image/png,image/webp" :disabled="saving || submitting" @change="chooseCover"></div></section>
           <label class="grid gap-2 text-sm font-semibold">Note for the reviewer <span class="font-normal text-dc-gray">Optional</span><textarea v-model="form.organizer_note" class="app-form-control min-h-28 rounded border border-dc-line bg-white px-4 py-3 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15" maxlength="1200" placeholder="Tell us what changed and why." /></label>
         </div>
-        <div class="flex flex-wrap items-center gap-3 border-t border-dc-line bg-dc-paper-warm px-5 py-5 sm:px-8"><button class="motion-press rounded border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" type="button" :disabled="saving" @click="save">{{ saving ? 'SAVING…' : 'SAVE DRAFT' }}</button><button class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving" type="submit">{{ submitting ? 'SUBMITTING…' : 'SUBMIT FOR REVIEW →' }}</button><p v-if="error" class="w-full text-sm text-red-700">{{ error }}</p><p v-else-if="saved" class="w-full text-sm text-green-700">Draft saved privately.</p></div>
+        <div class="border-t border-dc-line bg-dc-paper-warm px-5 py-5 sm:px-8">
+          <section v-if="reviewing && reviewSchedule" class="mb-5 rounded border border-dc-pink/30 bg-dc-pink/5 p-4" aria-live="polite">
+            <p class="font-mono text-xs font-bold tracking-[0.12em] text-dc-pink">REVIEW TIME</p>
+            <p class="mt-2 text-sm font-semibold">{{ reviewSchedule.event }}</p>
+            <p v-if="form.timezone !== 'Africa/Accra'" class="mt-1 text-sm text-dc-gray">Ghana: {{ reviewSchedule.ghana }}</p>
+            <p class="mt-2 text-sm text-dc-gray">Confirm this is the time attendees should use before sending it for review.</p>
+          </section>
+          <div class="flex flex-wrap items-center gap-3"><button class="motion-press rounded border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" type="button" :disabled="saving" @click="save">{{ saving ? 'SAVING…' : 'SAVE DRAFT' }}</button><button v-if="!reviewing" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving" type="button" @click="beginReview">REVIEW TIME →</button><button v-else class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving" type="submit">{{ submitting ? 'SUBMITTING…' : 'CONFIRM & SUBMIT →' }}</button><button v-if="reviewing" class="motion-press rounded border border-dc-line bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em]" type="button" :disabled="submitting || saving" @click="reviewing = false">EDIT TIME</button></div><p v-if="error" class="mt-3 text-sm text-red-700">{{ error }}</p><p v-else-if="saved" class="mt-3 text-sm text-green-700">Draft saved privately.</p>
+        </div>
       </form>
     </section>
   </main>

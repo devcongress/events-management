@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-21 — Community amendment timezone clarity
+
+- Let an approved event organizer choose the IANA timezone for an amendment, preserve the underlying instants while switching zones, and require a short schedule review before submitting.
+- Persist the accepted amendment timezone onto the canonical public event, include timezone-only changes in organizer review, and use that zone for amendment decision emails.
+
 ## 2026-09-21 — Community amendment event-time correctness
 
 - Display and save amendment schedule fields in the approved event’s declared time zone instead of treating stored UTC timestamps as browser-local values.

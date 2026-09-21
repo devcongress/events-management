@@ -337,7 +337,7 @@ export async function getActiveEventSubmissionManagementLink(
 
 export async function saveEventSubmissionAmendment(
   submissionId: string,
-  input: Pick<EventSubmissionAmendment, 'starts_at' | 'ends_at' | 'location_type'> & { venue_name?: string; venue_address?: string; online_url?: string; registration_url?: string; cover_url?: string | null; organizer_note?: string },
+  input: Pick<EventSubmissionAmendment, 'starts_at' | 'ends_at' | 'location_type'> & { timezone?: string; venue_name?: string; venue_address?: string; online_url?: string; registration_url?: string; cover_url?: string | null; organizer_note?: string },
   c?: Context,
 ): Promise<EventSubmissionAmendment> {
   const client = requireStorage(c);
@@ -557,7 +557,7 @@ export async function getPendingEventSubmissionEmails(
       organizer_message: submission.organizer_message,
       amendment_id: delivery.amendment_id,
       amendment_starts_at: delivery.amendment_id ? amendmentsById.get(delivery.amendment_id)?.starts_at ?? null : null,
-      amendment_timezone: delivery.amendment_id ? submission.timezone : null,
+      amendment_timezone: delivery.amendment_id ? amendmentsById.get(delivery.amendment_id)?.timezone ?? submission.timezone : null,
       management_link_id: linksBySubmission.get(submission.id) ?? null,
     }];
   });

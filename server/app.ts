@@ -475,21 +475,22 @@ const eventSubmissionOptionalUrlSchema = z.union([eventSubmissionUrlSchema, z.li
   .optional()
   .transform((value) => value || undefined);
 const eventSubmissionDateSchema = z.string().datetime({ offset: true });
+const eventSubmissionTimezoneSchema = z.string().trim().min(1).max(80).refine((value) => {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value }).format();
+
+    return true;
+  } catch {
+    return false;
+  }
+}, 'Choose a valid time zone.');
 const eventSubmissionSchema = z.object({
   title: z.string().trim().min(3, 'Enter an event title.').max(160),
   summary: z.string().trim().min(20, 'Add a short event summary.').max(2000),
   format: z.enum(['meetup', 'conference', 'workshop', 'hackathon', 'webinar', 'other']),
   starts_at: eventSubmissionDateSchema,
   ends_at: eventSubmissionDateSchema,
-  timezone: z.string().trim().min(1).max(80).refine((value) => {
-    try {
-      new Intl.DateTimeFormat('en', { timeZone: value }).format();
-
-      return true;
-    } catch {
-      return false;
-    }
-  }, 'Choose a valid time zone.'),
+  timezone: eventSubmissionTimezoneSchema,
   location_type: z.enum(['in_person', 'online', 'hybrid']),
   venue_name: z.string().trim().max(200).optional(),
   venue_address: z.string().trim().max(300).optional(),
@@ -543,6 +544,7 @@ const eventSubmissionRejectSchema = z.object({
 const eventSubmissionAmendmentSchema = z.object({
   starts_at: eventSubmissionDateSchema,
   ends_at: eventSubmissionDateSchema,
+  timezone: eventSubmissionTimezoneSchema.optional(),
   location_type: z.enum(['in_person', 'online', 'hybrid']),
   venue_name: z.string().trim().max(200).optional(),
   venue_address: z.string().trim().max(300).optional(),
