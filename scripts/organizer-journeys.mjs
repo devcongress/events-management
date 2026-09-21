@@ -17,6 +17,46 @@ const workspace = { edition, phases: [], tasks: [], summary: {}, permissions: { 
 const results = [];
 let browser;
 
+async function waitForRouteTransition(page) {
+  await page.waitForFunction(() => document.querySelectorAll('.page-view').length === 1);
+}
+
+async function assertVisibleBoardCards(page, expectedLabels) {
+  await waitForRouteTransition(page);
+
+  const labels = await page.locator('.task-board__card:visible')
+    .evaluateAll(cards => cards.map(card => card.getAttribute('aria-label')).sort());
+
+  assert.deepEqual(labels, [...expectedLabels].sort());
+}
+
+async function moveBoardTask(page, taskLabel, targetStatusLabel) {
+  await page.locator('.task-board:visible').evaluate((board, { taskLabel, targetStatusLabel }) => {
+    const task = [...board.querySelectorAll('.task-board__card')]
+      .find((card) => card.getAttribute('aria-label') === taskLabel);
+    const target = [...board.querySelectorAll('.task-board__column')]
+      .find((column) => column.getAttribute('aria-label') === `${targetStatusLabel} tasks`);
+
+    if (!task || !target) throw new Error('Unable to find the board task or destination column.');
+
+    const transfer = new DataTransfer();
+    const dragOptions = { bubbles: true, cancelable: true, dataTransfer: transfer };
+
+    task.dispatchEvent(new DragEvent('dragstart', dragOptions));
+    target.dispatchEvent(new DragEvent('dragover', dragOptions));
+    target.dispatchEvent(new DragEvent('drop', dragOptions));
+  }, { taskLabel, targetStatusLabel });
+}
+
+function createSaveGate() {
+  let markEntered;
+  let release;
+  const entered = new Promise(resolve => { markEntered = resolve; });
+  const response = new Promise(resolve => { release = resolve; });
+
+  return { entered, markEntered, release, response };
+}
+
 async function journey(name, run, { role = 'organizer', date = '2026-09-26T12:00:00Z' } = {}) {
   const context = await browser.newContext({ viewport: name === 'presentation-board' ? { width: 1280, height: 720 } : { width: 390, height: 844 }, timezoneId: 'Africa/Accra', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -51,7 +91,7 @@ async function journey(name, run, { role = 'organizer', date = '2026-09-26T12:00
     const custom = responses.get(url.pathname);
 
     if (custom) {
-      ({ body, status = 200 } = typeof custom === 'function' ? custom(request) : custom);
+      ({ body, status = 200 } = typeof custom === 'function' ? await custom(request) : custom);
     } else if (url.pathname === '/api/auth/session') {
       body = { authenticated: true, auth_configured: true, user: { email: 'fixture@example.com', display_name: 'Fixture User', role } };
     } else if (url.pathname === '/api/events') body = [event];
@@ -237,6 +277,9 @@ try {
       { id: 'alice-old', title: 'Alice earlier task', accountable_owner: 'Alice', phase_id: 'old' },
       { id: 'alice-current', title: 'Alice current task', accountable_owner: 'Alice', phase_id: 'current' },
       { id: 'bob-current', title: 'Bob current task', accountable_owner: 'Bob', phase_id: 'current' },
+      { id: 'charlie-current', title: 'Charlie current task', accountable_owner: 'Charlie', phase_id: 'current' },
+      { id: 'doreen-current', title: 'Doreen current task', accountable_owner: 'Doreen', phase_id: 'current' },
+      { id: 'eve-current', title: 'Eve current task', accountable_owner: 'Eve', phase_id: 'current' },
     ].map(task => ({ ...task, edition_id: edition.id, details: null, internal_note: null, workstream: 'venue_production_logistics', collaborators: [], priority: 'medium', target_date: '2026-09-30', status: 'not_started', dependency_task_ids: [], dependency_note: null, source: 'manual', sort_order: 1 }));
 
     responses.set('/api/annual-conference/2026/work-plan', { body: { ...workspace, tasks, phases: [
@@ -248,12 +291,132 @@ try {
     await page.goto(`${origin}/organizer-console/annual-conference/2026`);
     await page.getByRole('link').filter({ hasText: 'Alice' }).filter({ hasText: 'View tasks' }).click();
     await page.waitForURL(url => url.searchParams.get('owner') === 'Alice');
-    await page.getByText('Alice earlier task', { exact: true }).waitFor();
-    await page.getByText('Alice current task', { exact: true }).waitFor();
-    assert.equal(await page.getByText('Bob current task', { exact: true }).count(), 0);
+    await assertVisibleBoardCards(page, ['Open Alice earlier task', 'Open Alice current task']);
     await page.goto(`${origin}/organizer-console/annual-conference/2026/work-plan`);
-    await page.getByText('Bob current task', { exact: true }).waitFor();
-    assert.equal(await page.getByText('Alice earlier task', { exact: true }).count(), 0);
+    await assertVisibleBoardCards(page, [
+      'Open Alice current task',
+      'Open Bob current task',
+      'Open Charlie current task',
+      'Open Doreen current task',
+      'Open Eve current task',
+    ]);
+    await page.getByRole('button', { name: 'Filter tasks by owner: Alice' }).click();
+    await page.waitForURL(url => url.searchParams.get('owner') === 'Alice');
+    await assertVisibleBoardCards(page, ['Open Alice current task']);
+    await page.getByRole('button', { name: /More owner filters/ }).click();
+    await page.getByRole('option', { name: 'All owners', exact: true }).click();
+    await page.waitForURL(url => !url.searchParams.has('owner'));
+    await waitForRouteTransition(page);
+    await page.getByRole('button', { name: /More owner filters/ }).click();
+    await page.getByRole('option', { name: 'Eve', exact: true }).click();
+    await page.waitForURL(url => url.searchParams.get('owner') === 'Eve');
+    await assertVisibleBoardCards(page, ['Open Eve current task']);
+  });
+  await journey('optimistic-board-status', async ({ page, responses, requests }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const task = {
+      id: 'optimistic-task',
+      edition_id: edition.id,
+      title: 'Move this task instantly',
+      details: null,
+      internal_note: null,
+      phase_id: 'earlier',
+      workstream: 'venue_production_logistics',
+      accountable_owner: 'Alice',
+      collaborators: [],
+      priority: 'medium',
+      target_date: '2026-09-30',
+      status: 'not_started',
+      dependency_task_ids: [],
+      dependency_note: null,
+      source: 'manual',
+      sort_order: 1,
+      created_at: '2026-09-01T00:00:00Z',
+      updated_at: '2026-09-01T00:00:00Z',
+    };
+    let serverTask = task;
+    const saveGates = [
+      createSaveGate(),
+      createSaveGate(),
+      createSaveGate(),
+    ];
+    let saveIndex = 0;
+
+    responses.set('/api/annual-conference/2026/work-plan', () => ({
+      body: {
+        ...workspace,
+        phases: [
+          { id: 'earlier', name: 'Earlier phase', label: 'Earlier phase', starts_on: '2026-08-01', ends_on: '2026-08-31', sort_order: 1 },
+          { id: 'current', name: 'Current phase', label: 'Current phase', starts_on: '2026-09-01', ends_on: '2026-09-30', sort_order: 2 },
+        ],
+        tasks: [serverTask],
+        permissions: { ...workspace.permissions, access_scope: 'all', can_edit_all_tasks: true },
+      },
+    }));
+    responses.set('/api/annual-conference/2026/work-plan/optimistic-task', async request => {
+      assert.equal(request.method(), 'PATCH');
+      const gate = saveGates[saveIndex++];
+
+      assert.ok(gate, 'Unexpected extra status PATCH');
+      gate.markEntered();
+      await gate.response;
+
+      if (saveIndex === 3) return { status: 500, body: { error: 'Save failed' } };
+
+      serverTask = { ...serverTask, status: JSON.parse(request.postData()).status };
+
+      return { body: serverTask };
+    });
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/admin/organizers', { body: { organizers: [] } });
+    responses.set('/api/annual-conference/2026/task-members', { body: { organizers: [] } });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/work-plan`);
+    const phaseControl = page.locator('.annual-task-workspace__controls');
+
+    await phaseControl.getByRole('button', { name: 'Current phase', exact: true }).first().click();
+    await page.getByRole('option', { name: 'Earlier phase', exact: true }).click();
+    await page.waitForFunction(() => new URL(window.location.href).searchParams.get('phase') === 'earlier');
+    const visibleBoard = page.locator('.task-board:visible');
+    const taskCard = visibleBoard.getByRole('button', { name: 'Open Move this task instantly', exact: true }).first();
+
+    await taskCard.waitFor();
+    assert.equal(await taskCard.getAttribute('draggable'), 'true');
+
+    const firstSaveRequested = page.waitForRequest(request => request.url().endsWith('/work-plan/optimistic-task'));
+
+    await moveBoardTask(page, 'Open Move this task instantly', 'In progress');
+    await Promise.all([firstSaveRequested, saveGates[0].entered]);
+    await visibleBoard.getByLabel('In progress tasks').getByRole('button', { name: 'Open Move this task instantly', exact: true }).first().waitFor();
+    assert.equal(new URL(page.url()).searchParams.get('phase'), 'earlier');
+    assert.equal(requests.filter(request => request.path.endsWith('/optimistic-task')).length, 1);
+    assert.equal(await taskCard.getAttribute('draggable'), 'true');
+
+    const queuedSaveRequested = page.waitForRequest(request => (
+      request.url().endsWith('/work-plan/optimistic-task')
+      && JSON.parse(request.postData()).status === 'blocked'
+    ));
+
+    await moveBoardTask(page, 'Open Move this task instantly', 'Blocked');
+    await visibleBoard.getByLabel('Blocked tasks').getByRole('button', { name: 'Open Move this task instantly', exact: true }).first().waitFor();
+    assert.equal(await taskCard.getAttribute('draggable'), 'true');
+    assert.equal(requests.filter(request => request.path.endsWith('/optimistic-task')).length, 1);
+
+    saveGates[0].release();
+    await queuedSaveRequested;
+    await saveGates[1].entered;
+    saveGates[1].release();
+    await page.getByText('Conference task updated.', { exact: true }).waitFor();
+    await visibleBoard.getByLabel('Blocked tasks').getByRole('button', { name: 'Open Move this task instantly', exact: true }).first().waitFor();
+
+    const secondSaveRequested = page.waitForRequest(request => request.url().endsWith('/work-plan/optimistic-task'));
+
+    await moveBoardTask(page, 'Open Move this task instantly', 'Done');
+    await Promise.all([secondSaveRequested, saveGates[2].entered]);
+    await visibleBoard.getByLabel('Done tasks').getByRole('button', { name: 'Open Move this task instantly', exact: true }).first().waitFor();
+
+    saveGates[2].release();
+    await page.getByText('Save failed', { exact: true }).waitFor();
+    await visibleBoard.getByLabel('Blocked tasks').getByRole('button', { name: 'Open Move this task instantly', exact: true }).first().waitFor();
   });
   await journey('project-night-recurrence', async ({ page, responses, requests }) => {
     const projectNight = { ...event, name: 'Project Night', event_date: '2026-09-17T18:30:00Z', end_date: '2026-09-17T21:00:00Z', ownership: 'external', publication_status: 'published', location: { name: 'Accra' } };

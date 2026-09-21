@@ -81,7 +81,6 @@ const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDispla
 const AdminRegistrationDisplayView = () => import('./views/admin/AdminRegistrationDisplayView.vue');
 const AdminAnnualConferenceView = () => import('./views/admin/AdminAnnualConferenceView.vue');
 const AdminAnnualConferenceWorkPlanView = () => import('./views/admin/AdminAnnualConferenceWorkPlanView.vue');
-const AdminAnnualConferenceTimelineView = () => import('./views/admin/AdminAnnualConferenceTimelineView.vue');
 const AdminAnnualConferenceFinanceView = () => import('./views/admin/AdminAnnualConferenceFinanceView.vue');
 const AdminVolunteerView = () => import('./views/admin/AdminVolunteerView.vue');
 const AdminVolunteerDisplayView = () => import('./views/admin/AdminVolunteerDisplayView.vue');
@@ -226,7 +225,15 @@ export const router = createRouter({
     { path: adminPath('annual-conference'), redirect: annualConferencePath() },
     { path: adminPath('annual-conference/:year(\\d{4})'), name: 'admin-annual-conference', component: AdminAnnualConferenceView },
     { path: adminPath('annual-conference/:year(\\d{4})/work-plan'), name: 'admin-annual-conference-work-plan', component: AdminAnnualConferenceWorkPlanView },
-    { path: adminPath('annual-conference/:year(\\d{4})/timeline'), name: 'admin-annual-conference-timeline', component: AdminAnnualConferenceTimelineView },
+    {
+      path: adminPath('annual-conference/:year(\\d{4})/timeline'),
+      redirect: (to) => ({
+        path: annualConferencePath('work-plan', String(to.params.year)),
+        query: Object.fromEntries(
+          Object.entries(to.query).filter(([key]) => key === 'phase' || key === 'task'),
+        ),
+      }),
+    },
     { path: adminPath('annual-conference/:year(\\d{4})/speakers'), name: 'admin-annual-conference-speakers', component: () => import('./views/admin/AdminAnnualConferenceSpeakersView.vue') },
     { path: adminPath('annual-conference/:year(\\d{4})/finance'), name: 'admin-annual-conference-finance', component: AdminAnnualConferenceFinanceView },
     { path: adminPath('annual-conference/:year(\\d{4})/volunteers'), name: 'admin-annual-conference-volunteers', component: AdminVolunteerView },
@@ -423,7 +430,6 @@ router.afterEach((to) => {
   } else if (
     to.name === 'admin-annual-conference'
     || to.name === 'admin-annual-conference-work-plan'
-    || to.name === 'admin-annual-conference-timeline'
     || to.name === 'admin-annual-conference-finance'
     || to.name === 'admin-annual-conference-volunteers'
     || to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME

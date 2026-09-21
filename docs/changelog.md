@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-21 — Desktop Work plan status board
+
+- Keep Work plan phase and owner controls, delivery progress, active shared-link filter chips, and the task drawer inside one shared workspace surface while replacing only its desktop task table with an EMS-native status board.
+- Replace the unrestricted owner dropdown trigger with a compact Jira-inspired avatar group while retaining its full-name menu, keyboard behavior, and URL-backed filter state.
+- Keep board cards intentionally compact and make the full card open its right-hand task drawer; native press-and-drag remains the status-change interaction for eligible organizers.
+- Restore a clamped two-line task description to cards while keeping the remaining task context in the drawer.
+- Use deterministic Navii avatars for accountable owners on board cards, allocating a distinct stable character per conference owner and retaining a clear fallback for unassigned work.
+- Make the compact owner control use those same Navii characters. Select a visible owner directly, or open the remaining people through its `+N` badge.
+- Let eligible Owners and Organizers drag a filtered task between the existing statuses; status changes continue through the existing task update and audit path.
+- Move an eligible dragged task into its destination column immediately, reconcile the shared work-plan cache after the update returns, and restore its original status with the existing error message if saving fails.
+- Keep the board responsive during slow saves: every eligible card remains draggable, repeated moves of one card coalesce to its latest status in a per-task queue, unrelated cards save independently, and only a final failure restores that card’s last confirmed column.
+- Make the desktop Work plan header a useful phase-pace summary: completed work uses the Done green, elapsed phase time uses an orange marker, and selected phases show a UTC date-only remaining-time label; a zero owner gap now reads as a compact all-assigned state.
+- Preserve an explicit **Entire conference** selection in the URL so optimistic status moves cannot reset the board to the active phase; remove the Timeline surfaces and route former Timeline links into Work plan with their phase and task context intact.
+
 ## 2026-09-16 — Node 20 Supabase Storage backup compatibility
 
 - Supply the backup-only Supabase client with an explicit `ws` transport, allowing the Storage stage to initialize on GitHub Actions Node 20 after the database dump completes.

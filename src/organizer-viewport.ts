@@ -13,7 +13,7 @@ export const ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME = 'admin-mobile-check-in';
 export const ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME = 'admin-mobile-annual-conference';
 
 export type OrganizerMobileEventSection = 'overview' | 'guests' | 'submissions';
-export type OrganizerMobileConferenceSection = 'overview' | 'tasks' | 'timeline' | 'volunteers';
+export type OrganizerMobileConferenceSection = 'overview' | 'tasks' | 'volunteers';
 
 export interface OrganizerViewportRedirectTarget {
   path: string;
@@ -47,7 +47,7 @@ interface OrganizerViewportRouteInput {
 const DESKTOP_CONFERENCE_ROUTE_SECTIONS = new Map<string, OrganizerMobileConferenceSection>([
   ['admin-annual-conference', 'overview'],
   ['admin-annual-conference-work-plan', 'tasks'],
-  ['admin-annual-conference-timeline', 'timeline'],
+  ['admin-annual-conference-timeline', 'tasks'],
   ['admin-annual-conference-volunteers', 'volunteers'],
 ]);
 
@@ -110,7 +110,9 @@ export function organizerMobileEventSection(query: OrganizerRouteQuery | undefin
 export function organizerMobileConferenceSection(query: OrganizerRouteQuery | undefined): OrganizerMobileConferenceSection {
   const section = queryString(query, 'section');
 
-  if (section === 'tasks' || section === 'timeline' || section === 'volunteers') return section;
+  if (section === 'tasks' || section === 'volunteers') return section;
+
+  if (section === 'timeline') return 'tasks';
 
   return 'overview';
 }
@@ -260,13 +262,6 @@ export function organizerViewportRedirect({
     delete targetQuery.section;
     if (section === 'tasks') {
       return redirectTarget(annualConferencePath('work-plan', conferenceYear ?? undefined), targetQuery);
-    }
-    if (section === 'timeline') {
-      const timelineQuery = Object.fromEntries(
-        Object.entries(targetQuery).filter(([key]) => key === 'phase' || key === 'task'),
-      );
-
-      return redirectTarget(annualConferencePath('timeline', conferenceYear ?? undefined), timelineQuery);
     }
     if (section === 'volunteers') return redirectTarget(annualConferencePath('volunteers', conferenceYear ?? undefined));
 

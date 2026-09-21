@@ -8,7 +8,6 @@ import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDra
 import VolunteerApplicationSheet from '@/src/components/VolunteerApplicationSheet.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
-import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { adminPath } from '@/src/admin-routes';
 import { useAnnualConferenceWorkspace } from '@/src/composables/useAnnualConferenceWorkspace';
@@ -22,9 +21,6 @@ import {
   matchesAnnualConferenceTaskAttention,
   summarizeAnnualConferenceWorkPlan,
   type AnnualConferenceOwnerIdentity,
-  type AnnualConferencePhase,
-  type AnnualConferencePhaseCreateInput,
-  type AnnualConferencePhaseUpdateInput,
   type AnnualConferenceTask,
   type AnnualConferenceTaskAttention,
   type AnnualConferenceTaskCreateInput,
@@ -40,17 +36,13 @@ import {
 } from '@/src/annual-conference';
 import {
   createAnnualConferenceEdition,
-  createAnnualConferencePhase,
   createAnnualConferenceTask,
-  deleteAnnualConferencePhase,
   fetchAdminSession,
   fetchAnnualConferenceEditions,
   fetchAnnualConferenceVolunteerTeam,
   fetchVolunteerApplications,
   ensureAdminShortLink,
   queryKeys,
-  reorderAnnualConferencePhases,
-  updateAnnualConferencePhase,
 } from '@/src/lib/api';
 import { notify } from '@/src/lib/notify';
 import {
@@ -72,7 +64,7 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 
-type MobileConferenceTab = 'overview' | 'tasks' | 'timeline' | 'volunteers';
+type MobileConferenceTab = 'overview' | 'tasks' | 'volunteers';
 type TaskStatusFilter = 'all' | AnnualConferenceTaskStatus;
 
 const route = useRoute();
@@ -91,10 +83,6 @@ const attentionFilter = ref<'all' | AnnualConferenceTaskAttention>(
   (initialRouteContext.attention ?? 'all') as 'all' | AnnualConferenceTaskAttention,
 );
 const editionFormOpen = ref(false);
-const phaseManagerOpen = ref(false);
-const phaseEditorOpen = ref(false);
-const editingPhaseId = ref<string | null>(null);
-const pendingDeletePhase = ref<AnnualConferencePhase | null>(null);
 const volunteerLinkCopyState = ref<'idle' | 'copying' | 'copied'>('idle');
 let volunteerLinkCopyResetTimer: number | undefined;
 const volunteerShortLinkUrl = ref<string | null>(null);
@@ -107,7 +95,6 @@ const editionForm = reactive({
   provisional_date: '',
   task_creator_email: '',
 });
-const phaseForm = reactive({ name: '', starts_on: '', ends_on: '' });
 
 const {
   workPlanQuery,
@@ -146,7 +133,6 @@ const editionsQuery = useQuery({
 });
 const capabilities = computed(() => permissions.value?.capabilities ?? []);
 const assignedAccess = computed(() => permissions.value?.access_scope === 'assigned');
-const canViewTimeline = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['timeline.view', 'phases.manage']));
 const canViewVolunteers = computed(() => year.value === '2026' && hasAnyAnnualConferenceCapability(capabilities.value, VOLUNTEER_SECTION_CAPABILITIES));
 const canViewVolunteerTeam = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.view_team'));
 const canShareVolunteerIntake = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.share_intake'));
@@ -249,17 +235,9 @@ const conferenceDateParts = computed(() => {
   };
 });
 const daysToConference = computed(() => conferenceDate.value ? daysBetween(today.value, conferenceDate.value) : null);
-const phaseRows = computed(() => phases.value.map((phase) => {
-  const phaseTasks = tasks.value.filter((task) => task.phase_id === phase.id);
-  const done = phaseTasks.filter((task) => task.status === 'done').length;
-
-  return { ...phase, total: phaseTasks.length, done, completion: phaseTasks.length ? Math.round((done / phaseTasks.length) * 100) : 0 };
-}));
-const planningGaps = computed(() => sortedTasks(tasks.value.filter((task) => !task.phase_id || !task.target_date)));
 const availableTabs = computed<Array<{ id: MobileConferenceTab; label: string }>>(() => [
   { id: 'overview', label: 'Overview' },
   { id: 'tasks', label: assignedAccess.value ? 'My tasks' : 'Work plan' },
-  ...(canViewTimeline.value ? [{ id: 'timeline' as const, label: 'Timeline' }] : []),
   ...(canViewVolunteers.value ? [{ id: 'volunteers' as const, label: 'Volunteers' }] : []),
 ]);
 const editionOptions = computed(() => editions.value.map((item) => ({ value: String(item.year), label: item.label })));
@@ -401,25 +379,6 @@ const createEditionMutation = useMutation({
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to create the edition.'),
 });
-const createPhaseMutation = useMutation({
-  mutationFn: (input: AnnualConferencePhaseCreateInput) => createAnnualConferencePhase(year.value, input),
-  onSuccess: async () => { await refresh(); closePhaseEditor(); notify.success('Conference phase added.'); },
-  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to add the phase.'),
-});
-const updatePhaseMutation = useMutation({
-  mutationFn: ({ phaseId, input }: { phaseId: string; input: AnnualConferencePhaseUpdateInput }) => updateAnnualConferencePhase(year.value, phaseId, input),
-  onSuccess: async () => { await refresh(); closePhaseEditor(); notify.success('Conference phase updated.'); },
-  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the phase.'),
-});
-const deletePhaseMutation = useMutation({
-  mutationFn: (phaseId: string) => deleteAnnualConferencePhase(year.value, phaseId),
-  onSuccess: async (result) => {
-    await refresh();
-    pendingDeletePhase.value = null;
-    notify.success(result.tasks_unassigned ? `Phase removed. ${result.tasks_unassigned} tasks moved to No phase.` : 'Phase removed.');
-  },
-  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to remove the phase.'),
-});
 
 function currentAccraDate(): string {
   const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Accra', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -503,7 +462,7 @@ function mobileConferenceQuery(
   return organizerConferenceContextQuery({
     section,
     ...(statusFilter.value !== 'all' ? { status: statusFilter.value } : {}),
-    ...(phaseFilterValue.value !== 'all' ? { phase: phaseFilterValue.value } : {}),
+    phase: phaseFilterValue.value,
     ...(workstreamFilter.value !== 'all' ? { workstream: workstreamFilter.value } : {}),
     ...(ownerFilter.value !== 'all' ? { owner: ownerFilter.value } : {}),
     ...(attentionFilter.value !== 'all' ? { attention: attentionFilter.value } : {}),
@@ -621,51 +580,6 @@ function submitEdition() {
     provisional_date: editionForm.provisional_date,
     task_creator_email: editionForm.task_creator_email || null,
   });
-}
-
-function openPhaseEditor(phase?: AnnualConferencePhase) {
-  editingPhaseId.value = phase?.id ?? null;
-  phaseForm.name = phase?.name ?? `Phase ${phases.value.length + 1}`;
-  phaseForm.starts_on = phase?.starts_on ?? (phases.value.at(-1) ? nextDay(phases.value.at(-1)!.ends_on) : `${year.value}-08-01`);
-  const defaultEnd = conferenceDate.value ?? `${year.value}-12-01`;
-
-  phaseForm.ends_on = phase?.ends_on ?? (defaultEnd >= phaseForm.starts_on ? defaultEnd : phaseForm.starts_on);
-  phaseEditorOpen.value = true;
-}
-
-function closePhaseEditor() {
-  phaseEditorOpen.value = false;
-  editingPhaseId.value = null;
-}
-
-function submitPhase() {
-  const input = { name: phaseForm.name.trim(), starts_on: phaseForm.starts_on, ends_on: phaseForm.ends_on };
-
-  if (editingPhaseId.value) updatePhaseMutation.mutate({ phaseId: editingPhaseId.value, input });
-  else createPhaseMutation.mutate(input);
-}
-
-function nextDay(value: string): string {
-  const date = new Date(`${value}T12:00:00Z`);
-
-  date.setUTCDate(date.getUTCDate() + 1);
-
-  return date.toISOString().slice(0, 10);
-}
-
-async function movePhase(phase: AnnualConferencePhase, direction: -1 | 1) {
-  const index = phases.value.findIndex((item) => item.id === phase.id);
-
-  if (!phases.value[index + direction]) return;
-  const ids = phases.value.map((item) => item.id);
-
-  [ids[index], ids[index + direction]] = [ids[index + direction], ids[index]];
-  try {
-    await reorderAnnualConferencePhases(year.value, ids);
-    await refresh();
-  } catch (error) {
-    notify.error(error instanceof Error ? error.message : 'Unable to reorder phases.');
-  }
 }
 
 async function copyVolunteerLink() {
@@ -881,55 +795,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           </div>
         </section>
 
-        <section v-else-if="activeTab === 'timeline'" key="timeline" class="conference-view">
-          <header class="page-intro page-intro--with-action">
-            <div><span>Schedule</span><h1>Timeline</h1><p>Phase progress and planning gaps.</p></div>
-            <button v-if="permissions?.can_manage_phases" type="button" class="secondary-button" @click="phaseManagerOpen = !phaseManagerOpen">{{ phaseManagerOpen ? 'Close' : 'Manage' }}</button>
-          </header>
-
-          <section v-if="phaseManagerOpen && permissions?.can_manage_phases" class="content-card">
-            <header class="content-card__header"><div><span>Planning controls</span><h2>Manage phases</h2></div><button type="button" class="primary-button" @click="openPhaseEditor()">Add phase</button></header>
-            <form v-if="phaseEditorOpen" class="mobile-form" @submit.prevent="submitPhase">
-              <label><span>Phase name</span><input v-model="phaseForm.name" class="editorial-input min-h-[50px]" maxlength="80" required></label>
-              <AppDatePicker v-model="phaseForm.starts_on" label="Starts" required />
-              <AppDatePicker v-model="phaseForm.ends_on" label="Ends" required />
-              <div class="mobile-form__actions"><button type="button" class="secondary-button" @click="closePhaseEditor">Cancel</button><button type="submit" class="primary-button">Save phase</button></div>
-            </form>
-            <div class="phase-manager-list">
-              <article v-for="(phase, index) in phases" :key="phase.id">
-                <div><strong>{{ phase.name }}</strong><span>{{ formatDate(phase.starts_on) }} – {{ formatDate(phase.ends_on) }}</span></div>
-                <div class="phase-manager-actions">
-                  <button type="button" :disabled="index === 0" aria-label="Move phase earlier" @click="movePhase(phase, -1)">↑</button>
-                  <button type="button" :disabled="index === phases.length - 1" aria-label="Move phase later" @click="movePhase(phase, 1)">↓</button>
-                  <button type="button" @click="openPhaseEditor(phase)">Edit</button>
-                  <button type="button" class="danger-text" @click="pendingDeletePhase = phase">Delete</button>
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <div class="phase-list">
-            <article v-for="phase in phaseRows" :key="phase.id" :class="{ 'phase-card--current': phase.id === currentPhase?.id }" class="phase-card">
-              <header><div><span>{{ phase.id === currentPhase?.id ? 'Current phase' : phase.starts_on > today ? 'Upcoming' : 'Past phase' }}</span><h2>{{ phase.name }}</h2></div><strong>{{ phase.completion }}%</strong></header>
-              <p>{{ formatDate(phase.starts_on) }} – {{ formatDate(phase.ends_on) }}</p>
-              <div class="progress-track"><span :style="{ transform: `scaleX(${phase.completion / 100})` }" /></div>
-              <small>{{ phase.done }} of {{ phase.total }} tasks complete</small>
-            </article>
-          </div>
-
-          <section class="content-card">
-            <header class="content-card__header"><div><span>Plan quality</span><h2>Planning gaps</h2></div><strong>{{ planningGaps.length }}</strong></header>
-            <p v-if="planningGaps.length === 0" class="empty-state empty-state--plain">Every task has a phase and target date.</p>
-            <div v-else class="task-list task-list--embedded">
-              <button v-for="task in planningGaps" :key="task.id" type="button" class="task-row" @click="openTaskWithContext(task.id)">
-                <span class="gap-label">{{ !task.phase_id && !task.target_date ? 'Phase + date' : !task.phase_id ? 'Phase missing' : 'Date missing' }}</span>
-                <strong>{{ task.title }}</strong><small>{{ organizerDisplay(task.accountable_owner) }}</small>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
-              </button>
-            </div>
-          </section>
-        </section>
-
         <section v-else key="volunteers" class="conference-view">
           <header class="page-intro"><span>People</span><h1>Volunteers</h1><p>Your assigned volunteer responsibilities for this edition.</p></header>
           <div class="volunteer-directory-sticky">
@@ -1008,7 +873,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
       <button v-for="tab in availableTabs" :key="tab.id" type="button" :aria-current="activeTab === tab.id ? 'page' : undefined" @click="selectTab(tab.id)">
         <svg v-if="tab.id === 'overview'" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z" /></svg>
         <svg v-else-if="tab.id === 'tasks'" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v14H5zM8 3h8v5H8zM8 12l2 2 4-4M8 17h7" /></svg>
-        <svg v-else-if="tab.id === 'timeline'" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M18 4v16M6 8h7l-2 4h7" /></svg>
         <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16 10a2.5 2.5 0 1 0 0-5M3 19c0-3 2-5 5-5s5 2 5 5M13 14c3 0 5 2 5 5" /></svg>
         <span>{{ tab.label }}</span>
       </button>
@@ -1057,18 +921,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
       </Transition>
     </Teleport>
 
-    <ConfirmDialog
-      :open="Boolean(pendingDeletePhase)"
-      title="Delete phase?"
-      :message="pendingDeletePhase ? `Tasks in ${pendingDeletePhase.name} will return to No phase. No tasks will be deleted.` : ''"
-      confirm-label="Delete phase"
-      cancel-label="Keep phase"
-      busy-label="Deleting…"
-      danger
-      :busy="deletePhaseMutation.isPending.value"
-      @cancel="pendingDeletePhase = null"
-      @confirm="pendingDeletePhase && deletePhaseMutation.mutate(pendingDeletePhase.id)"
-    />
   </section>
 </template>
 

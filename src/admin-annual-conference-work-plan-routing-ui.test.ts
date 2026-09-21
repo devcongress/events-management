@@ -13,8 +13,8 @@ const workspaceSource = readFileSync(
   new URL('./composables/useAnnualConferenceWorkspace.ts', import.meta.url),
   'utf8',
 );
-const timelineSource = readFileSync(
-  new URL('./views/admin/AdminAnnualConferenceTimelineView.vue', import.meta.url),
+const taskBoardSource = readFileSync(
+  new URL('./components/AnnualConferenceTaskBoard.vue', import.meta.url),
   'utf8',
 );
 const mobileConferenceSource = readFileSync(
@@ -40,11 +40,11 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(workPlanSource).toContain('defaultAnnualConferencePhaseScope(phases.value, today.value)');
   });
 
-  it('stores desktop filters and open tasks in the route', () => {
+  it('stores desktop filters, including an explicit Entire conference scope, and open tasks in the route', () => {
     expect(workPlanSource).toContain('router.push({ path: route.path, query: workPlanContextQuery(patch) })');
     expect(workPlanSource).toContain('if (!context.task && selectedTaskId.value) closeTaskDrawer()');
-    expect(timelineSource).toContain('router.push({ path: route.path, query: timelineQuery(patch) })');
-    expect(timelineSource).toContain('watch([() => route.fullPath, tasks, phases]');
+    expect(workPlanSource).toContain('phase: phaseFilter.value');
+    expect(mobileConferenceSource).toContain('phase: phaseFilterValue.value');
   });
 
   it('uses route history for mobile sections and task drawers', () => {
@@ -70,26 +70,132 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(overviewSource).toContain("query: { phase: 'all', ...query }");
   });
 
-  it('does not animate the ledger underneath an opening or open task drawer', () => {
-    expect(workPlanSource).toContain('}, !requestedTask);');
-    expect(workPlanSource).toContain('function updateLedgerFilters(update: () => void, afterUpdate?: () => void, animate = true)');
-    expect(workPlanSource).toContain('!animate\n    || selectedTaskId.value\n    || showCreateForm.value');
+  it('uses the route transition instead of a competing ledger transition', () => {
+    expect(workPlanSource).toContain('function updateLedgerFilters(update: () => void, afterUpdate?: () => void)');
+    expect(workPlanSource).not.toContain('startViewTransition');
   });
 
-  it('keeps every work-plan filter in one labelled controls section', () => {
-    expect(workPlanSource).toContain('id="workstream-filter-label"');
-    expect(workPlanSource).toContain('aria-labelledby="workstream-filter-label"');
+  it('keeps phase and owner controls in one labelled controls section', () => {
     expect(workPlanSource.match(/work plan controls/g)).toHaveLength(1);
-    expect(workPlanSource).not.toContain('{{ phaseScopeLabel }} workstreams');
+    expect(workPlanSource).not.toContain('workstream-filter-label');
+    expect(workPlanSource).not.toContain('workstreamSummaries');
+    expect(workPlanSource).toContain('const activeWorkstreamLabel');
+    expect(workPlanSource).toContain('@click="clearWorkstreamFilter"');
+    expect(workPlanSource).not.toContain('One accountable owner');
+    expect(workPlanSource).not.toContain('Filter tasks by status');
     expect(workPlanSource).not.toContain('Task ledger');
+    expect(workPlanSource).toContain('Filter tasks by owner: ${owner.label}');
+    expect(workPlanSource).toContain('ownerAvatarPreviews');
+    expect(workPlanSource).toContain('const visibleOwners = owners.value.slice(0, 4);');
+    expect(workPlanSource).toContain('return [...visibleOwners.slice(0, -1), selectedOwner];');
+    expect(workPlanSource).toContain('!ownerAvatarPreviews.value.some((preview) => preview.key === owner.key)');
+    expect(workPlanSource).toContain('selectedOwnerAvatarSeed(owner)');
+    expect(workPlanSource).toContain('More owner filters. Current filter: ${selectedOwnerLabel}');
+    expect(workPlanSource).toContain('@click="setOwnerFilter(owner.filter_value)"');
+    expect(workPlanSource).toContain('hiddenOwnerCount');
+    expect(workPlanSource).toContain('visibleOwnerKeys');
+    expect(workPlanSource).toContain(':disabled="!filtersActive"');
+    expect(workPlanSource).toContain(": 'cursor-not-allowed text-dc-gray/45'");
+    expect(workPlanSource).toContain('role="tooltip"');
+    expect(workPlanSource).toContain('owner-filter-tooltip-${owner.key}');
+    expect(workPlanSource).toContain('group-hover:opacity-100');
+    expect(workPlanSource).not.toContain('hover:-translate-y-0.5');
+    expect(workPlanSource).toContain("'!border-2 !border-dc-paper !outline !outline-2 !outline-dotted !outline-dc-pink'");
   });
 
-  it('opens timeline readiness counts as exact desktop and mobile work-plan filters', () => {
-    expect(timelineSource).toContain("workPlanTarget({ attention: 'needs_planning' })");
-    expect(timelineSource).toContain("workPlanTarget({ attention: 'overdue' })");
-    expect(timelineSource).toContain("workPlanTarget({ attention: 'due_soon' })");
-    expect(timelineSource).toContain("workPlanTarget({ status: 'blocked' })");
+  it('applies attention filters consistently in desktop and mobile Work plans', () => {
     expect(workPlanSource).toContain('matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value)');
     expect(mobileConferenceSource).toContain('matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value)');
+  });
+
+  it('replaces only the desktop Work plan task table with an organizer board', () => {
+    expect(workPlanSource).toContain('<AnnualConferenceTaskBoard');
+    expect(workPlanSource).toContain(':tasks="visibleTasks"');
+    expect(workPlanSource).toContain('class="hidden lg:block"');
+    expect(workPlanSource).toContain(":class=\"{ 'lg:hidden': isConferenceOrganizer }\"");
+    expect(workPlanSource).toContain('@change-status="moveTask"');
+    expect(workPlanSource).toContain("return role === 'owner' || role === 'organizer';");
+    expect(workPlanSource).toContain('function canMoveTask(task: AnnualConferenceTask): boolean');
+  });
+
+  it('keeps the filtered board inside the shared Work plan workspace surface', () => {
+    expect(workPlanSource).toContain('class="annual-task-workspace border-2 border-dc-ink bg-dc-paper md:sticky md:z-30"');
+    expect(workPlanSource).toContain('annual-task-workspace__controls flex flex-wrap items-center justify-between gap-4 border-b border-dc-ink');
+    expect(workPlanSource).toContain('annual-task-workspace__controls');
+    expect(workPlanSource).toContain("'--annual-conference-nav-height': `${annualConferenceNavHeight}px`");
+    expect(workPlanSource).toContain('function updateAnnualConferenceNavHeight()');
+    expect(workPlanSource).toContain('annualConferenceNavObserver = new ResizeObserver(updateAnnualConferenceNavHeight)');
+    expect(workPlanSource).toContain('class="annual-task-ledger overflow-hidden rounded-b-lg border-x-2 border-b-2 border-dc-ink bg-dc-paper"');
+    expect(workPlanSource).toContain('top: var(--annual-conference-nav-height);');
+  });
+
+  it('keeps native drag-and-drop without a per-card status selector', () => {
+    expect(taskBoardSource).toContain('@dragstart="beginDrag($event, task)"');
+    expect(taskBoardSource).toContain('@drop="dropTask($event, column.status)"');
+    expect(taskBoardSource).toContain('requestStatusChange(task, status)');
+    expect(taskBoardSource).toContain("'task-board__column--active-drop'");
+    expect(taskBoardSource).not.toContain('<select');
+  });
+
+  it('queues board status moves per task without locking the whole board', () => {
+    expect(workPlanSource).toContain('queueTaskStatus(task.id, status)');
+    expect(workPlanSource).toContain(':saving-task-ids="pendingStatusTaskIds"');
+    expect(workPlanSource).toContain('const selectedTaskStatusSaving = computed(() => selectedTaskId.value !== null');
+    expect(workPlanSource).toContain("notify.info('Task status is still saving. Try again in a moment.')");
+    expect(workPlanSource).toContain('updateMutation.isPending.value || selectedTaskStatusSaving');
+    expect(workPlanSource).not.toContain('updateMutation.isPending.value || task.status === status');
+    expect(workspaceSource).toContain('const pendingStatusOverrides = ref(new Map<string, AnnualConferenceTask[\'status\']>())');
+    expect(workspaceSource).toContain('const statusQueues = ref(new Map<string, StatusQueueEntry>())');
+    expect(workspaceSource).toContain('function queueTaskStatus(taskId: string, status: AnnualConferenceTask[\'status\'])');
+    expect(workspaceSource).toContain('async function processStatusQueue(key: string): Promise<void>');
+    expect(workspaceSource).toContain('if (!entry || entry.requestActive) return;');
+    expect(workspaceSource).toContain('if (settledEntry.desiredStatus === settledEntry.confirmedStatus)');
+    expect(workspaceSource).toContain('if (settledEntry.desiredStatus !== activeEntry.desiredStatus)');
+    expect(workspaceSource).toContain('previousStatus = variables.previousStatus ?? cachedStatus');
+    expect(taskBoardSource).toContain('savingTaskIds?: ReadonlySet<string>;');
+    expect(taskBoardSource).toContain(':draggable="canMoveTask(task)"');
+    expect(taskBoardSource).not.toContain('props.busy');
+  });
+
+  it('keeps board cards compact and opens their details from the card surface', () => {
+    expect(taskBoardSource).toContain('@click="emit(\'openTask\', task)"');
+    expect(taskBoardSource).toContain('@keydown.enter.prevent="emit(\'openTask\', task)"');
+    expect(taskBoardSource).toContain('cursor: pointer;');
+    expect(taskBoardSource).toContain('annualConferenceTaskCardDescription');
+    expect(taskBoardSource).toContain('white-space: nowrap;');
+    expect(taskBoardSource).toContain('text-overflow: ellipsis;');
+    expect(taskBoardSource).toContain('-webkit-line-clamp: 2;');
+    expect(taskBoardSource).toContain('class="task-board__target-date"');
+    expect(taskBoardSource).toContain('M5 17.25V3.25');
+    expect(taskBoardSource).not.toContain('Needs target date');
+    expect(taskBoardSource).not.toContain('checklist items');
+    expect(taskBoardSource).toContain("import NaviiAvatar from '@/src/components/NaviiAvatar.vue';");
+    expect(taskBoardSource).toContain('ownerAvatarSeeds: ReadonlyMap<string, string>');
+    expect(taskBoardSource).toContain(':seed="ownerAvatarSeed(task)!"');
+    expect(taskBoardSource).toContain('function taskCountLabel(count: number): string');
+    expect(taskBoardSource).toContain(':aria-label="taskCountLabel(column.tasks.length)"');
+    expect(taskBoardSource).toContain("not_started: { accent: '#777777', countLabel: 'queued' }");
+    expect(taskBoardSource).toContain("in_progress: { accent: '#d97706', countLabel: 'active' }");
+    expect(taskBoardSource).toContain("done: { accent: '#0f766e', countLabel: 'shipped' }");
+    expect(taskBoardSource).toContain('Clear runway');
+    expect(taskBoardSource).toContain('No blocked tasks in this view. Drop a task here.');
+    expect(taskBoardSource).toContain('task-board-status-accent');
+    expect(taskBoardSource).not.toContain('background: #111;');
+    expect(taskBoardSource).toContain('new ResizeObserver(animateBoardResize)');
+    expect(taskBoardSource).toContain("easing: 'cubic-bezier(.16, 1, .3, 1)'");
+    expect(taskBoardSource).toContain("window.matchMedia('(prefers-reduced-motion: reduce)')");
+  });
+
+  it('keeps date-only targets and the unassigned owner filter available', () => {
+    expect(taskBoardSource).toContain("timeZone: 'UTC'");
+    expect(workPlanSource).toContain('function toggleUnassignedFilter()');
+    expect(workPlanSource).toContain('Need owners</span>');
+    expect(workPlanSource).toContain('annualConferencePhaseTiming');
+    expect(workPlanSource).toContain('const selectedPhaseHealth = computed');
+    expect(workPlanSource).toContain('selectedPhaseHealth.time_elapsed_percent');
+    expect(workPlanSource).toContain("? 'calc(100% - 2px)'");
+    expect(workPlanSource).toContain('text-[#92400e]');
+    expect(workPlanSource).toContain('Phase completion');
+    expect(workPlanSource).toContain('All assigned');
   });
 });

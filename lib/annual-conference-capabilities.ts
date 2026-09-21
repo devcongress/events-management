@@ -17,7 +17,7 @@ export type AnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[n
 
 export interface AnnualConferenceCapabilityDefinition {
   value: AnnualConferenceCapability;
-  section: 'Work plan' | 'Timeline' | 'Volunteers' | 'Speakers' | 'Finance';
+  section: 'Work plan' | 'Volunteers' | 'Speakers' | 'Finance';
   label: string;
   description: string;
 }
@@ -34,18 +34,6 @@ export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConference
     section: 'Work plan',
     label: 'Manage the work plan',
     description: 'Create tasks and edit every task, including internal planning details.',
-  },
-  {
-    value: 'timeline.view',
-    section: 'Timeline',
-    label: 'View the timeline',
-    description: 'Open the delivery timeline and see conference-wide planning dates.',
-  },
-  {
-    value: 'phases.manage',
-    section: 'Timeline',
-    label: 'Manage phases',
-    description: 'Create, reorder, edit, and remove delivery phases.',
   },
   {
     value: 'volunteers.view_team',

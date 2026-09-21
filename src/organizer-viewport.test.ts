@@ -137,7 +137,7 @@ describe('organizer viewport policy', () => {
     })).toEqual({ path: '/organizer-console/events/event%2Fone/talks/proposals', replace: true });
   });
 
-  it('keeps timeline task context when returning to desktop', () => {
+  it('redirects a legacy Timeline context to the Work plan', () => {
     expect(organizerViewportRedirect({
       authenticated: true,
       isAdminRoute: true,
@@ -146,10 +146,11 @@ describe('organizer viewport policy', () => {
       conferenceYear: '2027',
       query: { section: 'timeline', phase: 'phase-3', task: 'task-9', owner: 'ignored@example.com' },
     })).toEqual({
-      path: '/organizer-console/annual-conference/2027/timeline',
-      query: { phase: 'phase-3', task: 'task-9' },
+      path: '/organizer-console/annual-conference/2027/work-plan',
+      query: { phase: 'phase-3', task: 'task-9', owner: 'ignored@example.com' },
       replace: true,
     });
+    expect(organizerMobileConferenceSection({ section: 'timeline' })).toBe('tasks');
   });
 
   it('degrades unsupported context to safe defaults', () => {

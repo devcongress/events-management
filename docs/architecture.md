@@ -126,7 +126,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `[adminBase]/website-preview/events/[slug]` — authenticated website-shaped preview of one published event DTO
 - `[adminBase]/annual-conference/[year]` — selected annual-edition overview and future-edition creation
 - `[adminBase]/annual-conference/[year]/work-plan` — shared annual-conference task plan with phase assignment
-- `[adminBase]/annual-conference/[year]/timeline` — phase management and target-date timeline
+- `[adminBase]/annual-conference/[year]/timeline` — compatibility redirect to the Work plan
 - `[adminBase]/annual-conference/2026/volunteers` — December volunteer intake operations
 - `[adminBase]/events/new` — create event form
 - `[adminBase]/attendance` — monthly attendance ledger and cross-month insights
