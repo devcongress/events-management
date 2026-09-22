@@ -11,6 +11,7 @@ import {
   updateMockAnnualConferenceSpeakerCallStatus,
   updateMockAnnualConferenceSpeakerLogisticsDeadline,
   updateMockAnnualConferenceTask,
+  moveMockAnnualConferencePhaseTasks,
 } from '@/lib/mock-db/annual-conference-work-plan';
 import {
   createSupabaseAnnualConferenceEdition,
@@ -24,6 +25,7 @@ import {
   updateSupabaseAnnualConferenceSpeakerCallStatus,
   updateSupabaseAnnualConferenceSpeakerLogisticsDeadline,
   updateSupabaseAnnualConferenceTask,
+  moveSupabaseAnnualConferencePhaseTasks,
 } from '@/lib/supabase/annual-conference-work-plan';
 import type {
   AnnualConferenceEdition,
@@ -52,6 +54,7 @@ export interface AnnualConferenceRepository {
   reorderPhases(editionId: string, phases: AnnualConferencePhase[], actorEmail: string): Promise<AnnualConferencePhase[]>;
   createTask(edition: AnnualConferenceEdition, input: AnnualConferenceTaskCreateInput, actorEmail: string): Promise<AnnualConferenceTask>;
   updateTask(editionId: string, taskId: string, input: AnnualConferenceTaskUpdateInput, actorEmail: string): Promise<AnnualConferenceTask | undefined>;
+  movePhaseTasks(editionId: string, sourcePhaseId: string, destinationPhaseId: string, taskIds: string[], actorEmail: string): Promise<number>;
   updateEditionSpeakerCallStatus(editionId: string, status: 'open' | 'closed'): Promise<AnnualConferenceEdition>;
   updateEditionSpeakerLogisticsDeadline(editionId: string, deadline: string | null): Promise<AnnualConferenceEdition>;
 }
@@ -168,6 +171,18 @@ export function createAnnualConferenceRepository(c?: Context): AnnualConferenceR
       }
 
       return updateMockAnnualConferenceTask(editionId, taskId, input, actorEmail);
+    },
+
+    async movePhaseTasks(editionId, sourcePhaseId, destinationPhaseId, taskIds, actorEmail) {
+      if (selectedBackend() === 'supabase') {
+        const moved = await moveSupabaseAnnualConferencePhaseTasks(editionId, sourcePhaseId, destinationPhaseId, taskIds, actorEmail, c);
+
+        if (moved === null) throw new Error('Supabase Annual Conference storage became unavailable during the request.');
+
+        return moved;
+      }
+
+      return moveMockAnnualConferencePhaseTasks(editionId, sourcePhaseId, destinationPhaseId, taskIds, actorEmail);
     },
 
     async updateEditionSpeakerCallStatus(editionId, status) {

@@ -21,6 +21,7 @@ export default {
       { path: '/api/internal/speaker-rejection-emails/retry', event: 'scheduled_speaker_rejection_email_retry_http_failed' },
       { path: '/api/internal/selected-speaker-emails/retry', event: 'scheduled_selected_speaker_email_retry_http_failed' },
       { path: '/api/internal/annual-conference-speaker-emails/retry', event: 'scheduled_annual_conference_speaker_email_retry_http_failed' },
+      { path: '/api/internal/annual-conference/phases/rollover', event: 'scheduled_annual_conference_phase_rollover_http_failed' },
     ];
 
     for (const job of jobs) {

@@ -20,6 +20,7 @@ import {
   type AnnualConferenceActor,
 } from '@/lib/annual-conference-access';
 import type { AnnualConferenceRepository } from '@/server/annual-conference-repository';
+import { dueAnnualConferencePhaseRollovers } from '@/lib/annual-conference-phase-rollover';
 
 export type AnnualConferenceErrorCode =
   | 'invalid_input'
@@ -93,6 +94,44 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
   }
 
   return {
+    async rolloverDuePhases(today: string) {
+      const editions = await repository.listEditions();
+      const rollovers: Array<{ year: number; source_phase_id: string; destination_phase_id: string; moved: number }> = [];
+
+      for (const edition of editions) {
+        const plan = await repository.getWorkspace(edition.year);
+
+        if (!plan) continue;
+
+        for (const rollover of dueAnnualConferencePhaseRollovers(plan.phases, plan.tasks, today)) {
+          const invalidTarget = rollover.tasks.find((task) => task.target_date && task.target_date > rollover.destination.ends_on);
+
+          if (invalidTarget) {
+            throw new AnnualConferenceServiceError('conflict', `Cannot roll ${rollover.source.name} into ${rollover.destination.name}: ${invalidTarget.title} is dated after the destination phase ends.`);
+          }
+
+          const moved = await repository.movePhaseTasks(
+            plan.edition.id,
+            rollover.source.id,
+            rollover.destination.id,
+            rollover.tasks.map((task) => task.id),
+            'annual-conference-scheduler',
+          );
+
+          if (!moved) continue;
+
+          rollovers.push({
+            year: edition.year,
+            source_phase_id: rollover.source.id,
+            destination_phase_id: rollover.destination.id,
+            moved,
+          });
+        }
+      }
+
+      return { rollovers };
+    },
+
     async listEditions() {
       return repository.listEditions();
     },
