@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
+import type { AnnualConferenceCapability, AnnualConferenceCapabilityOverride } from '@/lib/annual-conference-capabilities';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import type { AdminRole, Database } from '@/types/supabase';
 import {
@@ -15,6 +15,7 @@ export interface AnnualConferenceAccessMember {
   role: AdminRole;
   status: 'active' | 'disabled';
   capabilities: AnnualConferenceCapability[];
+  overrides: AnnualConferenceCapabilityOverride[];
   inherited_capabilities: AnnualConferenceCapability[];
 }
 
@@ -34,17 +35,17 @@ export async function getAnnualConferenceAccessGrants(
   editionId: string,
   membershipId: string | null,
   c?: Context,
-): Promise<AnnualConferenceCapability[]> {
+): Promise<AnnualConferenceCapabilityOverride[]> {
   if (!membershipId || !isSupabaseRuntimeEnabled(c)) return [];
   const result = await getSupabaseAdminClient(c)
     .from('annual_conference_access_grants')
-    .select('capability')
+    .select('capability, enabled')
     .eq('edition_id', editionId)
     .eq('membership_id', membershipId);
 
   if (result.error) throw new Error(result.error.message);
 
-  return result.data.map((row) => row.capability);
+  return result.data.map((row) => ({ capability: row.capability, enabled: row.enabled }));
 }
 
 export async function listAnnualConferenceAccessMembers(year: number, c?: Context): Promise<{
@@ -71,19 +72,19 @@ export async function listAnnualConferenceAccessMembers(year: number, c?: Contex
       .order('display_name', { ascending: true }),
     client
       .from('annual_conference_access_grants')
-      .select('membership_id, capability')
+      .select('membership_id, capability, enabled')
       .eq('edition_id', editionId),
   ]);
 
   if (membersResult.error) throw new Error(membersResult.error.message);
   if (grantsResult.error) throw new Error(grantsResult.error.message);
 
-  const grantsByMember = new Map<string, AnnualConferenceCapability[]>();
+  const grantsByMember = new Map<string, AnnualConferenceCapabilityOverride[]>();
 
   for (const grant of grantsResult.data) {
     const capabilities = grantsByMember.get(grant.membership_id) ?? [];
 
-    capabilities.push(grant.capability);
+    capabilities.push({ capability: grant.capability, enabled: grant.enabled });
     grantsByMember.set(grant.membership_id, capabilities);
   }
 
@@ -97,7 +98,12 @@ export async function listAnnualConferenceAccessMembers(year: number, c?: Contex
         display_name: member.display_name,
         role: member.role,
         status: member.status,
-        capabilities: grantsByMember.get(member.id) ?? [],
+        capabilities: effectiveAnnualConferenceCapabilities({
+          role: member.role,
+          overrides: grantsByMember.get(member.id) ?? [],
+          isPlanningOwner: member.role !== 'volunteer' && planningOwner,
+        }),
+        overrides: grantsByMember.get(member.id) ?? [],
         inherited_capabilities: effectiveAnnualConferenceCapabilities({
           role: member.role,
           isPlanningOwner: member.role !== 'volunteer' && planningOwner,
@@ -133,28 +139,25 @@ export async function setAnnualConferenceAccessGrant(input: {
     return 'not_eligible';
   }
 
-  if (input.enabled) {
-    const row: GrantInsert = {
-      edition_id: editionId,
-      membership_id: input.membershipId,
-      capability: input.capability,
-      granted_by_membership_id: input.grantedByMembershipId,
-    };
-    const result = await client
-      .from('annual_conference_access_grants')
-      .upsert(row, { onConflict: 'edition_id,membership_id,capability', ignoreDuplicates: true });
+  const row: GrantInsert = {
+    edition_id: editionId,
+    membership_id: input.membershipId,
+    capability: input.capability,
+    enabled: input.enabled,
+    granted_by_membership_id: input.grantedByMembershipId,
+  };
+  const rows: GrantInsert[] = [row];
 
-    if (result.error) throw new Error(result.error.message);
-
-    return 'updated';
+  if (input.capability === 'work_plan.view_all' && !input.enabled) {
+    rows.push({ ...row, capability: 'work_plan.manage', enabled: false });
+  }
+  if (input.capability === 'work_plan.manage' && input.enabled) {
+    rows.push({ ...row, capability: 'work_plan.view_all', enabled: true });
   }
 
   const result = await client
     .from('annual_conference_access_grants')
-    .delete()
-    .eq('edition_id', editionId)
-    .eq('membership_id', input.membershipId)
-    .eq('capability', input.capability);
+    .upsert(rows, { onConflict: 'edition_id,membership_id,capability' });
 
   if (result.error) throw new Error(result.error.message);
 

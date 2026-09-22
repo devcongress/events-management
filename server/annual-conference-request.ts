@@ -3,6 +3,7 @@ import {
   effectiveAnnualConferenceCapabilities,
   hasAnnualConferenceCapability,
   type AnnualConferenceCapability,
+  type AnnualConferenceCapabilityOverride,
 } from '@/lib/annual-conference-capabilities';
 import {
   getAnnualConferenceAccessGrants,
@@ -115,13 +116,20 @@ async function annualConferenceCapabilitiesForRequest(c: Context, year: number):
 
   if (editionResult.error) throw new Error(editionResult.error.message);
   if (!editionResult.data) return undefined;
-  const grants = await getAnnualConferenceAccessGrants(editionResult.data.id, session.membership_id, c);
+  const access = await getAnnualConferenceAccessGrants(editionResult.data.id, session.membership_id, c);
+  const legacyGrants = typeof access[0] === 'string'
+    ? access as unknown as AnnualConferenceCapability[]
+    : [];
+  const overrides = typeof access[0] === 'string'
+    ? []
+    : access as AnnualConferenceCapabilityOverride[];
 
   return {
     editionId: editionResult.data.id,
     capabilities: effectiveAnnualConferenceCapabilities({
       role: session.role,
-      grants,
+      grants: legacyGrants,
+      overrides,
       isPlanningOwner: Boolean(session.email)
         && session.role !== 'volunteer'
         && session.email?.trim().toLowerCase() === editionResult.data.task_creator_email.trim().toLowerCase(),

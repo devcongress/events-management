@@ -20,6 +20,7 @@ import {
   presentAnnualConferenceWorkspace,
   type AnnualConferenceActor,
 } from '@/lib/annual-conference-access';
+import type { AnnualConferenceCapability, AnnualConferenceCapabilityOverride } from '@/lib/annual-conference-capabilities';
 import type { AnnualConferenceRepository } from '@/server/annual-conference-repository';
 import { dueAnnualConferencePhaseRollovers } from '@/lib/annual-conference-phase-rollover';
 
@@ -58,7 +59,10 @@ export interface AnnualConferenceServiceDependencies {
   actor: AnnualConferenceActor;
   activeOrganizerEmails(): Promise<string[] | null>;
   activePlanningOwnerEmails?(): Promise<string[] | null>;
-  accessGrants?(editionId: string): Promise<AnnualConferenceActor['granted_capabilities']>;
+  accessGrants?(editionId: string): Promise<
+    NonNullable<AnnualConferenceActor['granted_capabilities']>
+    | NonNullable<AnnualConferenceActor['capability_overrides']>
+  >;
   audit(event: AnnualConferenceAuditEvent): Promise<void>;
 }
 
@@ -76,9 +80,18 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
   }
 
   async function actorForEdition(editionId: string): Promise<AnnualConferenceActor> {
+    const access = await dependencies.accessGrants?.(editionId);
+    const legacyGrants = typeof access?.[0] === 'string'
+      ? access as AnnualConferenceCapability[]
+      : actor.granted_capabilities ?? [];
+    const capabilityOverrides = typeof access?.[0] === 'string'
+      ? actor.capability_overrides ?? []
+      : access as AnnualConferenceCapabilityOverride[] | undefined ?? actor.capability_overrides ?? [];
+
     return {
       ...actor,
-      granted_capabilities: await dependencies.accessGrants?.(editionId) ?? actor.granted_capabilities ?? [],
+      granted_capabilities: legacyGrants,
+      capability_overrides: capabilityOverrides,
     };
   }
 

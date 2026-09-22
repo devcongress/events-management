@@ -313,13 +313,19 @@ const updateResponsibilityMutation = useMutation({
     const previous = queryClient.getQueryData<AnnualConferenceAccessResponse>(queryKey);
 
     if (previous && responsibilityMemberId.value) {
+      const relatedCapabilities: AnnualConferenceCapability[] = capability === 'work_plan.view_all' && !enabled
+        ? [capability, 'work_plan.manage']
+        : capability === 'work_plan.manage' && enabled
+          ? [capability, 'work_plan.view_all']
+          : [capability];
+
       queryClient.setQueryData<AnnualConferenceAccessResponse>(queryKey, {
         ...previous,
         members: previous.members.map((member) => member.id !== responsibilityMemberId.value ? member : {
           ...member,
           capabilities: enabled
-            ? [...new Set([...member.capabilities, capability])]
-            : member.capabilities.filter((item) => item !== capability),
+            ? [...new Set([...member.capabilities, ...relatedCapabilities])]
+            : member.capabilities.filter((item) => !relatedCapabilities.includes(item)),
         }),
       });
     }
@@ -556,12 +562,11 @@ function responsibilityIsInherited(capability: AnnualConferenceCapability): bool
 }
 
 function responsibilityIsEnabled(capability: AnnualConferenceCapability): boolean {
-  return responsibilityIsInherited(capability)
-    || (responsibilityAccessMember.value?.capabilities.includes(capability) ?? false);
+  return responsibilityAccessMember.value?.capabilities.includes(capability) ?? false;
 }
 
 function toggleResponsibility(capability: AnnualConferenceCapability, enabled: boolean) {
-  if (responsibilityIsInherited(capability) || updateResponsibilityMutation.isPending.value) return;
+  if (updateResponsibilityMutation.isPending.value) return;
   updateResponsibilityMutation.mutate({ capability, enabled });
 }
 
@@ -898,14 +903,14 @@ onUnmounted(() => {
                     type="button"
                     class="responsibility-option motion-press flex w-full items-start justify-between gap-4 rounded-lg border px-3.5 py-3 text-left disabled:cursor-not-allowed"
                     :class="responsibilityIsEnabled(definition.value) ? 'border-dc-pink bg-[#fff7fb]' : 'border-dc-border bg-dc-paper-warm'"
-                    :disabled="responsibilityIsInherited(definition.value) || responsibilityUpdating === definition.value"
+                    :disabled="responsibilityUpdating === definition.value"
                     :aria-pressed="responsibilityIsEnabled(definition.value)"
                     @click="toggleResponsibility(definition.value, !responsibilityIsEnabled(definition.value))"
                   >
                     <span>
                       <span class="block text-xs font-semibold text-dc-ink">{{ definition.label }}</span>
                       <span class="mt-1 block text-[11px] leading-4 text-dc-gray">{{ definition.description }}</span>
-                      <span v-if="responsibilityIsInherited(definition.value)" class="mt-1 block font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-pink">Included in role</span>
+                      <span v-if="responsibilityIsInherited(definition.value)" class="mt-1 block font-mono text-[8px] font-semibold uppercase tracking-wide text-dc-pink">Role default · editable for this edition</span>
                     </span>
                     <span
                       class="responsibility-toggle mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5"

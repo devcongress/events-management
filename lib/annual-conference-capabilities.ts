@@ -14,6 +14,10 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
 ] as const;
 
 export type AnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[number];
+export interface AnnualConferenceCapabilityOverride {
+  capability: AnnualConferenceCapability;
+  enabled: boolean;
+}
 
 export interface AnnualConferenceCapabilityDefinition {
   value: AnnualConferenceCapability;
@@ -98,6 +102,7 @@ export function annualConferenceRoleCapabilities(role: AdminRole): AnnualConfere
 export function effectiveAnnualConferenceCapabilities(input: {
   role: AdminRole;
   grants?: readonly AnnualConferenceCapability[];
+  overrides?: readonly AnnualConferenceCapabilityOverride[];
   isPlanningOwner?: boolean;
 }): AnnualConferenceCapability[] {
   const capabilities = new Set<AnnualConferenceCapability>(annualConferenceRoleCapabilities(input.role));
@@ -109,6 +114,10 @@ export function effectiveAnnualConferenceCapabilities(input: {
   if (input.isPlanningOwner) {
     capabilities.add('work_plan.manage');
     capabilities.add('phases.manage');
+  }
+  for (const override of input.overrides ?? []) {
+    if (override.enabled) capabilities.add(override.capability);
+    else capabilities.delete(override.capability);
   }
 
   return ANNUAL_CONFERENCE_CAPABILITIES.filter((capability) => capabilities.has(capability));
@@ -138,8 +147,11 @@ export function canDelegateAnnualConferenceCapability(
   capability: AnnualConferenceCapability,
   role: AdminRole,
 ): boolean {
-  if (capability === 'finance.view' || capability.startsWith('speakers.')) return role === 'organizer';
-  if (capability === 'work_plan.manage') return role === 'organizer' || role === 'volunteer';
+  if (role === 'organizer') {
+    return ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS.some((definition) => definition.value === capability);
+  }
 
-  return role === 'volunteer';
+  return role === 'volunteer' && (
+    capability.startsWith('work_plan.') || capability.startsWith('volunteers.')
+  );
 }

@@ -82,12 +82,15 @@ const workPlanRepository = {
 } as unknown as AnnualConferenceRepository;
 const audit = vi.fn();
 
-function service(actor: AnnualConferenceActor, grants: AnnualConferenceActor['granted_capabilities'] = []) {
+function service(
+  actor: AnnualConferenceActor,
+  access: NonNullable<AnnualConferenceActor['granted_capabilities']> | NonNullable<AnnualConferenceActor['capability_overrides']> = [],
+) {
   return createAnnualConferenceTaskResourceService({
     actor,
     workPlanRepository,
     resourceRepository,
-    accessGrants: vi.fn(async () => grants),
+    accessGrants: vi.fn(async () => access),
     audit,
   });
 }
@@ -194,6 +197,18 @@ describe('Annual Conference task resource authorization', () => {
     });
     await expect(readOnly.create(2026, task.id, { url: 'https://example.com' }))
       .rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('does not let a planning owner bypass a disabled work-plan manager override', async () => {
+    const subject = service(
+      { role: 'organizer', email: 'planning@example.com' },
+      [{ capability: 'work_plan.manage', enabled: false }],
+    );
+
+    await expect(subject.list(2026, task.id)).resolves.toMatchObject({
+      resources: [{ can_manage: false }, { can_manage: false }],
+      permissions: { can_add: false, can_manage_all: false },
+    });
   });
 });
 

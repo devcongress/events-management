@@ -16,6 +16,7 @@ export interface AnnualConferenceActor {
   email: string | null;
   role: AdminRole;
   granted_capabilities?: AnnualConferenceCapability[];
+  capability_overrides?: import('@/lib/annual-conference-capabilities').AnnualConferenceCapabilityOverride[];
 }
 
 export interface AnnualConferenceCapabilities {
@@ -80,13 +81,12 @@ export function annualConferenceTasksForMember(
   actor: AnnualConferenceActor,
   capabilities: readonly AnnualConferenceCapability[],
 ): AnnualConferenceTask[] {
-  const canViewAll = actor.role !== 'volunteer'
-    || hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')
+  const canViewAll = hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')
     || hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
-    || hasAnnualConferenceCapability(capabilities, 'timeline.view')
     || hasAnnualConferenceCapability(capabilities, 'phases.manage');
-  const canViewInternalNotes = actor.role !== 'volunteer'
-    || hasAnnualConferenceCapability(capabilities, 'work_plan.manage');
+  const canViewInternalNotes = canViewAll && (
+    actor.role !== 'volunteer' || hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
+  );
 
   return tasks
     .filter((task) => canViewAll || isAnnualConferenceTaskAssignedTo(task, actor.email))
@@ -114,12 +114,12 @@ export function annualConferenceCapabilities(
   const capabilities = effectiveAnnualConferenceCapabilities({
     role: actor.role,
     grants: actor.granted_capabilities,
+    overrides: actor.capability_overrides,
     isPlanningOwner: actor.role !== 'volunteer' && planningOwner,
   });
   const canManageTasks = hasAnnualConferenceCapability(capabilities, 'work_plan.manage');
   const canViewAll = hasAnnualConferenceCapability(capabilities, 'work_plan.view_all')
     || canManageTasks
-    || hasAnnualConferenceCapability(capabilities, 'timeline.view')
     || hasAnnualConferenceCapability(capabilities, 'phases.manage');
 
   return {
@@ -151,7 +151,7 @@ export function presentAnnualConferenceTask(
   task: AnnualConferenceTask,
   actor: AnnualConferenceActor,
 ): AnnualConferenceTask {
-  const capabilities = effectiveAnnualConferenceCapabilities({ role: actor.role, grants: actor.granted_capabilities });
+  const capabilities = effectiveAnnualConferenceCapabilities({ role: actor.role, grants: actor.granted_capabilities, overrides: actor.capability_overrides });
 
   return actor.role === 'volunteer' && !hasAnnualConferenceCapability(capabilities, 'work_plan.manage')
     ? { ...task, internal_note: null }
@@ -217,5 +217,5 @@ export function canUpdateAnnualConferenceTask(
     return volunteerCanUpdateAssignedTask(task, changes, actor.email);
   }
 
-  return canEditAnnualConferenceTask(task, actor.email, edition.task_creator_email);
+  return isAnnualConferenceTaskAssignedTo(task, actor.email);
 }

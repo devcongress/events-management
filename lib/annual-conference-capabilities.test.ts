@@ -24,6 +24,20 @@ describe('annual conference capabilities', () => {
     expect(hasAnnualConferenceCapability(capabilities, 'phases.manage')).toBe(false);
   });
 
+  it('lets an edition override turn a role default off or a missing permission on', () => {
+    const restrictedOrganizer = effectiveAnnualConferenceCapabilities({
+      role: 'organizer',
+      overrides: [{ capability: 'volunteers.review_applications', enabled: false }],
+    });
+    const empoweredVolunteer = effectiveAnnualConferenceCapabilities({
+      role: 'volunteer',
+      overrides: [{ capability: 'work_plan.manage', enabled: true }],
+    });
+
+    expect(restrictedOrganizer).not.toContain('volunteers.review_applications');
+    expect(empoweredVolunteer).toContain('work_plan.manage');
+  });
+
   it('gives planning owners planning mutations and platform owners everything', () => {
     const planningOwner = effectiveAnnualConferenceCapabilities({ role: 'organizer', isPlanningOwner: true });
 
@@ -46,6 +60,7 @@ describe('annual conference capabilities', () => {
     expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'organizer')).toBe(true);
     expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'volunteer')).toBe(true);
     expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'owner')).toBe(false);
+    expect(canDelegateAnnualConferenceCapability('finance.view', 'volunteer')).toBe(false);
   });
 
   it('rejects capabilities outside the code-owned catalogue', () => {
