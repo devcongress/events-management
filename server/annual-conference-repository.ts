@@ -3,6 +3,7 @@ import {
   createMockAnnualConferenceEdition,
   createMockAnnualConferencePhase,
   createMockAnnualConferenceTask,
+  deleteMockAnnualConferenceTask,
   deleteMockAnnualConferencePhase,
   getMockAnnualConferenceWorkPlan,
   listMockAnnualConferenceEditions,
@@ -17,6 +18,7 @@ import {
   createSupabaseAnnualConferenceEdition,
   createSupabaseAnnualConferencePhase,
   createSupabaseAnnualConferenceTask,
+  deleteSupabaseAnnualConferenceTask,
   deleteSupabaseAnnualConferencePhase,
   getSupabaseAnnualConferenceWorkPlan,
   listSupabaseAnnualConferenceEditions,
@@ -53,6 +55,7 @@ export interface AnnualConferenceRepository {
   deletePhase(editionId: string, phaseId: string): Promise<boolean>;
   reorderPhases(editionId: string, phases: AnnualConferencePhase[], actorEmail: string): Promise<AnnualConferencePhase[]>;
   createTask(edition: AnnualConferenceEdition, input: AnnualConferenceTaskCreateInput, actorEmail: string): Promise<AnnualConferenceTask>;
+  deleteTask(editionId: string, taskId: string): Promise<boolean>;
   updateTask(editionId: string, taskId: string, input: AnnualConferenceTaskUpdateInput, actorEmail: string): Promise<AnnualConferenceTask | undefined>;
   movePhaseTasks(editionId: string, sourcePhaseId: string, destinationPhaseId: string, taskIds: string[], actorEmail: string): Promise<number>;
   updateEditionSpeakerCallStatus(editionId: string, status: 'open' | 'closed'): Promise<AnnualConferenceEdition>;
@@ -159,6 +162,18 @@ export function createAnnualConferenceRepository(c?: Context): AnnualConferenceR
       }
 
       return createMockAnnualConferenceTask(edition, input, actorEmail);
+    },
+
+    async deleteTask(editionId, taskId) {
+      if (selectedBackend() === 'supabase') {
+        const deleted = await deleteSupabaseAnnualConferenceTask(editionId, taskId, c);
+
+        if (deleted === null) throw new Error('Supabase Annual Conference storage became unavailable during the request.');
+
+        return deleted;
+      }
+
+      return deleteMockAnnualConferenceTask(editionId, taskId);
     },
 
     async updateTask(editionId, taskId, input, actorEmail) {

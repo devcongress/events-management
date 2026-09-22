@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   effectiveAnnualConferenceCapabilities,
+  canDelegateAnnualConferenceCapability,
   hasAnnualConferenceCapability,
   isAnnualConferenceCapability,
 } from './annual-conference-capabilities';
@@ -39,6 +40,12 @@ describe('annual conference capabilities', () => {
     expect(effectiveAnnualConferenceCapabilities({ role: 'organizer' })).not.toContain('finance.view');
     expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', grants: ['finance.view'] })).toContain('finance.view');
     expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['finance.view'] })).not.toContain('finance.view');
+  });
+
+  it('lets an owner delegate work-plan management to either an organizer or volunteer', () => {
+    expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'organizer')).toBe(true);
+    expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'volunteer')).toBe(true);
+    expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'owner')).toBe(false);
   });
 
   it('rejects capabilities outside the code-owned catalogue', () => {

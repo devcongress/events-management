@@ -343,6 +343,25 @@ export async function updateSupabaseAnnualConferenceTask(
   return result.data ? toTask(result.data) : undefined;
 }
 
+export async function deleteSupabaseAnnualConferenceTask(
+  editionId: string,
+  taskId: string,
+  c?: Context,
+): Promise<boolean | null> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const result = await getSupabaseAdminClient(c)
+    .from('annual_conference_tasks')
+    .delete()
+    .eq('edition_id', editionId)
+    .eq('id', taskId)
+    .select('id')
+    .maybeSingle();
+
+  if (result.error) throw new Error(result.error.message);
+
+  return Boolean(result.data);
+}
+
 export async function moveSupabaseAnnualConferencePhaseTasks(
   editionId: string,
   sourcePhaseId: string,

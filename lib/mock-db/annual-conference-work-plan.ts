@@ -11,7 +11,8 @@ import {
   type AnnualConferenceTaskCreateInput,
   type AnnualConferenceTaskUpdateInput,
 } from '@/lib/annual-conference-work-plan';
-import { readData, updateData } from '@/lib/mock-db';
+import { hasMockDataFile, readData, updateData, writeData } from '@/lib/mock-db';
+import { deleteMockAnnualConferenceTaskResources } from '@/lib/mock-db/annual-conference-task-resources';
 import { generateId, now } from '@/lib/utils';
 
 const FILE = 'annual-conference-tasks';
@@ -29,9 +30,7 @@ function canonical2026Assignment(value: string): string {
 }
 
 function seededTasks(tasks: AnnualConferenceTask[]): AnnualConferenceTask[] {
-  const source = tasks.length > 0 ? tasks : ANNUAL_CONFERENCE_2026_SEED_TASKS;
-
-  return source.map((task) => {
+  return tasks.map((task) => {
     const is2026ConferenceTask = task.edition_id === ANNUAL_CONFERENCE_2026_EDITION.id;
 
     return {
@@ -49,6 +48,18 @@ function seededTasks(tasks: AnnualConferenceTask[]): AnnualConferenceTask[] {
   });
 }
 
+async function ensureMockTaskStore(): Promise<AnnualConferenceTask[]> {
+  const stored = await readData<AnnualConferenceTask>(FILE);
+
+  if (stored.length > 0 || await hasMockDataFile(FILE)) return seededTasks(stored);
+
+  const initial = seededTasks(ANNUAL_CONFERENCE_2026_SEED_TASKS);
+
+  await writeData(FILE, initial);
+
+  return initial;
+}
+
 export async function getMockAnnualConferenceWorkPlan(
   year: number,
 ): Promise<{ edition: AnnualConferenceEdition; phases: AnnualConferencePhase[]; tasks: AnnualConferenceTask[] } | undefined> {
@@ -62,7 +73,7 @@ export async function getMockAnnualConferenceWorkPlan(
   return {
     edition: { ...edition },
     phases: phases.filter((phase) => phase.edition_id === edition.id).map((phase) => ({ ...phase })),
-    tasks: seededTasks(await readData<AnnualConferenceTask>(FILE)).filter((task) => task.edition_id === edition.id),
+    tasks: (await ensureMockTaskStore()).filter((task) => task.edition_id === edition.id),
   };
 }
 
@@ -188,6 +199,7 @@ export async function deleteMockAnnualConferencePhase(
   editionId: string,
   phaseId: string,
 ): Promise<boolean> {
+  await ensureMockTaskStore();
   const deleted = await updateData<AnnualConferencePhase, boolean>(PHASES_FILE, (current) => {
     const phases = current.length > 0 ? current : ANNUAL_CONFERENCE_2026_PHASES;
     const next = phases.filter((phase) => phase.edition_id !== editionId || phase.id !== phaseId);
@@ -237,6 +249,8 @@ export async function createMockAnnualConferenceTask(
   input: AnnualConferenceTaskCreateInput,
   actorEmail: string,
 ): Promise<AnnualConferenceTask> {
+  await ensureMockTaskStore();
+
   return updateData<AnnualConferenceTask, AnnualConferenceTask>(FILE, (current) => {
     const tasks = seededTasks(current);
     const timestamp = now();
@@ -281,6 +295,8 @@ export async function updateMockAnnualConferenceTask(
   input: AnnualConferenceTaskUpdateInput,
   actorEmail: string,
 ): Promise<AnnualConferenceTask | undefined> {
+  await ensureMockTaskStore();
+
   return updateData<AnnualConferenceTask, AnnualConferenceTask | undefined>(FILE, (current) => {
     const tasks = seededTasks(current);
     const index = tasks.findIndex((task) => task.edition_id === editionId && task.id === taskId);
@@ -315,6 +331,33 @@ export async function updateMockAnnualConferenceTask(
   });
 }
 
+export async function deleteMockAnnualConferenceTask(
+  editionId: string,
+  taskId: string,
+): Promise<boolean> {
+  await ensureMockTaskStore();
+  const deleted = await updateData<AnnualConferenceTask, boolean>(FILE, (current) => {
+    const tasks = seededTasks(current);
+    const exists = tasks.some((task) => task.edition_id === editionId && task.id === taskId);
+
+    if (!exists) return { data: tasks, result: false };
+
+    return {
+      data: tasks
+        .filter((task) => task.edition_id !== editionId || task.id !== taskId)
+        .map((task) => ({
+          ...task,
+          dependency_task_ids: task.dependency_task_ids.filter((dependencyId) => dependencyId !== taskId),
+        })),
+      result: true,
+    };
+  });
+
+  if (deleted) await deleteMockAnnualConferenceTaskResources(taskId);
+
+  return deleted;
+}
+
 export async function moveMockAnnualConferencePhaseTasks(
   editionId: string,
   sourcePhaseId: string,
@@ -322,6 +365,7 @@ export async function moveMockAnnualConferencePhaseTasks(
   taskIds: string[],
   actorEmail: string,
 ): Promise<number> {
+  await ensureMockTaskStore();
   const ids = new Set(taskIds);
 
   return updateData<AnnualConferenceTask, number>(FILE, (current) => {

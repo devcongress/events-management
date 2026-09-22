@@ -19,18 +19,22 @@ import {
 } from '@/lib/annual-conference-work-plan';
 
 const props = withDefaults(defineProps<{
+  canDeleteTask: (task: AnnualConferenceTask) => boolean;
   canMoveTask: (task: AnnualConferenceTask) => boolean;
+  deletingTaskIds?: ReadonlySet<string>;
   ownerAvatarSeeds: ReadonlyMap<string, string>;
   organizerLabels: Record<string, string>;
   savingTaskIds?: ReadonlySet<string>;
   tasks: AnnualConferenceTask[];
 }>(), {
+  deletingTaskIds: () => new Set<string>(),
   savingTaskIds: () => new Set<string>(),
 });
 
 const emit = defineEmits<{
   openTask: [task: AnnualConferenceTask];
   changeStatus: [task: AnnualConferenceTask, status: AnnualConferenceTask['status']];
+  deleteTask: [task: AnnualConferenceTask];
 }>();
 
 const draggedTaskId = ref<string | null>(null);
@@ -79,7 +83,7 @@ function ownerAvatarSeed(task: AnnualConferenceTask): string | null {
 }
 
 function beginDrag(event: DragEvent, task: AnnualConferenceTask) {
-  if (!props.canMoveTask(task)) {
+  if (!props.canMoveTask(task) || isDeleting(task)) {
     event.preventDefault();
 
     return;
@@ -131,6 +135,17 @@ function dropTask(event: DragEvent, status: AnnualConferenceTask['status']) {
 
 function isSaving(task: AnnualConferenceTask): boolean {
   return props.savingTaskIds.has(task.id);
+}
+
+function isDeleting(task: AnnualConferenceTask): boolean {
+  return props.deletingTaskIds.has(task.id);
+}
+
+function requestDelete(event: Event, task: AnnualConferenceTask) {
+  event.stopPropagation();
+  if (!props.canDeleteTask(task) || isSaving(task) || isDeleting(task)) return;
+
+  emit('deleteTask', task);
 }
 
 function taskCountLabel(count: number): string {
@@ -250,8 +265,9 @@ onBeforeUnmount(() => {
             'task-board__card--movable': canMoveTask(task),
             'task-board__card--dragging': draggedTaskId === task.id,
             'task-board__card--saving': isSaving(task),
+            'task-board__card--deleting': isDeleting(task),
           }"
-          :aria-busy="isSaving(task)"
+          :aria-busy="isSaving(task) || isDeleting(task)"
           :draggable="canMoveTask(task)"
           :aria-label="`Open ${task.title}`"
           role="button"
@@ -264,7 +280,24 @@ onBeforeUnmount(() => {
         >
           <div class="task-board__card-topline">
             <span class="task-board__workstream">{{ ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream] }}</span>
-            <span v-if="task.priority" class="task-board__priority">{{ task.priority }}</span>
+            <span class="task-board__card-actions">
+              <span v-if="task.priority" class="task-board__priority">{{ task.priority }}</span>
+              <button
+                v-if="canDeleteTask(task)"
+                type="button"
+                class="task-board__delete"
+                :aria-label="`Delete ${task.title}`"
+                :disabled="isSaving(task) || isDeleting(task)"
+                draggable="false"
+                @click="requestDelete($event, task)"
+                @keydown.enter.stop
+                @keydown.space.stop
+              >
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4.75 6.25h10.5m-6.5 3v4.25m3-4.25v4.25M7.25 6.25l.5-2h4.5l.5 2m-7 0 .65 9.1c.06.8.72 1.4 1.52 1.4h4.16c.8 0 1.46-.6 1.52-1.4l.65-9.1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                </svg>
+              </button>
+            </span>
           </div>
 
           <h4 class="task-board__task">{{ task.title }}</h4>
@@ -453,6 +486,10 @@ onBeforeUnmount(() => {
   border-color: #e8117f;
 }
 
+.task-board__card--deleting {
+  opacity: .6;
+}
+
 .task-board__card-topline {
   display: flex;
   align-items: start;
@@ -468,6 +505,43 @@ onBeforeUnmount(() => {
 .task-board__priority {
   flex: none;
   color: #b20d61;
+}
+
+.task-board__card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+}
+
+.task-board__delete {
+  display: grid;
+  width: 1.55rem;
+  height: 1.55rem;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #a10b57;
+}
+
+.task-board__delete:hover:not(:disabled),
+.task-board__delete:focus-visible {
+  border-color: #e8117f;
+  background: #fce7f3;
+  outline: none;
+}
+
+.task-board__delete:active:not(:disabled) {
+  transform: scale(.97);
+}
+
+.task-board__delete:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.task-board__delete svg {
+  width: .85rem;
+  height: .85rem;
 }
 
 .task-board__task {

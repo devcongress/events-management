@@ -109,6 +109,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `POST /api/annual-conference/:year/work-plan` | Add a task; server-restricted to platform/planning owners or a member with delegated work-plan management, and requires one accountable owner |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId` | Assigned organizers may edit their tasks; volunteers default to assigned status-only changes, while delegated work-plan managers may edit every task |
 | `GET /api/annual-conference/:year/work-plan/:taskId/resources` | List task resources and per-row management permissions; volunteers must currently be assigned |
+| `DELETE /api/annual-conference/:year/work-plan/:taskId` | Delete an Annual Conference task for the selected edition; requires the edition-scoped **Manage the work plan** capability and removes dependent references and attached resources |
 | `POST /api/annual-conference/:year/work-plan/:taskId/resources` | Add an attributed HTTP/HTTPS link, with a database-enforced 20-link task cap |
 | `PATCH /api/annual-conference/:year/work-plan/:taskId/resources/:resourceId` | Update a link/label; assigned volunteers manage their own resources only, organizer task editors manage all |
 | `DELETE /api/annual-conference/:year/work-plan/:taskId/resources/:resourceId` | Remove a resource under the same ownership checks; does not delete the linked document |

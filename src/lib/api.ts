@@ -364,6 +364,7 @@ export interface AnnualConferenceWorkPlanResponse {
   summary: AnnualConferenceWorkPlanSummary;
   permissions: {
     can_create_tasks: boolean;
+    can_delete_tasks: boolean;
     can_manage_phases: boolean;
     can_edit_all_tasks: boolean;
     can_edit_assigned_tasks: boolean;
@@ -711,6 +712,13 @@ export function updateAnnualConferenceTask(
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  });
+}
+
+export function deleteAnnualConferenceTask(year: string, taskId: string) {
+  return fetchJson<{ deleted: true }>(`/api/annual-conference/${year}/work-plan/${taskId}`, {
+    method: 'DELETE',
+    credentials: 'include',
   });
 }
 

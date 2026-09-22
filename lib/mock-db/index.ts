@@ -35,6 +35,22 @@ export async function readData<T>(filename: string): Promise<T[]> {
   return readDataFile<T>(filename);
 }
 
+export async function hasMockDataFile(filename: string): Promise<boolean> {
+  if (canUseRemoteDocument(filename)) return true;
+
+  try {
+    await fs.access(path.join(DATA_DIR, `${filename}.json`));
+
+    return true;
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') return false;
+
+    throw error instanceof Error
+      ? new Error(`Unable to inspect data file ${filename}: ${error.message}`)
+      : new Error(`Unable to inspect data file ${filename}`);
+  }
+}
+
 export async function writeData<T>(filename: string, data: T[]): Promise<void> {
   return enqueueWrite(filename, async () => {
     const remote = await readRemoteData<T>(filename);

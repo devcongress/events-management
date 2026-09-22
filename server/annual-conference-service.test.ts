@@ -67,6 +67,7 @@ function repository(): AnnualConferenceRepository {
     deletePhase: vi.fn(),
     reorderPhases: vi.fn(),
     createTask: vi.fn(),
+    deleteTask: vi.fn(async () => true),
     updateTask: vi.fn(async (_editionId, _taskId, changes) => ({ ...task, ...changes })),
     movePhaseTasks: vi.fn(async () => 0),
     updateEditionSpeakerCallStatus: vi.fn(),
@@ -145,5 +146,37 @@ describe('Annual Conference service boundary', () => {
     await expect(service.updateTask(2026, 'task-1', { dependency_task_ids: ['missing-task'] }))
       .rejects.toMatchObject({ code: 'invalid_input' } satisfies Partial<AnnualConferenceServiceError>);
     expect(repo.updateTask).not.toHaveBeenCalled();
+  });
+
+  it('allows a delegated work-plan manager to delete a task and audits the deletion', async () => {
+    const repo = repository();
+    const service = createAnnualConferenceService({
+      repository: repo,
+      actor: {
+        role: 'volunteer',
+        email: 'manager@example.com',
+        granted_capabilities: ['work_plan.manage'],
+      },
+      activeOrganizerEmails: async () => [],
+      audit,
+    });
+
+    await expect(service.deleteTask(2026, 'task-1')).resolves.toEqual({ deleted: true });
+    expect(repo.deleteTask).toHaveBeenCalledWith('edition-2026', 'task-1');
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'annual_conference.task.delete' }));
+  });
+
+  it('does not let an assigned task owner delete their task', async () => {
+    const repo = repository();
+    const service = createAnnualConferenceService({
+      repository: repo,
+      actor: { role: 'volunteer', email: 'volunteer@example.com' },
+      activeOrganizerEmails: async () => [],
+      audit,
+    });
+
+    await expect(service.deleteTask(2026, 'task-1'))
+      .rejects.toMatchObject({ code: 'forbidden' } satisfies Partial<AnnualConferenceServiceError>);
+    expect(repo.deleteTask).not.toHaveBeenCalled();
   });
 });

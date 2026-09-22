@@ -20,6 +20,7 @@ export interface AnnualConferenceActor {
 
 export interface AnnualConferenceCapabilities {
   can_create_tasks: boolean;
+  can_delete_tasks: boolean;
   can_manage_phases: boolean;
   can_edit_all_tasks: boolean;
   can_edit_assigned_tasks: boolean;
@@ -123,10 +124,11 @@ export function annualConferenceCapabilities(
 
   return {
     can_create_tasks: canManageTasks,
+    can_delete_tasks: canManageTasks,
     can_manage_phases: hasAnnualConferenceCapability(capabilities, 'phases.manage'),
     can_edit_all_tasks: canManageTasks,
     can_edit_assigned_tasks: actor.role !== 'volunteer',
-    can_update_all_task_status: (actor.role === 'owner' && Boolean(actorIdentity)) || planningOwner,
+    can_update_all_task_status: canManageTasks,
     can_update_assigned_task_status: actor.role === 'volunteer' && !canManageTasks,
     access_scope: canViewAll ? 'all' : 'assigned',
     task_creator_email: edition.task_creator_email,
@@ -192,6 +194,13 @@ export function canCreateAnnualConferenceTasks(
   edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
 ): boolean {
   return annualConferenceCapabilities(actor, edition).can_create_tasks;
+}
+
+export function canDeleteAnnualConferenceTasks(
+  actor: AnnualConferenceActor,
+  edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
+): boolean {
+  return annualConferenceCapabilities(actor, edition).can_delete_tasks;
 }
 
 export function canUpdateAnnualConferenceTask(

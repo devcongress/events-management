@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-22 — Organizer Work plan delegation
+
+- Let Owners delegate **Manage the work plan** to an Organizer as well as a Volunteer, so the appropriate Work plan control appears in their edition-scoped access drawer.
+- Keep Organizer role-included access protected and unchanged; the new control grants only the additional all-task management capability.
+
+## 2026-09-22 — Managed Work plan task deletion
+
+- Give people with **Manage the work plan** a compact, card-level delete action on the desktop and tablet Kanban board, guarded by a clear product-styled confirmation dialog.
+- Keep assigned task owners and ordinary organizers unable to delete; delegated work-plan managers, planning owners, and platform owners are authorized by the same edition-scoped capability on both client and server.
+- Clear dependent task references and attached task resources when deleting a task, audit the action, and align delegated work-plan managers with their existing all-task status-move expectation.
+
 ## 2026-09-22 — Annual Conference assignment identity repair
 
 - Canonicalize the confirmed legacy task labels Angela, Dede, Ernest, and Philipa to their active organizer emails.

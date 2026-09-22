@@ -290,7 +290,7 @@ describe('annual conference volunteer API access', () => {
     );
   });
 
-  it('does not let a delegated volunteer manager change another person’s status', async () => {
+  it('lets a delegated volunteer manager change another person’s status', async () => {
     mocks.grants = ['work_plan.manage'];
     const { default: app } = await import('./app');
     const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-unrelated', {
@@ -299,8 +299,14 @@ describe('annual conference volunteer API access', () => {
       body: JSON.stringify({ status: 'done' }),
     });
 
-    expect(response.status).toBe(403);
-    expect(mocks.updateTask).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.updateTask).toHaveBeenCalledWith(
+      'edition-2026',
+      'task-unrelated',
+      { status: 'done' },
+      'volunteer@example.com',
+      expect.anything(),
+    );
   });
 
   it('rejects task detail changes and unrelated organizer APIs', async () => {
