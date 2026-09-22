@@ -46,7 +46,7 @@ There is no public-site header or organizer-link toggle in this deployment.
 | `/organizer-console/website-preview/events/:slug` | Authenticated, phone-safe preview of one published event rendered from `GET /api/admin/events-preview/:slug`, with a direct link to inspect the JSON |
 | `/organizer-console/annual-conference` | Redirects to the active annual-conference edition |
 | `/organizer-console/annual-conference/2026` | December 2026 annual-conference workspace overview; volunteer summaries contain only assigned work |
-| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; volunteers default to assigned tasks and status-only updates, with edition-scoped full-view or management delegation available |
+| `/organizer-console/annual-conference/2026/work-plan` | Shared conference task plan; desktop volunteers default to an assigned-only status board and can move only their own accountable or collaborator cards, with edition-scoped full-view or management delegation available |
 | `/organizer-console/annual-conference/:year/timeline` | Compatibility redirect to Work plan, preserving validated phase and task context |
 | `/organizer-console/annual-conference/:year/speakers` | Separate conference proposal queue, Call for Speakers open/close control, and selected-presenter follow-up initiation; unavailable to volunteers |
 | `/organizer-console/annual-conference/:year/volunteers` | Capability-derived volunteer team, intake sharing, and private application review sections |

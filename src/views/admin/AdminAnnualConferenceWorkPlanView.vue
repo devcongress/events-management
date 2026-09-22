@@ -15,6 +15,7 @@ import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskBoard from '@/src/components/AnnualConferenceTaskBoard.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
 import { annualConferencePhaseTiming } from '@/lib/annual-conference-phase-pace';
 import {
   annualConferenceOwnerAvatarKey,
@@ -57,7 +58,10 @@ const attentionFilter = ref<'all' | AnnualConferenceTaskAttention>('all');
 const ledgerPage = ref(1);
 const annualConferenceNav = ref<ComponentPublicInstance | null>(null);
 const annualConferenceNavHeight = ref(0);
+const annualTaskWorkspace = ref<HTMLElement | null>(null);
+const annualTaskWorkspaceHeight = ref(0);
 let annualConferenceNavObserver: ResizeObserver | null = null;
+let annualTaskWorkspaceObserver: ResizeObserver | null = null;
 
 const {
   workPlanQuery,
@@ -88,14 +92,13 @@ const sessionQuery = useQuery({
   queryFn: fetchAdminSession,
 });
 const currentMemberEmail = computed(() => sessionQuery.data.value?.user?.email ?? null);
-const currentMemberLabel = computed(() => sessionQuery.data.value?.user?.display_name?.trim()
-  || currentMemberEmail.value
-  || 'You');
 const isConferenceOrganizer = computed(() => {
   const role = sessionQuery.data.value?.user?.role;
 
   return role === 'owner' || role === 'organizer';
 });
+const isConferenceVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');
+const usesKanbanBoard = computed(() => isConferenceOrganizer.value || isConferenceVolunteer.value);
 const phaseScopeLabel = computed(() => {
   if (selectedPhase.value) return selectedPhase.value.name;
   if (phaseFilter.value === 'unassigned') return 'No phase';
@@ -108,7 +111,7 @@ const phaseScopeDescription = computed(() => {
   }
   if (phaseFilter.value === 'unassigned') return 'Tasks still waiting for a delivery phase';
 
-  return 'All phases and unclassified tasks';
+  return null;
 });
 const canEditSelectedTask = computed(() => {
   if (!selectedTask.value || assignedAccess.value) return false;
@@ -322,10 +325,13 @@ function startEditing(taskId: string) {
 }
 
 function canMoveTask(task: AnnualConferenceTask): boolean {
-  if (!isConferenceOrganizer.value) return false;
-  if (permissions.value?.can_edit_all_tasks) return true;
+  if (permissions.value?.can_update_all_task_status) return true;
 
-  return permissions.value?.can_edit_assigned_tasks === true
+  const canUpdateAssignedStatus = permissions.value?.can_edit_all_tasks === true
+    || permissions.value?.can_edit_assigned_tasks === true
+    || permissions.value?.can_update_assigned_task_status === true;
+
+  return canUpdateAssignedStatus
     && isAnnualConferenceTaskAssignedTo(task, currentMemberEmail.value);
 }
 
@@ -542,6 +548,12 @@ function updateAnnualConferenceNavHeight() {
   }
 }
 
+function updateAnnualTaskWorkspaceHeight() {
+  if (annualTaskWorkspace.value) {
+    annualTaskWorkspaceHeight.value = annualTaskWorkspace.value.getBoundingClientRect().height;
+  }
+}
+
 onMounted(() => {
   const navigationElement = annualConferenceNav.value?.$el;
 
@@ -552,8 +564,18 @@ onMounted(() => {
   annualConferenceNavObserver.observe(navigationElement);
 });
 
+watch(annualTaskWorkspace, (workspace) => {
+  annualTaskWorkspaceObserver?.disconnect();
+  if (!workspace) return;
+
+  updateAnnualTaskWorkspaceHeight();
+  annualTaskWorkspaceObserver = new ResizeObserver(updateAnnualTaskWorkspaceHeight);
+  annualTaskWorkspaceObserver.observe(workspace);
+}, { flush: 'post' });
+
 onBeforeUnmount(() => {
   annualConferenceNavObserver?.disconnect();
+  annualTaskWorkspaceObserver?.disconnect();
 });
 </script>
 
@@ -604,9 +626,7 @@ onBeforeUnmount(() => {
         </template>
       </AnnualConferenceNav>
 
-      <section v-if="workPlanQuery.isLoading.value" class="editorial-panel p-8">
-        <p class="font-mono text-sm font-semibold uppercase tracking-[0.14em] text-dc-gray">Loading work plan…</p>
-      </section>
+      <AnnualConferenceRouteSkeleton v-if="workPlanQuery.isLoading.value" variant="work-plan" />
 
       <section v-else-if="workPlanQuery.isError.value" class="editorial-panel border-dc-pink p-8">
         <p class="text-lg font-semibold text-dc-ink">The work plan could not be loaded.</p>
@@ -624,6 +644,7 @@ onBeforeUnmount(() => {
 
       <template v-else>
         <section
+          ref="annualTaskWorkspace"
           :aria-label="`${phaseScopeLabel} work plan controls`"
           class="annual-task-workspace border-2 border-dc-ink bg-dc-paper md:sticky md:z-30"
           :style="{ '--annual-conference-nav-height': `${annualConferenceNavHeight}px` }"
@@ -633,7 +654,7 @@ onBeforeUnmount(() => {
               <p class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-pink">Viewing phase</p>
               <div class="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <h2 class="text-xl font-semibold text-dc-ink">{{ phaseScopeLabel }}</h2>
-                <p class="text-xs font-medium text-dc-gray">{{ phaseScopeDescription }}</p>
+                <p v-if="phaseScopeDescription" class="text-xs font-medium text-dc-gray">{{ phaseScopeDescription }}</p>
               </div>
               <p class="mt-1 text-xs text-dc-gray">{{ scopedTasks.length }} tasks in this view</p>
             </div>
@@ -690,11 +711,7 @@ onBeforeUnmount(() => {
               <div class="w-full sm:w-52">
                 <AppDropdown :model-value="phaseFilter" :options="phaseFilterOptions" density="compact" menu-align="right" menu-class="min-w-52" teleport @update:model-value="setPhaseFilter" />
               </div>
-              <div v-if="assignedAccess" class="w-full rounded-md border border-dc-border bg-dc-paper px-3 py-2 sm:w-52">
-                <span class="block font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Tasks for</span>
-                <strong class="mt-0.5 block truncate text-sm text-dc-ink">{{ currentMemberLabel }}</strong>
-              </div>
-              <div v-else class="w-full sm:w-auto">
+              <div v-if="!assignedAccess" class="w-full sm:w-auto">
                 <div class="flex w-fit items-center rounded-full border border-dc-border bg-dc-paper-warm p-1" role="group" aria-label="Filter tasks by owner">
                   <button
                     v-for="(owner, index) in ownerAvatarPreviews"
@@ -773,6 +790,7 @@ onBeforeUnmount(() => {
                   {{ attentionFilterLabel }} ×
                 </button>
                 <button
+                  v-if="!isConferenceVolunteer || filtersActive"
                   type="button"
                   class="min-h-10 rounded-md border border-transparent px-3 font-mono text-[10px] font-semibold uppercase tracking-[0.1em]"
                   :class="filtersActive
@@ -790,10 +808,10 @@ onBeforeUnmount(() => {
 
         </section>
 
-        <section class="annual-task-ledger overflow-hidden rounded-b-lg border-x-2 border-b-2 border-dc-ink bg-dc-paper">
+        <section class="annual-task-ledger rounded-b-lg border-x-2 border-b-2 border-dc-ink bg-dc-paper">
           <div
             class="hidden border-b border-dc-border bg-dc-paper-warm px-4 py-2 md:grid md:grid-cols-[minmax(0,1.6fr)_8.5rem_10rem_7rem_2.5rem] md:gap-3"
-            :class="{ 'lg:hidden': isConferenceOrganizer }"
+            :class="{ 'lg:hidden': usesKanbanBoard }"
           >
             <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Task</span>
             <span class="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-dc-gray">Status</span>
@@ -803,10 +821,13 @@ onBeforeUnmount(() => {
           </div>
 
           <div
-            v-if="isConferenceOrganizer"
+            v-if="usesKanbanBoard"
             class="hidden lg:block"
           >
             <AnnualConferenceTaskBoard
+              :style="{
+                '--task-board-sticky-offset': `calc(${annualConferenceNavHeight}px + ${annualTaskWorkspaceHeight}px + .75rem)`,
+              }"
               :tasks="visibleTasks"
               :organizer-labels="organizerLabels"
               :owner-avatar-seeds="ownerAvatarSeeds"
@@ -819,7 +840,7 @@ onBeforeUnmount(() => {
 
           <div
             aria-label="Conference tasks"
-            :class="{ 'lg:hidden': isConferenceOrganizer }"
+            :class="{ 'lg:hidden': usesKanbanBoard }"
           >
             <div v-if="visibleTasks.length === 0" class="grid min-h-[18rem] place-items-center p-8 text-center">
               <div>
@@ -927,7 +948,7 @@ onBeforeUnmount(() => {
           </div>
 
           <AppPagination
-            :class="{ 'lg:hidden': isConferenceOrganizer }"
+            :class="{ 'lg:hidden': usesKanbanBoard }"
             v-model:page="ledgerPage"
             :page-count="ledgerPageCount"
             :total="visibleTasks.length"
@@ -962,7 +983,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .annual-task-ledger {
-  contain: paint;
   view-transition-name: annual-task-ledger;
 }
 

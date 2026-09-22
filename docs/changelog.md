@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-22 — Annual Conference route loading skeletons
+
+- Keep the shared Annual Conference navigation visible while Overview, Work plan, Volunteers, Speakers, and Finance load their initial data on desktop and tablet.
+- Replace blank or generic loading states with route-shaped, accessible skeletons that preserve the destination’s panel, board, directory, or table geometry.
+- Avoid a permanent Volunteers loading state for editions whose application query is intentionally unavailable.
+
+## 2026-09-22 — Volunteer directory sticky controls
+
+- Keep the Volunteer directory title, lifecycle counts, and search controls pinned beneath the existing Annual Conference navigation on tablet and desktop while the directory rows scroll beneath them.
+- Measure the navigation height so the directory controls remain correctly positioned when the conference header wraps or changes size.
+- Keep the directory’s table column labels in that same sticky stack, directly below the search controls.
+
+## 2026-09-22 — Volunteer Work plan board
+
+- Show assigned-only Volunteers the desktop Kanban board with only their accountable or collaborator tasks, while retaining their status-only task permissions.
+- Remove the redundant passive **Tasks for** identity block from the assigned-only workspace; delegated members with full work-plan access retain owner filtering.
+- Hide the inactive **Clear** control for volunteers, retaining it only when a filter is active.
+- Add isolated browser coverage using mocked accountable and collaborator assignments, alongside access-policy regression coverage.
+
+## 2026-09-22 — Assigned card movement
+
+- Let volunteers and organizers drag only cards where they are accountable or collaborating; the platform owner and edition planning owner retain all-card status authority.
+- Enforce the same status boundary on the server, without removing delegated work-plan managers’ existing detail-editing authority.
+- Verify accountable and collaborator drag journeys with isolated mock data, and cover delegated-manager rejection at the API boundary.
+
+## 2026-09-22 — Board column containment
+
+- Let all four Work plan status columns share the available desktop width so cards remain contained instead of overflowing from fixed minimum column sizing.
+- Keep the four desktop status headers pinned below the measured Work plan controls with a small gap beneath the controls border while their cards scroll.
+
 ## 2026-09-21 — Community amendment timezone clarity
 
 - Let an approved event organizer choose the IANA timezone for an amendment, preserve the underlying instants while switching zones, and require a short schedule review before submitting.

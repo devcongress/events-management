@@ -23,6 +23,7 @@ export interface AnnualConferenceCapabilities {
   can_manage_phases: boolean;
   can_edit_all_tasks: boolean;
   can_edit_assigned_tasks: boolean;
+  can_update_all_task_status: boolean;
   can_update_assigned_task_status: boolean;
   access_scope: 'all' | 'assigned';
   task_creator_email: string;
@@ -105,7 +106,10 @@ export function annualConferenceCapabilities(
   actor: AnnualConferenceActor,
   edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
 ): AnnualConferenceCapabilities {
-  const planningOwner = normalizedIdentity(actor.email) === normalizedIdentity(edition.task_creator_email);
+  const actorIdentity = normalizedIdentity(actor.email);
+  const planningOwner = actor.role !== 'volunteer'
+    && Boolean(actorIdentity)
+    && actorIdentity === normalizedIdentity(edition.task_creator_email);
   const capabilities = effectiveAnnualConferenceCapabilities({
     role: actor.role,
     grants: actor.granted_capabilities,
@@ -122,11 +126,23 @@ export function annualConferenceCapabilities(
     can_manage_phases: hasAnnualConferenceCapability(capabilities, 'phases.manage'),
     can_edit_all_tasks: canManageTasks,
     can_edit_assigned_tasks: actor.role !== 'volunteer',
+    can_update_all_task_status: (actor.role === 'owner' && Boolean(actorIdentity)) || planningOwner,
     can_update_assigned_task_status: actor.role === 'volunteer' && !canManageTasks,
     access_scope: canViewAll ? 'all' : 'assigned',
     task_creator_email: edition.task_creator_email,
     capabilities,
   };
+}
+
+export function canUpdateAnnualConferenceTaskStatus(
+  actor: AnnualConferenceActor,
+  edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
+  task: Pick<AnnualConferenceTask, 'accountable_owner' | 'collaborators'>,
+): boolean {
+  const capabilities = annualConferenceCapabilities(actor, edition);
+
+  return capabilities.can_update_all_task_status
+    || isAnnualConferenceTaskAssignedTo(task, actor.email);
 }
 
 export function presentAnnualConferenceTask(
@@ -181,11 +197,12 @@ export function canCreateAnnualConferenceTasks(
 export function canUpdateAnnualConferenceTask(
   actor: AnnualConferenceActor,
   edition: Pick<AnnualConferenceEdition, 'task_creator_email'>,
-  task: Pick<AnnualConferenceTask, 'accountable_owner' | 'collaborators'>,
+  task: Pick<AnnualConferenceTask, 'accountable_owner' | 'collaborators' | 'status'>,
   changes: AnnualConferenceTaskUpdateInput,
 ): boolean {
   const capabilities = annualConferenceCapabilities(actor, edition);
 
+  if (changes.status !== undefined && changes.status !== task.status && !canUpdateAnnualConferenceTaskStatus(actor, edition, task)) return false;
   if (capabilities.can_edit_all_tasks) return Boolean(normalizedIdentity(actor.email));
   if (actor.role === 'volunteer') {
     return volunteerCanUpdateAssignedTask(task, changes, actor.email);

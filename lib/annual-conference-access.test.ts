@@ -4,8 +4,10 @@ import {
   annualConferenceTasksForMember,
   canCreateAnnualConferenceEdition,
   canUpdateAnnualConferenceTask,
+  canUpdateAnnualConferenceTaskStatus,
   isAnnualConferenceTaskAssignedTo,
   presentAnnualConferenceWorkspace,
+  type AnnualConferenceActor,
   volunteerCanUpdateAssignedTask,
 } from './annual-conference-access';
 import type { AnnualConferenceEdition, AnnualConferenceTask } from './annual-conference-work-plan';
@@ -114,11 +116,13 @@ describe('annual conference volunteer access', () => {
       can_create_tasks: true,
       can_manage_phases: true,
       can_edit_all_tasks: true,
+      can_update_all_task_status: true,
       access_scope: 'all',
     });
     expect(annualConferenceCapabilities({ role: 'volunteer', email: 'volunteer@example.com' }, edition)).toMatchObject({
       can_create_tasks: false,
       can_edit_assigned_tasks: false,
+      can_update_all_task_status: false,
       can_update_assigned_task_status: true,
       access_scope: 'assigned',
     });
@@ -158,6 +162,65 @@ describe('annual conference volunteer access', () => {
       { role: 'volunteer', email: 'volunteer@example.com', granted_capabilities: ['work_plan.manage'] },
       edition,
       task({ accountable_owner: 'someone@example.com' }),
+      { title: 'Delegated manager update' },
+    )).toBe(true);
+  });
+
+  it('limits regular members to moving their own cards while retaining owner and planning-owner authority', () => {
+    const unrelated = task({ accountable_owner: 'someone@example.com' });
+    const collaboratorTask = task({ accountable_owner: 'someone@example.com', collaborators: ['volunteer@example.com'] });
+    const delegatedManager: AnnualConferenceActor = {
+      role: 'volunteer',
+      email: 'manager@example.com',
+      granted_capabilities: ['work_plan.manage'],
+    };
+
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'volunteer', email: 'volunteer@example.com' },
+      edition,
+      task(),
+    )).toBe(true);
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'volunteer', email: 'volunteer@example.com' },
+      edition,
+      collaboratorTask,
+    )).toBe(true);
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'organizer', email: 'organizer@example.com' },
+      edition,
+      unrelated,
+    )).toBe(false);
+    expect(canUpdateAnnualConferenceTaskStatus(delegatedManager, edition, unrelated)).toBe(false);
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'owner', email: 'platform-owner@example.com' },
+      edition,
+      unrelated,
+    )).toBe(true);
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'organizer', email: 'owner@example.com' },
+      edition,
+      unrelated,
+    )).toBe(true);
+  });
+
+  it('does not let a delegated manager change another person’s status', () => {
+    const delegatedManager: AnnualConferenceActor = {
+      role: 'volunteer',
+      email: 'manager@example.com',
+      granted_capabilities: ['work_plan.manage'],
+    };
+    const unrelated = task({ accountable_owner: 'someone@example.com' });
+
+    expect(canUpdateAnnualConferenceTask(
+      delegatedManager,
+      edition,
+      unrelated,
+      { status: 'done' },
+    )).toBe(false);
+    expect(canUpdateAnnualConferenceTask(
+      delegatedManager,
+      edition,
+      unrelated,
       { title: 'Delegated manager update' },
     )).toBe(true);
   });

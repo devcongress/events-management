@@ -52,6 +52,14 @@ const unrelatedTask: AnnualConferenceTask = {
   accountable_owner: 'owner@example.com',
 };
 
+const collaboratorTask: AnnualConferenceTask = {
+  ...assignedTask,
+  id: 'task-collaborator',
+  title: 'Review the run of show',
+  accountable_owner: 'owner@example.com',
+  collaborators: ['volunteer@example.com'],
+};
+
 vi.mock('@/lib/supabase/admin-auth', async () => {
   const actual = await vi.importActual<typeof import('@/lib/supabase/admin-auth')>('@/lib/supabase/admin-auth');
 
@@ -110,7 +118,7 @@ vi.mock('@/lib/supabase/annual-conference-work-plan', () => ({
       created_at: '2026-08-03T00:00:00.000Z',
       updated_at: '2026-08-03T00:00:00.000Z',
     },
-    tasks: [assignedTask, unrelatedTask],
+    tasks: [assignedTask, collaboratorTask, unrelatedTask],
   })),
   createSupabaseAnnualConferenceTask: vi.fn(),
   updateSupabaseAnnualConferenceTask: mocks.updateTask,
@@ -153,7 +161,10 @@ describe('annual conference volunteer API access', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      tasks: [{ id: 'task-assigned', internal_note: null }],
+      tasks: expect.arrayContaining([
+        expect.objectContaining({ id: 'task-assigned', internal_note: null }),
+        expect.objectContaining({ id: 'task-collaborator', internal_note: null }),
+      ]),
       permissions: {
         access_scope: 'assigned',
         can_create_tasks: false,
@@ -181,6 +192,24 @@ describe('annual conference volunteer API access', () => {
       expect.anything(),
     );
     await expect(response.json()).resolves.toMatchObject({ status: 'in_progress', internal_note: null });
+  });
+
+  it('allows status-only updates to tasks where the volunteer is a collaborator', async () => {
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-collaborator', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateTask).toHaveBeenCalledWith(
+      'edition-2026',
+      'task-collaborator',
+      { status: 'done' },
+      'volunteer@example.com',
+      expect.anything(),
+    );
   });
 
   it('saves validated rich details for an organizer without granting volunteer detail editing', async () => {
@@ -222,10 +251,11 @@ describe('annual conference volunteer API access', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      tasks: [
-        { id: 'task-assigned', internal_note: null },
-        { id: 'task-unrelated', internal_note: null },
-      ],
+      tasks: expect.arrayContaining([
+        expect.objectContaining({ id: 'task-assigned', internal_note: null }),
+        expect.objectContaining({ id: 'task-collaborator', internal_note: null }),
+        expect.objectContaining({ id: 'task-unrelated', internal_note: null }),
+      ]),
       permissions: {
         access_scope: 'all',
         can_create_tasks: false,
@@ -240,7 +270,7 @@ describe('annual conference volunteer API access', () => {
     const updateResponse = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-unrelated', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Delegated manager update' }),
+      body: JSON.stringify({ title: 'Delegated manager update', status: 'not_started' }),
     });
 
     expect(workspaceResponse.status).toBe(200);
@@ -254,10 +284,23 @@ describe('annual conference volunteer API access', () => {
     expect(mocks.updateTask).toHaveBeenCalledWith(
       'edition-2026',
       'task-unrelated',
-      expect.objectContaining({ title: 'Delegated manager update' }),
+      expect.objectContaining({ title: 'Delegated manager update', status: 'not_started' }),
       'volunteer@example.com',
       expect.anything(),
     );
+  });
+
+  it('does not let a delegated volunteer manager change another person’s status', async () => {
+    mocks.grants = ['work_plan.manage'];
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/annual-conference/2026/work-plan/task-unrelated', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(mocks.updateTask).not.toHaveBeenCalled();
   });
 
   it('rejects task detail changes and unrelated organizer APIs', async () => {

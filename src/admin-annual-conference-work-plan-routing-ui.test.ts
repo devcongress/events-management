@@ -54,10 +54,13 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(mobileConferenceSource).toContain('watch([() => route.fullPath, tasks, phases, assignedAccess]');
   });
 
-  it('shows volunteer identity instead of an owner selector for assigned-only work plans', () => {
-    expect(workPlanSource).toContain('v-if="assignedAccess"');
-    expect(workPlanSource).toContain('Tasks for');
-    expect(workPlanSource).toContain('{{ currentMemberLabel }}');
+  it('keeps volunteers in a focused board without a redundant assigned-only owner control', () => {
+    expect(workPlanSource).toContain("const isConferenceVolunteer = computed(() => sessionQuery.data.value?.user?.role === 'volunteer');");
+    expect(workPlanSource).toContain('const usesKanbanBoard = computed(() => isConferenceOrganizer.value || isConferenceVolunteer.value);');
+    expect(workPlanSource).toContain('v-if="!isConferenceVolunteer || filtersActive"');
+    expect(workPlanSource).not.toContain('Tasks for');
+    expect(workPlanSource).not.toContain('currentMemberLabel');
+    expect(workPlanSource).toContain('v-if="!assignedAccess"');
     expect(mobileConferenceSource).toContain('class="assigned-task-owner"');
     expect(mobileConferenceSource).toContain('ownerFilter.value = assignedAccess.value ? \'all\'');
   });
@@ -108,14 +111,17 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(mobileConferenceSource).toContain('matchesAnnualConferenceTaskAttention(task, attentionFilter.value, today.value)');
   });
 
-  it('replaces only the desktop Work plan task table with an organizer board', () => {
+  it('uses the desktop Work plan board for organizers and volunteers', () => {
     expect(workPlanSource).toContain('<AnnualConferenceTaskBoard');
     expect(workPlanSource).toContain(':tasks="visibleTasks"');
     expect(workPlanSource).toContain('class="hidden lg:block"');
-    expect(workPlanSource).toContain(":class=\"{ 'lg:hidden': isConferenceOrganizer }\"");
+    expect(workPlanSource).toContain(":class=\"{ 'lg:hidden': usesKanbanBoard }\"");
+    expect(workPlanSource).toContain('v-if="usesKanbanBoard"');
     expect(workPlanSource).toContain('@change-status="moveTask"');
     expect(workPlanSource).toContain("return role === 'owner' || role === 'organizer';");
     expect(workPlanSource).toContain('function canMoveTask(task: AnnualConferenceTask): boolean');
+    expect(workPlanSource).toContain('permissions.value?.can_update_all_task_status');
+    expect(workPlanSource).toContain('permissions.value?.can_update_assigned_task_status === true');
   });
 
   it('keeps the filtered board inside the shared Work plan workspace surface', () => {
@@ -125,8 +131,14 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(workPlanSource).toContain("'--annual-conference-nav-height': `${annualConferenceNavHeight}px`");
     expect(workPlanSource).toContain('function updateAnnualConferenceNavHeight()');
     expect(workPlanSource).toContain('annualConferenceNavObserver = new ResizeObserver(updateAnnualConferenceNavHeight)');
-    expect(workPlanSource).toContain('class="annual-task-ledger overflow-hidden rounded-b-lg border-x-2 border-b-2 border-dc-ink bg-dc-paper"');
+    expect(workPlanSource).toContain('ref="annualTaskWorkspace"');
+    expect(workPlanSource).toContain('annualTaskWorkspaceObserver = new ResizeObserver(updateAnnualTaskWorkspaceHeight)');
+    expect(workPlanSource).toContain("'--task-board-sticky-offset': `calc(${annualConferenceNavHeight}px + ${annualTaskWorkspaceHeight}px + .75rem)`");
+    expect(workPlanSource).toContain('class="annual-task-ledger rounded-b-lg border-x-2 border-b-2 border-dc-ink bg-dc-paper"');
     expect(workPlanSource).toContain('top: var(--annual-conference-nav-height);');
+    expect(taskBoardSource).toContain('top: var(--task-board-sticky-offset);');
+    expect(taskBoardSource).toContain('.task-board__column-header {\n    position: sticky;');
+    expect(taskBoardSource).toContain('box-shadow: 0 -.75rem 0 1px #f5f2e8;');
   });
 
   it('keeps native drag-and-drop without a per-card status selector', () => {
@@ -135,6 +147,9 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(taskBoardSource).toContain('requestStatusChange(task, status)');
     expect(taskBoardSource).toContain("'task-board__column--active-drop'");
     expect(taskBoardSource).not.toContain('<select');
+    expect(taskBoardSource).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
+    expect(taskBoardSource).toContain('.task-board__column {\n  min-width: 0;');
+    expect(taskBoardSource).toContain('.task-board__card {\n  min-width: 0;');
   });
 
   it('queues board status moves per task without locking the whole board', () => {
