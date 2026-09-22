@@ -24,6 +24,13 @@ describe('event submission amendment presentation', () => {
     expect(dateTimeInputInTimeZoneToIso('2026-09-21T19:00', 'Europe/Berlin')).toBe(storedInstant);
   });
 
+  it('shows the same instant in Ghana when an organizer changes the selected zone', () => {
+    const storedInstant = '2026-09-21T17:30:00.000Z';
+
+    expect(isoToDateTimeInputInTimeZone(storedInstant, 'Europe/Berlin')).toBe('2026-09-21T19:30');
+    expect(isoToDateTimeInputInTimeZone(storedInstant, 'Africa/Accra')).toBe('2026-09-21T17:30');
+  });
+
   it('does not render invalid stored timestamps as editable dates', () => {
     expect(isoToDateTimeInputInTimeZone('not-a-date', 'Europe/Berlin')).toBe('');
   });

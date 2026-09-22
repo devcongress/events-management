@@ -55,6 +55,7 @@ export type EventSubmissionLifecycleRepository = {
   saveAmendment(
     submissionId: string,
     input: Pick<EventSubmissionAmendment, 'starts_at' | 'ends_at' | 'location_type'> & {
+      timezone?: string;
       venue_name?: string;
       venue_address?: string;
       online_url?: string;
@@ -184,7 +185,10 @@ export function createEventSubmissionLifecycle(dependencies: EventSubmissionLife
       }): Promise<EventSubmissionAmendment> {
         const management = await repository.management(input.linkId);
 
-        return repository.saveAmendment(management.submission.id, input.changes);
+        return repository.saveAmendment(management.submission.id, {
+          ...input.changes,
+          timezone: input.changes.timezone ?? management.current_event.timezone,
+        });
       },
 
       async submit(input: { linkId: string }): Promise<EventSubmissionAmendment> {

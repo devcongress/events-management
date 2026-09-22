@@ -112,7 +112,7 @@ const selectedAmendmentChanges = computed<AmendmentChange[]>(() => {
     changes.push({
       label: 'Schedule',
       current: formatSchedule(submission.starts_at, submission.ends_at, submission.timezone),
-      requested: formatSchedule(amendment.starts_at, amendment.ends_at, submission.timezone),
+      requested: formatSchedule(amendment.starts_at, amendment.ends_at, amendment.timezone),
     });
   }
   if (amendmentLocationChanged(submission, amendment)) {
@@ -435,7 +435,7 @@ function submissionStatusLabel(submission: EventSubmission) {
 }
 
 function amendmentScheduleChanged(submission: EventSubmission, amendment: NonNullable<EventSubmission['amendments']>[number]) {
-  return submission.starts_at !== amendment.starts_at || submission.ends_at !== amendment.ends_at;
+  return submission.starts_at !== amendment.starts_at || submission.ends_at !== amendment.ends_at || submission.timezone !== amendment.timezone;
 }
 
 function amendmentLocationChanged(submission: EventSubmission, amendment: NonNullable<EventSubmission['amendments']>[number]) {

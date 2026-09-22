@@ -135,6 +135,7 @@ export interface EventSubmissionAmendment {
   status: EventSubmissionAmendmentStatus;
   starts_at: string;
   ends_at: string;
+  timezone: string;
   location_type: EventLocationType;
   venue_name: string | null;
   venue_address: string | null;
