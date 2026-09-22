@@ -11,10 +11,10 @@ import {
 } from '@/lib/annual-conference-task-resources';
 import {
   annualConferenceCapabilities,
-  canEditAnnualConferenceTask,
   isAnnualConferenceTaskAssignedTo,
   type AnnualConferenceActor,
 } from '@/lib/annual-conference-access';
+import type { AnnualConferenceCapability, AnnualConferenceCapabilityOverride } from '@/lib/annual-conference-capabilities';
 import type { AnnualConferenceRepository } from '@/server/annual-conference-repository';
 import type { AnnualConferenceTaskResourceRepository } from '@/server/annual-conference-task-resource-repository';
 
@@ -41,7 +41,10 @@ export interface AnnualConferenceTaskResourceServiceDependencies {
   workPlanRepository: AnnualConferenceRepository;
   resourceRepository: AnnualConferenceTaskResourceRepository;
   actor: AnnualConferenceActor;
-  accessGrants(editionId: string): Promise<AnnualConferenceActor['granted_capabilities']>;
+  accessGrants(editionId: string): Promise<
+    NonNullable<AnnualConferenceActor['granted_capabilities']>
+    | NonNullable<AnnualConferenceActor['capability_overrides']>
+  >;
   audit(event: {
     action: string;
     targetType: string;
@@ -117,10 +120,18 @@ export function createAnnualConferenceTaskResourceService(
     const actorEmail = normalizeTaskResourceActorEmail(actor.email ?? '');
 
     if (!actorEmail) throw new AnnualConferenceTaskResourceServiceError('forbidden', 'Conference access required.');
+    const access = await dependencies.accessGrants(workspace.edition.id);
+    const legacyGrants = typeof access[0] === 'string'
+      ? access as AnnualConferenceCapability[]
+      : [];
+    const capabilityOverrides = typeof access[0] === 'string'
+      ? []
+      : access as AnnualConferenceCapabilityOverride[];
     const editionActor: AnnualConferenceActor = {
       ...actor,
       email: actorEmail,
-      granted_capabilities: await dependencies.accessGrants(workspace.edition.id) ?? [],
+      granted_capabilities: legacyGrants,
+      capability_overrides: capabilityOverrides,
     };
     const assigned = isAnnualConferenceTaskAssignedTo(task, actorEmail);
 
@@ -132,18 +143,15 @@ export function createAnnualConferenceTaskResourceService(
     }
     const permissions = annualConferenceCapabilities(editionActor, workspace.edition);
     const canManageAll = actor.role !== 'volunteer' && (
-      permissions.can_edit_all_tasks
-      || canEditAnnualConferenceTask(task, actorEmail, workspace.edition.task_creator_email)
+      permissions.can_edit_all_tasks || assigned
     );
-    const canAdd = actor.role === 'volunteer' ? assigned : canManageAll;
+    const canAdd = canManageAll || assigned;
 
     return { actorEmail, canAdd, canManageAll, task, workspace };
   }
 
   function canEdit(resource: AnnualConferenceTaskResource, actorEmail: string, canManageAll: boolean): boolean {
-    return canManageAll
-      || (actor.role === 'volunteer'
-        && normalizeTaskResourceActorEmail(resource.created_by_email) === actorEmail);
+    return canManageAll || normalizeTaskResourceActorEmail(resource.created_by_email) === actorEmail;
   }
 
   return {
@@ -211,7 +219,7 @@ export function createAnnualConferenceTaskResourceService(
             : 'Only a task editor can edit this resource link.',
         );
       }
-      const creatorConstraint = actor.role === 'volunteer' ? access.actorEmail : undefined;
+      const creatorConstraint = access.canManageAll ? undefined : access.actorEmail;
       const resource = await resourceRepository.update(
         taskId,
         resourceId,
@@ -244,7 +252,7 @@ export function createAnnualConferenceTaskResourceService(
             : 'Only a task editor can delete this resource link.',
         );
       }
-      const creatorConstraint = actor.role === 'volunteer' ? access.actorEmail : undefined;
+      const creatorConstraint = access.canManageAll ? undefined : access.actorEmail;
       const deleted = await resourceRepository.delete(taskId, resourceId, creatorConstraint);
 
       if (!deleted) throw new AnnualConferenceTaskResourceServiceError('not_found', 'Task resource link was not found.');

@@ -106,6 +106,21 @@ describe('annual conference volunteer access', () => {
     )).toEqual(tasks);
   });
 
+  it('honors an edition override that removes an organizer work-plan default', () => {
+    const permissions = annualConferenceCapabilities({
+      role: 'organizer',
+      email: 'organizer@example.com',
+      capability_overrides: [{ capability: 'work_plan.view_all', enabled: false }],
+    }, edition);
+
+    expect(permissions.access_scope).toBe('assigned');
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'organizer', email: 'organizer@example.com', capability_overrides: [{ capability: 'work_plan.view_all', enabled: false }] },
+      edition,
+      task({ accountable_owner: 'someone@example.com' }),
+    )).toBe(false);
+  });
+
   it('shows delegated volunteers the full plan while keeping internal notes private', () => {
     const tasks = [task(), task({ id: 'task-2', accountable_owner: 'someone@example.com' })];
     const visible = annualConferenceTasksForMember(

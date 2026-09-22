@@ -10,7 +10,12 @@ import {
   ANNUAL_CONFERENCE_SESSION_TYPES,
   ANNUAL_CONFERENCE_TOPIC_TRACKS,
 } from '@/lib/annual-conference-cfp';
-import { hasAnnualConferenceCapability, effectiveAnnualConferenceCapabilities } from '@/lib/annual-conference-capabilities';
+import {
+  hasAnnualConferenceCapability,
+  effectiveAnnualConferenceCapabilities,
+  type AnnualConferenceCapability,
+  type AnnualConferenceCapabilityOverride,
+} from '@/lib/annual-conference-capabilities';
 import {
   annualConferenceSpeakerWorkspaceToken,
   annualConferenceSpeakerWorkspaceTokenMatches,
@@ -135,7 +140,8 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       const access = await getAnnualConferenceAccessGrants(edition.id, session.membership_id, c);
       const capabilities = effectiveAnnualConferenceCapabilities({
         role: session.role,
-        grants: access,
+        grants: typeof access[0] === 'string' ? access as unknown as AnnualConferenceCapability[] : [],
+        overrides: typeof access[0] === 'string' ? [] : access as AnnualConferenceCapabilityOverride[],
         isPlanningOwner: session.email?.trim().toLowerCase() === edition.task_creator_email.trim().toLowerCase(),
       });
       const submissionDetails = await Promise.all(submissions.map(async (submission) => {

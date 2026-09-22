@@ -480,6 +480,7 @@ export interface Database {
           edition_id: string;
           membership_id: string;
           capability: AnnualConferenceCapability;
+          enabled: boolean;
           granted_by_membership_id: string | null;
           created_at: string;
         };
@@ -488,6 +489,7 @@ export interface Database {
           edition_id: string;
           membership_id: string;
           capability: AnnualConferenceCapability;
+          enabled?: boolean;
           granted_by_membership_id?: string | null;
           created_at?: string;
         };
@@ -496,6 +498,7 @@ export interface Database {
           edition_id?: string;
           membership_id?: string;
           capability?: AnnualConferenceCapability;
+          enabled?: boolean;
           granted_by_membership_id?: string | null;
           created_at?: string;
         };

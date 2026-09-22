@@ -90,8 +90,9 @@ describe('AdminOrganizersView', () => {
     const source = await readFile(fileURLToPath(new URL('./AdminOrganizersView.vue', import.meta.url)), 'utf8');
 
     expect(source).toContain("['Work plan', 'Volunteers', 'Speakers', 'Finance']");
-    expect(source).toContain('|| responsibilityIsInherited(definition.value);');
-    expect(source).toContain('Included in role');
+    expect(source).toContain('canDelegateAnnualConferenceCapability(definition.value, responsibilityMember.value.role)');
+    expect(source).toContain('Role default · editable for this edition');
+    expect(source).not.toContain('responsibilityIsInherited(definition.value) || responsibilityUpdating');
   });
 
   it('mounts before the authenticated role queries resolve', () => {

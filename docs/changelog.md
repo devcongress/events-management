@@ -1,9 +1,10 @@
 # Changelog
 
-## 2026-09-22 — Complete role-aware access directory
+## 2026-09-22 — Editable edition-scoped conference permissions
 
-- Show each person’s full role-appropriate conference permission suite in the access drawer, including their role-included controls as switched-on, locked states.
-- Keep only additional eligible permissions interactive, and include the Organizer Speaker section alongside Work plan, Volunteers, and Finance.
+- Show each person’s full role-appropriate conference permission suite in the access drawer, including role defaults as switched-on controls.
+- Let Owners explicitly switch every displayed permission on or off for one conference edition; a stored denial overrides the member’s base role without changing their global role. Full Work plan access and management remain coupled, so either control always presents the access that will actually be enforced.
+- Enforce those overrides across Work plan access, task updates, resource access, and speaker authorization, while preserving the existing role-appropriate permission catalogue.
 
 ## 2026-09-22 — Organizer Work plan grant database alignment
 
