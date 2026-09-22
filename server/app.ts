@@ -241,6 +241,7 @@ import {
 import { acquireSpeakerIntakeSubmissionLock } from '@/server/http/speaker-intake-lock';
 import {
   annualConferenceFinanceServiceForRequest,
+  annualConferenceSchedulerServiceForRequest,
   annualConferenceServiceErrorResponse,
   annualConferenceServiceForRequest,
   getAnnualConferenceEditionByYear,
@@ -1169,6 +1170,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
     ))
     || (method === 'GET' && path.startsWith('/api/internal/short-links/') && isSupportedShortLinkCode(path.slice('/api/internal/short-links/'.length)))
     || (method === 'GET' && /^\/api\/quiz\/state$/.test(path))
+    || (method === 'POST' && path === '/api/internal/annual-conference/phases/rollover')
     || (method === 'POST' && (path === '/api/quiz/join' || path === '/api/quiz/answer'))
     || (method === 'PATCH' && /^\/api\/quiz\/participants\/[^/]+\/name$/.test(path));
 }
@@ -5329,6 +5331,21 @@ app.delete('/api/annual-conference/:year/phases/:phaseId', async (c) => {
     return c.json(await service.deletePhase(Number(yearParam), c.req.param('phaseId')));
   } catch (error) {
     return annualConferenceServiceErrorResponse(c, error);
+  }
+});
+
+app.post('/api/internal/annual-conference/phases/rollover', async (c) => {
+  if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+
+  try {
+    const service = annualConferenceSchedulerServiceForRequest(c);
+    const result = await service.rolloverDuePhases(new Date().toISOString().slice(0, 10));
+
+    console.info(JSON.stringify({ event: 'scheduled_annual_conference_phase_rollover', ...result }));
+
+    return c.json(result);
+  } catch (error) {
+    return internalErrorResponse(c, 'annual_conference_phase_rollover_failed', error, 'Unable to roll over Annual Conference phases.');
   }
 });
 

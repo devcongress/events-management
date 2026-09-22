@@ -284,3 +284,33 @@ export async function updateMockAnnualConferenceTask(
     };
   });
 }
+
+export async function moveMockAnnualConferencePhaseTasks(
+  editionId: string,
+  sourcePhaseId: string,
+  destinationPhaseId: string,
+  taskIds: string[],
+  actorEmail: string,
+): Promise<number> {
+  const ids = new Set(taskIds);
+
+  return updateData<AnnualConferenceTask, number>(FILE, (current) => {
+    const tasks = seededTasks(current);
+    const timestamp = now();
+    let moved = 0;
+    const data = tasks.map((task) => {
+      if (
+        task.edition_id !== editionId
+        || task.phase_id !== sourcePhaseId
+        || task.status === 'done'
+        || !ids.has(task.id)
+      ) return task;
+
+      moved += 1;
+
+      return { ...task, phase_id: destinationPhaseId, updated_by_email: actorEmail, updated_at: timestamp };
+    });
+
+    return { data, result: moved };
+  });
+}

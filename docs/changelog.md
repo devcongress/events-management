@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-22 — Automatic Annual Conference phase rollover
+
+- On the first scheduled pass after an immediate next phase begins, move only unfinished tasks from the prior phase into that phase.
+- Keep completed tasks in their original phase, preserving historical completion reporting, task ownership, dates, dependencies, and completion timestamps.
+- Make rollover catch-up safe after deployment: a phase whose successor has already begun is processed on the next scheduler pass.
+
 ## 2026-09-22 — Annual Conference route loading skeletons
 
 - Keep the shared Annual Conference navigation visible while Overview, Work plan, Volunteers, Speakers, and Finance load their initial data on desktop and tablet.

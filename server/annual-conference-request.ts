@@ -77,6 +77,15 @@ export async function annualConferenceServiceForRequest(c: Context) {
   });
 }
 
+export function annualConferenceSchedulerServiceForRequest(c: Context) {
+  return createAnnualConferenceService({
+    repository: createAnnualConferenceRepository(c),
+    actor: { role: 'owner', email: 'annual-conference-scheduler' },
+    activeOrganizerEmails: async () => [],
+    audit: async () => undefined,
+  });
+}
+
 export async function annualConferenceFinanceServiceForRequest(c: Context) {
   const session = c.get('adminSession') ?? await getAdminSession(c);
 

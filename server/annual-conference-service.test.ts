@@ -68,6 +68,7 @@ function repository(): AnnualConferenceRepository {
     reorderPhases: vi.fn(),
     createTask: vi.fn(),
     updateTask: vi.fn(async (_editionId, _taskId, changes) => ({ ...task, ...changes })),
+    movePhaseTasks: vi.fn(async () => 0),
     updateEditionSpeakerCallStatus: vi.fn(),
     updateEditionSpeakerLogisticsDeadline: vi.fn(),
   };

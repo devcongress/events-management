@@ -338,3 +338,26 @@ export async function updateSupabaseAnnualConferenceTask(
 
   return result.data ? toTask(result.data) : undefined;
 }
+
+export async function moveSupabaseAnnualConferencePhaseTasks(
+  editionId: string,
+  sourcePhaseId: string,
+  destinationPhaseId: string,
+  taskIds: string[],
+  actorEmail: string,
+  c?: Context,
+): Promise<number | null> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const result = await getSupabaseAdminClient(c)
+    .from('annual_conference_tasks')
+    .update({ phase_id: destinationPhaseId, updated_by_email: actorEmail })
+    .eq('edition_id', editionId)
+    .eq('phase_id', sourcePhaseId)
+    .neq('status', 'done')
+    .in('id', taskIds)
+    .select('id');
+
+  if (result.error) throw new Error(result.error.message);
+
+  return result.data.length;
+}
