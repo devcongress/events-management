@@ -95,3 +95,11 @@ export async function deleteMockAnnualConferenceTaskResource(
     return { data: next, result: next.length !== current.length };
   });
 }
+
+export async function deleteMockAnnualConferenceTaskResources(taskId: string): Promise<number> {
+  return updateData<AnnualConferenceTaskResource, number>(FILE, (current) => {
+    const next = current.filter((resource) => resource.task_id !== taskId);
+
+    return { data: next, result: current.length - next.length };
+  });
+}

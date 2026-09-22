@@ -139,6 +139,7 @@ export function canDelegateAnnualConferenceCapability(
   role: AdminRole,
 ): boolean {
   if (capability === 'finance.view' || capability.startsWith('speakers.')) return role === 'organizer';
+  if (capability === 'work_plan.manage') return role === 'organizer' || role === 'volunteer';
 
   return role === 'volunteer';
 }

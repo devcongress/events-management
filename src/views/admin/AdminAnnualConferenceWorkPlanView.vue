@@ -15,6 +15,7 @@ import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceTaskBoard from '@/src/components/AnnualConferenceTaskBoard.vue';
 import AnnualConferenceTaskDrawer from '@/src/components/AnnualConferenceTaskDrawer.vue';
 import NaviiAvatar from '@/src/components/NaviiAvatar.vue';
+import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
 import { annualConferencePhaseTiming } from '@/lib/annual-conference-phase-pace';
 import {
@@ -39,6 +40,7 @@ import { isAnnualConferenceTaskAssignedTo } from '@/lib/annual-conference-access
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import {
   createAnnualConferenceTask,
+  deleteAnnualConferenceTask,
   fetchAdminSession,
   queryKeys,
 } from '@/src/lib/api';
@@ -60,6 +62,7 @@ const annualConferenceNav = ref<ComponentPublicInstance | null>(null);
 const annualConferenceNavHeight = ref(0);
 const annualTaskWorkspace = ref<HTMLElement | null>(null);
 const annualTaskWorkspaceHeight = ref(0);
+const taskPendingDeletion = ref<AnnualConferenceTask | null>(null);
 let annualConferenceNavObserver: ResizeObserver | null = null;
 let annualTaskWorkspaceObserver: ResizeObserver | null = null;
 
@@ -312,6 +315,23 @@ const createMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to add the task.'),
 });
 
+const deleteMutation = useMutation({
+  mutationFn: async (task: AnnualConferenceTask) => deleteAnnualConferenceTask(year.value, task.id),
+  onSuccess: async (_result, task) => {
+    if (selectedTaskId.value === task.id) closeTaskWithContext();
+    taskPendingDeletion.value = null;
+    await refresh();
+    notify.success('Conference task deleted.');
+  },
+  onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to delete the task.'),
+});
+
+const deletingTaskIds = computed(() => {
+  const task = deleteMutation.isPending.value ? taskPendingDeletion.value : null;
+
+  return new Set(task ? [task.id] : []);
+});
+
 function startEditing(taskId: string) {
   const task = tasks.value.find((item) => item.id === taskId);
 
@@ -335,6 +355,10 @@ function canMoveTask(task: AnnualConferenceTask): boolean {
     && isAnnualConferenceTaskAssignedTo(task, currentMemberEmail.value);
 }
 
+function canDeleteTask(_task: AnnualConferenceTask): boolean {
+  return permissions.value?.can_delete_tasks === true;
+}
+
 function moveTask(task: AnnualConferenceTask, status: AnnualConferenceTask['status']) {
   if (!canMoveTask(task) || task.status === status) return;
 
@@ -343,6 +367,24 @@ function moveTask(task: AnnualConferenceTask, status: AnnualConferenceTask['stat
 
 function openBoardTask(task: AnnualConferenceTask) {
   toggleTask(task.id);
+}
+
+function requestTaskDeletion(task: AnnualConferenceTask) {
+  if (!canDeleteTask(task)) return;
+
+  taskPendingDeletion.value = task;
+}
+
+function cancelTaskDeletion() {
+  if (deleteMutation.isPending.value) return;
+
+  taskPendingDeletion.value = null;
+}
+
+function confirmTaskDeletion() {
+  if (!taskPendingDeletion.value || deleteMutation.isPending.value) return;
+
+  deleteMutation.mutate(taskPendingDeletion.value);
 }
 
 function requestCreateDrawer() {
@@ -831,8 +873,11 @@ onBeforeUnmount(() => {
               :tasks="visibleTasks"
               :organizer-labels="organizerLabels"
               :owner-avatar-seeds="ownerAvatarSeeds"
+              :can-delete-task="canDeleteTask"
               :can-move-task="canMoveTask"
+              :deleting-task-ids="deletingTaskIds"
               :saving-task-ids="pendingStatusTaskIds"
+              @delete-task="requestTaskDeletion"
               @open-task="openBoardTask"
               @change-status="moveTask"
             />
@@ -977,6 +1022,19 @@ onBeforeUnmount(() => {
       @edit="selectedTask && startEditing(selectedTask.id)"
       @cancel-edit="editingTaskId = null"
       @submit="handleDrawerSubmit"
+    />
+
+    <ConfirmDialog
+      :open="Boolean(taskPendingDeletion)"
+      title="Delete task?"
+      :message="taskPendingDeletion
+        ? `Delete “${taskPendingDeletion.title}”? This removes its attached resources and clears it from the remaining task dependencies. This cannot be undone.`
+        : ''"
+      confirm-label="Delete task"
+      busy-label="Deleting…"
+      :busy="deleteMutation.isPending.value"
+      @cancel="cancelTaskDeletion"
+      @confirm="confirmTaskDeletion"
     />
   </div>
 </template>

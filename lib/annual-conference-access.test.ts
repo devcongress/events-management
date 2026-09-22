@@ -208,7 +208,7 @@ describe('annual conference volunteer access', () => {
       edition,
       unrelated,
     )).toBe(false);
-    expect(canUpdateAnnualConferenceTaskStatus(delegatedManager, edition, unrelated)).toBe(false);
+    expect(canUpdateAnnualConferenceTaskStatus(delegatedManager, edition, unrelated)).toBe(true);
     expect(canUpdateAnnualConferenceTaskStatus(
       { role: 'owner', email: 'platform-owner@example.com' },
       edition,
@@ -221,7 +221,7 @@ describe('annual conference volunteer access', () => {
     )).toBe(true);
   });
 
-  it('does not let a delegated manager change another person’s status', () => {
+  it('lets a delegated work-plan manager move another person’s task', () => {
     const delegatedManager: AnnualConferenceActor = {
       role: 'volunteer',
       email: 'manager@example.com',
@@ -234,7 +234,7 @@ describe('annual conference volunteer access', () => {
       edition,
       unrelated,
       { status: 'done' },
-    )).toBe(false);
+    )).toBe(true);
     expect(canUpdateAnnualConferenceTask(
       delegatedManager,
       edition,

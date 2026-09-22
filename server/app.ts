@@ -5401,6 +5401,26 @@ app.patch('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
   }
 });
 
+app.delete('/api/annual-conference/:year/work-plan/:taskId', async (c) => {
+  const adminError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
+  if (adminError) return adminError;
+
+  const yearParam = c.req.param('year');
+
+  if (!/^\d{4}$/.test(yearParam)) {
+    return c.json({ error: 'Conference year must use four digits.' }, 400);
+  }
+
+  try {
+    const service = await annualConferenceServiceForRequest(c);
+
+    return c.json(await service.deleteTask(Number(yearParam), c.req.param('taskId')));
+  } catch (error) {
+    return annualConferenceServiceErrorResponse(c, error);
+  }
+});
+
 app.get('/api/auth/admin/callback', async (c) => {
   const code = String(c.req.query('code') ?? '');
   const next = String(c.req.query('next') ?? defaultAdminRedirectPath(c));

@@ -13,6 +13,7 @@ import {
 import {
   canCreateAnnualConferenceEdition,
   canCreateAnnualConferenceTasks,
+  canDeleteAnnualConferenceTasks,
   canManageAnnualConferencePhases,
   canUpdateAnnualConferenceTask,
   presentAnnualConferenceTask,
@@ -340,6 +341,32 @@ export function createAnnualConferenceService(dependencies: AnnualConferenceServ
       });
 
       return presentAnnualConferenceTask(task, editionActor);
+    },
+
+    async deleteTask(year: number, taskId: string) {
+      const plan = await workspace(year);
+      const editionActor = await actorForEdition(plan.edition.id);
+      const existing = plan.tasks.find((task) => task.id === taskId);
+
+      if (!existing) throw new AnnualConferenceServiceError('not_found', 'Annual conference task was not found.');
+      if (!canDeleteAnnualConferenceTasks(editionActor, plan.edition)) {
+        throw new AnnualConferenceServiceError(
+          'forbidden',
+          'Only people with Manage the work plan can delete annual conference tasks.',
+        );
+      }
+
+      const deleted = await repository.deleteTask(plan.edition.id, existing.id);
+
+      if (!deleted) throw new AnnualConferenceServiceError('not_found', 'Annual conference task was not found.');
+      await dependencies.audit({
+        action: 'annual_conference.task.delete',
+        targetType: 'annual_conference_task',
+        targetId: existing.id,
+        metadata: { edition_year: year, title: existing.title, workstream: existing.workstream },
+      });
+
+      return { deleted: true as const };
     },
 
     async updateTask(year: number, taskId: string, input: AnnualConferenceTaskUpdateInput) {
