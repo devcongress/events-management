@@ -180,8 +180,8 @@ describe('annual conference work plan', () => {
       collaborators: ['Elvis'],
     });
     expect(sponsorship).toMatchObject({
-      accountable_owner: 'Dede',
-      collaborators: ['Angela', 'Philipa'],
+      accountable_owner: 'blossomddb@gmail.com',
+      collaborators: ['angelateyvi@gmail.com', 'abenabennett@gmail.com'],
     });
     expect(theme).toMatchObject({
       accountable_owner: null,
@@ -295,6 +295,11 @@ describe('annual conference work plan', () => {
 
   it('preserves unchanged legacy name assignments without an organizer lookup', () => {
     const sponsorship = ANNUAL_CONFERENCE_2026_SEED_TASKS.find((task) => task.title === 'Sponsorship Packages');
+    const legacySponsorship = {
+      ...sponsorship!,
+      accountable_owner: 'Dede',
+      collaborators: ['Angela', 'Philipa'],
+    };
 
     expect(sponsorship).toBeDefined();
 
@@ -304,8 +309,8 @@ describe('annual conference work plan', () => {
       collaborators: ['PHILIPA', 'Angela', 'philipa'],
     };
 
-    expect(annualConferenceOwnershipNeedsActiveOrganizerLookup(update, sponsorship)).toBe(false);
-    expect(validateAnnualConferenceTaskOwnership(update, [], sponsorship)).toEqual({
+    expect(annualConferenceOwnershipNeedsActiveOrganizerLookup(update, legacySponsorship)).toBe(false);
+    expect(validateAnnualConferenceTaskOwnership(update, [], legacySponsorship)).toEqual({
       ok: true,
       value: {
         title: 'Sponsorship package shortlist',
@@ -341,6 +346,11 @@ describe('annual conference work plan', () => {
 
   it('allows a legacy collaborator to remain while another legacy collaborator is removed', () => {
     const sponsorship = ANNUAL_CONFERENCE_2026_SEED_TASKS.find((task) => task.title === 'Sponsorship Packages');
+    const legacySponsorship = {
+      ...sponsorship!,
+      accountable_owner: 'Dede',
+      collaborators: ['Angela', 'Philipa'],
+    };
 
     expect(sponsorship).toBeDefined();
 
@@ -348,8 +358,8 @@ describe('annual conference work plan', () => {
       collaborators: ['PHILIPA'],
     };
 
-    expect(annualConferenceOwnershipNeedsActiveOrganizerLookup(update, sponsorship)).toBe(false);
-    expect(validateAnnualConferenceTaskOwnership(update, [], sponsorship)).toEqual({
+    expect(annualConferenceOwnershipNeedsActiveOrganizerLookup(update, legacySponsorship)).toBe(false);
+    expect(validateAnnualConferenceTaskOwnership(update, [], legacySponsorship)).toEqual({
       ok: true,
       value: {
         collaborators: ['Philipa'],

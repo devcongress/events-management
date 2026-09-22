@@ -64,6 +64,24 @@ describe('annual conference volunteer access', () => {
     expect(isAnnualConferenceTaskAssignedTo(task(), 'someone@example.com')).toBe(false);
   });
 
+  it.each([
+    ['Angela', 'angelateyvi@gmail.com', task({ accountable_owner: 'angelateyvi@gmail.com' })],
+    ['Dede', 'blossomddb@gmail.com', task({ accountable_owner: 'blossomddb@gmail.com' })],
+    ['Ernest', 'essienernest.kojoowusu@gmail.com', task({ collaborators: ['essienernest.kojoowusu@gmail.com'] })],
+    ['Philipa', 'abenabennett@gmail.com', task({ collaborators: ['abenabennett@gmail.com'] })],
+  ])('authorizes the mapped %s assignment for status changes', (_legacyLabel, email, assignedTask) => {
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'volunteer', email },
+      edition,
+      assignedTask,
+    )).toBe(true);
+    expect(canUpdateAnnualConferenceTaskStatus(
+      { role: 'volunteer', email: 'unrelated@example.com' },
+      edition,
+      assignedTask,
+    )).toBe(false);
+  });
+
   it('returns only assigned tasks and removes organizer-only notes for volunteers', () => {
     const assigned = task();
     const unrelated = task({ id: 'task-2', accountable_owner: 'someone@example.com' });

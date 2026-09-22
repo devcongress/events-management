@@ -17,17 +17,36 @@ import { generateId, now } from '@/lib/utils';
 const FILE = 'annual-conference-tasks';
 const EDITIONS_FILE = 'annual-conference-editions';
 const PHASES_FILE = 'annual-conference-phases';
+const LEGACY_2026_ASSIGNMENT_EMAILS = new Map([
+  ['angela', 'angelateyvi@gmail.com'],
+  ['dede', 'blossomddb@gmail.com'],
+  ['ernest', 'essienernest.kojoowusu@gmail.com'],
+  ['philipa', 'abenabennett@gmail.com'],
+]);
+
+function canonical2026Assignment(value: string): string {
+  return LEGACY_2026_ASSIGNMENT_EMAILS.get(value.trim().toLowerCase()) ?? value;
+}
 
 function seededTasks(tasks: AnnualConferenceTask[]): AnnualConferenceTask[] {
   const source = tasks.length > 0 ? tasks : ANNUAL_CONFERENCE_2026_SEED_TASKS;
 
-  return source.map((task) => ({
-    ...task,
-    board_entered_at: task.board_entered_at ?? null,
-    phase_id: task.phase_id ?? null,
-    collaborators: [...task.collaborators],
-    dependency_task_ids: [...(task.dependency_task_ids ?? [])],
-  }));
+  return source.map((task) => {
+    const is2026ConferenceTask = task.edition_id === ANNUAL_CONFERENCE_2026_EDITION.id;
+
+    return {
+      ...task,
+      board_entered_at: task.board_entered_at ?? null,
+      phase_id: task.phase_id ?? null,
+      accountable_owner: task.accountable_owner && is2026ConferenceTask
+        ? canonical2026Assignment(task.accountable_owner)
+        : task.accountable_owner,
+      collaborators: task.collaborators.map((collaborator) => (
+        is2026ConferenceTask ? canonical2026Assignment(collaborator) : collaborator
+      )),
+      dependency_task_ids: [...(task.dependency_task_ids ?? [])],
+    };
+  });
 }
 
 export async function getMockAnnualConferenceWorkPlan(
