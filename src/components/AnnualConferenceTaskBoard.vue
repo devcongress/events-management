@@ -10,6 +10,7 @@ import { annualConferenceTaskCardDescription } from '@/lib/annual-conference-tas
 import {
   annualConferenceOwnerAvatarSeed,
 } from '@/lib/annual-conference-owner-avatar';
+import { annualConferenceTasksForBoard } from '@/lib/annual-conference-task-board-order';
 import {
   ANNUAL_CONFERENCE_STATUS_LABELS,
   ANNUAL_CONFERENCE_TASK_STATUSES,
@@ -50,7 +51,7 @@ const statusPresentations: Record<AnnualConferenceTask['status'], {
 };
 const columns = computed(() => ANNUAL_CONFERENCE_TASK_STATUSES.map((status) => ({
   status,
-  tasks: props.tasks.filter((task) => task.status === status),
+  tasks: annualConferenceTasksForBoard(props.tasks.filter((task) => task.status === status)),
 })));
 const taskDescriptions = computed(() => new Map(
   props.tasks.map((task) => [task.id, annualConferenceTaskCardDescription(task)]),

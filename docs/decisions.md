@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-092: Keep Kanban recency separate from shared task ordering
+
+**Date:** 2026-09-22
+
+**Decision:** Store a nullable, server-managed `board_entered_at` timestamp on Annual Conference tasks. Set it when a task is created or changes status or phase, including automatic phase rollover. Desktop and tablet Kanban columns use it only to place recent arrivals first, preserving their source order for ties and preserving existing rows with no timestamp. Continue using `sort_order` for phone layouts and established task ordering.
+
+**Why:** Reusing `sort_order` would make a desktop presentation preference mutate the phone experience and force unrelated cards to be re-ranked. Using `updated_at` would incorrectly surface a card after an ordinary title, owner, or details edit.
+
+**Trade-offs:** The feature adds an additive migration and local-store parity logic. Existing tasks intentionally have no recency timestamp until they enter a new status or phase, so the first rollout does not unexpectedly reorder the whole board.
+
+---
+
 ## ADR-091: Keep Encrypted Supabase Backups Outside Source Control
 
 **Date:** 2026-09-16
