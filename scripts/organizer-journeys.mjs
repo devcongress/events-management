@@ -13,7 +13,7 @@ server.stdout.on('data', chunk => { serverLog += chunk; });
 server.stderr.on('data', chunk => { serverLog += chunk; });
 const event = { id: 'fixture-event', name: 'Fixture Meetup', event_date: '2026-09-26T09:00:00Z', timezone: 'Africa/Accra', status: 'upcoming', schedule: [], registration_url: null };
 const edition = { id: 'fixture-edition', year: 2026, label: 'December 2026', provisional_date: '2026-12-19', status: 'planning' };
-const workspace = { edition, phases: [], tasks: [], summary: {}, permissions: { access_scope: 'assigned', capabilities: [], can_create_tasks: false, can_manage_phases: false, can_edit_all_tasks: false, can_edit_assigned_tasks: false, can_update_assigned_task_status: true } };
+const workspace = { edition, phases: [], tasks: [], summary: {}, permissions: { access_scope: 'assigned', capabilities: [], can_create_tasks: false, can_manage_phases: false, can_edit_all_tasks: false, can_edit_assigned_tasks: false, can_update_all_task_status: false, can_update_assigned_task_status: true } };
 const results = [];
 let browser;
 
@@ -28,6 +28,30 @@ async function assertVisibleBoardCards(page, expectedLabels) {
     .evaluateAll(cards => cards.map(card => card.getAttribute('aria-label')).sort());
 
   assert.deepEqual(labels, [...expectedLabels].sort());
+}
+
+async function assertBoardColumnsAreContained(page) {
+  const isContained = await page.locator('.task-board:visible').evaluateAll((boards) => {
+    return boards.every((board) => {
+      const boardBounds = board.getBoundingClientRect();
+
+      return [...board.querySelectorAll('.task-board__column')].every((column) => {
+        const columnBounds = column.getBoundingClientRect();
+
+        const columnIsContained = columnBounds.left >= boardBounds.left
+          && columnBounds.right <= boardBounds.right;
+        const cardsAreContained = [...column.querySelectorAll('.task-board__card')].every((card) => {
+          const cardBounds = card.getBoundingClientRect();
+
+          return cardBounds.left >= columnBounds.left && cardBounds.right <= columnBounds.right;
+        });
+
+        return columnIsContained && cardsAreContained;
+      });
+    });
+  });
+
+  assert.equal(isContained, true, 'Every board column and card must remain inside its board boundary.');
 }
 
 async function moveBoardTask(page, taskLabel, targetStatusLabel) {
@@ -313,7 +337,7 @@ try {
     await assertVisibleBoardCards(page, ['Open Eve current task']);
   });
   await journey('optimistic-board-status', async ({ page, responses, requests }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: 1024, height: 1000 });
     const task = {
       id: 'optimistic-task',
       edition_id: edition.id,
@@ -350,7 +374,12 @@ try {
           { id: 'current', name: 'Current phase', label: 'Current phase', starts_on: '2026-09-01', ends_on: '2026-09-30', sort_order: 2 },
         ],
         tasks: [serverTask],
-        permissions: { ...workspace.permissions, access_scope: 'all', can_edit_all_tasks: true },
+        permissions: {
+          ...workspace.permissions,
+          access_scope: 'all',
+          can_edit_all_tasks: true,
+          can_update_all_task_status: true,
+        },
       },
     }));
     responses.set('/api/annual-conference/2026/work-plan/optimistic-task', async request => {
@@ -380,6 +409,7 @@ try {
     const taskCard = visibleBoard.getByRole('button', { name: 'Open Move this task instantly', exact: true }).first();
 
     await taskCard.waitFor();
+    await assertBoardColumnsAreContained(page);
     assert.equal(await taskCard.getAttribute('draggable'), 'true');
 
     const firstSaveRequested = page.waitForRequest(request => request.url().endsWith('/work-plan/optimistic-task'));
@@ -521,6 +551,144 @@ try {
     await page.getByText('No tasks assigned yet', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'New edition', exact: true }).count(), 0);
     assert.equal(requests.some(request => request.path === '/api/events' || request.path.endsWith('/editions')), false);
+  }, { role: 'volunteer' });
+
+  await journey('volunteer-assigned-kanban', async ({ page, responses, requests }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const tasks = [
+      {
+        id: 'test-volunteer-accountable',
+        title: 'TEST — Volunteer accountable task',
+        accountable_owner: 'fixture@example.com',
+        collaborators: [],
+        status: 'not_started',
+      },
+      {
+        id: 'test-volunteer-collaborator',
+        title: 'TEST — Volunteer collaborator task',
+        accountable_owner: 'other@example.com',
+        collaborators: ['fixture@example.com'],
+        status: 'in_progress',
+      },
+    ].map((task, index) => ({
+      ...task,
+      edition_id: edition.id,
+      details: null,
+      internal_note: null,
+      phase_id: 'current',
+      workstream: 'venue_production_logistics',
+      priority: 'medium',
+      target_date: '2026-09-30',
+      dependency_task_ids: [],
+      dependency_note: null,
+      source: 'manual',
+      sort_order: index,
+      created_at: '2026-09-01T00:00:00Z',
+      updated_at: '2026-09-01T00:00:00Z',
+    }));
+
+    responses.set('/api/annual-conference/2026/work-plan', {
+      body: {
+        ...workspace,
+        phases: [{ id: 'current', name: 'Current phase', label: 'Current phase', starts_on: '2026-09-01', ends_on: '2026-09-30', sort_order: 1 }],
+        tasks,
+      },
+    });
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/admin/organizers', { body: { organizers: [] } });
+    for (const task of tasks) {
+      responses.set(`/api/annual-conference/2026/work-plan/${task.id}`, request => {
+        assert.equal(request.method(), 'PATCH');
+        const input = JSON.parse(request.postData());
+
+        assert.deepEqual(input, { status: task.id === 'test-volunteer-accountable' ? 'in_progress' : 'done' });
+        task.status = input.status;
+
+        return { body: task };
+      });
+    }
+
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/work-plan`);
+    await assertVisibleBoardCards(page, [
+      'Open TEST — Volunteer accountable task',
+      'Open TEST — Volunteer collaborator task',
+    ]);
+    assert.equal(await page.getByText('Tasks for', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('group', { name: 'Filter tasks by owner' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Clear', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Open TEST — Volunteer accountable task', exact: true }).getAttribute('draggable'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Open TEST — Volunteer collaborator task', exact: true }).getAttribute('draggable'), 'true');
+
+    const accountableSave = page.waitForRequest(request => request.url().endsWith('/test-volunteer-accountable'));
+
+    await moveBoardTask(page, 'Open TEST — Volunteer accountable task', 'In progress');
+    await accountableSave;
+    await page.getByLabel('In progress tasks').getByRole('button', { name: 'Open TEST — Volunteer accountable task', exact: true }).waitFor();
+
+    const collaboratorSave = page.waitForRequest(request => request.url().endsWith('/test-volunteer-collaborator'));
+
+    await moveBoardTask(page, 'Open TEST — Volunteer collaborator task', 'Done');
+    await collaboratorSave;
+    await page.getByLabel('Done tasks').getByRole('button', { name: 'Open TEST — Volunteer collaborator task', exact: true }).waitFor();
+    assert.equal(requests.filter(request => request.path.includes('test-volunteer-')).length, 2);
+  }, { role: 'volunteer' });
+
+  await journey('volunteer-full-plan-drag-boundary', async ({ page, responses }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const tasks = [
+      {
+        id: 'test-volunteer-manager-owned',
+        title: 'TEST — Volunteer manager owned task',
+        accountable_owner: 'fixture@example.com',
+      },
+      {
+        id: 'test-volunteer-manager-unrelated',
+        title: 'TEST — Volunteer manager unrelated task',
+        accountable_owner: 'other@example.com',
+      },
+    ].map((task, index) => ({
+      ...task,
+      edition_id: edition.id,
+      details: null,
+      internal_note: null,
+      phase_id: 'current',
+      workstream: 'venue_production_logistics',
+      collaborators: [],
+      priority: 'medium',
+      target_date: '2026-09-30',
+      status: 'not_started',
+      dependency_task_ids: [],
+      dependency_note: null,
+      source: 'manual',
+      sort_order: index,
+      created_at: '2026-09-01T00:00:00Z',
+      updated_at: '2026-09-01T00:00:00Z',
+    }));
+
+    responses.set('/api/annual-conference/2026/work-plan', {
+      body: {
+        ...workspace,
+        phases: [{ id: 'current', name: 'Current phase', label: 'Current phase', starts_on: '2026-09-01', ends_on: '2026-09-30', sort_order: 1 }],
+        tasks,
+        permissions: {
+          ...workspace.permissions,
+          access_scope: 'all',
+          can_edit_all_tasks: true,
+          can_update_assigned_task_status: false,
+        },
+      },
+    });
+    responses.set('/api/annual-conference/editions', { body: { editions: [edition] } });
+    responses.set('/api/admin/organizers', { body: { organizers: [] } });
+    responses.set('/api/annual-conference/2026/task-members', { body: { organizers: [] } });
+
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/work-plan`);
+    await assertVisibleBoardCards(page, [
+      'Open TEST — Volunteer manager owned task',
+      'Open TEST — Volunteer manager unrelated task',
+    ]);
+    assert.equal(await page.getByRole('button', { name: 'Open TEST — Volunteer manager owned task', exact: true }).getAttribute('draggable'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Open TEST — Volunteer manager unrelated task', exact: true }).getAttribute('draggable'), 'false');
   }, { role: 'volunteer' });
 
   await journey('volunteer-intake', async ({ page, responses, requests }) => {

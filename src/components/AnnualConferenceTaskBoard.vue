@@ -321,16 +321,15 @@ onBeforeUnmount(() => {
 <style scoped>
 .task-board {
   display: grid;
-  grid-template-columns: repeat(4, minmax(13rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .75rem;
-  overflow-x: auto;
   padding: 1rem 1.25rem 1.25rem;
   background: #f5f2e8;
   transform-origin: top center;
 }
 
 .task-board__column {
-  min-width: 13rem;
+  min-width: 0;
   border: 1px solid #e0ddd4;
   border-radius: 8px;
   background: #faf9f5;
@@ -426,6 +425,7 @@ onBeforeUnmount(() => {
 }
 
 .task-board__card {
+  min-width: 0;
   border: 1px solid #e0ddd4;
   border-radius: 8px;
   background: white;
@@ -620,6 +620,16 @@ onBeforeUnmount(() => {
 @media (hover: hover) and (pointer: fine) {
   .task-board__card--movable:hover {
     transform: translateY(-2px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .task-board__column-header {
+    position: sticky;
+    top: var(--task-board-sticky-offset);
+    z-index: 10;
+    background: #faf9f5;
+    box-shadow: 0 -.75rem 0 1px #f5f2e8;
   }
 }
 

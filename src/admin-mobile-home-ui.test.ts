@@ -73,8 +73,16 @@ describe('mobile organizer entry points', () => {
     expect(mobileConferenceSource).not.toContain('.volunteer-directory-tools { position: sticky;');
   });
 
-  it('removes the volunteer panel shadow without suppressing application scrollbars', () => {
-    expect(desktopVolunteerSource).toContain('class="editorial-panel volunteer-directory-panel overflow-hidden"');
+  it('pins the desktop volunteer directory controls beneath the conference navigation', () => {
+    expect(desktopVolunteerSource).toContain('ref="annualConferenceNav"');
+    expect(desktopVolunteerSource).toContain('class="volunteer-directory-toolbar md:sticky md:z-30"');
+    expect(desktopVolunteerSource).toContain('ref="volunteerDirectoryToolbar"');
+    expect(desktopVolunteerSource).toContain('class="volunteer-directory-table-head border-b border-dc-border bg-dc-paper-warm"');
+    expect(desktopVolunteerSource).toContain('class="overflow-x-auto md:overflow-visible"');
+    expect(desktopVolunteerSource).toContain('min-w-[60rem] table-fixed border-collapse text-left md:min-w-0');
+    expect(desktopVolunteerSource).toContain('top: var(--annual-conference-nav-height);');
+    expect(desktopVolunteerSource).toContain('top: calc(var(--annual-conference-nav-height) + var(--volunteer-directory-toolbar-height));');
+    expect(desktopVolunteerSource).not.toContain('class="editorial-panel volunteer-directory-panel overflow-hidden"');
     expect(desktopVolunteerSource).toContain('.volunteer-directory-panel {\n  box-shadow: none;');
     expect(globalStylesSource).not.toContain('.app-main::-webkit-scrollbar');
   });

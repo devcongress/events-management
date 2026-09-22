@@ -8,6 +8,7 @@ import AppPagination from '@/src/components/AppPagination.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
+import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
 import { ACTIVE_ANNUAL_CONFERENCE_EDITION } from '@/src/annual-conference';
 import { ensureAdminShortLink, fetchJson, queryKeys } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
@@ -260,6 +261,8 @@ function toLocalDateTimeInput(value: string): string {
         <p class="text-lg font-semibold">Conference speaker proposals are temporarily unavailable.</p>
         <button class="motion-press mt-4 rounded-md border-2 border-dc-ink bg-dc-yellow px-4 py-2 font-mono text-[11px] font-semibold uppercase" @click="speakersQuery.refetch()">Try again</button>
       </section>
+
+      <AnnualConferenceRouteSkeleton v-else-if="speakersQuery.isLoading.value" variant="speakers" />
 
       <template v-else-if="speakersQuery.data.value">
         <section class="grid gap-4 border-b-2 border-dc-ink pb-6 lg:grid-cols-[1fr_auto] lg:items-end">

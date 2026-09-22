@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  type ComponentPublicInstance,
+  watch,
+} from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
@@ -7,6 +14,7 @@ import VolunteerApplicationSheet from '@/src/components/VolunteerApplicationShee
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import AppPagination from '@/src/components/AppPagination.vue';
 import VolunteerContactValue from '@/src/components/VolunteerContactValue.vue';
+import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
 import { xProfile } from '@/src/lib/x-profile';
 import {
   VOLUNTEER_PUBLIC_PATH,
@@ -35,6 +43,12 @@ import { hasAnnualConferenceCapability } from '@/lib/annual-conference-capabilit
 
 const route = useRoute();
 const year = computed(() => String(route.params.year));
+const annualConferenceNav = ref<ComponentPublicInstance | null>(null);
+const annualConferenceNavHeight = ref(0);
+const volunteerDirectoryToolbar = ref<HTMLElement | null>(null);
+const volunteerDirectoryToolbarHeight = ref(0);
+let annualConferenceNavObserver: ResizeObserver | null = null;
+let volunteerDirectoryToolbarObserver: ResizeObserver | null = null;
 const sessionQuery = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
 const workPlanQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
@@ -44,6 +58,7 @@ const capabilities = computed(() => workPlanQuery.data.value?.permissions.capabi
 const canViewTeam = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.view_team'));
 const canShareIntake = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.share_intake'));
 const canReviewApplications = computed(() => hasAnnualConferenceCapability(capabilities.value, 'volunteers.review_applications'));
+const canLoadVolunteerApplications = computed(() => canReviewApplications.value && year.value === '2026');
 const teamQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceVolunteerTeam(year.value)),
   queryFn: () => fetchAnnualConferenceVolunteerTeam(year.value),
@@ -52,7 +67,7 @@ const teamQuery = useQuery({
 const volunteerQuery = useQuery({
   queryKey: computed(() => queryKeys.volunteerApplications(year.value)),
   queryFn: () => fetchVolunteerApplications(year.value),
-  enabled: computed(() => canReviewApplications.value && year.value === '2026'),
+  enabled: canLoadVolunteerApplications,
 });
 const applications = computed(() => volunteerQuery.data.value?.applications ?? []);
 const team = computed(() => teamQuery.data.value?.members ?? []);
@@ -102,11 +117,15 @@ watch(volunteerPageCount, (pageCount) => {
 
 const volunteerDirectoryLoading = computed(() => (
   (canViewTeam.value && teamQuery.isPending.value)
-  || (canReviewApplications.value && volunteerQuery.isPending.value)
+  || (canLoadVolunteerApplications.value && volunteerQuery.isPending.value)
 ));
 const volunteerDirectoryError = computed(() => (
   (canViewTeam.value && teamQuery.isError.value)
-  || (canReviewApplications.value && volunteerQuery.isError.value)
+  || (canLoadVolunteerApplications.value && volunteerQuery.isError.value)
+));
+const volunteerRouteLoading = computed(() => (
+  workPlanQuery.isLoading.value
+  || volunteerDirectoryLoading.value
 ));
 const publicUrl = `${window.location.origin}${VOLUNTEER_PUBLIC_PATH}`;
 const shortLinkUrl = ref<string | null>(null);
@@ -152,8 +171,43 @@ async function copyPublicUrl() {
   }
 }
 
+function updateAnnualConferenceNavHeight() {
+  const navigationElement = annualConferenceNav.value?.$el;
+
+  if (navigationElement instanceof HTMLElement) {
+    annualConferenceNavHeight.value = navigationElement.getBoundingClientRect().height;
+  }
+}
+
+function updateVolunteerDirectoryToolbarHeight() {
+  if (volunteerDirectoryToolbar.value) {
+    volunteerDirectoryToolbarHeight.value = volunteerDirectoryToolbar.value.getBoundingClientRect().height;
+  }
+}
+
+onMounted(() => {
+  const navigationElement = annualConferenceNav.value?.$el;
+
+  if (!(navigationElement instanceof HTMLElement)) return;
+
+  updateAnnualConferenceNavHeight();
+  annualConferenceNavObserver = new ResizeObserver(updateAnnualConferenceNavHeight);
+  annualConferenceNavObserver.observe(navigationElement);
+});
+
+watch(volunteerDirectoryToolbar, (toolbar) => {
+  volunteerDirectoryToolbarObserver?.disconnect();
+  if (!toolbar) return;
+
+  updateVolunteerDirectoryToolbarHeight();
+  volunteerDirectoryToolbarObserver = new ResizeObserver(updateVolunteerDirectoryToolbarHeight);
+  volunteerDirectoryToolbarObserver.observe(toolbar);
+}, { flush: 'post' });
+
 onBeforeUnmount(() => {
   if (copyResetTimer) window.clearTimeout(copyResetTimer);
+  annualConferenceNavObserver?.disconnect();
+  volunteerDirectoryToolbarObserver?.disconnect();
 });
 
 async function prepareVolunteerShareLink() {
@@ -186,6 +240,7 @@ function clearVolunteerFilters() {
   <div class="editorial-page">
     <div class="editorial-wrap">
       <AnnualConferenceNav
+        ref="annualConferenceNav"
         title="Volunteers"
         description="Share the sign-up, show its QR code, and review applications."
       >
@@ -216,14 +271,27 @@ function clearVolunteerFilters() {
         </template>
       </AnnualConferenceNav>
 
-      <section v-if="canViewTeam || canReviewApplications" class="editorial-panel volunteer-directory-panel overflow-hidden">
-        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border px-5 py-4 sm:px-6">
-          <div>
-            <p class="editorial-eyebrow">Volunteers</p>
-            <h2 class="mt-1 text-lg font-semibold text-dc-ink">Volunteer directory</h2>
-            <p class="mt-0.5 text-xs text-dc-gray">Active team members and sign-ups in one list.</p>
-          </div>
-          <div class="flex overflow-hidden rounded-md border border-dc-border bg-dc-paper-warm text-xs" role="group" aria-label="Filter volunteers by lifecycle">
+      <AnnualConferenceRouteSkeleton v-if="volunteerRouteLoading" variant="volunteers" />
+
+      <section
+        v-else-if="canViewTeam || canReviewApplications"
+        class="editorial-panel volunteer-directory-panel"
+        :style="{
+          '--annual-conference-nav-height': `${annualConferenceNavHeight}px`,
+          '--volunteer-directory-toolbar-height': `${volunteerDirectoryToolbarHeight}px`,
+        }"
+      >
+        <div
+          ref="volunteerDirectoryToolbar"
+          class="volunteer-directory-toolbar md:sticky md:z-30"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-dc-border bg-dc-paper px-5 py-4 sm:px-6">
+            <div>
+              <p class="editorial-eyebrow">Volunteers</p>
+              <h2 class="mt-1 text-lg font-semibold text-dc-ink">Volunteer directory</h2>
+              <p class="mt-0.5 text-xs text-dc-gray">Active team members and sign-ups in one list.</p>
+            </div>
+            <div class="flex overflow-hidden rounded-md border border-dc-border bg-dc-paper-warm text-xs" role="group" aria-label="Filter volunteers by lifecycle">
             <button
               type="button"
               class="motion-press flex items-center gap-2 px-3 py-2 text-dc-gray"
@@ -255,14 +323,10 @@ function clearVolunteerFilters() {
             >
               {{ volunteerRows.length }} total
             </button>
+            </div>
           </div>
-        </div>
 
-        <div v-if="volunteerDirectoryLoading" class="p-6 text-dc-gray">Loading volunteers…</div>
-        <div v-else-if="volunteerDirectoryError" class="p-6 text-red-800">Unable to load the volunteer directory.</div>
-        <div v-else-if="volunteerRows.length === 0" class="p-6 text-dc-gray">No volunteers or applications yet.</div>
-        <template v-else>
-          <div class="flex flex-col gap-3 border-b border-dc-border bg-dc-paper-warm/50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div v-if="!volunteerDirectoryLoading && !volunteerDirectoryError && volunteerRows.length" class="flex flex-col gap-3 border-b border-dc-border bg-dc-paper-warm px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <label class="relative block w-full sm:max-w-sm">
               <span class="sr-only">Search volunteers</span>
               <svg class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-dc-gray" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -289,15 +353,21 @@ function clearVolunteerFilters() {
               >Clear filters</button>
             </div>
           </div>
+        </div>
+
+        <div v-if="volunteerDirectoryLoading" class="p-6 text-dc-gray">Loading volunteers…</div>
+        <div v-else-if="volunteerDirectoryError" class="p-6 text-red-800">Unable to load the volunteer directory.</div>
+        <div v-else-if="volunteerRows.length === 0" class="p-6 text-dc-gray">No volunteers or applications yet.</div>
+        <template v-else>
           <div v-if="filteredVolunteerRows.length === 0" class="px-5 py-10 text-center sm:px-6">
             <p class="text-sm font-semibold text-dc-ink">No matching volunteers</p>
             <p class="mt-1 text-xs text-dc-gray">Try another name or contact value, or clear the lifecycle filter.</p>
             <button type="button" class="motion-press mt-4 rounded-md border border-dc-ink bg-white px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wide text-dc-ink" @click="clearVolunteerFilters">Clear filters</button>
           </div>
-        <div v-else class="overflow-x-auto">
-          <table class="w-full min-w-[60rem] table-fixed border-collapse text-left">
+        <div v-else class="overflow-x-auto md:overflow-visible">
+          <table class="w-full min-w-[60rem] table-fixed border-collapse text-left md:min-w-0">
             <caption class="sr-only">Volunteer directory with active and applicant status</caption>
-            <thead class="border-b border-dc-border bg-dc-paper-warm">
+            <thead class="volunteer-directory-table-head border-b border-dc-border bg-dc-paper-warm">
               <tr class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
                 <th scope="col" class="w-[22%] px-5 py-2.5 sm:px-6">Name</th>
                 <th scope="col" class="w-[13%] px-4 py-2.5">Status</th>
@@ -386,6 +456,22 @@ function clearVolunteerFilters() {
 <style scoped>
 .volunteer-directory-panel {
   box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  .volunteer-directory-toolbar {
+    top: var(--annual-conference-nav-height);
+  }
+
+  .volunteer-directory-table-head {
+    position: sticky;
+    top: calc(var(--annual-conference-nav-height) + var(--volunteer-directory-toolbar-height));
+    z-index: 20;
+  }
+
+  .volunteer-directory-table-head th {
+    background: #fbf8e8;
+  }
 }
 
 .volunteer-pagination {
