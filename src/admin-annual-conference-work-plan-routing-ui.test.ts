@@ -188,6 +188,10 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(taskBoardSource).toContain('text-overflow: ellipsis;');
     expect(taskBoardSource).toContain('-webkit-line-clamp: 2;');
     expect(taskBoardSource).toContain('class="task-board__target-date"');
+    expect(taskBoardSource).toContain('class="task-board__footer-actions"');
+    expect(taskBoardSource).toContain('class="task-board__delete"');
+    expect(taskBoardSource).toContain('color: #dc2626;');
+    expect(taskBoardSource).toContain('background: #fef2f2;');
     expect(taskBoardSource).toContain('M5 17.25V3.25');
     expect(taskBoardSource).not.toContain('Needs target date');
     expect(taskBoardSource).not.toContain('checklist items');

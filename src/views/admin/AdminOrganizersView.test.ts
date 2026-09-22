@@ -1,6 +1,8 @@
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query';
 import { createRenderer, ssrContextKey } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 vi.mock('vue-router', async (importOriginal) => ({
   ...await importOriginal<typeof import('vue-router')>(),
@@ -84,6 +86,14 @@ const renderer = createRenderer<TestNode, TestNode>({
 });
 
 describe('AdminOrganizersView', () => {
+  it('shows inherited role permissions alongside delegable additions', async () => {
+    const source = await readFile(fileURLToPath(new URL('./AdminOrganizersView.vue', import.meta.url)), 'utf8');
+
+    expect(source).toContain("['Work plan', 'Volunteers', 'Speakers', 'Finance']");
+    expect(source).toContain('|| responsibilityIsInherited(definition.value);');
+    expect(source).toContain('Included in role');
+  });
+
   it('mounts before the authenticated role queries resolve', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
