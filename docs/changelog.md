@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-22 — Complete role-aware access directory
+
+- Show each person’s full role-appropriate conference permission suite in the access drawer, including their role-included controls as switched-on, locked states.
+- Keep only additional eligible permissions interactive, and include the Organizer Speaker section alongside Work plan, Volunteers, and Finance.
+
+## 2026-09-22 — Organizer Work plan grant database alignment
+
+- Update the Supabase access-grant eligibility trigger so active Organizers can receive **Manage the work plan**, matching the application policy and access drawer.
+- Move the manager-only delete action beside each card’s target date and use a clear red destructive affordance while retaining the shared confirmation dialog.
+
 ## 2026-09-22 — Organizer Work plan delegation
 
 - Let Owners delegate **Manage the work plan** to an Organizer as well as a Volunteer, so the appropriate Work plan control appears in their edition-scoped access drawer.

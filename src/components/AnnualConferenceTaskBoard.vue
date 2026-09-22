@@ -280,24 +280,7 @@ onBeforeUnmount(() => {
         >
           <div class="task-board__card-topline">
             <span class="task-board__workstream">{{ ANNUAL_CONFERENCE_WORKSTREAM_LABELS[task.workstream] }}</span>
-            <span class="task-board__card-actions">
-              <span v-if="task.priority" class="task-board__priority">{{ task.priority }}</span>
-              <button
-                v-if="canDeleteTask(task)"
-                type="button"
-                class="task-board__delete"
-                :aria-label="`Delete ${task.title}`"
-                :disabled="isSaving(task) || isDeleting(task)"
-                draggable="false"
-                @click="requestDelete($event, task)"
-                @keydown.enter.stop
-                @keydown.space.stop
-              >
-                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                  <path d="M4.75 6.25h10.5m-6.5 3v4.25m3-4.25v4.25M7.25 6.25l.5-2h4.5l.5 2m-7 0 .65 9.1c.06.8.72 1.4 1.52 1.4h4.16c.8 0 1.46-.6 1.52-1.4l.65-9.1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
-                </svg>
-              </button>
-            </span>
+            <span v-if="task.priority" class="task-board__priority">{{ task.priority }}</span>
           </div>
 
           <h4 class="task-board__task">{{ task.title }}</h4>
@@ -325,12 +308,29 @@ onBeforeUnmount(() => {
               <span aria-hidden="true" />
               <span class="sr-only">Saving status</span>
             </span>
-            <time v-if="task.target_date" :datetime="task.target_date" :aria-label="`Target date ${task.target_date}`" class="task-board__target-date">
-              <svg viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M5 17.25V3.25m0 .25c3.1-1.65 5.95-1.65 10 0v7c-4.05-1.65-6.9-1.65-10 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" />
-              </svg>
-              <span>{{ targetDateDisplay(task.target_date) }}</span>
-            </time>
+            <span class="task-board__footer-actions">
+              <time v-if="task.target_date" :datetime="task.target_date" :aria-label="`Target date ${task.target_date}`" class="task-board__target-date">
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M5 17.25V3.25m0 .25c3.1-1.65 5.95-1.65 10 0v7c-4.05-1.65-6.9-1.65-10 0" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" />
+                </svg>
+                <span>{{ targetDateDisplay(task.target_date) }}</span>
+              </time>
+              <button
+                v-if="canDeleteTask(task)"
+                type="button"
+                class="task-board__delete"
+                :aria-label="`Delete ${task.title}`"
+                :disabled="isSaving(task) || isDeleting(task)"
+                draggable="false"
+                @click="requestDelete($event, task)"
+                @keydown.enter.stop
+                @keydown.space.stop
+              >
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4.75 6.25h10.5m-6.5 3v4.25m3-4.25v4.25M7.25 6.25l.5-2h4.5l.5 2m-7 0 .65 9.1c.06.8.72 1.4 1.52 1.4h4.16c.8 0 1.46-.6 1.52-1.4l.65-9.1" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" />
+                </svg>
+              </button>
+            </span>
           </footer>
 
         </article>
@@ -507,26 +507,27 @@ onBeforeUnmount(() => {
   color: #b20d61;
 }
 
-.task-board__card-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-}
-
 .task-board__delete {
   display: grid;
   width: 1.55rem;
   height: 1.55rem;
   place-items: center;
-  border: 1px solid transparent;
+  border: 1px solid #dc2626;
   border-radius: 5px;
-  color: #a10b57;
+  background: #fef2f2;
+  color: #dc2626;
 }
 
-.task-board__delete:hover:not(:disabled),
+.task-board__delete:hover:not(:disabled) {
+  cursor: pointer;
+}
+
 .task-board__delete:focus-visible {
-  border-color: #e8117f;
-  background: #fce7f3;
+  outline: 2px solid #dc2626;
+  outline-offset: 2px;
+}
+
+.task-board__delete:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -582,6 +583,14 @@ onBeforeUnmount(() => {
   padding-top: .6rem;
   color: #555;
   font-size: .625rem;
+}
+
+.task-board__footer-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: .75rem;
+  margin-left: auto;
 }
 
 .task-board__owner {
