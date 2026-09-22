@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-22 — Annual Conference assignment identity repair
+
+- Canonicalize the confirmed legacy task labels Angela, Dede, Ernest, and Philipa to their active organizer emails.
+- Restore status drag/drop for those accountable owners and collaborators without broadening the email-exact authorization rule.
+- Keep the local mock store compatible with previously saved legacy labels while fresh seed data uses canonical email assignments.
+
 ## 2026-09-22 — Annual Conference board recency ordering
 
 - Put newly created cards and cards moved into a status or phase at the top of their desktop and tablet Kanban column.
