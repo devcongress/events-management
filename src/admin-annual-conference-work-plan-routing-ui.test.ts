@@ -124,6 +124,13 @@ describe('Annual Conference assignee work-plan routing', () => {
     expect(workPlanSource).toContain('permissions.value?.can_update_assigned_task_status === true');
   });
 
+  it('moves a dragged card to the top of its destination column before its request settles', () => {
+    expect(workspaceSource).toContain('const pendingBoardEntryOverrides = ref(new Map<string, string>());');
+    expect(workspaceSource).toContain('const boardEnteredAt = new Date().toISOString();');
+    expect(workspaceSource).toContain('setPendingBoardEntry(year, taskId, boardEnteredAt);');
+    expect(workspaceSource).toContain('board_entered_at: pendingBoardEntry');
+  });
+
   it('keeps the filtered board inside the shared Work plan workspace surface', () => {
     expect(workPlanSource).toContain('class="annual-task-workspace border-2 border-dc-ink bg-dc-paper md:sticky md:z-30"');
     expect(workPlanSource).toContain('annual-task-workspace__controls flex flex-wrap items-center justify-between gap-4 border-b border-dc-ink');

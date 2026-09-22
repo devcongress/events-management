@@ -23,6 +23,7 @@ function seededTasks(tasks: AnnualConferenceTask[]): AnnualConferenceTask[] {
 
   return source.map((task) => ({
     ...task,
+    board_entered_at: task.board_entered_at ?? null,
     phase_id: task.phase_id ?? null,
     collaborators: [...task.collaborators],
     dependency_task_ids: [...(task.dependency_task_ids ?? [])],
@@ -177,7 +178,13 @@ export async function deleteMockAnnualConferencePhase(
 
   if (deleted) {
     await updateData<AnnualConferenceTask, null>(FILE, (current) => ({
-      data: seededTasks(current).map((task) => task.phase_id === phaseId ? { ...task, phase_id: null } : task),
+      data: (() => {
+        const timestamp = now();
+
+        return seededTasks(current).map((task) => task.phase_id === phaseId
+          ? { ...task, phase_id: null, board_entered_at: timestamp, updated_at: timestamp }
+          : task);
+      })(),
       result: null,
     }));
   }
@@ -234,6 +241,7 @@ export async function createMockAnnualConferenceTask(
       source: 'manual',
       source_row: null,
       sort_order: Math.max(0, ...tasks.map((item) => item.sort_order)) + 1,
+      board_entered_at: timestamp,
       created_by_email: actorEmail,
       updated_by_email: actorEmail,
       completed_at: status === 'done' ? timestamp : null,
@@ -261,6 +269,8 @@ export async function updateMockAnnualConferenceTask(
     if (index === -1) return { data: tasks, result: undefined };
 
     const timestamp = now();
+    const statusChanged = 'status' in input && input.status !== tasks[index].status;
+    const phaseChanged = 'phase_id' in input && input.phase_id !== tasks[index].phase_id;
     const task: AnnualConferenceTask = {
       ...tasks[index],
       ...input,
@@ -269,6 +279,7 @@ export async function updateMockAnnualConferenceTask(
       dependency_task_ids: input.dependency_task_ids
         ? [...input.dependency_task_ids]
         : [...tasks[index].dependency_task_ids],
+      board_entered_at: statusChanged || phaseChanged ? timestamp : tasks[index].board_entered_at ?? null,
       updated_by_email: actorEmail,
       updated_at: timestamp,
       completed_at: 'status' in input
@@ -308,7 +319,13 @@ export async function moveMockAnnualConferencePhaseTasks(
 
       moved += 1;
 
-      return { ...task, phase_id: destinationPhaseId, updated_by_email: actorEmail, updated_at: timestamp };
+      return {
+        ...task,
+        phase_id: destinationPhaseId,
+        board_entered_at: timestamp,
+        updated_by_email: actorEmail,
+        updated_at: timestamp,
+      };
     });
 
     return { data, result: moved };

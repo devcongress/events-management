@@ -61,6 +61,11 @@ export interface AnnualConferenceTask {
   source: 'excel_seed' | 'manual';
   source_row: number | null;
   sort_order: number;
+  /**
+   * Server-managed timestamp for a card entering its current board position.
+   * Legacy tasks intentionally remain unset so their established order is preserved.
+   */
+  board_entered_at?: string | null;
   created_by_email: string | null;
   updated_by_email: string | null;
   completed_at: string | null;

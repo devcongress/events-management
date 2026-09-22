@@ -31,7 +31,11 @@ function toEdition(row: EditionRow): AnnualConferenceEdition {
 }
 
 function toTask(row: TaskRow): AnnualConferenceTask {
-  return { ...row, dependency_task_ids: row.dependency_task_ids ?? [] };
+  return {
+    ...row,
+    board_entered_at: row.board_entered_at ?? null,
+    dependency_task_ids: row.dependency_task_ids ?? [],
+  };
 }
 
 function toPhase(row: PhaseRow): AnnualConferencePhase {

@@ -69,6 +69,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
   const editingTaskId = ref<string | null>(null);
   const showCreateForm = ref(false);
   const pendingStatusOverrides = ref(new Map<string, AnnualConferenceTask['status']>());
+  const pendingBoardEntryOverrides = ref(new Map<string, string>());
   const statusQueues = ref(new Map<string, StatusQueueEntry>());
 
   const workPlanQuery = useQuery({
@@ -87,9 +88,17 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
       )),
   });
   const tasks = computed(() => (workPlanQuery.data.value?.tasks ?? []).map((task) => {
-    const pendingStatus = pendingStatusOverrides.value.get(taskOverrideKey(options.year.value, task.id));
+    const key = taskOverrideKey(options.year.value, task.id);
+    const pendingStatus = pendingStatusOverrides.value.get(key);
+    const pendingBoardEntry = pendingBoardEntryOverrides.value.get(key);
 
-    return pendingStatus ? { ...task, status: pendingStatus } : task;
+    if (!pendingStatus && !pendingBoardEntry) return task;
+
+    return {
+      ...task,
+      ...(pendingStatus ? { status: pendingStatus } : {}),
+      ...(pendingBoardEntry ? { board_entered_at: pendingBoardEntry } : {}),
+    };
   }));
   const readModel = computed(() => createAnnualConferenceReadModel({
     phases: workPlanQuery.data.value?.phases ?? [],
@@ -160,6 +169,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
         });
         if (!statusQueues.value.has(taskOverrideKey(context.year, context.taskId))) {
           clearPendingStatus(context.year, context.taskId);
+          clearPendingBoardEntry(context.year, context.taskId);
         }
         void queryClient.invalidateQueries({ queryKey: context.queryKey });
       }
@@ -187,6 +197,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
         }
         if (!statusQueues.value.has(taskOverrideKey(context.year, context.taskId))) {
           clearPendingStatus(context.year, context.taskId);
+          clearPendingBoardEntry(context.year, context.taskId);
         }
       }
 
@@ -206,6 +217,20 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
 
     next.delete(taskOverrideKey(year, taskId));
     pendingStatusOverrides.value = next;
+  }
+
+  function setPendingBoardEntry(year: string, taskId: string, boardEnteredAt: string) {
+    const next = new Map(pendingBoardEntryOverrides.value);
+
+    next.set(taskOverrideKey(year, taskId), boardEnteredAt);
+    pendingBoardEntryOverrides.value = next;
+  }
+
+  function clearPendingBoardEntry(year: string, taskId: string) {
+    const next = new Map(pendingBoardEntryOverrides.value);
+
+    next.delete(taskOverrideKey(year, taskId));
+    pendingBoardEntryOverrides.value = next;
   }
 
   const pendingStatusTaskIds = computed(() => new Set(
@@ -236,6 +261,9 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
       };
 
     setPendingStatus(year, taskId, status);
+    const boardEnteredAt = new Date().toISOString();
+
+    setPendingBoardEntry(year, taskId, boardEnteredAt);
     updateCachedTaskStatus(year, taskId, status);
     setStatusQueue(key, entry);
     void processStatusQueue(key);
@@ -248,6 +276,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
 
     if (entry.desiredStatus === entry.confirmedStatus && !entry.forcePersist) {
       clearPendingStatus(entry.year, entry.taskId);
+      clearPendingBoardEntry(entry.year, entry.taskId);
       clearStatusQueue(key);
 
       return;
@@ -278,6 +307,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
         await queryClient.cancelQueries({ queryKey: queryKeys.annualConferenceWorkPlan(settledEntry.year) });
         updateCachedTask(settledEntry.year, settledEntry.taskId, updatedTask);
         clearPendingStatus(settledEntry.year, settledEntry.taskId);
+        clearPendingBoardEntry(settledEntry.year, settledEntry.taskId);
         clearStatusQueue(key);
         notify.success('Conference task updated.');
         void queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceWorkPlan(settledEntry.year) });
@@ -304,6 +334,7 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
       await queryClient.cancelQueries({ queryKey: queryKeys.annualConferenceWorkPlan(settledEntry.year) });
       updateCachedTaskStatus(settledEntry.year, settledEntry.taskId, settledEntry.confirmedStatus);
       clearPendingStatus(settledEntry.year, settledEntry.taskId);
+      clearPendingBoardEntry(settledEntry.year, settledEntry.taskId);
       clearStatusQueue(key);
       notify.error(error instanceof Error ? error.message : 'Unable to update the task.');
       void queryClient.invalidateQueries({
@@ -325,7 +356,11 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
     });
   }
 
-  function updateCachedTaskStatus(year: string, taskId: string, status: AnnualConferenceTask['status']) {
+  function updateCachedTaskStatus(
+    year: string,
+    taskId: string,
+    status: AnnualConferenceTask['status'],
+  ) {
     const queryKey = queryKeys.annualConferenceWorkPlan(year);
 
     queryClient.setQueryData<AnnualConferenceWorkPlanResponse>(queryKey, (current) => {
@@ -333,7 +368,9 @@ export function useAnnualConferenceWorkspace(options: AnnualConferenceWorkspaceO
 
       return {
         ...current,
-        tasks: current.tasks.map((task) => task.id === taskId ? { ...task, status } : task),
+        tasks: current.tasks.map((task) => task.id === taskId
+          ? { ...task, status }
+          : task),
       };
     });
   }

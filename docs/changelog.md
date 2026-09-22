@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-22 — Annual Conference board recency ordering
+
+- Put newly created cards and cards moved into a status or phase at the top of their desktop and tablet Kanban column.
+- Keep long-standing cards in their established order, and preserve the separate phone ordering that relies on `sort_order`.
+- Stamp board-entry metadata in both Supabase and the local mock store, including automatic phase rollover, without reshuffling a card after ordinary edits.
+
 ## 2026-09-22 — Automatic Annual Conference phase rollover
 
 - On the first scheduled pass after an immediate next phase begins, move only unfinished tasks from the prior phase into that phase.

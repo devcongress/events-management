@@ -783,6 +783,7 @@ export interface Database {
           source: 'excel_seed' | 'manual';
           source_row: number | null;
           sort_order: number;
+          board_entered_at: string | null;
           created_by_email: string | null;
           updated_by_email: string | null;
           completed_at: string | null;
@@ -808,6 +809,7 @@ export interface Database {
           source?: 'excel_seed' | 'manual';
           source_row?: number | null;
           sort_order?: number;
+          board_entered_at?: string | null;
           created_by_email?: string | null;
           updated_by_email?: string | null;
           completed_at?: string | null;
@@ -833,6 +835,7 @@ export interface Database {
           source?: 'excel_seed' | 'manual';
           source_row?: number | null;
           sort_order?: number;
+          board_entered_at?: string | null;
           created_by_email?: string | null;
           updated_by_email?: string | null;
           completed_at?: string | null;
