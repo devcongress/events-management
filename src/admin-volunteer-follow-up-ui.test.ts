@@ -333,6 +333,15 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(stylesSource).toContain("accent-color: #e8117f;");
     expect(stylesSource).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
     expect(stylesSource).toMatch(
+      /@media \(max-width: 639px\)\s*\{\s*\.volunteer-follow-up-required\s*\{[^}]*display:\s*block;/su,
+    );
+    expect(stylesSource).toMatch(
+      /@media \(max-width: 639px\)\s*\{[\s\S]*?\.volunteer-follow-up-choices\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/u,
+    );
+    expect(stylesSource).toMatch(
+      /\.volunteer-follow-up-choice span\s*\{[^}]*white-space:\s*nowrap;/su,
+    );
+    expect(stylesSource).toMatch(
       /\.volunteer-follow-up-question-fields\s*\{[^}]*border:\s*0;/su,
     );
     expect(stylesSource).toMatch(
