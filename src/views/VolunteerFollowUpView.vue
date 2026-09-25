@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import TurnstileWidget from "@/src/components/TurnstileWidget.vue";
 import { turnstileEnabled } from "@/src/lib/turnstile";
@@ -19,7 +19,7 @@ const props = withDefaults(
     previewSeed?: string | null;
   }>(),
   {
-  previewMode: false,
+    previewMode: false,
     embeddedPreview: false,
     previewSeed: null,
   },
@@ -45,6 +45,12 @@ const turnstileToken = ref("");
 const turnstileError = ref("");
 const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
 const turnstileActive = turnstileEnabled();
+const narrowTurnstileViewport = ref(
+  typeof window !== "undefined" && window.matchMedia("(max-width: 360px)").matches,
+);
+const turnstileSize = computed(() =>
+  narrowTurnstileViewport.value ? "compact" : "flexible",
+);
 const campaignPath = annualConferencePath("volunteers", "2026");
 const wordCount = computed(() => volunteerFollowUpWordCount(motivation.value));
 const canSubmit = computed(() =>
@@ -68,7 +74,17 @@ const responseDeadlineLabel = computed(() =>
     : "the response deadline",
 );
 
+let turnstileViewportQuery: MediaQueryList | null = null;
+
+function updateTurnstileViewport() {
+  narrowTurnstileViewport.value = turnstileViewportQuery?.matches ?? false;
+}
+
 onMounted(async () => {
+  turnstileViewportQuery = window.matchMedia("(max-width: 360px)");
+  updateTurnstileViewport();
+  turnstileViewportQuery.addEventListener("change", updateTurnstileViewport);
+
   if (props.previewMode) {
     if (props.previewSeed) {
       state.value = createPreviewFormState(props.previewSeed);
@@ -142,6 +158,10 @@ onMounted(async () => {
   }
 });
 
+onBeforeUnmount(() => {
+  turnstileViewportQuery?.removeEventListener("change", updateTurnstileViewport);
+});
+
 function createPreviewFormState(responseDeadline: string): FormState {
   return {
     name: "Ama Mensah",
@@ -197,30 +217,25 @@ async function submit() {
 
 <template>
   <main
-    class="volunteer-intake-page"
-    :class="{ 'volunteer-intake-page--embedded-preview': embeddedPreview }"
+    class="volunteer-follow-up-page"
+    :class="{ 'volunteer-follow-up-page--embedded-preview': embeddedPreview }"
   >
     <div
       v-if="previewMode && !embeddedPreview"
-      class="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b-2 border-dc-ink bg-dc-yellow px-4 py-3 text-sm text-dc-ink sm:px-8"
+      class="volunteer-follow-up-preview-banner"
       role="status"
     >
-      <span
-        ><strong>Preview only</strong> · Example answers · Submission is
-        disabled</span
-      >
-      <a :href="campaignPath" class="font-semibold underline underline-offset-4"
-        >Back to campaign</a
-      >
+      <span><strong>Preview only</strong><span aria-hidden="true"> · </span>Example answers · Submission is disabled</span>
+      <a :href="campaignPath">Back to campaign</a>
     </div>
     <section
-      class="volunteer-intake-shell"
+      class="volunteer-follow-up-shell"
       aria-labelledby="volunteer-follow-up-title"
     >
-      <div class="volunteer-intake-layout">
-        <div class="volunteer-intake-intro">
+      <div class="volunteer-follow-up-layout">
+        <header class="volunteer-follow-up-intro">
           <a
-            class="volunteer-intake-logo"
+            class="volunteer-follow-up-logo"
             href="https://devcongress.org"
             target="_blank"
             rel="noopener noreferrer"
@@ -228,31 +243,23 @@ async function submit() {
           >
             <img :src="DEVCONGRESS_LOGO_PATH" alt="DevCongress" />
           </a>
-          <p class="volunteer-intake-context">
+          <p class="volunteer-follow-up-context">
             DevCongress <span aria-hidden="true">/</span> Volunteer team
           </p>
-          <h1 id="volunteer-follow-up-title">
-            One more step, together.
-          </h1>
-          <p class="volunteer-intake-lead">
-            Help us understand your interest and availability for 19 December.
-          </p>
-          <p class="volunteer-intake-support">
-            Two questions. Once you submit, your answers are final.
-          </p>
-          <p class="volunteer-intake-manifesto">Make the room better.</p>
-        </div>
+          <h1 id="volunteer-follow-up-title">One more step, together.</h1>
+          <p>Help us understand your interest and confirm your availability for 19 December.</p>
+        </header>
 
         <section
-          class="volunteer-intake-form-stage"
+          class="volunteer-follow-up-form-stage"
           aria-label="Volunteer follow-up form"
         >
-          <div v-if="loading" class="volunteer-intake-receipt" role="status">
+          <div v-if="loading" class="volunteer-follow-up-state" role="status">
             Loading your form…
           </div>
           <div
             v-else-if="error && !state"
-            class="volunteer-intake-receipt"
+            class="volunteer-follow-up-state"
             role="alert"
           >
             <p class="editorial-eyebrow">Link unavailable</p>
@@ -261,7 +268,7 @@ async function submit() {
           </div>
           <div
             v-else-if="state?.submitted"
-            class="volunteer-intake-receipt"
+            class="volunteer-follow-up-state"
             aria-live="polite"
           >
             <p class="editorial-eyebrow">Received</p>
@@ -271,66 +278,70 @@ async function submit() {
               after the response window closes.
             </p>
           </div>
-          <div v-else-if="state?.expired" class="volunteer-intake-receipt">
+          <div v-else-if="state?.expired" class="volunteer-follow-up-state">
             <p class="editorial-eyebrow">Response window closed</p>
             <h2>This form has closed.</h2>
             <p>The deadline was {{ responseDeadlineLabel }}.</p>
           </div>
           <form
             v-else-if="state"
-            class="volunteer-intake-form"
+            class="volunteer-follow-up-form"
             @submit.prevent="submit"
           >
-            <header class="volunteer-intake-form-header">
-              <div class="volunteer-intake-form-heading">
+            <header class="volunteer-follow-up-form-header">
+              <div class="volunteer-follow-up-form-heading">
                 <p class="editorial-eyebrow">Your volunteer application</p>
-                <span>{{
-                  previewMode
-                    ? "Example response · Preview only"
-                    : "Two questions · one final submission"
-                }}</span>
+                <span>{{ previewMode ? "Example response" : "Two questions · one final submission" }}</span>
               </div>
               <h2>Hi {{ state.name }}.</h2>
-              <p>Please respond by {{ responseDeadlineLabel }}.</p>
+              <p>Please share your answers by <strong>{{ responseDeadlineLabel }}</strong>.</p>
             </header>
 
-            <div class="volunteer-intake-fields">
-              <label>
-                <span>Why would you like to volunteer?</span>
+            <div class="volunteer-follow-up-fields">
+              <section class="volunteer-follow-up-question">
+                <div class="volunteer-follow-up-question-heading">
+                  <label for="volunteer-follow-up-motivation">Why would you like to volunteer?</label>
+                  <p>Tell us what interests you about helping at the meetup.</p>
+                </div>
                 <textarea
                   v-model="motivation"
-                  class="app-form-control min-h-36"
+                  id="volunteer-follow-up-motivation"
+                  class="volunteer-follow-up-textarea app-form-control"
                   name="motivation"
                   maxlength="2000"
+                  rows="5"
                   aria-describedby="volunteer-follow-up-word-count"
                   :disabled="previewMode"
                   required
                 />
-                <small
+                <div
                   id="volunteer-follow-up-word-count"
-                  class="app-form-help"
-                  :class="wordCount > 120 ? 'text-red-700' : ''"
-                  >{{ wordCount }} / 120 words</small
+                  class="volunteer-follow-up-counter"
+                  :class="{ 'volunteer-follow-up-counter--over-limit': wordCount > 120 }"
                 >
-              </label>
+                  <span>Maximum 120 words</span>
+                  <span aria-live="polite">{{ wordCount }} / 120 words</span>
+                </div>
+              </section>
 
               <fieldset
-                class="rounded-lg border border-dc-border bg-white p-4 sm:p-5"
+                class="volunteer-follow-up-question volunteer-follow-up-attendance"
+                aria-describedby="volunteer-follow-up-attendance-help"
               >
-                <legend class="px-1 text-sm font-semibold text-dc-ink">
+                <legend>
                   Can you come to Accra and volunteer on 19 December?
                 </legend>
-                <p class="mb-4 mt-2 text-sm leading-6 text-dc-gray">
+                <p id="volunteer-follow-up-attendance-help">
                   We do not have travel grants or sponsorship.
                 </p>
-                <div class="flex flex-wrap gap-3">
+                <div class="volunteer-follow-up-choices">
                   <label
                     v-for="choice in [
                       { label: 'Yes, I can attend', value: true },
                       { label: 'No, I cannot attend', value: false },
                     ]"
                     :key="choice.label"
-                    class="flex min-h-12 cursor-pointer items-center gap-2 rounded-md border border-dc-border px-4 py-2 text-sm font-medium text-dc-ink has-[:checked]:border-dc-ink has-[:checked]:bg-dc-yellow"
+                    class="volunteer-follow-up-choice"
                   >
                     <input
                       v-model="canAttendAccra"
@@ -348,21 +359,22 @@ async function submit() {
 
             <p
               v-if="error || turnstileError"
-              class="volunteer-intake-error"
+              class="volunteer-follow-up-error"
               role="alert"
             >
               {{ error || turnstileError }}
             </p>
 
-            <div class="volunteer-intake-actions">
+            <div class="volunteer-follow-up-actions">
               <div
                 v-if="turnstileActive && !previewMode"
-                class="volunteer-intake-verification"
+                class="volunteer-follow-up-verification"
               >
                 <span>Quick human check</span>
                 <TurnstileWidget
+                  :key="turnstileSize"
                   ref="turnstileWidget"
-                  size="flexible"
+                  :size="turnstileSize"
                   :action="VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION"
                   @token-change="turnstileToken = $event"
                   @error="turnstileError = $event ?? ''"
@@ -370,13 +382,13 @@ async function submit() {
               </div>
               <div
                 v-else-if="previewMode"
-                class="volunteer-intake-verification volunteer-intake-verification--preview"
+                class="volunteer-follow-up-verification volunteer-follow-up-verification--preview"
               >
                 <span>Human verification</span>
                 <p>Turnstile appears here on the live form.</p>
               </div>
               <button
-                class="volunteer-intake-submit motion-press"
+                class="volunteer-follow-up-submit motion-press"
                 type="submit"
                 :disabled="previewMode || !canSubmit"
                 :aria-busy="submitting"
@@ -389,7 +401,7 @@ async function submit() {
                       : "Submit final answers"
                 }}
               </button>
-              <p class="app-form-help">
+              <p class="volunteer-follow-up-final-note">
                 You cannot edit these answers after submitting.
               </p>
             </div>

@@ -37,6 +37,10 @@ const followUpViewSource = readFileSync(
   new URL("./views/VolunteerFollowUpView.vue", import.meta.url),
   "utf8",
 );
+const stylesSource = readFileSync(
+  new URL("./styles.css", import.meta.url),
+  "utf8",
+);
 const followUpRouterSource = readFileSync(
   new URL("./router.ts", import.meta.url),
   "utf8",
@@ -47,6 +51,19 @@ const followUpServerSource = readFileSync(
 );
 
 describe("Volunteer follow-up workspace UI", () => {
+  it("uses the compact Turnstile widget on 320px-wide screens", () => {
+    expect(followUpViewSource).toContain(
+      'window.matchMedia("(max-width: 360px)")',
+    );
+    expect(followUpViewSource).toContain(
+      'narrowTurnstileViewport.value ? "compact" : "flexible"',
+    );
+    expect(followUpViewSource).toContain(':key="turnstileSize"');
+    expect(stylesSource).toMatch(
+      /\.volunteer-follow-up-verification\s*\{[^}]*min-width:\s*0;/su,
+    );
+  });
+
   it("preserves the travel-support context of the Accra availability answer", () => {
     expect(reviewsPanelSource).toMatch(
       /Can you come to Accra and volunteer on 19 December without\s+travel support\?/u,
@@ -288,6 +305,22 @@ describe("Volunteer follow-up workspace UI", () => {
     );
   });
 
+  it("keeps the follow-up form in one readable column with compact native answer controls", () => {
+    expect(followUpViewSource).toContain('class="volunteer-follow-up-layout"');
+    expect(followUpViewSource).toContain('rows="5"');
+    expect(followUpViewSource).toContain("Maximum 120 words");
+    expect(followUpViewSource).toContain('aria-live="polite">{{ wordCount }} / 120 words');
+    expect(followUpViewSource).toContain('type="radio"');
+    expect(followUpViewSource).toContain('class="volunteer-follow-up-actions"');
+    expect(followUpViewSource).not.toContain('class="volunteer-intake-layout"');
+    expect(stylesSource).toContain(".volunteer-follow-up-shell {");
+    expect(stylesSource).toContain("width: min(100%, 52rem);");
+    expect(stylesSource).toContain(".volunteer-follow-up-choice input {");
+    expect(stylesSource).toContain("width: 1.125rem;");
+    expect(stylesSource).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
+    expect(stylesSource).toContain("@media (max-width: 420px)");
+  });
+
   it("keeps campaign setup before delivery records and maintains a responsive owner drawer", () => {
     expect(
       followUpPanelSource.indexOf('class="follow-up-owner-setup"'),
@@ -437,7 +470,7 @@ describe("Volunteer follow-up workspace UI", () => {
     );
     expect(followUpViewSource).toContain("embeddedPreview?: boolean");
     expect(followUpViewSource).toContain(
-      "Preview only</strong> · Example answers · Submission is",
+      "Preview only</strong><span aria-hidden=\"true\"> · </span>Example answers · Submission is disabled",
     );
     expect(followUpViewSource).toContain(
       ':disabled="previewMode || !canSubmit"',
