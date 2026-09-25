@@ -49,7 +49,14 @@ const blastsQuery = useQuery({
   enabled: computed(() => Boolean(eventId.value) && registrationQuery.data.value?.managed_internally === true),
   retry: false,
   refetchOnWindowFocus: true,
-  refetchInterval: (query) => query.state.data?.blasts.some((blast) => blast.status === 'preparing') ? 3_000 : false,
+  refetchInterval: (query) => {
+    const blasts = query.state.data?.blasts ?? [];
+
+    if (blasts.some((blast) => blast.status === 'preparing')) return 3_000;
+    if (blasts.some((blast) => blast.status === 'waiting')) return 15_000;
+
+    return false;
+  },
 });
 
 const registrationData = computed(() => registrationQuery.data.value ?? null);
@@ -105,6 +112,7 @@ function toIso(value: string): string | null {
 }
 
 function blastStatusLabel(status: EventBlast['status']): string {
+  if (status === 'waiting') return 'Waiting for a send slot';
   if (status === 'preparing') return 'Preparing safely';
   if (status === 'scheduled') return 'Scheduled';
   if (status === 'sent') return 'Sent';
@@ -234,7 +242,9 @@ async function sendBlast() {
     blastBody.value = '';
     blastScheduledFor.value = '';
     notify.success(
-      result.delivery === 'preparing'
+      result.delivery === 'waiting'
+        ? 'Waiting for a reusable send slot. The blast will start automatically when one is free.'
+        : result.delivery === 'preparing'
         ? `Preparing ${result.blast.recipient_count} guests safely. Delivery will start automatically when the audience is ready.`
         : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
@@ -250,14 +260,16 @@ async function sendBlast() {
 }
 
 async function retryBlast(blast: EventBlast) {
-  if (blastRetryId.value || blast.status !== 'failed' || !blast.provider_broadcast_id) return;
+  if (blastRetryId.value || (blast.status !== 'failed' && blast.status !== 'needs_capacity')) return;
   blastRetryId.value = blast.id;
   try {
     const result = await retryEventBlast(eventId.value, blast.id);
 
     await refreshBlasts();
     notify.success(
-      result.delivery === 'preparing'
+      result.delivery === 'waiting'
+        ? 'Retry queued. It will start when a reusable send slot is free.'
+        : result.delivery === 'preparing'
         ? `Resuming audience preparation at ${result.blast.prepared_recipient_count}/${result.blast.recipient_count} guests.`
         : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
@@ -435,7 +447,7 @@ onBeforeRouteLeave(() => {
               <div><strong>{{ blast.subject }}</strong><span>{{ blast.recipient_count }} guests<span v-if="blast.status === 'preparing'"> · {{ blast.prepared_recipient_count }}/{{ blast.recipient_count }} ready</span> · {{ blast.scheduled_for ? formatDateTime(blast.scheduled_for) : blast.sent_at ? formatDateTime(blast.sent_at) : 'Not sent' }}</span><span v-if="blast.preparation_error">{{ blast.preparation_error }}</span></div>
               <div class="mobile-blasts-history-actions">
                 <span class="mobile-blasts-status" :class="`mobile-blasts-status--${blast.status}`">{{ blastStatusLabel(blast.status) }}</span>
-                <button v-if="blast.status === 'failed' && blast.provider_broadcast_id" type="button" :disabled="blastRetryId === blast.id" @click="retryBlast(blast)">{{ blastRetryId === blast.id ? 'Retrying…' : 'Retry send' }}</button>
+                <button v-if="blast.status === 'failed' || blast.status === 'needs_capacity'" type="button" :disabled="blastRetryId === blast.id" @click="retryBlast(blast)">{{ blastRetryId === blast.id ? 'Retrying…' : 'Retry send' }}</button>
               </div>
             </li>
           </ul>
@@ -532,6 +544,7 @@ onBeforeRouteLeave(() => {
 .mobile-blasts-history-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .55rem; }
 .mobile-blasts-status { width: fit-content; border-radius: 999px; background: #f5f2e8; padding: .38rem .55rem; color: #5f5b54; font-family: var(--font-mono), monospace; font-size: .54rem; font-weight: 700; text-transform: uppercase; }
 .mobile-blasts-status--sent { background: #eaf7ee; color: #15803d; }
+.mobile-blasts-status--waiting { background: #fff7d6; color: #8a5a00; }
 .mobile-blasts-status--scheduled { background: #e8f2ff; color: #1d4ed8; }
 .mobile-blasts-status--needs_capacity { background: #fff7d6; color: #8a5a00; }
 .mobile-blasts-status--failed { background: #feecec; color: #b91c1c; }

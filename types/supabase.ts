@@ -16,7 +16,7 @@ export type EventSubmissionReplySlackStatus = 'pending' | 'sent' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
-export type EventBlastStatus = 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
+export type EventBlastStatus = 'waiting' | 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
 export type ShortLinkDestination = 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake';
 export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
@@ -58,9 +58,113 @@ export type ProjectNightRecurrenceRow = {
   updated_at: string;
 };
 
+export type VolunteerFollowUpCampaignRow = {
+  id: string;
+  edition_year: number;
+  application_deadline_at: string | null;
+  status: 'draft' | 'running' | 'paused' | 'closed';
+  launched_at: string | null;
+  launched_by: string | null;
+  last_drain_at: string | null;
+  last_drain_reason: string | null;
+  outcome_paused: boolean;
+  drain_lease_token: string | null;
+  drain_lease_until: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VolunteerFollowUpRecipientRow = {
+  id: string;
+  campaign_id: string;
+  application_id: string;
+  application_created_at: string;
+  applicant_name: string;
+  applicant_email: string;
+  status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained';
+  idempotency_key: string;
+  provider_email_id: string | null;
+  attempt_count: number;
+  first_attempt_at: string | null;
+  last_attempt_at: string | null;
+  next_attempt_at: string | null;
+  claimed_until: string | null;
+  last_error: string | null;
+  provider_event_at: string | null;
+  submitted_at: string | null;
+  motivation: string | null;
+  can_attend_accra: boolean | null;
+  review_status: 'unreviewed' | 'reviewed' | 'needs_follow_up';
+  review_note: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  decision: 'pending' | 'accepted' | 'not_selected';
+  decision_version: number;
+  decision_at: string | null;
+  decision_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VolunteerFollowUpOutcomeDeliveryRow = {
+  id: string;
+  campaign_id: string;
+  recipient_id: string;
+  decision: 'accepted' | 'not_selected';
+  decision_version: number;
+  recipient_name: string;
+  recipient_email: string;
+  payload: Record<string, unknown>;
+  template_version: string;
+  idempotency_key: string;
+  status: 'queued' | 'sending' | 'retrying' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | 'needs_attention' | 'cancelled';
+  attempt_count: number;
+  first_attempt_at: string | null;
+  last_attempt_at: string | null;
+  next_attempt_at: string | null;
+  claimed_until: string | null;
+  claim_token: string | null;
+  provider_email_id: string | null;
+  provider_event_at: string | null;
+  last_error: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
+      volunteer_follow_up_campaigns: {
+        Row: VolunteerFollowUpCampaignRow;
+        Insert: Pick<VolunteerFollowUpCampaignRow, 'edition_year'> & Partial<VolunteerFollowUpCampaignRow>;
+        Update: Partial<VolunteerFollowUpCampaignRow>;
+        Relationships: [];
+      };
+      volunteer_follow_up_recipients: {
+        Row: VolunteerFollowUpRecipientRow;
+        Insert: Pick<VolunteerFollowUpRecipientRow, 'campaign_id' | 'application_id' | 'applicant_name' | 'applicant_email' | 'idempotency_key'> & Partial<VolunteerFollowUpRecipientRow>;
+        Update: Partial<VolunteerFollowUpRecipientRow>;
+        Relationships: [];
+      };
+      volunteer_follow_up_daily_claims: {
+        Row: { campaign_id: string; send_day: string; claimed_count: number };
+        Insert: { campaign_id: string; send_day: string; claimed_count?: number };
+        Update: { claimed_count?: number };
+        Relationships: [];
+      };
+      volunteer_follow_up_webhook_events: {
+        Row: { webhook_event_id: string; provider_email_id: string; event_type: string; provider_created_at: string; processed_at: string };
+        Insert: { webhook_event_id: string; provider_email_id: string; event_type: string; provider_created_at: string; processed_at?: string };
+        Update: never;
+        Relationships: [];
+      };
+      volunteer_follow_up_outcome_deliveries: {
+        Row: VolunteerFollowUpOutcomeDeliveryRow;
+        Insert: Pick<VolunteerFollowUpOutcomeDeliveryRow, 'campaign_id' | 'recipient_id' | 'decision' | 'decision_version' | 'recipient_name' | 'recipient_email' | 'payload' | 'template_version' | 'idempotency_key' | 'created_by'> & Partial<VolunteerFollowUpOutcomeDeliveryRow>;
+        Update: Partial<VolunteerFollowUpOutcomeDeliveryRow>;
+        Relationships: [];
+      };
       project_night_recurrence: {
         Row: ProjectNightRecurrenceRow;
         Insert: Pick<ProjectNightRecurrenceRow, 'source_event_id' | 'next_date' | 'cover_url'> & Partial<ProjectNightRecurrenceRow>;
@@ -1397,6 +1501,39 @@ export interface Database {
           },
         ];
       };
+      event_blast_segment_slots: {
+        Row: {
+          slot_number: number;
+          provider_segment_id: string | null;
+          status: string;
+          active_event_id: string | null;
+          active_blast_id: string | null;
+          terminal_confirmed_at: string | null;
+          last_error: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          slot_number: number;
+          provider_segment_id?: string | null;
+          status?: string;
+          active_event_id?: string | null;
+          active_blast_id?: string | null;
+          terminal_confirmed_at?: string | null;
+          last_error?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          slot_number?: number;
+          provider_segment_id?: string | null;
+          status?: string;
+          active_event_id?: string | null;
+          active_blast_id?: string | null;
+          terminal_confirmed_at?: string | null;
+          last_error?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       event_registrations: {
         Row: {
           id: string;
@@ -2064,6 +2201,123 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      acquire_volunteer_follow_up_drain_lease: {
+        Args: { p_campaign_id: string; p_lease_token: string };
+        Returns: boolean;
+      };
+      renew_volunteer_follow_up_drain_lease: {
+        Args: { p_campaign_id: string; p_lease_token: string };
+        Returns: boolean;
+      };
+      release_volunteer_follow_up_drain_lease: {
+        Args: { p_campaign_id: string; p_lease_token: string };
+        Returns: boolean;
+      };
+      claim_volunteer_follow_up_recipient: {
+        Args: { p_campaign_id: string; p_safe_slots: number; p_lease_token: string };
+        Returns: VolunteerFollowUpRecipientRow[];
+      };
+      save_volunteer_follow_up_decision: {
+        Args: {
+          p_recipient_id: string;
+          p_expected_version: number;
+          p_decision: string;
+          p_review_status: string;
+          p_review_note: string;
+          p_actor: string;
+        };
+        Returns: VolunteerFollowUpRecipientRow[];
+      };
+      create_volunteer_follow_up_outcome_preview: {
+        Args: { p_campaign_id: string; p_decision: string; p_actor: string };
+        Returns: Array<{
+          preview_id: string;
+          eligible_count: number;
+          excluded_count: number;
+          recipients: unknown;
+        }>;
+      };
+      confirm_volunteer_follow_up_outcome_preview: {
+        Args: { p_preview_id: string; p_actor: string };
+        Returns: Array<{ queued_count: number; delivery_ids: string[] }>;
+      };
+      save_volunteer_follow_up_outcome_preview_payloads: {
+        Args: { p_preview_id: string; p_actor: string; p_payloads: unknown };
+        Returns: boolean;
+      };
+      read_volunteer_follow_up_outcome_preview: {
+        Args: { p_preview_id: string; p_actor: string };
+        Returns: Array<{
+          campaign_id: string;
+          decision: string;
+          recipients: unknown;
+          eligible_count: number;
+          excluded_count: number;
+          expires_at: string;
+          confirmed_at: string | null;
+        }>;
+      };
+      claim_event_blast_segment_slot: {
+        Args: { p_blast_id: string; p_event_id: string };
+        Returns: Array<{
+          slot_number: number;
+          provider_segment_id: string | null;
+          status: string;
+          active_event_id: string | null;
+          active_blast_id: string | null;
+          terminal_confirmed_at: string | null;
+          last_error: string | null;
+          updated_at: string;
+        }>;
+      };
+      set_event_blast_segment_slot_provider_id: {
+        Args: { p_blast_id: string; p_slot_number: number; p_provider_segment_id: string };
+        Returns: boolean;
+      };
+      mark_event_blast_segment_terminal: {
+        Args: { p_blast_id: string; p_slot_number: number };
+        Returns: boolean;
+      };
+      release_event_blast_segment_slot: {
+        Args: { p_blast_id: string; p_slot_number: number };
+        Returns: boolean;
+      };
+      record_event_blast_segment_slot_error: {
+        Args: { p_blast_id: string; p_slot_number: number; p_last_error: string };
+        Returns: boolean;
+      };
+      list_event_blast_segment_slots: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          slot_number: number;
+          provider_segment_id: string | null;
+          status: string;
+          active_event_id: string | null;
+          active_blast_id: string | null;
+          terminal_confirmed_at: string | null;
+          last_error: string | null;
+          updated_at: string;
+        }>;
+      };
+      claim_volunteer_follow_up_outcome: {
+        Args: { p_campaign_id: string; p_safe_slots: number; p_claim_token: string; p_lease_token: string };
+        Returns: Array<Record<string, unknown>>;
+      };
+      validate_volunteer_follow_up_outcome_send: {
+        Args: { p_delivery_id: string; p_claim_token: string; p_lease_token: string };
+        Returns: boolean;
+      };
+      finalize_volunteer_follow_up_outcome_send: {
+        Args: {
+          p_delivery_id: string;
+          p_claim_token: string;
+          p_status: string;
+          p_provider_email_id: string | null;
+          p_last_error: string | null;
+          p_next_attempt_at: string | null;
+        };
+        Returns: boolean;
+      };
       configure_project_night: {
         Args: { p_event_id: string; p_action: string };
         Returns: ProjectNightRecurrenceRow;

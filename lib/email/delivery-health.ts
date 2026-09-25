@@ -111,28 +111,27 @@ export async function getEmailDeliveryHealth(c?: Context): Promise<EmailDelivery
 export async function getEmailOutboxSummary(c?: Context): Promise<EmailOutboxSummary | null> {
   if (!isSupabaseServerConfigured(c)) return null;
   const client = getSupabaseAdminClient(c);
-  const [registrationResult, submissionResult, speakerResult, speakerProposalResult] = await Promise.all([
-    client.from('registration_email_deliveries').select('status'),
-    client.from('event_submission_email_deliveries').select('status'),
-    client.from('speaker_intake_links').select('email_status').not('email_status', 'is', null),
-    client.from('speaker_submissions').select('decision_email_status').not('decision_email_status', 'is', null),
+  const results = await Promise.all([
+    client.from('registration_email_deliveries').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    client.from('event_submission_email_deliveries').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    client.from('speaker_intake_links').select('*', { count: 'exact', head: true }).eq('email_status', 'pending'),
+    client.from('speaker_submissions').select('*', { count: 'exact', head: true }).eq('decision_email_status', 'pending'),
+    client.from('annual_conference_speaker_submissions').select('*', { count: 'exact', head: true }).eq('decision_email_status', 'pending'),
+    client.from('registration_email_deliveries').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
+    client.from('event_submission_email_deliveries').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
+    client.from('speaker_intake_links').select('*', { count: 'exact', head: true }).eq('email_status', 'failed'),
+    client.from('speaker_submissions').select('*', { count: 'exact', head: true }).eq('decision_email_status', 'failed'),
+    client.from('annual_conference_speaker_submissions').select('*', { count: 'exact', head: true }).eq('decision_email_status', 'failed'),
   ]);
 
-  if (registrationResult.error) throw new Error(registrationResult.error.message);
-  if (submissionResult.error) throw new Error(submissionResult.error.message);
-  if (speakerResult.error) throw new Error(speakerResult.error.message);
-  if (speakerProposalResult.error) throw new Error(speakerProposalResult.error.message);
-
-  const statuses = [
-    ...registrationResult.data.map((delivery) => delivery.status),
-    ...submissionResult.data.map((delivery) => delivery.status),
-    ...speakerResult.data.map((delivery) => delivery.email_status),
-    ...speakerProposalResult.data.map((delivery) => delivery.decision_email_status),
-  ];
+  for (const result of results) {
+    if (result.error) throw new Error(result.error.message);
+    if (result.count === null) throw new Error('Email outbox count is unavailable.');
+  }
 
   return {
-    pending: statuses.filter((status) => status === 'pending').length,
-    failed: statuses.filter((status) => status === 'failed').length,
+    pending: results.slice(0, 5).reduce((total, result) => total + (result.count ?? 0), 0),
+    failed: results.slice(5).reduce((total, result) => total + (result.count ?? 0), 0),
   };
 }
 
@@ -268,7 +267,7 @@ export async function recordResendEmailHealth(
   c: Context,
   usage: EmailQuotaUsage,
 ): Promise<void> {
-  if (!isSupabaseServerConfigured(c) || (usage.dailyUsed === null && usage.monthlyUsed === null)) return;
+  if (!isSupabaseServerConfigured(c) || usage.dailyUsed === null || usage.monthlyUsed === null) return;
   try {
     const client = getSupabaseAdminClient(c);
     const dailyLimit = quotaLimit(envValue('RESEND_DAILY_EMAIL_QUOTA', c), DEFAULT_DAILY_QUOTA_LIMIT);
@@ -281,8 +280,8 @@ export async function recordResendEmailHealth(
 
     if (previousError) throw new Error(previousError.message);
 
-    const dailyUsed = usage.dailyUsed ?? previous?.daily_quota_used ?? null;
-    const monthlyUsed = usage.monthlyUsed ?? previous?.monthly_quota_used ?? null;
+    const dailyUsed = usage.dailyUsed;
+    const monthlyUsed = usage.monthlyUsed;
     const dailyLevel = emailHealthLevel(dailyUsed, dailyLimit);
     const monthlyLevel = emailHealthLevel(monthlyUsed, monthlyLimit);
     const observedAt = new Date().toISOString();

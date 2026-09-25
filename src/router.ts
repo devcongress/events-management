@@ -1,31 +1,31 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory } from "vue-router";
 import {
   ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
   adminPath,
   isAdminPath,
   safeInternalAppPath,
-} from './admin-routes';
+} from "./admin-routes";
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
   annualConferencePath,
   mobileAnnualConferencePath,
   volunteerCanAccessOrganizerPath,
-} from './annual-conference';
+} from "./annual-conference";
 import {
   fetchAdminSession,
   fetchAnnualConferenceWorkPlan,
   fetchEventById,
   queryKeys,
   type AdminSessionResponse,
-} from './lib/api';
-import { isCommunitySubmissionEvent } from './lib/community-submission-event';
-import { queryClient } from './lib/query';
+} from "./lib/api";
+import { isCommunitySubmissionEvent } from "./lib/community-submission-event";
+import { queryClient } from "./lib/query";
 import {
   SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME,
   systemDesignParticipantRoute,
-} from './system-design-participant-route';
-import { SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
-import { volunteerIntakeRoutes } from './volunteer-intake-route';
+} from "./system-design-participant-route";
+import { SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from "./system-design-presenter-route";
+import { volunteerIntakeRoutes } from "./volunteer-intake-route";
 import {
   matchesOrganizerPhoneViewport,
   ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
@@ -36,77 +36,118 @@ import {
   ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
   ORGANIZER_PHONE_ROUTE_PATH,
   organizerViewportRedirect,
-} from './organizer-viewport';
+} from "./organizer-viewport";
 import {
   CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME,
   SPEAKER_TALK_INTAKE_ROUTE_NAME,
   conferenceSpeakerIntakeRoute,
   speakerTalkIntakeRoute,
-} from './speaker-intake-route';
+} from "./speaker-intake-route";
 
-const ORGANIZER_TITLE = 'DevCongress | Organizers';
-const FEEDBACK_TITLE = 'DevCongress | Feedback';
-const FEEDBACK_DISPLAY_TITLE = 'DevCongress | Feedback Display';
-const REGISTRATION_DISPLAY_TITLE = 'DevCongress | Registration Display';
-const SPEAKER_TALK_INTAKE_TITLE = 'DevCongress | Archive Details';
-const CFP_TITLE = 'DevCongress | Call for Presentations';
-const REGISTRATION_TITLE = 'DevCongress | Registration';
-const VOLUNTEER_TITLE = 'DevCongress | Volunteer';
-const VOLUNTEER_DISPLAY_TITLE = 'DevCongress | Volunteer Display';
-const ANNUAL_CONFERENCE_TITLE = 'DevCongress | Annual Conference';
-const SYSTEM_DESIGN_PARTICIPANT_TITLE = 'DevCongress | System Design Learning Room';
-const ownerOnlyPaths = new Set([adminPath('audit-log'), adminPath('present-forms'), adminPath('present-forms/display')]);
-const NotFoundView = () => import('./views/NotFoundView.vue');
-const FeedbackView = () => import('./views/FeedbackView.vue');
-const CfpView = () => import('./views/CfpView.vue');
-const EventRegistrationView = () => import('./views/EventRegistrationView.vue');
-const EventAmendmentView = () => import('./views/EventAmendmentView.vue');
-const EventsView = () => import('./views/EventsView.vue');
-const EventView = () => import('./views/EventView.vue');
-const AdminAuthCallbackView = () => import('./views/admin/AdminAuthCallbackView.vue');
-const AdminLoginView = () => import('./views/admin/AdminLoginView.vue');
-const AdminMobileOrganizerView = () => import('./views/admin/AdminMobileOrganizerView.vue');
-const AdminMobileEventsView = () => import('./views/admin/AdminMobileEventsView.vue');
-const AdminMobileEventView = () => import('./views/admin/AdminMobileEventView.vue');
-const AdminMobileEventBlastsView = () => import('./views/admin/AdminMobileEventBlastsView.vue');
-const AdminMobileCheckInView = () => import('./views/admin/AdminMobileCheckInView.vue');
-const AdminMobileAnnualConferenceView = () => import('./views/admin/AdminMobileAnnualConferenceView.vue');
-const AdminEventsWorkspaceView = () => import('./views/admin/AdminEventsWorkspaceView.vue');
-const AdminEventsView = () => import('./views/admin/AdminEventsView.vue');
-const AdminEventSubmissionsView = () => import('./views/admin/AdminEventSubmissionsView.vue');
-const AdminAttendanceOverviewView = () => import('./views/admin/AdminAttendanceOverviewView.vue');
-const AdminAttendanceView = () => import('./views/admin/AdminAttendanceView.vue');
-const AdminFeedbackOverviewView = () => import('./views/admin/AdminFeedbackOverviewView.vue');
-const AdminFeedbackDisplayView = () => import('./views/admin/AdminFeedbackDisplayView.vue');
-const AdminRegistrationDisplayView = () => import('./views/admin/AdminRegistrationDisplayView.vue');
-const AdminAnnualConferenceView = () => import('./views/admin/AdminAnnualConferenceView.vue');
-const AdminAnnualConferenceWorkPlanView = () => import('./views/admin/AdminAnnualConferenceWorkPlanView.vue');
-const AdminAnnualConferenceFinanceView = () => import('./views/admin/AdminAnnualConferenceFinanceView.vue');
-const AdminVolunteerView = () => import('./views/admin/AdminVolunteerView.vue');
-const AdminVolunteerDisplayView = () => import('./views/admin/AdminVolunteerDisplayView.vue');
-const AdminFeedbackView = () => import('./views/admin/AdminFeedbackView.vue');
-const AdminOrganizersView = () => import('./views/admin/AdminOrganizersView.vue');
-const AdminAuditLogView = () => import('./views/admin/AdminAuditLogView.vue');
-const AdminEventView = () => import('./views/admin/AdminEventView.vue');
-const AdminCommunityEventView = () => import('./views/admin/AdminCommunityEventView.vue');
-const AdminTalksView = () => import('./views/admin/AdminTalksView.vue');
-const AdminSpeakersView = () => import('./views/admin/AdminSpeakersView.vue');
-const AdminQuizView = () => import('./views/admin/AdminQuizView.vue');
-const AdminSystemDesignView = () => import('./views/admin/AdminSystemDesignView.vue');
-const SystemDesignPresenterView = () => import('./views/SystemDesignPresenterView.vue');
-const SystemDesignRecapView = () => import('./views/SystemDesignRecapView.vue');
-const AdminRegistrationsView = () => import('./views/admin/AdminRegistrationsView.vue');
+const ORGANIZER_TITLE = "DevCongress | Organizers";
+const FEEDBACK_TITLE = "DevCongress | Feedback";
+const FEEDBACK_DISPLAY_TITLE = "DevCongress | Feedback Display";
+const REGISTRATION_DISPLAY_TITLE = "DevCongress | Registration Display";
+const SPEAKER_TALK_INTAKE_TITLE = "DevCongress | Archive Details";
+const CFP_TITLE = "DevCongress | Call for Presentations";
+const REGISTRATION_TITLE = "DevCongress | Registration";
+const VOLUNTEER_TITLE = "DevCongress | Volunteer";
+const VOLUNTEER_DISPLAY_TITLE = "DevCongress | Volunteer Display";
+const ANNUAL_CONFERENCE_TITLE = "DevCongress | Annual Conference";
+const SYSTEM_DESIGN_PARTICIPANT_TITLE =
+  "DevCongress | System Design Learning Room";
+const VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH = adminPath(
+  "annual-conference/2026/volunteers/follow-up-preview",
+);
+const VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE =
+  "admin-volunteer-follow-up-form-preview";
+const ownerOnlyPaths = new Set([
+  adminPath("audit-log"),
+  adminPath("present-forms"),
+  adminPath("present-forms/display"),
+  VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH,
+]);
+const NotFoundView = () => import("./views/NotFoundView.vue");
+const FeedbackView = () => import("./views/FeedbackView.vue");
+const CfpView = () => import("./views/CfpView.vue");
+const EventRegistrationView = () => import("./views/EventRegistrationView.vue");
+const EventAmendmentView = () => import("./views/EventAmendmentView.vue");
+const EventsView = () => import("./views/EventsView.vue");
+const EventView = () => import("./views/EventView.vue");
+const AdminAuthCallbackView = () =>
+  import("./views/admin/AdminAuthCallbackView.vue");
+const AdminLoginView = () => import("./views/admin/AdminLoginView.vue");
+const AdminMobileOrganizerView = () =>
+  import("./views/admin/AdminMobileOrganizerView.vue");
+const AdminMobileEventsView = () =>
+  import("./views/admin/AdminMobileEventsView.vue");
+const AdminMobileEventView = () =>
+  import("./views/admin/AdminMobileEventView.vue");
+const AdminMobileEventBlastsView = () =>
+  import("./views/admin/AdminMobileEventBlastsView.vue");
+const AdminMobileCheckInView = () =>
+  import("./views/admin/AdminMobileCheckInView.vue");
+const AdminMobileAnnualConferenceView = () =>
+  import("./views/admin/AdminMobileAnnualConferenceView.vue");
+const AdminEventsWorkspaceView = () =>
+  import("./views/admin/AdminEventsWorkspaceView.vue");
+const AdminEventsView = () => import("./views/admin/AdminEventsView.vue");
+const AdminEventSubmissionsView = () =>
+  import("./views/admin/AdminEventSubmissionsView.vue");
+const AdminAttendanceOverviewView = () =>
+  import("./views/admin/AdminAttendanceOverviewView.vue");
+const AdminAttendanceView = () =>
+  import("./views/admin/AdminAttendanceView.vue");
+const AdminFeedbackOverviewView = () =>
+  import("./views/admin/AdminFeedbackOverviewView.vue");
+const AdminFeedbackDisplayView = () =>
+  import("./views/admin/AdminFeedbackDisplayView.vue");
+const AdminRegistrationDisplayView = () =>
+  import("./views/admin/AdminRegistrationDisplayView.vue");
+const AdminAnnualConferenceView = () =>
+  import("./views/admin/AdminAnnualConferenceView.vue");
+const AdminAnnualConferenceWorkPlanView = () =>
+  import("./views/admin/AdminAnnualConferenceWorkPlanView.vue");
+const AdminAnnualConferenceFinanceView = () =>
+  import("./views/admin/AdminAnnualConferenceFinanceView.vue");
+const AdminVolunteerView = () => import("./views/admin/AdminVolunteerView.vue");
+const AdminVolunteerDisplayView = () =>
+  import("./views/admin/AdminVolunteerDisplayView.vue");
+const AdminFeedbackView = () => import("./views/admin/AdminFeedbackView.vue");
+const AdminOrganizersView = () =>
+  import("./views/admin/AdminOrganizersView.vue");
+const AdminAuditLogView = () => import("./views/admin/AdminAuditLogView.vue");
+const AdminEventView = () => import("./views/admin/AdminEventView.vue");
+const AdminCommunityEventView = () =>
+  import("./views/admin/AdminCommunityEventView.vue");
+const AdminTalksView = () => import("./views/admin/AdminTalksView.vue");
+const AdminSpeakersView = () => import("./views/admin/AdminSpeakersView.vue");
+const AdminQuizView = () => import("./views/admin/AdminQuizView.vue");
+const AdminSystemDesignView = () =>
+  import("./views/admin/AdminSystemDesignView.vue");
+const SystemDesignPresenterView = () =>
+  import("./views/SystemDesignPresenterView.vue");
+const SystemDesignRecapView = () => import("./views/SystemDesignRecapView.vue");
+const AdminRegistrationsView = () =>
+  import("./views/admin/AdminRegistrationsView.vue");
 
 function storedAdminOAuthRedirect(): string {
   try {
-    return safeInternalAppPath(window.sessionStorage.getItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY)) ?? adminPath('events');
+    return (
+      safeInternalAppPath(
+        window.sessionStorage.getItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY),
+      ) ?? adminPath("events")
+    );
   } catch {
-    return adminPath('events');
+    return adminPath("events");
   }
 }
 
-async function redirectCommunitySubmissionWorkspace(to: { params: Record<string, unknown> }) {
-  const eventId = typeof to.params.eventId === 'string' ? to.params.eventId : '';
+async function redirectCommunitySubmissionWorkspace(to: {
+  params: Record<string, unknown>;
+}) {
+  const eventId =
+    typeof to.params.eventId === "string" ? to.params.eventId : "";
 
   if (!eventId) return true;
 
@@ -126,8 +167,11 @@ async function redirectCommunitySubmissionWorkspace(to: { params: Record<string,
   }
 }
 
-async function redirectCommunitySubmissionEvent(to: { params: Record<string, unknown> }) {
-  const eventId = typeof to.params.eventId === 'string' ? to.params.eventId : '';
+async function redirectCommunitySubmissionEvent(to: {
+  params: Record<string, unknown>;
+}) {
+  const eventId =
+    typeof to.params.eventId === "string" ? to.params.eventId : "";
 
   if (!eventId) return true;
 
@@ -151,19 +195,47 @@ async function redirectCommunitySubmissionEvent(to: { params: Record<string, unk
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: adminPath('events') },
-    { path: '/feedback/:eventId', name: 'event-feedback', component: FeedbackView },
-    { path: '/cfp/:eventId', name: 'event-cfp', component: CfpView },
-    { path: '/speak/m/:eventId', name: 'monthly-cfp', component: CfpView },
-    { path: '/speak/c/:year(\\d{4})', name: 'conference-cfp', component: CfpView },
-    { path: '/r/:eventKey', name: 'event-registration-short', component: EventRegistrationView },
-    { path: '/register/:eventId', name: 'event-registration', component: EventRegistrationView },
-    { path: '/event-amendments', name: 'event-amendment', component: EventAmendmentView },
-    { path: '/event-amendments/:capability', name: 'event-amendment-legacy', component: EventAmendmentView },
-    systemDesignParticipantRoute,
-    { path: '/system-design/:eventId', name: 'system-design-recap', component: SystemDesignRecapView },
+    { path: "/", redirect: adminPath("events") },
     {
-      path: '/present/system-design/:sessionId',
+      path: "/feedback/:eventId",
+      name: "event-feedback",
+      component: FeedbackView,
+    },
+    { path: "/cfp/:eventId", name: "event-cfp", component: CfpView },
+    { path: "/speak/m/:eventId", name: "monthly-cfp", component: CfpView },
+    {
+      path: "/speak/c/:year(\\d{4})",
+      name: "conference-cfp",
+      component: CfpView,
+    },
+    {
+      path: "/r/:eventKey",
+      name: "event-registration-short",
+      component: EventRegistrationView,
+    },
+    {
+      path: "/register/:eventId",
+      name: "event-registration",
+      component: EventRegistrationView,
+    },
+    {
+      path: "/event-amendments",
+      name: "event-amendment",
+      component: EventAmendmentView,
+    },
+    {
+      path: "/event-amendments/:capability",
+      name: "event-amendment-legacy",
+      component: EventAmendmentView,
+    },
+    systemDesignParticipantRoute,
+    {
+      path: "/system-design/:eventId",
+      name: "system-design-recap",
+      component: SystemDesignRecapView,
+    },
+    {
+      path: "/present/system-design/:sessionId",
       name: SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,
       component: SystemDesignPresenterView,
       meta: { requiresOrganizer: true },
@@ -171,101 +243,283 @@ export const router = createRouter({
     speakerTalkIntakeRoute,
     conferenceSpeakerIntakeRoute,
     ...volunteerIntakeRoutes,
-    { path: adminPath('auth/callback'), name: 'admin-auth-callback', component: AdminAuthCallbackView },
-    { path: adminPath('login'), name: 'admin-login', component: AdminLoginView },
-    { path: adminPath(), redirect: adminPath('events') },
-    { path: ORGANIZER_PHONE_ROUTE_PATH, name: 'admin-mobile', component: AdminMobileOrganizerView },
-    { path: ORGANIZER_PHONE_EVENTS_ROUTE_PATH, name: ORGANIZER_PHONE_EVENTS_ROUTE_NAME, component: AdminMobileEventsView },
     {
-      path: adminPath('mobile/events/:eventId'),
+      path: "/volunteer/follow-up/:id",
+      name: "volunteer-follow-up",
+      component: () => import("./views/VolunteerFollowUpView.vue"),
+    },
+    {
+      path: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH,
+      name: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE,
+      component: () => import("./views/VolunteerFollowUpView.vue"),
+      props: { previewMode: true },
+      meta: { requiresOrganizer: true },
+    },
+    {
+      path: adminPath("auth/callback"),
+      name: "admin-auth-callback",
+      component: AdminAuthCallbackView,
+    },
+    {
+      path: adminPath("login"),
+      name: "admin-login",
+      component: AdminLoginView,
+    },
+    { path: adminPath(), redirect: adminPath("events") },
+    {
+      path: ORGANIZER_PHONE_ROUTE_PATH,
+      name: "admin-mobile",
+      component: AdminMobileOrganizerView,
+    },
+    {
+      path: ORGANIZER_PHONE_EVENTS_ROUTE_PATH,
+      name: ORGANIZER_PHONE_EVENTS_ROUTE_NAME,
+      component: AdminMobileEventsView,
+    },
+    {
+      path: adminPath("mobile/events/:eventId"),
       name: ORGANIZER_PHONE_EVENT_ROUTE_NAME,
       component: AdminMobileEventView,
     },
     {
-      path: adminPath('mobile/events/:eventId/blasts'),
+      path: adminPath("mobile/events/:eventId/blasts"),
       name: ORGANIZER_PHONE_EVENT_BLASTS_ROUTE_NAME,
       component: AdminMobileEventBlastsView,
     },
     {
-      path: adminPath('mobile/events/:eventId/check-in'),
+      path: adminPath("mobile/events/:eventId/check-in"),
       name: ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME,
       component: AdminMobileCheckInView,
       beforeEnter: redirectCommunitySubmissionWorkspace,
     },
     {
-      path: adminPath('mobile/annual-conference/:year(\\d{4})'),
+      path: adminPath("mobile/annual-conference/:year(\\d{4})"),
       name: ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
       component: AdminMobileAnnualConferenceView,
     },
     {
-      path: adminPath('events'),
+      path: adminPath("events"),
       component: AdminEventsWorkspaceView,
       children: [
-        { path: '', name: 'admin-events', component: AdminEventsView, props: { embedded: true } },
-        { path: 'submissions', name: 'admin-event-submissions', component: AdminEventSubmissionsView },
+        {
+          path: "",
+          name: "admin-events",
+          component: AdminEventsView,
+          props: { embedded: true },
+        },
+        {
+          path: "submissions",
+          name: "admin-event-submissions",
+          component: AdminEventSubmissionsView,
+        },
       ],
     },
-    { path: adminPath('event-submissions'), redirect: adminPath('events/submissions') },
     {
-      path: adminPath('website-preview/events'),
-      name: 'admin-public-events-preview',
+      path: adminPath("event-submissions"),
+      redirect: adminPath("events/submissions"),
+    },
+    {
+      path: adminPath("website-preview/events"),
+      name: "admin-public-events-preview",
       component: EventsView,
     },
     {
-      path: adminPath('website-preview/events/:slug'),
-      name: 'admin-public-event-preview',
+      path: adminPath("website-preview/events/:slug"),
+      name: "admin-public-event-preview",
       component: EventView,
     },
-    { path: adminPath('attendance'), name: 'admin-attendance-overview', component: AdminAttendanceOverviewView },
-    { path: adminPath('feedback'), name: 'admin-feedback-overview', component: AdminFeedbackOverviewView },
-    { path: adminPath('present-forms'), name: 'admin-present-forms', component: () => import('./views/admin/AdminPresentFormsView.vue') },
-    { path: adminPath('present-forms/display'), name: 'admin-present-forms-display', component: () => import('./views/admin/AdminFormBoardDisplayView.vue') },
-    { path: adminPath('feedback-display/:eventId'), name: 'admin-feedback-display', component: AdminFeedbackDisplayView },
-    { path: adminPath('registration-display/:eventId'), name: 'admin-registration-display', component: AdminRegistrationDisplayView },
-    { path: adminPath('annual-conference'), redirect: annualConferencePath() },
-    { path: adminPath('annual-conference/:year(\\d{4})'), name: 'admin-annual-conference', component: AdminAnnualConferenceView },
-    { path: adminPath('annual-conference/:year(\\d{4})/work-plan'), name: 'admin-annual-conference-work-plan', component: AdminAnnualConferenceWorkPlanView },
     {
-      path: adminPath('annual-conference/:year(\\d{4})/timeline'),
+      path: adminPath("attendance"),
+      name: "admin-attendance-overview",
+      component: AdminAttendanceOverviewView,
+    },
+    {
+      path: adminPath("feedback"),
+      name: "admin-feedback-overview",
+      component: AdminFeedbackOverviewView,
+    },
+    {
+      path: adminPath("present-forms"),
+      name: "admin-present-forms",
+      component: () => import("./views/admin/AdminPresentFormsView.vue"),
+    },
+    {
+      path: adminPath("present-forms/display"),
+      name: "admin-present-forms-display",
+      component: () => import("./views/admin/AdminFormBoardDisplayView.vue"),
+    },
+    {
+      path: adminPath("feedback-display/:eventId"),
+      name: "admin-feedback-display",
+      component: AdminFeedbackDisplayView,
+    },
+    {
+      path: adminPath("registration-display/:eventId"),
+      name: "admin-registration-display",
+      component: AdminRegistrationDisplayView,
+    },
+    { path: adminPath("annual-conference"), redirect: annualConferencePath() },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})"),
+      name: "admin-annual-conference",
+      component: AdminAnnualConferenceView,
+    },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/work-plan"),
+      name: "admin-annual-conference-work-plan",
+      component: AdminAnnualConferenceWorkPlanView,
+    },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/timeline"),
       redirect: (to) => ({
-        path: annualConferencePath('work-plan', String(to.params.year)),
+        path: annualConferencePath("work-plan", String(to.params.year)),
         query: Object.fromEntries(
-          Object.entries(to.query).filter(([key]) => key === 'phase' || key === 'task'),
+          Object.entries(to.query).filter(
+            ([key]) => key === "phase" || key === "task",
+          ),
         ),
       }),
     },
-    { path: adminPath('annual-conference/:year(\\d{4})/speakers'), name: 'admin-annual-conference-speakers', component: () => import('./views/admin/AdminAnnualConferenceSpeakersView.vue') },
-    { path: adminPath('annual-conference/:year(\\d{4})/finance'), name: 'admin-annual-conference-finance', component: AdminAnnualConferenceFinanceView },
-    { path: adminPath('annual-conference/:year(\\d{4})/volunteers'), name: 'admin-annual-conference-volunteers', component: AdminVolunteerView },
-    { path: adminPath('annual-conference/:year(\\d{4})/volunteers/display'), name: 'admin-annual-conference-volunteer-display', component: AdminVolunteerDisplayView },
-    { path: adminPath('volunteers'), redirect: annualConferencePath('volunteers') },
-    { path: adminPath('volunteer-display'), redirect: annualConferencePath('volunteers/display') },
-    { path: adminPath('organizers'), name: 'admin-organizers', component: AdminOrganizersView },
-    { path: adminPath('audit-log'), name: 'admin-audit-log', component: AdminAuditLogView },
-    { path: adminPath('events/new'), name: 'admin-events-new', component: AdminEventsView },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/speakers"),
+      name: "admin-annual-conference-speakers",
+      component: () =>
+        import("./views/admin/AdminAnnualConferenceSpeakersView.vue"),
+    },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/finance"),
+      name: "admin-annual-conference-finance",
+      component: AdminAnnualConferenceFinanceView,
+    },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/volunteers"),
+      name: "admin-annual-conference-volunteers",
+      component: AdminVolunteerView,
+    },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/volunteers/display"),
+      name: "admin-annual-conference-volunteer-display",
+      component: AdminVolunteerDisplayView,
+    },
+    {
+      path: adminPath("volunteers"),
+      redirect: annualConferencePath("volunteers"),
+    },
+    {
+      path: adminPath("volunteer-display"),
+      redirect: annualConferencePath("volunteers/display"),
+    },
+    {
+      path: adminPath("organizers"),
+      name: "admin-organizers",
+      component: AdminOrganizersView,
+    },
+    {
+      path: adminPath("audit-log"),
+      name: "admin-audit-log",
+      component: AdminAuditLogView,
+    },
+    {
+      path: adminPath("events/new"),
+      name: "admin-events-new",
+      component: AdminEventsView,
+    },
     // Standard events retain their established workspace. The guard only
     // diverts promoted public submissions to their deliberately smaller
     // community-listing workspace.
-    { path: adminPath('events/:eventId'), name: 'admin-event', component: AdminEventView, beforeEnter: redirectCommunitySubmissionEvent },
-    { path: adminPath('events/:eventId/community'), name: 'admin-community-event', component: AdminCommunityEventView },
-    { path: adminPath('events/:eventId/talks'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/talks/cfp`) },
-    { path: adminPath('events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)'), name: 'admin-talks', component: AdminTalksView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/speakers'), name: 'admin-speakers', component: AdminSpeakersView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/attendance'), name: 'admin-attendance', component: AdminAttendanceView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/registrations'), name: 'admin-registrations', component: AdminRegistrationsView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/quiz'), name: 'admin-quiz', component: AdminQuizView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/quiz/live'), name: 'admin-quiz-live', component: AdminQuizView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/system-design'), name: 'admin-system-design', component: AdminSystemDesignView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath('events/:eventId/system-design/learning-room'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/system-design`) },
-    { path: adminPath('events/:eventId/system-design/learning-room/live'), redirect: (to) => adminPath(`events/${String(to.params.eventId)}/system-design`) },
-    { path: adminPath('events/:eventId/feedback'), name: 'admin-feedback', component: AdminFeedbackView, beforeEnter: redirectCommunitySubmissionWorkspace },
-    { path: adminPath(':pathMatch(.*)*'), name: 'admin-not-found', component: NotFoundView },
-    { path: '/:pathMatch(.*)*', redirect: adminPath('events') },
+    {
+      path: adminPath("events/:eventId"),
+      name: "admin-event",
+      component: AdminEventView,
+      beforeEnter: redirectCommunitySubmissionEvent,
+    },
+    {
+      path: adminPath("events/:eventId/community"),
+      name: "admin-community-event",
+      component: AdminCommunityEventView,
+    },
+    {
+      path: adminPath("events/:eventId/talks"),
+      redirect: (to) =>
+        adminPath(`events/${String(to.params.eventId)}/talks/cfp`),
+    },
+    {
+      path: adminPath(
+        "events/:eventId/talks/:talksSection(cfp|proposals|program|backfill)",
+      ),
+      name: "admin-talks",
+      component: AdminTalksView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/speakers"),
+      name: "admin-speakers",
+      component: AdminSpeakersView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/attendance"),
+      name: "admin-attendance",
+      component: AdminAttendanceView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/registrations"),
+      name: "admin-registrations",
+      component: AdminRegistrationsView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/quiz"),
+      name: "admin-quiz",
+      component: AdminQuizView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/quiz/live"),
+      name: "admin-quiz-live",
+      component: AdminQuizView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/system-design"),
+      name: "admin-system-design",
+      component: AdminSystemDesignView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath("events/:eventId/system-design/learning-room"),
+      redirect: (to) =>
+        adminPath(`events/${String(to.params.eventId)}/system-design`),
+    },
+    {
+      path: adminPath("events/:eventId/system-design/learning-room/live"),
+      redirect: (to) =>
+        adminPath(`events/${String(to.params.eventId)}/system-design`),
+    },
+    {
+      path: adminPath("events/:eventId/feedback"),
+      name: "admin-feedback",
+      component: AdminFeedbackView,
+      beforeEnter: redirectCommunitySubmissionWorkspace,
+    },
+    {
+      path: adminPath(":pathMatch(.*)*"),
+      name: "admin-not-found",
+      component: NotFoundView,
+    },
+    { path: "/:pathMatch(.*)*", redirect: adminPath("events") },
   ],
 });
 
-async function volunteerCanOpenRoute(path: string, yearParam: unknown): Promise<boolean> {
-  const year = typeof yearParam === 'string' ? yearParam : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+async function volunteerCanOpenRoute(
+  path: string,
+  yearParam: unknown,
+): Promise<boolean> {
+  const year =
+    typeof yearParam === "string"
+      ? yearParam
+      : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
 
   try {
     const workspace = await queryClient.fetchQuery({
@@ -273,78 +527,103 @@ async function volunteerCanOpenRoute(path: string, yearParam: unknown): Promise<
       queryFn: () => fetchAnnualConferenceWorkPlan(year),
     });
 
-    return volunteerCanAccessOrganizerPath(path, workspace.permissions.capabilities);
+    return volunteerCanAccessOrganizerPath(
+      path,
+      workspace.permissions.capabilities,
+    );
   } catch {
     return volunteerCanAccessOrganizerPath(path);
   }
 }
 
 router.beforeEach(async (to, from) => {
-  const oauthCode = typeof to.query.code === 'string' ? to.query.code : '';
-  const oauthError = typeof to.query.error_description === 'string' ? 'oauth_failed' : '';
+  const oauthCode = typeof to.query.code === "string" ? to.query.code : "";
+  const oauthError =
+    typeof to.query.error_description === "string" ? "oauth_failed" : "";
 
-  if ((oauthCode || oauthError) && to.path !== adminPath('auth/callback')) {
+  if ((oauthCode || oauthError) && to.path !== adminPath("auth/callback")) {
     return {
-      path: adminPath('auth/callback'),
+      path: adminPath("auth/callback"),
       query: {
-        next: safeInternalAppPath(to.query.next) ?? safeInternalAppPath(to.query.redirect) ?? storedAdminOAuthRedirect(),
+        next:
+          safeInternalAppPath(to.query.next) ??
+          safeInternalAppPath(to.query.redirect) ??
+          storedAdminOAuthRedirect(),
         ...(oauthCode ? { code: oauthCode } : {}),
         ...(oauthError ? { error: oauthError } : {}),
       },
     };
   }
 
-  const requiresOrganizer = isAdminPath(to.path) || to.meta.requiresOrganizer === true;
+  const requiresOrganizer =
+    isAdminPath(to.path) || to.meta.requiresOrganizer === true;
 
-  if (!requiresOrganizer || to.path === adminPath('login') || to.path === adminPath('auth/callback')) {
+  if (
+    !requiresOrganizer ||
+    to.path === adminPath("login") ||
+    to.path === adminPath("auth/callback")
+  ) {
     return true;
   }
 
-  const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+  const cachedSession = queryClient.getQueryData<AdminSessionResponse>(
+    queryKeys.adminSession,
+  );
 
   if (cachedSession?.authenticated) {
     // Background revalidation on navigation, deduped by the default 30s
     // staleTime so tab-hopping within an event doesn't fire a request per click.
-    void queryClient.fetchQuery({
-      queryKey: queryKeys.adminSession,
-      queryFn: fetchAdminSession,
-    }).catch(() => undefined);
+    void queryClient
+      .fetchQuery({
+        queryKey: queryKeys.adminSession,
+        queryFn: fetchAdminSession,
+      })
+      .catch(() => undefined);
 
     const isPhone = matchesOrganizerPhoneViewport();
     const viewportRedirect = organizerViewportRedirect({
       authenticated: true,
       isAdminRoute: isAdminPath(to.path),
-      isPhone,
+      isPhone: isPhone && to.name !== VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE,
       routeName: to.name,
-      eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
-      conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
+      eventId: typeof to.params.eventId === "string" ? to.params.eventId : null,
+      conferenceYear:
+        typeof to.params.year === "string" ? to.params.year : null,
       query: to.query,
     });
 
     if (
-      cachedSession.user?.role === 'volunteer'
-      && isPhone
-      && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
-      && to.name !== 'admin-annual-conference-volunteer-display'
+      cachedSession.user?.role === "volunteer" &&
+      isPhone &&
+      to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
+      to.name !== "admin-annual-conference-volunteer-display"
     ) {
-      if (viewportRedirect?.path.startsWith(adminPath('mobile/annual-conference/'))) {
+      if (
+        viewportRedirect?.path.startsWith(
+          adminPath("mobile/annual-conference/"),
+        )
+      ) {
         return viewportRedirect;
       }
 
       return {
-        path: mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined),
-        query: { section: 'overview' },
+        path: mobileAnnualConferencePath(
+          typeof to.params.year === "string" ? to.params.year : undefined,
+        ),
+        query: { section: "overview" },
         replace: true,
       };
     }
     if (viewportRedirect) return viewportRedirect;
 
-    if (cachedSession.user?.role === 'volunteer') {
-      return await volunteerCanOpenRoute(to.path, to.params.year) ? true : annualConferencePath();
+    if (cachedSession.user?.role === "volunteer") {
+      return (await volunteerCanOpenRoute(to.path, to.params.year))
+        ? true
+        : annualConferencePath();
     }
 
-    if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== 'owner') {
-      return adminPath('events');
+    if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== "owner") {
+      return adminPath("events");
     }
 
     return true;
@@ -361,37 +640,47 @@ router.beforeEach(async (to, from) => {
       const viewportRedirect = organizerViewportRedirect({
         authenticated: true,
         isAdminRoute: isAdminPath(to.path),
-        isPhone,
+        isPhone: isPhone && to.name !== VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE,
         routeName: to.name,
-        eventId: typeof to.params.eventId === 'string' ? to.params.eventId : null,
-        conferenceYear: typeof to.params.year === 'string' ? to.params.year : null,
+        eventId:
+          typeof to.params.eventId === "string" ? to.params.eventId : null,
+        conferenceYear:
+          typeof to.params.year === "string" ? to.params.year : null,
         query: to.query,
       });
 
       if (
-        session.user?.role === 'volunteer'
-        && isPhone
-        && to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
-        && to.name !== 'admin-annual-conference-volunteer-display'
+        session.user?.role === "volunteer" &&
+        isPhone &&
+        to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
+        to.name !== "admin-annual-conference-volunteer-display"
       ) {
-        if (viewportRedirect?.path.startsWith(adminPath('mobile/annual-conference/'))) {
+        if (
+          viewportRedirect?.path.startsWith(
+            adminPath("mobile/annual-conference/"),
+          )
+        ) {
           return viewportRedirect;
         }
 
         return {
-          path: mobileAnnualConferencePath(typeof to.params.year === 'string' ? to.params.year : undefined),
-          query: { section: 'overview' },
+          path: mobileAnnualConferencePath(
+            typeof to.params.year === "string" ? to.params.year : undefined,
+          ),
+          query: { section: "overview" },
           replace: true,
         };
       }
       if (viewportRedirect) return viewportRedirect;
 
-      if (session.user?.role === 'volunteer') {
-        return await volunteerCanOpenRoute(to.path, to.params.year) ? true : annualConferencePath();
+      if (session.user?.role === "volunteer") {
+        return (await volunteerCanOpenRoute(to.path, to.params.year))
+          ? true
+          : annualConferencePath();
       }
 
-      if (ownerOnlyPaths.has(to.path) && session.user?.role !== 'owner') {
-        return adminPath('events');
+      if (ownerOnlyPaths.has(to.path) && session.user?.role !== "owner") {
+        return adminPath("events");
       }
 
       return true;
@@ -401,38 +690,48 @@ router.beforeEach(async (to, from) => {
   }
 
   return {
-    path: adminPath('login'),
+    path: adminPath("login"),
     query: { redirect: to.fullPath },
   };
 });
 
 router.afterEach((to) => {
-  if (to.name === 'event-feedback') {
+  if (to.name === "event-feedback") {
     document.title = FEEDBACK_TITLE;
-  } else if (to.name === 'event-cfp') {
+  } else if (to.name === "event-cfp") {
     document.title = CFP_TITLE;
-  } else if (to.name === 'event-registration' || to.name === 'event-registration-short') {
+  } else if (
+    to.name === "event-registration" ||
+    to.name === "event-registration-short"
+  ) {
     document.title = REGISTRATION_TITLE;
-  } else if (to.name === 'admin-feedback-display') {
+  } else if (to.name === "admin-feedback-display") {
     document.title = FEEDBACK_DISPLAY_TITLE;
-  } else if (to.name === 'admin-registration-display') {
+  } else if (to.name === "admin-registration-display") {
     document.title = REGISTRATION_DISPLAY_TITLE;
-  } else if (to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME || to.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME) {
+  } else if (
+    to.name === SPEAKER_TALK_INTAKE_ROUTE_NAME ||
+    to.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME
+  ) {
     document.title = SPEAKER_TALK_INTAKE_TITLE;
-  } else if (to.name === 'volunteer-intake') {
+  } else if (
+    to.name === "volunteer-intake" ||
+    to.name === "volunteer-follow-up" ||
+    to.name === "admin-volunteer-follow-up-form-preview"
+  ) {
     document.title = VOLUNTEER_TITLE;
-  } else if (to.name === 'admin-annual-conference-volunteer-display') {
+  } else if (to.name === "admin-annual-conference-volunteer-display") {
     document.title = VOLUNTEER_DISPLAY_TITLE;
   } else if (to.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME) {
-    document.title = 'DevCongress | System Design Presentation';
+    document.title = "DevCongress | System Design Presentation";
   } else if (to.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME) {
     document.title = SYSTEM_DESIGN_PARTICIPANT_TITLE;
   } else if (
-    to.name === 'admin-annual-conference'
-    || to.name === 'admin-annual-conference-work-plan'
-    || to.name === 'admin-annual-conference-finance'
-    || to.name === 'admin-annual-conference-volunteers'
-    || to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
+    to.name === "admin-annual-conference" ||
+    to.name === "admin-annual-conference-work-plan" ||
+    to.name === "admin-annual-conference-finance" ||
+    to.name === "admin-annual-conference-volunteers" ||
+    to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {
     document.title = ANNUAL_CONFERENCE_TITLE;
   } else {

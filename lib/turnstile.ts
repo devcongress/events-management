@@ -3,6 +3,7 @@ const TURNSTILE_VERIFY_TIMEOUT_MS = 8_000;
 
 export const ROUTE_FEEDBACK_TURNSTILE_ACTION = 'route_feedback';
 export const VOLUNTEER_INTAKE_TURNSTILE_ACTION = 'volunteer_intake';
+export const VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION = 'volunteer_follow_up';
 export const EVENT_REGISTRATION_TURNSTILE_ACTION = 'event_registration';
 export const CFP_SUBMISSION_TURNSTILE_ACTION = 'cfp_submission';
 export const EVENT_FEEDBACK_TURNSTILE_ACTION = 'event_feedback';

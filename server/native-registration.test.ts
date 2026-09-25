@@ -640,12 +640,19 @@ describe('native event registration API', () => {
     vi.stubEnv('REGISTRATION_EMAIL_REPLY_TO', 'hello@devcongress.org');
     vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
     let sendAttempts = 0;
-    const providerFetch = vi.fn(async (input: RequestInfo | URL) => {
+    const providerFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 
-      if (url.endsWith('/segments')) return new Response(JSON.stringify({ id: 'segment-1' }), { status: 200 });
+      if (url.endsWith('/segments') && init?.method === 'GET') {
+        return new Response(JSON.stringify({ data: [{ id: 'segment-1', name: 'DevCongress EMS blast slot 1' }] }), { status: 200 });
+      }
+      if (url.endsWith('/segments') && init?.method === 'POST') return new Response(JSON.stringify({ id: 'segment-1' }), { status: 200 });
+      if (url.endsWith('/segments/segment-1/contacts')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
       if (url.endsWith('/contacts')) return new Response(JSON.stringify({ id: 'contact-1' }), { status: 200 });
       if (url.endsWith('/broadcasts')) return new Response(JSON.stringify({ id: 'broadcast-1' }), { status: 200 });
+      if (url.endsWith('/broadcasts/broadcast-1') && init?.method === 'GET') {
+        return new Response(JSON.stringify({ id: 'broadcast-1', status: 'draft' }), { status: 200 });
+      }
       if (url.endsWith('/broadcasts/broadcast-1/send')) {
         sendAttempts += 1;
         if (sendAttempts === 1) throw new Error('socket closed after provider accepted');
@@ -683,7 +690,7 @@ describe('native event registration API', () => {
       body: JSON.stringify({ name: 'Ama Mensah', email: 'ama@example.com' }),
     });
 
-    const queuedMessages: Array<{ event_id: string; blast_id: string; offset: number }> = [];
+    const queuedMessages: Array<{ event_id: string; blast_id: string; offset: number; phase?: 'prepare' | 'send' | 'clear' }> = [];
     const queue = { send: vi.fn(async (message: { event_id: string; blast_id: string; offset: number }) => { queuedMessages.push(message); }) };
     const failed = await app.fetch(new Request(`http://localhost/api/events/${created.event.id}/blasts`, {
       method: 'POST',
@@ -698,6 +705,12 @@ describe('native event registration API', () => {
       headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
       body: JSON.stringify(queuedMessages[0]),
     }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
+    expect(queuedMessages[1]).toMatchObject({ phase: 'send', offset: 1 });
+    await app.fetch(new Request('http://localhost/api/internal/event-blasts/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+      body: JSON.stringify(queuedMessages[1]),
+    }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
     const failedHistory = await app.request(`http://localhost/api/events/${created.event.id}/blasts`);
     const failedPayload = await failedHistory.json() as { blasts: Array<{ id: string; status: string; provider_broadcast_id: string; preparation_error: string }> };
     const failedBlast = failedPayload.blasts[0];
@@ -705,17 +718,129 @@ describe('native event registration API', () => {
     expect(failedBlast).toMatchObject({ status: 'failed', provider_broadcast_id: 'broadcast-1' });
     expect(failedBlast.preparation_error).toContain('could not be reached');
 
-    const retried = await app.request(
+    const retried = await app.fetch(new Request(
       `http://localhost/api/events/${created.event.id}/blasts/${failedBlast.id}/retry`,
       { method: 'POST' },
-    );
+    ), { EVENT_BLAST_PREPARATION_QUEUE: queue });
 
-    expect(retried.status).toBe(201);
-    await expect(retried.json()).resolves.toMatchObject({
-      delivery: 'sent',
-      blast: { id: failedBlast.id, status: 'sent', provider_broadcast_id: 'broadcast-1' },
-    });
+    expect(retried.status).toBe(202);
+    expect(queuedMessages[2]).toMatchObject({ phase: 'send', blast_id: failedBlast.id });
+    await app.fetch(new Request('http://localhost/api/internal/event-blasts/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+      body: JSON.stringify(queuedMessages[2]),
+    }), { EVENT_BLAST_PREPARATION_QUEUE: queue });
+    const sentHistory = await app.request(`http://localhost/api/events/${created.event.id}/blasts`);
+
+    await expect(sentHistory.json()).resolves.toMatchObject({ blasts: [{ id: failedBlast.id, status: 'sent', provider_broadcast_id: 'broadcast-1' }] });
     expect(providerFetch.mock.calls.filter(([url]) => String(url).endsWith('/broadcasts'))).toHaveLength(1);
+  });
+
+  it('allows the scheduled blast reconciler through the session gate only with its shared secret', async () => {
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
+    const { default: app } = await import('./app');
+    const unauthorized = await app.request('http://localhost/api/internal/event-blasts/reconcile', {
+      method: 'POST',
+      headers: { 'x-scheduled-job-secret': 'incorrect-secret' },
+    });
+
+    expect(unauthorized.status).toBe(404);
+
+    const authorized = await app.fetch(new Request('http://localhost/api/internal/event-blasts/reconcile', {
+      method: 'POST',
+      headers: { 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+    }), { EVENT_BLAST_PREPARATION_QUEUE: { send: vi.fn() } });
+
+    expect(authorized.status).toBe(200);
+    await expect(authorized.json()).resolves.toMatchObject({ ok: true, skipped: 'not_configured' });
+  });
+
+  it('does not let a stale clear message claim a slot or change the blast status', async () => {
+    const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const blastId = '11111111-1111-4111-8111-111111111111';
+    const event = { id: eventId, name: 'Clear guard meetup', description: null, event_date: '2099-08-20', status: 'upcoming', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', location: { name: 'Accra', label: 'Accra', url: null } };
+    const blast = { id: blastId, event_id: eventId, subject: 'Update', body: 'Update', status: 'sent', recipient_count: 0, scheduled_for: null, sent_at: '2026-01-01T00:00:00.000Z', provider_broadcast_id: null, provider_segment_id: null, recipient_snapshot: [], prepared_recipient_count: 0, preparation_error: null, created_by_email: null, created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' };
+
+    await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([event]), 'utf-8');
+    await fs.writeFile(path.join(tempRoot, 'data', 'event-blasts.json'), JSON.stringify([blast]), 'utf-8');
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/internal/event-blasts/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+      body: JSON.stringify({ event_id: eventId, blast_id: blastId, offset: 0, phase: 'clear', slot_number: 1 }),
+    }, { EVENT_BLAST_PREPARATION_QUEUE: { send: vi.fn() } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ skipped: 'clear_slot_not_owned_or_terminal' });
+    const { listEventBlastSegmentSlots } = await import('../lib/event-blast-segment-pool');
+
+    expect((await listEventBlastSegmentSlots()).every((slot) => slot.status === 'idle')).toBe(true);
+    const persistedBlasts = JSON.parse(await fs.readFile(path.join(tempRoot, 'data', 'event-blasts.json'), 'utf-8')) as Array<{ status: string }>;
+
+    expect(persistedBlasts[0].status).toBe('sent');
+  });
+
+  it('keeps provider drafts allocated during scheduled reconciliation', async () => {
+    const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const blastId = '11111111-1111-4111-8111-111111111111';
+    const event = { id: eventId, name: 'Draft guard meetup', description: null, event_date: '2099-08-20', status: 'upcoming', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', location: { name: 'Accra', label: 'Accra', url: null } };
+    const blast = { id: blastId, event_id: eventId, subject: 'Update', body: 'Update', status: 'scheduled', recipient_count: 0, scheduled_for: '2099-08-20T12:00:00.000Z', sent_at: null, provider_broadcast_id: 'broadcast-1', provider_segment_id: 'segment-1', recipient_snapshot: [], prepared_recipient_count: 0, preparation_error: null, created_by_email: null, created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' };
+
+    await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([event]), 'utf-8');
+    await fs.writeFile(path.join(tempRoot, 'data', 'event-blasts.json'), JSON.stringify([blast]), 'utf-8');
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
+    vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ id: 'broadcast-1', status: 'draft' }), { status: 200 })));
+    const { claimEventBlastSegmentSlot, setEventBlastSegmentSlotProviderId, listEventBlastSegmentSlots } = await import('../lib/event-blast-segment-pool');
+    const slot = await claimEventBlastSegmentSlot(blastId, eventId);
+
+    await setEventBlastSegmentSlotProviderId(blastId, slot!.slot_number, 'segment-1');
+    const { default: app } = await import('./app');
+    const queueSend = vi.fn();
+    const response = await app.request('http://localhost/api/internal/event-blasts/reconcile', {
+      method: 'POST',
+      headers: { 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+    }, { EVENT_BLAST_PREPARATION_QUEUE: { send: queueSend } });
+
+    expect(response.status).toBe(200);
+    expect(queueSend).not.toHaveBeenCalled();
+    expect((await listEventBlastSegmentSlots()).find((item) => item.slot_number === slot!.slot_number)).toMatchObject({ status: 'reserved', active_blast_id: blastId });
+    const persistedBlasts = JSON.parse(await fs.readFile(path.join(tempRoot, 'data', 'event-blasts.json'), 'utf-8')) as Array<{ status: string; provider_broadcast_id: string }>;
+
+    expect(persistedBlasts[0]).toMatchObject({ status: 'scheduled', provider_broadcast_id: 'broadcast-1' });
+  });
+
+  it('records cleanup failures on the slot without changing the scheduled blast', async () => {
+    const eventId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const blastId = '11111111-1111-4111-8111-111111111111';
+    const event = { id: eventId, name: 'Cleanup failure meetup', description: null, event_date: '2099-08-20', status: 'upcoming', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z', location: { name: 'Accra', label: 'Accra', url: null } };
+    const blast = { id: blastId, event_id: eventId, subject: 'Update', body: 'Update', status: 'scheduled', recipient_count: 0, scheduled_for: '2099-08-20T12:00:00.000Z', sent_at: null, provider_broadcast_id: 'broadcast-1', provider_segment_id: 'segment-1', recipient_snapshot: [], prepared_recipient_count: 0, preparation_error: null, created_by_email: null, created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-01-01T00:00:00.000Z' };
+
+    await fs.writeFile(path.join(tempRoot, 'data', 'events.json'), JSON.stringify([event]), 'utf-8');
+    await fs.writeFile(path.join(tempRoot, 'data', 'event-blasts.json'), JSON.stringify([blast]), 'utf-8');
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'event-blast-preparation-test-secret-123456');
+    vi.stubEnv('RESEND_BROADCASTS_API_KEY', 're_broadcast_test');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('provider unavailable', { status: 503 })));
+    const { claimEventBlastSegmentSlot, setEventBlastSegmentSlotProviderId, markEventBlastSegmentTerminal, listEventBlastSegmentSlots } = await import('../lib/event-blast-segment-pool');
+    const slot = await claimEventBlastSegmentSlot(blastId, eventId);
+
+    await setEventBlastSegmentSlotProviderId(blastId, slot!.slot_number, 'segment-1');
+    await markEventBlastSegmentTerminal(blastId, slot!.slot_number);
+    const { default: app } = await import('./app');
+    const response = await app.request('http://localhost/api/internal/event-blasts/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-scheduled-job-secret': 'event-blast-preparation-test-secret-123456' },
+      body: JSON.stringify({ event_id: eventId, blast_id: blastId, offset: 0, phase: 'clear', slot_number: slot!.slot_number }),
+    }, { EVENT_BLAST_PREPARATION_QUEUE: { send: vi.fn() } });
+
+    expect(response.status).toBe(503);
+    const slots = await listEventBlastSegmentSlots();
+
+    expect(slots.find((item) => item.slot_number === slot!.slot_number)).toMatchObject({ status: 'clearing', active_blast_id: blastId, last_error: expect.any(String) });
+    const persistedBlasts = JSON.parse(await fs.readFile(path.join(tempRoot, 'data', 'event-blasts.json'), 'utf-8')) as Array<{ status: string; preparation_error: string | null }>;
+
+    expect(persistedBlasts[0]).toMatchObject({ status: 'scheduled', preparation_error: null });
   });
 
   it('identifies existing events without a campaign as not internally managed', async () => {

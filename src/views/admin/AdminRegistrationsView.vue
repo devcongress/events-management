@@ -81,7 +81,14 @@ const blastsQuery = useQuery({
   queryKey: computed(() => queryKeys.eventBlasts(eventId.value)),
   queryFn: () => fetchEventBlasts(eventId.value),
   enabled: computed(() => Boolean(eventId.value) && registrationQuery.data.value?.managed_internally === true),
-  refetchInterval: (query) => query.state.data?.blasts.some((blast) => blast.status === 'preparing') ? 3_000 : false,
+  refetchInterval: (query) => {
+    const blasts = query.state.data?.blasts ?? [];
+
+    if (blasts.some((blast) => blast.status === 'preparing')) return 3_000;
+    if (blasts.some((blast) => blast.status === 'waiting')) return 15_000;
+
+    return false;
+  },
 });
 const settings = reactive({
   status: 'draft' as 'draft' | 'open' | 'closed',
@@ -800,7 +807,9 @@ async function sendBlast() {
     blastBody.value = '';
     blastScheduledFor.value = '';
     notify.success(
-      result.delivery === 'preparing'
+      result.delivery === 'waiting'
+        ? 'Waiting for a reusable send slot. The blast will start automatically when one is free.'
+        : result.delivery === 'preparing'
         ? `Preparing ${result.blast.recipient_count} guests safely. Delivery will start automatically when the audience is ready.`
         : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`
@@ -816,14 +825,16 @@ async function sendBlast() {
 }
 
 async function retryBlast(blast: EventBlast) {
-  if (blastRetryId.value || blast.status !== 'failed' || !blast.provider_broadcast_id) return;
+  if (blastRetryId.value || (blast.status !== 'failed' && blast.status !== 'needs_capacity')) return;
   blastRetryId.value = blast.id;
   try {
     const result = await retryEventBlast(eventId.value, blast.id);
 
     await refresh();
     notify.success(
-      result.delivery === 'preparing'
+      result.delivery === 'waiting'
+        ? 'Retry queued. It will start when a reusable send slot is free.'
+        : result.delivery === 'preparing'
         ? `Resuming audience preparation at ${result.blast.prepared_recipient_count}/${result.blast.recipient_count} guests.`
         : result.delivery === 'scheduled'
         ? `Blast scheduled for ${formatDateTime(result.blast.scheduled_for!)}`

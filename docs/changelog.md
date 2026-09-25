@@ -1,5 +1,79 @@
 # Changelog
 
+## 2026-09-25 — Reuse persistent Resend segments for event blasts
+
+- Add three database-backed Resend segment slots with atomic ownership, `waiting` state for a fourth blast, and mock persistence for local journeys.
+- Queue the initial preparation and retries; reconcile provider broadcast state before clearing contact memberships and releasing a slot.
+- Reuse stable slot names to recover provider-side segment creation after interrupted requests, and remove old segment members in bounded serial queue batches.
+- Require one-time removal of legacy per-blast segments before first pool provisioning on Resend's three-segment plan.
+
+## 2026-09-24 — Separate volunteer form preview route
+
+- Keep the Owner invitation drawer focused on the production email and plain-text alternative; place **Preview volunteer form** beside the invitation preview control in campaign setup and open its existing protected route in the same tab.
+- Update the organizer journey to verify route navigation, disabled submission, and return to the Campaign tab after browser Back.
+
+## 2026-09-23 — Volunteer selection decisions and outcome emails
+
+- Add a separate, versioned Pending / Accepted / Not selected decision; saving review status, note, or decision never sends email.
+- Add Owner-only ten-minute cohort previews that freeze personalized production email payloads, then require explicit confirmation to queue only that unchanged cohort.
+- Persist versioned outcome-delivery history and share the invitation drain lease, transactional 54/day claim budget, 35-message reserve, quota check, webhook replay, and bounded same-key retry policy.
+- Keep uncertain provider outcomes locked for safe same-key retry or Owner attention, and expose only sent/not-sent to reviewers while keeping per-recipient diagnostics Owner-only.
+- Recover expired `sending` claims through the scheduled drain, show the complete frozen preview audience, and keep every recipient diagnostic reachable in a bounded scroll area.
+- Add focused API, scheduler, browser journey, and disposable PostgreSQL regression coverage; no live email or production migration is run by this change.
+
+## 2026-09-23 — Split volunteer Reviews and Campaign access
+
+- Add connected Directory, Reviews, and Campaign tabs on desktop and phone; reviewers receive motivation, Accra availability, review status/notes, and only invitation sent/not-sent state.
+- Keep Campaign settings, preview, quota, batches, retries, and provider diagnostics Owner-only behind its API route; clear Owner campaign cache when the session loses Owner access.
+- Return allowlisted reviewer DTOs from the dedicated GET and PATCH routes, deriving invitation state from provider acceptance evidence and never using attempts alone as proof of sending.
+- Pin the review save action to the drawer footer and keep review notes, answer status, keyboard focus, Escape handling, and scroll restoration stable across updates.
+
+## 2026-09-23 — Volunteer follow-up navigation
+
+- Bind the DevCongress logo through a script constant so Vite does not treat its public URL as a module import that can reject the Volunteers route.
+- Keep the applicant detail Teleport inline on desktop and move it to `body` only for the mobile dialog, so it has a valid target throughout the follow-up panel lifecycle.
+- Cover owner navigation, email and disabled form previews, and desktop applicant selection in the organizer journey suite.
+
+## 2026-09-23 — Volunteer follow-up preview drawer
+
+- Replace two preview actions with one **Preview** control that opens the owner drawer; show the rendered email first, then the read-only form sample in the same drawer with a return action.
+- Seed the embedded form from the authorized preview response to avoid a second request, and preserve the standalone owner-only preview route.
+- Bound preview loading to 15 seconds, abort stale requests, and make body/document scroll restoration, focus restoration, and keyboard cleanup idempotent without mutating `#app` inert state; remove iframe focus-stealing behavior.
+- Keep the sandboxed email scrollable with pointer and touch input; Escape closes the drawer even while the email iframe has focus. Move focus to **Back to invitation** when opening the form so keyboard navigation stays in the drawer.
+
+## 2026-09-23 — Volunteer follow-up inbox toolbar
+
+- Keep the applicant-inbox heading and visible-range count, remove the redundant People count, and pair the recipient filter directly with search.
+- Use one line when space allows, with container-aware wrapping beside the selected-applicant drawer and on phones; match the loading placeholder to the same layout.
+
+## 2026-09-23 — Volunteer follow-up campaign setup alignment
+
+- Add aligned Preview and Campaign controls labels, consistent control heights, a compact persistent deadline-save action, and left-aligned form preview link.
+- Clarify when a draft deadline is saved, group timeline labels with dates, and show unsaved date changes in the timeline.
+- Match the owner setup loading skeleton to the desktop, tablet, and phone group layout.
+
+## 2026-09-23 — Volunteer follow-up loading and queue recovery
+
+- Keep the follow-up read path side-effect free and parallelize recipient and Owner-only health reads; initial-load placeholders now mirror the progress, role-specific setup/timeline, and inbox layout, while stale campaign data stays visible after a failed refresh.
+- Enroll eligible new and duplicate applications idempotently in the background; launch backfills before changing campaign state, and the 15-minute scheduler repairs draft, paused, and running queues even when email configuration or quota is unavailable.
+
+## 2026-09-22 — Volunteer follow-up campaign and private response form
+
+- Added a provisional 30 September application deadline, a two-week response window, and an Owner-launched, quota-aware daily invitation queue for 2026 conference applicants.
+- Added the private, Turnstile-protected two-question response form with a 120-word motivation limit and one final submission.
+- Added Owner controls and diagnostics plus capability-scoped review and response tracking under Annual Conference → Volunteers on desktop and phone.
+- Persisted recipient delivery attempts, provider webhook status, bounded retries, and review notes in edition-owned Supabase tables.
+- Serialize scheduled drains with an expiring database lease, require complete live quota data at drain start, and stop if an accepted email omits quota headers.
+- Fix the application deadline at launch so it cannot drift from the date already promised in invitation emails.
+- Recheck each source application's creation time inside the atomic claim RPC, so moving a draft deadline earlier excludes later applicants already queued.
+- Preserve sending/accepted delivery state and stop the drain on ambiguous provider outcomes or persistence/webhook replay errors after provider acceptance.
+- Replace native follow-up filters and deadline input with shared dropdown/date-picker controls; keep the deadline picker disabled after launch and while saving.
+- Move follow-up into accessible Directory / Follow-up subtabs on desktop and mobile, shown only to 2026 application reviewers.
+- Compact the Directory header, place lifecycle filters beside search in All / Active / Applicants order, and soften the connected frame and empty states across desktop and mobile.
+- Replace the six-metric Follow-up grid with invitation progress, actionable response/review counts, search, delivery/response/review states, and pagination.
+- Put Owner campaign setup across the page above the inbox; keep Resend quota and scheduler diagnostics in a separate collapsed panel.
+- Show selected applicants in a contextual desktop detail pane and an accessible mobile side drawer, preserving unsaved review edits when polling refreshes the queue.
+- Add an Owner-only right drawer for the production invitation HTML/plain text and a separate standalone, read-only form preview with sample answers and no public-form submission path.
 ## 2026-09-22 — Editable edition-scoped conference permissions
 
 - Show each person’s full role-appropriate conference permission suite in the access drawer, including role defaults as switched-on controls.
@@ -132,6 +206,7 @@
 - Apply the approved community-flyer design: two local April meetup photos, app typography and palette, light dividers, three aligned QR sections, and no fullscreen control.
 - Add an explicitly labelled three-code sample preview that cannot open live forms.
 - Protect development asset loading by binding public image URLs. Cover role access, phone redirects, month selection, popup presentation, photo loading and error recovery with regression tests.
+
 ## 2026-09-12 — Conference speaker form copy
 
 - Remove the introductory single-proposal helper text from the conference application form. Keep the regular meetup introduction and submission behavior unchanged.
@@ -696,6 +771,7 @@
 
 - Slack now checks the event route’s explicit `?readiness=1` signal before posting, rather than relying on the visitor-facing page response.
 - This keeps the no-early-announcement rule while allowing the website to serve its dynamic event shell immediately.
+
 ## 2026-08-11 — Preserved public event media semantics
 
 - Added safe `stream_url` and `embed_stream` fields to the generic public-events DTO across local JSON and Supabase sources.
@@ -2584,11 +2660,13 @@ _Format: `## YYYY-MM-DD — [Feature / Fix / Refactor]` followed by bullet point
 ---
 
 _Future entries go above this line._
+
 ## 2026-08-09 — Owned flyer short links
 
 - Added opaque, DevCongress-owned short links for open monthly CFPs, event registration, and Annual Conference CFPs.
 - Added the owner-only Audit Log → Short links operational view with creation, copy, visit totals, last-use time, and revocation.
 - Isolated public redirects in a small `go.devcongress.org` Worker with a private EMS resolver boundary; arbitrary destinations and private bearer links are not supported.
+
 ## 2026-08-12 — Amendment decision enum fix
 
 - Fixed approved-event change requests failing during the durable email insert because PostgreSQL treated the approval/rejection `CASE` result as text instead of the email-kind enum.

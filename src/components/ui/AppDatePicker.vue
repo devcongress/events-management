@@ -10,6 +10,7 @@ const props = withDefaults(defineProps<{
   label?: string;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   mode?: 'date' | 'datetime';
   defaultTime?: string;
   density?: 'default' | 'field';
@@ -18,6 +19,7 @@ const props = withDefaults(defineProps<{
   label: '',
   placeholder: '',
   required: false,
+  disabled: false,
   mode: 'date',
   defaultTime: '',
   density: 'default',
@@ -196,6 +198,7 @@ function calendarDayClass(day: { date: Date; currentMonth: boolean }): string {
 }
 
 async function focusDate(date: Date) {
+  if (props.disabled) return;
   activeDate.value = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   if (
     monthCursor.value.getFullYear() !== date.getFullYear()
@@ -211,10 +214,12 @@ async function focusDate(date: Date) {
 }
 
 function setActiveDate(date: Date) {
+  if (props.disabled) return;
   activeDate.value = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function chooseDate(date: Date) {
+  if (props.disabled) return;
   const nextDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
   monthCursor.value = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -231,6 +236,7 @@ function chooseDate(date: Date) {
 }
 
 function chooseToday() {
+  if (props.disabled) return;
   const now = new Date();
 
   if (props.mode === 'datetime') {
@@ -246,6 +252,7 @@ function chooseToday() {
 }
 
 function clearDate() {
+  if (props.disabled) return;
   emit('update:modelValue', '');
   closePicker(true);
 }
@@ -259,6 +266,7 @@ function normalizeTimeValue(value: string, maximum: number): string {
 }
 
 function updateDraftTime(event: Event, part: 'hour' | 'minute') {
+  if (props.disabled) return;
   const value = (event.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 2);
 
   if (part === 'hour') {
@@ -274,6 +282,7 @@ function normalizeDraftTime() {
 }
 
 function applyDateTime() {
+  if (props.disabled) return;
   if (!draftDate.value) return;
   normalizeDraftTime();
   emit(
@@ -284,6 +293,7 @@ function applyDateTime() {
 }
 
 function shiftVisibleMonth(offset: number) {
+  if (props.disabled) return;
   const targetMonth = new Date(
     monthCursor.value.getFullYear(),
     monthCursor.value.getMonth() + offset,
@@ -322,6 +332,7 @@ function closePicker(restoreFocus = false) {
 }
 
 function togglePicker() {
+  if (props.disabled) return;
   if (open.value) {
     closePicker();
   } else {
@@ -489,6 +500,10 @@ onUnmounted(() => {
   }
 });
 
+watch(() => props.disabled, (disabled) => {
+  if (disabled) closePicker();
+});
+
 watch(open, async (isOpen) => {
   if (isOpen) {
     const now = new Date();
@@ -532,6 +547,7 @@ watch(open, async (isOpen) => {
             : 'border-dc-border',
       ]"
       :aria-expanded="open"
+      :disabled="disabled"
       :data-form-density="density"
       :aria-controls="`${datePickerId}-calendar`"
       :aria-labelledby="label ? `${datePickerId}-label ${datePickerId}-value` : `${datePickerId}-value`"

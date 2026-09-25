@@ -18,10 +18,12 @@ export default {
       { path: '/api/internal/project-night/advance', event: 'scheduled_project_night_http_failed' },
       { path: '/api/internal/slack-announcements/retry', event: 'scheduled_event_slack_announcement_retry_http_failed' },
       { path: '/api/internal/event-page-monitors/check-due', event: 'scheduled_event_page_monitor_http_failed' },
+      { path: '/api/internal/event-blasts/reconcile', event: 'scheduled_event_blast_reconciliation_http_failed' },
       { path: '/api/internal/speaker-rejection-emails/retry', event: 'scheduled_speaker_rejection_email_retry_http_failed' },
       { path: '/api/internal/selected-speaker-emails/retry', event: 'scheduled_selected_speaker_email_retry_http_failed' },
       { path: '/api/internal/annual-conference-speaker-emails/retry', event: 'scheduled_annual_conference_speaker_email_retry_http_failed' },
       { path: '/api/internal/annual-conference/phases/rollover', event: 'scheduled_annual_conference_phase_rollover_http_failed' },
+      { path: '/api/internal/volunteer-follow-up/drain', event: 'scheduled_volunteer_follow_up_http_failed' },
     ];
 
     for (const job of jobs) {

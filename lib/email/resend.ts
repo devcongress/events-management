@@ -10,6 +10,16 @@ const resendBatchResponseSchema = z.object({
 });
 
 const resendIdResponseSchema = z.object({ id: z.string().trim().min(1) });
+const resendSegmentListResponseSchema = z.object({
+  data: z.array(z.object({ id: z.string().trim().min(1), name: z.string().trim().min(1) })),
+}).passthrough();
+const resendSegmentContactsResponseSchema = z.object({
+  data: z.array(z.object({ id: z.string().trim().min(1), email: z.string().trim().email() })),
+}).passthrough();
+const resendBroadcastStatusResponseSchema = z.object({
+  id: z.string().trim().min(1),
+  status: z.string().trim().min(1),
+}).passthrough();
 
 const resendErrorResponseSchema = z.object({
   message: z.string().trim().min(1).max(500).optional(),
@@ -239,6 +249,99 @@ export async function createResendBroadcastSegment(input: {
   }, input.fetcher ?? fetch));
 }
 
+export const EVENT_BLAST_SEGMENT_POOL_SIZE = 3;
+
+export function eventBlastSegmentName(slotNumber: number): string {
+  return `DevCongress EMS blast slot ${slotNumber}`;
+}
+
+export async function findResendEventBlastSegment(input: {
+  apiKey: string;
+  slotNumber: number;
+  fetcher?: Fetcher;
+}): Promise<string | null> {
+  const fetcher = input.fetcher ?? fetch;
+  const listResponse = await resendRequest(input.apiKey, '/segments', { method: 'GET' }, fetcher);
+  const listPayload = await listResponse.json().catch(() => null);
+  const parsedList = resendSegmentListResponseSchema.safeParse(listPayload);
+
+  if (!listResponse.ok || !parsedList.success) {
+    throw new ResendBroadcastError('The email provider could not check the blast segment pool.', listResponse.status);
+  }
+
+  const poolName = eventBlastSegmentName(input.slotNumber);
+  const existing = parsedList.data.data.find((segment) => segment.name === poolName);
+
+  return existing?.id ?? null;
+}
+
+export async function ensureResendEventBlastSegment(input: {
+  apiKey: string;
+  slotNumber: number;
+  fetcher?: Fetcher;
+}): Promise<string> {
+  const fetcher = input.fetcher ?? fetch;
+  const existing = await findResendEventBlastSegment({ ...input, fetcher });
+
+  if (existing) return existing;
+  const poolName = eventBlastSegmentName(input.slotNumber);
+
+  return requireResendId(await resendRequest(input.apiKey, '/segments', {
+    method: 'POST',
+    body: JSON.stringify({ name: poolName }),
+  }, fetcher));
+}
+
+export async function listResendEventBlastSegmentContacts(input: {
+  apiKey: string;
+  segmentId: string;
+  fetcher?: Fetcher;
+}): Promise<Array<{ id: string; email: string }>> {
+  const response = await resendRequest(input.apiKey, `/segments/${encodeURIComponent(input.segmentId)}/contacts`, { method: 'GET' }, input.fetcher ?? fetch);
+  const payload = await response.json().catch(() => null);
+  const parsed = resendSegmentContactsResponseSchema.safeParse(payload);
+
+  if (!response.ok || !parsed.success) {
+    throw new ResendBroadcastError('The email provider could not verify the blast segment audience.', response.status);
+  }
+
+  return parsed.data.data;
+}
+
+export async function removeResendEventBlastSegmentContact(input: {
+  apiKey: string;
+  segmentId: string;
+  contactId: string;
+  fetcher?: Fetcher;
+}): Promise<void> {
+  const response = await resendRequest(
+    input.apiKey,
+    `/contacts/${encodeURIComponent(input.contactId)}/segments/${encodeURIComponent(input.segmentId)}`,
+    { method: 'DELETE' },
+    input.fetcher ?? fetch,
+  );
+
+  if (!response.ok && response.status !== 404) {
+    throw await resendBroadcastResponseError('The email provider could not clear the blast segment audience.', response);
+  }
+}
+
+export async function getResendBroadcastStatus(input: {
+  apiKey: string;
+  broadcastId: string;
+  fetcher?: Fetcher;
+}): Promise<string> {
+  const response = await resendRequest(input.apiKey, `/broadcasts/${encodeURIComponent(input.broadcastId)}`, { method: 'GET' }, input.fetcher ?? fetch);
+  const payload = await response.json().catch(() => null);
+  const parsed = resendBroadcastStatusResponseSchema.safeParse(payload);
+
+  if (!response.ok || !parsed.success) {
+    throw new ResendBroadcastError('The email provider could not confirm the blast status.', response.status);
+  }
+
+  return parsed.data.status.toLowerCase();
+}
+
 export async function addResendBroadcastRecipients(input: {
   apiKey: string;
   segmentId: string;
@@ -422,6 +525,30 @@ export async function sendResendEmailBatch(input: {
       monthlyUsed: parseResendQuotaUsage(response.headers.get('x-resend-monthly-quota')),
     },
   };
+}
+
+export async function readResendEmailQuota(input: {
+  apiKey: string;
+  fetcher?: Fetcher;
+}): Promise<EmailQuotaUsage | null> {
+  try {
+    const response = await (input.fetcher ?? fetch)('https://api.resend.com/emails?limit=1', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${input.apiKey}`,
+        'User-Agent': RESEND_USER_AGENT,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) return null;
+    const dailyUsed = parseResendQuotaUsage(response.headers.get('x-resend-daily-quota'));
+    const monthlyUsed = parseResendQuotaUsage(response.headers.get('x-resend-monthly-quota'));
+
+    return dailyUsed !== null && monthlyUsed !== null ? { dailyUsed, monthlyUsed } : null;
+  } catch {
+    return null;
+  }
 }
 
 export type ResendReceivedEmail = z.infer<typeof resendReceivedEmailSchema>;
