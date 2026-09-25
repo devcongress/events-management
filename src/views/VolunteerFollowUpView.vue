@@ -3,7 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import TurnstileWidget from "@/src/components/TurnstileWidget.vue";
 import { turnstileEnabled } from "@/src/lib/turnstile";
-import { VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION } from "@/lib/turnstile";
+import {
+  VOLUNTEER_FOLLOW_UP_TEST_TURNSTILE_ACTION,
+  VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION,
+} from "@/lib/turnstile";
 import {
   canSubmitVolunteerFollowUpForm,
   volunteerFollowUpWordCount,
@@ -15,11 +18,13 @@ const DEVCONGRESS_LOGO_PATH = "/brand/dev-con-logo.png";
 const props = withDefaults(
   defineProps<{
     previewMode?: boolean;
+    testMode?: boolean;
     embeddedPreview?: boolean;
     previewSeed?: string | null;
   }>(),
   {
     previewMode: false,
+    testMode: false,
     embeddedPreview: false,
     previewSeed: null,
   },
@@ -45,6 +50,14 @@ const turnstileToken = ref("");
 const turnstileError = ref("");
 const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null);
 const turnstileActive = turnstileEnabled();
+const turnstileAction = computed(() =>
+  props.testMode
+    ? VOLUNTEER_FOLLOW_UP_TEST_TURNSTILE_ACTION
+    : VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION,
+);
+const disabledPreview = computed(
+  () => props.previewMode && !props.testMode,
+);
 const narrowTurnstileViewport = ref(
   typeof window !== "undefined" && window.matchMedia("(max-width: 360px)").matches,
 );
@@ -55,7 +68,7 @@ const campaignPath = annualConferencePath("volunteers", "2026");
 const wordCount = computed(() => volunteerFollowUpWordCount(motivation.value));
 const canSubmit = computed(() =>
   canSubmitVolunteerFollowUpForm(
-    props.previewMode,
+    disabledPreview.value,
     !submitting.value &&
       motivation.value.trim().length > 0 &&
       wordCount.value <= 120 &&
@@ -130,6 +143,37 @@ onMounted(async () => {
     return;
   }
 
+  if (props.testMode) {
+    try {
+      const response = await fetch(
+        "/api/annual-conference/2026/volunteer-follow-up/test",
+        {
+          credentials: "include",
+          cache: "no-store",
+        },
+      );
+      const payload = (await response.json()) as {
+        response_deadline?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.response_deadline)
+        throw new Error(
+          payload.error ?? "Unable to open the test form.",
+        );
+      state.value = createTestFormState(payload.response_deadline);
+    } catch (caught) {
+      error.value =
+        caught instanceof Error
+          ? caught.message
+          : "Unable to open the test form.";
+    } finally {
+      loading.value = false;
+    }
+
+    return;
+  }
+
   if (!privateToken.value) {
     error.value = "This private form link is incomplete.";
     loading.value = false;
@@ -171,8 +215,17 @@ function createPreviewFormState(responseDeadline: string): FormState {
   };
 }
 
+function createTestFormState(responseDeadline: string): FormState {
+  return {
+    name: "Ama Mensah",
+    submitted: false,
+    expired: false,
+    response_deadline: responseDeadline,
+  };
+}
+
 async function submit() {
-  if (props.previewMode) return;
+  if (disabledPreview.value) return;
   if (!canSubmit.value || !state.value) return;
 
   submitting.value = true;
@@ -180,19 +233,21 @@ async function submit() {
 
   try {
     const response = await fetch(
-      `/api/volunteer-follow-up/${encodeURIComponent(recipientId.value)}`,
+      props.testMode
+        ? "/api/annual-conference/2026/volunteer-follow-up/test"
+        : `/api/volunteer-follow-up/${encodeURIComponent(recipientId.value)}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-follow-up-token": privateToken.value,
+          ...(props.testMode
+            ? {}
+            : { "x-follow-up-token": privateToken.value }),
         },
         body: JSON.stringify({
           motivation: motivation.value.trim(),
           can_attend_accra: canAttendAccra.value,
-          turnstile_action: turnstileActive
-            ? VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION
-            : undefined,
+          turnstile_action: turnstileActive ? turnstileAction.value : undefined,
           turnstile_token: turnstileActive ? turnstileToken.value : undefined,
         }),
       },
@@ -213,6 +268,7 @@ async function submit() {
     submitting.value = false;
   }
 }
+
 </script>
 
 <template>
@@ -299,10 +355,12 @@ async function submit() {
 
             <div class="volunteer-follow-up-fields">
               <section class="volunteer-follow-up-question">
-                <div class="volunteer-follow-up-question-heading">
-                  <label for="volunteer-follow-up-motivation">Why would you like to volunteer?</label>
+                <fieldset class="volunteer-follow-up-question-fields">
+                  <legend>
+                    Why would you like to volunteer?
+                    <span class="volunteer-follow-up-required">Required</span>
+                  </legend>
                   <p>Tell us what interests you about helping at the meetup.</p>
-                </div>
                 <textarea
                   v-model="motivation"
                   id="volunteer-follow-up-motivation"
@@ -311,7 +369,7 @@ async function submit() {
                   maxlength="2000"
                   rows="5"
                   aria-describedby="volunteer-follow-up-word-count"
-                  :disabled="previewMode"
+                  :disabled="disabledPreview"
                   required
                 />
                 <div
@@ -322,39 +380,41 @@ async function submit() {
                   <span>Maximum 120 words</span>
                   <span aria-live="polite">{{ wordCount }} / 120 words</span>
                 </div>
+                </fieldset>
               </section>
 
-              <fieldset
-                class="volunteer-follow-up-question volunteer-follow-up-attendance"
-                aria-describedby="volunteer-follow-up-attendance-help"
-              >
-                <legend>
-                  Can you come to Accra and volunteer on 19 December?
-                </legend>
-                <p id="volunteer-follow-up-attendance-help">
-                  We do not have travel grants or sponsorship.
-                </p>
-                <div class="volunteer-follow-up-choices">
-                  <label
-                    v-for="choice in [
-                      { label: 'Yes, I can attend', value: true },
-                      { label: 'No, I cannot attend', value: false },
-                    ]"
-                    :key="choice.label"
-                    class="volunteer-follow-up-choice"
-                  >
-                    <input
-                      v-model="canAttendAccra"
-                      type="radio"
-                      name="can-attend-accra"
-                      :value="choice.value"
-                      :disabled="previewMode"
-                      required
-                    />
-                    <span>{{ choice.label }}</span>
-                  </label>
-                </div>
-              </fieldset>
+              <section class="volunteer-follow-up-question">
+                <fieldset
+                  class="volunteer-follow-up-question-fields"
+                  aria-describedby="volunteer-follow-up-attendance-help"
+                >
+                  <legend>
+                    Can you come to Accra and volunteer on 19 December?
+                    <span class="volunteer-follow-up-required">Required</span>
+                  </legend>
+                  <p id="volunteer-follow-up-attendance-help">We do not have travel grants or sponsorship.</p>
+                  <div class="volunteer-follow-up-choices">
+                    <label
+                      v-for="choice in [
+                        { label: 'Yes, I can attend', value: true },
+                        { label: 'No, I cannot attend', value: false },
+                      ]"
+                      :key="choice.label"
+                      class="volunteer-follow-up-choice"
+                    >
+                      <input
+                        v-model="canAttendAccra"
+                        type="radio"
+                        name="can-attend-accra"
+                        :value="choice.value"
+                        :disabled="disabledPreview"
+                        required
+                      />
+                      <span>{{ choice.label }}</span>
+                    </label>
+                  </div>
+                </fieldset>
+              </section>
             </div>
 
             <p
@@ -367,7 +427,7 @@ async function submit() {
 
             <div class="volunteer-follow-up-actions">
               <div
-                v-if="turnstileActive && !previewMode"
+                v-if="turnstileActive && !disabledPreview"
                 class="volunteer-follow-up-verification"
               >
                 <span>Quick human check</span>
@@ -375,13 +435,13 @@ async function submit() {
                   :key="turnstileSize"
                   ref="turnstileWidget"
                   :size="turnstileSize"
-                  :action="VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION"
+                  :action="turnstileAction"
                   @token-change="turnstileToken = $event"
                   @error="turnstileError = $event ?? ''"
                 />
               </div>
               <div
-                v-else-if="previewMode"
+                v-else-if="disabledPreview"
                 class="volunteer-follow-up-verification volunteer-follow-up-verification--preview"
               >
                 <span>Human verification</span>
@@ -390,11 +450,11 @@ async function submit() {
               <button
                 class="volunteer-follow-up-submit motion-press"
                 type="submit"
-                :disabled="previewMode || !canSubmit"
+                :disabled="disabledPreview || !canSubmit"
                 :aria-busy="submitting"
               >
                 {{
-                  previewMode
+                  disabledPreview
                     ? "Submission disabled in preview"
                     : submitting
                       ? "Saving your answers…"

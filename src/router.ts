@@ -61,11 +61,11 @@ const VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH = adminPath(
 );
 const VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE =
   "admin-volunteer-follow-up-form-preview";
+const VOLUNTEER_FOLLOW_UP_TEST_PATH = "/volunteer/follow-up/test";
 const ownerOnlyPaths = new Set([
   adminPath("audit-log"),
   adminPath("present-forms"),
   adminPath("present-forms/display"),
-  VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH,
 ]);
 const NotFoundView = () => import("./views/NotFoundView.vue");
 const FeedbackView = () => import("./views/FeedbackView.vue");
@@ -244,6 +244,12 @@ export const router = createRouter({
     conferenceSpeakerIntakeRoute,
     ...volunteerIntakeRoutes,
     {
+      path: VOLUNTEER_FOLLOW_UP_TEST_PATH,
+      name: "volunteer-follow-up-test",
+      component: () => import("./views/VolunteerFollowUpView.vue"),
+      props: { testMode: true },
+    },
+    {
       path: "/volunteer/follow-up/:id",
       name: "volunteer-follow-up",
       component: () => import("./views/VolunteerFollowUpView.vue"),
@@ -251,9 +257,7 @@ export const router = createRouter({
     {
       path: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH,
       name: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE,
-      component: () => import("./views/VolunteerFollowUpView.vue"),
-      props: { previewMode: true },
-      meta: { requiresOrganizer: true },
+      redirect: { name: "volunteer-follow-up-test" },
     },
     {
       path: adminPath("auth/callback"),
@@ -717,6 +721,7 @@ router.afterEach((to) => {
   } else if (
     to.name === "volunteer-intake" ||
     to.name === "volunteer-follow-up" ||
+    to.name === "volunteer-follow-up-test" ||
     to.name === "admin-volunteer-follow-up-form-preview"
   ) {
     document.title = VOLUNTEER_TITLE;

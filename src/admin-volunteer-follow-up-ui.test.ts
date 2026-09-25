@@ -159,14 +159,20 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(desktopSource).toMatch(
       /Volunteer records will appear here as the directory is\s+populated\./u,
     );
-    expect(desktopSource).toContain(':name="volunteerViewTransitionName"');
-    expect(mobileSource).toContain(':name="mobileVolunteerViewTransitionName"');
     for (const source of [desktopSource, mobileSource]) {
-      expect(source).toContain('mode="out-in"');
-      expect(source).toContain("volunteer-panel-forward-enter-active");
-      expect(source).toContain("volunteer-panel-backward-enter-from");
-      expect(source).toContain("prefers-reduced-motion: reduce");
+      expect(source).toContain('class="volunteer-workspace-panels"');
+      expect(source).toContain('v-show="');
     }
+    expect(desktopSource).not.toContain("volunteerViewTransitionName");
+    expect(mobileSource).not.toContain("mobileVolunteerViewTransitionName");
+    expect(desktopSource).toContain("visitedVolunteerViews.has('reviews')");
+    expect(desktopSource).toContain("visitedVolunteerViews.has('campaign')");
+    expect(mobileSource).toContain(
+      "visitedMobileVolunteerViews.has('reviews')",
+    );
+    expect(mobileSource).toContain(
+      "visitedMobileVolunteerViews.has('campaign')",
+    );
     expect(mobileSource).toContain("volunteer-directory-tools--embedded");
     expect(mobileSource).toMatch(
       /mobileVolunteerStatusFilter === 'active'\s*\?\s*'all'\s*:\s*'active'/u,
@@ -255,9 +261,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(followUpPanelSource).not.toContain(
       'querySelector<HTMLElement>("h1[tabindex=',
     );
-    expect(followUpPanelSource).toContain(
-      ':to="{ name: \'admin-volunteer-follow-up-form-preview\' }"',
-    );
+    expect(followUpPanelSource).toContain('href="/volunteer/follow-up/test"');
     expect(followUpRouterSource).toContain(
       "name: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE",
     );
@@ -276,48 +280,64 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(outcomePanelSource).toContain(".outcome-diagnostics-scroll {");
   });
 
-  it("loads the read-only form preview through owner authorization and cannot send to the public endpoint", () => {
-    const previewBranch = followUpViewSource.indexOf("if (props.previewMode)");
+  it("loads public test mode through a sandboxed endpoint and keeps live applicant links tokenized", () => {
+    const testBranch = followUpViewSource.indexOf("if (props.testMode)");
     const publicRead = followUpViewSource.indexOf(
       "`/api/volunteer-follow-up/${encodeURIComponent(recipientId.value)}`",
     );
     const submitMethod = followUpViewSource.indexOf("async function submit()");
-    const previewSubmitGuard = followUpViewSource.indexOf(
-      "if (props.previewMode) return;",
-      submitMethod,
-    );
     const publicWrite = followUpViewSource.indexOf(
       'method: "POST"',
       submitMethod,
     );
 
-    expect(previewBranch).toBeGreaterThan(-1);
-    expect(previewBranch).toBeLessThan(publicRead);
+    expect(testBranch).toBeGreaterThan(-1);
+    expect(testBranch).toBeLessThan(publicRead);
     expect(followUpViewSource).toContain('credentials: "include"');
-    expect(followUpViewSource).toContain(':disabled="previewMode"');
+    expect(followUpViewSource).toContain(':disabled="disabledPreview"');
     expect(followUpViewSource).toContain(
-      ':disabled="previewMode || !canSubmit"',
+      ':disabled="disabledPreview || !canSubmit"',
     );
-    expect(previewSubmitGuard).toBeGreaterThan(submitMethod);
-    expect(previewSubmitGuard).toBeLessThan(publicWrite);
-    expect(followUpViewSource).toContain(
-      "Turnstile appears here on the live form.",
+    expect(followUpViewSource).toContain('"/api/annual-conference/2026/volunteer-follow-up/test"');
+    expect(followUpViewSource).toContain("if (disabledPreview.value) return;");
+    expect(followUpViewSource).toContain('"x-follow-up-token": privateToken.value');
+    expect(followUpViewSource).toContain("props.testMode");
+    expect(followUpViewSource).not.toContain("Organizer test");
+    expect(followUpViewSource).not.toContain("Test answers are discarded");
+    expect(followUpViewSource).not.toContain("Submit test answers");
+    expect(followUpViewSource).toContain("Submit final answers");
+    expect(followUpViewSource).toContain("Turnstile appears here on the live form.");
+    expect(followUpServerSource).toContain('action: "volunteer_follow_up_public_test"');
+    expect(followUpRouterSource).toContain(
+      'props: { testMode: true }',
     );
+    expect(followUpRouterSource).toContain('name: "volunteer-follow-up-test"');
+    expect(followUpViewSource).toContain('v-if="previewMode && !embeddedPreview"');
   });
 
   it("keeps the follow-up form in one readable column with compact native answer controls", () => {
     expect(followUpViewSource).toContain('class="volunteer-follow-up-layout"');
     expect(followUpViewSource).toContain('rows="5"');
     expect(followUpViewSource).toContain("Maximum 120 words");
+    expect(followUpViewSource.match(/volunteer-follow-up-required/gu)).toHaveLength(2);
+    expect(followUpViewSource).toContain("Required");
     expect(followUpViewSource).toContain('aria-live="polite">{{ wordCount }} / 120 words');
     expect(followUpViewSource).toContain('type="radio"');
     expect(followUpViewSource).toContain('class="volunteer-follow-up-actions"');
+    expect(followUpViewSource.match(/class="volunteer-follow-up-question-fields"/gu)).toHaveLength(2);
     expect(followUpViewSource).not.toContain('class="volunteer-intake-layout"');
     expect(stylesSource).toContain(".volunteer-follow-up-shell {");
     expect(stylesSource).toContain("width: min(100%, 52rem);");
     expect(stylesSource).toContain(".volunteer-follow-up-choice input {");
     expect(stylesSource).toContain("width: 1.125rem;");
+    expect(stylesSource).toContain("accent-color: #e8117f;");
     expect(stylesSource).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
+    expect(stylesSource).toMatch(
+      /\.volunteer-follow-up-question-fields\s*\{[^}]*border:\s*0;/su,
+    );
+    expect(stylesSource).toMatch(
+      /@media \(min-width: 640px\)\s*\{\s*\.volunteer-follow-up-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(13rem, 0\.8fr\);/su,
+    );
     expect(stylesSource).toContain("@media (max-width: 420px)");
   });
 
@@ -409,7 +429,7 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(followUpPanelSource).toContain("@container (max-width: 27rem)");
   });
 
-  it("keeps both protected previews beside each other in campaign setup", () => {
+  it("keeps the invitation preview and public test controls together in campaign setup", () => {
     const previewStart = followUpPanelSource.indexOf(
       'class="follow-up-preview-links"',
     );
@@ -427,11 +447,14 @@ describe("Volunteer follow-up workspace UI", () => {
       'Preview <span aria-hidden="true">↗</span>',
     );
     expect(previewActions).toContain('@click="openPreview"');
-    expect(previewActions).toContain("Preview volunteer form");
+    expect(previewActions).toContain("Test volunteer form");
     expect(previewActions).toContain(
-      ':to="{ name: \'admin-volunteer-follow-up-form-preview\' }"',
+      'href="/volunteer/follow-up/test"',
     );
-    expect(previewActions.match(/<RouterLink\b/gu)).toHaveLength(1);
+    expect(previewActions).toContain('target="_blank"');
+    expect(previewActions).toContain("Copy test link");
+    expect(followUpPanelSource).toContain("ensureAdminShortLink");
+    expect(followUpPanelSource).toContain("volunteer_follow_up_test");
     expect(followUpPanelSource).not.toContain("<VolunteerFollowUpView");
     expect(followUpPanelSource).not.toContain("previewDrawerView");
     expect(followUpPanelSource).toContain(
@@ -473,7 +496,7 @@ describe("Volunteer follow-up workspace UI", () => {
       "Preview only</strong><span aria-hidden=\"true\"> · </span>Example answers · Submission is disabled",
     );
     expect(followUpViewSource).toContain(
-      ':disabled="previewMode || !canSubmit"',
+      ':disabled="disabledPreview || !canSubmit"',
     );
   });
 

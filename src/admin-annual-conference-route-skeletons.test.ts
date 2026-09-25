@@ -59,7 +59,7 @@ describe("Annual Conference route skeletons", () => {
       /const volunteerRouteLoading = computed\(\s*\(\)\s*=>\s*workPlanQuery\.isLoading\.value \|\| volunteerDirectoryLoading\.value\s*,?\s*\);/u,
     );
     expect(volunteersSource).toContain(
-      "v-else-if=\"volunteerRouteLoading && volunteerView === 'directory'\"",
+      "v-if=\"volunteerRouteLoading && volunteerView === 'directory'\"",
     );
     expect(volunteersSource).toContain(
       '<AnnualConferenceRouteSkeleton variant="volunteers" />',

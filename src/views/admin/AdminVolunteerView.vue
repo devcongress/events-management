@@ -97,16 +97,16 @@ watch(
   },
 );
 const volunteerView = ref<"directory" | "reviews" | "campaign">("directory");
-const volunteerViewTransitionDirection = ref<"forward" | "backward" | null>(
-  null,
+const visitedVolunteerViews = ref(
+  new Set<"directory" | "reviews" | "campaign">(["directory"]),
 );
-const volunteerViewTransitionName = computed(() =>
-  volunteerViewTransitionDirection.value === "forward"
-    ? "volunteer-panel-forward"
-    : volunteerViewTransitionDirection.value === "backward"
-      ? "volunteer-panel-backward"
-      : "volunteer-panel-settle",
-);
+
+watch(volunteerView, (view) => {
+  if (visitedVolunteerViews.value.has(view)) return;
+
+  visitedVolunteerViews.value = new Set([...visitedVolunteerViews.value, view]);
+});
+
 const teamQuery = useQuery({
   queryKey: computed(() => queryKeys.annualConferenceVolunteerTeam(year.value)),
   queryFn: () => fetchAnnualConferenceVolunteerTeam(year.value),
@@ -195,13 +195,6 @@ watch(year, () => {
   volunteerStatusFilter.value = "all";
   volunteerPage.value = 1;
   selectedVolunteer.value = null;
-});
-watch(volunteerView, (view, previous) => {
-  volunteerViewTransitionDirection.value =
-    ["reviews", "campaign"].indexOf(view) >=
-    ["reviews", "campaign"].indexOf(previous)
-      ? "forward"
-      : "backward";
 });
 watch([volunteerSearch, volunteerStatusFilter], () => {
   volunteerPage.value = 1;
@@ -407,7 +400,8 @@ function clearVolunteerFilters() {
           id-prefix="admin-volunteers"
         />
 
-        <Transition
+        <div
+          class="volunteer-workspace-panels"
           v-if="
             canViewReviews ||
             canViewCampaign ||
@@ -415,12 +409,10 @@ function clearVolunteerFilters() {
             canViewTeam ||
             canReviewApplications
           "
-          :name="volunteerViewTransitionName"
-          mode="out-in"
         >
           <div
-            v-if="canViewReviews && volunteerView === 'reviews'"
-            key="reviews"
+            v-if="canViewReviews && visitedVolunteerViews.has('reviews')"
+            v-show="volunteerView === 'reviews'"
             id="admin-volunteers-reviews-panel"
             class="volunteer-workspace-panel"
             role="tabpanel"
@@ -433,8 +425,8 @@ function clearVolunteerFilters() {
           </div>
 
           <div
-            v-else-if="canViewCampaign && volunteerView === 'campaign'"
-            key="campaign"
+            v-if="canViewCampaign && visitedVolunteerViews.has('campaign')"
+            v-show="volunteerView === 'campaign'"
             id="admin-volunteers-campaign-panel"
             class="volunteer-workspace-panel"
             role="tabpanel"
@@ -449,8 +441,7 @@ function clearVolunteerFilters() {
           </div>
 
           <div
-            v-else-if="volunteerRouteLoading && volunteerView === 'directory'"
-            key="directory-loading"
+            v-if="volunteerRouteLoading && volunteerView === 'directory'"
             :id="
               canViewReviews || canViewCampaign
                 ? 'admin-volunteers-directory-panel'
@@ -469,10 +460,9 @@ function clearVolunteerFilters() {
 
           <section
             v-else-if="
-              (canViewTeam || canReviewApplications) &&
-              volunteerView === 'directory'
+              canViewTeam || canReviewApplications
             "
-            key="directory"
+            v-show="volunteerView === 'directory'"
             :id="
               canViewReviews || canViewCampaign
                 ? 'admin-volunteers-directory-panel'
@@ -841,7 +831,7 @@ function clearVolunteerFilters() {
               />
             </div>
           </section>
-        </Transition>
+        </div>
       </div>
 
       <VolunteerApplicationSheet
@@ -1005,53 +995,13 @@ function clearVolunteerFilters() {
   overflow: visible;
 }
 
+.volunteer-workspace-panels {
+  min-width: 0;
+}
+
 .volunteer-workspace-panel :deep(.follow-up-panel) {
   border: 0;
   border-radius: 0 0 8px 8px;
-}
-
-.volunteer-panel-forward-enter-active,
-.volunteer-panel-backward-enter-active {
-  transition:
-    transform 170ms var(--motion-smooth),
-    opacity 170ms var(--motion-smooth);
-}
-
-.volunteer-panel-forward-leave-active,
-.volunteer-panel-backward-leave-active {
-  transition:
-    transform 90ms cubic-bezier(0.4, 0, 1, 1),
-    opacity 90ms cubic-bezier(0.4, 0, 1, 1);
-}
-
-.volunteer-panel-forward-enter-from {
-  opacity: 0;
-  transform: translate3d(0.5rem, 0, 0);
-}
-
-.volunteer-panel-forward-leave-to {
-  opacity: 0;
-  transform: translate3d(-0.375rem, 0, 0);
-}
-
-.volunteer-panel-backward-enter-from {
-  opacity: 0;
-  transform: translate3d(-0.5rem, 0, 0);
-}
-
-.volunteer-panel-backward-leave-to {
-  opacity: 0;
-  transform: translate3d(0.375rem, 0, 0);
-}
-
-.volunteer-panel-settle-enter-active,
-.volunteer-panel-settle-leave-active {
-  transition: opacity 150ms var(--motion-smooth);
-}
-
-.volunteer-panel-settle-enter-from,
-.volunteer-panel-settle-leave-to {
-  opacity: 0;
 }
 
 @media (min-width: 768px) {
@@ -1126,21 +1076,4 @@ function clearVolunteerFilters() {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .volunteer-panel-forward-enter-active,
-  .volunteer-panel-forward-leave-active,
-  .volunteer-panel-backward-enter-active,
-  .volunteer-panel-backward-leave-active,
-  .volunteer-panel-settle-enter-active,
-  .volunteer-panel-settle-leave-active {
-    transition: none;
-  }
-
-  .volunteer-panel-forward-enter-from,
-  .volunteer-panel-forward-leave-to,
-  .volunteer-panel-backward-enter-from,
-  .volunteer-panel-backward-leave-to {
-    transform: none;
-  }
-}
 </style>

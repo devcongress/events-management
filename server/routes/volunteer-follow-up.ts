@@ -45,7 +45,10 @@ import {
   hasDueVolunteerOutcomeDelivery,
 } from "@/lib/supabase/volunteer-follow-up";
 import { secureSharedSecret } from "@/lib/security/shared-secret";
-import { VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION } from "@/lib/turnstile";
+import {
+  VOLUNTEER_FOLLOW_UP_TEST_TURNSTILE_ACTION,
+  VOLUNTEER_FOLLOW_UP_TURNSTILE_ACTION,
+} from "@/lib/turnstile";
 import {
   VOLUNTEER_FOLLOW_UP_DAILY_MAX,
   canEditVolunteerFollowUpDeadline,
@@ -664,6 +667,70 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           "Unable to preview the invitation.",
         );
       }
+    },
+  );
+
+  app.get(
+    "/api/annual-conference/2026/volunteer-follow-up/test",
+    async (c) => {
+      c.header("Cache-Control", "no-store");
+      c.header("Referrer-Policy", "no-referrer");
+      try {
+        const campaign = await getVolunteerFollowUpCampaign(c);
+        const responseDeadline = volunteerFollowUpResponseDeadline(
+          campaign?.application_deadline_at ?? null,
+        );
+
+        if (!responseDeadline)
+          return c.json({ error: "Set the application deadline first." }, 409);
+
+        return c.json({ response_deadline: responseDeadline });
+      } catch (error) {
+        return internalErrorResponse(
+          c,
+          "volunteer_follow_up_test_open_failed",
+          error,
+          "Unable to open the test form.",
+        );
+      }
+    },
+  );
+
+  app.post(
+    "/api/annual-conference/2026/volunteer-follow-up/test",
+    async (c) => {
+      c.header("Cache-Control", "no-store");
+      c.header("Referrer-Policy", "no-referrer");
+      const parsed = answerSchema.safeParse(await c.req.json().catch(() => null));
+
+      if (!parsed.success)
+        return c.json(
+          { error: parsed.error.issues[0]?.message ?? "Check your answers." },
+          400,
+        );
+
+      const rateLimitError = await enforcePublicRateLimit(
+        c,
+        {
+          action: "volunteer_follow_up_public_test",
+          clientKey: publicClientKey(c),
+          maxAttempts: 20,
+          windowSeconds: 900,
+        },
+        "Too many test submissions. Please wait before trying again.",
+      );
+
+      if (rateLimitError) return rateLimitError;
+
+      const turnstileError = await requirePublicTurnstile(c, {
+        token: parsed.data.turnstile_token,
+        submittedAction: parsed.data.turnstile_action,
+        expectedAction: VOLUNTEER_FOLLOW_UP_TEST_TURNSTILE_ACTION,
+      });
+
+      if (turnstileError) return turnstileError;
+
+      return c.json({ accepted: true, test_mode: true });
     },
   );
 

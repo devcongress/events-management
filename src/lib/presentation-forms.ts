@@ -1,9 +1,14 @@
 import type { AdminShortLink } from './api';
 
+type PresentationDestination = Exclude<
+  AdminShortLink['destination'],
+  'volunteer_follow_up_test'
+>;
+
 export interface PresentationForm {
   key: string;
   available?: boolean;
-  destination: AdminShortLink['destination'];
+  destination: PresentationDestination;
   event_id: string | null;
   conference_year: number | null;
   label: string;

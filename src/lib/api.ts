@@ -263,7 +263,7 @@ export interface AdminEmailPreviewsResponse {
 export interface AdminShortLink {
   id: string;
   code: string;
-  destination: 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake';
+  destination: 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake' | 'volunteer_follow_up_test';
   status: 'active' | 'revoked';
   redirect_count: number;
   last_redirected_at: string | null;

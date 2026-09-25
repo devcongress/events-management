@@ -101,16 +101,18 @@ const selectedVolunteer = ref<VolunteerDirectoryRow | null>(null);
 const mobileVolunteerView = ref<"directory" | "reviews" | "campaign">(
   "directory",
 );
-const mobileVolunteerViewTransitionDirection = ref<
-  "forward" | "backward" | null
->(null);
-const mobileVolunteerViewTransitionName = computed(() =>
-  mobileVolunteerViewTransitionDirection.value === "forward"
-    ? "volunteer-panel-forward"
-    : mobileVolunteerViewTransitionDirection.value === "backward"
-      ? "volunteer-panel-backward"
-      : "volunteer-panel-settle",
+const visitedMobileVolunteerViews = ref(
+  new Set<"directory" | "reviews" | "campaign">(["directory"]),
 );
+
+watch(mobileVolunteerView, (view) => {
+  if (visitedMobileVolunteerViews.value.has(view)) return;
+
+  visitedMobileVolunteerViews.value = new Set([
+    ...visitedMobileVolunteerViews.value,
+    view,
+  ]);
+});
 
 const editionForm = reactive({
   year: Number(year.value) + 1,
@@ -306,13 +308,6 @@ watch(year, () => {
   mobileVolunteerSearch.value = "";
   mobileVolunteerStatusFilter.value = "all";
   selectedVolunteer.value = null;
-});
-watch(mobileVolunteerView, (view, previous) => {
-  mobileVolunteerViewTransitionDirection.value =
-    ["reviews", "campaign"].indexOf(view) >=
-    ["reviews", "campaign"].indexOf(previous)
-      ? "forward"
-      : "backward";
 });
 const organizerLabels = computed(() =>
   Object.fromEntries(
@@ -1343,12 +1338,13 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
             id-prefix="mobile-volunteers"
             mobile
           />
-          <Transition :name="mobileVolunteerViewTransitionName" mode="out-in">
+          <div class="volunteer-workspace-panels">
             <div
               v-if="
-                canViewVolunteerReviews && mobileVolunteerView === 'reviews'
+                canViewVolunteerReviews &&
+                visitedMobileVolunteerViews.has('reviews')
               "
-              key="reviews"
+              v-show="mobileVolunteerView === 'reviews'"
               id="mobile-volunteers-reviews-panel"
               class="volunteer-follow-up-panel"
               role="tabpanel"
@@ -1360,10 +1356,11 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
               />
             </div>
             <div
-              v-else-if="
-                canViewVolunteerCampaign && mobileVolunteerView === 'campaign'
+              v-if="
+                canViewVolunteerCampaign &&
+                visitedMobileVolunteerViews.has('campaign')
               "
-              key="campaign"
+              v-show="mobileVolunteerView === 'campaign'"
               id="mobile-volunteers-campaign-panel"
               class="volunteer-follow-up-panel"
               role="tabpanel"
@@ -1377,8 +1374,8 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
               />
             </div>
             <div
-              v-else
-              key="directory"
+              v-if="canViewVolunteerTeam || canReviewVolunteerApplications"
+              v-show="mobileVolunteerView === 'directory'"
               :id="
                 canViewVolunteerReviews || canViewVolunteerCampaign
                   ? 'mobile-volunteers-directory-panel'
@@ -1680,7 +1677,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
                 </div>
               </section>
             </div>
-          </Transition>
+          </div>
         </section>
       </Transition>
     </main>
