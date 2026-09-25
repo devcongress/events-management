@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-25 — Improve the volunteer follow-up form layout
+
+- Replace the poster-style split layout with a centered, responsive form column and a compact brand header.
+- Keep both questions stacked, give the motivation answer a full-width writing area with a clear 120-word helper and live count, and prevent shared input styles from enlarging native radio controls.
+- Present Accra attendance choices as compact touch-friendly options; keep Turnstile, preview-only behavior, and final-submission safeguards intact.
+
 ## 2026-09-25 — Reuse persistent Resend segments for event blasts
 
 - Add three database-backed Resend segment slots with atomic ownership, `waiting` state for a fourth blast, and mock persistence for local journeys.
