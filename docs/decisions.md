@@ -1,5 +1,62 @@
 # Architectural Decisions
 
+## ADR-097: Reuse a fixed pool of event-blast segments
+
+**Date:** 2026-09-25
+
+**Decision:** Keep three service-role-only segment slots with atomic Supabase ownership. Queue both first sends and retries. If all slots are busy, leave the blast in `waiting` and retry after a delay; releasing a slot queues the next waiting blast immediately. Keep ownership through provider status reconciliation, and release only after Resend confirms a terminal broadcast status and bounded queue jobs verify that the segment has no remaining contacts. Give segments stable slot names so provisioning can recover a successful provider create whose response was lost before its ID was stored.
+
+**Reason:** Creating a new Resend segment for every blast consumes the account's three-segment plan quota permanently. Reusing a segment removes the per-blast segment growth while retaining the existing immutable audience snapshot and bounded import batches.
+
+**Trade-offs:** No more than three event blasts can occupy provider segments at once, and later blasts wait for a terminal state and cleanup. Existing one-off blast segments must be removed once before the pool's three stable segments can be provisioned on a plan capped at three. Scheduled broadcasts hold a slot until reconciliation confirms they have completed.
+
+**Revisit when:** The event-blast product limit exceeds 100 recipients, Resend adds native broadcast idempotency/audience snapshots, or a generalized durable email dispatcher replaces this bounded pool.
+
+## ADR-096: Keep volunteer selection decisions separate from review status and email sends
+
+**Date:** 2026-09-23
+
+**Decision:** Persist `pending`, `accepted`, and `not_selected` as a separate, versioned recipient decision; do not infer it from review status, membership, or provider delivery. Review writes save decision/status/note atomically but never send. The Owner previews a short-lived recipient/version snapshot with frozen personalized payloads and explicitly confirms the unchanged cohort to queue a durable versioned outcome delivery. Outcome sends share the invitation drain lease, daily 54-claim counter, reserve, quota checks, and provider safety policy. Reviewer DTOs expose only sent/not-sent while Owner diagnostics remain separate.
+
+**Reason:** Volunteer selection is an authorized human decision, while acceptance by an email provider is a distinct delivery fact. Separating them prevents review saves, campaign transitions, or stale previews from silently emailing an applicant or changing the confirmed audience.
+
+**Trade-offs:** Owner confirmation adds a deliberate step and stale cohort snapshots must be previewed again. Attempted or ambiguous outcomes lock decision changes; conflicts require explicit Owner handling rather than automatic replacement emails.
+
+---
+
+## ADR-095: Separate volunteer review data from campaign operations
+
+**Date:** 2026-09-23
+
+**Decision:** Serve application reviews through a dedicated capability-gated endpoint and an explicit reviewer DTO. Reviewers may read submitted motivation, Accra availability, review status and note, plus a sent/not-sent invitation indicator. The campaign endpoint and its deadlines, preview, quotas, batches, retries, and provider diagnostics remain Owner-only. Review access does not include membership accept/reject actions.
+
+**Reason:** Application review needs submitted answers and limited delivery context, while campaign operations contain private provider and scheduling details. Keeping separate endpoints and response contracts makes that authorization boundary explicit and testable.
+
+**Trade-offs:** Invitation state is intentionally less diagnostic for reviewers; delivery evidence and failure details remain available only to the Owner in Campaign.
+
+---
+
+## ADR-094: Keep follow-up applicant reconciliation out of reads
+
+**Date:** 2026-09-23
+
+**Decision:** The follow-up GET reads only persisted campaign recipients and Owner-authorized diagnostics. Successful and duplicate volunteer intake attempts perform an idempotent per-applicant enrollment in the background. Launch reconciles the legacy application document before changing a draft campaign to running, and the 15-minute scheduled recovery reconciles draft, paused, and running campaigns before considering any email configuration or quota gate. Enrollment failure never rejects an already-saved application; recovery restores queue completeness on the next pass. Reconciliation does not send email.
+
+**Reason:** Reading the full legacy application document and upserting every eligible applicant on each workspace visit makes loading scale with intake volume and creates persistence side effects in GET. Moving that work to the write, launch, and scheduled recovery boundaries keeps reads fast and repeatable while retaining initial backfill and failure repair.
+
+**Trade-offs:** A newly accepted applicant can take up to one scheduler interval to appear if background enrollment fails. Full reconciliation still reads the compatibility document on scheduled passes and before launch, and uses the same eligibility and conflict-ignore rules to preserve existing delivery and review state.
+
+---
+
+## ADR-093: Keep volunteer outreach explicit, quota-gated, and edition-owned
+
+**Date:** 2026-09-22
+
+**Decision:** The 2026 volunteer application document remains the intake source, while a separate relational campaign and recipient queue owns invitations and final follow-up responses. The Owner must launch; the application deadline becomes immutable at launch because invitation copy promises that date. Scheduled sends require a fresh complete provider quota observation, stop when quota is unknown, and reserve 35 daily emails for other operations. A token-owned, expiring Postgres lease serializes whole drain runs; recipient claims are also serialized, capped at 54 per Accra day, and retried with stable Resend idempotency keys only within their safe window. Private links use a recipient/campaign HMAC in the URL fragment; Turnstile, rate limits, and atomic one-time submission protect the answer endpoint. Review access follows `volunteers.review_applications`, while only the Owner sees campaign controls and provider diagnostics.
+
+**Reason:** Intake must remain open until the provisional cutoff without causing automatic sends or exhausting the shared email quota. Delivery retries, owner controls, and final answers need durable, auditable state separate from the legacy intake document.
+
+
 ## ADR-092: Keep Kanban recency separate from shared task ordering
 
 **Date:** 2026-09-22
@@ -577,6 +634,18 @@ Trade-offs: The first slice supports a useful at-a-glance ledger without introdu
 Alternatives considered: Add finance to the general Organizer role (over-shares sensitive records), put amounts on work-plan tasks (collapses planning and accounting semantics), expose finance through UI-only navigation hiding (bypassable), or create a new Finance role for every access combination (role explosion).
 
 Revisit when: Expense submitters need access without dashboard visibility, receipts/contracts are introduced, approvals need separation of duties or thresholds, finance operators need write access, or another event type needs the same capability model.
+
+## ADR-049: Separate Volunteer Review and Campaign Boundaries
+
+**Date:** 2026-09-23
+**Status:** Accepted
+**Context:** Volunteer application reviewers need to read submitted motivation and Accra availability and record internal review notes. Invitation deadlines, previews, quotas, batch control, retry state, and provider delivery diagnostics are operational campaign controls that remain Owner responsibilities. A shared read response made it too easy to expose these fields through a reviewer-capability route.
+**Decision:** Keep Directory, Reviews, and Campaign as connected desktop and phone tabs. Require `volunteers.review_applications` for the dedicated Reviews GET and review PATCH routes, and return the same explicit safe DTO from both. Reduce invitation delivery to a boolean based on provider acceptance evidence; attempts alone do not imply a sent invitation. Require Owner authorization for the campaign read and controls, whitelist its response fields, and remove cached campaign data when the session loses Owner access.
+**Trade-offs:** Reviewers see only invitation sent/not-sent and cannot diagnose delivery failures; an Owner must open Campaign for operational investigation. The two reads may fetch recipient data separately, but their purpose and authorization remain explicit.
+**Alternatives considered:** Keep one role-dependent broad payload (easy to accidentally expose campaign fields), make reviewers Owners to enable review (unnecessary privilege), or add accept/reject membership actions before the volunteer lifecycle is defined.
+**Revisit when:** Volunteer selection and membership actions receive an agreed workflow, or reviewer-specific delivery operations need a separately defined capability.
+
+---
 
 ## ADR-048: Additive Edition-Scoped Conference Responsibilities
 

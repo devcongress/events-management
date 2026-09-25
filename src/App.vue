@@ -1,19 +1,38 @@
 <script setup lang="ts">
-import { useQuery } from '@tanstack/vue-query';
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import OrganizerSessionPause from './components/OrganizerSessionPause.vue';
-import OrganizerRoleBadge from './components/OrganizerRoleBadge.vue';
-import AppToaster from './components/ui/AppToaster.vue';
-import AppBootScreen from './components/ui/AppBootScreen.vue';
-import { ADMIN_OAUTH_REDIRECT_STORAGE_KEY, adminPath, isAdminPath } from './admin-routes';
-import { annualConferencePath, mobileAnnualConferencePath } from './annual-conference';
-import { fetchAdminSession, queryKeys, type AdminSessionResponse } from './lib/api';
-import { notify } from './lib/notify';
-import { shouldRedirectUnauthenticatedOrganizer } from './lib/organizer-session-continuation';
-import { shouldShowAuthenticatedAppHeader } from './lib/app-shell';
-import { queryClient } from './lib/query';
-import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from './system-design-participant-route';
+import { useQuery } from "@tanstack/vue-query";
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from "vue";
+import { useRoute, useRouter } from "vue-router";
+import OrganizerSessionPause from "./components/OrganizerSessionPause.vue";
+import OrganizerRoleBadge from "./components/OrganizerRoleBadge.vue";
+import AppToaster from "./components/ui/AppToaster.vue";
+import AppBootScreen from "./components/ui/AppBootScreen.vue";
+import {
+  ADMIN_OAUTH_REDIRECT_STORAGE_KEY,
+  adminPath,
+  isAdminPath,
+} from "./admin-routes";
+import {
+  annualConferencePath,
+  mobileAnnualConferencePath,
+} from "./annual-conference";
+import {
+  fetchAdminSession,
+  queryKeys,
+  type AdminSessionResponse,
+} from "./lib/api";
+import { notify } from "./lib/notify";
+import { shouldRedirectUnauthenticatedOrganizer } from "./lib/organizer-session-continuation";
+import { shouldShowAuthenticatedAppHeader } from "./lib/app-shell";
+import { queryClient } from "./lib/query";
+import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from "./system-design-participant-route";
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
   ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME,
@@ -23,9 +42,15 @@ import {
   ORGANIZER_PHONE_ROUTE_PATH,
   isOrganizerPhoneRouteName,
   organizerViewportRedirect,
-} from './organizer-viewport';
-import { CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME, SPEAKER_TALK_INTAKE_ROUTE_NAME } from './speaker-intake-route';
-import { isSystemDesignPresenterPath, SYSTEM_DESIGN_PRESENTER_ROUTE_NAME } from './system-design-presenter-route';
+} from "./organizer-viewport";
+import {
+  CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME,
+  SPEAKER_TALK_INTAKE_ROUTE_NAME,
+} from "./speaker-intake-route";
+import {
+  isSystemDesignPresenterPath,
+  SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,
+} from "./system-design-presenter-route";
 
 interface NavLink {
   href: string;
@@ -33,31 +58,37 @@ interface NavLink {
   accent?: boolean;
 }
 
-const AdminEventTabs = defineAsyncComponent(() => import('./components/AdminEventTabs.vue'));
-const AdminLoginView = defineAsyncComponent(() => import('./views/admin/AdminLoginView.vue'));
+const AdminEventTabs = defineAsyncComponent(
+  () => import("./components/AdminEventTabs.vue"),
+);
+const AdminLoginView = defineAsyncComponent(
+  () => import("./views/admin/AdminLoginView.vue"),
+);
 const route = useRoute();
 const router = useRouter();
-const initialBrowserPath = typeof window === 'undefined' ? '/' : window.location.pathname;
-const startedOnProtectedOrganizerRoute = (
-  (isAdminPath(initialBrowserPath) || isSystemDesignPresenterPath(initialBrowserPath))
-  && initialBrowserPath !== adminPath('login')
-  && initialBrowserPath !== adminPath('auth/callback')
-);
-const organizerPhoneMedia = typeof window === 'undefined'
-  ? null
-  : window.matchMedia(ORGANIZER_PHONE_MEDIA_QUERY);
-const routeTransitionName = ref('page');
+const initialBrowserPath =
+  typeof window === "undefined" ? "/" : window.location.pathname;
+const startedOnProtectedOrganizerRoute =
+  (isAdminPath(initialBrowserPath) ||
+    isSystemDesignPresenterPath(initialBrowserPath)) &&
+  initialBrowserPath !== adminPath("login") &&
+  initialBrowserPath !== adminPath("auth/callback");
+const organizerPhoneMedia =
+  typeof window === "undefined"
+    ? null
+    : window.matchMedia(ORGANIZER_PHONE_MEDIA_QUERY);
+const routeTransitionName = ref("page");
 const mobileMenuOpen = ref(false);
 const phoneViewport = ref(organizerPhoneMedia?.matches ?? false);
 const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
 const adminEventTabsShell = ref<HTMLElement | null>(null);
 const adminEventTabsHeight = ref(0);
-const logoSrc = '/brand/dev-con-logo.png';
+const logoSrc = "/brand/dev-con-logo.png";
 const ORGANIZER_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ORGANIZER_IDLE_WARNING_MS = 2 * 60 * 1000;
 const ORGANIZER_SESSION_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const organizerSessionPauseState = ref<'warning' | null>(null);
+const organizerSessionPauseState = ref<"warning" | null>(null);
 const organizerWarningSeconds = ref(120);
 const organizerStayBusy = ref(false);
 const organizerStayError = ref<string | null>(null);
@@ -73,83 +104,106 @@ let organizerNextSessionRefreshAt = 0;
 let organizerSessionEnding = false;
 
 const adminBaseLinks: NavLink[] = [
-  { href: adminPath('events'), label: 'Events' },
-  { href: adminPath('attendance'), label: 'Attendance' },
-  { href: adminPath('feedback'), label: 'Feedback' },
-  { href: annualConferencePath(), label: 'Annual Conference' },
-  { href: adminPath('organizers'), label: 'People & Access' },
+  { href: adminPath("events"), label: "Events" },
+  { href: adminPath("attendance"), label: "Attendance" },
+  { href: adminPath("feedback"), label: "Feedback" },
+  { href: annualConferencePath(), label: "Annual Conference" },
+  { href: adminPath("organizers"), label: "People & Access" },
 ];
 const ownerAdminLinks: NavLink[] = [
-  { href: adminPath('present-forms'), label: 'Present forms' },
-  { href: adminPath('audit-log'), label: 'Audit Log' },
+  { href: adminPath("present-forms"), label: "Present forms" },
+  { href: adminPath("audit-log"), label: "Audit Log" },
 ];
 const isAdminRoute = computed(() => isAdminPath(route.path));
-const isOrganizerProtectedRoute = computed(() => isAdminRoute.value || route.meta.requiresOrganizer === true);
-const isStandaloneRoute = computed(() => (
-  route.name === 'event-feedback'
-  || route.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME
-  || route.name === 'event-cfp'
-  || route.name === 'monthly-cfp'
-  || route.name === 'conference-cfp'
-  || route.name === 'event-registration-short'
-  || route.name === 'event-registration'
-  || route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
-  || route.name === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME
-  || route.name === 'admin-feedback-display'
-  || route.name === 'admin-present-forms-display'
-  || route.name === 'admin-registration-display'
-  || route.name === 'admin-public-events-preview'
-  || route.name === 'admin-public-event-preview'
-  || route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME
-  || route.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME
-  || route.name === 'volunteer-intake'
-  || route.name === 'admin-annual-conference-volunteer-display'
-  || route.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME
-));
-const isLoginRoute = computed(() => route.path === adminPath('login') || route.path === adminPath('auth/callback'));
+const isOrganizerProtectedRoute = computed(
+  () => isAdminRoute.value || route.meta.requiresOrganizer === true,
+);
+const isStandaloneRoute = computed(
+  () =>
+    route.name === "event-feedback" ||
+    route.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME ||
+    route.name === "event-cfp" ||
+    route.name === "monthly-cfp" ||
+    route.name === "conference-cfp" ||
+    route.name === "event-registration-short" ||
+    route.name === "event-registration" ||
+    route.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME ||
+    route.name === ORGANIZER_PHONE_CHECK_IN_ROUTE_NAME ||
+    route.name === "admin-feedback-display" ||
+    route.name === "admin-present-forms-display" ||
+    route.name === "admin-registration-display" ||
+    route.name === "admin-public-events-preview" ||
+    route.name === "admin-public-event-preview" ||
+    route.name === SPEAKER_TALK_INTAKE_ROUTE_NAME ||
+    route.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME ||
+    route.name === "volunteer-intake" ||
+    route.name === "volunteer-follow-up" ||
+    route.name === "admin-volunteer-follow-up-form-preview" ||
+    route.name === "admin-annual-conference-volunteer-display" ||
+    route.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,
+);
+const isLoginRoute = computed(
+  () =>
+    route.path === adminPath("login") ||
+    route.path === adminPath("auth/callback"),
+);
 const adminSessionQuery = useQuery({
   queryKey: queryKeys.adminSession,
   queryFn: fetchAdminSession,
   enabled: isOrganizerProtectedRoute,
 });
-const organizerAccessUnresolved = computed(() => (
-  (isAdminRoute.value || startedOnProtectedOrganizerRoute)
-  && !isLoginRoute.value
-  && adminSessionQuery.data.value === undefined
-));
-const showOrganizerAccessError = computed(() => (
-  organizerAccessUnresolved.value && adminSessionQuery.isError.value
-));
-const showOrganizerAccessGate = computed(() => (
-  organizerAccessUnresolved.value && !adminSessionQuery.isError.value
-));
-const showOrganizerAccessSurface = computed(() => (
-  showOrganizerAccessError.value || showOrganizerAccessGate.value
-));
-const isOrganizerAuthenticated = computed(() => adminSessionQuery.data.value?.authenticated === true);
-const isConferenceVolunteer = computed(() => adminSessionQuery.data.value?.user?.role === 'volunteer');
-const currentOrganizerRole = computed(() => adminSessionQuery.data.value?.user?.role ?? null);
-const showAppHeader = computed(() => shouldShowAuthenticatedAppHeader({
-  authenticated: isOrganizerAuthenticated.value,
-  isLoginRoute: isLoginRoute.value,
-  isStandaloneRoute: isStandaloneRoute.value,
-}));
-const showPrimaryNavigation = computed(() => (
-  showAppHeader.value
-  && isOrganizerAuthenticated.value
-  && !isConferenceVolunteer.value
-));
+const organizerAccessUnresolved = computed(
+  () =>
+    (isAdminRoute.value || startedOnProtectedOrganizerRoute) &&
+    !isLoginRoute.value &&
+    adminSessionQuery.data.value === undefined,
+);
+const showOrganizerAccessError = computed(
+  () => organizerAccessUnresolved.value && adminSessionQuery.isError.value,
+);
+const showOrganizerAccessGate = computed(
+  () => organizerAccessUnresolved.value && !adminSessionQuery.isError.value,
+);
+const showOrganizerAccessSurface = computed(
+  () => showOrganizerAccessError.value || showOrganizerAccessGate.value,
+);
+const isOrganizerAuthenticated = computed(
+  () => adminSessionQuery.data.value?.authenticated === true,
+);
+const isConferenceVolunteer = computed(
+  () => adminSessionQuery.data.value?.user?.role === "volunteer",
+);
+const currentOrganizerRole = computed(
+  () => adminSessionQuery.data.value?.user?.role ?? null,
+);
+const showAppHeader = computed(() =>
+  shouldShowAuthenticatedAppHeader({
+    authenticated: isOrganizerAuthenticated.value,
+    isLoginRoute: isLoginRoute.value,
+    isStandaloneRoute: isStandaloneRoute.value,
+  }),
+);
+const showPrimaryNavigation = computed(
+  () =>
+    showAppHeader.value &&
+    isOrganizerAuthenticated.value &&
+    !isConferenceVolunteer.value,
+);
 const adminLinks = computed(() => {
   const session = adminSessionQuery.data.value;
 
-  if (session?.authenticated && session.user?.role === 'volunteer') {
+  if (session?.authenticated && session.user?.role === "volunteer") {
     return [];
   }
 
-  if (session?.authenticated && session.user?.role === 'owner') {
-    return [...adminBaseLinks, ...ownerAdminLinks.filter((link) => (
-      !phoneViewport.value || link.href !== adminPath('present-forms')
-    ))];
+  if (session?.authenticated && session.user?.role === "owner") {
+    return [
+      ...adminBaseLinks,
+      ...ownerAdminLinks.filter(
+        (link) =>
+          !phoneViewport.value || link.href !== adminPath("present-forms"),
+      ),
+    ];
   }
 
   return adminBaseLinks;
@@ -162,20 +216,23 @@ const adminEventId = computed(() => {
   return value || null;
 });
 const primaryLinks = computed(() => adminLinks.value);
-const showOrganizerPhoneView = computed(() => (
-  isOrganizerAuthenticated.value
-  && !isConferenceVolunteer.value
-  && isAdminRoute.value
-  && phoneViewport.value
-  && isOrganizerPhoneRouteName(route.name)
-));
+const showOrganizerPhoneView = computed(
+  () =>
+    isOrganizerAuthenticated.value &&
+    !isConferenceVolunteer.value &&
+    isAdminRoute.value &&
+    phoneViewport.value &&
+    isOrganizerPhoneRouteName(route.name),
+);
 const navGroups = computed(() => {
   if (showOrganizerPhoneView.value) {
-    return [[
-      { href: ORGANIZER_PHONE_ROUTE_PATH, label: 'Home' },
-      { href: ORGANIZER_PHONE_EVENTS_ROUTE_PATH, label: 'Events' },
-      { href: mobileAnnualConferencePath(), label: 'Conference' },
-    ]];
+    return [
+      [
+        { href: ORGANIZER_PHONE_ROUTE_PATH, label: "Home" },
+        { href: ORGANIZER_PHONE_EVENTS_ROUTE_PATH, label: "Events" },
+        { href: mobileAnnualConferencePath(), label: "Conference" },
+      ],
+    ];
   }
 
   if (isAdminRoute.value) {
@@ -184,14 +241,16 @@ const navGroups = computed(() => {
 
   return [];
 });
-const brandHomeLink = computed(() => (
+const brandHomeLink = computed(() =>
   showOrganizerPhoneView.value
     ? ORGANIZER_PHONE_ROUTE_PATH
     : isConferenceVolunteer.value
       ? annualConferencePath()
-      : adminPath('events')
-));
-const showSignOut = computed(() => isOrganizerAuthenticated.value && !isLoginRoute.value);
+      : adminPath("events"),
+);
+const showSignOut = computed(
+  () => isOrganizerAuthenticated.value && !isLoginRoute.value,
+);
 const showHeaderActions = computed(() => showSignOut.value);
 const keyboardDismissStyle = computed(() => ({
   transform: `translate3d(0, -${keyboardInset.value}px, 0)`,
@@ -199,28 +258,35 @@ const keyboardDismissStyle = computed(() => ({
 const adminReturnSource = computed(() => {
   const value = route.query.from;
 
-  if (value === 'attendance' || value === 'feedback') return value;
+  if (value === "attendance" || value === "feedback") return value;
 
   return null;
 });
 const adminFeedbackReturnMonth = computed(() => {
   const value = route.query.month;
 
-  return typeof value === 'string' && /^\d{4}-\d{2}$/.test(value) ? value : null;
+  return typeof value === "string" && /^\d{4}-\d{2}$/.test(value)
+    ? value
+    : null;
 });
 const adminReturnLink = computed(() => {
-  if (adminReturnSource.value === 'attendance') {
-    return { href: adminPath('attendance'), label: 'Attendance' };
+  if (adminReturnSource.value === "attendance") {
+    return { href: adminPath("attendance"), label: "Attendance" };
   }
 
-  if (adminReturnSource.value === 'feedback') {
+  if (adminReturnSource.value === "feedback") {
     if (adminFeedbackReturnMonth.value) {
-      const params = new URLSearchParams({ month: adminFeedbackReturnMonth.value });
+      const params = new URLSearchParams({
+        month: adminFeedbackReturnMonth.value,
+      });
 
-      return { href: `${adminPath('feedback')}?${params.toString()}`, label: 'Feedback' };
+      return {
+        href: `${adminPath("feedback")}?${params.toString()}`,
+        label: "Feedback",
+      };
     }
 
-    return { href: adminPath('feedback'), label: 'Feedback' };
+    return { href: adminPath("feedback"), label: "Feedback" };
   }
 
   return null;
@@ -230,38 +296,56 @@ const activeNavHref = computed(() => {
     return adminReturnLink.value.href;
   }
 
-  return navGroups.value
-    .flat()
-    .filter((link) => {
-      if (link.href === '/') return route.path === '/';
+  return (
+    navGroups.value
+      .flat()
+      .filter((link) => {
+        if (link.href === "/") return route.path === "/";
 
-      return route.path === link.href || route.path.startsWith(`${link.href}/`);
-    })
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+        return (
+          route.path === link.href || route.path.startsWith(`${link.href}/`)
+        );
+      })
+      .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
+  );
 });
-const showAdminEventTabs = computed(() => Boolean(
-  isOrganizerAuthenticated.value
-  && !showOrganizerPhoneView.value
-  && adminEventId.value
-  && route.name !== 'admin-community-event'
-  && route.path.startsWith(adminPath(`events/${adminEventId.value}`)),
-));
+const showAdminEventTabs = computed(() =>
+  Boolean(
+    isOrganizerAuthenticated.value &&
+    !showOrganizerPhoneView.value &&
+    adminEventId.value &&
+    route.name !== "admin-community-event" &&
+    route.path.startsWith(adminPath(`events/${adminEventId.value}`)),
+  ),
+);
 const appMainStyle = computed(() => ({
-  '--admin-event-tabs-height': showAdminEventTabs.value ? `${adminEventTabsHeight.value}px` : '0px',
+  "--admin-event-tabs-height": showAdminEventTabs.value
+    ? `${adminEventTabsHeight.value}px`
+    : "0px",
 }));
-const adminEventSectionOrder = ['', 'registrations', 'talks', 'speakers', 'attendance', 'quiz', 'feedback'];
-const annualConferenceSectionOrder = ['', 'work-plan', 'volunteers'];
+const adminEventSectionOrder = [
+  "",
+  "registrations",
+  "talks",
+  "speakers",
+  "attendance",
+  "quiz",
+  "feedback",
+];
+const annualConferenceSectionOrder = ["", "work-plan", "volunteers"];
 
-function getAdminEventSection(path: string): { eventId: string; index: number } | null {
-  const eventsBase = `${adminPath('events')}/`;
+function getAdminEventSection(
+  path: string,
+): { eventId: string; index: number } | null {
+  const eventsBase = `${adminPath("events")}/`;
 
   if (!path.startsWith(eventsBase)) return null;
 
-  const [eventId, section = ''] = path.slice(eventsBase.length).split('/');
+  const [eventId, section = ""] = path.slice(eventsBase.length).split("/");
 
-  if (!eventId || eventId === 'new') return null;
+  if (!eventId || eventId === "new") return null;
 
-  const normalizedSection = section === 'quiz' ? 'quiz' : section;
+  const normalizedSection = section === "quiz" ? "quiz" : section;
   const index = adminEventSectionOrder.indexOf(normalizedSection);
 
   if (index === -1) return null;
@@ -269,12 +353,16 @@ function getAdminEventSection(path: string): { eventId: string; index: number } 
   return { eventId, index };
 }
 
-function getAnnualConferenceSection(path: string): { year: string; index: number } | null {
-  const conferenceBase = `${adminPath('annual-conference')}/`;
+function getAnnualConferenceSection(
+  path: string,
+): { year: string; index: number } | null {
+  const conferenceBase = `${adminPath("annual-conference")}/`;
 
   if (!path.startsWith(conferenceBase)) return null;
 
-  const [year, section = '', extraSegment] = path.slice(conferenceBase.length).split('/');
+  const [year, section = "", extraSegment] = path
+    .slice(conferenceBase.length)
+    .split("/");
 
   if (!/^\d{4}$/.test(year) || extraSegment) return null;
 
@@ -287,7 +375,7 @@ function getAnnualConferenceSection(path: string): { year: string; index: number
 
 function updateRouteTransition(toPath: string, fromPath?: string) {
   if (!fromPath) {
-    routeTransitionName.value = 'page';
+    routeTransitionName.value = "page";
 
     return;
   }
@@ -296,12 +384,12 @@ function updateRouteTransition(toPath: string, fromPath?: string) {
   const fromConferenceSection = getAnnualConferenceSection(fromPath);
 
   if (
-    toConferenceSection
-    && fromConferenceSection
-    && toConferenceSection.year === fromConferenceSection.year
-    && toConferenceSection.index !== fromConferenceSection.index
+    toConferenceSection &&
+    fromConferenceSection &&
+    toConferenceSection.year === fromConferenceSection.year &&
+    toConferenceSection.index !== fromConferenceSection.index
   ) {
-    routeTransitionName.value = 'page-stable';
+    routeTransitionName.value = "page-stable";
 
     return;
   }
@@ -309,13 +397,21 @@ function updateRouteTransition(toPath: string, fromPath?: string) {
   const toSection = getAdminEventSection(toPath);
   const fromSection = getAdminEventSection(fromPath);
 
-  if (toSection && fromSection && toSection.eventId === fromSection.eventId && toSection.index !== fromSection.index) {
-    routeTransitionName.value = toSection.index > fromSection.index ? 'page-tab-forward' : 'page-tab-back';
+  if (
+    toSection &&
+    fromSection &&
+    toSection.eventId === fromSection.eventId &&
+    toSection.index !== fromSection.index
+  ) {
+    routeTransitionName.value =
+      toSection.index > fromSection.index
+        ? "page-tab-forward"
+        : "page-tab-back";
 
     return;
   }
 
-  routeTransitionName.value = 'page';
+  routeTransitionName.value = "page";
 }
 
 function isActive(href: string) {
@@ -323,19 +419,22 @@ function isActive(href: string) {
 }
 
 function routeViewKey(routeForKey: typeof route) {
-  if (routeForKey.name === 'admin-login') {
-    return 'admin-login';
+  if (routeForKey.name === "admin-login") {
+    return "admin-login";
   }
 
-  if (routeForKey.name === 'admin-events' || routeForKey.name === 'admin-event-submissions') {
-    return 'admin-events-workspace';
+  if (
+    routeForKey.name === "admin-events" ||
+    routeForKey.name === "admin-event-submissions"
+  ) {
+    return "admin-events-workspace";
   }
 
-  if (routeForKey.name === 'admin-talks') {
+  if (routeForKey.name === "admin-talks") {
     const value = routeForKey.params.eventId;
     const eventId = Array.isArray(value) ? value[0] : value;
 
-    return `admin-talks:${String(eventId ?? '')}`;
+    return `admin-talks:${String(eventId ?? "")}`;
   }
 
   return routeForKey.fullPath;
@@ -344,15 +443,15 @@ function routeViewKey(routeForKey: typeof route) {
 function linkClass(link: NavLink) {
   if (isActive(link.href)) {
     return link.accent
-      ? 'border-dc-ink bg-dc-pink text-white shadow-[2px_2px_0_#111111]'
-      : 'border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]';
+      ? "border-dc-ink bg-dc-pink text-white shadow-[2px_2px_0_#111111]"
+      : "border-dc-ink bg-dc-yellow text-dc-ink shadow-[2px_2px_0_#111111]";
   }
 
   if (link.accent) {
-    return 'border-dc-ink bg-dc-yellow text-dc-ink hover:bg-dc-yellow-glow';
+    return "border-dc-ink bg-dc-yellow text-dc-ink hover:bg-dc-yellow-glow";
   }
 
-  return 'border-transparent text-dc-gray hover:border-dc-border hover:bg-dc-paper-warm hover:text-dc-ink';
+  return "border-transparent text-dc-gray hover:border-dc-border hover:bg-dc-paper-warm hover:text-dc-ink";
 }
 
 function closeMobileMenu() {
@@ -384,20 +483,24 @@ function clearOrganizerCachedData() {
   });
   queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
     authenticated: false,
-    auth_mode: 'supabase',
+    auth_mode: "supabase",
     auth_configured: true,
   });
 }
 
 function clearLocalSupabaseSession() {
-  void import('@/lib/supabase/browser')
-    .then(({ getSupabaseBrowserClient }) => getSupabaseBrowserClient()?.auth.signOut({ scope: 'local' }))
+  void import("@/lib/supabase/browser")
+    .then(({ getSupabaseBrowserClient }) =>
+      getSupabaseBrowserClient()?.auth.signOut({ scope: "local" }),
+    )
     .catch(() => undefined);
 }
 
 function lockOrganizerSession() {
   if (organizerSessionEnding) return;
-  const redirectPath = isLoginRoute.value ? adminPath('events') : route.fullPath;
+  const redirectPath = isLoginRoute.value
+    ? adminPath("events")
+    : route.fullPath;
 
   organizerSessionEnding = true;
   clearOrganizerSessionTimers();
@@ -407,21 +510,24 @@ function lockOrganizerSession() {
   clearOrganizerCachedData();
   window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
   clearLocalSupabaseSession();
-  void fetch('/api/auth/logout', {
-    method: 'POST',
-    credentials: 'include',
+  void fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "include",
     keepalive: true,
   }).catch(() => undefined);
   if (!isLoginRoute.value) {
     void router.replace({
-      path: adminPath('login'),
+      path: adminPath("login"),
       query: { redirect: redirectPath },
     });
   }
 }
 
 function updateOrganizerWarningCountdown() {
-  organizerWarningSeconds.value = Math.max(0, Math.ceil((organizerWarningDeadlineMs - Date.now()) / 1000));
+  organizerWarningSeconds.value = Math.max(
+    0,
+    Math.ceil((organizerWarningDeadlineMs - Date.now()) / 1000),
+  );
 }
 
 function showOrganizerIdleWarning() {
@@ -430,8 +536,11 @@ function showOrganizerIdleWarning() {
   updateOrganizerWarningCountdown();
   organizerStayBusy.value = false;
   organizerStayError.value = null;
-  organizerSessionPauseState.value = 'warning';
-  organizerWarningTicker = window.setInterval(updateOrganizerWarningCountdown, 1000);
+  organizerSessionPauseState.value = "warning";
+  organizerWarningTicker = window.setInterval(
+    updateOrganizerWarningCountdown,
+    1000,
+  );
 }
 
 function scheduleOrganizerIdleExpiry() {
@@ -439,11 +548,20 @@ function scheduleOrganizerIdleExpiry() {
   if (!isOrganizerAuthenticated.value || organizerSessionEnding) return;
 
   const elapsedMs = Math.max(0, Date.now() - organizerLastActivityAt);
-  const warningDelayMs = Math.max(0, ORGANIZER_IDLE_TIMEOUT_MS - ORGANIZER_IDLE_WARNING_MS - elapsedMs);
+  const warningDelayMs = Math.max(
+    0,
+    ORGANIZER_IDLE_TIMEOUT_MS - ORGANIZER_IDLE_WARNING_MS - elapsedMs,
+  );
   const expiryDelayMs = Math.max(0, ORGANIZER_IDLE_TIMEOUT_MS - elapsedMs);
 
-  organizerIdleWarningTimer = window.setTimeout(showOrganizerIdleWarning, warningDelayMs);
-  organizerIdleExpiryTimer = window.setTimeout(lockOrganizerSession, expiryDelayMs);
+  organizerIdleWarningTimer = window.setTimeout(
+    showOrganizerIdleWarning,
+    warningDelayMs,
+  );
+  organizerIdleExpiryTimer = window.setTimeout(
+    lockOrganizerSession,
+    expiryDelayMs,
+  );
 }
 
 function scheduleOrganizerAbsoluteExpiry(expiresAt: string | undefined) {
@@ -454,7 +572,10 @@ function scheduleOrganizerAbsoluteExpiry(expiresAt: string | undefined) {
   const expiresAtMs = new Date(expiresAt).getTime();
 
   if (!Number.isFinite(expiresAtMs)) return;
-  organizerAbsoluteExpiryTimer = window.setTimeout(lockOrganizerSession, Math.max(0, expiresAtMs - Date.now()));
+  organizerAbsoluteExpiryTimer = window.setTimeout(
+    lockOrganizerSession,
+    Math.max(0, expiresAtMs - Date.now()),
+  );
 }
 
 async function revalidateOrganizerSession() {
@@ -490,23 +611,34 @@ async function staySignedIn() {
 
     organizerSessionPauseState.value = null;
     organizerLastActivityAt = Date.now();
-    organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+    organizerNextSessionRefreshAt =
+      organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
     scheduleOrganizerIdleExpiry();
     scheduleOrganizerAbsoluteExpiry(session.expires_at);
   } catch {
-    organizerStayError.value = 'We could not confirm your session. Check your connection and try again.';
+    organizerStayError.value =
+      "We could not confirm your session. Check your connection and try again.";
   } finally {
     organizerStayBusy.value = false;
   }
 }
 
 function recordOrganizerActivity(forceRefresh = false) {
-  if (!isOrganizerAuthenticated.value || organizerSessionEnding || organizerSessionPauseState.value) return;
+  if (
+    !isOrganizerAuthenticated.value ||
+    organizerSessionEnding ||
+    organizerSessionPauseState.value
+  )
+    return;
 
   organizerLastActivityAt = Date.now();
   scheduleOrganizerIdleExpiry();
-  if (forceRefresh || organizerLastActivityAt >= organizerNextSessionRefreshAt) {
-    organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+  if (
+    forceRefresh ||
+    organizerLastActivityAt >= organizerNextSessionRefreshAt
+  ) {
+    organizerNextSessionRefreshAt =
+      organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
     void revalidateOrganizerSession();
   }
 }
@@ -516,12 +648,12 @@ function handleOrganizerActivity() {
 }
 
 function handleOrganizerVisibilityChange() {
-  if (document.visibilityState === 'visible') recordOrganizerActivity(true);
+  if (document.visibilityState === "visible") recordOrganizerActivity(true);
 }
 
 function returnToOrganizerSignIn() {
   void router.replace({
-    path: adminPath('login'),
+    path: adminPath("login"),
     query: { redirect: route.fullPath },
   });
 }
@@ -532,8 +664,10 @@ function toggleMobileMenu() {
 
 function resetMainScroll() {
   const scrollToTop = () => {
-    document.querySelector('.app-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document
+      .querySelector(".app-main")
+      ?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   };
 
   scrollToTop();
@@ -559,8 +693,9 @@ function syncOrganizerViewportRoute() {
     isAdminRoute: isAdminRoute.value,
     isPhone: phoneViewport.value,
     routeName: route.name,
-    eventId: typeof adminEventId.value === 'string' ? adminEventId.value : null,
-    conferenceYear: typeof route.params.year === 'string' ? route.params.year : null,
+    eventId: typeof adminEventId.value === "string" ? adminEventId.value : null,
+    conferenceYear:
+      typeof route.params.year === "string" ? route.params.year : null,
     query: route.query,
   });
 
@@ -573,7 +708,9 @@ function isEditableElement(element: Element | null): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false;
   if (element.isContentEditable) return true;
 
-  return element.matches('input:not([type="hidden"]):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])');
+  return element.matches(
+    'input:not([type="hidden"]):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled]), select:not([disabled])',
+  );
 }
 
 function updateKeyboardInset() {
@@ -585,13 +722,19 @@ function updateKeyboardInset() {
     return;
   }
 
-  keyboardInset.value = Math.max(0, Math.round(window.innerHeight - visualViewport.height - visualViewport.offsetTop));
+  keyboardInset.value = Math.max(
+    0,
+    Math.round(
+      window.innerHeight - visualViewport.height - visualViewport.offsetTop,
+    ),
+  );
 }
 
 function syncKeyboardDismissVisibility() {
   window.clearTimeout(keyboardFocusTimer);
   keyboardFocusTimer = window.setTimeout(() => {
-    keyboardDismissVisible.value = isMobileViewport() && isEditableElement(document.activeElement);
+    keyboardDismissVisible.value =
+      isMobileViewport() && isEditableElement(document.activeElement);
     updateKeyboardInset();
   }, 0);
 }
@@ -627,8 +770,12 @@ function handleDocumentPointerDown(event: PointerEvent) {
   const target = event.target;
 
   if (!(target instanceof Element)) return;
-  if (target.closest('.keyboard-dismiss-control')) return;
-  if (isEditableElement(target) || target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if (target.closest(".keyboard-dismiss-control")) return;
+  if (
+    isEditableElement(target) ||
+    target.closest('input, textarea, select, [contenteditable="true"]')
+  )
+    return;
 
   dismissMobileKeyboard();
 }
@@ -636,27 +783,29 @@ function handleDocumentPointerDown(event: PointerEvent) {
 async function logout() {
   closeMobileMenu();
   try {
-    const response = await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
     });
 
     if (!response.ok) {
-      notify.error('Sign-out could not be completed. Please try again.');
+      notify.error("Sign-out could not be completed. Please try again.");
 
       return;
     }
 
     clearOrganizerSessionTimers();
     organizerSessionPauseState.value = null;
-    const cachedSession = queryClient.getQueryData<AdminSessionResponse>(queryKeys.adminSession);
+    const cachedSession = queryClient.getQueryData<AdminSessionResponse>(
+      queryKeys.adminSession,
+    );
 
     queryClient.removeQueries({
       predicate: (query) => query.queryKey[0] !== queryKeys.adminSession[0],
     });
     queryClient.setQueryData<AdminSessionResponse>(queryKeys.adminSession, {
       authenticated: false,
-      auth_mode: cachedSession?.auth_mode ?? 'supabase',
+      auth_mode: cachedSession?.auth_mode ?? "supabase",
       auth_configured: cachedSession?.auth_configured ?? true,
     });
     window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
@@ -665,55 +814,82 @@ async function logout() {
     // tab-scoped Supabase session prevents a stale OAuth session from
     // immediately re-establishing browser auth after sign-out.
     try {
-      const { getSupabaseBrowserClient } = await import('@/lib/supabase/browser');
+      const { getSupabaseBrowserClient } =
+        await import("@/lib/supabase/browser");
       const supabase = getSupabaseBrowserClient();
 
       if (supabase) {
-        const { error } = await supabase.auth.signOut({ scope: 'local' });
+        const { error } = await supabase.auth.signOut({ scope: "local" });
 
-        if (error) console.warn('Unable to clear the local Supabase browser session.', error);
+        if (error)
+          console.warn(
+            "Unable to clear the local Supabase browser session.",
+            error,
+          );
       }
     } catch (error) {
       // The app-owned session is already revoked above. A best-effort
       // Supabase cleanup must not strand the organizer in the console.
-      console.warn('Unable to clear the local Supabase browser session.', error);
+      console.warn(
+        "Unable to clear the local Supabase browser session.",
+        error,
+      );
     }
 
-    await router.replace(adminPath('login'));
+    await router.replace(adminPath("login"));
   } catch {
-    notify.error('Sign-out could not be completed. Please try again.');
+    notify.error("Sign-out could not be completed. Please try again.");
   }
 }
 
 onMounted(() => {
-  if (typeof ResizeObserver !== 'undefined') {
-    adminEventTabsResizeObserver = new ResizeObserver(updateAdminEventTabsHeight);
+  if (typeof ResizeObserver !== "undefined") {
+    adminEventTabsResizeObserver = new ResizeObserver(
+      updateAdminEventTabsHeight,
+    );
   }
 
-  document.addEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
-  document.addEventListener('focusin', syncKeyboardDismissVisibility);
-  document.addEventListener('focusout', syncKeyboardDismissVisibility);
-  window.addEventListener('resize', syncKeyboardDismissVisibility);
-  window.addEventListener('resize', updateAdminEventTabsHeight);
-  window.visualViewport?.addEventListener('resize', updateKeyboardInset);
-  window.visualViewport?.addEventListener('scroll', updateKeyboardInset);
-  organizerPhoneMedia?.addEventListener('change', syncPhoneViewport);
-  document.addEventListener('pointerdown', handleOrganizerActivity, { capture: true });
-  document.addEventListener('keydown', handleOrganizerActivity, { capture: true });
-  document.addEventListener('focusin', handleOrganizerActivity, { capture: true });
-  window.addEventListener('scroll', handleOrganizerActivity, { capture: true, passive: true });
-  document.addEventListener('visibilitychange', handleOrganizerVisibilityChange);
+  document.addEventListener("pointerdown", handleDocumentPointerDown, {
+    capture: true,
+  });
+  document.addEventListener("focusin", syncKeyboardDismissVisibility);
+  document.addEventListener("focusout", syncKeyboardDismissVisibility);
+  window.addEventListener("resize", syncKeyboardDismissVisibility);
+  window.addEventListener("resize", updateAdminEventTabsHeight);
+  window.visualViewport?.addEventListener("resize", updateKeyboardInset);
+  window.visualViewport?.addEventListener("scroll", updateKeyboardInset);
+  organizerPhoneMedia?.addEventListener("change", syncPhoneViewport);
+  document.addEventListener("pointerdown", handleOrganizerActivity, {
+    capture: true,
+  });
+  document.addEventListener("keydown", handleOrganizerActivity, {
+    capture: true,
+  });
+  document.addEventListener("focusin", handleOrganizerActivity, {
+    capture: true,
+  });
+  window.addEventListener("scroll", handleOrganizerActivity, {
+    capture: true,
+    passive: true,
+  });
+  document.addEventListener(
+    "visibilitychange",
+    handleOrganizerVisibilityChange,
+  );
   syncPhoneViewport();
   void nextTick(syncAdminEventTabsObserver);
 });
 
-watch(() => route.path, (toPath, fromPath) => {
-  closeMobileMenu();
-  dismissMobileKeyboard();
-  resetMainScroll();
-  updateRouteTransition(toPath, fromPath);
-  void nextTick(syncAdminEventTabsObserver);
-});
+watch(
+  () => route.path,
+  (toPath, fromPath) => {
+    closeMobileMenu();
+    dismissMobileKeyboard();
+    resetMainScroll();
+    updateRouteTransition(toPath, fromPath);
+    void nextTick(syncAdminEventTabsObserver);
+  },
+);
 
 watch(
   () => ({
@@ -722,17 +898,23 @@ watch(
     routeFullPath: route.fullPath,
   }),
   ({ authenticated, routePath, routeFullPath }) => {
-    if ((!isAdminPath(routePath) && !isSystemDesignPresenterPath(routePath)) || routePath === adminPath('login') || routePath === adminPath('auth/callback')) {
+    if (
+      (!isAdminPath(routePath) && !isSystemDesignPresenterPath(routePath)) ||
+      routePath === adminPath("login") ||
+      routePath === adminPath("auth/callback")
+    ) {
       return;
     }
 
-    if (shouldRedirectUnauthenticatedOrganizer({
-      authenticated,
-      warningOpen: organizerSessionPauseState.value === 'warning',
-      sessionEnding: organizerSessionEnding,
-    })) {
+    if (
+      shouldRedirectUnauthenticatedOrganizer({
+        authenticated,
+        warningOpen: organizerSessionPauseState.value === "warning",
+        sessionEnding: organizerSessionEnding,
+      })
+    ) {
       void router.replace({
-        path: adminPath('login'),
+        path: adminPath("login"),
         query: { redirect: routeFullPath },
       });
 
@@ -743,40 +925,58 @@ watch(
   },
 );
 
-watch(() => ({
-  authenticated: isOrganizerAuthenticated.value,
-  expiresAt: adminSessionQuery.data.value?.expires_at,
-}), ({ authenticated, expiresAt }) => {
-  if (!authenticated) {
-    clearOrganizerSessionTimers();
+watch(
+  () => ({
+    authenticated: isOrganizerAuthenticated.value,
+    expiresAt: adminSessionQuery.data.value?.expires_at,
+  }),
+  ({ authenticated, expiresAt }) => {
+    if (!authenticated) {
+      clearOrganizerSessionTimers();
 
-    return;
-  }
+      return;
+    }
 
-  organizerSessionEnding = false;
-  organizerLastActivityAt = Date.now();
-  organizerNextSessionRefreshAt = organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
-  scheduleOrganizerIdleExpiry();
-  scheduleOrganizerAbsoluteExpiry(expiresAt);
-}, { immediate: true });
+    organizerSessionEnding = false;
+    organizerLastActivityAt = Date.now();
+    organizerNextSessionRefreshAt =
+      organizerLastActivityAt + ORGANIZER_SESSION_REFRESH_INTERVAL_MS;
+    scheduleOrganizerIdleExpiry();
+    scheduleOrganizerAbsoluteExpiry(expiresAt);
+  },
+  { immediate: true },
+);
 
 onUnmounted(() => {
   window.clearTimeout(keyboardFocusTimer);
   clearOrganizerSessionTimers();
   adminEventTabsResizeObserver?.disconnect();
-  document.removeEventListener('pointerdown', handleDocumentPointerDown, { capture: true });
-  document.removeEventListener('focusin', syncKeyboardDismissVisibility);
-  document.removeEventListener('focusout', syncKeyboardDismissVisibility);
-  window.removeEventListener('resize', syncKeyboardDismissVisibility);
-  window.removeEventListener('resize', updateAdminEventTabsHeight);
-  window.visualViewport?.removeEventListener('resize', updateKeyboardInset);
-  window.visualViewport?.removeEventListener('scroll', updateKeyboardInset);
-  organizerPhoneMedia?.removeEventListener('change', syncPhoneViewport);
-  document.removeEventListener('pointerdown', handleOrganizerActivity, { capture: true });
-  document.removeEventListener('keydown', handleOrganizerActivity, { capture: true });
-  document.removeEventListener('focusin', handleOrganizerActivity, { capture: true });
-  window.removeEventListener('scroll', handleOrganizerActivity, { capture: true });
-  document.removeEventListener('visibilitychange', handleOrganizerVisibilityChange);
+  document.removeEventListener("pointerdown", handleDocumentPointerDown, {
+    capture: true,
+  });
+  document.removeEventListener("focusin", syncKeyboardDismissVisibility);
+  document.removeEventListener("focusout", syncKeyboardDismissVisibility);
+  window.removeEventListener("resize", syncKeyboardDismissVisibility);
+  window.removeEventListener("resize", updateAdminEventTabsHeight);
+  window.visualViewport?.removeEventListener("resize", updateKeyboardInset);
+  window.visualViewport?.removeEventListener("scroll", updateKeyboardInset);
+  organizerPhoneMedia?.removeEventListener("change", syncPhoneViewport);
+  document.removeEventListener("pointerdown", handleOrganizerActivity, {
+    capture: true,
+  });
+  document.removeEventListener("keydown", handleOrganizerActivity, {
+    capture: true,
+  });
+  document.removeEventListener("focusin", handleOrganizerActivity, {
+    capture: true,
+  });
+  window.removeEventListener("scroll", handleOrganizerActivity, {
+    capture: true,
+  });
+  document.removeEventListener(
+    "visibilitychange",
+    handleOrganizerVisibilityChange,
+  );
 });
 </script>
 
@@ -788,17 +988,28 @@ onUnmounted(() => {
       'app-shell--standalone': isStandaloneRoute,
     }"
   >
-    <header v-if="showAppHeader" class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md">
-      <div class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8">
-        <RouterLink :to="brandHomeLink" class="group flex min-h-11 items-center">
+    <header
+      v-if="showAppHeader"
+      class="app-header z-50 border-b-2 border-dc-ink bg-dc-cream/96 backdrop-blur-md"
+    >
+      <div
+        class="app-header-inner grid w-full grid-cols-[1fr_auto] gap-x-4 gap-y-3 px-4 py-4 sm:px-6 lg:grid-cols-[auto_1fr_auto] lg:items-center lg:gap-8 lg:px-8"
+      >
+        <RouterLink
+          :to="brandHomeLink"
+          class="group flex min-h-11 items-center"
+        >
           <img
             :src="logoSrc"
             alt="DevCongress"
             class="app-brand-logo h-8 w-auto max-w-[13rem] object-contain sm:h-9 sm:max-w-[15rem]"
-          >
+          />
         </RouterLink>
 
-        <div v-if="showHeaderActions" class="app-header-actions flex items-center justify-end gap-3 lg:order-3">
+        <div
+          v-if="showHeaderActions"
+          class="app-header-actions flex items-center justify-end gap-3 lg:order-3"
+        >
           <OrganizerRoleBadge
             v-if="currentOrganizerRole"
             :role="currentOrganizerRole"
@@ -831,7 +1042,11 @@ onUnmounted(() => {
           <span>Menu</span>
         </button>
 
-        <nav v-if="showPrimaryNavigation" class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1" aria-label="Primary">
+        <nav
+          v-if="showPrimaryNavigation"
+          class="app-primary-nav col-span-2 flex min-w-0 items-center gap-2 overflow-x-auto font-mono text-[11px] font-semibold uppercase tracking-wide sm:gap-3 sm:text-xs lg:order-2 lg:col-span-1"
+          aria-label="Primary"
+        >
           <template v-for="(group, groupIndex) in navGroups" :key="groupIndex">
             <RouterLink
               v-for="link in group"
@@ -859,7 +1074,7 @@ onUnmounted(() => {
         @keydown.esc="closeMobileMenu"
       >
         <div class="app-mobile-menu-bar">
-          <img :src="logoSrc" alt="DevCongress" class="app-mobile-menu-logo">
+          <img :src="logoSrc" alt="DevCongress" class="app-mobile-menu-logo" />
           <button
             class="app-mobile-menu-close motion-press"
             type="button"
@@ -888,7 +1103,10 @@ onUnmounted(() => {
               :key="link.href"
               :to="link.href"
               class="app-mobile-menu-link motion-press"
-              :class="{ 'app-mobile-menu-link--active': isActive(link.href), 'app-mobile-menu-link--accent': link.accent }"
+              :class="{
+                'app-mobile-menu-link--active': isActive(link.href),
+                'app-mobile-menu-link--accent': link.accent,
+              }"
               :aria-current="isActive(link.href) ? 'page' : undefined"
               @click="closeMobileMenu"
             >
@@ -911,7 +1129,11 @@ onUnmounted(() => {
       }"
       :style="appMainStyle"
     >
-      <div v-if="showAdminEventTabs && adminEventId" ref="adminEventTabsShell" class="admin-event-tabs-shell bg-dc-cream text-dc-ink">
+      <div
+        v-if="showAdminEventTabs && adminEventId"
+        ref="adminEventTabsShell"
+        class="admin-event-tabs-shell bg-dc-cream text-dc-ink"
+      >
         <div class="editorial-wrap event-tabs-wrap pb-0">
           <RouterLink
             v-if="adminReturnLink"
@@ -931,7 +1153,11 @@ onUnmounted(() => {
           managed
           access-title="Access check unavailable."
           access-description="The organizer session service did not complete the access check."
-          :action-label="adminSessionQuery.isFetching.value ? 'Checking session…' : 'Try session check again'"
+          :action-label="
+            adminSessionQuery.isFetching.value
+              ? 'Checking session…'
+              : 'Try session check again'
+          "
           access-note="Access remains closed until the server confirms an active organizer session."
           error="Unable to verify organizer access. Check your connection and try again."
           :busy="adminSessionQuery.isFetching.value"
@@ -949,8 +1175,15 @@ onUnmounted(() => {
         />
 
         <RouterView v-else v-slot="{ Component, route }">
-          <Transition :name="routeTransitionName" @after-enter="resetMainScroll">
-            <component :is="Component" :key="routeViewKey(route)" class="page-view" />
+          <Transition
+            :name="routeTransitionName"
+            @after-enter="resetMainScroll"
+          >
+            <component
+              :is="Component"
+              :key="routeViewKey(route)"
+              class="page-view"
+            />
           </Transition>
         </RouterView>
       </div>

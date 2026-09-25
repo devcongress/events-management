@@ -60,6 +60,7 @@ import { safeErrorName } from '@/server/security-log';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
 import { verifyResendWebhookSignature } from '@/lib/email/event-submission-replies';
+import { applyVolunteerFollowUpProviderEvent } from '@/lib/supabase/volunteer-follow-up';
 import {
   annualConferenceDecisionEmailCanBeRetriedManually,
   annualConferenceDecisionEmailCooldownElapsed,
@@ -758,6 +759,15 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
     const outcome = annualConferenceWebhookOutcome(parsed.data.type, parsed.data.created_at);
 
     try {
+      const volunteerMatched = await applyVolunteerFollowUpProviderEvent({
+        webhookId: eventId,
+        providerEmailId: parsed.data.data.email_id,
+        eventType: parsed.data.type,
+        eventAt: parsed.data.created_at,
+      }, c);
+
+      if (volunteerMatched) return c.body(null, 204);
+
       const matched = await applyAnnualConferenceDecisionEmailProviderEvent({
         providerEmailId: parsed.data.data.email_id,
         eventAt: parsed.data.created_at,

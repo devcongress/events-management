@@ -6817,6 +6817,38 @@
 	    overflow: hidden;
 	  }
 
+	  .volunteer-intake-page--embedded-preview {
+	    display: block;
+	    min-height: 0;
+	    overflow: visible;
+	    background: transparent;
+	  }
+
+	  .volunteer-intake-page--embedded-preview .volunteer-intake-shell {
+	    display: block;
+	    width: 100%;
+	    min-height: 0;
+	    margin: 0;
+	    padding: 0;
+	  }
+
+	  .volunteer-intake-page--embedded-preview .volunteer-intake-layout {
+	    display: block;
+	    border: 0;
+	    background: transparent;
+	    box-shadow: none;
+	    padding: 0;
+	  }
+
+	  .volunteer-intake-page--embedded-preview .volunteer-intake-intro {
+	    display: none;
+	  }
+
+	  .volunteer-intake-page--embedded-preview .volunteer-intake-form-stage {
+	    width: 100%;
+	    justify-self: stretch;
+	  }
+
 	  .volunteer-intake-shell {
 	    display: grid;
 	    box-sizing: border-box;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { prepareResendBroadcast, ResendBatchError, ResendBroadcastError, sendResendBroadcast, sendResendEmailBatch } from './resend';
+import { ensureResendEventBlastSegment, getResendBroadcastStatus, listResendEventBlastSegmentContacts, prepareResendBroadcast, readResendEmailQuota, removeResendEventBlastSegmentContact, ResendBatchError, ResendBroadcastError, sendResendBroadcast, sendResendEmailBatch } from './resend';
 
 const email = {
   from: 'DevCongress <speakers@updates.devcongress.org>',
@@ -11,6 +11,17 @@ const email = {
 };
 
 describe('Resend batch client', () => {
+  it('reads quota without sending an email and fails closed when headers are absent', async () => {
+    const fetcher = vi.fn(async () => new Response('{}', {
+      status: 200,
+      headers: { 'x-resend-daily-quota': '10', 'x-resend-monthly-quota': '300' },
+    }));
+
+    await expect(readResendEmailQuota({ apiKey: 're_test', fetcher })).resolves.toEqual({ dailyUsed: 10, monthlyUsed: 300 });
+    expect(fetcher).toHaveBeenCalledWith('https://api.resend.com/emails?limit=1', expect.objectContaining({ method: 'GET' }));
+    await expect(readResendEmailQuota({ apiKey: 're_test', fetcher: async () => new Response('{}') })).resolves.toBeNull();
+  });
+
   it('sends the idempotency key and returns provider ids in request order', async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({
       data: [{ id: 'email-1' }],
@@ -81,6 +92,30 @@ describe('Resend batch client', () => {
 });
 
 describe('Resend broadcast client', () => {
+  it('reuses the managed segment by slot name and supports bounded cleanup/status checks', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+
+      if (url.endsWith('/segments') && init?.method === 'GET') {
+        return new Response(JSON.stringify({ data: [{ id: 'pool-segment-2', name: 'DevCongress EMS blast slot 2' }] }), { status: 200 });
+      }
+      if (url.endsWith('/segments/pool-segment-2/contacts')) return new Response(JSON.stringify({ data: [{ id: 'contact-1', email: 'ama@example.com' }] }), { status: 200 });
+      if (url.endsWith('/contacts/contact-1/segments/pool-segment-2')) return new Response('{}', { status: 200 });
+      if (url.endsWith('/broadcasts/broadcast-1')) return new Response(JSON.stringify({ id: 'broadcast-1', status: 'sent' }), { status: 200 });
+
+      return new Response('not found', { status: 404 });
+    });
+
+    await expect(ensureResendEventBlastSegment({ apiKey: 're_broadcast_test', slotNumber: 2, fetcher })).resolves.toBe('pool-segment-2');
+    await expect(listResendEventBlastSegmentContacts({ apiKey: 're_broadcast_test', segmentId: 'pool-segment-2', fetcher })).resolves.toEqual([
+      { id: 'contact-1', email: 'ama@example.com' },
+    ]);
+    await expect(removeResendEventBlastSegmentContact({ apiKey: 're_broadcast_test', segmentId: 'pool-segment-2', contactId: 'contact-1', fetcher })).resolves.toBeUndefined();
+    await expect(getResendBroadcastStatus({ apiKey: 're_broadcast_test', broadcastId: 'broadcast-1', fetcher })).resolves.toBe('sent');
+
+    expect(fetcher.mock.calls.some(([url, init]) => String(url).endsWith('/segments') && init?.method === 'POST')).toBe(false);
+  });
+
   it('keeps a provider rejection safe to show to an owner', async () => {
     await expect(sendResendBroadcast({
       apiKey: 're_broadcast_test',

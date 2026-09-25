@@ -24,6 +24,7 @@ let appWasInert = false;
 
 const statusLabel = computed(() => {
   if (!props.blast) return '';
+  if (props.blast.status === 'waiting') return 'Waiting for a send slot';
   if (props.blast.status === 'preparing') return 'Preparing safely';
   if (props.blast.status === 'scheduled') return 'Scheduled';
   if (props.blast.status === 'sent') return 'Sent';
@@ -173,7 +174,7 @@ onUnmounted(() => {
               <div>
                 <dt class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Audience</dt>
                 <dd class="mt-1 text-sm font-semibold text-dc-ink">{{ blast.recipient_count }} confirmed guest{{ blast.recipient_count === 1 ? '' : 's' }}</dd>
-                <dd v-if="blast.status === 'preparing' || blast.preparation_error" class="mt-1 text-sm text-dc-gray">{{ progress }} prepared</dd>
+                <dd v-if="blast.status === 'preparing' || blast.status === 'waiting' || blast.preparation_error" class="mt-1 text-sm text-dc-gray">{{ blast.status === 'waiting' ? 'Waiting for one of three reusable Resend segments.' : `${progress} prepared` }}</dd>
               </div>
               <div>
                 <dt class="font-mono text-[9px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Delivery</dt>
@@ -196,7 +197,7 @@ onUnmounted(() => {
             </section>
           </div>
 
-          <footer v-if="blast.status === 'failed' && blast.provider_broadcast_id" class="shrink-0 border-t border-dc-border bg-white p-4 sm:p-5">
+          <footer v-if="blast.status === 'failed' || blast.status === 'needs_capacity'" class="shrink-0 border-t border-dc-border bg-white p-4 sm:p-5">
             <button type="button" class="editorial-action min-h-11 w-full justify-center px-4 disabled:opacity-50" :disabled="retrying" @click="emit('retry', blast)">{{ retrying ? 'RETRYING…' : 'RETRY DELIVERY' }}</button>
           </footer>
         </section>
