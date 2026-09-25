@@ -1182,6 +1182,11 @@ try {
           response_deadline: "2026-10-14T23:59:59.000Z",
         },
       });
+      responses.set("/api/annual-conference/2026/volunteer-follow-up/test", {
+        body: {
+          response_deadline: "2026-10-14T23:59:59.000Z",
+        },
+      });
       responses.set(
         "/api/annual-conference/2026/volunteer-follow-up/outcomes/preview",
         {
@@ -1285,30 +1290,25 @@ try {
       await invitationPreview
         .getByRole("button", { name: "Close preview", exact: true })
         .click();
+      const testFormPagePromise = page.waitForEvent("popup");
+
       await followUp
-        .getByRole("link", { name: "Preview volunteer form", exact: true })
+        .getByRole("link", { name: "Test volunteer form", exact: true })
         .click();
-      await page
-        .getByRole("button", {
-          name: "Submission disabled in preview",
-          exact: true,
-        })
+      const testFormPage = await testFormPagePromise;
+
+      await testFormPage
+        .getByRole("button", { name: "Submit final answers", exact: true })
         .waitFor();
       assert.equal(
-        new URL(page.url()).pathname,
-        "/organizer-console/annual-conference/2026/volunteers/follow-up-preview",
+        new URL(testFormPage.url()).pathname,
+        "/volunteer/follow-up/test",
       );
       assert.equal(
-        await page
-          .getByRole("button", {
-            name: "Submission disabled in preview",
-            exact: true,
-          })
-          .isDisabled(),
-        true,
+        await testFormPage.getByText("Back to campaign", { exact: true }).count(),
+        0,
       );
-      await page.goBack();
-      await page.getByRole("tab", { name: "Campaign", exact: true }).click();
+      await testFormPage.close();
 
       await followUp.getByRole("button", { name: /Ama Mensah/ }).click();
       await followUp.locator(".follow-up-selected-drawer").waitFor();

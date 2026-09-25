@@ -96,7 +96,7 @@ describe("volunteer follow-up invitation preview route", () => {
     mockIntakeProtection.requirePublicTurnstile.mockClear();
   });
 
-  it("serves an editable test form only to owners and organizers", async () => {
+  it("serves the editable test form publicly without exposing applicant data", async () => {
     const { registerVolunteerFollowUpRoutes } =
       await import("./routes/volunteer-follow-up");
     const app = new Hono<AppBindings>();
@@ -104,29 +104,16 @@ describe("volunteer follow-up invitation preview route", () => {
     registerVolunteerFollowUpRoutes(app);
 
     const path = "http://localhost/api/annual-conference/2026/volunteer-follow-up/test";
-    const anonymous = await app.request(path);
-    const volunteer = await app.request(path, {
-      headers: { "x-test-role": "volunteer" },
-    });
-    const organizer = await app.request(path, {
-      headers: { "x-test-role": "organizer" },
-    });
-    const owner = await app.request(path, {
-      headers: { "x-test-role": "owner" },
-    });
+    const response = await app.request(path);
 
-    expect(anonymous.status).toBe(401);
-    expect(volunteer.status).toBe(403);
-    expect(organizer.status).toBe(200);
-    expect(owner.status).toBe(200);
-    expect(await organizer.json()).toEqual({
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
       response_deadline: "2026-10-14T23:59:59.999Z",
     });
-    expect(mockAdmin.requireAdmin).toHaveBeenNthCalledWith(3, expect.anything(), ["owner", "organizer"]);
-    expect(mockAdmin.requireAdmin).toHaveBeenNthCalledWith(4, expect.anything(), ["owner", "organizer"]);
+    expect(mockAdmin.requireAdmin).not.toHaveBeenCalled();
   });
 
-  it("validates and verifies organizer test answers without persisting them", async () => {
+  it("validates and verifies public test answers without persisting them", async () => {
     const { registerVolunteerFollowUpRoutes } =
       await import("./routes/volunteer-follow-up");
     const app = new Hono<AppBindings>();
@@ -136,12 +123,12 @@ describe("volunteer follow-up invitation preview route", () => {
     const path = "http://localhost/api/annual-conference/2026/volunteer-follow-up/test";
     const invalid = await app.request(path, {
       method: "POST",
-      headers: { "x-test-role": "organizer", "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ motivation: "", can_attend_accra: "yes" }),
     });
     const valid = await app.request(path, {
       method: "POST",
-      headers: { "x-test-role": "organizer", "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         motivation: "I want to help attendees feel welcome.",
         can_attend_accra: true,
@@ -156,7 +143,7 @@ describe("volunteer follow-up invitation preview route", () => {
     expect(mockIntakeProtection.enforcePublicRateLimit).toHaveBeenCalledWith(
       expect.anything(),
       {
-        action: "volunteer_follow_up_organizer_test",
+        action: "volunteer_follow_up_public_test",
         clientKey: "test-client",
         maxAttempts: 20,
         windowSeconds: 900,

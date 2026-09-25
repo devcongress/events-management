@@ -138,6 +138,7 @@ const isStandaloneRoute = computed(
     route.name === CONFERENCE_SPEAKER_INTAKE_ROUTE_NAME ||
     route.name === "volunteer-intake" ||
     route.name === "volunteer-follow-up" ||
+    route.name === "volunteer-follow-up-test" ||
     route.name === "admin-volunteer-follow-up-form-preview" ||
     route.name === "admin-annual-conference-volunteer-display" ||
     route.name === SYSTEM_DESIGN_PRESENTER_ROUTE_NAME,

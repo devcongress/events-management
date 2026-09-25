@@ -720,7 +720,7 @@ const adminCreateTalkSchema = z.object({
   publish: z.boolean().optional().default(false),
 }).strict();
 const shortLinkCreateSchema = z.object({
-  destination: z.enum(['monthly_cfp', 'event_registration', 'event_feedback', 'conference_cfp', 'volunteer_intake']),
+  destination: z.enum(['monthly_cfp', 'event_registration', 'event_feedback', 'conference_cfp', 'volunteer_intake', 'volunteer_follow_up_test']),
   event_id: z.string().uuid().optional(),
   conference_year: z.number().int().min(2020).max(3000).optional(),
 }).strict();
@@ -1259,7 +1259,7 @@ async function prepareShortLinkTarget(input: z.infer<typeof shortLinkCreateSchem
   let eventId: string | null = null;
   let conferenceEditionId: string | null = null;
 
-  if (input.destination === 'volunteer_intake') {
+  if (input.destination === 'volunteer_intake' || input.destination === 'volunteer_follow_up_test') {
     // The evergreen volunteer form is a single global public destination.
   } else if (input.destination === 'conference_cfp') {
     if (!input.conference_year) throw new ShortLinkStorageError('Choose an open conference Call for Speakers.', 'not_found');
@@ -1315,6 +1315,7 @@ async function listOpenShortLinkTargets(c: Context): Promise<{
     editions,
     targets: [
       { destination: 'volunteer_intake' as const, eventId: null, conferenceEditionId: null, destinationPath: VOLUNTEER_PUBLIC_PATH },
+      { destination: 'volunteer_follow_up_test' as const, eventId: null, conferenceEditionId: null, destinationPath: '/volunteer/follow-up/test' },
       ...events
         .filter((event) => Boolean(event.slug) && event.series_type === 'monthly' && event.status === 'cfp_open')
         .map((event) => ({ destination: 'monthly_cfp' as const, eventId: event.id, conferenceEditionId: null, destinationPath: `/cfp/${event.slug}` })),
@@ -6396,6 +6397,8 @@ app.get('/api/admin/short-links', async (c) => {
         url: shortLinkPublicUrl(link.code, c),
         label: link.destination === 'volunteer_intake'
           ? 'Volunteer form'
+          : link.destination === 'volunteer_follow_up_test'
+            ? 'Volunteer follow-up test'
           : link.destination === 'event_feedback'
             ? `${eventById.get(link.event_id ?? '')?.name ?? 'Event'} feedback`
             : link.destination === 'conference_cfp'

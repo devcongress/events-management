@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-25 — Volunteer workspace continuity and public form testing
+
+- Keep Directory, Reviews, and Campaign mounted after their first visit on desktop and phone, preventing repeat skeleton/loading states when organizers move between tabs.
+- Change the selected follow-up attendance radio accent to the DevCongress pink.
+- Add a standalone public `/volunteer/follow-up/test` sandbox that opens in a new tab, omits the campaign return link, verifies Turnstile, and discards all answers.
+- Add the persistent global `volunteer_follow_up_test` short-link destination so Owners can copy an owned test URL without exposing live applicant data or delivery controls.
+
 ## 2026-09-25 — Add protected volunteer form testing
 
 - Give both questions the same card, spacing, and borderless fieldset/legend structure; place Turnstile beside submit on wider layouts and stack them on narrow screens.

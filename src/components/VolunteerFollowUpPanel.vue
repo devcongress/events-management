@@ -5,7 +5,8 @@ import ConfirmDialog from "@/src/components/ui/ConfirmDialog.vue";
 import AppDropdown from "@/src/components/AppDropdown.vue";
 import AppDatePicker from "@/src/components/ui/AppDatePicker.vue";
 import VolunteerOutcomeCampaignPanel from "@/src/components/VolunteerOutcomeCampaignPanel.vue";
-import { fetchJson } from "@/src/lib/api";
+import { ensureAdminShortLink, fetchJson } from "@/src/lib/api";
+import { copyTextToClipboard } from "@/src/lib/clipboard";
 import { notify } from "@/src/lib/notify";
 import {
   filterVolunteerFollowUpRecipients,
@@ -110,6 +111,7 @@ const previewLoading = ref(false);
 const previewError = ref("");
 const preview = ref<EmailPreview | null>(null);
 const previewView = ref<"email" | "text">("email");
+const testLinkBusy = ref(false);
 const previewDrawerPanel = ref<HTMLElement | null>(null);
 const previewCloseButton = ref<HTMLButtonElement | null>(null);
 const previewEmailTab = ref<HTMLButtonElement | null>(null);
@@ -208,6 +210,29 @@ const previewFrameDocument = computed(() => {
     ? html.replace(/<head([^>]*)>/iu, `<head$1>${policy}`)
     : `${policy}${html}`;
 });
+
+async function copyTestFormLink() {
+  if (testLinkBusy.value) return;
+
+  testLinkBusy.value = true;
+
+  try {
+    const link = await ensureAdminShortLink({
+      destination: "volunteer_follow_up_test",
+    });
+
+    await copyTextToClipboard(link.url);
+    notify.success("Test link copied.");
+  } catch (caught) {
+    notify.error(
+      caught instanceof Error
+        ? caught.message
+        : "Unable to prepare the test link.",
+    );
+  } finally {
+    testLinkBusy.value = false;
+  }
+}
 
 let selectedMediaQuery: MediaQueryList | null = null;
 const closeSelectionOnBreakpointChange = () => {
@@ -804,12 +829,22 @@ onUnmounted(() => {
               >
                 Preview <span aria-hidden="true">↗</span>
               </button>
-              <RouterLink
-                :to="{ name: 'admin-volunteer-follow-up-form-preview' }"
+              <a
+                href="/volunteer/follow-up/test"
                 class="follow-up-preview-link"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                Preview volunteer form
-              </RouterLink>
+                Test volunteer form <span aria-hidden="true">↗</span>
+              </a>
+              <button
+                type="button"
+                class="follow-up-preview-link"
+                :disabled="testLinkBusy"
+                @click="copyTestFormLink"
+              >
+                {{ testLinkBusy ? "Preparing test link…" : "Copy test link" }}
+              </button>
             </div>
           </div>
           <div class="follow-up-campaign-controls">

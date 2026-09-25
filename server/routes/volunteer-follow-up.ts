@@ -675,10 +675,6 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
     async (c) => {
       c.header("Cache-Control", "no-store");
       c.header("Referrer-Policy", "no-referrer");
-      const adminError = await requireAdmin(c, ["owner", "organizer"]);
-
-      if (adminError) return adminError;
-
       try {
         const campaign = await getVolunteerFollowUpCampaign(c);
         const responseDeadline = volunteerFollowUpResponseDeadline(
@@ -694,7 +690,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           c,
           "volunteer_follow_up_test_open_failed",
           error,
-          "Unable to open the organizer test form.",
+          "Unable to open the test form.",
         );
       }
     },
@@ -705,10 +701,6 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
     async (c) => {
       c.header("Cache-Control", "no-store");
       c.header("Referrer-Policy", "no-referrer");
-      const adminError = await requireAdmin(c, ["owner", "organizer"]);
-
-      if (adminError) return adminError;
-
       const parsed = answerSchema.safeParse(await c.req.json().catch(() => null));
 
       if (!parsed.success)
@@ -720,7 +712,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const rateLimitError = await enforcePublicRateLimit(
         c,
         {
-          action: "volunteer_follow_up_organizer_test",
+          action: "volunteer_follow_up_public_test",
           clientKey: publicClientKey(c),
           maxAttempts: 20,
           windowSeconds: 900,

@@ -43,7 +43,6 @@ const privateToken = computed(() => route.hash.replace(/^#/, ""));
 const state = ref<FormState | null>(null);
 const loading = ref(true);
 const submitting = ref(false);
-const testSubmitted = ref(false);
 const error = ref("");
 const motivation = ref("");
 const canAttendAccra = ref<boolean | null>(null);
@@ -160,14 +159,14 @@ onMounted(async () => {
 
       if (!response.ok || !payload.response_deadline)
         throw new Error(
-          payload.error ?? "Organizer access is required to test this form.",
+          payload.error ?? "Unable to open the test form.",
         );
       state.value = createTestFormState(payload.response_deadline);
     } catch (caught) {
       error.value =
         caught instanceof Error
           ? caught.message
-          : "Unable to open the organizer test form.";
+          : "Unable to open the test form.";
     } finally {
       loading.value = false;
     }
@@ -218,7 +217,7 @@ function createPreviewFormState(responseDeadline: string): FormState {
 
 function createTestFormState(responseDeadline: string): FormState {
   return {
-    name: "Organizer",
+    name: "Ama Mensah",
     submitted: false,
     expired: false,
     response_deadline: responseDeadline,
@@ -259,11 +258,7 @@ async function submit() {
 
     if (!response.ok)
       throw new Error(payload.error ?? "Unable to save your answers.");
-    if (props.testMode) {
-      testSubmitted.value = true;
-    } else {
-      state.value = { ...state.value, submitted: true };
-    }
+    state.value = { ...state.value, submitted: true };
   } catch (caught) {
     error.value =
       caught instanceof Error ? caught.message : "Unable to save your answers.";
@@ -274,15 +269,6 @@ async function submit() {
   }
 }
 
-function tryAgain() {
-  testSubmitted.value = false;
-  motivation.value = "";
-  canAttendAccra.value = null;
-  turnstileToken.value = "";
-  turnstileError.value = "";
-  error.value = "";
-  turnstileWidget.value?.reset();
-}
 </script>
 
 <template>
@@ -291,12 +277,11 @@ function tryAgain() {
     :class="{ 'volunteer-follow-up-page--embedded-preview': embeddedPreview }"
   >
     <div
-      v-if="(previewMode || testMode) && !embeddedPreview"
+      v-if="previewMode && !embeddedPreview"
       class="volunteer-follow-up-preview-banner"
       role="status"
     >
-      <span v-if="testMode"><strong>Organizer test mode</strong><span aria-hidden="true"> · </span>Answers are discarded and never sent</span>
-      <span v-else><strong>Preview only</strong><span aria-hidden="true"> · </span>Example answers · Submission is disabled</span>
+      <span><strong>Preview only</strong><span aria-hidden="true"> · </span>Example answers · Submission is disabled</span>
       <a :href="campaignPath">Back to campaign</a>
     </div>
     <section
@@ -338,18 +323,6 @@ function tryAgain() {
             <p>{{ error }}</p>
           </div>
           <div
-            v-else-if="testSubmitted"
-            class="volunteer-follow-up-state volunteer-follow-up-state--test-success"
-            aria-live="polite"
-          >
-            <p class="editorial-eyebrow">Test complete</p>
-            <h2>The form worked.</h2>
-            <p>Your test answers were verified, then discarded. They were not saved or sent.</p>
-            <button class="volunteer-follow-up-submit motion-press" type="button" @click="tryAgain">
-              Try again
-            </button>
-          </div>
-          <div
             v-else-if="state?.submitted"
             class="volunteer-follow-up-state"
             aria-live="polite"
@@ -374,7 +347,7 @@ function tryAgain() {
             <header class="volunteer-follow-up-form-header">
               <div class="volunteer-follow-up-form-heading">
                 <p class="editorial-eyebrow">Your volunteer application</p>
-                <span>{{ testMode ? "Organizer test · Answers are discarded" : previewMode ? "Example response" : "Two questions · one final submission" }}</span>
+                <span>{{ previewMode ? "Example response" : "Two questions · one final submission" }}</span>
               </div>
               <h2>Hi {{ state.name }}.</h2>
               <p>Please share your answers by <strong>{{ responseDeadlineLabel }}</strong>.</p>
@@ -383,7 +356,10 @@ function tryAgain() {
             <div class="volunteer-follow-up-fields">
               <section class="volunteer-follow-up-question">
                 <fieldset class="volunteer-follow-up-question-fields">
-                  <legend>Why would you like to volunteer?</legend>
+                  <legend>
+                    Why would you like to volunteer?
+                    <span class="volunteer-follow-up-required">Required</span>
+                  </legend>
                   <p>Tell us what interests you about helping at the meetup.</p>
                 <textarea
                   v-model="motivation"
@@ -412,7 +388,10 @@ function tryAgain() {
                   class="volunteer-follow-up-question-fields"
                   aria-describedby="volunteer-follow-up-attendance-help"
                 >
-                  <legend>Can you come to Accra and volunteer on 19 December?</legend>
+                  <legend>
+                    Can you come to Accra and volunteer on 19 December?
+                    <span class="volunteer-follow-up-required">Required</span>
+                  </legend>
                   <p id="volunteer-follow-up-attendance-help">We do not have travel grants or sponsorship.</p>
                   <div class="volunteer-follow-up-choices">
                     <label
@@ -479,13 +458,11 @@ function tryAgain() {
                     ? "Submission disabled in preview"
                     : submitting
                       ? "Saving your answers…"
-                      : testMode
-                        ? "Submit test answers"
-                        : "Submit final answers"
+                      : "Submit final answers"
                 }}
               </button>
               <p class="volunteer-follow-up-final-note">
-                {{ testMode ? "Test answers are discarded after verification." : "You cannot edit these answers after submitting." }}
+                You cannot edit these answers after submitting.
               </p>
             </div>
           </form>
