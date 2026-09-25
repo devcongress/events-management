@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-25 — Mobile volunteer attendance choice
+
+- Stack the Accra attendance answers into full-width, single-line touch targets on every phone viewport below 640px, including modern 428px-wide phones that previously kept the cramped two-column layout.
+- Give mobile required labels their own clear metadata line, preserve the two-column choice layout from tablet widths upward, and add focused press and reduced-motion behavior.
+
 ## 2026-09-25 — Public volunteer form access repair
 
 - Exempt only the public volunteer follow-up test form's GET and POST requests from the global admin API guard, so its short link works for organizers and external testers without exposing Campaign APIs.
