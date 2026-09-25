@@ -276,33 +276,36 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(outcomePanelSource).toContain(".outcome-diagnostics-scroll {");
   });
 
-  it("loads the read-only form preview through owner authorization and cannot send to the public endpoint", () => {
-    const previewBranch = followUpViewSource.indexOf("if (props.previewMode)");
+  it("loads organizer test mode through its protected endpoint and keeps live applicant links tokenized", () => {
+    const testBranch = followUpViewSource.indexOf("if (props.testMode)");
     const publicRead = followUpViewSource.indexOf(
       "`/api/volunteer-follow-up/${encodeURIComponent(recipientId.value)}`",
     );
     const submitMethod = followUpViewSource.indexOf("async function submit()");
-    const previewSubmitGuard = followUpViewSource.indexOf(
-      "if (props.previewMode) return;",
-      submitMethod,
-    );
     const publicWrite = followUpViewSource.indexOf(
       'method: "POST"',
       submitMethod,
     );
 
-    expect(previewBranch).toBeGreaterThan(-1);
-    expect(previewBranch).toBeLessThan(publicRead);
+    expect(testBranch).toBeGreaterThan(-1);
+    expect(testBranch).toBeLessThan(publicRead);
     expect(followUpViewSource).toContain('credentials: "include"');
-    expect(followUpViewSource).toContain(':disabled="previewMode"');
+    expect(followUpViewSource).toContain(':disabled="disabledPreview"');
     expect(followUpViewSource).toContain(
-      ':disabled="previewMode || !canSubmit"',
+      ':disabled="disabledPreview || !canSubmit"',
     );
-    expect(previewSubmitGuard).toBeGreaterThan(submitMethod);
-    expect(previewSubmitGuard).toBeLessThan(publicWrite);
-    expect(followUpViewSource).toContain(
-      "Turnstile appears here on the live form.",
-    );
+    expect(followUpViewSource).toContain('"/api/annual-conference/2026/volunteer-follow-up/test"');
+    expect(followUpViewSource).toContain("if (disabledPreview.value) return;");
+    expect(followUpViewSource).toContain('"x-follow-up-token": privateToken.value');
+    expect(followUpViewSource).toContain("props.testMode");
+    expect(followUpViewSource).toContain("Your test answers were verified, then discarded.");
+    expect(followUpViewSource).toContain("function tryAgain()");
+    expect(followUpViewSource).toContain("Try again");
+    expect(followUpViewSource).toContain("Turnstile appears here on the live form.");
+    expect(followUpServerSource).toContain('action: "volunteer_follow_up_organizer_test"');
+    expect(followUpServerSource).toContain('requireAdmin(c, ["owner", "organizer"])');
+    expect(followUpRouterSource).toContain("ownerAndOrganizerPaths.has(to.path)");
+    expect(followUpRouterSource).toContain("props: { testMode: true }");
   });
 
   it("keeps the follow-up form in one readable column with compact native answer controls", () => {
@@ -312,12 +315,19 @@ describe("Volunteer follow-up workspace UI", () => {
     expect(followUpViewSource).toContain('aria-live="polite">{{ wordCount }} / 120 words');
     expect(followUpViewSource).toContain('type="radio"');
     expect(followUpViewSource).toContain('class="volunteer-follow-up-actions"');
+    expect(followUpViewSource.match(/class="volunteer-follow-up-question-fields"/gu)).toHaveLength(2);
     expect(followUpViewSource).not.toContain('class="volunteer-intake-layout"');
     expect(stylesSource).toContain(".volunteer-follow-up-shell {");
     expect(stylesSource).toContain("width: min(100%, 52rem);");
     expect(stylesSource).toContain(".volunteer-follow-up-choice input {");
     expect(stylesSource).toContain("width: 1.125rem;");
     expect(stylesSource).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
+    expect(stylesSource).toMatch(
+      /\.volunteer-follow-up-question-fields\s*\{[^}]*border:\s*0;/su,
+    );
+    expect(stylesSource).toMatch(
+      /@media \(min-width: 640px\)\s*\{\s*\.volunteer-follow-up-actions\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(13rem, 0\.8fr\);/su,
+    );
     expect(stylesSource).toContain("@media (max-width: 420px)");
   });
 
@@ -473,7 +483,7 @@ describe("Volunteer follow-up workspace UI", () => {
       "Preview only</strong><span aria-hidden=\"true\"> · </span>Example answers · Submission is disabled",
     );
     expect(followUpViewSource).toContain(
-      ':disabled="previewMode || !canSubmit"',
+      ':disabled="disabledPreview || !canSubmit"',
     );
   });
 

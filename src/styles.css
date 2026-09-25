@@ -9654,30 +9654,36 @@
 }
 
 .volunteer-follow-up-question {
-  display: grid;
   min-width: 0;
-  gap: 0.75rem;
   border: 1px solid #e0ddd4;
   border-radius: 0.625rem;
   background: #fffefa;
   padding: 1rem;
 }
 
-.volunteer-follow-up-question-heading {
+.volunteer-follow-up-question-fields {
   display: grid;
-  gap: 0.3rem;
+  min-width: 0;
+  gap: 0.75rem;
+  margin: 0;
+  border: 0;
+  padding: 0;
 }
 
-.volunteer-follow-up-question-heading label,
-.volunteer-follow-up-attendance legend {
+.volunteer-follow-up-question-fields legend {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 0.125rem;
+  padding: 0;
   color: #111111;
   font-size: 1rem;
   font-weight: 600;
   line-height: 1.45;
 }
 
-.volunteer-follow-up-question-heading p,
-.volunteer-follow-up-attendance > p {
+.volunteer-follow-up-question-fields > p {
+  margin: 0;
   color: #555555;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -9724,19 +9730,6 @@
 .volunteer-follow-up-counter--over-limit {
   color: #a12828;
   font-weight: 600;
-}
-
-.volunteer-follow-up-attendance {
-  margin: 0;
-}
-
-.volunteer-follow-up-attendance legend {
-  max-width: 100%;
-  padding: 0;
-}
-
-.volunteer-follow-up-attendance > p {
-  margin-top: -0.25rem;
 }
 
 .volunteer-follow-up-choices {
@@ -9795,6 +9788,7 @@
 
 .volunteer-follow-up-actions {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   border-top: 1px solid #e0ddd4;
   padding-top: 1.25rem;
@@ -9840,6 +9834,10 @@
   text-align: center;
 }
 
+.volunteer-follow-up-actions > .volunteer-follow-up-submit {
+  width: 100%;
+}
+
 .volunteer-follow-up-submit:focus-visible {
   outline: 2px solid #e8117f;
   outline-offset: 3px;
@@ -9875,6 +9873,22 @@
   color: #555555;
   font-size: 0.95rem;
   line-height: 1.6;
+}
+
+.volunteer-follow-up-state--test-success .volunteer-follow-up-submit {
+  justify-self: start;
+  width: auto;
+}
+
+@media (min-width: 640px) {
+  .volunteer-follow-up-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 0.8fr);
+    align-items: end;
+  }
+
+  .volunteer-follow-up-final-note {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 420px) {

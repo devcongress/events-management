@@ -65,6 +65,8 @@ const ownerOnlyPaths = new Set([
   adminPath("audit-log"),
   adminPath("present-forms"),
   adminPath("present-forms/display"),
+]);
+const ownerAndOrganizerPaths = new Set([
   VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH,
 ]);
 const NotFoundView = () => import("./views/NotFoundView.vue");
@@ -252,7 +254,7 @@ export const router = createRouter({
       path: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_PATH,
       name: VOLUNTEER_FOLLOW_UP_FORM_PREVIEW_ROUTE,
       component: () => import("./views/VolunteerFollowUpView.vue"),
-      props: { previewMode: true },
+      props: { testMode: true },
       meta: { requiresOrganizer: true },
     },
     {
@@ -616,6 +618,13 @@ router.beforeEach(async (to, from) => {
     }
     if (viewportRedirect) return viewportRedirect;
 
+    if (
+      ownerAndOrganizerPaths.has(to.path) &&
+      !["owner", "organizer"].includes(cachedSession.user?.role ?? "")
+    ) {
+      return adminPath("events");
+    }
+
     if (cachedSession.user?.role === "volunteer") {
       return (await volunteerCanOpenRoute(to.path, to.params.year))
         ? true
@@ -672,6 +681,13 @@ router.beforeEach(async (to, from) => {
         };
       }
       if (viewportRedirect) return viewportRedirect;
+
+      if (
+        ownerAndOrganizerPaths.has(to.path) &&
+        !["owner", "organizer"].includes(session.user?.role ?? "")
+      ) {
+        return adminPath("events");
+      }
 
       if (session.user?.role === "volunteer") {
         return (await volunteerCanOpenRoute(to.path, to.params.year))

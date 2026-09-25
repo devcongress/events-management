@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-25 — Add protected volunteer form testing
+
+- Give both questions the same card, spacing, and borderless fieldset/legend structure; place Turnstile beside submit on wider layouts and stack them on narrow screens.
+- Let Owners and Organizers fill the deployed test route using test-specific Turnstile and a separate rate limit; successful test answers are discarded and never persisted, queued, or emailed.
+- Keep the separate live applicant route tokenized and retain disabled embedded preview behavior.
+
 ## 2026-09-25 — Improve the volunteer follow-up form layout
 
 - Replace the poster-style split layout with a centered, responsive form column and a compact brand header.
