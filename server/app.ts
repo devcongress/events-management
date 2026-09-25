@@ -1137,7 +1137,7 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
     ));
 }
 
-function isUnauthenticatedApiRequest(path: string, method: string): boolean {
+export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
   return (method === 'GET' && (
     path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
@@ -1161,6 +1161,7 @@ function isUnauthenticatedApiRequest(path: string, method: string): boolean {
       || path === '/api/volunteer-applications'
     ))
     || (/^\/api\/volunteer-follow-up\/[^/]+$/.test(path) && (method === 'GET' || method === 'POST'))
+    || (path === '/api/annual-conference/2026/volunteer-follow-up/test' && (method === 'GET' || method === 'POST'))
     || isPublicEventSubmissionRequest(path, method)
     || isPublicFeedbackEventRequest(path, method)
     || isPublicCfpEventRequest(path, method)

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-25 — Public volunteer form access repair
+
+- Exempt only the public volunteer follow-up test form's GET and POST requests from the global admin API guard, so its short link works for organizers and external testers without exposing Campaign APIs.
+- Add a public-access regression test that keeps owner campaign routes and unsupported methods protected.
+
 ## 2026-09-25 — Volunteer workspace continuity and public form testing
 
 - Keep Directory, Reviews, and Campaign mounted after their first visit on desktop and phone, preventing repeat skeleton/loading states when organizers move between tabs.
