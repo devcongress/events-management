@@ -5,13 +5,13 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import UploadProgressBar from '@/src/components/UploadProgressBar.vue';
 import { EVENT_ANNOUNCEMENT_FALLBACK_COVER } from '@/lib/event-cover';
-import { dateTimeInputInTimeZoneToIso, isoToDateTimeInputInTimeZone } from '@/src/lib/event-submission-amendment';
+import { compareEventAmendment, dateTimeInputInTimeZoneToIso, isoToDateTimeInputInTimeZone } from '@/src/lib/event-submission-amendment';
 
 type Amendment = EventEditSource & { status: string; cover_url: string | null };
 type EventEditSource = {
   starts_at: string;
   ends_at: string;
-  timezone?: string;
+  timezone: string;
   location_type: 'in_person' | 'online' | 'hybrid';
   venue_name: string | null;
   venue_address: string | null;
@@ -56,7 +56,7 @@ const locationOptions = [
   { value: 'hybrid', label: 'Hybrid' },
 ];
 const isInReview = computed(() => amendment.value?.status === 'submitted');
-const currentCover = computed(() => coverPreviewUrl.value || amendment.value?.cover_url || submission.value?.cover_url || EVENT_ANNOUNCEMENT_FALLBACK_COVER);
+const currentCover = computed(() => coverPreviewUrl.value || amendment.value?.cover_url || currentEvent.value?.cover_url || submission.value?.cover_url || EVENT_ANNOUNCEMENT_FALLBACK_COVER);
 const eventTimeZone = computed(() => form.timezone || currentEvent.value?.timezone || submission.value?.timezone || 'UTC');
 const eventTimezoneOptions = computed(() => {
   const zones = new Set(['Africa/Accra', 'Europe/Berlin', 'Europe/London', 'America/New_York', 'America/Los_Angeles', eventTimeZone.value]);
@@ -77,12 +77,58 @@ const reviewSchedule = computed(() => {
     }).format(new Date(value));
 
     return {
+      current: `${format(currentEvent.value?.starts_at ?? changes.starts_at, currentEvent.value?.timezone ?? changes.timezone)} – ${format(currentEvent.value?.ends_at ?? changes.ends_at, currentEvent.value?.timezone ?? changes.timezone)}`,
       event: `${format(changes.starts_at, changes.timezone)} – ${format(changes.ends_at, changes.timezone)}`,
       ghana: `${format(changes.starts_at, 'Africa/Accra')} – ${format(changes.ends_at, 'Africa/Accra')}`,
     };
   } catch {
     return null;
   }
+});
+const reviewChanges = computed(() => {
+  const baseline = currentEvent.value;
+
+  if (!baseline) return [];
+
+  let requested: ReturnType<typeof payload>;
+
+  try {
+    requested = payload();
+  } catch {
+    return [];
+  }
+  const requestedEvent = {
+    ...requested,
+    cover_url: coverFile.value ? coverPreviewUrl.value : amendment.value?.cover_url ?? null,
+  };
+  const changes = compareEventAmendment(baseline, requestedEvent);
+  const rows: Array<{ label: string; current: string; requested: string }> = [];
+
+  if (changes.schedule && reviewSchedule.value) {
+    rows.push({
+      label: 'Schedule',
+      current: reviewSchedule.value.current,
+      requested: reviewSchedule.value.event,
+    });
+  }
+  if (changes.location) {
+    rows.push({
+      label: 'Location',
+      current: formatLocation(baseline.location_type, baseline.venue_name, baseline.venue_address),
+      requested: formatLocation(requestedEvent.location_type, requestedEvent.venue_name, requestedEvent.venue_address),
+    });
+  }
+  if (changes.onlineUrl) {
+    rows.push({ label: 'Online event link', current: baseline.online_url || 'Not provided', requested: requestedEvent.online_url || 'Removed' });
+  }
+  if (changes.registrationUrl) {
+    rows.push({ label: 'Registration page', current: baseline.registration_url || 'Not provided', requested: requestedEvent.registration_url || 'Removed' });
+  }
+  if (changes.cover) {
+    rows.push({ label: 'Cover image', current: baseline.cover_url ? 'Current cover' : 'Default event cover', requested: 'Replacement cover image' });
+  }
+
+  return rows;
 });
 
 function payload() {
@@ -91,6 +137,12 @@ function payload() {
     starts_at: dateTimeInputInTimeZoneToIso(form.starts_at, eventTimeZone.value, loadedSchedule.value.starts_at),
     ends_at: dateTimeInputInTimeZoneToIso(form.ends_at, eventTimeZone.value, loadedSchedule.value.ends_at),
   };
+}
+function formatLocation(locationType: Submission['location_type'], venueName: string | null, venueAddress: string | null) {
+  if (locationType === 'online') return 'Online';
+  const place = [venueName?.trim(), venueAddress?.trim()].filter(Boolean).join(', ');
+
+  return `${locationType === 'hybrid' ? 'Hybrid' : 'In person'}${place ? ` · ${place}` : ''}`;
 }
 function changeTimeZone(previousTimeZone: string, nextTimeZone: string) {
   if (!form.starts_at || !form.ends_at || previousTimeZone === nextTimeZone) return;
@@ -126,6 +178,7 @@ function chooseCover(event: Event) {
   coverFile.value = file;
   coverObjectUrl = URL.createObjectURL(file);
   coverPreviewUrl.value = coverObjectUrl;
+  reviewing.value = false;
   error.value = '';
 }
 function payloadFormData() {
@@ -228,6 +281,16 @@ async function save() {
   }
 }
 async function submit() {
+  if (!reviewing.value) {
+    beginReview();
+
+    return;
+  }
+  if (reviewChanges.value.length === 0) {
+    error.value = 'Change at least one event detail before submitting.';
+
+    return;
+  }
   if (saving.value || submitting.value) return;
   await save();
   if (!saved.value) return;
@@ -260,11 +323,10 @@ function beginReview() {
 
 watch(() => form.timezone, (nextTimeZone, previousTimeZone) => {
   if (previousTimeZone && !hydratingSchedule) changeTimeZone(previousTimeZone, nextTimeZone);
-  reviewing.value = false;
 });
-watch(() => [form.starts_at, form.ends_at], () => {
+watch(form, () => {
   reviewing.value = false;
-});
+}, { deep: true });
 
 onMounted(() => {
   if (route.params.capability && capability) {
@@ -307,13 +369,19 @@ onBeforeUnmount(revokeCoverPreview);
           <label class="grid gap-2 text-sm font-semibold">Note for the reviewer <span class="font-normal text-dc-gray">Optional</span><textarea v-model="form.organizer_note" class="app-form-control min-h-28 rounded border border-dc-line bg-white px-4 py-3 text-base outline-none focus:border-dc-pink focus:ring-2 focus:ring-dc-pink/15" maxlength="1200" placeholder="Tell us what changed and why." /></label>
         </div>
         <div class="border-t border-dc-line bg-dc-paper-warm px-5 py-5 sm:px-8">
-          <section v-if="reviewing && reviewSchedule" class="mb-5 rounded border border-dc-pink/30 bg-dc-pink/5 p-4" aria-live="polite">
-            <p class="font-mono text-xs font-bold tracking-[0.12em] text-dc-pink">REVIEW TIME</p>
-            <p class="mt-2 text-sm font-semibold">{{ reviewSchedule.event }}</p>
-            <p v-if="form.timezone !== 'Africa/Accra'" class="mt-1 text-sm text-dc-gray">Ghana: {{ reviewSchedule.ghana }}</p>
-            <p class="mt-2 text-sm text-dc-gray">Confirm this is the time attendees should use before sending it for review.</p>
+          <section v-if="reviewing" class="mb-5 rounded border border-dc-pink/30 bg-dc-pink/5 p-4" aria-live="polite">
+            <p class="font-mono text-xs font-bold tracking-[0.12em] text-dc-pink">REVIEW CHANGES</p>
+            <p v-if="!currentEvent" class="mt-2 text-sm text-red-700">The current approved event details are unavailable, so this request cannot be reviewed right now.</p>
+            <p v-else-if="reviewChanges.length === 0" class="mt-2 text-sm text-dc-gray">Change at least one event detail before sending a request.</p>
+            <dl v-else class="mt-3 space-y-3">
+              <div v-for="change in reviewChanges" :key="change.label" class="grid gap-1 text-sm sm:grid-cols-[10rem_1fr] sm:gap-3">
+                <dt class="font-semibold">{{ change.label }}</dt>
+                <dd><span class="text-dc-gray">Current:</span> {{ change.current }}<span class="mx-2 text-dc-gray" aria-hidden="true">→</span><span class="text-dc-gray">Requested:</span> {{ change.requested }}</dd>
+              </div>
+            </dl>
+            <p v-if="reviewing && reviewSchedule && reviewChanges.some((change) => change.label === 'Schedule') && form.timezone !== 'Africa/Accra'" class="mt-3 text-sm text-dc-gray">Requested time in Ghana: {{ reviewSchedule.ghana }}</p>
           </section>
-          <div class="flex flex-wrap items-center gap-3"><button class="motion-press rounded border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" type="button" :disabled="saving" @click="save">{{ saving ? 'SAVING…' : 'SAVE DRAFT' }}</button><button v-if="!reviewing" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving" type="button" @click="beginReview">REVIEW TIME →</button><button v-else class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving" type="submit">{{ submitting ? 'SUBMITTING…' : 'CONFIRM & SUBMIT →' }}</button><button v-if="reviewing" class="motion-press rounded border border-dc-line bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em]" type="button" :disabled="submitting || saving" @click="reviewing = false">EDIT TIME</button></div><p v-if="error" class="mt-3 text-sm text-red-700">{{ error }}</p><p v-else-if="saved" class="mt-3 text-sm text-green-700">Draft saved privately.</p>
+          <div class="flex flex-wrap items-center gap-3"><button class="motion-press rounded border-2 border-dc-ink bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" type="button" :disabled="saving" @click="save">{{ saving ? 'SAVING…' : 'SAVE DRAFT' }}</button><button v-if="!reviewing" class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving" type="button" @click="beginReview">REVIEW CHANGES →</button><button v-else class="motion-press rounded border-2 border-dc-ink bg-dc-yellow px-4 py-3 font-mono text-xs font-bold tracking-[0.08em] disabled:cursor-not-allowed disabled:opacity-60" :disabled="submitting || saving || !currentEvent || reviewChanges.length === 0" type="submit">{{ submitting ? 'SUBMITTING…' : 'CONFIRM & SUBMIT →' }}</button><button v-if="reviewing" class="motion-press rounded border border-dc-line bg-white px-4 py-3 font-mono text-xs font-bold tracking-[0.08em]" type="button" :disabled="submitting || saving" @click="reviewing = false">EDIT DETAILS</button></div><p v-if="error" class="mt-3 text-sm text-red-700">{{ error }}</p><p v-else-if="saved" class="mt-3 text-sm text-green-700">Draft saved privately.</p>
         </div>
       </form>
     </section>

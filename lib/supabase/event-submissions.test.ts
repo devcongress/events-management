@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./server', () => mocks);
 
-import { getApprovedEventIdForSubmission, getEventSubmissionManagement, getEventSubmissionOrganizerContact } from './event-submissions';
+import { getApprovedEventIdForSubmission, getEventSubmissionManagement, getEventSubmissionOrganizerContact, listEventSubmissions } from './event-submissions';
 
 type CommunityEventRow = Database['public']['Tables']['community_events']['Row'];
 type EventSubmissionRow = Database['public']['Tables']['event_submissions']['Row'];
@@ -95,12 +95,76 @@ function queryReturning<T>(data: T) {
   return query;
 }
 
+function listQueryReturning<T>(data: T, error: { message: string } | null = null) {
+  const query: any = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    order: vi.fn(),
+  };
+
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  query.in.mockReturnValue(query);
+  query.order.mockReturnValue(query);
+  query.then = (resolve: (result: { data: T; error: { message: string } | null }) => unknown) => (
+    Promise.resolve({ data, error }).then(resolve)
+  );
+
+  return query;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isSupabaseServerConfigured.mockReturnValue(true);
 });
 
 describe('event submission management storage', () => {
+  it('attaches current approved community event values to admin submissions in one batched query', async () => {
+    const submissionsQuery = listQueryReturning([submissionRow]);
+    const deliveryQuery = listQueryReturning([]);
+    const repliesQuery = listQueryReturning([]);
+    const amendmentsQuery = listQueryReturning([]);
+    const eventQuery = listQueryReturning([{ id: submissionRow.approved_event_id, ...approvedEventRow }]);
+    const from = vi.fn()
+      .mockReturnValueOnce(submissionsQuery)
+      .mockReturnValueOnce(deliveryQuery)
+      .mockReturnValueOnce(repliesQuery)
+      .mockReturnValueOnce(amendmentsQuery)
+      .mockReturnValueOnce(eventQuery);
+
+    mocks.getSupabaseAdminClient.mockReturnValue({ from });
+
+    await expect(listEventSubmissions('approved')).resolves.toMatchObject([{
+      venue_name: 'Fido, Accra',
+      current_event: {
+        starts_at: approvedEventRow.starts_at,
+        venue_name: 'Accra Digital Center',
+        registration_url: 'https://example.com/new-register',
+        cover_url: 'https://example.com/live-cover.png',
+      },
+    }]);
+    expect(from).toHaveBeenNthCalledWith(5, 'community_events');
+    expect(eventQuery.in).toHaveBeenCalledWith('id', [submissionRow.approved_event_id]);
+  });
+
+  it('surfaces errors from the batched current community event query', async () => {
+    const from = vi.fn()
+      .mockReturnValueOnce(listQueryReturning([submissionRow]))
+      .mockReturnValueOnce(listQueryReturning([]))
+      .mockReturnValueOnce(listQueryReturning([]))
+      .mockReturnValueOnce(listQueryReturning([]))
+      .mockReturnValueOnce(listQueryReturning([], { message: 'query failed' }));
+
+    mocks.getSupabaseAdminClient.mockReturnValue({ from });
+
+    await expect(listEventSubmissions('approved')).rejects.toMatchObject({
+      name: 'EventSubmissionStorageError',
+      message: 'Unable to load current community events.',
+      code: 'unavailable',
+    });
+  });
+
   it('resolves the canonical event only from an approved submission', async () => {
     const submissionQuery = queryReturning({ approved_event_id: submissionRow.approved_event_id });
 

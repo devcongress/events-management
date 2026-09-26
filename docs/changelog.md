@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-26 — Show only changed event amendment details
+
+- Compare amendment requests against the latest canonical community event in the admin inbox, with explicit error handling for the batched event lookup and a clear unavailable-baseline state.
+- Replace the organizer's schedule-only review with a changed-fields summary for schedule, venue/location, online and registration links, and replacement cover images; edits clear review state and submission requires a real event-detail change.
+- Normalize optional text values and compare timestamps by instant, while retaining timezone-only changes as schedule changes.
+- Add focused unit, storage, and view-wiring regression coverage.
+
 ## 2026-09-25 — Mobile volunteer attendance choice
 
 - Stack the Accra attendance answers into full-width, single-line touch targets on every phone viewport below 640px, including modern 428px-wide phones that previously kept the cramped two-column layout.
