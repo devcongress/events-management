@@ -3,6 +3,7 @@ import type {
   EventFormat,
   EventLocationType,
   EventSubmission,
+  EventSubmissionCurrentEvent,
   EventSubmissionEmailDelivery,
   EventSubmissionEmailDeliveryStatus,
   EventSubmissionEmailKind,
@@ -63,6 +64,21 @@ export type EventSubmissionManagedEvent = {
   registration_url: string | null;
   cover_url: string | null;
 };
+
+type EventSubmissionCommunityEventRow = Pick<CommunityEventRow,
+  'id'
+  | 'starts_at'
+  | 'ends_at'
+  | 'timezone'
+  | 'location_type'
+  | 'location_name'
+  | 'location_label'
+  | 'venue_address'
+  | 'online_url'
+  | 'stream_url'
+  | 'registration_url'
+  | 'cover_url'
+>;
 
 export type ActiveEventSubmissionManagementLink = {
   id: string;
@@ -196,11 +212,13 @@ export async function listEventSubmissions(
   const deliveries = await loadEmailDeliveries((data ?? []).map((submission) => submission.id), c);
   const replies = await loadEventSubmissionReplies((data ?? []).map((submission) => submission.id), c);
   const amendments = await loadEventSubmissionAmendments((data ?? []).map((submission) => submission.id), c);
+  const currentEvents = await loadCurrentSubmissionEvents(data ?? [], c);
   const submissions = (data ?? []).map((submission) => toEventSubmission(
     submission,
     deliveries.get(submission.id) ?? [],
     replies.get(submission.id) ?? [],
     amendments.get(submission.id) ?? [],
+    currentEvents.get(submission.approved_event_id ?? '') ?? null,
   ));
 
   return status === 'updates'
@@ -690,6 +708,7 @@ function toEventSubmission(
   emailDeliveries: EventSubmissionEmailDelivery[],
   replies: EventSubmissionReply[],
   amendments: EventSubmissionAmendment[] = [],
+  currentEvent: EventSubmissionCurrentEvent | null = null,
 ): EventSubmission {
   return {
     id: row.id,
@@ -720,24 +739,13 @@ function toEventSubmission(
     amendments,
     replies,
     approved_event_id: row.approved_event_id,
+    current_event: currentEvent,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
 }
 
-function toEventSubmissionManagedEvent(row: Pick<CommunityEventRow,
-  'starts_at'
-  | 'ends_at'
-  | 'timezone'
-  | 'location_type'
-  | 'location_name'
-  | 'location_label'
-  | 'venue_address'
-  | 'online_url'
-  | 'stream_url'
-  | 'registration_url'
-  | 'cover_url'
->): EventSubmissionManagedEvent {
+function toEventSubmissionManagedEvent(row: Omit<EventSubmissionCommunityEventRow, 'id'>): EventSubmissionManagedEvent {
   const venueName = row.location_type === 'online' ? 'Online' : row.location_name;
 
   return {
@@ -751,6 +759,33 @@ function toEventSubmissionManagedEvent(row: Pick<CommunityEventRow,
     registration_url: row.registration_url,
     cover_url: row.cover_url,
   };
+}
+
+async function loadCurrentSubmissionEvents(
+  submissions: EventSubmissionRow[],
+  c?: Context,
+): Promise<Map<string, EventSubmissionCurrentEvent>> {
+  const eventIds = [...new Set(submissions.flatMap((submission) => (
+    submission.review_status === 'approved' && submission.approved_event_id
+      ? [submission.approved_event_id]
+      : []
+  )))];
+  const events = new Map<string, EventSubmissionCurrentEvent>();
+
+  if (!eventIds.length) return events;
+
+  const { data, error } = await requireStorage(c)
+    .from('community_events')
+    .select('id, starts_at, ends_at, timezone, location_type, location_name, location_label, venue_address, online_url, stream_url, registration_url, cover_url')
+    .in('id', eventIds);
+
+  if (error) throw new EventSubmissionStorageError('Unable to load current community events.', 'unavailable');
+
+  for (const row of (data ?? []) as EventSubmissionCommunityEventRow[]) {
+    events.set(row.id, toEventSubmissionManagedEvent(row));
+  }
+
+  return events;
 }
 
 function toEventSubmissionReply(row: EventSubmissionReplyRow): EventSubmissionReply {

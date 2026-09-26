@@ -6,6 +6,7 @@ import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppCopyButton from '@/src/components/ui/AppCopyButton.vue';
 import { adminPath } from '@/src/admin-routes';
 import { presentEventSubmissionReply } from '@/lib/email/event-submission-reply-presentation';
+import { compareEventAmendment } from '@/src/lib/event-submission-amendment';
 import {
   approveEventSubmission,
   fetchEventSubmissionManagementLink,
@@ -19,7 +20,6 @@ import {
 } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import { notify } from '@/src/lib/notify';
-import { amendmentReplacesCover } from '@/src/lib/event-submission-amendment';
 import type {
   EventSubmission,
   EventSubmissionAmendment,
@@ -104,51 +104,54 @@ const selectedAmendmentChanges = computed<AmendmentChange[]>(() => {
   const submission = selectedSubmission.value;
   const amendment = selectedSubmittedAmendment.value;
 
-  if (!submission || !amendment) return [];
+  if (!submission?.current_event || !amendment) return [];
+
+  const current = submission.current_event;
+  const changed = compareEventAmendment(current, amendment);
 
   const changes: AmendmentChange[] = [];
 
-  if (amendmentScheduleChanged(submission, amendment)) {
+  if (changed.schedule) {
     changes.push({
       label: 'Schedule',
-      current: formatSchedule(submission.starts_at, submission.ends_at, submission.timezone),
+      current: formatSchedule(current.starts_at, current.ends_at, current.timezone),
       requested: formatSchedule(amendment.starts_at, amendment.ends_at, amendment.timezone),
     });
   }
-  if (amendmentLocationChanged(submission, amendment)) {
+  if (changed.location) {
     changes.push({
       label: 'Location',
-      current: formatLocation(submission.location_type, submission.venue_name, submission.venue_address),
+      current: formatLocation(current.location_type, current.venue_name, current.venue_address),
       requested: formatLocation(amendment.location_type, amendment.venue_name, amendment.venue_address),
     });
   }
-  if (normalizedValue(submission.online_url) !== normalizedValue(amendment.online_url)) {
+  if (changed.onlineUrl) {
     changes.push({
       label: 'Online event link',
-      current: submission.online_url || 'Not provided',
+      current: current.online_url || 'Not provided',
       requested: amendment.online_url || 'Removed',
-      currentUrl: submission.online_url,
+      currentUrl: current.online_url,
       requestedUrl: amendment.online_url,
     });
   }
-  if (normalizedValue(submission.registration_url) !== normalizedValue(amendment.registration_url)) {
+  if (changed.registrationUrl) {
     changes.push({
       label: 'Registration page',
-      current: submission.registration_url || 'Not provided',
+      current: current.registration_url || 'Not provided',
       requested: amendment.registration_url || 'Removed',
-      currentUrl: submission.registration_url,
+      currentUrl: current.registration_url,
       requestedUrl: amendment.registration_url,
     });
   }
   // The management form only sends cover_url when a replacement file is
   // uploaded. A null amendment value therefore means "leave the cover alone",
   // not "remove the current cover".
-  if (amendmentReplacesCover(submission.cover_url, amendment.cover_url)) {
+  if (changed.cover) {
     changes.push({
       label: 'Cover image',
-      current: submission.cover_url ? 'Current cover' : 'Default event cover',
+      current: current.cover_url ? 'Current cover' : 'Default event cover',
       requested: 'New cover uploaded',
-      currentUrl: submission.cover_url,
+      currentUrl: current.cover_url,
       requestedUrl: amendment.cover_url,
     });
   }
@@ -407,10 +410,6 @@ function formatLabel(value: string) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function normalizedValue(value: string | null | undefined) {
-  return value?.trim() || null;
-}
-
 function formatSchedule(startsAt: string, endsAt: string, timezone: string) {
   return `${formatDateTime(startsAt, timezone)} – ${formatDateTime(endsAt, timezone)}`;
 }
@@ -432,16 +431,6 @@ function submissionQueueStatus(submission: EventSubmission): EventSubmissionQueu
 
 function submissionStatusLabel(submission: EventSubmission) {
   return hasSubmittedAmendment(submission) ? 'Changes requested' : formatLabel(submission.review_status);
-}
-
-function amendmentScheduleChanged(submission: EventSubmission, amendment: NonNullable<EventSubmission['amendments']>[number]) {
-  return submission.starts_at !== amendment.starts_at || submission.ends_at !== amendment.ends_at || submission.timezone !== amendment.timezone;
-}
-
-function amendmentLocationChanged(submission: EventSubmission, amendment: NonNullable<EventSubmission['amendments']>[number]) {
-  return submission.location_type !== amendment.location_type
-    || submission.venue_name !== amendment.venue_name
-    || submission.venue_address !== amendment.venue_address;
 }
 
 function statusClass(status: EventSubmissionQueueFilter) {
@@ -664,7 +653,8 @@ function replyPresentation(reply: EventSubmissionReply) {
                   <div>
                     <p class="submission-section-kicker">Update review</p>
                     <h3>Review requested changes</h3>
-                    <p>{{ selectedAmendmentChanges.length }} field{{ selectedAmendmentChanges.length === 1 ? '' : 's' }} changed by {{ selectedSubmission.organizer_name }}.</p>
+                    <p v-if="selectedSubmission.current_event">{{ selectedAmendmentChanges.length }} field{{ selectedAmendmentChanges.length === 1 ? '' : 's' }} changed by {{ selectedSubmission.organizer_name }}.</p>
+                    <p v-else class="text-red-700">Current approved event details are unavailable, so this request cannot be compared safely.</p>
                   </div>
                   <span class="submission-status-badge" :class="statusClass('updates')">
                     <span class="submission-status-dot" aria-hidden="true" />
@@ -683,7 +673,7 @@ function replyPresentation(reply: EventSubmissionReply) {
                     </a>
                   </header>
 
-                  <div class="submission-amendment-comparison-table">
+                  <div v-if="selectedSubmission.current_event" class="submission-amendment-comparison-table">
                     <div class="submission-amendment-column-headings" aria-hidden="true">
                       <span>Field</span>
                       <span>Current listing</span>
@@ -729,7 +719,7 @@ function replyPresentation(reply: EventSubmissionReply) {
                       <button
                         type="button"
                         class="editorial-action motion-press"
-                        :disabled="amendmentReviewMutation.isPending.value"
+                        :disabled="amendmentReviewMutation.isPending.value || !selectedSubmission.current_event"
                         @click="amendmentReviewMutation.mutate({ amendmentId: selectedSubmittedAmendment.id, approve: true })"
                       >
                         {{ amendmentReviewMutation.isPending.value ? 'Saving…' : 'Approve update' }}

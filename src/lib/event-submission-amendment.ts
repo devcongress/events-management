@@ -1,8 +1,58 @@
+type AmendmentComparableEvent = {
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  location_type: string;
+  venue_name: string | null;
+  venue_address: string | null;
+  online_url: string | null;
+  registration_url: string | null;
+  cover_url: string | null;
+};
+
+export type EventAmendmentChanges = {
+  schedule: boolean;
+  location: boolean;
+  onlineUrl: boolean;
+  registrationUrl: boolean;
+  cover: boolean;
+};
+
+function normalizedText(value: string | null | undefined): string | null {
+  return value?.trim() || null;
+}
+
+function sameInstant(left: string, right: string): boolean {
+  const leftInstant = Date.parse(left);
+  const rightInstant = Date.parse(right);
+
+  if (!Number.isNaN(leftInstant) && !Number.isNaN(rightInstant)) return leftInstant === rightInstant;
+
+  return normalizedText(left) === normalizedText(right);
+}
+
 export function amendmentReplacesCover(currentCoverUrl: string | null, amendmentCoverUrl: string | null) {
-  const current = currentCoverUrl?.trim() || null;
-  const requested = amendmentCoverUrl?.trim() || null;
+  const current = normalizedText(currentCoverUrl);
+  const requested = normalizedText(amendmentCoverUrl);
 
   return requested !== null && requested !== current;
+}
+
+export function compareEventAmendment(
+  current: AmendmentComparableEvent,
+  requested: AmendmentComparableEvent,
+): EventAmendmentChanges {
+  return {
+    schedule: !sameInstant(current.starts_at, requested.starts_at)
+      || !sameInstant(current.ends_at, requested.ends_at)
+      || normalizedText(current.timezone) !== normalizedText(requested.timezone),
+    location: normalizedText(current.location_type) !== normalizedText(requested.location_type)
+      || normalizedText(current.venue_name) !== normalizedText(requested.venue_name)
+      || normalizedText(current.venue_address) !== normalizedText(requested.venue_address),
+    onlineUrl: normalizedText(current.online_url) !== normalizedText(requested.online_url),
+    registrationUrl: normalizedText(current.registration_url) !== normalizedText(requested.registration_url),
+    cover: amendmentReplacesCover(current.cover_url, requested.cover_url),
+  };
 }
 
 type DateTimeParts = {
