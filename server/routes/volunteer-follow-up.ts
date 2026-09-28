@@ -149,6 +149,39 @@ const deliveryRetryBlockMessages: Record<string, string> = {
     "The frozen outcome email is incomplete and cannot be retried.",
 };
 
+const VOLUNTEER_FOLLOW_UP_MAX_DELIVERIES_PER_DRAIN = 1;
+const VOLUNTEER_FOLLOW_UP_FAIRNESS_WINDOW_MS = 15 * 60_000;
+
+type VolunteerDrainStage =
+  | "campaign_lookup"
+  | "reconcile"
+  | "queue_check"
+  | "lease_acquire"
+  | "invitation_drain"
+  | "outcome_drain"
+  | "finalize";
+
+function volunteerDrainFailureReason(
+  stage: VolunteerDrainStage,
+  error: unknown,
+): string {
+  const message = error instanceof Error ? error.message : "";
+  const resourceLimited = /subrequest|too many (fetch|request)|resource limit/i.test(message);
+
+  return `failed:${stage}:${resourceLimited ? "resource_limit" : "internal"}`;
+}
+
+function shouldDrainVolunteerOutcomes(
+  campaign: VolunteerFollowUpCampaignRow,
+  outcomesDue: boolean,
+  now = Date.now(),
+): boolean {
+  if (!outcomesDue || campaign.outcome_paused) return false;
+  if (campaign.status !== "running") return true;
+
+  return Math.floor(now / VOLUNTEER_FOLLOW_UP_FAIRNESS_WINDOW_MS) % 2 === 1;
+}
+
 function isDefiniteResendFailure(status: number | null): boolean {
   // A 409 may be an in-flight idempotency result, so it is deliberately
   // ambiguous. 429 is handled by automatic backoff. Other 4xx responses here
@@ -310,6 +343,7 @@ async function drainVolunteerFollowUps(
   c: Context,
   campaign: VolunteerFollowUpCampaignRow,
   leaseToken: string,
+  deliveryLimit: number,
 ) {
   const finish = async (sent: number, reason: string) => {
     await recordVolunteerFollowUpDrain(campaign.id, reason, c);
@@ -332,7 +366,7 @@ async function drainVolunteerFollowUps(
 
   let sent = 0;
 
-  for (let i = 0; i < 10; i += 1) {
+  for (let i = 0; i < deliveryLimit; i += 1) {
     if (!(await renewVolunteerFollowUpDrainLease(campaign.id, leaseToken, c)))
       return finish(sent, "drain_lease_lost");
     const [health, outbox] = await Promise.all([
@@ -475,10 +509,12 @@ async function drainVolunteerOutcomeEmails(
   c: Context,
   campaign: VolunteerFollowUpCampaignRow,
   leaseToken: string,
+  deliveryLimit: number,
+  outcomesKnownDue = false,
 ): Promise<{ sent: number; reason: string }> {
   const finish = (sent: number, reason: string) => ({ sent, reason });
 
-  if (!(await hasDueVolunteerOutcomeDelivery(campaign.id, c)))
+  if (!outcomesKnownDue && !(await hasDueVolunteerOutcomeDelivery(campaign.id, c)))
     return finish(0, "outcome_queue_empty");
 
   const apiKey = envValue("RESEND_API_KEY", c)?.trim();
@@ -495,7 +531,7 @@ async function drainVolunteerOutcomeEmails(
   await recordResendEmailHealth(c, observed);
   let sent = 0;
 
-  for (let i = 0; i < 10; i += 1) {
+  for (let i = 0; i < deliveryLimit; i += 1) {
     if (!(await renewVolunteerFollowUpDrainLease(campaign.id, leaseToken, c)))
       return finish(sent, "drain_lease_lost");
 
@@ -707,59 +743,107 @@ async function drainVolunteerOutcomeEmails(
 }
 
 async function sendDueVolunteerFollowUps(c: Context) {
-  const campaign = await getVolunteerFollowUpCampaign(c);
-
-  if (!campaign) return { sent: 0, reason: "campaign_unavailable" };
-  if (campaign.status !== "closed")
-    await reconcileVolunteerFollowUpApplicants(campaign, c);
-  const outcomesDue = await hasDueVolunteerOutcomeDelivery(campaign.id, c);
-
-  if (campaign.status !== "running" && !outcomesDue) {
-    await recordVolunteerFollowUpDrain(campaign.id, "not_running", c);
-
-    return { sent: 0, reason: "not_running" };
-  }
-
-  const leaseToken = crypto.randomUUID();
-  const acquired = await acquireVolunteerFollowUpDrainLease(
-    campaign.id,
-    leaseToken,
-    c,
-  );
-
-  if (!acquired) return { sent: 0, reason: "already_draining" };
+  let campaign: VolunteerFollowUpCampaignRow | null | undefined;
+  let stage: VolunteerDrainStage = "campaign_lookup";
 
   try {
-    const currentCampaign = await getVolunteerFollowUpCampaign(c);
+    campaign = await getVolunteerFollowUpCampaign(c);
 
-    if (!currentCampaign) {
+    if (!campaign) return { sent: 0, reason: "campaign_unavailable" };
+    stage = "reconcile";
+    if (campaign.status !== "closed")
+      await reconcileVolunteerFollowUpApplicants(campaign, c);
+    stage = "queue_check";
+    const outcomesDue = await hasDueVolunteerOutcomeDelivery(campaign.id, c);
+
+    if (campaign.status !== "running" && !outcomesDue) {
       await recordVolunteerFollowUpDrain(campaign.id, "not_running", c);
 
       return { sent: 0, reason: "not_running" };
     }
-    const invitations =
-      currentCampaign.status === "running"
-        ? await drainVolunteerFollowUps(c, currentCampaign, leaseToken)
-        : { sent: 0, reason: "invitation_campaign_not_running" };
-    const stopAfterInvitation = [
-      "provider_rate_limited",
-      "provider_result_unconfirmed",
-      "drain_lease_lost",
-      "capacity_unverified",
-      "provider_retry_scheduled",
-      "provider_rejected",
-    ].includes(invitations.reason);
-    const outcomes = stopAfterInvitation
-      ? { sent: 0, reason: `skipped_after_${invitations.reason}` }
-      : await drainVolunteerOutcomeEmails(c, currentCampaign, leaseToken);
-    const totalSent = invitations.sent + outcomes.sent;
-    const reason = `invitations:${invitations.reason};outcomes:${outcomes.reason}`;
 
-    await recordVolunteerFollowUpDrain(campaign.id, reason, c);
+    stage = "lease_acquire";
+    const leaseToken = crypto.randomUUID();
+    const acquired = await acquireVolunteerFollowUpDrainLease(
+      campaign.id,
+      leaseToken,
+      c,
+    );
 
-    return { sent: totalSent, reason };
-  } finally {
-    await releaseVolunteerFollowUpDrainLease(campaign.id, leaseToken, c);
+    if (!acquired) return { sent: 0, reason: "already_draining" };
+
+    try {
+      const currentCampaign = await getVolunteerFollowUpCampaign(c);
+
+      if (!currentCampaign) {
+        await recordVolunteerFollowUpDrain(campaign.id, "not_running", c);
+
+        return { sent: 0, reason: "not_running" };
+      }
+      const drainOutcomes = shouldDrainVolunteerOutcomes(
+        currentCampaign,
+        outcomesDue,
+      );
+
+      stage = drainOutcomes ? "outcome_drain" : "invitation_drain";
+      const [invitations, outcomes] = drainOutcomes
+        ? [
+          { sent: 0, reason: "skipped_for_outcome_turn" },
+          await drainVolunteerOutcomeEmails(
+            c,
+            currentCampaign,
+            leaseToken,
+            VOLUNTEER_FOLLOW_UP_MAX_DELIVERIES_PER_DRAIN,
+            true,
+          ),
+        ]
+        : [
+          currentCampaign.status === "running"
+            ? await drainVolunteerFollowUps(
+              c,
+              currentCampaign,
+              leaseToken,
+              VOLUNTEER_FOLLOW_UP_MAX_DELIVERIES_PER_DRAIN,
+            )
+            : { sent: 0, reason: "invitation_campaign_not_running" },
+          { sent: 0, reason: outcomesDue ? "skipped_for_invitation_turn" : "not_due" },
+        ];
+      const totalSent = invitations.sent + outcomes.sent;
+      const reason = `invitations:${invitations.reason};outcomes:${outcomes.reason}`;
+
+      stage = "finalize";
+      await recordVolunteerFollowUpDrain(campaign.id, reason, c);
+
+      return { sent: totalSent, reason };
+    } finally {
+      await releaseVolunteerFollowUpDrainLease(campaign.id, leaseToken, c);
+    }
+  } catch (error) {
+    const reason = volunteerDrainFailureReason(stage, error);
+
+    console.error(JSON.stringify({
+      event: "volunteer_follow_up_drain_stage_failed",
+      request_id: c.get("requestId") ?? null,
+      stage,
+      category: reason.endsWith(":resource_limit")
+        ? "resource_limit"
+        : "internal",
+    }));
+
+    if (campaign) {
+      try {
+        await recordVolunteerFollowUpDrain(
+          campaign.id,
+          reason,
+          c,
+        );
+      } catch {
+        // The original drain failure is more actionable than a secondary
+        // best-effort diagnostic write failure.
+      }
+    }
+
+    throw error;
   }
 }
 

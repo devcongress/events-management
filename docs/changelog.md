@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-28 — Bound scheduled email work to Worker request limits
+
+- Replace the combined 15-minute scheduled run with one minute-level trigger that dispatches one route per invocation; each route retains its 15-minute cadence, while six cycle slots intentionally remain idle.
+- Limit the volunteer drain to one invitation-or-outcome delivery per run. When outcomes are due while invitations are running, deterministic 15-minute windows reserve every other invocation for outcomes, preventing a large invitation backlog from consuming the outcome retry window.
+- Persist and emit sanitized drain-stage diagnostics for pre-send failures, including a resource-limit category without logging provider, database, URL, or applicant details.
+- Add fully stubbed scheduler request-budget coverage and shared volunteer invitation/outcome drain-budget coverage. No live provider, database, deployment, or migration operation was performed.
+- Give the HTTP-only budget fixtures a throwing WebSocket construction stub so they run independently of Node's native WebSocket availability while retaining real Supabase HTTP and request-budget assertions.
+
 ## 2026-09-28 — Safely queue failed volunteer email retries
 
 - Add Owner-only invitation and outcome retry diagnostics with factual queue, EMS/Resend, and provider-event guidance; bounced records remain a delivery event, not proof of root cause.

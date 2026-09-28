@@ -20,6 +20,8 @@ Owners can queue—not send—one failed invitation or outcome again only when R
 
 Provider HTTP status, failure certainty, stage, and timestamp are stored separately from a sanitized message. Owner diagnostics distinguish EMS request/account checks, provider rejection, uncertain result, and provider event without claiming a bounce proves the root cause. Accepted, delivered, bounced, complained, suppressed, historical, and ambiguous records are never manually resent. Invitation pause state and outcome pause state remain independent: a queue action while its own queue is paused waits for a separate Owner resume and never changes campaign controls.
 
+The scheduled worker gives this queue an isolated invocation every 15 minutes. One invocation processes one invitation or outcome queue only, retaining the existing lease, capacity, retry, and idempotency rules. When outcomes are due while invitations are running, deterministic 15-minute windows reserve every other invocation for outcomes; the 54/day campaign limit still applies. Pre-send failures record and emit only a safe drain stage plus `resource_limit` or `internal` category, never provider payloads, database messages, links, or recipient details.
+
 ## Key files
 
 - Migration: `supabase/migrations/20260923120000_volunteer_outcome_decisions.sql`

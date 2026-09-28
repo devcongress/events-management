@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-098: Isolate scheduled jobs and bound volunteer delivery work
+
+**Date:** 2026-09-28
+
+**Decision:** Use one minute-level Cron Trigger and the controller's scheduled timestamp to dispatch one job in each occupied slot of a 15-minute cycle. Keep the volunteer drain at slot zero for compatibility while the old trigger propagates out. Process only one volunteer queue and at most one delivery per invocation. When the invitation campaign is running and outcomes are due and unpaused, alternate invitation and outcome turns; otherwise respect each queue's independent availability and pause control.
+
+**Reason:** Direct calls to all nine app handlers shared one Worker invocation's outbound request budget. A synthetic 21-event scheduler run reproduced 52 requests before meaningful volunteer work, exceeding the 50-request Free-plan budget. Separate invocations prevent one job's exhaustion from blocking later jobs; single-queue volunteer turns avoid duplicate quota preparation and prevent invitation backlogs from monopolizing outcome retry time.
+
+**Trade-offs:** Each job retains its 15-minute cadence, but the trigger fires every minute with six idle slots. Volunteer delivery is deliberately paced, and an empty invitation turn may remain idle while the running campaign shares turns with outcomes. Existing locks, daily caps, provider reserves, pause controls, and idempotency rules remain authoritative. Other individual jobs can still require their own budget optimizations. The production incident's precise exception remains unconfirmed until release verification.
+
+**Revisit when:** Throughput needs exceed this paced schedule, job count exceeds the cycle, or durable queued execution is needed instead of periodic polling.
+
 ## ADR-097: Reuse a fixed pool of event-blast segments
 
 **Date:** 2026-09-25

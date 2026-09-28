@@ -52,8 +52,15 @@ const mocks = vi.hoisted(() => ({
   reconcileVolunteerFollowUpApplicants: vi.fn(),
   setVolunteerFollowUpCampaignStatus: vi.fn(),
   acquireVolunteerFollowUpDrainLease: vi.fn(),
+  renewVolunteerFollowUpDrainLease: vi.fn(),
   releaseVolunteerFollowUpDrainLease: vi.fn(),
   recordVolunteerFollowUpDrain: vi.fn(),
+  claimVolunteerFollowUpRecipient: vi.fn(),
+  updateVolunteerFollowUpDelivery: vi.fn(),
+  replayVolunteerFollowUpProviderEvents: vi.fn(),
+  claimVolunteerOutcome: vi.fn(),
+  validateVolunteerOutcomeSend: vi.fn(),
+  finalizeVolunteerOutcomeSend: vi.fn(),
   readResendEmailQuota: vi.fn(),
   sendResendEmailBatch: vi.fn(),
   enforcePublicRateLimit: vi.fn(),
@@ -80,8 +87,15 @@ vi.mock("@/lib/supabase/volunteer-follow-up", () => ({
     mocks.reconcileVolunteerFollowUpApplicants,
   setVolunteerFollowUpCampaignStatus: mocks.setVolunteerFollowUpCampaignStatus,
   acquireVolunteerFollowUpDrainLease: mocks.acquireVolunteerFollowUpDrainLease,
+  renewVolunteerFollowUpDrainLease: mocks.renewVolunteerFollowUpDrainLease,
   releaseVolunteerFollowUpDrainLease: mocks.releaseVolunteerFollowUpDrainLease,
   recordVolunteerFollowUpDrain: mocks.recordVolunteerFollowUpDrain,
+  claimVolunteerFollowUpRecipient: mocks.claimVolunteerFollowUpRecipient,
+  updateVolunteerFollowUpDelivery: mocks.updateVolunteerFollowUpDelivery,
+  replayVolunteerFollowUpProviderEvents: mocks.replayVolunteerFollowUpProviderEvents,
+  claimVolunteerOutcome: mocks.claimVolunteerOutcome,
+  validateVolunteerOutcomeSend: mocks.validateVolunteerOutcomeSend,
+  finalizeVolunteerOutcomeSend: mocks.finalizeVolunteerOutcomeSend,
 }));
 vi.mock("@/lib/email/delivery-health", () => ({
   getEmailDeliveryHealth: mocks.getEmailDeliveryHealth,
@@ -143,8 +157,15 @@ beforeEach(() => {
     }),
   );
   mocks.acquireVolunteerFollowUpDrainLease.mockResolvedValue(false);
+  mocks.renewVolunteerFollowUpDrainLease.mockResolvedValue(true);
   mocks.releaseVolunteerFollowUpDrainLease.mockResolvedValue(undefined);
   mocks.recordVolunteerFollowUpDrain.mockResolvedValue(undefined);
+  mocks.claimVolunteerFollowUpRecipient.mockResolvedValue(null);
+  mocks.updateVolunteerFollowUpDelivery.mockResolvedValue(undefined);
+  mocks.replayVolunteerFollowUpProviderEvents.mockResolvedValue(undefined);
+  mocks.claimVolunteerOutcome.mockResolvedValue(null);
+  mocks.validateVolunteerOutcomeSend.mockResolvedValue(true);
+  mocks.finalizeVolunteerOutcomeSend.mockResolvedValue(true);
   mocks.readResendEmailQuota.mockResolvedValue({
     dailyUsed: null,
     monthlyUsed: 4,
@@ -350,9 +371,111 @@ describe("volunteer follow-up read and recovery", () => {
     expect(mocks.reconcileVolunteerFollowUpApplicants).toHaveBeenCalledOnce();
     expect(mocks.readResendEmailQuota).toHaveBeenCalledOnce();
     expect(payload.reason).toContain("invitations:capacity_unverified");
-    expect(payload.reason).toContain("outcomes:skipped_after_capacity_unverified");
+    expect(payload.reason).toContain("outcomes:not_due");
     expect(mocks.sendResendEmailBatch).not.toHaveBeenCalled();
     expect(mocks.releaseVolunteerFollowUpDrainLease).toHaveBeenCalledOnce();
+  });
+
+  it("caps a scheduled invitation drain at one provider delivery", async () => {
+    mocks.campaign.status = "running";
+    mocks.acquireVolunteerFollowUpDrainLease.mockResolvedValue(true);
+    mocks.readResendEmailQuota.mockResolvedValue({ dailyUsed: 0, monthlyUsed: 0 });
+    mocks.getEmailDeliveryHealth.mockResolvedValue({
+      daily_quota_limit: 100,
+      monthly_quota_limit: 3000,
+    });
+    mocks.claimVolunteerFollowUpRecipient.mockResolvedValue({
+      ...mocks.recipient,
+      idempotency_key: "recipient-idempotency-key",
+      attempt_count: 1,
+    });
+    mocks.sendResendEmailBatch.mockResolvedValue({
+      ids: ["provider-email-id"],
+      quota: { dailyUsed: 1, monthlyUsed: 1 },
+    });
+    mocks.envValue.mockImplementation((key: string) => {
+      if (key === "SLACK_EVENTS_RETRY_SECRET")
+        return "scheduled-secret-for-test-value-with-at-least-32-bytes";
+      if (key === "RESEND_API_KEY") return "resend-secret";
+      if (key === "PUBLIC_APP_URL") return "https://events.example.com";
+      if (key === "VOLUNTEER_FOLLOW_UP_TOKEN_SECRET")
+        return "token-secret-for-test-value-with-at-least-32-bytes";
+
+      return undefined;
+    });
+
+    const response = await createApp().request(
+      "/api/internal/volunteer-follow-up/drain",
+      {
+        method: "POST",
+        headers: {
+          "x-scheduled-job-secret":
+            "scheduled-secret-for-test-value-with-at-least-32-bytes",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendResendEmailBatch).toHaveBeenCalledOnce();
+    expect(mocks.claimVolunteerFollowUpRecipient).toHaveBeenCalledOnce();
+  });
+
+  it("uses the shared delivery budget for one due outcome after an empty invitation queue", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(15 * 60_000);
+    mocks.campaign.status = "running";
+    mocks.acquireVolunteerFollowUpDrainLease.mockResolvedValue(true);
+    mocks.hasDueVolunteerOutcomeDelivery.mockResolvedValue(true);
+    mocks.readResendEmailQuota.mockResolvedValue({ dailyUsed: 0, monthlyUsed: 0 });
+    mocks.getEmailDeliveryHealth.mockResolvedValue({
+      daily_quota_limit: 100,
+      monthly_quota_limit: 3000,
+    });
+    mocks.claimVolunteerFollowUpRecipient.mockResolvedValue(null);
+    mocks.claimVolunteerOutcome.mockResolvedValue({
+      id: crypto.randomUUID(),
+      idempotency_key: "outcome-idempotency-key",
+      attempt_count: 1,
+      payload: {
+        from: "DevCongress <events@example.com>",
+        to: ["applicant@example.com"],
+        subject: "Volunteer update",
+        html: "<p>Update</p>",
+        text: "Update",
+      },
+    });
+    mocks.sendResendEmailBatch.mockResolvedValue({
+      ids: ["provider-outcome-email-id"],
+      quota: { dailyUsed: 1, monthlyUsed: 1 },
+    });
+    mocks.envValue.mockImplementation((key: string) => {
+      if (key === "SLACK_EVENTS_RETRY_SECRET")
+        return "scheduled-secret-for-test-value-with-at-least-32-bytes";
+      if (key === "RESEND_API_KEY") return "resend-secret";
+      if (key === "PUBLIC_APP_URL") return "https://events.example.com";
+      if (key === "VOLUNTEER_FOLLOW_UP_TOKEN_SECRET")
+        return "token-secret-for-test-value-with-at-least-32-bytes";
+
+      return undefined;
+    });
+
+    const response = await createApp().request(
+      "/api/internal/volunteer-follow-up/drain",
+      {
+        method: "POST",
+        headers: {
+          "x-scheduled-job-secret":
+            "scheduled-secret-for-test-value-with-at-least-32-bytes",
+        },
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendResendEmailBatch).toHaveBeenCalledOnce();
+    expect(mocks.claimVolunteerFollowUpRecipient).not.toHaveBeenCalled();
+    expect(mocks.claimVolunteerOutcome).toHaveBeenCalledOnce();
+
+    vi.useRealTimers();
   });
 
   it("does not launch when backfill fails, leaving the draft state unchanged", async () => {
