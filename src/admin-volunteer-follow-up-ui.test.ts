@@ -81,6 +81,51 @@ describe("Volunteer follow-up workspace UI", () => {
     );
   });
 
+  it("keeps the review drawer readable while preserving optimistic-versioned saves", () => {
+    expect(reviewsPanelSource).toContain('width: min(40rem, 100%);');
+    expect(reviewsPanelSource).toContain('class="reviews-answer reviews-answer--motivation"');
+    expect(reviewsPanelSource).toContain("Why would you like to volunteer?");
+    expect(reviewsPanelSource).toContain('white-space: pre-wrap;');
+    expect(reviewsPanelSource).toContain('class="reviews-answer reviews-answer--availability"');
+    expect(reviewsPanelSource).toContain("Not answered");
+    expect(reviewsPanelSource).toContain('class="reviews-field-grid"');
+    expect(reviewsPanelSource).toContain('rows="3"');
+    expect(reviewsPanelSource).toContain("Saves your review and decision. No email is sent.");
+    expect(reviewsPanelSource).toContain("expected_version: input.expectedVersion");
+    expect(reviewsPanelSource).toContain("event.defaultPrevented || openDropdown");
+    expect(reviewsPanelSource).toContain("document.body.style.overflow = \"hidden\"");
+  });
+
+  it("makes outcome preview eligibility explicit without treating queued work as ready", () => {
+    expect(outcomePanelSource).toContain("Accepted applicants");
+    expect(outcomePanelSource).toContain("Not-selected applicants");
+    expect(outcomePanelSource).toContain("Preview checks who can receive this email");
+    expect(outcomePanelSource).toContain("Not sent includes recipients waiting in the queue");
+    expect(outcomePanelSource).toContain("canRequestPreview");
+    expect(outcomePanelSource).toContain("Save a decision in Reviews first.");
+    expect(outcomePanelSource).toContain("Saving a decision sends no emails.");
+    expect(outcomePanelSource).toContain("Enable queue delivery");
+    expect(outcomePanelSource).toContain("previewCountMatches");
+    expect(outcomePanelSource).toContain("sandbox=\"allow-same-origin\"");
+    expect(outcomePanelSource).toContain("/outcomes/confirm");
+  });
+
+  it("labels the collapsed diagnostics as capacity rather than overall delivery health", () => {
+    expect(followUpPanelSource).toContain("Provider capacity and scheduler diagnostics");
+    expect(followUpPanelSource).toContain("Capacity {{ capacityState }}");
+    expect(followUpPanelSource).toContain("follow-up-health-state--blocked");
+  });
+
+  it("describes invitation progress without confusing it with selection acceptance", () => {
+    expect(followUpPanelSource).toContain("Invitations pending");
+    expect(followUpPanelSource).toContain("Queued or sending");
+    expect(followUpPanelSource).toContain("Responses received");
+    expect(followUpPanelSource).toContain("Follow-up form submitted");
+    expect(followUpPanelSource).toContain("Failed, bounced, suppressed, or complained");
+    expect(followUpPanelSource).not.toContain("Not yet accepted");
+    expect(followUpPanelSource).toContain("grid-template-columns: minmax(0, 1fr);");
+  });
+
   it("uses the shared pager and distinguishes review, invitation, and response state", () => {
     expect(reviewsPanelSource).toContain(
       'import AppPagination from "@/src/components/AppPagination.vue";',

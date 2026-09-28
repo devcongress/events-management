@@ -431,7 +431,7 @@ onBeforeUnmount(() => {
             tabindex="-1"
           >
             <header>
-              <div>
+              <div class="reviews-drawer-identity">
                 <span class="reviews-eyebrow">{{
                   selected.submitted_at ? "Submitted response" : "Applicant"
                 }}</span>
@@ -448,7 +448,7 @@ onBeforeUnmount(() => {
               </button>
             </header>
             <div class="reviews-drawer-body">
-              <div class="reviews-meta" aria-label="Application status">
+              <div class="reviews-meta" aria-label="Saved review and invitation status">
                 <span v-if="selected.submitted_at"
                   >Submitted {{ formatDate(selected.submitted_at) }}</span
                 >
@@ -459,29 +459,22 @@ onBeforeUnmount(() => {
                   :class="`reviews-status--${selected.review_status}`"
                   >{{ statusLabel(selected.review_status) }}</span
                 >
-                <span class="reviews-invitation"
-                  >Invitation
-                  <strong>{{
-                    selected.invitation_sent ? "Sent" : "Not sent"
-                  }}</strong></span
-                >
-                <span class="reviews-invitation"
-                  >Outcome
-                  <strong>{{ selected.outcome_sent ? "Sent" : "Not sent" }}</strong></span
-                >
+                <span>Invitation {{ selected.invitation_sent ? "sent" : "not sent" }}</span>
+                <span>Outcome {{ selected.outcome_sent ? "sent" : "not sent" }}</span>
               </div>
-              <section class="reviews-answer">
-                <h4 class="editorial-label">
-                  Why would you like to volunteer?
-                </h4>
+              <section class="reviews-answer reviews-answer--motivation">
+                <h4>Motivation</h4>
+                <p class="reviews-answer-question">Why would you like to volunteer?</p>
                 <p>{{ selected.motivation || "No answer provided." }}</p>
               </section>
-              <section class="reviews-answer">
-                <h4 class="editorial-label">
-                  Can you come to Accra and volunteer on 19 December without
-                  travel support?
-                </h4>
-                <p>
+              <section class="reviews-answer reviews-answer--availability">
+                <div>
+                  <h4>Availability</h4>
+                  <p class="reviews-answer-question">
+                    Can you come to Accra and volunteer on 19 December without travel support?
+                  </p>
+                </div>
+                <p class="reviews-answer-value">
                   {{
                     selected.can_attend_accra === null
                       ? "Not answered"
@@ -492,34 +485,38 @@ onBeforeUnmount(() => {
                 </p>
               </section>
               <template v-if="selected.submitted_at">
+                <section class="reviews-team-review" aria-labelledby="team-review-title">
+                  <div class="reviews-team-review-heading">
+                    <span class="reviews-eyebrow">Team review</span>
+                    <h4 id="team-review-title">Record the decision</h4>
+                  </div>
+                  <div class="reviews-field-grid">
+                    <label class="reviews-field"><span>Selection decision</span><AppDropdown
+                      v-model="decision"
+                      :options="decisionOptions"
+                      density="compact"
+                      :teleport="true"
+                      aria-label="Volunteer selection decision"
+                    /></label>
+                    <label class="reviews-field"><span>Review status</span><AppDropdown
+                      v-model="reviewStatus"
+                      :options="options.slice(1)"
+                      density="compact"
+                      :teleport="true"
+                      aria-label="Review status"
+                    /></label>
+                  </div>
                 <label class="reviews-field"
-                  ><span class="editorial-label">Selection decision</span
-                  ><AppDropdown
-                    v-model="decision"
-                    :options="decisionOptions"
-                    density="compact"
-                    :teleport="true"
-                    aria-label="Volunteer selection decision"
-                /></label>
-                <label class="reviews-field"
-                  ><span class="editorial-label">Review status</span
-                  ><AppDropdown
-                    v-model="reviewStatus"
-                    :options="options.slice(1)"
-                    density="compact"
-                    :teleport="true"
-                    aria-label="Review status"
-                /></label>
-                <label class="reviews-field"
-                  ><span class="editorial-label">Review note</span
+                  ><span>Review note</span
                   ><textarea
                     v-model="reviewNote"
                     class="app-form-control"
                     maxlength="1000"
-                    rows="4"
+                    rows="3"
                     placeholder="Optional note for the team"
                   />
                 </label>
+                </section>
               </template>
             </div>
             <footer v-if="selected.submitted_at" class="reviews-drawer-footer">
@@ -532,7 +529,7 @@ onBeforeUnmount(() => {
                 {{ mutation.isPending.value ? "Saving…" : "Save review" }}
               </button>
               <p class="reviews-save-hint">
-                Saving records the review and decision. It never sends an email.
+                Saves your review and decision. No email is sent.
               </p>
               <p
                 v-if="mutation.isError.value"
@@ -786,7 +783,7 @@ onBeforeUnmount(() => {
 }
 .reviews-drawer {
   display: flex;
-  width: min(34rem, 100%);
+  width: min(40rem, 100%);
   height: 100%;
   min-height: 0;
   flex-direction: column;
@@ -800,8 +797,16 @@ onBeforeUnmount(() => {
   padding: 1.4rem;
   border-bottom: 1px solid #e6e3dc;
 }
+.reviews-drawer-identity {
+  min-width: 0;
+}
+.reviews-drawer-identity h3,
+.reviews-drawer-identity p {
+  overflow-wrap: anywhere;
+}
 .reviews-drawer > header button {
   width: 2.75rem;
+  min-width: 2.75rem;
   min-height: 2.75rem;
   padding: 0;
   font-size: 1.25rem;
@@ -819,22 +824,27 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid #e6e3dc;
-  color: #777269;
+  padding: 0.75rem;
+  border: 1px solid #e6e3dc;
+  border-radius: 8px;
+  background: #faf8f3;
+  color: #69665f;
   font-size: 0.8rem;
 }
-.reviews-meta > span:first-child {
-  margin-right: auto;
-}
 .reviews-answer {
-  padding: 1rem 0;
+  padding: 1.1rem 0;
   border-bottom: 1px solid #e6e3dc;
 }
 .reviews-answer h4 {
-  margin: 0 0 0.5rem;
-  color: #bb145e;
-  font-size: 0.7rem;
+  margin: 0;
+  color: #25231f;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+.reviews-answer-question {
+  margin: 0.35rem 0 0.75rem !important;
+  color: #69665f !important;
+  font-size: 0.82rem !important;
 }
 .reviews-answer p {
   margin: 0;
@@ -842,6 +852,44 @@ onBeforeUnmount(() => {
   font-size: 0.96rem;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+.reviews-answer--availability {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #eadca8;
+  border-radius: 8px;
+  background: #fff9df;
+}
+.reviews-answer--availability .reviews-answer-question {
+  margin-bottom: 0 !important;
+}
+.reviews-answer-value {
+  align-self: center;
+  width: fit-content;
+  margin: 0 !important;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #e2c857;
+  border-radius: 99px;
+  background: #fff;
+  color: #5f4800 !important;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.reviews-team-review {
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid #e6e3dc;
+}
+.reviews-team-review-heading h4 {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+.reviews-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
 }
 .reviews-field {
   display: grid;
@@ -853,6 +901,12 @@ onBeforeUnmount(() => {
 .reviews-field .editorial-label {
   color: #bb145e;
   font-size: 0.7rem;
+}
+.reviews-field > span {
+  color: #69665f;
+  font: 700 0.68rem/1.3 var(--font-mono), monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .reviews-field textarea {
   resize: vertical;
@@ -881,6 +935,13 @@ onBeforeUnmount(() => {
 .reviews-save:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+.reviews-save-hint {
+  margin: 0.5rem 0 0;
+  color: #69665f;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
 }
 .reviews-save-error {
   margin: 0.6rem 0 0;
@@ -979,9 +1040,25 @@ onBeforeUnmount(() => {
   .reviews-drawer {
     width: 100%;
   }
+  .reviews-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .reviews-drawer-footer {
     padding-right: 1rem;
     padding-left: 1rem;
+  }
+}
+@media (max-width: 360px) {
+  .reviews-drawer > header,
+  .reviews-drawer-body {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+  .reviews-answer--availability {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reviews-answer-value {
+    justify-self: start;
   }
 }
 @media (hover: hover) and (pointer: fine) {

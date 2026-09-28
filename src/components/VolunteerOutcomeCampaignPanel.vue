@@ -58,8 +58,8 @@ let previousDocumentOverflow = "";
 let drawerLocked = false;
 let frameDocument: Document | null = null;
 const choiceOptions = [
-  { value: "accepted", label: "Send acceptances" },
-  { value: "not_selected", label: "Send rejections" },
+  { value: "accepted", label: "Accepted applicants" },
+  { value: "not_selected", label: "Not-selected applicants" },
 ];
 const eligibleDecisions = computed(() =>
   props.recipients.filter((recipient) => recipient.decision === decision.value),
@@ -75,6 +75,7 @@ const pendingCount = computed(() =>
 const attentionCount = computed(() =>
   eligibleDecisions.value.filter((recipient) => recipient.outcome_delivery?.status === "needs_attention").length,
 );
+const canRequestPreview = computed(() => eligibleDecisions.value.length > 0);
 const deliveryRows = computed(() =>
   props.recipients
     .filter((recipient) => recipient.outcome_delivery)
@@ -279,25 +280,41 @@ onBeforeUnmount(() => {
       <div>
         <p class="editorial-label">Owner · Volunteer decisions</p>
         <h3 id="outcome-campaign-title">Outcome emails</h3>
-        <p>Selection decisions are saved by reviewers. Preview the exact audience, then confirm each send.</p>
+        <p>Save decisions in Reviews → choose an outcome → preview the exact audience and email → confirm the queue.</p>
       </div>
-      <button class="outcome-pause" type="button" :disabled="busy" @click="togglePause">
-        {{ outcomePaused ? "Resume outcome sending" : "Pause outcome sending" }}
-      </button>
     </header>
 
-    <div class="outcome-summary" aria-label="Outcome email status">
-      <span><strong>{{ eligibleDecisions.length }}</strong> {{ decision === "accepted" ? "accepted" : "not selected" }}</span>
-      <span><strong>{{ pendingCount }}</strong> not sent</span>
-      <span><strong>{{ sentCount }}</strong> sent</span>
-      <span v-if="attentionCount"><strong>{{ attentionCount }}</strong> needs attention</span>
-      <span v-if="outcomePaused" class="outcome-paused-state">Sending paused</span>
+    <div class="outcome-audience" aria-label="Selected outcome audience">
+      <div class="outcome-actions">
+        <label class="outcome-audience-picker">
+          <span>Audience</span>
+          <AppDropdown v-model="decision" :options="choiceOptions" density="compact" aria-label="Choose outcome audience" />
+        </label>
+        <button class="outcome-send" type="button" :disabled="busy || !canRequestPreview" @click="openPreview">
+          Preview {{ decision === "accepted" ? "acceptances" : "rejections" }}
+        </button>
+      </div>
+      <p class="outcome-preview-helper">Preview checks who can receive this email and shows the exact frozen audience before anything is queued.</p>
+      <dl class="outcome-summary" :class="{ 'outcome-summary--with-attention': attentionCount }">
+        <div><dt>Decisions</dt><dd>{{ eligibleDecisions.length }}</dd></div>
+        <div><dt>Not sent</dt><dd>{{ pendingCount }}</dd></div>
+        <div><dt>Sent</dt><dd>{{ sentCount }}</dd></div>
+        <div v-if="attentionCount" class="outcome-summary--attention"><dt>Needs attention</dt><dd>{{ attentionCount }}</dd></div>
+      </dl>
+      <p v-if="!canRequestPreview" class="outcome-empty" role="status">
+        No {{ decision === "accepted" ? "accepted" : "not-selected" }} applicants are available for an outcome preview. Save a decision in Reviews first.
+      </p>
+      <p v-else class="outcome-count-note">Not sent includes recipients waiting in the queue or scheduled to retry; only Preview confirms current eligibility.</p>
     </div>
 
-    <div class="outcome-actions">
-      <AppDropdown v-model="decision" :options="choiceOptions" density="compact" aria-label="Choose outcome email" />
-      <button class="outcome-send" type="button" :disabled="busy" @click="openPreview">
-        Preview {{ decision === "accepted" ? "acceptances" : "rejections" }}
+    <div class="outcome-delivery-control" :class="{ 'is-paused': outcomePaused }">
+      <div>
+        <span class="editorial-label">Queue delivery</span>
+        <strong>{{ outcomePaused ? "Paused" : "Enabled" }}</strong>
+        <p>Saving a decision sends no emails. Enabling delivery only processes recipients already confirmed in this queue.</p>
+      </div>
+      <button class="outcome-pause" type="button" :disabled="busy" @click="togglePause">
+        {{ outcomePaused ? "Enable queue delivery" : "Pause queue delivery" }}
       </button>
     </div>
 
@@ -400,12 +417,32 @@ onBeforeUnmount(() => {
 .outcome-heading h3 {
   margin: .3rem 0;
   font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .outcome-heading p:not(.editorial-label) {
   margin: 0;
   color: #69665f;
   font-size: .84rem;
+}
+.outcome-audience {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #e7dcc5;
+  border-radius: 8px;
+  background: #faf5e9;
+}
+.outcome-audience-picker {
+  display: grid;
+  min-width: min(100%, 16rem);
+  gap: 0.35rem;
+}
+.outcome-audience-picker > span,
+.outcome-summary dt {
+  color: #69665f;
+  font: 700 0.65rem/1.2 var(--font-mono), monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .outcome-pause,
@@ -435,14 +472,34 @@ onBeforeUnmount(() => {
 }
 
 .outcome-summary {
-  flex-wrap: wrap;
-  margin: 1rem 0;
-  color: #69665f;
-  font-size: .78rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.9rem 0 0;
 }
-
-.outcome-summary strong {
+.outcome-summary--with-attention {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.outcome-summary div {
+  min-width: 0;
+  padding: 0.6rem;
+  border: 1px solid #eadfca;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 68%);
+}
+.outcome-summary dt,
+.outcome-summary dd {
+  margin: 0;
+}
+.outcome-summary dd {
+  margin-top: 0.25rem;
   color: #25231f;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.outcome-summary--attention {
+  border-color: #e6c474 !important;
+  background: #fff7dd !important;
 }
 
 .outcome-paused-state,
@@ -451,7 +508,51 @@ onBeforeUnmount(() => {
 }
 
 .outcome-actions {
-  align-items: stretch;
+  align-items: end;
+}
+.outcome-actions .outcome-send {
+  align-self: end;
+}
+.outcome-empty {
+  margin: 0.85rem 0 0;
+  color: #69665f;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.outcome-preview-helper,
+.outcome-count-note {
+  margin: 0.75rem 0 0;
+  color: #69665f;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+.outcome-count-note {
+  margin-top: 0.5rem;
+}
+.outcome-delivery-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-top: 1px solid #e6e3dc;
+  border-bottom: 1px solid #e6e3dc;
+}
+.outcome-delivery-control strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #28623c;
+  font-size: 0.88rem;
+}
+.outcome-delivery-control.is-paused strong {
+  color: #9a3b2d;
+}
+.outcome-delivery-control p {
+  max-width: 38rem;
+  margin: 0.3rem 0 0;
+  color: #69665f;
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .outcome-backdrop {
@@ -665,10 +766,18 @@ onBeforeUnmount(() => {
 .outcome-drawer-leave-active {
   transition: opacity 180ms cubic-bezier(.16, 1, .3, 1);
 }
+.outcome-drawer-enter-active .outcome-drawer,
+.outcome-drawer-leave-active .outcome-drawer {
+  transition: transform 240ms cubic-bezier(.16, 1, .3, 1);
+}
 
 .outcome-drawer-enter-from,
 .outcome-drawer-leave-to {
   opacity: 0;
+}
+.outcome-drawer-enter-from .outcome-drawer,
+.outcome-drawer-leave-to .outcome-drawer {
+  transform: translateX(1rem);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -700,6 +809,28 @@ onBeforeUnmount(() => {
     flex-direction: column;
   }
 
+  .outcome-actions .outcome-send {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .outcome-audience-picker {
+    min-width: 0;
+  }
+
+  .outcome-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .outcome-summary--with-attention {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .outcome-delivery-control {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .outcome-drawer {
     width: 100%;
   }
@@ -707,8 +838,15 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .outcome-drawer-enter-active,
-  .outcome-drawer-leave-active {
+  .outcome-drawer-leave-active,
+  .outcome-drawer-enter-active .outcome-drawer,
+  .outcome-drawer-leave-active .outcome-drawer {
     transition: none;
+  }
+
+  .outcome-drawer-enter-from .outcome-drawer,
+  .outcome-drawer-leave-to .outcome-drawer {
+    transform: none;
   }
 
   .outcome-pause:active,
