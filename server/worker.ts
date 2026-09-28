@@ -8,8 +8,13 @@ type QueueBatch = { messages: QueueMessage[] };
 type WorkerBindings = Record<string, unknown> & { SLACK_EVENTS_RETRY_SECRET?: string };
 type ScheduledController = { scheduledTime?: number };
 
+const VOLUNTEER_FOLLOW_UP_DRAIN_JOB = {
+  path: '/api/internal/volunteer-follow-up/drain',
+  event: 'scheduled_volunteer_follow_up_http_failed',
+} as const;
+
 const SCHEDULED_JOBS = [
-  { path: '/api/internal/volunteer-follow-up/drain', event: 'scheduled_volunteer_follow_up_http_failed' },
+  VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
   { path: '/api/internal/project-night/advance', event: 'scheduled_project_night_http_failed' },
   { path: '/api/internal/slack-announcements/retry', event: 'scheduled_event_slack_announcement_retry_http_failed' },
   { path: '/api/internal/event-page-monitors/check-due', event: 'scheduled_event_page_monitor_http_failed' },
@@ -18,6 +23,12 @@ const SCHEDULED_JOBS = [
   { path: '/api/internal/selected-speaker-emails/retry', event: 'scheduled_selected_speaker_email_retry_http_failed' },
   { path: '/api/internal/annual-conference-speaker-emails/retry', event: 'scheduled_annual_conference_speaker_email_retry_http_failed' },
   { path: '/api/internal/annual-conference/phases/rollover', event: 'scheduled_annual_conference_phase_rollover_http_failed' },
+  VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
+  null,
+  VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
+  null,
+  VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
+  null,
 ] as const;
 
 const SCHEDULE_CYCLE_MINUTES = 15;

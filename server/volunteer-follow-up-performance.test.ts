@@ -420,6 +420,80 @@ describe("volunteer follow-up read and recovery", () => {
     expect(mocks.claimVolunteerFollowUpRecipient).toHaveBeenCalledOnce();
   });
 
+  it("alternates invitation and outcome priority across adjacent cadence windows", async () => {
+    vi.useFakeTimers();
+    mocks.campaign.status = "running";
+    mocks.acquireVolunteerFollowUpDrainLease.mockResolvedValue(true);
+    mocks.hasDueVolunteerOutcomeDelivery.mockResolvedValue(true);
+    mocks.readResendEmailQuota.mockResolvedValue({ dailyUsed: 0, monthlyUsed: 0 });
+    mocks.getEmailDeliveryHealth.mockResolvedValue({
+      daily_quota_limit: 100,
+      monthly_quota_limit: 3000,
+    });
+    mocks.claimVolunteerFollowUpRecipient.mockResolvedValue({
+      ...mocks.recipient,
+      idempotency_key: "recipient-idempotency-key",
+      attempt_count: 1,
+    });
+    mocks.claimVolunteerOutcome.mockResolvedValue({
+      id: crypto.randomUUID(),
+      idempotency_key: "outcome-idempotency-key",
+      attempt_count: 1,
+      payload: {
+        from: "DevCongress <events@example.com>",
+        to: ["applicant@example.com"],
+        subject: "Volunteer update",
+        html: "<p>Update</p>",
+        text: "Update",
+      },
+    });
+    mocks.sendResendEmailBatch.mockResolvedValue({
+      ids: ["provider-email-id"],
+      quota: { dailyUsed: 1, monthlyUsed: 1 },
+    });
+    mocks.envValue.mockImplementation((key: string) => {
+      if (key === "SLACK_EVENTS_RETRY_SECRET")
+        return "scheduled-secret-for-test-value-with-at-least-32-bytes";
+      if (key === "RESEND_API_KEY") return "resend-secret";
+      if (key === "PUBLIC_APP_URL") return "https://events.example.com";
+      if (key === "VOLUNTEER_FOLLOW_UP_TOKEN_SECRET")
+        return "token-secret-for-test-value-with-at-least-32-bytes";
+
+      return undefined;
+    });
+
+    const app = createApp();
+    const request = () => app.request(
+      "/api/internal/volunteer-follow-up/drain",
+      {
+        method: "POST",
+        headers: {
+          "x-scheduled-job-secret":
+            "scheduled-secret-for-test-value-with-at-least-32-bytes",
+        },
+      },
+    );
+
+    for (const minute of [0, 9, 11, 13]) {
+      vi.setSystemTime(minute * 60_000);
+      await request();
+    }
+
+    expect(mocks.claimVolunteerFollowUpRecipient).toHaveBeenCalledTimes(4);
+    expect(mocks.claimVolunteerOutcome).not.toHaveBeenCalled();
+
+    for (const minute of [15, 24, 26, 28]) {
+      vi.setSystemTime(minute * 60_000);
+      await request();
+    }
+
+    expect(mocks.claimVolunteerFollowUpRecipient).toHaveBeenCalledTimes(4);
+    expect(mocks.claimVolunteerOutcome).toHaveBeenCalledTimes(4);
+    expect(mocks.sendResendEmailBatch).toHaveBeenCalledTimes(8);
+
+    vi.useRealTimers();
+  });
+
   it("uses the shared delivery budget for one due outcome after an empty invitation queue", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(15 * 60_000);

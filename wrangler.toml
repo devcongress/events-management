@@ -25,8 +25,9 @@ enabled = true
 
 [triggers]
 # A minute-level trigger isolates one scheduled route per invocation. Slots 0-8
-# dispatch the nine jobs, slots 9-14 stay idle, so every job keeps a 15-minute
-# cadence without combining their outbound-request budgets.
+# dispatch the nine scheduled jobs. Volunteer drain additionally uses slots 9,
+# 11, and 13; slots 10, 12, and 14 stay idle. This creates four isolated
+# volunteer processing opportunities each cycle without combining request budgets.
 crons = ["* * * * *"]
 
 # Broadcast preparation is deliberately asynchronous. One queue delivery imports
