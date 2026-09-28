@@ -81,6 +81,27 @@ describe("Volunteer follow-up workspace UI", () => {
     );
   });
 
+  it("uses the shared pager and distinguishes review, invitation, and response state", () => {
+    expect(reviewsPanelSource).toContain(
+      'import AppPagination from "@/src/components/AppPagination.vue";',
+    );
+    expect(reviewsPanelSource).toContain('<AppPagination');
+    expect(reviewsPanelSource).toContain('v-model:page="page"');
+    expect(reviewsPanelSource).toContain(':page-count="pageCount"');
+    expect(reviewsPanelSource).toContain(':range-start="pageStart"');
+    expect(reviewsPanelSource).toContain(':range-end="pageEnd"');
+    expect(reviewsPanelSource).toContain('aria-label="Review pages"');
+    expect(reviewsPanelSource).toContain('class="reviews-row reviews-row--header"');
+    expect(reviewsPanelSource).toContain("@media (max-width: 900px)");
+    expect(reviewsPanelSource).toContain("grid-template-columns: repeat(2, minmax(0, 1fr));");
+    expect(reviewsPanelSource).toContain(':teleport="true"');
+    expect(reviewsPanelSource).toContain("responseLabel(recipient)");
+    expect(reviewsPanelSource).toContain('recipient.invitation_sent ? "Sent" : "Not sent"');
+    expect(reviewsPanelSource).toContain('<time v-if="recipient.submitted_at"');
+    expect(reviewsPanelSource).toContain(':aria-describedby="`review-row-${recipient.id}`"');
+    expect(reviewsPanelSource).not.toContain('class="reviews-pagination"');
+  });
+
   it("uses shared floating controls and disables the deadline picker outside a draft campaign", () => {
     expect(panelSource).toContain("<AppDropdown");
     expect(panelSource).toContain("<AppDatePicker");

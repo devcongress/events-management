@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — Clarify and paginate volunteer application reviews
+
+- Replace the loose review rows with an aligned, responsive Applicant / Review / Invitation / Submitted grid that safely wraps long applicant identities and provides full-row keyboard-accessible review controls.
+- Distinguish submitted review badges from neutral Awaiting response and Not invited states, retain Sent/Not sent as an independent invitation signal, and mark submitted timestamps with semantic time elements.
+- Reuse the shared application pagination control with ten-item pages, visible ranges, safe filter resets, and response-shrink page clamping; keep mobile search full-width with two equal filter controls beneath it, and extend organizer and volunteer desktop/mobile journeys with deterministic pagination, save, and responsive layout coverage.
+
 ## 2026-09-28 — Verify volunteer sender capacity from Resend usage
 
 - Replace the fragile quota-header probe with Resend's read-only usage endpoint, validating zero and other non-negative safe-integer daily/monthly usage values while failing closed on malformed or unavailable data.

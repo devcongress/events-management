@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import AppDropdown from "@/src/components/AppDropdown.vue";
+import AppPagination from "@/src/components/AppPagination.vue";
 import { fetchJson } from "@/src/lib/api";
 import { notify } from "@/src/lib/notify";
 
@@ -79,6 +80,10 @@ const filtered = computed(() =>
 const visible = computed(() =>
   filtered.value.slice((page.value - 1) * pageSize, page.value * pageSize),
 );
+const pageStart = computed(() =>
+  filtered.value.length ? (page.value - 1) * pageSize + 1 : 0,
+);
+const pageEnd = computed(() => Math.min(page.value * pageSize, filtered.value.length));
 const options = [
   { value: "all", label: "All" },
   { value: "unreviewed", label: "Unreviewed" },
@@ -142,6 +147,8 @@ const statusLabel = (status: ReviewStatus) =>
     : status === "reviewed"
       ? "Reviewed"
       : "Unreviewed";
+const responseLabel = (recipient: Recipient) =>
+  recipient.invitation_sent ? "Awaiting response" : "Not invited";
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat("en-GH", {
     dateStyle: "medium",
@@ -307,74 +314,104 @@ onBeforeUnmount(() => {
             type="search"
             placeholder="Search name, email, or motivation"
         /></label>
-        <AppDropdown
-          v-model="answerFilter"
-          :options="[
-            { value: 'submitted', label: 'Submitted' },
-            { value: 'awaiting', label: 'Awaiting' },
-            { value: 'all', label: 'All applicants' },
-          ]"
-          density="compact"
-          aria-label="Filter by response status"
-        />
-        <AppDropdown
-          v-model="statusFilter"
-          :options="options"
-          density="compact"
-          aria-label="Filter by review status"
-        />
+        <div class="reviews-filter-controls">
+          <AppDropdown
+            v-model="answerFilter"
+            :options="[
+              { value: 'submitted', label: 'Submitted' },
+              { value: 'awaiting', label: 'Awaiting' },
+              { value: 'all', label: 'All applicants' },
+            ]"
+            density="compact"
+            :teleport="true"
+            aria-label="Filter by response status"
+          />
+          <AppDropdown
+            v-model="statusFilter"
+            :options="options"
+            density="compact"
+            :teleport="true"
+            aria-label="Filter by review status"
+          />
+        </div>
       </div>
       <div v-if="!filtered.length" class="reviews-state">
         <h3>No matches</h3>
         <p>Try a different search or review status.</p>
       </div>
-      <div v-else class="reviews-list">
-        <button
-          v-for="recipient in visible"
-          :key="recipient.id"
-          class="reviews-row"
-          type="button"
-          @click="selectedId = recipient.id"
-        >
-          <span class="reviews-person"
-            ><strong>{{ recipient.name }}</strong
-            ><small>{{ recipient.email }}</small></span
+      <template v-else>
+        <p class="reviews-range" aria-live="polite">
+          Showing {{ pageStart }}–{{ pageEnd }} of {{ filtered.length }} applicants
+        </p>
+        <div class="reviews-list">
+          <div class="reviews-row reviews-row--header" aria-hidden="true">
+            <span>Applicant</span>
+            <span>Review</span>
+            <span>Invitation</span>
+            <span>Submitted</span>
+            <span></span>
+          </div>
+          <button
+            v-for="recipient in visible"
+            :key="recipient.id"
+            class="reviews-row motion-press"
+            type="button"
+            :aria-label="`Review ${recipient.name}`"
+            :aria-describedby="`review-row-${recipient.id}`"
+            @click="selectedId = recipient.id"
           >
-          <span
-            class="reviews-status"
-            :class="`reviews-status--${recipient.review_status}`"
-            >{{
-              recipient.submitted_at
-                ? statusLabel(recipient.review_status)
-                : "Awaiting answer"
-            }}</span
-          >
-          <span class="reviews-invitation"
-            >Invitation
-            <strong>{{
-              recipient.invitation_sent ? "Sent" : "Not sent"
-            }}</strong></span
-          >
-          <span class="reviews-submitted">{{
-            recipient.submitted_at
-              ? formatDate(recipient.submitted_at)
-              : "Awaiting response"
-          }}</span>
-          <span aria-hidden="true" class="reviews-chevron">›</span>
-        </button>
-      </div>
-      <nav
-        v-if="filtered.length > pageSize"
-        class="reviews-pagination"
-        aria-label="Review pages"
-      >
-        <button type="button" :disabled="page <= 1" @click="page -= 1">
-          Previous</button
-        ><span>Page {{ page }} of {{ pageCount }}</span
-        ><button type="button" :disabled="page >= pageCount" @click="page += 1">
-          Next
-        </button>
-      </nav>
+            <span class="reviews-person">
+              <span class="reviews-row-label">Applicant</span>
+              <strong>{{ recipient.name }}</strong>
+              <small>{{ recipient.email }}</small>
+              <span :id="`review-row-${recipient.id}`" class="sr-only">
+                {{
+                  recipient.submitted_at
+                    ? `Review ${statusLabel(recipient.review_status)}.`
+                    : `Review ${responseLabel(recipient)}.`
+                }}
+                Invitation {{ recipient.invitation_sent ? "sent" : "not sent" }}.
+                {{
+                  recipient.submitted_at
+                    ? `Submitted ${formatDate(recipient.submitted_at)}.`
+                    : "No submitted response."
+                }}
+              </span>
+            </span>
+            <span class="reviews-review">
+              <span class="reviews-row-label">Review</span>
+              <span
+                v-if="recipient.submitted_at"
+                class="reviews-status"
+                :class="`reviews-status--${recipient.review_status}`"
+                >{{ statusLabel(recipient.review_status) }}</span
+              >
+              <span v-else class="reviews-muted-status">{{ responseLabel(recipient) }}</span>
+            </span>
+            <span class="reviews-invitation">
+              <span class="reviews-row-label">Invitation</span>
+              <strong>{{ recipient.invitation_sent ? "Sent" : "Not sent" }}</strong>
+            </span>
+            <span class="reviews-submitted">
+              <span class="reviews-row-label">Submitted</span>
+              <time v-if="recipient.submitted_at" :datetime="recipient.submitted_at">
+                {{ formatDate(recipient.submitted_at) }}
+              </time>
+              <span v-else aria-hidden="true">—</span>
+            </span>
+            <span aria-hidden="true" class="reviews-chevron">›</span>
+          </button>
+        </div>
+        <AppPagination
+          v-model:page="page"
+          :page-count="pageCount"
+          :total="filtered.length"
+          :range-start="pageStart"
+          :range-end="pageEnd"
+          item-label="applicants"
+          aria-label="Review pages"
+        />
+      </template>
     </template>
 
     <Teleport to="body">
@@ -518,9 +555,6 @@ onBeforeUnmount(() => {
 }
 .reviews-header,
 .reviews-toolbar,
-.reviews-row,
-.reviews-row > *,
-.reviews-pagination,
 .reviews-drawer > header {
   display: flex;
 }
@@ -606,6 +640,11 @@ onBeforeUnmount(() => {
 .reviews-search {
   flex: 1;
 }
+.reviews-filter-controls {
+  display: flex;
+  flex: none;
+  gap: 0.75rem;
+}
 .reviews-search input,
 .reviews-field textarea {
   width: 100%;
@@ -621,10 +660,23 @@ onBeforeUnmount(() => {
   border-top: 0;
   background: #fff;
 }
+.reviews-range {
+  margin: 0;
+  padding: 0.75rem 1.1rem;
+  border: 1px solid #dedbd4;
+  border-top: 0;
+  background: #faf9f6;
+  color: #69665f;
+  font: 700 0.68rem/1.3 var(--font-mono), monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .reviews-row {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.5fr) minmax(8.5rem, 0.85fr) minmax(6.5rem, 0.55fr) minmax(11rem, 0.9fr) 1.25rem;
   width: 100%;
   align-items: center;
-  gap: 1rem;
+  gap: 0.9rem;
   padding: 1rem 1.1rem;
   border: 0;
   border-top: 1px solid #eeece7;
@@ -633,24 +685,56 @@ onBeforeUnmount(() => {
   text-align: left;
   cursor: pointer;
 }
-.reviews-row:hover {
+.reviews-row:not(.reviews-row--header):hover {
   background: #faf9f6;
 }
+.reviews-row:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #c80d68;
+  outline-offset: -2px;
+}
+.reviews-row--header {
+  min-height: auto;
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+  border-top: 0;
+  background: #f4f1ea;
+  color: #69665f;
+  font: 700 0.65rem/1.3 var(--font-mono), monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .reviews-person {
-  min-width: 12rem;
-  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   gap: 0.2rem;
 }
 .reviews-person strong {
+  overflow-wrap: anywhere;
   font-size: 0.92rem;
 }
 .reviews-person small,
-.reviews-submitted {
+.reviews-submitted,
+.reviews-muted-status {
   color: #777269;
   font-size: 0.78rem;
 }
+.reviews-person small,
+.reviews-submitted time {
+  overflow-wrap: anywhere;
+}
+.reviews-review,
+.reviews-invitation,
+.reviews-submitted {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
 .reviews-status {
+  width: fit-content;
   padding: 0.35rem 0.55rem;
   border-radius: 5px;
   background: #f2f0eb;
@@ -667,10 +751,7 @@ onBeforeUnmount(() => {
   color: #80571b;
 }
 .reviews-invitation {
-  gap: 0.3rem;
-  color: #777269;
   font-size: 0.75rem;
-  white-space: nowrap;
 }
 .reviews-invitation strong {
   color: #38362f;
@@ -679,13 +760,9 @@ onBeforeUnmount(() => {
   color: #777269;
   font-size: 1.4rem;
 }
-.reviews-pagination {
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 1rem;
+.reviews-row-label {
+  display: none;
 }
-.reviews-pagination button,
 .reviews-drawer > header button {
   min-height: 2.5rem;
   padding: 0.45rem 0.75rem;
@@ -830,7 +907,7 @@ onBeforeUnmount(() => {
 .reviews-drawer-leave-to .reviews-drawer {
   transform: translateX(1rem);
 }
-@media (max-width: 680px) {
+@media (max-width: 900px) {
   .reviews-header {
     padding: 1rem;
   }
@@ -838,16 +915,66 @@ onBeforeUnmount(() => {
     align-items: stretch;
     flex-direction: column;
   }
+  .reviews-filter-controls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .reviews-filter-controls :deep(.relative) {
+    width: 100%;
+    min-width: 0;
+  }
+  .reviews-filter-controls :deep(button) {
+    min-width: 0;
+  }
+  .reviews-filter-controls :deep(button span:first-child) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .reviews-row {
-    flex-wrap: wrap;
-    gap: 0.5rem 0.8rem;
-    padding: 0.9rem;
+    grid-template-areas:
+      "person chevron"
+      "review invitation"
+      "submitted submitted";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem 1rem;
+    min-height: 8.5rem;
+    padding: 1rem;
+  }
+  .reviews-row--header {
+    display: none;
   }
   .reviews-person {
-    min-width: calc(100% - 2rem);
+    grid-area: person;
+  }
+  .reviews-review {
+    grid-area: review;
+  }
+  .reviews-invitation {
+    grid-area: invitation;
   }
   .reviews-submitted {
-    margin-left: auto;
+    grid-area: submitted;
+  }
+  .reviews-chevron {
+    grid-area: chevron;
+  }
+  .reviews-row-label {
+    display: block;
+    color: #69665f;
+    font: 700 0.65rem/1.2 var(--font-mono), monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .reviews-person .reviews-row-label {
+    display: none;
+  }
+  .reviews-chevron {
+    align-self: start;
+    padding-top: 0.2rem;
   }
   .reviews-drawer {
     width: 100%;
