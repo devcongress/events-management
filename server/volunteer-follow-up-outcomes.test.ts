@@ -169,7 +169,6 @@ describe("volunteer outcome email drain", () => {
         text: "Accepted",
       },
     });
-    mocks.claimOutcome.mockResolvedValueOnce(null);
     mocks.sendBatch.mockResolvedValueOnce({
       ids: ["provider-email-recovered"],
       quota: { dailyUsed: 6, monthlyUsed: 41 },
@@ -179,7 +178,7 @@ describe("volunteer outcome email drain", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.hasDue).toHaveBeenCalled();
-    expect(mocks.claimOutcome).toHaveBeenCalledTimes(2);
+    expect(mocks.claimOutcome).toHaveBeenCalledOnce();
     expect(mocks.sendBatch).toHaveBeenCalledOnce();
     expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
       status: "accepted",

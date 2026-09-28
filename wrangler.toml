@@ -24,7 +24,10 @@ EVENT_SUBMISSION_REPLY_DOMAIN = "updates.devcongress.org"
 enabled = true
 
 [triggers]
-crons = ["*/15 * * * *"]
+# A minute-level trigger isolates one scheduled route per invocation. Slots 0-8
+# dispatch the nine jobs, slots 9-14 stay idle, so every job keeps a 15-minute
+# cadence without combining their outbound-request budgets.
+crons = ["* * * * *"]
 
 # Broadcast preparation is deliberately asynchronous. One queue delivery imports
 # only a small audience slice, avoiding the per-request outbound-fetch ceiling
