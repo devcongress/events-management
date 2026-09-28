@@ -214,6 +214,25 @@ describe("volunteer outcome email drain", () => {
     expect(mocks.replayEvents).toHaveBeenCalledWith("provider-email-1", expect.anything());
   });
 
+  it("keeps an accepted outcome final even when its batch response omits quota headers", async () => {
+    mocks.sendBatch.mockResolvedValueOnce({
+      ids: ["provider-email-1"],
+      quota: { dailyUsed: null, monthlyUsed: null },
+    });
+
+    const response = await drain();
+    const payload = await response.json() as { sent: number; reason: string };
+
+    expect(response.status).toBe(200);
+    expect(payload.sent).toBe(1);
+    expect(payload.reason).toContain("capacity_unverified");
+    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
+      status: "accepted",
+      providerEmailId: "provider-email-1",
+    }), expect.anything());
+    expect(mocks.sendBatch).toHaveBeenCalledOnce();
+  });
+
   it("records definite provider rate limits as retryable failures without changing the decision", async () => {
     const { ResendBatchError } = await import("../lib/email/resend");
 

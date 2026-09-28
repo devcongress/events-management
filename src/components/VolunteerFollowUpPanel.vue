@@ -8,6 +8,7 @@ import VolunteerOutcomeCampaignPanel from "@/src/components/VolunteerOutcomeCamp
 import { ensureAdminShortLink, fetchJson } from "@/src/lib/api";
 import { copyTextToClipboard } from "@/src/lib/clipboard";
 import { notify } from "@/src/lib/notify";
+import { volunteerFollowUpCampaignStatus } from "@/src/lib/volunteer-follow-up-campaign-status";
 import {
   filterVolunteerFollowUpRecipients,
   paginateVolunteerFollowUpRecipients,
@@ -129,6 +130,7 @@ const pendingRetry = ref<{
 const pendingRetryIds = ref(new Set<string>());
 const setupOpen = ref(true);
 const healthOpen = ref(false);
+const campaignStatusClock = ref(Date.now());
 const previewOpen = ref(false);
 const previewLoading = ref(false);
 const previewError = ref("");
@@ -139,6 +141,7 @@ const previewDrawerPanel = ref<HTMLElement | null>(null);
 const previewCloseButton = ref<HTMLButtonElement | null>(null);
 const previewEmailTab = ref<HTMLButtonElement | null>(null);
 let previousFocus: HTMLElement | null = null;
+let campaignStatusTimer: number | null = null;
 let previousBodyOverflow = "";
 let previousDocumentOverflow = "";
 let previewDrawerLocked = false;
@@ -213,6 +216,16 @@ const capacityState = computed(() => {
     ? "Fresh"
     : "Stale";
 });
+const campaignStatus = computed(() => {
+  if (!campaign.value) return null;
+
+  return volunteerFollowUpCampaignStatus({
+    status: campaign.value.status,
+    lastDrainAt: campaign.value.last_drain_at,
+    lastDrainReason: campaign.value.last_drain_reason,
+    now: new Date(campaignStatusClock.value),
+  });
+});
 const previewFrameDocument = computed(() => {
   if (!preview.value) return "";
 
@@ -268,6 +281,9 @@ onMounted(() => {
     "change",
     closeSelectionOnBreakpointChange,
   );
+  campaignStatusTimer = window.setInterval(() => {
+    campaignStatusClock.value = Date.now();
+  }, 30_000);
 });
 
 watch(
@@ -702,6 +718,7 @@ async function openPreview(): Promise<void> {
 
 onUnmounted(() => {
   previewDrawerLifecycleId += 1;
+  if (campaignStatusTimer) window.clearInterval(campaignStatusTimer);
   selectedMediaQuery?.removeEventListener(
     "change",
     closeSelectionOnBreakpointChange,
@@ -850,6 +867,28 @@ onUnmounted(() => {
             <dd>{{ counts.failed }}</dd>
           </div>
         </dl>
+      </section>
+
+      <section
+        v-if="isOwner && campaignStatus"
+        class="follow-up-sender-status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <p class="follow-up-kicker">Sending status</p>
+        <p class="follow-up-sender-status-message">
+          {{ campaignStatus.message }}
+        </p>
+        <p
+          v-if="campaign.last_drain_at"
+          class="follow-up-sender-status-timestamp"
+          :class="{ 'follow-up-sender-status-timestamp--historical': campaignStatus.lastRunIsHistorical }"
+        >
+          Last scheduler run: {{ formatDate(campaign.last_drain_at) }}.
+        </p>
+        <p v-if="campaignStatus.detail" class="follow-up-sender-status-detail">
+          {{ campaignStatus.detail }}
+        </p>
       </section>
 
       <section
@@ -1102,8 +1141,11 @@ onUnmounted(() => {
                 <dt>Scheduler result</dt>
                 <dd>
                   {{
-                    campaign.last_drain_reason?.replaceAll("_", " ") ??
-                    "Not run yet"
+                    campaign.last_drain_reason
+                      ? campaignStatus?.lastRunIsHistorical
+                        ? campaignStatus.detail ?? "Historical scheduler result."
+                        : campaignStatus?.message
+                      : "Not run yet"
                   }}
                 </dd>
               </div>
@@ -1696,6 +1738,34 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.86rem;
   font-weight: 700;
+}
+.follow-up-sender-status {
+  margin: -0.85rem 0 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #ded9cf;
+  border-left: 3px solid #c80d68;
+  border-radius: 6px;
+  background: #fff;
+}
+.follow-up-sender-status > p {
+  margin: 0;
+}
+.follow-up-sender-status-message {
+  margin-top: 0.24rem !important;
+  color: #27231f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.follow-up-sender-status-timestamp,
+.follow-up-sender-status-detail {
+  margin-top: 0.28rem !important;
+  color: #625e57;
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+.follow-up-sender-status-timestamp--historical {
+  color: #7a5a16;
 }
 .follow-up-layout {
   display: grid;
