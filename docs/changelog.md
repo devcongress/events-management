@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — Clarify volunteer reviews and outcome queue decisions
+
+- Widen and restructure the reviewer drawer around readable applicant identity, full motivation and travel-support context, a highlighted availability answer, and one versioned review save that explicitly does not email anyone.
+- Make Owner outcome operations a clear save → audience → preview → confirm path, distinguish `Not sent` from preview-authoritative eligibility, and state that queue delivery only processes confirmed work.
+- Keep delivery health collapsed while labelling it as provider-capacity and scheduler diagnostics; add isolated 320px, 390px, desktop, long-content, empty-cohort, keyboard, scroll, and no-confirm-before-preview organizer-journey coverage. No live campaign, email, database, or production action was performed.
+- Rename and regroup invitation progress stats so pending delivery, submitted follow-up answers, and failed/bounced/suppressed/complained issues cannot be misread as volunteer-selection acceptance; count semantics are unchanged.
+
 ## 2026-09-28 — Increase volunteer sender cadence without widening delivery limits
 
 - Add three isolated volunteer-drain slots to the existing minute-level scheduler, giving the queue four processing opportunities per 15-minute cycle while keeping each invocation to one route and at most one invitation-or-outcome delivery.

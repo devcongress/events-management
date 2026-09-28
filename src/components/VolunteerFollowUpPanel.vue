@@ -855,16 +855,19 @@ onUnmounted(() => {
         </div>
         <dl class="follow-up-summary-stats">
           <div>
-            <dt>Not yet accepted</dt>
             <dd>{{ counts.notSent }}</dd>
+            <dt>Invitations pending</dt>
+            <small>Queued or sending</small>
           </div>
           <div>
-            <dt>Answers received</dt>
             <dd>{{ counts.responded }}</dd>
+            <dt>Responses received</dt>
+            <small>Follow-up form submitted</small>
           </div>
           <div>
-            <dt>Delivery issues</dt>
             <dd>{{ counts.failed }}</dd>
+            <dt>Delivery issues</dt>
+            <small>Failed, bounced, suppressed, or complained</small>
           </div>
         </dl>
       </section>
@@ -1085,12 +1088,13 @@ onUnmounted(() => {
         >
           <span
             ><small>Owner diagnostics</small
-            ><strong>Delivery health</strong></span
+            ><strong>Delivery health</strong
+            ><em>Provider capacity and scheduler diagnostics</em></span
           >
           <span
             class="follow-up-health-state"
             :class="`follow-up-health-state--${capacityState.toLowerCase()}`"
-            >{{ capacityState }}</span
+            >Capacity {{ capacityState }}</span
           >
           <svg
             viewBox="0 0 20 20"
@@ -1726,18 +1730,29 @@ onUnmounted(() => {
 }
 .follow-up-summary-stats > div {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.16rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #e6e1d8;
+  border-radius: 6px;
+  background: #fffdfa;
 }
 .follow-up-summary-stats dt {
   color: #666;
-  font-size: 0.73rem;
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 .follow-up-summary-stats dd {
   margin: 0;
-  font-size: 0.86rem;
+  color: #25231f;
+  font-size: 1.15rem;
   font-weight: 700;
+}
+.follow-up-summary-stats small {
+  color: #777;
+  font-size: 0.66rem;
+  line-height: 1.35;
 }
 .follow-up-sender-status {
   margin: -0.85rem 0 0.75rem;
@@ -2282,6 +2297,8 @@ onUnmounted(() => {
 }
 .follow-up-health-trigger > span:first-child {
   display: flex;
+  min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 0.12rem;
 }
@@ -2294,6 +2311,13 @@ onUnmounted(() => {
 }
 .follow-up-health-trigger strong {
   font-size: 0.86rem;
+}
+.follow-up-health-trigger em {
+  max-width: 19rem;
+  color: #777;
+  font-size: 0.68rem;
+  font-style: normal;
+  line-height: 1.35;
 }
 .follow-up-health-trigger svg {
   width: 1rem;
@@ -2369,6 +2393,7 @@ onUnmounted(() => {
   text-underline-offset: 0.2rem;
 }
 .follow-up-health-state {
+  flex: none;
   padding: 0.2rem 0.42rem;
   border: 1px solid #d2cec5;
   border-radius: 4px;
@@ -2377,6 +2402,7 @@ onUnmounted(() => {
   font-size: 0.61rem;
   font-weight: 700;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 .follow-up-health-state--fresh {
   border-color: #b8dfc2;
@@ -2387,6 +2413,13 @@ onUnmounted(() => {
   border-color: #f0d499;
   background: #fff8e7;
   color: #875100;
+}
+.follow-up-health-state--unknown,
+.follow-up-health-state--unverified,
+.follow-up-health-state--blocked {
+  border-color: #e8c48f;
+  background: #fff7e9;
+  color: #80571b;
 }
 .follow-up-delivery-detail {
   margin-top: 0.85rem;
@@ -2882,14 +2915,27 @@ onUnmounted(() => {
     font-size: 0.75rem;
   }
   .follow-up-summary-stats {
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.45rem;
   }
   .follow-up-summary-stats > div {
-    flex-direction: column-reverse;
-    gap: 0.1rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.55rem;
+    align-items: baseline;
   }
   .follow-up-summary-stats dt {
+    grid-column: 2;
+    grid-row: 1;
     font-size: 0.64rem;
+  }
+  .follow-up-summary-stats dd {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .follow-up-summary-stats small {
+    grid-column: 2;
+    grid-row: 2;
   }
   .follow-up-recipient {
     grid-template-columns: minmax(0, 1fr) 1rem;

@@ -1155,6 +1155,8 @@ try {
           id: `fixture-diagnostic-${index + 2}`,
           applicant_name: `Diagnostic Volunteer ${index + 2}`,
           applicant_email: `diagnostic${index + 2}@example.com`,
+          status: index === 0 ? "failed" : index === 1 ? "queued" : "delivered",
+          submitted_at: index === 2 ? "2026-09-24T10:00:00.000Z" : null,
           decision: "pending",
           decision_version: 0,
           outcome_delivery: {
@@ -1265,6 +1267,13 @@ try {
         { exact: true },
       ).waitFor();
       await followUp.getByText(/Last scheduler run:/).waitFor();
+      await followUp.getByText("Invitations pending", { exact: true }).waitFor();
+      await followUp.getByText("Queued or sending", { exact: true }).waitFor();
+      await followUp.getByText("Responses received", { exact: true }).waitFor();
+      await followUp.getByText("Follow-up form submitted", { exact: true }).waitFor();
+      await followUp.getByText("Delivery issues", { exact: true }).waitFor();
+      await followUp.getByText("Failed, bounced, suppressed, or complained", { exact: true }).waitFor();
+      assert.equal(await followUp.locator(".follow-up-summary-stats dd").nth(2).innerText(), "1");
       await page.screenshot({
         path: `${artifacts}/volunteer-follow-up-quota-status-desktop.png`,
         fullPage: true,
@@ -1292,9 +1301,24 @@ try {
         { exact: true },
       ).waitFor();
 
-      const outcomes = followUp.getByRole("region", { name: "Outcome emails" });
+      let outcomes = page.locator(".outcome-campaign:visible");
 
-      await outcomes.locator(".outcome-summary").getByText(/accepted/).waitFor();
+      await outcomes.getByText("Preview checks who can receive this email", { exact: false }).waitFor();
+      await outcomes.getByText("Not sent includes recipients waiting in the queue", { exact: false }).waitFor();
+      await outcomes.getByText("Queue delivery", { exact: true }).waitFor();
+      await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
+      await page.getByRole("option", { name: "Not-selected applicants", exact: true }).click();
+      await outcomes.getByText("No not-selected applicants are available", { exact: false }).waitFor();
+      assert.equal(
+        await outcomes.getByRole("button", { name: "Preview rejections", exact: true }).isDisabled(),
+        true,
+      );
+      assert.equal(
+        requests.some((request) => request.path.endsWith("/outcomes/confirm")),
+        false,
+      );
+      await outcomes.getByRole("button", { name: "Choose outcome audience" }).click();
+      await page.getByRole("option", { name: "Accepted applicants", exact: true }).click();
       await outcomes.getByText("Delivery attempts and backoff", { exact: true }).click();
       const finalDiagnostic = outcomes.locator(".outcome-diagnostics-scroll li").nth(12);
 
@@ -1303,11 +1327,33 @@ try {
         (await finalDiagnostic.innerText()).includes("Diagnostic Volunteer 13"),
         true,
       );
+      await outcomes.getByText("Delivery attempts and backoff", { exact: true }).click();
+      await outcomes.scrollIntoViewIfNeeded();
 
-      await page.screenshot({
-        path: `${artifacts}/volunteer-outcome-campaign.png`,
-        fullPage: true,
-      });
+      await outcomes.screenshot({ path: `${artifacts}/volunteer-outcome-campaign.png` });
+      await page.setViewportSize({ width: 320, height: 844 });
+      await page.waitForURL("**/organizer-console/mobile/annual-conference/2026*");
+      await mobileConference.getByRole("tab", { name: "Campaign", exact: true }).click();
+      const mobileOutcomes = page.locator(".outcome-campaign:visible");
+
+      await mobileOutcomes.getByText("Delivery attempts and backoff", { exact: true }).waitFor();
+      await mobileOutcomes.scrollIntoViewIfNeeded();
+      const mobileOutcomeFits = await mobileOutcomes.evaluate((panel) =>
+        panel.getBoundingClientRect().right <= window.innerWidth &&
+        document.documentElement.scrollWidth <= window.innerWidth,
+      );
+
+      assert.equal(
+        mobileOutcomeFits,
+        true,
+        "The 320px outcome panel must fit without horizontal overflow.",
+      );
+      await mobileOutcomes.screenshot({ path: `${artifacts}/volunteer-outcome-campaign-320.png` });
+      await page.setViewportSize({ width: 1280, height: 1000 });
+      await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
+      await page.locator("#admin-volunteers-campaign-tab").click();
+      outcomes = page.locator(".outcome-campaign:visible");
+      await outcomes.getByRole("button", { name: "Preview acceptances", exact: true }).waitFor();
       await outcomes.getByRole("button", { name: "Preview acceptances", exact: true }).click();
       const outcomePreview = page.getByRole("dialog", { name: "Send acceptances" });
 
@@ -1333,10 +1379,10 @@ try {
         requests.some((request) => request.path.endsWith("/outcomes/confirm") && request.method === "POST"),
         true,
       );
-      await outcomes.getByRole("button", { name: "Pause outcome sending", exact: true }).click();
-      await outcomes.getByRole("button", { name: "Resume outcome sending", exact: true }).waitFor();
-      await outcomes.getByRole("button", { name: "Resume outcome sending", exact: true }).click();
-      await outcomes.getByRole("button", { name: "Pause outcome sending", exact: true }).waitFor();
+      await outcomes.getByRole("button", { name: "Pause queue delivery", exact: true }).click();
+      await outcomes.getByRole("button", { name: "Enable queue delivery", exact: true }).waitFor();
+      await outcomes.getByRole("button", { name: "Enable queue delivery", exact: true }).click();
+      await outcomes.getByRole("button", { name: "Pause queue delivery", exact: true }).waitFor();
 
       await followUp
         .getByRole("button", { name: "Preview", exact: true })
@@ -1432,7 +1478,7 @@ try {
             name: "Ama Mensah",
             email: "ama@example.com",
             submitted_at: "2026-09-22T10:00:00.000Z",
-            motivation: "I want to make the conference welcoming.",
+            motivation: "I want to make the conference welcoming for every person who walks through the door, including first-time attendees who may not yet know anyone. I have organised student groups, enjoy calm logistical work, and will bring patient energy to attendee questions, wayfinding, and the small details that make a long conference day feel cared for.",
             can_attend_accra: true,
             review_status: "unreviewed",
             review_note: null,
@@ -1653,6 +1699,59 @@ try {
             path: `${artifacts}/volunteer-reviews-${role}-${mobile ? "mobile" : "desktop"}.png`,
             fullPage: true,
           });
+          if (mobile) await page.setViewportSize({ width: 320, height: 844 });
+          const longResponseReview = page.getByRole("button", {
+            name: "Review A very long volunteer applicant name that must stay inside the review row",
+          });
+
+          await longResponseReview.click();
+          await page.getByText("I want to make the conference welcoming for every person", { exact: false }).waitFor();
+          await page.waitForFunction(() => {
+            const drawer = document.querySelector(".reviews-drawer");
+
+            return drawer && getComputedStyle(drawer).transform === "none";
+          });
+          const longDrawerBounds = await page.locator(".reviews-drawer").evaluate((drawer) => {
+            const bounds = drawer.getBoundingClientRect();
+
+            return {
+              bodyScrollWidth: document.body.scrollWidth,
+              drawerLeft: bounds.left,
+              drawerRight: bounds.right,
+              viewportWidth: window.innerWidth,
+              windowScrollWidth: document.documentElement.scrollWidth,
+            };
+          });
+
+          assert.equal(
+            longDrawerBounds.drawerLeft >= 0 &&
+              longDrawerBounds.drawerRight <= longDrawerBounds.viewportWidth &&
+              longDrawerBounds.windowScrollWidth <= longDrawerBounds.viewportWidth,
+            true,
+            `The long-identity, long-motivation review drawer must fit without horizontal overflow: ${JSON.stringify(longDrawerBounds)}`,
+          );
+          await page.locator(".reviews-drawer").screenshot({
+            path: `${artifacts}/volunteer-review-drawer-long-top-${role}-${mobile ? "320" : "desktop"}.png`,
+          });
+          await page.locator(".reviews-drawer-body").evaluate((body) => {
+            body.scrollTop = body.scrollHeight;
+          });
+          const drawerFooterVisible = await page.locator(".reviews-drawer-footer").evaluate((footer) => {
+            const bounds = footer.getBoundingClientRect();
+
+            return bounds.top >= 0 && bounds.bottom <= window.innerHeight;
+          });
+
+          assert.equal(
+            drawerFooterVisible,
+            true,
+            "The review save footer must remain visible after reading a long response.",
+          );
+          await page.locator(".reviews-drawer").screenshot({
+            path: `${artifacts}/volunteer-review-drawer-long-${role}-${mobile ? "320" : "desktop"}.png`,
+          });
+          await page.getByRole("button", { name: "Close review", exact: true }).click();
+          if (mobile) await page.setViewportSize({ width: 390, height: 844 });
           await page.getByRole("button", { name: "Next page" }).click();
           await page.getByRole("button", { name: "Next page" }).click();
           await page.getByText("Page 3 of 3", { exact: true }).waitFor();
@@ -1697,6 +1796,20 @@ try {
           await page.getByRole("button", { name: "Next page" }).click();
           await page.getByRole("button", { name: "Next page" }).click();
           await page.getByRole("button", { name: "Review Applicant 21" }).click();
+          await page.getByText("Why would you like to volunteer?", { exact: true }).waitFor();
+          await page.getByText("Can you come to Accra and volunteer on 19 December without travel support?", { exact: true }).waitFor();
+          await page.screenshot({
+            path: `${artifacts}/volunteer-review-drawer-${role}-${mobile ? "390" : "desktop"}.png`,
+            fullPage: true,
+          });
+          if (mobile) {
+            await page.setViewportSize({ width: 320, height: 844 });
+            await page.screenshot({
+              path: `${artifacts}/volunteer-review-drawer-${role}-320.png`,
+              fullPage: true,
+            });
+            await page.setViewportSize({ width: 390, height: 844 });
+          }
           await page.getByRole("button", { name: "Volunteer selection decision" }).click();
           await page.getByRole("option", { name: "Accepted", exact: true }).click();
           await page.getByLabel("Review note").fill("Ready for scheduling.");
