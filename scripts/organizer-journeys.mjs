@@ -1441,14 +1441,49 @@ try {
             decision_version: 0,
             outcome_sent: false,
           };
-          const reviewedRecipient = {
-            ...recipient,
-            review_status: "reviewed",
-            review_note: "Ready for scheduling.",
-            decision: "accepted",
-            decision_version: 1,
-          };
+          const submittedRecipients = Array.from({ length: 21 }, (_, index) => {
+            if (index === 0) return recipient;
+
+            const number = String(index + 1).padStart(2, "0");
+
+            return {
+              ...recipient,
+              id: `fixture-review-recipient-${number}`,
+              name:
+                index === 1
+                  ? "A very long volunteer applicant name that must stay inside the review row"
+                  : `Applicant ${number}`,
+              email:
+                index === 1
+                  ? "a-very-long-volunteer-applicant-address-that-must-wrap@example.devcongress.org"
+                  : `applicant-${number}@example.com`,
+            };
+          });
+          let reviewRecipients = [
+            ...submittedRecipients,
+            {
+              ...recipient,
+              id: "fixture-awaiting-recipient",
+              name: "Awaiting Invitation Response",
+              email: "awaiting@example.com",
+              submitted_at: null,
+              motivation: null,
+              can_attend_accra: null,
+              invitation_sent: true,
+            },
+            {
+              ...recipient,
+              id: "fixture-uninvited-recipient",
+              name: "Uninvited Applicant",
+              email: "uninvited@example.com",
+              submitted_at: null,
+              motivation: null,
+              can_attend_accra: null,
+              invitation_sent: false,
+            },
+          ];
           let persistedRecipient = recipient;
+          let shrinkAfterSave = false;
 
           responses.set("/api/annual-conference/2026/work-plan", {
             body: reviewerWorkspace,
@@ -1465,24 +1500,51 @@ try {
           });
           responses.set(
             "/api/annual-conference/2026/volunteer-follow-up/reviews",
-            () => ({ body: { recipients: [persistedRecipient] } }),
+            () => ({
+              body: {
+                recipients: shrinkAfterSave
+                  ? [
+                      persistedRecipient,
+                      ...reviewRecipients
+                        .filter((item) => item.id !== persistedRecipient.id)
+                        .slice(0, 12),
+                    ]
+                  : reviewRecipients,
+              },
+            }),
           );
-          responses.set(
-            "/api/annual-conference/2026/volunteer-follow-up/recipients/fixture-review-recipient/review",
-            (request) => {
-              const input = JSON.parse(request.postData() ?? "{}");
+          const saveReview = (request) => {
+            const recipientId = new URL(request.url()).pathname.split("/").at(-2);
+            const input = JSON.parse(request.postData() ?? "{}");
+            const currentRecipient = reviewRecipients.find(
+              (item) => item.id === recipientId,
+            );
 
-              persistedRecipient = {
-                ...reviewedRecipient,
-                review_status: input.status,
-                review_note: input.note,
-                decision: input.decision,
-                decision_version: input.expected_version + 1,
-              };
+            if (!currentRecipient) {
+              return { status: 404, body: { error: "Unknown review fixture" } };
+            }
 
-              return { body: { recipient: persistedRecipient } };
-            },
-          );
+            persistedRecipient = {
+              ...currentRecipient,
+              review_status: input.status,
+              review_note: input.note,
+              decision: input.decision,
+              decision_version: input.expected_version + 1,
+            };
+            reviewRecipients = reviewRecipients.map((item) =>
+              item.id === persistedRecipient.id ? persistedRecipient : item,
+            );
+            shrinkAfterSave = true;
+
+            return { body: { recipient: persistedRecipient } };
+          };
+
+          for (const item of submittedRecipients) {
+            responses.set(
+              `/api/annual-conference/2026/volunteer-follow-up/recipients/${item.id}/review`,
+              saveReview,
+            );
+          }
 
           if (mobile) {
             await page.goto(
@@ -1504,7 +1566,137 @@ try {
           }
 
           await page.getByRole("tab", { name: "Reviews", exact: true }).click();
-          await page.getByRole("button", { name: /Ama Mensah/ }).click();
+          if (mobile) {
+            for (const width of [320, 390]) {
+              await page.setViewportSize({ width, height: 844 });
+              const toolbarLayout = await page.locator(".reviews-toolbar").evaluate((toolbar) => {
+                const search = toolbar.querySelector(".reviews-search");
+                const filters = [...toolbar.querySelectorAll(".reviews-filter-controls > div")];
+
+                if (!search || filters.length !== 2) return false;
+
+                const searchBounds = search.getBoundingClientRect();
+                const [firstBounds, secondBounds] = filters.map((filter) =>
+                  filter.getBoundingClientRect(),
+                );
+
+                return (
+                  searchBounds.bottom <= firstBounds.top &&
+                  Math.abs(firstBounds.top - secondBounds.top) < 1 &&
+                  firstBounds.right <= secondBounds.left
+                );
+              });
+
+              assert.equal(
+                toolbarLayout,
+                true,
+                `Mobile review toolbar must fit at ${width}px with search above aligned filters.`,
+              );
+            }
+            await page.setViewportSize({ width: 320, height: 844 });
+            await page
+              .getByRole("button", { name: "Filter by review status" })
+              .click();
+            const reviewStatusMenu = page.locator(".app-dropdown-menu:visible");
+
+            await reviewStatusMenu.waitFor();
+            const reviewStatusMenuFits = await reviewStatusMenu.evaluate((menu) => {
+              const bounds = menu.getBoundingClientRect();
+
+              return bounds.left >= 0 && bounds.right <= window.innerWidth;
+            });
+
+            assert.equal(
+              reviewStatusMenuFits,
+              true,
+              "The 320px review-status menu must remain within the viewport.",
+            );
+            await page.keyboard.press("Escape");
+            await reviewStatusMenu.waitFor({ state: "hidden" });
+            await page.setViewportSize({ width: 390, height: 844 });
+          } else {
+            await page.setViewportSize({ width: 800, height: 1000 });
+            const compactRowsFit = await page.locator(".reviews-list").evaluate((list) => {
+              const listBounds = list.getBoundingClientRect();
+              const header = list.querySelector(".reviews-row--header");
+
+              return (
+                getComputedStyle(header).display === "none" &&
+                [...list.querySelectorAll(".reviews-row:not(.reviews-row--header)")].every((row) => {
+                  const bounds = row.getBoundingClientRect();
+
+                  return bounds.left >= listBounds.left && bounds.right <= listBounds.right;
+                })
+              );
+            });
+
+            assert.equal(
+              compactRowsFit,
+              true,
+              "Review rows must remain contained at the 800px stacked breakpoint.",
+            );
+            await page.setViewportSize({ width: 1440, height: 1000 });
+          }
+          await page
+            .getByRole("button", { name: "Filter by response status" })
+            .click();
+          const allApplicantsOption = page.getByRole("option", {
+            name: "All applicants",
+            exact: true,
+          });
+
+          await allApplicantsOption.click();
+          await allApplicantsOption.waitFor({ state: "hidden" });
+          await page.getByText("Showing 1–10 of 23 applicants", { exact: true }).waitFor();
+          assert.equal(await page.locator(".reviews-list > button").count(), 10);
+          await page.screenshot({
+            path: `${artifacts}/volunteer-reviews-${role}-${mobile ? "mobile" : "desktop"}.png`,
+            fullPage: true,
+          });
+          await page.getByRole("button", { name: "Next page" }).click();
+          await page.getByRole("button", { name: "Next page" }).click();
+          await page.getByText("Page 3 of 3", { exact: true }).waitFor();
+          assert.equal(await page.locator(".reviews-list > button").count(), 3);
+          assert.equal(
+            await page.getByRole("button", { name: "Next page" }).isDisabled(),
+            true,
+          );
+          await page.getByRole("button", { name: "Previous page" }).click();
+          assert.equal(
+            await page.getByRole("button", { name: "Previous page" }).isDisabled(),
+            false,
+          );
+          await page
+            .getByPlaceholder("Search name, email, or motivation")
+            .fill("Applicant 03");
+          await page.getByText("Showing 1–1 of 1 applicants", { exact: true }).waitFor();
+          await page
+            .getByPlaceholder("Search name, email, or motivation")
+            .fill("");
+          await page
+            .getByRole("button", { name: "Filter by review status" })
+            .click();
+          await page.getByRole("option", { name: "Unreviewed", exact: true }).click();
+          await page.getByText("Showing 1–10 of 21 applicants", { exact: true }).waitFor();
+          await page
+            .getByRole("button", { name: "Filter by review status" })
+            .click();
+          await page.getByRole("option", { name: "All", exact: true }).click();
+          await page.getByRole("button", { name: "Next page" }).click();
+          await page
+            .getByRole("button", { name: "Filter by response status" })
+            .click();
+          await page.getByRole("option", { name: "Awaiting", exact: true }).click();
+          await page.getByText("Showing 1–2 of 2 applicants", { exact: true }).waitFor();
+          await page.getByText("Awaiting response", { exact: true }).waitFor();
+          await page.getByText("Not invited", { exact: true }).waitFor();
+          await page
+            .getByRole("button", { name: "Filter by response status" })
+            .click();
+          await page.getByRole("option", { name: "All applicants", exact: true }).click();
+          await page.getByRole("button", { name: "Next page" }).click();
+          await page.getByRole("button", { name: "Next page" }).click();
+          await page.getByRole("button", { name: "Review Applicant 21" }).click();
           await page.getByRole("button", { name: "Volunteer selection decision" }).click();
           await page.getByRole("option", { name: "Accepted", exact: true }).click();
           await page.getByLabel("Review note").fill("Ready for scheduling.");
@@ -1514,7 +1706,7 @@ try {
           await page.getByText("Review saved.", { exact: true }).waitFor();
           assert.equal(
             requests.some((request) =>
-              request.path.endsWith("/fixture-review-recipient/review") &&
+              request.path.endsWith("/fixture-review-recipient-21/review") &&
               JSON.parse(request.body ?? "{}").decision === "accepted" &&
               JSON.parse(request.body ?? "{}").expected_version === 0,
             ),
@@ -1524,14 +1716,31 @@ try {
             requests.some((request) => request.path.endsWith("/outcomes/confirm")),
             false,
           );
+          await page.getByText("Page 2 of 2", { exact: true }).waitFor();
           await page
             .getByRole("button", { name: "Close review", exact: true })
             .click();
-          await page.getByRole("button", { name: /Ama Mensah/ }).click();
+          await page.getByRole("button", { name: "Previous page" }).click();
+          await page.getByRole("button", { name: "Review Applicant 21" }).click();
           await page.getByLabel("Review note").waitFor();
           assert.equal(
             await page.getByLabel("Review note").inputValue(),
             "Ready for scheduling.",
+          );
+          const reviewRowsFit = await page.locator(".reviews-list").evaluate((list) => {
+            const listBounds = list.getBoundingClientRect();
+
+            return [...list.querySelectorAll(".reviews-row:not(.reviews-row--header)")].every((row) => {
+              const bounds = row.getBoundingClientRect();
+
+              return bounds.left >= listBounds.left && bounds.right <= listBounds.right;
+            });
+          });
+
+          assert.equal(
+            reviewRowsFit,
+            true,
+            "Review rows must contain long applicant identities without horizontal overflow.",
           );
           assert.equal(
             requests.some(
