@@ -1,7 +1,8 @@
 // Executable SQL regression checks for a disposable volunteer outcome database.
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
 
 assert.equal(process.env.PGDATABASE, 'volunteer_outcomes_test');
 assert.match(process.env.PGHOST ?? '', /^\/tmp\/volunteer-outcomes-postgres\./);
@@ -9,6 +10,14 @@ assert.match(process.env.PGHOST ?? '', /^\/tmp\/volunteer-outcomes-postgres\./);
 const sql = (query) => execFileSync('psql', [
   '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At',
 ], { input: query, encoding: 'utf8' }).trim();
+const execFileAsync = promisify(execFile);
+const sqlAsync = async (query) => {
+  const { stdout } = await execFileAsync('psql', [
+    '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', '-c', query,
+  ], { encoding: 'utf8', timeout: 10_000 });
+
+  return stdout.trim();
+};
 const campaignId = sql("select id from public.volunteer_follow_up_campaigns where edition_year = 2026");
 
 assert.match(campaignId, /^[a-f0-9-]{36}$/);
@@ -123,4 +132,129 @@ sql(`update public.volunteer_follow_up_outcome_deliveries set status='sending', 
 sql(`select * from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, gen_random_uuid(), '${retryLeaseToken}')`);
 assert.equal(sql(`select status from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`), 'needs_attention', 'expired ambiguous provider result is not automatically retried');
 
-console.log('Volunteer outcome database regressions passed (snapshot staleness, idempotent confirmation, actor and lease guards, decision locking, note edits, expired claim recovery, and 23-hour ambiguity cutoff).');
+// A manual Owner retry is only a queue transition for a definite, recent
+// provider rejection. It preserves the frozen payload/key and is idempotent.
+sql(`update public.volunteer_follow_up_outcome_deliveries set
+  status='failed', provider_email_id=null, provider_event_at=null,
+  first_attempt_at=now()-interval '1 hour', last_attempt_at=now()-interval '1 hour',
+  next_attempt_at=null, claimed_until=null, claim_token=null, attempt_count=2,
+  delivery_stage='provider_response', provider_http_status=422,
+  failure_certainty='definite', diagnostic_at=now()
+where id='${claimedId}';`);
+const outcomeBeforeRetry = sql(`select idempotency_key || ':' || attempt_count || ':' || first_attempt_at::text
+  from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`);
+const queuedOutcomeRetry = sql(`select queued::text || ':' || coalesce(block_reason, '')
+  from public.queue_volunteer_follow_up_failed_delivery_retry('${campaignId}', 'outcome', '${claimedId}')`);
+
+assert.equal(queuedOutcomeRetry, 'true:', 'a definite recent outcome rejection queues without sending');
+assert.equal(
+  sql(`select idempotency_key || ':' || attempt_count || ':' || first_attempt_at::text
+    from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`),
+  outcomeBeforeRetry,
+  'manual retry preserves the frozen outcome key and attempt history',
+);
+assert.equal(
+  sql(`select queued::text || ':' || block_reason
+    from public.queue_volunteer_follow_up_failed_delivery_retry('${campaignId}', 'outcome', '${claimedId}')`),
+  'false:retry_already_scheduled',
+  'a repeated click cannot queue a duplicate outcome retry',
+);
+
+const invitationId = sql(`insert into public.volunteer_follow_up_recipients (
+  campaign_id, application_id, application_created_at, applicant_name, applicant_email,
+  idempotency_key, status, attempt_count, first_attempt_at, last_attempt_at,
+  delivery_stage, provider_http_status, failure_certainty
+) values ('${campaignId}', '${suffix}-retry-invitation', now(), 'Ama Retry', '${suffix}-retry@example.test',
+  'invite/${suffix}-retry', 'failed', 1, now()-interval '1 hour', now()-interval '1 hour',
+  'provider_response', 422, 'definite') returning id`);
+const invitationBeforeRetry = sql(`select idempotency_key || ':' || attempt_count || ':' || first_attempt_at::text
+  from public.volunteer_follow_up_recipients where id='${invitationId}'`);
+
+assert.equal(
+  sql(`select queued::text || ':' || coalesce(block_reason, '')
+    from public.queue_volunteer_follow_up_failed_delivery_retry('${campaignId}', 'invitation', '${invitationId}')`),
+  'true:',
+  'a definite recent invitation rejection queues with the original recipient record',
+);
+assert.equal(
+  sql(`select idempotency_key || ':' || attempt_count || ':' || first_attempt_at::text
+    from public.volunteer_follow_up_recipients where id='${invitationId}'`),
+  invitationBeforeRetry,
+  'manual invitation retry preserves its stable key and attempt history',
+);
+sql(`update public.volunteer_follow_up_recipients set provider_email_id='accepted-${suffix}',
+  next_attempt_at=null where id='${invitationId}';`);
+assert.equal(
+  sql(`select queued::text || ':' || block_reason
+    from public.queue_volunteer_follow_up_failed_delivery_retry('${campaignId}', 'invitation', '${invitationId}')`),
+  'false:provider_acceptance_or_event',
+  'provider acceptance blocks manual invitation resend',
+);
+
+const concurrentInvitationId = sql(`insert into public.volunteer_follow_up_recipients (
+  campaign_id, application_id, application_created_at, applicant_name, applicant_email,
+  idempotency_key, status, attempt_count, first_attempt_at, last_attempt_at,
+  delivery_stage, provider_http_status, failure_certainty
+) values ('${campaignId}', '${suffix}-concurrent-invitation', now(), 'Ama Concurrent', '${suffix}-concurrent@example.test',
+  'invite/${suffix}-concurrent', 'failed', 1, now()-interval '1 hour', now()-interval '1 hour',
+  'provider_response', 422, 'definite') returning id`);
+const concurrentRetrySql = `select queued::text || ':' || coalesce(block_reason, '')
+  from public.queue_volunteer_follow_up_failed_delivery_retry('${campaignId}', 'invitation', '${concurrentInvitationId}')`;
+const concurrentResults = await Promise.all([
+  sqlAsync(concurrentRetrySql),
+  sqlAsync(concurrentRetrySql),
+]);
+
+assert.deepEqual(
+  concurrentResults.sort(),
+  ['false:retry_already_scheduled', 'true:'],
+  'concurrent Owner clicks serialize to one queued invitation retry',
+);
+
+// Reclaiming or expiring an outcome claim must discard an older definite
+// rejection: the provider may have accepted the reclaimed attempt before a
+// worker crash, so manual retry must see an ambiguous result instead.
+sql(`update public.volunteer_follow_up_outcome_deliveries set
+  status='failed', provider_email_id=null, provider_event_at=null,
+  first_attempt_at=now()-interval '1 hour', next_attempt_at=now(), claimed_until=null,
+  attempt_count=2, delivery_stage='provider_response', provider_http_status=422,
+  failure_certainty='definite', diagnostic_at=now()
+where id='${claimedId}';`);
+const reclaimedToken = randomUUID();
+const reclaimedId = sql(`select id from public.claim_volunteer_follow_up_outcome(
+  '${campaignId}', 54, '${reclaimedToken}', '${retryLeaseToken}')`);
+
+assert.equal(reclaimedId, claimedId);
+assert.equal(
+  sql(`select coalesce(provider_http_status::text, 'null') || ':' || coalesce(failure_certainty, 'null')
+    from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`),
+  'null:null',
+  'a reclaimed outcome clears stale definite rejection evidence before its new provider attempt',
+);
+sql(`update public.volunteer_follow_up_outcome_deliveries set
+  status='sending', first_attempt_at=now()-interval '24 hours', claimed_until=null, claim_token=null,
+  delivery_stage='provider_response', provider_http_status=422, failure_certainty='definite'
+where id='${claimedId}';`);
+sql(`select * from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, gen_random_uuid(), '${retryLeaseToken}')`);
+assert.equal(
+  sql(`select status || ':' || delivery_stage || ':' || coalesce(provider_http_status::text, 'null') || ':' || failure_certainty
+    from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`),
+  'needs_attention:provider_request:null:ambiguous',
+  'an expired outcome claim becomes ambiguous before any manual retry check',
+);
+
+sql(`update public.volunteer_follow_up_outcome_deliveries set
+  status='failed', first_attempt_at=now()-interval '1 hour', next_attempt_at=null,
+  claimed_until=null, provider_email_id=null, provider_event_at=null,
+  failure_certainty='definite', payload=jsonb_build_object(
+    'from','events@example.test','subject','test','html','<p>test</p>','text','test'
+  )
+where id='${claimedId}';`);
+assert.equal(
+  sql(`select queued::text || ':' || block_reason
+    from public.queue_volunteer_follow_up_failed_delivery_retry('${campaignId}', 'outcome', '${claimedId}')`),
+  'false:frozen_payload_invalid',
+  'a frozen outcome payload without a recipient array fails closed',
+);
+
+console.log('Volunteer outcome database regressions passed (snapshot staleness, idempotent confirmation, actor and lease guards, decision locking, note edits, expired claim recovery, 23-hour ambiguity cutoff, and bounded manual retry guards).');

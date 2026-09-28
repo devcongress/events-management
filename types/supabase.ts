@@ -1,23 +1,32 @@
 export type FeedbackKind = 'bug' | 'confusing' | 'suggestion' | 'praise';
 export type FeedbackStatus = 'new' | 'reviewing' | 'done' | 'wont_fix';
 export type FeedbackCampaignStatus = 'draft' | 'active' | 'closed';
-export type FeedbackQuestionType = 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
-export type CommunityEventStatus = 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
+export type FeedbackQuestionType =
+  | 'rating' | 'text' | 'choice' | 'talk_select' | 'yes_no';
+export type CommunityEventStatus =
+  | 'draft' | 'cfp_open' | 'cfp_closed' | 'upcoming' | 'live' | 'completed';
 export type CommunityEventSeriesType = 'monthly' | 'quarterly' | 'special';
 export type CommunityEventOwnership = 'devcongress' | 'external';
-export type CommunityEventFormat = 'meetup' | 'conference' | 'workshop' | 'hackathon' | 'webinar' | 'other';
+export type CommunityEventFormat =
+  | 'meetup' | 'conference' | 'workshop' | 'hackathon' | 'webinar' | 'other';
 export type CommunityEventSubmissionSource = 'internal' | 'public_submission';
-export type CommunityEventModerationStatus = 'pending' | 'approved' | 'rejected';
-export type CommunityEventPublicationStatus = 'draft' | 'published' | 'archived';
+export type CommunityEventModerationStatus =
+  | 'pending' | 'approved' | 'rejected';
+export type CommunityEventPublicationStatus =
+  | 'draft' | 'published' | 'archived';
 export type CommunityEventLocationType = 'in_person' | 'online' | 'hybrid';
-export type EventSubmissionEmailKind = 'receipt' | 'approved' | 'rejected' | 'amendment_approved' | 'amendment_rejected' | 'withdrawn';
-export type EventSubmissionEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
+export type EventSubmissionEmailKind =
+  | 'receipt' | 'approved' | 'rejected' | 'amendment_approved' | 'amendment_rejected' | 'withdrawn';
+export type EventSubmissionEmailDeliveryStatus =
+  | 'pending' | 'accepted' | 'failed';
 export type EventSubmissionReplySlackStatus = 'pending' | 'sent' | 'failed';
 export type EventRegistrationCampaignStatus = 'draft' | 'open' | 'closed';
 export type EventRegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled';
 export type RegistrationEmailDeliveryStatus = 'pending' | 'accepted' | 'failed';
-export type EventBlastStatus = 'waiting' | 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
-export type ShortLinkDestination = 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake' | 'volunteer_follow_up_test';
+export type EventBlastStatus =
+  | 'waiting' | 'preparing' | 'scheduled' | 'sent' | 'needs_capacity' | 'failed';
+export type ShortLinkDestination =
+  | 'monthly_cfp' | 'event_registration' | 'event_feedback' | 'conference_cfp' | 'volunteer_intake' | 'volunteer_follow_up_test';
 export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 export type AdminMembershipStatus = 'active' | 'disabled';
@@ -32,7 +41,8 @@ export type AnnualConferenceCapability =
   | 'speakers.view'
   | 'speakers.manage'
   | 'finance.view';
-export type AnnualConferenceTaskStatus = 'not_started' | 'in_progress' | 'blocked' | 'done';
+export type AnnualConferenceTaskStatus =
+  | 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =
   | 'programme_speakers'
   | 'volunteers'
@@ -44,10 +54,12 @@ export type AnnualConferenceWorkstream =
   | 'feedback_reporting';
 export type AnnualConferenceTaskPriority = 'high' | 'medium' | 'low';
 export type QuizStatus = 'draft' | 'waiting' | 'active' | 'finished';
-export type QuizQuestionPhase = 'presenting' | 'answering' | 'revealing' | 'scoreboard';
+export type QuizQuestionPhase =
+  | 'presenting' | 'answering' | 'revealing' | 'scoreboard';
 export type QuizPurpose = 'quiz' | 'system_design_learning';
 
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+export type Json =
+  | string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type ProjectNightRecurrenceRow = {
   id: boolean;
@@ -81,7 +93,8 @@ export type VolunteerFollowUpRecipientRow = {
   application_created_at: string;
   applicant_name: string;
   applicant_email: string;
-  status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained';
+  status:
+    | 'queued' | 'sending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained';
   idempotency_key: string;
   provider_email_id: string | null;
   attempt_count: number;
@@ -91,6 +104,14 @@ export type VolunteerFollowUpRecipientRow = {
   claimed_until: string | null;
   last_error: string | null;
   provider_event_at: string | null;
+  delivery_stage:
+    | "queue"
+    | "provider_request"
+    | "provider_response"
+    | "provider_event";
+  provider_http_status: number | null;
+  failure_certainty: "definite" | "ambiguous" | null;
+  diagnostic_at: string | null;
   submitted_at: string | null;
   motivation: string | null;
   can_attend_accra: boolean | null;
@@ -117,7 +138,8 @@ export type VolunteerFollowUpOutcomeDeliveryRow = {
   payload: Record<string, unknown>;
   template_version: string;
   idempotency_key: string;
-  status: 'queued' | 'sending' | 'retrying' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | 'needs_attention' | 'cancelled';
+  status:
+    | 'queued' | 'sending' | 'retrying' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | 'needs_attention' | 'cancelled';
   attempt_count: number;
   first_attempt_at: string | null;
   last_attempt_at: string | null;
@@ -127,6 +149,14 @@ export type VolunteerFollowUpOutcomeDeliveryRow = {
   provider_email_id: string | null;
   provider_event_at: string | null;
   last_error: string | null;
+  delivery_stage:
+    | "queue"
+    | "provider_request"
+    | "provider_response"
+    | "provider_event";
+  provider_http_status: number | null;
+  failure_certainty: "definite" | "ambiguous" | null;
+  diagnostic_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -143,25 +173,30 @@ export interface Database {
       };
       volunteer_follow_up_recipients: {
         Row: VolunteerFollowUpRecipientRow;
-        Insert: Pick<VolunteerFollowUpRecipientRow, 'campaign_id' | 'application_id' | 'applicant_name' | 'applicant_email' | 'idempotency_key'> & Partial<VolunteerFollowUpRecipientRow>;
+        Insert: Pick<VolunteerFollowUpRecipientRow,
+          | 'campaign_id' | 'application_id' | 'applicant_name' | 'applicant_email' | 'idempotency_key'> & Partial<VolunteerFollowUpRecipientRow>;
         Update: Partial<VolunteerFollowUpRecipientRow>;
         Relationships: [];
       };
       volunteer_follow_up_daily_claims: {
         Row: { campaign_id: string; send_day: string; claimed_count: number };
-        Insert: { campaign_id: string; send_day: string; claimed_count?: number };
+        Insert: { campaign_id: string; send_day: string; claimed_count?: number;
+        };
         Update: { claimed_count?: number };
         Relationships: [];
       };
       volunteer_follow_up_webhook_events: {
-        Row: { webhook_event_id: string; provider_email_id: string; event_type: string; provider_created_at: string; processed_at: string };
-        Insert: { webhook_event_id: string; provider_email_id: string; event_type: string; provider_created_at: string; processed_at?: string };
+        Row: { webhook_event_id: string; provider_email_id: string; event_type: string; provider_created_at: string; processed_at: string;
+        };
+        Insert: { webhook_event_id: string; provider_email_id: string; event_type: string; provider_created_at: string; processed_at?: string;
+        };
         Update: never;
         Relationships: [];
       };
       volunteer_follow_up_outcome_deliveries: {
         Row: VolunteerFollowUpOutcomeDeliveryRow;
-        Insert: Pick<VolunteerFollowUpOutcomeDeliveryRow, 'campaign_id' | 'recipient_id' | 'decision' | 'decision_version' | 'recipient_name' | 'recipient_email' | 'payload' | 'template_version' | 'idempotency_key' | 'created_by'> & Partial<VolunteerFollowUpOutcomeDeliveryRow>;
+        Insert: Pick<VolunteerFollowUpOutcomeDeliveryRow,
+          | 'campaign_id' | 'recipient_id' | 'decision' | 'decision_version' | 'recipient_name' | 'recipient_email' | 'payload' | 'template_version' | 'idempotency_key' | 'created_by'> & Partial<VolunteerFollowUpOutcomeDeliveryRow>;
         Update: Partial<VolunteerFollowUpOutcomeDeliveryRow>;
         Relationships: [];
       };
@@ -458,7 +493,8 @@ export interface Database {
           proposal_schema_version: 1 | 2;
           title: string;
           topic: string;
-          session_type: '15-minute short talk' | '25-minute short talk' | '40-minute long talk' | '60-minute workshop';
+          session_type:
+            | '15-minute short talk' | '25-minute short talk' | '40-minute long talk' | '60-minute workshop';
           learning_outcomes: Json;
           abstract: string | null;
           bio: string | null;
@@ -467,7 +503,8 @@ export interface Database {
           selected_intake_link_id: string | null;
           selected_session_id: string | null;
           decision_email_kind: 'acceptance' | 'rejection' | null;
-          decision_email_status: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
+          decision_email_status:
+            | 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
           decision_email_recipient: string | null;
           decision_email_provider_id: string | null;
           decision_email_idempotency_key: string | null;
@@ -482,7 +519,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['annual_conference_speaker_submissions']['Row'], 'id' | 'created_at' | 'updated_at' | 'proposal_schema_version'> & { id?: string; created_at?: string; updated_at?: string; proposal_schema_version?: 1 | 2 };
+        Insert: Omit<Database['public']['Tables']['annual_conference_speaker_submissions']['Row'], 'id' | 'created_at' | 'updated_at' | 'proposal_schema_version'> & { id?: string; created_at?: string; updated_at?: string; proposal_schema_version?: 1 | 2;
+        };
         Update: Partial<Database['public']['Tables']['annual_conference_speaker_submissions']['Insert']>;
         Relationships: [];
       };
@@ -495,7 +533,8 @@ export interface Database {
           speaker_email: string;
           title: string;
           topic: string;
-          session_type: '15-minute short talk' | '25-minute short talk' | '40-minute long talk' | '60-minute workshop';
+          session_type:
+            | '15-minute short talk' | '25-minute short talk' | '40-minute long talk' | '60-minute workshop';
           learning_outcomes: Json;
           abstract: string | null;
           bio: string | null;
@@ -524,7 +563,8 @@ export interface Database {
           speaker_email: string | null;
           talk_title: string | null;
           token_hash: string;
-          email_status: 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
+          email_status:
+            | 'pending' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | null;
           email_recipient: string | null;
           email_provider_id: string | null;
           email_idempotency_key: string | null;
@@ -549,7 +589,8 @@ export interface Database {
         Row: {
           webhook_event_id: string;
           provider_email_id: string;
-          event_type: 'email.delivered' | 'email.delivery_delayed' | 'email.bounced' | 'email.failed' | 'email.suppressed' | 'email.complained';
+          event_type:
+            | 'email.delivered' | 'email.delivery_delayed' | 'email.bounced' | 'email.failed' | 'email.suppressed' | 'email.complained';
           provider_created_at: string;
           processed_at: string;
         };
@@ -1153,7 +1194,8 @@ export interface Database {
           event_id: string;
           enabled: boolean;
           source_url: string;
-          status: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+          status:
+            | 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
           baseline: Json;
           last_observed: Json | null;
           differences: Json;
@@ -1171,7 +1213,8 @@ export interface Database {
           event_id: string;
           enabled?: boolean;
           source_url: string;
-          status?: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+          status?:
+            | 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
           baseline?: Json;
           last_observed?: Json | null;
           differences?: Json;
@@ -1189,7 +1232,8 @@ export interface Database {
           event_id?: string;
           enabled?: boolean;
           source_url?: string;
-          status?: 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
+          status?:
+            | 'pending' | 'unchanged' | 'changed' | 'warning' | 'unavailable' | 'unmonitorable';
           baseline?: Json;
           last_observed?: Json | null;
           differences?: Json;
@@ -2214,7 +2258,8 @@ export interface Database {
         Returns: boolean;
       };
       claim_volunteer_follow_up_recipient: {
-        Args: { p_campaign_id: string; p_safe_slots: number; p_lease_token: string };
+        Args: { p_campaign_id: string; p_safe_slots: number; p_lease_token: string;
+        };
         Returns: VolunteerFollowUpRecipientRow[];
       };
       save_volunteer_follow_up_decision: {
@@ -2271,7 +2316,8 @@ export interface Database {
         }>;
       };
       set_event_blast_segment_slot_provider_id: {
-        Args: { p_blast_id: string; p_slot_number: number; p_provider_segment_id: string };
+        Args: { p_blast_id: string; p_slot_number: number; p_provider_segment_id: string;
+        };
         Returns: boolean;
       };
       mark_event_blast_segment_terminal: {
@@ -2283,7 +2329,8 @@ export interface Database {
         Returns: boolean;
       };
       record_event_blast_segment_slot_error: {
-        Args: { p_blast_id: string; p_slot_number: number; p_last_error: string };
+        Args: { p_blast_id: string; p_slot_number: number; p_last_error: string;
+        };
         Returns: boolean;
       };
       list_event_blast_segment_slots: {
@@ -2300,11 +2347,13 @@ export interface Database {
         }>;
       };
       claim_volunteer_follow_up_outcome: {
-        Args: { p_campaign_id: string; p_safe_slots: number; p_claim_token: string; p_lease_token: string };
+        Args: { p_campaign_id: string; p_safe_slots: number; p_claim_token: string; p_lease_token: string;
+        };
         Returns: Array<Record<string, unknown>>;
       };
       validate_volunteer_follow_up_outcome_send: {
-        Args: { p_delivery_id: string; p_claim_token: string; p_lease_token: string };
+        Args: { p_delivery_id: string; p_claim_token: string; p_lease_token: string;
+        };
         Returns: boolean;
       };
       finalize_volunteer_follow_up_outcome_send: {
@@ -2315,8 +2364,24 @@ export interface Database {
           p_provider_email_id: string | null;
           p_last_error: string | null;
           p_next_attempt_at: string | null;
+          p_delivery_stage?: string;
+          p_provider_http_status?: number | null;
+          p_failure_certainty?: string | null;
+          p_diagnostic_at?: string;
         };
         Returns: boolean;
+      };
+      queue_volunteer_follow_up_failed_delivery_retry: {
+        Args: {
+          p_campaign_id: string;
+          p_kind: string;
+          p_delivery_id: string;
+        };
+        Returns: Array<{
+          delivery_id: string;
+          queued: boolean;
+          block_reason: string | null;
+        }>;
       };
       configure_project_night: {
         Args: { p_event_id: string; p_action: string };
@@ -2559,11 +2624,13 @@ export interface Database {
         Returns: boolean;
       };
       review_event_submission_amendment: {
-        Args: { p_amendment_id: string; p_reviewed_by: string; p_approve: boolean; p_message: string };
+        Args: { p_amendment_id: string; p_reviewed_by: string; p_approve: boolean; p_message: string;
+        };
         Returns: Database['public']['Tables']['event_submission_amendments']['Row'];
       };
       withdraw_event_submission: {
-        Args: { p_submission_id: string; p_reviewed_by: string; p_message: string };
+        Args: { p_submission_id: string; p_reviewed_by: string; p_message: string;
+        };
         Returns: Database['public']['Tables']['event_submissions']['Row'];
       };
       amend_annual_conference_income_expectation: {

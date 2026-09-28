@@ -38,15 +38,32 @@ type Recipient = VolunteerFollowUpDirectoryRecipient & {
   attempt_count?: number;
   next_attempt_at?: string | null;
   last_error?: string | null;
+  delivery_diagnostic: DeliveryDiagnostic;
   decision: "pending" | "accepted" | "not_selected";
   outcome_sent: boolean;
   outcome_delivery: {
+    id: string;
     status: string;
     attempt_count: number;
+    first_attempt_at: string | null;
     next_attempt_at: string | null;
+    claimed_until: string | null;
     last_error: string | null;
     provider_email_id: string | null;
+    provider_event_at: string | null;
+    delivery_stage: string;
+    provider_http_status: number | null;
+    failure_certainty: string | null;
+    diagnostic_at: string | null;
   } | null;
+  outcome_diagnostic: DeliveryDiagnostic | null;
+};
+
+type DeliveryDiagnostic = {
+  source: "queue" | "provider" | "provider_event" | "unknown";
+  explanation: string;
+  action: string;
+  retry_block_reason: string | null;
 };
 
 type FollowUpResponse = {
@@ -104,6 +121,12 @@ const selectedPanel = ref<HTMLElement | null>(null);
 const selectedCloseButton = ref<HTMLButtonElement | null>(null);
 const busy = ref(false);
 const pendingAction = ref<ControlAction | null>(null);
+const pendingRetry = ref<{
+  kind: "invitation" | "outcome";
+  id: string;
+  name: string;
+} | null>(null);
+const pendingRetryIds = ref(new Set<string>());
 const setupOpen = ref(true);
 const healthOpen = ref(false);
 const previewOpen = ref(false);
@@ -391,8 +414,7 @@ function showPlainTextPreview(): void {
 function handlePreviewFrameLoad(event: Event): void {
   detachPreviewFrameKeyListener();
 
-  if (!previewOpen.value || previewView.value !== "email")
-    return;
+  if (!previewOpen.value || previewView.value !== "email") return;
   const frame = event.currentTarget;
 
   if (!(frame instanceof HTMLIFrameElement)) return;
@@ -456,7 +478,12 @@ function unlockSelectedDialog(): void {
 }
 
 function handleSelectedKeydown(event: KeyboardEvent): void {
-  if (!selectedMobileDialog.value) return;
+  if (
+    !selectedMobileDialog.value ||
+    pendingRetry.value ||
+    event.defaultPrevented
+  )
+    return;
 
   if (event.key === "Escape") {
     event.preventDefault();
@@ -570,6 +597,61 @@ async function controlCampaign(): Promise<void> {
     `Campaign ${action === "launch" || action === "resume" ? "running" : action === "pause" ? "paused" : "closed"}.`,
   );
   pendingAction.value = null;
+}
+
+function isRetryPending(id: string): boolean {
+  return pendingRetryIds.value.has(id);
+}
+
+const retryConfirmationMessage = computed(() => {
+  const retry = pendingRetry.value;
+
+  if (!retry) return "";
+
+  const paused = retry.kind === "invitation"
+    ? campaign.value?.status !== "running"
+    : campaign.value?.outcome_paused === true;
+  const queue = retry.kind === "invitation" ? "invitation" : "outcome";
+  const queueState = paused
+    ? `The ${queue} queue is paused, so this will wait for that queue to resume.`
+    : retry.kind === "outcome"
+      ? "The outcome queue is running independently of the invitation campaign."
+      : "The invitation queue is running, so the scheduled sender may process it after this is queued.";
+
+  return `This keeps ${retry.name}'s existing email content and idempotency key. It only queues work for the scheduled sender; no email is sent now. ${queueState}`;
+});
+
+async function queueDeliveryRetry(): Promise<void> {
+  const retry = pendingRetry.value;
+
+  if (!retry || isRetryPending(retry.id)) return;
+
+  pendingRetryIds.value = new Set([...pendingRetryIds.value, retry.id]);
+
+  try {
+    const response = await fetchJson<{ message: string }>(
+      "/api/annual-conference/2026/volunteer-follow-up/delivery-retries",
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: retry.kind, delivery_id: retry.id }),
+      },
+    );
+
+    await query.refetch();
+    notify.success(response.message);
+    pendingRetry.value = null;
+  } catch (error) {
+    notify.error(
+      error instanceof Error ? error.message : "Unable to queue this retry.",
+    );
+  } finally {
+    const next = new Set(pendingRetryIds.value);
+
+    next.delete(retry.id);
+    pendingRetryIds.value = next;
+  }
 }
 
 async function openPreview(): Promise<void> {
@@ -1208,6 +1290,99 @@ onUnmounted(() => {
                     >
                       {{ selected.last_error }}
                     </p>
+                    <p class="follow-up-diagnostic-source">
+                      {{ selected.delivery_diagnostic.explanation }}
+                    </p>
+                    <p class="follow-up-diagnostic-action">
+                      {{ selected.delivery_diagnostic.action }}
+                    </p>
+                    <button
+                      v-if="!selected.delivery_diagnostic.retry_block_reason"
+                      type="button"
+                      class="follow-up-button follow-up-button--secondary"
+                      :disabled="isRetryPending(selected.id)"
+                      @click="
+                        pendingRetry = {
+                          kind: 'invitation',
+                          id: selected.id,
+                          name: selected.applicant_name,
+                        }
+                      "
+                    >
+                      {{
+                        isRetryPending(selected.id)
+                          ? "Queueing retry…"
+                          : "Queue invitation retry"
+                      }}
+                    </button>
+                    <p v-else class="follow-up-retry-block">
+                      {{ selected.delivery_diagnostic.retry_block_reason }}
+                    </p>
+                  </div>
+                  <div
+                    v-if="
+                      selected.outcome_delivery && selected.outcome_diagnostic
+                    "
+                    class="follow-up-delivery-detail"
+                  >
+                    <p class="follow-up-kicker">Outcome email</p>
+                    <span
+                      class="follow-up-state"
+                      :class="deliveryClass(selected.outcome_delivery.status)"
+                      >{{
+                        deliveryLabel(selected.outcome_delivery.status)
+                      }}</span
+                    >
+                    <p>
+                      {{ selected.outcome_delivery.attempt_count }}
+                      {{
+                        selected.outcome_delivery.attempt_count === 1
+                          ? "attempt"
+                          : "attempts"
+                      }}
+                      made<span
+                        v-if="selected.outcome_delivery.next_attempt_at"
+                      >
+                        · Next retry
+                        {{
+                          formatDate(selected.outcome_delivery.next_attempt_at)
+                        }}</span
+                      >
+                    </p>
+                    <p
+                      v-if="selected.outcome_delivery.last_error"
+                      class="follow-up-inline-error"
+                    >
+                      {{ selected.outcome_delivery.last_error }}
+                    </p>
+                    <p class="follow-up-diagnostic-source">
+                      {{ selected.outcome_diagnostic.explanation }}
+                    </p>
+                    <p class="follow-up-diagnostic-action">
+                      {{ selected.outcome_diagnostic.action }}
+                    </p>
+                    <button
+                      v-if="!selected.outcome_diagnostic.retry_block_reason"
+                      type="button"
+                      class="follow-up-button follow-up-button--secondary"
+                      :disabled="isRetryPending(selected.outcome_delivery.id)"
+                      @click="
+                        pendingRetry = {
+                          kind: 'outcome',
+                          id: selected.outcome_delivery.id,
+                          name: selected.applicant_name,
+                        }
+                      "
+                    >
+                      {{
+                        isRetryPending(selected.outcome_delivery.id)
+                          ? "Queueing retry…"
+                          : "Queue outcome retry"
+                      }}
+                    </button>
+                    <p v-else class="follow-up-retry-block">
+                      {{ selected.outcome_diagnostic.retry_block_reason }}
+                    </p>
                   </div>
                 </div>
               </aside>
@@ -1371,6 +1546,16 @@ onUnmounted(() => {
       :danger="pendingAction === 'close'"
       @cancel="pendingAction = null"
       @confirm="controlCampaign"
+    />
+    <ConfirmDialog
+      :open="pendingRetry !== null"
+      above-drawer
+      title="Queue this failed delivery again?"
+      :message="retryConfirmationMessage"
+      confirm-label="Queue retry"
+      :busy="pendingRetry ? isRetryPending(pendingRetry.id) : false"
+      @cancel="pendingRetry = null"
+      @confirm="queueDeliveryRetry"
     />
   </section>
 </template>
@@ -2147,6 +2332,19 @@ onUnmounted(() => {
 .follow-up-error,
 .follow-up-drawer-state--error {
   color: #9d321b;
+}
+.follow-up-diagnostic-source {
+  color: #34312c !important;
+}
+.follow-up-diagnostic-action,
+.follow-up-retry-block {
+  margin-bottom: 0.65rem;
+}
+.follow-up-retry-block {
+  padding: 0.55rem 0.65rem;
+  border-left: 2px solid #c9a24b;
+  background: #fff8e7;
+  color: #6d4b08 !important;
 }
 .follow-up-reveal-enter-active,
 .follow-up-reveal-leave-active {

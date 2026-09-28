@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
   confirmDisabled?: boolean;
   danger?: boolean;
   mobileSheet?: boolean;
+  aboveDrawer?: boolean;
 }>(), {
   confirmLabel: 'Confirm',
   busyLabel: 'Working...',
@@ -20,6 +21,7 @@ const props = withDefaults(defineProps<{
   confirmDisabled: false,
   danger: false,
   mobileSheet: false,
+  aboveDrawer: false,
 });
 
 const emit = defineEmits<{
@@ -88,8 +90,11 @@ onBeforeUnmount(() => {
     <Transition name="confirm-dialog">
       <div
         v-if="open"
-        class="confirm-dialog-shell fixed inset-0 z-[120] flex bg-black/35"
-        :class="mobileSheet ? 'items-end p-0 sm:items-center sm:justify-center sm:px-4 sm:py-6' : 'items-center justify-center px-4 py-6'"
+        class="confirm-dialog-shell fixed inset-0 flex bg-black/35"
+        :class="[
+          aboveDrawer ? 'z-[140]' : 'z-[120]',
+          mobileSheet ? 'items-end p-0 sm:items-center sm:justify-center sm:px-4 sm:py-6' : 'items-center justify-center px-4 py-6',
+        ]"
         role="presentation"
         @click.self="cancel"
         @keydown="handleKeydown"
