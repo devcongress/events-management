@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import crypto from "node:crypto";
 import { Hono } from "hono";
 import type { AppBindings } from "./http/app-bindings";
 
@@ -46,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   listVolunteerOutcomeDeliveries: vi.fn(),
   getVolunteerOutcomeSentRecipientIds: vi.fn(),
   hasDueVolunteerOutcomeDelivery: vi.fn(),
+  queueVolunteerFollowUpFailedDeliveryRetry: vi.fn(),
   getEmailDeliveryHealth: vi.fn(),
   reconcileVolunteerFollowUpApplicants: vi.fn(),
   setVolunteerFollowUpCampaignStatus: vi.fn(),
@@ -54,6 +56,8 @@ const mocks = vi.hoisted(() => ({
   recordVolunteerFollowUpDrain: vi.fn(),
   readResendEmailQuota: vi.fn(),
   sendResendEmailBatch: vi.fn(),
+  enforcePublicRateLimit: vi.fn(),
+  publicClientKey: vi.fn(),
   envValue: vi.fn(),
 }));
 
@@ -70,6 +74,8 @@ vi.mock("@/lib/supabase/volunteer-follow-up", () => ({
   listVolunteerOutcomeDeliveries: mocks.listVolunteerOutcomeDeliveries,
   getVolunteerOutcomeSentRecipientIds: mocks.getVolunteerOutcomeSentRecipientIds,
   hasDueVolunteerOutcomeDelivery: mocks.hasDueVolunteerOutcomeDelivery,
+  queueVolunteerFollowUpFailedDeliveryRetry:
+    mocks.queueVolunteerFollowUpFailedDeliveryRetry,
   reconcileVolunteerFollowUpApplicants:
     mocks.reconcileVolunteerFollowUpApplicants,
   setVolunteerFollowUpCampaignStatus: mocks.setVolunteerFollowUpCampaignStatus,
@@ -89,6 +95,11 @@ vi.mock("@/lib/email/resend", () => ({
 }));
 vi.mock("@/server/env", () => ({
   envValue: mocks.envValue,
+}));
+vi.mock("@/server/http/public-intake-protection", () => ({
+  enforcePublicRateLimit: mocks.enforcePublicRateLimit,
+  publicClientKey: mocks.publicClientKey,
+  requirePublicTurnstile: vi.fn(),
 }));
 
 import { registerVolunteerFollowUpRoutes } from "./routes/volunteer-follow-up";
@@ -137,6 +148,12 @@ beforeEach(() => {
   mocks.readResendEmailQuota.mockResolvedValue({
     dailyUsed: null,
     monthlyUsed: 4,
+  });
+  mocks.enforcePublicRateLimit.mockResolvedValue(null);
+  mocks.publicClientKey.mockReturnValue("owner-client-key");
+  mocks.queueVolunteerFollowUpFailedDeliveryRetry.mockResolvedValue({
+    queued: true,
+    blockReason: null,
   });
   mocks.envValue.mockImplementation((key: string) => {
     if (key === "SLACK_EVENTS_RETRY_SECRET")
@@ -358,5 +375,66 @@ describe("volunteer follow-up read and recovery", () => {
     expect(response.status).toBe(500);
     expect(mocks.reconcileVolunteerFollowUpApplicants).toHaveBeenCalledOnce();
     expect(mocks.setVolunteerFollowUpCampaignStatus).not.toHaveBeenCalled();
+  });
+
+  it("requires Owner access before parsing or queueing a delivery retry", async () => {
+    mocks.requireAdmin.mockImplementationOnce(async (c) =>
+      c.json({ error: "Admin session required" }, 401),
+    );
+
+    const response = await createApp().request(
+      "/api/annual-conference/2026/volunteer-follow-up/delivery-retries",
+      { method: "POST", body: JSON.stringify({ kind: "invitation", delivery_id: crypto.randomUUID() }) },
+    );
+
+    expect(response.status).toBe(401);
+    expect(mocks.queueVolunteerFollowUpFailedDeliveryRetry).not.toHaveBeenCalled();
+    expect(mocks.sendResendEmailBatch).not.toHaveBeenCalled();
+  });
+
+  it("validates retry input and queues only through the guarded RPC", async () => {
+    const response = await createApp().request(
+      "/api/annual-conference/2026/volunteer-follow-up/delivery-retries",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "outcome", delivery_id: crypto.randomUUID() }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.enforcePublicRateLimit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "volunteer_follow_up_owner_retry:owner@example.com" }),
+      expect.any(String),
+    );
+    expect(mocks.queueVolunteerFollowUpFailedDeliveryRetry).toHaveBeenCalledWith(
+      { campaignId: "campaign-2026", kind: "outcome", deliveryId: expect.any(String) },
+      expect.anything(),
+    );
+    expect(mocks.sendResendEmailBatch).not.toHaveBeenCalled();
+    expect(mocks.setVolunteerFollowUpCampaignStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns a conflict from the atomic retry guard without sending", async () => {
+    mocks.queueVolunteerFollowUpFailedDeliveryRetry.mockResolvedValueOnce({
+      queued: false,
+      blockReason: "retry_already_scheduled",
+    });
+
+    const response = await createApp().request(
+      "/api/annual-conference/2026/volunteer-follow-up/delivery-retries",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "invitation", delivery_id: crypto.randomUUID() }),
+      },
+    );
+    const payload = (await response.json()) as { error: string; block_reason: string };
+
+    expect(response.status).toBe(409);
+    expect(payload.block_reason).toBe("retry_already_scheduled");
+    expect(payload.error).toContain("already queued");
+    expect(mocks.sendResendEmailBatch).not.toHaveBeenCalled();
   });
 });

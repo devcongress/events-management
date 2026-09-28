@@ -1116,12 +1116,32 @@ try {
         decision_at: "2026-09-22T10:00:00.000Z",
         decision_by: "owner@example.com",
         outcome_sent: false,
+        delivery_diagnostic: {
+          source: "provider_event",
+          explanation: "Resend recorded this email as delivered.",
+          action: "No retry is needed.",
+          retry_block_reason: "Resend accepted this delivery or reported an event; it cannot be safely resent.",
+        },
         outcome_delivery: {
+          id: "fixture-outcome-delivery-1",
           status: "retrying",
           attempt_count: 2,
+          first_attempt_at: "2026-09-23T10:00:00.000Z",
           next_attempt_at: "2026-09-23T10:15:00.000Z",
+          claimed_until: null,
           last_error: "Temporary provider issue.",
           provider_email_id: null,
+          provider_event_at: null,
+          delivery_stage: "provider_request",
+          provider_http_status: null,
+          failure_certainty: "ambiguous",
+          diagnostic_at: "2026-09-23T10:00:00.000Z",
+        },
+        outcome_diagnostic: {
+          source: "unknown",
+          explanation: "The sender could not confirm whether Resend accepted the email.",
+          action: "A same-key scheduled retry is pending. Do not manually queue another retry.",
+          retry_block_reason: "Only a definite failed delivery can be queued again.",
         },
         attempt_count: 1,
         next_attempt_at: null,
@@ -1138,6 +1158,7 @@ try {
           decision_version: 0,
           outcome_delivery: {
             ...recipient.outcome_delivery,
+            id: `fixture-outcome-delivery-${index + 2}`,
             attempt_count: index + 2,
             last_error: `Temporary provider issue ${index + 2}.`,
           },
@@ -1311,10 +1332,23 @@ try {
       await testFormPage.close();
 
       await followUp.getByRole("button", { name: /Ama Mensah/ }).click();
-      await followUp.locator(".follow-up-selected-drawer").waitFor();
-      await followUp
+      const selectedDrawer = followUp.locator(".follow-up-selected-drawer");
+
+      await selectedDrawer.waitFor();
+      await selectedDrawer
+        .getByText("Resend recorded this email as delivered.", { exact: true })
+        .waitFor();
+      await selectedDrawer
+        .getByText("A same-key scheduled retry is pending. Do not manually queue another retry.", { exact: true })
+        .waitFor();
+      assert.equal(
+        await selectedDrawer.getByRole("button", { name: /Queue .* retry/ }).count(),
+        0,
+      );
+      await selectedDrawer
         .getByRole("button", { name: "Close applicant details", exact: true })
         .click();
+      await selectedDrawer.waitFor({ state: "detached" });
       await page.getByRole("tab", { name: "Directory", exact: true }).click();
       await page
         .getByText("Your directory is ready for its first volunteers", {

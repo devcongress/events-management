@@ -14,9 +14,16 @@ Outcome history is durable and version-specific. Payload and provider sender fie
 
 Definite provider rate limits and transient failures use bounded backoff with the same key. Network errors, malformed successful provider responses, and server errors are treated as ambiguous: the attempted decision remains locked, and the same payload/key may be retried only within the provider's safe window and attempt limit. Otherwise the Owner sees needs-attention diagnostics. The campaign diagnostics list is scrollable and does not silently truncate later recipients. No automatic opposite-outcome email or conflict resolution is introduced.
 
+## Failed-delivery retry and diagnostics
+
+Owners can queue—not send—one failed invitation or outcome again only when Resend definitely rejected it before acceptance, it has no provider ID or webhook event, has no live claim or scheduled automatic retry, is below four attempts, and remains inside the original 23-hour idempotency window. Invitation retries also require an unsubmitted, deadline-eligible application inside the 14-day response window; outcome retries require the current decision/version and the frozen payload. The atomic database operation keeps the original payload, idempotency key, attempt count, and first-attempt timestamp; repeated or concurrent clicks queue no duplicate work.
+
+Provider HTTP status, failure certainty, stage, and timestamp are stored separately from a sanitized message. Owner diagnostics distinguish EMS request/account checks, provider rejection, uncertain result, and provider event without claiming a bounce proves the root cause. Accepted, delivered, bounced, complained, suppressed, historical, and ambiguous records are never manually resent. Invitation pause state and outcome pause state remain independent: a queue action while its own queue is paused waits for a separate Owner resume and never changes campaign controls.
+
 ## Key files
 
 - Migration: `supabase/migrations/20260923120000_volunteer_outcome_decisions.sql`
+- Retry diagnostics migration: `supabase/migrations/20260928120000_volunteer_delivery_retry_diagnostics.sql`
 - API, drain, and provider events: `server/routes/volunteer-follow-up.ts`
 - Supabase RPC wrappers: `lib/supabase/volunteer-follow-up.ts`
 - Production template: `lib/email/templates/volunteer-follow-up.ts`

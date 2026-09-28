@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — Safely queue failed volunteer email retries
+
+- Add Owner-only invitation and outcome retry diagnostics with factual queue, EMS/Resend, and provider-event guidance; bounced records remain a delivery event, not proof of root cause.
+- Persist delivery stage, provider HTTP status, failure certainty, and timestamp, and allow only recent, definite pre-acceptance failures to re-enter the scheduled queue with their original payload, idempotency key, and attempt history.
+- Serialize retries with the campaign lock, preserve separate invitation/outcome pause controls, and block accepted, webhooked, ambiguous, historical, expired, claimed, scheduled, or budget-exhausted records.
+- Add unit and disposable-Postgres regression coverage, including concurrent retry requests; no live email, production migration, deployment, or campaign state change was performed.
+
 ## 2026-09-26 — Show only changed event amendment details
 
 - Compare amendment requests against the latest canonical community event in the admin inbox, with explicit error handling for the batched event lookup and a clear unavailable-baseline state.

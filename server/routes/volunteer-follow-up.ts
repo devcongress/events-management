@@ -43,7 +43,9 @@ import {
   finalizeVolunteerOutcomeSend,
   getVolunteerOutcomeSentRecipientIds,
   hasDueVolunteerOutcomeDelivery,
+  queueVolunteerFollowUpFailedDeliveryRetry,
 } from "@/lib/supabase/volunteer-follow-up";
+import { diagnoseVolunteerDelivery } from "@/lib/volunteer-follow-up-delivery-diagnostics";
 import { secureSharedSecret } from "@/lib/security/shared-secret";
 import {
   VOLUNTEER_FOLLOW_UP_TEST_TURNSTILE_ACTION,
@@ -112,6 +114,70 @@ const outcomeConfirmSchema = z.object({
 const outcomeControlSchema = z.object({
   action: z.enum(["pause", "resume"]),
 }).strict();
+
+const deliveryRetrySchema = z
+  .object({
+    kind: z.enum(["invitation", "outcome"]),
+    delivery_id: z.string().uuid(),
+  })
+  .strict();
+
+const deliveryRetryBlockMessages: Record<string, string> = {
+  campaign_unavailable:
+    "The volunteer campaign is unavailable. Refresh and try again.",
+  delivery_unavailable:
+    "This delivery record is unavailable. Refresh and try again.",
+  invitation_campaign_not_active:
+    "This invitation campaign is closed or has not launched. It cannot be retried from the queue.",
+  response_window_closed: "The invitation response window has closed.",
+  application_ineligible:
+    "This applicant is no longer eligible for an invitation retry.",
+  provider_acceptance_or_event:
+    "Resend already accepted this delivery or recorded an event, so it cannot be safely resent.",
+  not_definite_failure:
+    "This delivery was not a definite provider rejection, so resending could duplicate an email.",
+  live_claim: "This delivery is currently being handled by the sender.",
+  retry_already_scheduled: "A retry is already queued for this delivery.",
+  attempt_limit_reached:
+    "This delivery has reached its four-attempt safety limit.",
+  historical_or_missing_attempt:
+    "Historical delivery evidence cannot establish a safe retry window.",
+  idempotency_window_expired: "The 23-hour idempotency window has passed.",
+  outcome_decision_changed:
+    "The saved outcome decision changed, so this frozen delivery cannot be retried.",
+  frozen_payload_invalid:
+    "The frozen outcome email is incomplete and cannot be retried.",
+};
+
+function isDefiniteResendFailure(status: number | null): boolean {
+  // A 409 may be an in-flight idempotency result, so it is deliberately
+  // ambiguous. 429 is handled by automatic backoff. Other 4xx responses here
+  // are request/account validation rejections before provider acceptance.
+  return status !== null && status >= 400 && status < 500 && status !== 409;
+}
+
+function withKnownRetryBlock(
+  diagnostic: ReturnType<typeof diagnoseVolunteerDelivery>,
+  blockReason: string | null,
+) {
+  return blockReason
+    ? { ...diagnostic, retry_block_reason: blockReason }
+    : diagnostic;
+}
+
+function knownInvitationRetryBlock(
+  campaign: VolunteerFollowUpCampaignRow,
+  recipient: VolunteerFollowUpRecipientRow,
+): string | null {
+  if (!['running', 'paused'].includes(campaign.status))
+    return deliveryRetryBlockMessages.invitation_campaign_not_active;
+  if (!campaign.application_deadline_at || Date.now() >= new Date(campaign.application_deadline_at).getTime() + 14 * 86_400_000)
+    return deliveryRetryBlockMessages.response_window_closed;
+  if (recipient.submitted_at || recipient.application_created_at > campaign.application_deadline_at)
+    return deliveryRetryBlockMessages.application_ineligible;
+
+  return null;
+}
 
 function tokenSecret(c: Context): string | null {
   return secureSharedSecret(envValue("VOLUNTEER_FOLLOW_UP_TOKEN_SECRET", c));
@@ -336,6 +402,17 @@ async function drainVolunteerFollowUps(
           : [15, 60, 240][Math.min(recipient.attempt_count - 1, 2)];
 
       if (!providerError || providerError.status === null) {
+        await updateVolunteerFollowUpDelivery(
+          recipient.id,
+          {
+            delivery_stage: "provider_request",
+            provider_http_status: null,
+            failure_certainty: "ambiguous",
+            diagnostic_at: new Date().toISOString(),
+          },
+          c,
+        );
+
         return finish(sent, "provider_result_unconfirmed");
       }
 
@@ -348,6 +425,12 @@ async function drainVolunteerFollowUps(
             retryable && recipient.attempt_count < 4
               ? new Date(Date.now() + retryDelayMinutes * 60_000).toISOString()
               : null,
+          delivery_stage: "provider_response",
+          provider_http_status: providerError.status,
+          failure_certainty: isDefiniteResendFailure(providerError.status)
+            ? "definite"
+            : "ambiguous",
+          diagnostic_at: new Date().toISOString(),
           last_error:
             providerError.providerMessage ??
             `Provider HTTP ${providerError.status}`,
@@ -369,6 +452,10 @@ async function drainVolunteerFollowUps(
         provider_email_id: result.ids[0],
         claimed_until: null,
         next_attempt_at: null,
+        delivery_stage: "provider_response",
+        provider_http_status: 200,
+        failure_certainty: null,
+        diagnostic_at: new Date().toISOString(),
       },
       c,
     );
@@ -398,7 +485,8 @@ async function drainVolunteerOutcomeEmails(
 
   if (!apiKey) return finish(0, "configuration_missing");
 
-  const quotaReadKey = envValue("RESEND_BROADCASTS_API_KEY", c)?.trim() || apiKey;
+  const quotaReadKey =
+    envValue("RESEND_BROADCASTS_API_KEY", c)?.trim() || apiKey;
   let observed = await readResendEmailQuota({ apiKey: quotaReadKey });
 
   if (!volunteerFollowUpQuotaIsComplete(observed))
@@ -420,8 +508,14 @@ async function drainVolunteerOutcomeEmails(
       return finish(sent, "capacity_unverified");
 
     const safeSlots = Math.min(
-      Math.max(0, health.daily_quota_limit - observed.dailyUsed - outbox.pending - 35),
-      Math.max(0, health.monthly_quota_limit - observed.monthlyUsed - outbox.pending - 35),
+      Math.max(
+        0,
+        health.daily_quota_limit - observed.dailyUsed - outbox.pending - 35,
+      ),
+      Math.max(
+        0,
+        health.monthly_quota_limit - observed.monthlyUsed - outbox.pending - 35,
+      ),
       VOLUNTEER_FOLLOW_UP_DAILY_MAX,
     );
 
@@ -453,8 +547,13 @@ async function drainVolunteerOutcomeEmails(
           claimToken,
           status: "needs_attention",
           providerEmailId: null,
-          lastError: "The decision or drain lease changed before the provider call.",
+          lastError:
+            "The decision or drain lease changed before the provider call.",
           nextAttemptAt: null,
+          deliveryStage: "queue",
+          providerHttpStatus: null,
+          failureCertainty: null,
+          diagnosticAt: new Date().toISOString(),
         },
         c,
       );
@@ -483,6 +582,10 @@ async function drainVolunteerOutcomeEmails(
           providerEmailId: null,
           lastError: "The frozen outcome email payload could not be validated.",
           nextAttemptAt: null,
+          deliveryStage: "queue",
+          providerHttpStatus: null,
+          failureCertainty: null,
+          diagnosticAt: new Date().toISOString(),
         },
         c,
       );
@@ -501,31 +604,52 @@ async function drainVolunteerOutcomeEmails(
     } catch (error) {
       const providerError = error instanceof ResendBatchError ? error : null;
       const status = providerError?.status ?? null;
-      const ambiguous = status === null || status >= 500 || status === 200;
+      const ambiguous =
+        status === null || status >= 500 || status === 200 || status === 409;
       const retryable = ambiguous || status === 429;
       const attempts = Number(delivery.attempt_count);
-      const retryDelayMinutes = status === 429
-        ? 60
-        : [15, 60, 240][Math.min(Math.max(0, attempts - 1), 2)];
-      const canRetry = retryable && attempts < 4 &&
+      const retryDelayMinutes =
+        status === 429
+          ? 60
+          : [15, 60, 240][Math.min(Math.max(0, attempts - 1), 2)];
+      const canRetry =
+        retryable &&
+        attempts < 4 &&
         Boolean(delivery.first_attempt_at) &&
-        Date.now() - new Date(String(delivery.first_attempt_at)).getTime() < 23 * 60 * 60_000;
+        Date.now() - new Date(String(delivery.first_attempt_at)).getTime() <
+          23 * 60 * 60_000;
 
       await finalizeVolunteerOutcomeSend(
         {
           deliveryId,
           claimToken,
-          status: ambiguous ? (canRetry ? "retrying" : "needs_attention") : "failed",
+          status: ambiguous
+            ? canRetry
+              ? "retrying"
+              : "needs_attention"
+            : "failed",
           providerEmailId: null,
-          lastError: providerError?.providerMessage ?? "The provider did not confirm this outcome email.",
+          lastError:
+            providerError?.providerMessage ??
+            "The provider did not confirm this outcome email.",
           nextAttemptAt: canRetry
             ? new Date(Date.now() + retryDelayMinutes * 60_000).toISOString()
             : null,
+          deliveryStage:
+            status === null ? "provider_request" : "provider_response",
+          providerHttpStatus: status,
+          failureCertainty: ambiguous ? "ambiguous" : "definite",
+          diagnosticAt: new Date().toISOString(),
         },
         c,
       );
 
-      return finish(sent, canRetry ? "outcome_provider_retry_scheduled" : "outcome_provider_result_unconfirmed");
+      return finish(
+        sent,
+        canRetry
+          ? "outcome_provider_retry_scheduled"
+          : "outcome_provider_result_unconfirmed",
+      );
     }
 
     const providerEmailId = result.ids[0];
@@ -537,8 +661,13 @@ async function drainVolunteerOutcomeEmails(
           claimToken,
           status: "needs_attention",
           providerEmailId: null,
-          lastError: "The provider response did not identify the accepted email.",
+          lastError:
+            "The provider response did not identify the accepted email.",
           nextAttemptAt: null,
+          deliveryStage: "provider_response",
+          providerHttpStatus: 200,
+          failureCertainty: "ambiguous",
+          diagnosticAt: new Date().toISOString(),
         },
         c,
       );
@@ -554,6 +683,10 @@ async function drainVolunteerOutcomeEmails(
         providerEmailId,
         lastError: null,
         nextAttemptAt: null,
+        deliveryStage: "provider_response",
+        providerHttpStatus: 200,
+        failureCertainty: null,
+        diagnosticAt: new Date().toISOString(),
       },
       c,
     );
@@ -604,9 +737,10 @@ async function sendDueVolunteerFollowUps(c: Context) {
 
       return { sent: 0, reason: "not_running" };
     }
-    const invitations = currentCampaign.status === "running"
-      ? await drainVolunteerFollowUps(c, currentCampaign, leaseToken)
-      : { sent: 0, reason: "invitation_campaign_not_running" };
+    const invitations =
+      currentCampaign.status === "running"
+        ? await drainVolunteerFollowUps(c, currentCampaign, leaseToken)
+        : { sent: 0, reason: "invitation_campaign_not_running" };
     const stopAfterInvitation = [
       "provider_rate_limited",
       "provider_result_unconfirmed",
@@ -670,38 +804,37 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
     },
   );
 
-  app.get(
-    "/api/annual-conference/2026/volunteer-follow-up/test",
-    async (c) => {
-      c.header("Cache-Control", "no-store");
-      c.header("Referrer-Policy", "no-referrer");
-      try {
-        const campaign = await getVolunteerFollowUpCampaign(c);
-        const responseDeadline = volunteerFollowUpResponseDeadline(
-          campaign?.application_deadline_at ?? null,
-        );
+  app.get("/api/annual-conference/2026/volunteer-follow-up/test", async (c) => {
+    c.header("Cache-Control", "no-store");
+    c.header("Referrer-Policy", "no-referrer");
+    try {
+      const campaign = await getVolunteerFollowUpCampaign(c);
+      const responseDeadline = volunteerFollowUpResponseDeadline(
+        campaign?.application_deadline_at ?? null,
+      );
 
-        if (!responseDeadline)
-          return c.json({ error: "Set the application deadline first." }, 409);
+      if (!responseDeadline)
+        return c.json({ error: "Set the application deadline first." }, 409);
 
-        return c.json({ response_deadline: responseDeadline });
-      } catch (error) {
-        return internalErrorResponse(
-          c,
-          "volunteer_follow_up_test_open_failed",
-          error,
-          "Unable to open the test form.",
-        );
-      }
-    },
-  );
+      return c.json({ response_deadline: responseDeadline });
+    } catch (error) {
+      return internalErrorResponse(
+        c,
+        "volunteer_follow_up_test_open_failed",
+        error,
+        "Unable to open the test form.",
+      );
+    }
+  });
 
   app.post(
     "/api/annual-conference/2026/volunteer-follow-up/test",
     async (c) => {
       c.header("Cache-Control", "no-store");
       c.header("Referrer-Policy", "no-referrer");
-      const parsed = answerSchema.safeParse(await c.req.json().catch(() => null));
+      const parsed = answerSchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
 
       if (!parsed.success)
         return c.json(
@@ -753,7 +886,10 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           .filter((outcome) => outcome.provider_email_id)
           .map((outcome) => outcome.recipient_id),
       );
-      const latestOutcomeByRecipient = new Map<string, (typeof outcomes)[number]>();
+      const latestOutcomeByRecipient = new Map<
+        string,
+        (typeof outcomes)[number]
+      >();
 
       for (const outcome of outcomes) {
         if (!latestOutcomeByRecipient.has(outcome.recipient_id))
@@ -775,7 +911,24 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           last_attempt_at: recipient.last_attempt_at,
           next_attempt_at: recipient.next_attempt_at,
           last_error: recipient.last_error,
+          delivery_diagnostic: withKnownRetryBlock(
+            diagnoseVolunteerDelivery(recipient),
+            knownInvitationRetryBlock(campaign, recipient),
+          ),
           outcome_delivery: latestOutcomeByRecipient.get(recipient.id) ?? null,
+          outcome_diagnostic: latestOutcomeByRecipient.has(recipient.id)
+            ? withKnownRetryBlock(
+                diagnoseVolunteerDelivery(
+                  latestOutcomeByRecipient.get(recipient.id)!,
+                ),
+                latestOutcomeByRecipient.get(recipient.id)!.decision !==
+                  recipient.decision ||
+                  latestOutcomeByRecipient.get(recipient.id)!
+                    .decision_version !== recipient.decision_version
+                  ? deliveryRetryBlockMessages.outcome_decision_changed
+                  : null,
+              )
+            : null,
         })),
         email_health: health,
         can_manage: true,
@@ -989,48 +1142,70 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const adminError = await requireAdmin(c, ["owner"]);
 
       if (adminError) return adminError;
-      const parsed = outcomePreviewSchema.safeParse(await c.req.json().catch(() => null));
+      const parsed = outcomePreviewSchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
 
-      if (!parsed.success) return c.json({ error: "Choose an outcome to preview." }, 400);
+      if (!parsed.success)
+        return c.json({ error: "Choose an outcome to preview." }, 400);
 
       try {
         const campaign = await getVolunteerFollowUpCampaign(c);
 
-        if (!campaign) return c.json({ error: "The volunteer campaign is unavailable." }, 404);
+        if (!campaign)
+          return c.json(
+            { error: "The volunteer campaign is unavailable." },
+            404,
+          );
         const session = c.get("adminSession") ?? (await getAdminSession(c));
         const actorEmail = session.authenticated ? (session.email ?? "") : "";
 
-        if (!actorEmail) return c.json({ error: "Owner session identity is unavailable." }, 403);
+        if (!actorEmail)
+          return c.json(
+            { error: "Owner session identity is unavailable." },
+            403,
+          );
 
-        const snapshot = await createVolunteerOutcomePreview({
-          campaignId: campaign.id,
-          decision: parsed.data.decision,
-          actorEmail,
-        }, c);
+        const snapshot = await createVolunteerOutcomePreview(
+          {
+            campaignId: campaign.id,
+            decision: parsed.data.decision,
+            actorEmail,
+          },
+          c,
+        );
         const email = volunteerOutcomeEmailPreview({
           name: "Applicant",
           decision: parsed.data.decision,
         });
-        const payloads = Object.fromEntries(snapshot.recipients.map((recipient) => {
-          const personalized = volunteerOutcomeEmailPreview({
-            name: recipient.name,
-            decision: parsed.data.decision,
-          });
+        const payloads = Object.fromEntries(
+          snapshot.recipients.map((recipient) => {
+            const personalized = volunteerOutcomeEmailPreview({
+              name: recipient.name,
+              decision: parsed.data.decision,
+            });
 
-          return [recipient.recipient_id, {
-            from: personalized.from,
-            to: [recipient.email],
-            subject: personalized.subject,
-            html: personalized.html,
-            text: personalized.text,
-          }];
-        }));
+            return [
+              recipient.recipient_id,
+              {
+                from: personalized.from,
+                to: [recipient.email],
+                subject: personalized.subject,
+                html: personalized.html,
+                text: personalized.text,
+              },
+            ];
+          }),
+        );
 
-        await saveVolunteerOutcomePreviewPayloads({
-          previewId: snapshot.id,
-          actorEmail,
-          payloads,
-        }, c);
+        await saveVolunteerOutcomePreviewPayloads(
+          {
+            previewId: snapshot.id,
+            actorEmail,
+            payloads,
+          },
+          c,
+        );
 
         return c.json({
           preview_id: snapshot.id,
@@ -1061,34 +1236,60 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const adminError = await requireAdmin(c, ["owner"]);
 
       if (adminError) return adminError;
-      const parsed = outcomeConfirmSchema.safeParse(await c.req.json().catch(() => null));
+      const parsed = outcomeConfirmSchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
 
-      if (!parsed.success) return c.json({ error: "Preview the outcome audience first." }, 400);
+      if (!parsed.success)
+        return c.json({ error: "Preview the outcome audience first." }, 400);
 
       try {
         const session = c.get("adminSession") ?? (await getAdminSession(c));
         const actorEmail = session.authenticated ? (session.email ?? "") : "";
 
-        if (!actorEmail) return c.json({ error: "Owner session identity is unavailable." }, 403);
+        if (!actorEmail)
+          return c.json(
+            { error: "Owner session identity is unavailable." },
+            403,
+          );
 
-        const snapshot = await readVolunteerOutcomePreview({
-          previewId: parsed.data.preview_id,
-          actorEmail,
-        }, c);
+        const snapshot = await readVolunteerOutcomePreview(
+          {
+            previewId: parsed.data.preview_id,
+            actorEmail,
+          },
+          c,
+        );
 
-        if (!snapshot) return c.json({ error: "This preview is unavailable. Create a new preview." }, 404);
+        if (!snapshot)
+          return c.json(
+            { error: "This preview is unavailable. Create a new preview." },
+            404,
+          );
         if (snapshot.expiresAt <= new Date().toISOString())
-          return c.json({ error: "This preview expired. Create a new preview." }, 409);
+          return c.json(
+            { error: "This preview expired. Create a new preview." },
+            409,
+          );
 
-        const queued = await confirmVolunteerOutcomePreview({
-          previewId: parsed.data.preview_id,
-          actorEmail,
-        }, c);
+        const queued = await confirmVolunteerOutcomePreview(
+          {
+            previewId: parsed.data.preview_id,
+            actorEmail,
+          },
+          c,
+        );
 
         return c.json({ queued_count: queued.queuedCount });
       } catch (error) {
-        if (error instanceof Error && /preview_(stale|conflict|expired)/u.test(error.message))
-          return c.json({ error: "The outcome audience changed. Create a new preview." }, 409);
+        if (
+          error instanceof Error &&
+          /preview_(stale|conflict|expired)/u.test(error.message)
+        )
+          return c.json(
+            { error: "The outcome audience changed. Create a new preview." },
+            409,
+          );
 
         return internalErrorResponse(
           c,
@@ -1106,26 +1307,119 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       const adminError = await requireAdmin(c, ["owner"]);
 
       if (adminError) return adminError;
-      const parsed = outcomeControlSchema.safeParse(await c.req.json().catch(() => null));
+      const parsed = outcomeControlSchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
 
-      if (!parsed.success) return c.json({ error: "Choose pause or resume." }, 400);
+      if (!parsed.success)
+        return c.json({ error: "Choose pause or resume." }, 400);
 
       try {
         const campaign = await getVolunteerFollowUpCampaign(c);
 
-        if (!campaign) return c.json({ error: "The volunteer campaign is unavailable." }, 404);
+        if (!campaign)
+          return c.json(
+            { error: "The volunteer campaign is unavailable." },
+            404,
+          );
         const paused = parsed.data.action === "pause";
         const saved = await setVolunteerOutcomePaused(campaign.id, paused, c);
 
         return saved
           ? c.json({ outcome_paused: paused })
-          : c.json({ error: "Campaign state changed. Refresh and try again." }, 409);
+          : c.json(
+              { error: "Campaign state changed. Refresh and try again." },
+              409,
+            );
       } catch (error) {
         return internalErrorResponse(
           c,
           "volunteer_outcome_control_failed",
           error,
           "Unable to update outcome delivery controls.",
+        );
+      }
+    },
+  );
+
+  app.post(
+    "/api/annual-conference/2026/volunteer-follow-up/delivery-retries",
+    async (c) => {
+      const adminError = await requireAdmin(c, ["owner"]);
+
+      if (adminError) return adminError;
+      const parsed = deliveryRetrySchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
+
+      if (!parsed.success)
+        return c.json({ error: "Choose a valid delivery retry." }, 400);
+
+      const session = c.get("adminSession") ?? (await getAdminSession(c));
+      const actorKey = session.authenticated ? (session.email ?? "owner") : "owner";
+      const rateLimitError = await enforcePublicRateLimit(
+        c,
+        {
+          action: `volunteer_follow_up_owner_retry:${actorKey}`,
+          clientKey: publicClientKey(c),
+          maxAttempts: 10,
+          windowSeconds: 15 * 60,
+        },
+        "Too many delivery retry requests. Wait a few minutes before trying again.",
+      );
+
+      if (rateLimitError) return rateLimitError;
+
+      try {
+        const campaign = await getVolunteerFollowUpCampaign(c);
+
+        if (!campaign)
+          return c.json(
+            { error: "The volunteer campaign is unavailable." },
+            404,
+          );
+
+        const result = await queueVolunteerFollowUpFailedDeliveryRetry(
+          {
+            campaignId: campaign.id,
+            kind: parsed.data.kind,
+            deliveryId: parsed.data.delivery_id,
+          },
+          c,
+        );
+
+        if (!result.queued) {
+          return c.json(
+            {
+              error:
+                deliveryRetryBlockMessages[result.blockReason ?? ""] ??
+                "This delivery cannot be safely retried. Refresh to review its latest status.",
+              block_reason: result.blockReason,
+            },
+            409,
+          );
+        }
+
+        const paused =
+          parsed.data.kind === "outcome"
+            ? campaign.outcome_paused
+            : campaign.status !== "running";
+
+        return c.json({
+          queued: true,
+          paused,
+          message: paused
+            ? parsed.data.kind === "outcome"
+              ? "Outcome retry queued. Outcome delivery is paused, so it will wait for that queue to resume."
+              : "Invitation retry queued. Invitation delivery is paused, so it will wait for the campaign to resume."
+            : "Retry queued for the scheduled sender. No email was sent from this action.",
+        });
+      } catch (error) {
+        return internalErrorResponse(
+          c,
+          "volunteer_follow_up_delivery_retry_failed",
+          error,
+          "Unable to queue this delivery retry.",
         );
       }
     },
@@ -1173,14 +1467,35 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
 
         return recipient
           ? c.json({
-              recipient: reviewerRecipient(recipient, sentIds.has(recipient.id)),
+              recipient: reviewerRecipient(
+                recipient,
+                sentIds.has(recipient.id),
+              ),
             })
           : c.json({ error: "Submitted response not found." }, 404);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("decision_version_conflict"))
-          return c.json({ error: "This decision changed elsewhere. Refresh the review before saving." }, 409);
-        if (error instanceof Error && error.message.includes("outcome_delivery_already_started"))
-          return c.json({ error: "An outcome email has been attempted. The selection decision is locked; review the outcome delivery status." }, 409);
+        if (
+          error instanceof Error &&
+          error.message.includes("decision_version_conflict")
+        )
+          return c.json(
+            {
+              error:
+                "This decision changed elsewhere. Refresh the review before saving.",
+            },
+            409,
+          );
+        if (
+          error instanceof Error &&
+          error.message.includes("outcome_delivery_already_started")
+        )
+          return c.json(
+            {
+              error:
+                "An outcome email has been attempted. The selection decision is locked; review the outcome delivery status.",
+            },
+            409,
+          );
 
         return internalErrorResponse(
           c,

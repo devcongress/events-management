@@ -563,4 +563,22 @@ describe("Volunteer follow-up workspace UI", () => {
       "await reconcileVolunteerFollowUpApplicants(campaign, c)",
     );
   });
+
+  it("keeps failed-delivery retries explicit, per-record, and queue-only", () => {
+    expect(followUpPanelSource).toContain("Queue invitation retry");
+    expect(followUpPanelSource).toContain("Queue outcome retry");
+    expect(followUpPanelSource).toContain("pendingRetryIds");
+    expect(followUpPanelSource).toContain("delivery-retries");
+    expect(followUpPanelSource).toContain("no email is sent now");
+    expect(followUpPanelSource).toContain("above-drawer");
+    expect(followUpPanelSource).toContain("!selectedMobileDialog.value");
+    expect(followUpPanelSource).toContain("pendingRetry.value");
+    expect(followUpPanelSource).toContain("event.defaultPrevented");
+    expect(followUpPanelSource).toContain("queue is paused");
+    expect(followUpPanelSource).toContain(
+      "outcome queue is running independently of the invitation campaign",
+    );
+    expect(followUpServerSource).toContain("queueVolunteerFollowUpFailedDeliveryRetry");
+    expect(followUpServerSource).toContain("No email was sent from this action.");
+  });
 });
