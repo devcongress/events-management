@@ -59,14 +59,12 @@ describe('volunteer follow-up scheduled outbound-request budget', () => {
         throw new Error('Synthetic Worker outbound-request limit exceeded');
 
       if (url.origin === 'https://api.resend.com') {
-        if (url.pathname === '/emails') {
-          return new Response('{}', {
-            headers: {
-              'x-resend-daily-quota': '0',
-              'x-resend-monthly-quota': '2600',
-            },
-          });
-        }
+        if (url.pathname === '/usage') return json({
+          emails: {
+            daily: { used: 0, limit: null },
+            monthly: { used: 2600, limit: 3000 },
+          },
+        });
 
         if (url.pathname === '/emails/batch') {
           return new Response(JSON.stringify({ data: [{ id: 'provider-outcome-id' }] }), {
@@ -173,6 +171,7 @@ describe('volunteer follow-up scheduled outbound-request budget', () => {
     expect(await response.json()).toMatchObject({ sent: 1 });
     expect(outbound).toHaveLength(35);
     expect(outbound.filter((url) => url.origin === 'https://api.resend.com')).toHaveLength(2);
+    expect(outbound.filter((url) => url.pathname === '/usage')).toHaveLength(1);
     expect(outbound.some((url) => url.pathname === '/emails/batch')).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/rpc/finalize_volunteer_follow_up_outcome_send'))).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/rpc/release_volunteer_follow_up_drain_lease'))).toBe(true);
@@ -196,14 +195,12 @@ describe('volunteer follow-up scheduled outbound-request budget', () => {
         throw new Error('Synthetic Worker outbound-request limit exceeded');
 
       if (url.origin === 'https://api.resend.com') {
-        if (url.pathname === '/emails') {
-          return new Response('{}', {
-            headers: {
-              'x-resend-daily-quota': '0',
-              'x-resend-monthly-quota': '2600',
-            },
-          });
-        }
+        if (url.pathname === '/usage') return json({
+          emails: {
+            daily: { used: 0, limit: null },
+            monthly: { used: 2600, limit: 3000 },
+          },
+        });
 
         if (url.pathname === '/emails/batch') {
           return new Response(JSON.stringify({ data: [{ id: 'provider-invitation-id' }] }), {
@@ -292,6 +289,7 @@ describe('volunteer follow-up scheduled outbound-request budget', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ sent: 1 });
     expect(outbound.filter((url) => url.origin === 'https://api.resend.com')).toHaveLength(2);
+    expect(outbound.filter((url) => url.pathname === '/usage')).toHaveLength(1);
     expect(outbound.some((url) => url.pathname === '/emails/batch')).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/rpc/claim_volunteer_follow_up_recipient'))).toBe(true);
     expect(outbound.some((url) => url.pathname.endsWith('/rpc/release_volunteer_follow_up_drain_lease'))).toBe(true);

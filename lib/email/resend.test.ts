@@ -11,15 +11,49 @@ const email = {
 };
 
 describe('Resend batch client', () => {
-  it('reads quota without sending an email and fails closed when headers are absent', async () => {
-    const fetcher = vi.fn(async () => new Response('{}', {
-      status: 200,
-      headers: { 'x-resend-daily-quota': '10', 'x-resend-monthly-quota': '300' },
+  it('reads usage without sending an email', async () => {
+    const fetcher = vi.fn(async () => Response.json({
+      emails: {
+        daily: { used: 0, limit: null },
+        monthly: { used: 300, limit: 3_000 },
+      },
     }));
 
-    await expect(readResendEmailQuota({ apiKey: 're_test', fetcher })).resolves.toEqual({ dailyUsed: 10, monthlyUsed: 300 });
-    expect(fetcher).toHaveBeenCalledWith('https://api.resend.com/emails?limit=1', expect.objectContaining({ method: 'GET' }));
-    await expect(readResendEmailQuota({ apiKey: 're_test', fetcher: async () => new Response('{}') })).resolves.toBeNull();
+    await expect(readResendEmailQuota({ apiKey: 're_test', fetcher })).resolves.toEqual({ dailyUsed: 0, monthlyUsed: 300 });
+    expect(fetcher).toHaveBeenCalledWith('https://api.resend.com/usage', expect.objectContaining({
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer re_test',
+        'User-Agent': 'devcongress-events-management/1.0',
+      },
+      signal: expect.any(AbortSignal),
+    }));
+  });
+
+  it.each([
+    null,
+    {},
+    { emails: { daily: { used: null }, monthly: { used: 0 } } },
+    { emails: { daily: { used: '0' }, monthly: { used: 0 } } },
+    { emails: { daily: { used: 0.5 }, monthly: { used: 0 } } },
+    { emails: { daily: { used: -1 }, monthly: { used: 0 } } },
+    { emails: { daily: { used: Number.MAX_SAFE_INTEGER + 1 }, monthly: { used: 0 } } },
+  ])('fails closed for malformed usage payload %#', async (payload) => {
+    await expect(readResendEmailQuota({
+      apiKey: 're_test',
+      fetcher: async () => Response.json(payload),
+    })).resolves.toBeNull();
+  });
+
+  it('fails closed for unsuccessful or unreachable usage reads', async () => {
+    await expect(readResendEmailQuota({
+      apiKey: 're_test',
+      fetcher: async () => new Response('{}', { status: 503 }),
+    })).resolves.toBeNull();
+    await expect(readResendEmailQuota({
+      apiKey: 're_test',
+      fetcher: async () => { throw new Error('offline'); },
+    })).resolves.toBeNull();
   });
 
   it('sends the idempotency key and returns provider ids in request order', async () => {

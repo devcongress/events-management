@@ -163,7 +163,7 @@ function createSaveGate() {
 async function journey(
   name,
   run,
-  { role = "organizer", date = "2026-09-26T12:00:00Z" } = {},
+  { role = "organizer", date = "2026-09-26T12:00:00Z", useFakeClock = false } = {},
 ) {
   const context = await browser.newContext({
     viewport:
@@ -188,7 +188,8 @@ async function journey(
     snapshots: true,
     sources: true,
   });
-  await page.clock.setFixedTime(new Date(date));
+  if (useFakeClock) await page.clock.install({ time: new Date(date) });
+  else await page.clock.setFixedTime(new Date(date));
   await page.addInitScript(() => {
     window.turnstile = {
       render: (_element, options) => {
@@ -1183,15 +1184,22 @@ try {
       responses.set("/api/annual-conference/2026/volunteer-follow-up", () => ({
         body: {
           campaign: {
-            status: "draft",
+            status: "running",
             application_deadline_at: "2026-09-30T23:59:59.000Z",
-            last_drain_at: null,
-            last_drain_reason: null,
+            last_drain_at: "2026-09-26T12:00:00.000Z",
+            last_drain_reason: "invitations:capacity_unverified;outcomes:not_due",
             outcome_paused: outcomePaused,
           },
           response_deadline: "2026-10-14T23:59:59.000Z",
           recipients: campaignRecipients,
           can_manage: true,
+          email_health: {
+            daily_quota_used: null,
+            daily_quota_limit: 100,
+            monthly_quota_used: null,
+            monthly_quota_limit: 3000,
+            last_provider_response_at: null,
+          },
         },
       }));
       responses.set("/api/annual-conference/2026/volunteer-follow-up/preview", {
@@ -1251,6 +1259,38 @@ try {
       const followUp = page.getByRole("region", {
         name: "Volunteer follow-up",
       });
+
+      await followUp.getByText(
+        "Sending is waiting for a verified quota check.",
+        { exact: true },
+      ).waitFor();
+      await followUp.getByText(/Last scheduler run:/).waitFor();
+      await page.screenshot({
+        path: `${artifacts}/volunteer-follow-up-quota-status-desktop.png`,
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForURL("**/organizer-console/mobile/annual-conference/2026*");
+      const mobileConference = page.locator(".conference-mobile");
+
+      await mobileConference.waitFor({ state: "visible" });
+      await mobileConference.getByRole("tab", { name: "Campaign", exact: true }).click();
+      await mobileConference.getByText(
+        "Sending is waiting for a verified quota check.",
+        { exact: true },
+      ).waitFor();
+      await page.screenshot({
+        path: `${artifacts}/volunteer-follow-up-quota-status-mobile.png`,
+        fullPage: true,
+      });
+      await page.setViewportSize({ width: 1280, height: 1000 });
+      await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
+      await mobileConference.waitFor({ state: "detached" });
+      await page.getByRole("tab", { name: "Campaign", exact: true }).click();
+      await followUp.getByText(
+        "Sending is waiting for a verified quota check.",
+        { exact: true },
+      ).waitFor();
 
       const outcomes = followUp.getByRole("region", { name: "Outcome emails" });
 
@@ -1349,6 +1389,16 @@ try {
         .getByRole("button", { name: "Close applicant details", exact: true })
         .click();
       await selectedDrawer.waitFor({ state: "detached" });
+      await page.clock.setSystemTime(new Date("2026-09-26T12:31:00.000Z"));
+      await page.clock.runFor(30_001);
+      await followUp.getByText(
+        "Sending follows the scheduled queue.",
+        { exact: true },
+      ).waitFor();
+      await followUp.getByText(
+        "Historical scheduler result: Sending is waiting for a verified quota check.",
+        { exact: true },
+      ).waitFor();
       await page.getByRole("tab", { name: "Directory", exact: true }).click();
       await page
         .getByText("Your directory is ready for its first volunteers", {
@@ -1356,7 +1406,7 @@ try {
         })
         .waitFor();
     },
-    { role: "owner" },
+    { role: "owner", useFakeClock: true },
   );
   for (const role of ["organizer", "volunteer"]) {
     for (const mobile of [false, true]) {

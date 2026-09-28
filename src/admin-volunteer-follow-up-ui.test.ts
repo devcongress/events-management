@@ -51,6 +51,17 @@ const followUpServerSource = readFileSync(
 );
 
 describe("Volunteer follow-up workspace UI", () => {
+  it("shows owners a contextual, timestamped sending status without exposing raw scheduler output", () => {
+    expect(followUpPanelSource).toContain("volunteerFollowUpCampaignStatus");
+    expect(followUpPanelSource).toContain('class="follow-up-sender-status"');
+    expect(followUpPanelSource).toContain('aria-live="polite"');
+    expect(followUpPanelSource).toContain("Last scheduler run:");
+    expect(followUpPanelSource).toContain("campaignStatusClock");
+    expect(followUpPanelSource).toContain("window.setInterval");
+    expect(followUpPanelSource).toContain("window.clearInterval(campaignStatusTimer)");
+    expect(followUpPanelSource).not.toContain("last_drain_reason?.replaceAll");
+  });
+
   it("uses the compact Turnstile widget on 320px-wide screens", () => {
     expect(followUpViewSource).toContain(
       'window.matchMedia("(max-width: 360px)")',

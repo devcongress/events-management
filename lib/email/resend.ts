@@ -20,6 +20,16 @@ const resendBroadcastStatusResponseSchema = z.object({
   id: z.string().trim().min(1),
   status: z.string().trim().min(1),
 }).passthrough();
+const resendUsageResponseSchema = z.object({
+  emails: z.object({
+    daily: z.object({
+      used: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    }),
+    monthly: z.object({
+      used: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    }),
+  }),
+});
 
 const resendErrorResponseSchema = z.object({
   message: z.string().trim().min(1).max(500).optional(),
@@ -532,7 +542,7 @@ export async function readResendEmailQuota(input: {
   fetcher?: Fetcher;
 }): Promise<EmailQuotaUsage | null> {
   try {
-    const response = await (input.fetcher ?? fetch)('https://api.resend.com/emails?limit=1', {
+    const response = await (input.fetcher ?? fetch)('https://api.resend.com/usage', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${input.apiKey}`,
@@ -542,10 +552,14 @@ export async function readResendEmailQuota(input: {
     });
 
     if (!response.ok) return null;
-    const dailyUsed = parseResendQuotaUsage(response.headers.get('x-resend-daily-quota'));
-    const monthlyUsed = parseResendQuotaUsage(response.headers.get('x-resend-monthly-quota'));
+    const usage = resendUsageResponseSchema.safeParse(await response.json().catch(() => null));
 
-    return dailyUsed !== null && monthlyUsed !== null ? { dailyUsed, monthlyUsed } : null;
+    if (!usage.success) return null;
+
+    return {
+      dailyUsed: usage.data.emails.daily.used,
+      monthlyUsed: usage.data.emails.monthly.used,
+    };
   } catch {
     return null;
   }

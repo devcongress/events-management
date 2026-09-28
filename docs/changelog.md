@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-28 — Verify volunteer sender capacity from Resend usage
+
+- Replace the fragile quota-header probe with Resend's read-only usage endpoint, validating zero and other non-negative safe-integer daily/monthly usage values while failing closed on malformed or unavailable data.
+- Add an Owner-only, timestamped sender status that distinguishes recognized invitation and outcome queue results, keeps raw provider text out of the UI, and treats old, paused, closed, or draft results as historical rather than a current block.
+- Keep a provider-accepted invitation or outcome accepted if a post-send batch omits quota headers; only further sends wait for a verified usage read.
+- Add focused client, scheduled request-budget, outcome acceptance, UI wiring, and owner desktop/mobile journey coverage. No live provider, database, deployment, or campaign state change was performed.
+
 ## 2026-09-28 — Bound scheduled email work to Worker request limits
 
 - Replace the combined 15-minute scheduled run with one minute-level trigger that dispatches one route per invocation; each route retains its 15-minute cadence, while six cycle slots intentionally remain idle.
