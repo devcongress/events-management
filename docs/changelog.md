@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-28 — Increase volunteer sender cadence without widening delivery limits
+
+- Add three isolated volunteer-drain slots to the existing minute-level scheduler, giving the queue four processing opportunities per 15-minute cycle while keeping each invocation to one route and at most one invitation-or-outcome delivery.
+- Preserve the alternating 15-minute invitation/outcome fairness windows, shared 54/day campaign cap, 35-message reserve, quota reads, leases, retries, and idempotency rules; four opportunities are a ceiling, not a guarantee of four invitations.
+- Document the intentionally uneven nine/two/two/two-minute slot spacing and add exact scheduler-slot, rollover, delayed-clock, invalid-time, and missing-secret regression coverage. No live email, database, deployment, or migration operation was performed.
+
 ## 2026-09-28 — Clarify and paginate volunteer application reviews
 
 - Replace the loose review rows with an aligned, responsive Applicant / Review / Invitation / Submitted grid that safely wraps long applicant identities and provides full-row keyboard-accessible review controls.
