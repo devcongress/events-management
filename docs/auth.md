@@ -47,6 +47,8 @@ Disabled memberships remain visible to Owners with two explicit choices: re-enab
 |---|---|
 | `admin_memberships` | Organizer email allowlist, role, status, and last login |
 | `admin_sessions` | Hashed app session tokens and expiry metadata |
+| `admin_access_request_sessions` | Separate hashed, 30-minute identity sessions that cannot authorize organizer APIs |
+| `admin_access_requests` | Pending and decided access requests, with applicant identity and owner decision provenance |
 | `admin_audit_log` | Security-sensitive admin actions with actor, target, request path, IP, user-agent, and compact metadata |
 | `annual_conference_access_grants` | Additive member capabilities scoped to one Annual Conference edition, with granting-owner provenance |
 
@@ -69,7 +71,7 @@ on conflict (email) do update set
   status = 'active';
 ```
 
-After that owner signs in, they can add more organizer emails from the console.
+After that owner signs in, they can add organizer emails directly or review self-service requests in People & Access. Requests and decisions do not send email.
 
 ## Google Provider Setup
 
@@ -84,6 +86,10 @@ Required setup:
 5. Keep Supabase Site URL pointed at the deployed app origin so post-auth redirects return to the organizer surface.
 
 Organizer access still depends on `admin_memberships`. A successful Google login does not grant organizer permissions unless the verified email is active in the allowlist.
+
+## Access requests
+
+An unapproved person may choose **Request access** from the same Google sign-in surface. Google verification creates only a separate, opaque, HTTP-only request-session cookie with a 30-minute lifetime; it never satisfies `requireAdmin` or opens organizer routes. The request form uses that server-derived identity, accepts an optional bounded reason, and explicitly submits a pending request without sending email. Owners review the queue in People & Access and may approve only Organizer or Volunteer roles, or decline. Approval atomically checks the current owner, request, and email identity; it will not overwrite, reactivate, or otherwise change an existing disabled membership. An approved person signs in normally afterwards.
 
 Only owners can change an existing member between the Organizer and Volunteer roles. The People & Access directory exposes this as an inline role selector only to owners, the API repeats the owner check, and a successful role change revokes the member's existing app sessions so the narrower or broader access takes effect on their next sign-in.
 

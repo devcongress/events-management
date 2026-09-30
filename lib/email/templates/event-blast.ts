@@ -4,6 +4,11 @@ const EVENT_TIME_ZONE = 'Africa/Accra';
 const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DEVCONGRESS_WORDMARK_URL = 'https://devcongress.org/images/logo-nav%402x.png';
+const CALENDAR_ICON_URLS = {
+  google: 'https://em.devcongress.org/brand/calendar/google-calendar.png',
+  apple: 'https://em.devcongress.org/brand/calendar/apple.png',
+  outlook: 'https://em.devcongress.org/brand/calendar/outlook.png',
+};
 
 function escapeHtml(value: string): string {
   return value
@@ -96,6 +101,20 @@ function googleCalendarUrl(input: { eventName: string; eventDate: string; eventE
   return url.toString();
 }
 
+function calendarAction(input: {
+  href: string;
+  iconUrl: string;
+  label: string;
+  primary?: boolean;
+  spacing?: string;
+}): string {
+  const actionStyle = input.primary
+    ? 'background:#E8117F;border:1px solid #E8117F;color:#FFFFFF;font-weight:800;'
+    : 'background:transparent;border:1px solid #111111;color:#111111;font-weight:700;';
+
+  return `<tr><td style="padding:0 0 ${input.spacing ?? '0'};"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;"><tr><td width="38" valign="middle" style="width:38px;padding:0 8px 0 0;"><table role="presentation" width="30" cellspacing="0" cellpadding="0" style="width:30px;background:#FFFFFF;border-radius:6px;border-collapse:separate;"><tr><td align="center" bgcolor="#FFFFFF" style="padding:5px;background:#FFFFFF;border-radius:6px;"><img src="${input.iconUrl}" width="20" height="20" alt="" aria-hidden="true" style="display:block;width:20px;height:20px;border:0;"></td></tr></table></td><td valign="middle"><a href="${input.href}" target="_blank" rel="noopener noreferrer" class="${input.primary ? '' : 'email-secondary-action'}" style="display:block;padding:13px 12px;${actionStyle}border-radius:6px;font-size:14px;text-decoration:none;text-align:center;">${input.label}</a></td></tr></table></td></tr>`;
+}
+
 export function eventBlastEmail(input: {
   subject: string;
   body: string;
@@ -127,6 +146,22 @@ export function eventBlastEmail(input: {
     unsubscribeUrl: escapeHtml(input.unsubscribeUrl),
   };
 
+  const calendarHtml = safe.calendarUrl || safe.calendarDownloadUrl ? `
+<p style="margin:0 0 11px;color:#777777;font-family:'Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Add to calendar</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;margin:0 0 ${safe.calendarDownloadUrl ? '9px' : '24px'};">
+  ${safe.calendarUrl ? calendarAction({ href: safe.calendarUrl, iconUrl: CALENDAR_ICON_URLS.google, label: 'Google Calendar', primary: true, spacing: safe.calendarDownloadUrl ? '10px' : '0' }) : ''}
+  ${safe.calendarDownloadUrl ? `${calendarAction({ href: safe.calendarDownloadUrl, iconUrl: CALENDAR_ICON_URLS.apple, label: 'Apple Calendar (.ics)', spacing: '10px' })}
+  ${calendarAction({ href: safe.calendarDownloadUrl, iconUrl: CALENDAR_ICON_URLS.outlook, label: 'Outlook / other apps (.ics)' })}` : ''}
+</table>
+${safe.calendarDownloadUrl ? `<p class="email-footer" style="margin:0 0 24px;color:#777777;font-size:12px;line-height:1.5;">Calendar downloads are one-time imports and do not update automatically.</p>` : ''}` : '';
+
+  const calendarText = [
+    calendarUrl ? `Add to Google Calendar: ${calendarUrl}` : null,
+    calendarDownloadUrl ? `Apple Calendar (.ics): ${calendarDownloadUrl}` : null,
+    calendarDownloadUrl ? `Outlook / other apps (.ics): ${calendarDownloadUrl}` : null,
+    calendarDownloadUrl ? 'Calendar downloads are one-time imports and do not update automatically.' : null,
+  ].filter((value): value is string => value !== null).join('\n');
+
   return {
     html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>${safe.subject}</title><style>:root{color-scheme:light dark;supported-color-schemes:light dark}@media (prefers-color-scheme:dark){.email-body,.email-canvas{background:#111111!important}.email-shell,.email-content{background:#1C1C1C!important;border-color:#3A3A3A!important}.email-heading,.email-title,.email-detail-title,.email-header-context{color:#E5E5E5!important}.email-copy,.email-footer,.email-detail-copy{color:#A1A1A1!important}.email-detail{background:#262626!important;border-color:#3A3A3A!important}.email-detail-divider{background:#3A3A3A!important}.email-secondary-action{color:#E5E5E5!important;border-color:#666666!important}}</style></head>
 <body class="email-body" style="margin:0;background:#F5F2E8;color:#111111;font-family:Inter,'Helvetica Neue',Arial,sans-serif;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="email-canvas" style="width:100%;background:#F5F2E8;"><tr><td align="center" style="padding:32px 16px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="email-shell" style="width:100%;max-width:620px;background:#FFFFFF;border:2px solid #111111;border-radius:8px;border-collapse:separate;overflow:hidden;">
@@ -134,8 +169,8 @@ export function eventBlastEmail(input: {
 <tr><td style="font-size:0;line-height:0;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td width="52%" height="6" bgcolor="#E8117F" style="height:6px;background:#E8117F;">&nbsp;</td><td width="18%" height="6" bgcolor="#6A38F0" style="height:6px;background:#6A38F0;">&nbsp;</td><td width="30%" height="6" bgcolor="#F5E642" style="height:6px;background:#F5E642;">&nbsp;</td></tr></table></td></tr>
 <tr><td class="email-content" style="padding:38px 38px 34px;background:#FFFFFF;"><p style="margin:0 0 10px;color:#C80D68;font-family:'Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Event update</p><h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:38px;font-weight:800;line-height:1.08;letter-spacing:-.025em;">${safe.subject}</h1><p class="email-copy" style="margin:0 0 28px;color:#4B4B4B;font-size:17px;line-height:1.6;">${safe.body}</p><p class="email-title" style="margin:0 0 16px;color:#111111;font-size:22px;font-weight:800;line-height:1.3;">${safe.eventName}</p>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" class="email-detail" style="width:100%;margin:0 0 22px;background:#F7F4EA;border:1px solid #D8D2C4;border-radius:8px;border-collapse:separate;overflow:hidden;"><tr><td width="72" valign="middle" style="width:72px;padding:14px 0 14px 16px;"><table role="presentation" width="56" cellspacing="0" cellpadding="0" style="width:56px;background:#F5E642;border:1px solid #111111;border-radius:8px;border-collapse:separate;overflow:hidden;"><tr><td align="center" style="padding:5px 4px 3px;color:#111111;font-family:'Courier New',monospace;font-size:9px;font-weight:700;letter-spacing:.1em;">${safe.month}</td></tr><tr><td align="center" style="padding:2px 4px 7px;color:#111111;font-size:24px;font-weight:800;line-height:1;">${safe.day}</td></tr></table></td><td valign="middle" style="padding:14px 18px 14px 14px;"><p style="margin:0 0 4px;color:#C80D68;font-family:'Courier New',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">When</p><p class="email-detail-title" style="margin:0 0 5px;color:#111111;font-size:16px;font-weight:800;line-height:1.35;">${safe.date}</p><p class="email-detail-copy" style="margin:0;color:#666666;font-size:15px;line-height:1.4;">${safe.time}</p></td></tr><tr><td colspan="2" class="email-detail-divider" style="height:1px;background:#D8D2C4;font-size:0;line-height:0;">&nbsp;</td></tr><tr><td width="72" align="center" valign="middle" style="width:72px;padding:14px 0 14px 16px;"><div aria-label="Location" style="width:54px;height:54px;border:1px solid #111111;border-radius:8px;color:#E8117F;font-size:27px;font-weight:800;line-height:54px;text-align:center;">⌖</div></td><td valign="middle" style="padding:14px 18px 14px 14px;"><p style="margin:0 0 5px;color:#C80D68;font-family:'Courier New',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Where</p><p class="email-detail-title" style="margin:0;color:#111111;font-size:17px;font-weight:800;line-height:1.35;">${safe.locationName}</p>${safe.mapUrl ? `<p style="margin:7px 0 0;"><a href="${safe.mapUrl}" target="_blank" rel="noopener noreferrer" style="color:#C80D68;font-size:13px;font-weight:700;text-decoration:none;">View map →</a></p>` : ''}</td></tr></table>
-${safe.calendarUrl || safe.calendarDownloadUrl ? `<p style="margin:0 0 11px;color:#777777;font-family:'Courier New',monospace;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Add to calendar</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;margin:0 0 24px;"><tr>${safe.calendarUrl ? `<td width="58%" style="padding:0 5px 0 0;"><a href="${safe.calendarUrl}" target="_blank" rel="noopener noreferrer" style="display:block;padding:13px 8px;background:#E8117F;border:1px solid #E8117F;border-radius:6px;color:#FFFFFF;font-size:14px;font-weight:800;text-decoration:none;text-align:center;white-space:nowrap;">Google Calendar</a></td>` : ''}${safe.calendarDownloadUrl ? `<td width="42%" style="padding:0 0 0 5px;"><a href="${safe.calendarDownloadUrl}" target="_blank" rel="noopener noreferrer" class="email-secondary-action" style="display:block;padding:13px 8px;background:transparent;border:1px solid #111111;border-radius:6px;color:#111111;font-size:13px;font-weight:700;text-decoration:none;text-align:center;white-space:nowrap;">Download .ics</a></td>` : ''}</tr></table>` : ''}
+${calendarHtml}
 ${safe.eventUrl ? `<p style="margin:0 0 26px;"><a href="${safe.eventUrl}" target="_blank" rel="noopener noreferrer" style="color:#C80D68;font-size:14px;font-weight:700;text-decoration:none;">View event details →</a></p>` : ''}<p class="email-footer" style="margin:0;padding-top:22px;border-top:1px solid #DDD6C8;color:#777777;font-size:13px;line-height:1.6;">You are receiving this because you registered for this DevCongress event.<br><a href="${safe.unsubscribeUrl}" style="color:#C80D68;font-weight:700;text-decoration:underline;">Unsubscribe</a></p></td></tr></table></td></tr></table></body></html>`,
-    text: `${input.subject.trim()}\n\n${input.body.trim()}\n\n${eventName}\n${schedule.date}\n${schedule.time}\n${textLine(input.locationName, 'Location to be announced')}\n${calendarUrl ? `\nAdd to Google Calendar: ${calendarUrl}` : ''}${calendarDownloadUrl ? `\nDownload calendar file: ${calendarDownloadUrl}` : ''}${eventUrl ? `\nEvent details: ${eventUrl}` : ''}\n\nYou are receiving this because you registered for this DevCongress event.\nUnsubscribe: ${input.unsubscribeUrl}`,
+    text: `${input.subject.trim()}\n\n${input.body.trim()}\n\n${eventName}\n${schedule.date}\n${schedule.time}\n${textLine(input.locationName, 'Location to be announced')}${calendarText ? `\n${calendarText}` : ''}${eventUrl ? `\nEvent details: ${eventUrl}` : ''}\n\nYou are receiving this because you registered for this DevCongress event.\nUnsubscribe: ${input.unsubscribeUrl}`,
   };
 }
