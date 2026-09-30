@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-30 — Simplify organizer access request
+
+- Reframe the access-request page as a quiet responsive DevCongress form with a compact handcrafted illustration, clearer request context, and explicit no-email, no-automatic-access guidance while preserving the existing secure request flow.
+
 ## 2026-09-30 — Patch audited transitive dependencies
 
 - Override `brace-expansion` to 5.0.12 and `undici` to 7.29.1 to incorporate the audited Node 20-compatible security fixes.
