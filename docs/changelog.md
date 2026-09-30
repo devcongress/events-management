@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-30 — Patch audited transitive dependencies
+
+- Override `brace-expansion` to 5.0.12 and `undici` to 7.29.1 to incorporate the audited Node 20-compatible security fixes.
+
+## 2026-09-30 — Add bounded organizer access requests
+
+- Add a Google-verified, explicit access-request path for people outside the organizer allowlist; it uses a separate 30-minute HTTP-only request session and sends no email.
+- Add an Owner-only People & Access queue to approve Organizer or Volunteer access, or decline a request; disabled memberships remain protected by the existing re-enable workflow.
+- Use service-role-only, row-level-secured tables and atomic database decisions with identity locks, audit records, strict request bodies, origin checks, and request throttling.
+
+## 2026-09-29 — Add Apple and Outlook calendar imports to event blasts
+
+- Keep Google Calendar as the primary event-blast action and add full-width, email-safe **Apple Calendar (.ics)** and **Outlook / other apps (.ics)** choices that reuse the event-specific calendar attachment.
+- Add self-hosted 20px Google, Apple, and Outlook provider marks in white chips, keeping the adjacent visible text as the fallback for image-blocking email clients.
+- Clarify in HTML and plain text that `.ics` downloads are one-time imports and do not update automatically; omit provider choices when the relevant safe calendar destination is unavailable.
+- Add focused template coverage for provider labels and destinations, unsafe/missing calendar URLs, invalid dates, all-day and fallback end ranges, and calendar-facing text sanitization. No email, production, or provider action was performed.
+
 ## 2026-09-28 — Clarify volunteer reviews and outcome queue decisions
 
 - Widen and restructure the reviewer drawer around readable applicant identity, full motivation and travel-support context, a highlighted availability answer, and one versioned review save that explicitly does not email anyone.

@@ -30,6 +30,7 @@ export type ShortLinkDestination =
 export type ShortLinkStatus = 'active' | 'revoked';
 export type AdminRole = 'owner' | 'organizer' | 'volunteer';
 export type AdminMembershipStatus = 'active' | 'disabled';
+export type AdminAccessRequestStatus = 'pending' | 'approved' | 'declined';
 export type AnnualConferenceCapability =
   | 'work_plan.view_all'
   | 'work_plan.manage'
@@ -240,6 +241,18 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+      admin_access_requests: {
+        Row: { id: string; user_id: string; email: string; display_name: string; reason: string | null; status: AdminAccessRequestStatus; decided_at: string | null; decided_by: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; user_id: string; email: string; display_name: string; reason?: string | null; status?: AdminAccessRequestStatus; decided_at?: string | null; decided_by?: string | null; created_at?: string; updated_at?: string };
+        Update: Partial<{ id: string; user_id: string; email: string; display_name: string; reason: string | null; status: AdminAccessRequestStatus; decided_at: string | null; decided_by: string | null; created_at: string; updated_at: string }>;
+        Relationships: [];
+      };
+      admin_access_request_sessions: {
+        Row: { id: string; token_hash: string; user_id: string; email: string; display_name: string; expires_at: string; created_at: string; revoked_at: string | null };
+        Insert: { id?: string; token_hash: string; user_id: string; email: string; display_name: string; expires_at: string; created_at?: string; revoked_at?: string | null };
+        Update: Partial<{ id: string; token_hash: string; user_id: string; email: string; display_name: string; expires_at: string; created_at: string; revoked_at: string | null }>;
         Relationships: [];
       };
       admin_sessions: {
@@ -2245,6 +2258,14 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      submit_admin_access_request: {
+        Args: { p_user_id: string; p_email: string; p_display_name: string; p_reason?: string | null };
+        Returns: Database['public']['Tables']['admin_access_requests']['Row'];
+      };
+      decide_admin_access_request: {
+        Args: { p_request_id: string; p_actor_id: string; p_role?: AdminRole | null; p_approve?: boolean };
+        Returns: Database['public']['Tables']['admin_access_requests']['Row'];
+      };
       acquire_volunteer_follow_up_drain_lease: {
         Args: { p_campaign_id: string; p_lease_token: string };
         Returns: boolean;
