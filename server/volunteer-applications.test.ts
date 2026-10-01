@@ -20,6 +20,9 @@ vi.mock('@/lib/supabase/volunteer-follow-up', () => ({
 }));
 
 beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-30T12:00:00.000Z'));
+
   vi.clearAllMocks();
   vi.stubEnv('NODE_ENV', 'test');
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
@@ -50,6 +53,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
 });
 
