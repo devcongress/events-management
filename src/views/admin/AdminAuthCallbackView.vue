@@ -39,11 +39,6 @@ async function redirectToLogin(reason?: AdminAuthFailureReason) {
   });
 }
 
-async function clearOrganizerCache() {
-  await queryClient.cancelQueries();
-  queryClient.clear();
-}
-
 onMounted(async () => {
   const code = typeof route.query.code === 'string' ? route.query.code : '';
   const callbackError = typeof route.query.error === 'string' ? route.query.error : '';
@@ -80,19 +75,7 @@ onMounted(async () => {
       });
 
       if (!response.ok) {
-        await clearOrganizerCache();
         await redirectToLogin(adminAuthFailureReasonForStatus(response.status));
-
-        return;
-      }
-
-      const exchange = await response.json() as { outcome?: 'authenticated' | 'access_request' };
-
-      await clearOrganizerCache();
-
-      if (exchange.outcome === 'access_request') {
-        window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
-        await router.replace({ path: '/access-request' });
 
         return;
       }
@@ -118,7 +101,6 @@ onMounted(async () => {
 
       return;
     } catch {
-      await clearOrganizerCache();
       await redirectToLogin('service_unavailable');
 
       return;

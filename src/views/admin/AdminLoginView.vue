@@ -331,16 +331,6 @@ onMounted(async () => {
               </svg>
             </button>
 
-            <button
-              v-if="!props.managed && authResolved && authConfigured"
-              type="button"
-              class="login-secondary"
-              :disabled="loading"
-              @click="login"
-            >
-              Request access
-            </button>
-
             <p id="organizer-access-note" class="login-access-note">
               <svg aria-hidden="true" viewBox="0 0 24 24">
                 <path d="M8.5 10V7.5a3.5 3.5 0 1 1 7 0V10M7 10h10a1 1 0 0 1 1 1v8H6v-8a1 1 0 0 1 1-1Z" />

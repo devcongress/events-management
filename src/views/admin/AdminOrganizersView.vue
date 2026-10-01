@@ -11,7 +11,6 @@ import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AdminOrganizersPageSkeleton from '@/src/components/ui/page-skeletons/AdminOrganizersPageSkeleton.vue';
 import {
   fetchAdminOrganizers,
-  fetchAdminAccessRequests,
   fetchAdminSession,
   fetchAnnualConferenceAccess,
   fetchAnnualConferenceEditions,
@@ -21,7 +20,6 @@ import {
   type AnnualConferenceAccessResponse,
   type OrganizerMembership,
   type OrganizerMembershipsResponse,
-  type AdminAccessRequest,
 } from '@/src/lib/api';
 import type { AdminRole } from '@/types/supabase';
 import {
@@ -81,11 +79,6 @@ const adminSessionQuery = useQuery({
 const organizers = computed(() => organizersQuery.data.value?.organizers ?? []);
 const currentUserRole = computed<AdminRole | null>(() => adminSessionQuery.data.value?.user?.role ?? null);
 const currentUserEmail = computed(() => adminSessionQuery.data.value?.user?.email?.toLowerCase() ?? null);
-const accessRequestsQuery = useQuery({
-  queryKey: queryKeys.adminAccessRequests,
-  queryFn: fetchAdminAccessRequests,
-  enabled: computed(() => currentUserRole.value === 'owner'),
-});
 const requestedApplicationQuery = useQuery({
   queryKey: computed(() => queryKeys.volunteerApplications(requestedEdition.value)),
   queryFn: () => fetchVolunteerApplications(requestedEdition.value),
@@ -113,14 +106,6 @@ const organizerPageCount = computed(() => Math.max(1, Math.ceil(organizers.value
 const organizerPageStart = computed(() => (organizerPage.value - 1) * organizersPerPage);
 const organizerPageEnd = computed(() => Math.min(organizers.value.length, organizerPageStart.value + organizersPerPage));
 const paginatedOrganizers = computed(() => organizers.value.slice(organizerPageStart.value, organizerPageEnd.value));
-const accessRequests = computed(() => accessRequestsQuery.data.value?.requests ?? []);
-const accessRequestPage = ref(1);
-const accessRequestsPerPage = 5;
-const accessRequestPageCount = computed(() => Math.max(1, Math.ceil(accessRequests.value.length / accessRequestsPerPage)));
-const paginatedAccessRequests = computed(() => accessRequests.value.slice((accessRequestPage.value - 1) * accessRequestsPerPage, accessRequestPage.value * accessRequestsPerPage));
-const accessRequestCandidate = ref<AdminAccessRequest | null>(null);
-const declineAccessRequestCandidate = ref<AdminAccessRequest | null>(null);
-const accessRequestRole = ref<'organizer' | 'volunteer'>('organizer');
 const addOrganizerValidation = computed(() => addOrganizerSchema.safeParse(form));
 const canAddOrganizer = computed(() => addOrganizerValidation.value.success && !addOrganizerMutation.isPending.value);
 const responsibilityEditionOptions = computed(() => (editionsQuery.data.value?.editions ?? []).map((edition) => ({
@@ -181,12 +166,6 @@ watch(organizerPageCount, (pageCount) => {
   }
 });
 
-watch(accessRequestPageCount, (pageCount) => {
-  if (accessRequestPage.value > pageCount) {
-    accessRequestPage.value = pageCount;
-  }
-});
-
 watch([currentUserRole, responsibilityMember], ([role, member]) => {
   if (responsibilityMemberId.value && (role !== 'owner' || !member)) {
     void closeResponsibilities();
@@ -238,47 +217,6 @@ async function readError(response: Response): Promise<string> {
 
 function notifyActionError(caught: unknown, fallback: string) {
   notify.error(caught instanceof Error ? caught.message : fallback);
-}
-
-const decideAccessRequestMutation = useMutation({
-  mutationFn: async ({ request, approve }: { request: AdminAccessRequest; approve: boolean }) => {
-    const suffix = approve ? 'approve' : 'decline';
-    const response = await fetch(`/api/admin/access-requests/${request.id}/${suffix}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(approve ? { role: accessRequestRole.value } : {}),
-    });
-
-    if (!response.ok) throw new Error(await readError(response));
-  },
-  onSuccess: async () => {
-    accessRequestCandidate.value = null;
-    declineAccessRequestCandidate.value = null;
-    await queryClient.invalidateQueries({ queryKey: queryKeys.adminAccessRequests });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.adminOrganizers });
-  },
-  onError: (caught) => notifyActionError(caught, 'Unable to decide this access request.'),
-});
-
-function approveAccessRequest(request: AdminAccessRequest) {
-  if (currentUserRole.value !== 'owner') return;
-  accessRequestCandidate.value = request;
-}
-
-function declineAccessRequest(request: AdminAccessRequest) {
-  if (currentUserRole.value !== 'owner' || decideAccessRequestMutation.isPending.value) return;
-  declineAccessRequestCandidate.value = request;
-}
-
-function confirmAccessRequestDecline() {
-  if (!declineAccessRequestCandidate.value) return;
-  decideAccessRequestMutation.mutate({ request: declineAccessRequestCandidate.value, approve: false });
-}
-
-function confirmAccessRequestApproval() {
-  if (!accessRequestCandidate.value) return;
-  decideAccessRequestMutation.mutate({ request: accessRequestCandidate.value, approve: true });
 }
 
 const addOrganizerMutation = useMutation({
@@ -766,30 +704,6 @@ onUnmounted(() => {
           </p>
         </section>
 
-        <section
-          v-if="currentUserRole === 'owner'"
-          class="rounded-lg border border-dc-border bg-dc-paper p-4 xl:col-start-2 xl:row-start-3"
-          aria-labelledby="access-requests-title"
-        >
-          <p class="editorial-eyebrow">Review queue</p>
-          <h2 id="access-requests-title" class="mt-1 text-lg font-semibold text-dc-ink">Access requests</h2>
-          <p v-if="accessRequestsQuery.isPending.value" class="mt-1 text-xs leading-5 text-dc-gray">Loading requests…</p>
-          <p v-else-if="accessRequestsQuery.isError.value" class="mt-1 text-xs leading-5 text-red-700">Unable to load access requests.</p>
-          <p v-else class="mt-1 text-xs leading-5 text-dc-gray">{{ accessRequests.length ? `${accessRequests.length} waiting for an owner decision.` : 'No pending requests.' }}</p>
-          <div v-if="paginatedAccessRequests.length" class="mt-3 grid gap-3">
-            <article v-for="request in paginatedAccessRequests" :key="request.id" class="rounded-md border border-dc-border bg-dc-paper-warm p-3">
-              <p class="break-words text-sm font-semibold text-dc-ink">{{ request.display_name }}</p>
-              <p class="mt-0.5 break-all text-xs text-dc-gray">{{ request.email }}</p>
-              <p v-if="request.reason" class="mt-2 break-words text-xs leading-5 text-dc-gray">{{ request.reason }}</p>
-              <div class="mt-3 flex gap-2">
-                <button type="button" class="motion-press min-h-11 flex-1 rounded-md border border-dc-border px-2.5 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-dc-ink sm:flex-none" @click="approveAccessRequest(request)">Approve</button>
-                <button type="button" class="motion-press min-h-11 flex-1 rounded-md border border-red-300 px-2.5 py-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-red-700 sm:flex-none" :disabled="decideAccessRequestMutation.isPending.value" @click="declineAccessRequest(request)">Decline</button>
-              </div>
-            </article>
-          </div>
-          <AppPagination v-if="accessRequests.length > accessRequestsPerPage" v-model:page="accessRequestPage" class="mt-3" :page-count="accessRequestPageCount" :total="accessRequests.length" :range-start="(accessRequestPage - 1) * accessRequestsPerPage + 1" :range-end="Math.min(accessRequestPage * accessRequestsPerPage, accessRequests.length)" item-label="requests" aria-label="Access request pagination" />
-        </section>
-
         <section class="flex min-w-0 flex-col overflow-hidden rounded-lg border border-dc-border bg-dc-paper xl:col-start-1 xl:row-span-2 xl:row-start-1">
           <div class="flex items-center justify-between gap-4 border-b border-dc-border px-4 py-3 sm:px-5">
             <div>
@@ -1012,31 +926,6 @@ onUnmounted(() => {
       </div>
     </Transition>
   </Teleport>
-
-  <ConfirmDialog
-    :open="Boolean(declineAccessRequestCandidate)"
-    title="Decline access request?"
-    :message="declineAccessRequestCandidate ? `${declineAccessRequestCandidate.display_name} will not receive organizer access. They may deliberately submit a new request later.` : ''"
-    confirm-label="Decline request"
-    busy-label="Declining…"
-    :busy="decideAccessRequestMutation.isPending.value"
-    danger
-    @cancel="declineAccessRequestCandidate = null"
-    @confirm="confirmAccessRequestDecline"
-  />
-
-  <ConfirmDialog
-    :open="Boolean(accessRequestCandidate)"
-    title="Approve access request?"
-    :message="accessRequestCandidate ? `${accessRequestCandidate.display_name} will gain the selected workspace role. Owners remain managed through the existing member workflow.` : ''"
-    confirm-label="Approve access"
-    busy-label="Approving…"
-    :busy="decideAccessRequestMutation.isPending.value"
-    @cancel="accessRequestCandidate = null"
-    @confirm="confirmAccessRequestApproval"
-  >
-    <AppDropdown v-model="accessRequestRole" label="Workspace role" :options="memberRoleOptions" density="compact" />
-  </ConfirmDialog>
 
   <ConfirmDialog
     :open="Boolean(removalCandidate)"

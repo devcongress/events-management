@@ -121,7 +121,6 @@ const isOrganizerProtectedRoute = computed(
 const isStandaloneRoute = computed(
   () =>
     route.name === "event-feedback" ||
-    route.name === "admin-access-request" ||
     route.name === SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME ||
     route.name === "event-cfp" ||
     route.name === "monthly-cfp" ||
