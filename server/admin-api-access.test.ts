@@ -8,6 +8,18 @@ describe("admin API role policy", () => {
     ).toEqual(["owner"]);
   });
 
+  it("keeps access request review and decisions owner-only", () => {
+    expect(
+      adminRolesForApiRequest("/api/admin/access-requests", "GET"),
+    ).toEqual(["owner"]);
+    expect(
+      adminRolesForApiRequest("/api/admin/access-requests/id/approve", "POST"),
+    ).toEqual(["owner"]);
+    expect(
+      adminRolesForApiRequest("/api/admin/access-requests/id/decline", "POST"),
+    ).toEqual(["owner"]);
+  });
+
   it("admits volunteers only to assigned-work reads and task status updates", () => {
     expect(
       adminRolesForApiRequest("/api/annual-conference/2026/work-plan", "GET"),

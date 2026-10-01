@@ -12,12 +12,14 @@ DevCon-Comm uses Supabase Auth with Google OAuth for organizer and annual-confer
 6. Hono forwards the code to `/organizer-console/auth/callback` on `PUBLIC_APP_URL`, where the browser completes the Supabase PKCE exchange.
 7. The browser posts the temporary Supabase access token to `/api/auth/admin/exchange`.
 8. Hono verifies the token, checks the verified email against active `admin_memberships`, stores an app-owned row in `admin_sessions`, and sets an HTTP-only session cookie (`__Host-devcon_admin` on secure deployments).
-9. The callback route clears the browser Supabase session and redirects into the organizer console.
+9. The callback route cancels pending data work, clears only non-session cached data, refreshes the existing app-session query, clears the browser Supabase session, and redirects into the organizer console.
 10. Organizer APIs call `requireAdmin`, which validates the session cookie, active membership, role, and request origin.
 
 The browser Supabase client uses tab-scoped `sessionStorage` for PKCE storage so the code verifier survives the external Google redirect without being shared across multiple organizer tabs. After the app-owned session cookie is created, the callback signs out of Supabase in the browser. The app cookie contains only an opaque random session token; the hashed token is stored in Supabase.
 
 The login screen stores the intended organizer destination in session storage before starting Google OAuth. If Supabase falls back to the configured Site URL and returns the OAuth code to a public route, the router forwards that code to `/organizer-console/auth/callback` and resumes the organizer sign-in flow.
+
+The mounted organizer shell and route guards share the same `adminSession` query object. An OAuth transition never clears the whole query client: it publishes an unauthenticated session while identity changes, removes other cached organizer data, then refetches the session into that existing query before protected navigation. An access-request outcome deliberately keeps the session unauthenticated and routes only to `/access-request`.
 
 The login route, protected-route session gate, and OAuth callback all render the same Programme Cover authentication surface. Only the access panel changes: it reports session checking, Google handoff, callback verification, bounded access denial, or retry states without replacing the page. Unapproved accounts receive a generic denial and a fresh Google account-selection action; provider and server error details are never rendered from query parameters. The router accepts only same-origin internal destination paths, and organizer content remains unmounted until the server confirms an active membership.
 
@@ -47,6 +49,8 @@ Disabled memberships remain visible to Owners with two explicit choices: re-enab
 |---|---|
 | `admin_memberships` | Organizer email allowlist, role, status, and last login |
 | `admin_sessions` | Hashed app session tokens and expiry metadata |
+| `admin_access_request_sessions` | Separate hashed, 30-minute identity sessions that cannot authorize organizer APIs |
+| `admin_access_requests` | Pending and decided access requests, with applicant identity and owner decision provenance |
 | `admin_audit_log` | Security-sensitive admin actions with actor, target, request path, IP, user-agent, and compact metadata |
 | `annual_conference_access_grants` | Additive member capabilities scoped to one Annual Conference edition, with granting-owner provenance |
 
@@ -69,7 +73,7 @@ on conflict (email) do update set
   status = 'active';
 ```
 
-After that owner signs in, they can add more organizer emails from the console.
+After that owner signs in, they can add organizer emails directly or review self-service requests in People & Access. Requests and decisions do not send email.
 
 ## Google Provider Setup
 
@@ -84,6 +88,10 @@ Required setup:
 5. Keep Supabase Site URL pointed at the deployed app origin so post-auth redirects return to the organizer surface.
 
 Organizer access still depends on `admin_memberships`. A successful Google login does not grant organizer permissions unless the verified email is active in the allowlist.
+
+## Access requests
+
+An unapproved person may choose **Request access** from the same Google sign-in surface. Google verification creates only a separate, opaque, HTTP-only request-session cookie with a 30-minute lifetime; it never satisfies `requireAdmin` or opens organizer routes. The request form uses that server-derived identity, accepts an optional bounded reason, and explicitly submits a pending request without sending email. Owners review the queue in People & Access and may approve only Organizer or Volunteer roles, or decline. Approval atomically checks the current owner, request, and email identity; it will not overwrite, reactivate, or otherwise change an existing disabled membership. An approved person signs in normally afterwards.
 
 Only owners can change an existing member between the Organizer and Volunteer roles. The People & Access directory exposes this as an inline role selector only to owners, the API repeats the owner check, and a successful role change revokes the member's existing app sessions so the narrower or broader access takes effect on their next sign-in.
 

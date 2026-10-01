@@ -77,6 +77,7 @@ const EventView = () => import("./views/EventView.vue");
 const AdminAuthCallbackView = () =>
   import("./views/admin/AdminAuthCallbackView.vue");
 const AdminLoginView = () => import("./views/admin/AdminLoginView.vue");
+const AdminAccessRequestView = () => import("./views/admin/AdminAccessRequestView.vue");
 const AdminMobileOrganizerView = () =>
   import("./views/admin/AdminMobileOrganizerView.vue");
 const AdminMobileEventsView = () =>
@@ -268,6 +269,11 @@ export const router = createRouter({
       path: adminPath("login"),
       name: "admin-login",
       component: AdminLoginView,
+    },
+    {
+      path: "/access-request",
+      name: "admin-access-request",
+      component: AdminAccessRequestView,
     },
     { path: adminPath(), redirect: adminPath("events") },
     {
