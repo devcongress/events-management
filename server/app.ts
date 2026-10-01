@@ -121,8 +121,7 @@ import {
   listAnnualConferenceVolunteerTeam,
   setAnnualConferenceAccessGrant,
 } from '@/lib/supabase/annual-conference-access-grants';
-import { assertAdminOrigin, completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership } from '@/lib/supabase/admin-auth';
-import { getAccessRequestSession } from '@/lib/supabase/admin-access-requests';
+import { completeSupabaseAdminToken, configuredFrontendOrigins, defaultAdminRedirectPath, getAdminSession, isSupabaseAdminAuthConfigured, recordAdminAudit, requireAdmin, revokeAdminSession, revokeAdminSessionsForMembership } from '@/lib/supabase/admin-auth';
 import {
   archiveSupabaseCommunityEvent,
   createSupabaseCommunityEvent,
@@ -372,7 +371,6 @@ for (const publicWritePath of [
   '/api/public/email-preflight',
   '/api/public/event-submissions',
   '/api/auth/admin/exchange',
-  '/api/auth/admin/access-request',
   '/api/events/*/speaker-intake/*',
   '/api/conferences/*/speaker-intake/*',
   '/api/public/event-submissions/manage/:capability',
@@ -646,13 +644,6 @@ const addOrganizerSchema = z.object({
   display_name: z.string().trim().min(1).max(120),
   role: z.enum(['owner', 'organizer', 'volunteer']).default('organizer'),
 });
-const adminAccessRequestSchema = z.object({
-  display_name: z.string().trim().min(1).max(120),
-  reason: z.string().trim().max(1000).optional(),
-}).strict();
-const adminAccessRequestDecisionSchema = z.object({
-  role: z.enum(['organizer', 'volunteer']),
-}).strict();
 const updateOrganizerRoleSchema = z.object({
   role: z.enum(['organizer', 'volunteer']),
 }).strict();
@@ -1159,7 +1150,6 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || path === '/api/health/supabase'
     || path === '/api/auth/session'
     || path === '/api/auth/admin/callback'
-    || path === '/api/auth/admin/access-request'
     ))
     || (method === 'POST' && (
       path === '/api/webhooks/resend/inbound'
@@ -1168,7 +1158,6 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
       || path === '/api/cfp'
       || path === '/api/feedback'
       || path === '/api/auth/admin/exchange'
-      || path === '/api/auth/admin/access-request'
       || path === '/api/volunteer-applications'
     ))
     || (/^\/api\/volunteer-follow-up\/[^/]+$/.test(path) && (method === 'GET' || method === 'POST'))
@@ -5513,10 +5502,6 @@ app.get('/api/auth/admin/callback', async (c) => {
 });
 
 app.post('/api/auth/admin/exchange', async (c) => {
-  const originError = assertAdminOrigin(c);
-
-  if (originError) return originError;
-
   if (!isSupabaseAdminAuthConfigured(c)) {
     return c.json({ error: 'Supabase admin auth is not configured.' }, 503);
   }
@@ -5543,89 +5528,9 @@ app.post('/api/auth/admin/exchange', async (c) => {
   }
 
   return c.json({
-    authenticated: result.outcome === 'authenticated',
+    authenticated: true,
     auth_mode: 'supabase',
-    outcome: result.outcome,
   });
-});
-
-app.get('/api/auth/admin/access-request', async (c) => {
-  const session = await getAccessRequestSession(c);
-
-  if (!session) return c.json({ error: 'Access request session required' }, 401);
-  const { data, error } = await getSupabaseAdminClient(c).from('admin_access_requests')
-    .select('id, display_name, reason, status, created_at, decided_at')
-    .eq('user_id', session.userId).eq('email', session.email)
-    .order('created_at', { ascending: false }).limit(1).maybeSingle();
-
-  if (error) return c.json({ error: 'Unable to load access request.' }, 500);
-
-  return c.json({ identity: { email: session.email, display_name: session.displayName }, request: data });
-});
-
-app.post('/api/auth/admin/access-request', async (c) => {
-  const originError = assertAdminOrigin(c);
-
-  if (originError) return originError;
-  const session = await getAccessRequestSession(c);
-
-  if (!session) return c.json({ error: 'Access request session required' }, 401);
-  const parsed = adminAccessRequestSchema.safeParse(await c.req.json().catch(() => null));
-
-  if (!parsed.success) return c.json({ error: 'Check your request details.' }, 400);
-  const rateLimitError = await enforcePublicRateLimit(c, { action: 'admin_access_request_submit', clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 30 * 60 }, 'Too many access requests. Please wait before trying again.');
-
-  if (rateLimitError) return rateLimitError;
-  const { data, error } = await getSupabaseAdminClient(c).rpc('submit_admin_access_request', {
-    p_user_id: session.userId, p_email: session.email, p_display_name: parsed.data.display_name, p_reason: parsed.data.reason ?? null,
-  });
-
-  if (error) return c.json({ error: 'Unable to submit access request.' }, 500);
-
-  return c.json({ request: data }, 201);
-});
-
-app.get('/api/admin/access-requests', async (c) => {
-  const adminError = await requireAdmin(c, ['owner']);
-
-  if (adminError) return adminError;
-  const { data, error } = await getSupabaseAdminClient(c).from('admin_access_requests')
-    .select('id, email, display_name, reason, status, created_at').eq('status', 'pending').order('created_at', { ascending: true });
-
-  if (error) return c.json({ error: 'Unable to load access requests.' }, 500);
-
-  return c.json({ requests: data ?? [] });
-});
-
-app.post('/api/admin/access-requests/:requestId/approve', async (c) => {
-  const adminError = await requireAdmin(c, ['owner']);
-
-  if (adminError) return adminError;
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-
-  if (!session.authenticated || !session.user_id) return c.json({ error: 'Admin session required' }, 401);
-  const parsed = adminAccessRequestDecisionSchema.safeParse(await c.req.json().catch(() => null));
-
-  if (!parsed.success) return c.json({ error: 'Choose organizer or volunteer access.' }, 400);
-  const { data, error } = await getSupabaseAdminClient(c).rpc('decide_admin_access_request', { p_request_id: c.req.param('requestId'), p_actor_id: session.user_id, p_role: parsed.data.role, p_approve: true });
-
-  if (error) return c.json({ error: 'Unable to approve access request.' }, error.message.includes('disabled_membership') ? 409 : 400);
-
-  return c.json({ request: data });
-});
-
-app.post('/api/admin/access-requests/:requestId/decline', async (c) => {
-  const adminError = await requireAdmin(c, ['owner']);
-
-  if (adminError) return adminError;
-  const session = c.get('adminSession') ?? await getAdminSession(c);
-
-  if (!session.authenticated || !session.user_id) return c.json({ error: 'Admin session required' }, 401);
-  const { data, error } = await getSupabaseAdminClient(c).rpc('decide_admin_access_request', { p_request_id: c.req.param('requestId'), p_actor_id: session.user_id, p_role: null, p_approve: false });
-
-  if (error) return c.json({ error: 'Unable to decline access request.' }, 400);
-
-  return c.json({ request: data });
 });
 
 app.post('/api/auth/logout', async (c) => {

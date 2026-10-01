@@ -4,7 +4,6 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { envValue } from '@/server/env';
 import { securitySafeRequestPath } from '@/server/security-log';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
-import { createAccessRequestSession, revokeAccessRequestSession } from '@/lib/supabase/admin-access-requests';
 import type { Database, Json } from '@/types/supabase';
 
 export const ADMIN_SESSION_COOKIE = 'devcon_admin';
@@ -232,33 +231,14 @@ async function createAdminSessionForUser(c: Context, input: { userId: string; em
 export async function completeSupabaseAdminToken(c: Context, accessToken: string) {
   const { data, error } = await getBrowserSafeSupabaseClient(c).auth.getUser(accessToken);
 
-  const user = data.user;
-  const isGoogleIdentity = user?.app_metadata?.provider === 'google'
-    || user?.identities?.some((identity) => identity.provider === 'google');
-
-  if (error || !user?.email || !user.email_confirmed_at || !isGoogleIdentity) {
+  if (error || !data.user?.email) {
     return { ok: false as const, status: 401, error: 'Google organizer sign-in could not be completed. Please try again.' };
   }
-  const email = normalizeEmail(user.email);
-  const membership = await getSupabaseAdminClient(c).from('admin_memberships').select('status').eq('email', email).maybeSingle();
 
-  if (membership.error) return { ok: false as const, status: 500, error: 'Unable to check organizer access.' };
-  if (membership.data?.status === 'disabled') {
-    await revokeAdminSession(c);
-
-    return { ok: false as const, status: 403, error: 'This account cannot access the organizer console.' };
-  }
-  if (!membership.data) {
-    await revokeAdminSession(c);
-    await createAccessRequestSession(c, { userId: user.id, email, displayName: String(user.user_metadata?.full_name ?? user.user_metadata?.name ?? email).trim().slice(0, 120) || email });
-
-    return { ok: true as const, outcome: 'access_request' as const };
-  }
-  const session = await createAdminSessionForUser(c, { userId: user.id, email });
-
-  if (session.ok) await revokeAccessRequestSession(c);
-
-  return session.ok ? { ...session, outcome: 'authenticated' as const } : session;
+  return createAdminSessionForUser(c, {
+    userId: data.user.id,
+    email: data.user.email,
+  });
 }
 
 export async function getAdminSession(c: Context): Promise<AdminSessionResult> {
@@ -317,23 +297,19 @@ export async function revokeAdminSession(c: Context): Promise<void> {
   const cookieName = sessionCookieName(c);
   const token = getCookie(c, cookieName);
 
-  try {
-    if (token && isSupabaseAdminAuthConfigured(c)) {
-      const { error } = await getSupabaseAdminClient(c)
-        .from('admin_sessions')
-        .update({ revoked_at: new Date().toISOString() })
-        .eq('token_hash', await sessionTokenHash(token));
+  if (token && isSupabaseAdminAuthConfigured(c)) {
+    await getSupabaseAdminClient(c)
+      .from('admin_sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('token_hash', await sessionTokenHash(token));
+  }
 
-      if (error) throw new Error('Unable to revoke organizer session');
-    }
-  } finally {
-    deleteCookie(c, cookieName, {
-      path: '/',
-      secure: cookieName === HOST_ADMIN_SESSION_COOKIE,
-    });
-    if (cookieName !== ADMIN_SESSION_COOKIE) {
-      deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
-    }
+  deleteCookie(c, cookieName, {
+    path: '/',
+    secure: cookieName === HOST_ADMIN_SESSION_COOKIE,
+  });
+  if (cookieName !== ADMIN_SESSION_COOKIE) {
+    deleteCookie(c, ADMIN_SESSION_COOKIE, { path: '/' });
   }
 }
 

@@ -1,9 +1,5 @@
 # Changelog
 
-## 2026-09-30 — Simplify organizer access request
-
-- Reframe the access-request page as a quiet responsive DevCongress form with a compact handcrafted illustration, clearer request context, and explicit no-email, no-automatic-access guidance while preserving the existing secure request flow.
-
 ## 2026-09-30 — Patch audited transitive dependencies
 
 - Override `brace-expansion` to 5.0.12 and `undici` to 7.29.1 to incorporate the audited Node 20-compatible security fixes.
@@ -20,7 +16,6 @@
 - Add self-hosted 20px Google, Apple, and Outlook provider marks in white chips, keeping the adjacent visible text as the fallback for image-blocking email clients.
 - Clarify in HTML and plain text that `.ics` downloads are one-time imports and do not update automatically; omit provider choices when the relevant safe calendar destination is unavailable.
 - Add focused template coverage for provider labels and destinations, unsafe/missing calendar URLs, invalid dates, all-day and fallback end ranges, and calendar-facing text sanitization. No email, production, or provider action was performed.
-
 ## 2026-09-28 — Clarify volunteer reviews and outcome queue decisions
 
 - Widen and restructure the reviewer drawer around readable applicant identity, full motivation and travel-support context, a highlighted availability answer, and one versioned review save that explicitly does not email anyone.

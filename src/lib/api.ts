@@ -170,18 +170,6 @@ export interface OrganizerMembershipsResponse {
   organizers: OrganizerMembership[];
   auth_mode: 'supabase';
 }
-export interface AdminAccessRequest {
-  id: string;
-  email: string;
-  display_name: string;
-  reason: string | null;
-  status: 'pending' | 'approved' | 'declined';
-  created_at: string;
-}
-
-export interface AdminAccessRequestsResponse {
-  requests: AdminAccessRequest[];
-}
 
 export interface AdminAuditLogEntry {
   id: string;
@@ -490,7 +478,6 @@ export const queryKeys = {
   annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
-  adminAccessRequests: ['admin-access-requests'] as const,
   adminAuditLog: (filters?: Record<string, string>) => ['admin-audit-log', filters ?? {}] as const,
   adminEmailPreviews: ['admin-email-previews'] as const,
   adminShortLinks: ['admin-short-links'] as const,
@@ -1164,10 +1151,6 @@ export function fetchFeedbackEventStatus(eventId: string) {
 
 export function fetchAdminOrganizers() {
   return fetchJson<OrganizerMembershipsResponse>('/api/admin/organizers', { credentials: 'include' });
-}
-
-export function fetchAdminAccessRequests() {
-  return fetchJson<AdminAccessRequestsResponse>('/api/admin/access-requests', { credentials: 'include' });
 }
 
 export function fetchAdminAuditLog(filters: { actor?: string; action?: string; target_type?: string; limit?: string } = {}) {

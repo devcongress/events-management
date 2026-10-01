@@ -1,15 +1,5 @@
 # Architectural Decisions
 
-## ADR-099: Keep access-request identity separate from organizer authorization
-
-**Date:** 2026-09-30
-
-**Decision:** Verify Google identity server-side, but issue unknown users only a short-lived opaque request-session cookie. Keep the identity in server persistence and use it solely to read or explicitly submit that person’s access request. Owners decide queued requests atomically into Organizer or Volunteer memberships; Owner promotion and disabled-member reactivation remain in the existing member workflow.
-
-**Reason:** A Google identity proves control of an account, not authorization to run event operations. A separate session prevents an unapproved identity or a forged form email from being recognized by protected organizer middleware.
-
-**Trade-offs:** Requesters must return after approval and receive no notification email. The dedicated table and RPCs add migration surface, but give the queue durable deduplication, auditing, and concurrency controls.
-
 ## ADR-098: Isolate scheduled jobs and bound volunteer delivery work
 
 **Date:** 2026-09-28
