@@ -4,6 +4,11 @@
 
 - Override `brace-expansion` to 5.0.12 and `undici` to 7.29.1 to incorporate the audited Node 20-compatible security fixes.
 
+## 2026-10-01 — Safely restore organizer access requests
+
+- Restore the Google-verified, explicit organizer access-request flow, its separate 30-minute request session, request form, and Owner-only People & Access queue without granting organizer access to requesters.
+- Keep the mounted organizer session query during OAuth identity transitions, clear only non-session data, and force the refreshed server session into the same observer before protected navigation. Unknown accounts remain unauthenticated and go only to the request form.
+
 ## 2026-09-30 — Add bounded organizer access requests
 
 - Add a Google-verified, explicit access-request path for people outside the organizer allowlist; it uses a separate 30-minute HTTP-only request session and sends no email.
@@ -16,6 +21,7 @@
 - Add self-hosted 20px Google, Apple, and Outlook provider marks in white chips, keeping the adjacent visible text as the fallback for image-blocking email clients.
 - Clarify in HTML and plain text that `.ics` downloads are one-time imports and do not update automatically; omit provider choices when the relevant safe calendar destination is unavailable.
 - Add focused template coverage for provider labels and destinations, unsafe/missing calendar URLs, invalid dates, all-day and fallback end ranges, and calendar-facing text sanitization. No email, production, or provider action was performed.
+
 ## 2026-09-28 — Clarify volunteer reviews and outcome queue decisions
 
 - Widen and restructure the reviewer drawer around readable applicant identity, full motivation and travel-support context, a highlighted availability answer, and one versioned review save that explicitly does not email anyone.

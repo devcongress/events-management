@@ -42,11 +42,19 @@ const SELECTED_SPEAKER_EMAIL_TEST_PATH =
   /^\/api\/events\/[^/]+\/selected-speaker-emails\/test$/;
 const OWNER_TEST_SPEAKER_SUBMISSION_PATH =
   /^\/api\/events\/[^/]+\/speaker-submissions\/test$/;
+const ACCESS_REQUEST_DECISION_PATH =
+  /^\/api\/admin\/access-requests\/[^/]+\/(approve|decline)$/;
 
 export function adminRolesForApiRequest(
   path: string,
   method: string,
 ): AdminRole[] {
+  if (
+    (method === 'GET' && path === '/api/admin/access-requests')
+    || (method === 'POST' && ACCESS_REQUEST_DECISION_PATH.test(path))
+  ) {
+    return OWNER_ROLES;
+  }
   if (path === "/api/admin/presentation-forms") {
     return OWNER_ROLES;
   }

@@ -7,12 +7,15 @@ import {
   safeInternalAppPath,
 } from '@/src/admin-routes';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser';
-import { fetchAdminSession, queryKeys } from '@/src/lib/api';
 import {
   adminAuthFailureReasonForStatus,
   type AdminAuthFailureReason,
 } from '@/src/lib/admin-auth-flow';
 import { queryClient } from '@/src/lib/query';
+import {
+  beginAdminSessionTransition,
+  refreshAdminSessionAfterTransition,
+} from '@/src/lib/admin-session-transition';
 import { matchesOrganizerPhoneViewport, organizerPostAuthLanding } from '@/src/organizer-viewport';
 import AdminLoginView from './AdminLoginView.vue';
 
@@ -75,16 +78,23 @@ onMounted(async () => {
       });
 
       if (!response.ok) {
+        await beginAdminSessionTransition(queryClient);
         await redirectToLogin(adminAuthFailureReasonForStatus(response.status));
 
         return;
       }
 
-      const session = await queryClient.fetchQuery({
-        queryKey: queryKeys.adminSession,
-        queryFn: fetchAdminSession,
-        staleTime: 0,
-      });
+      const exchange = await response.json() as { outcome?: 'authenticated' | 'access_request' };
+
+      if (exchange.outcome === 'access_request') {
+        await beginAdminSessionTransition(queryClient);
+        window.sessionStorage.removeItem(ADMIN_OAUTH_REDIRECT_STORAGE_KEY);
+        await router.replace({ path: '/access-request' });
+
+        return;
+      }
+
+      const session = await refreshAdminSessionAfterTransition(queryClient);
 
       if (!session.authenticated) {
         await redirectToLogin('oauth_failed');
@@ -101,6 +111,7 @@ onMounted(async () => {
 
       return;
     } catch {
+      await beginAdminSessionTransition(queryClient);
       await redirectToLogin('service_unavailable');
 
       return;
@@ -110,7 +121,7 @@ onMounted(async () => {
   }
 
   try {
-    const session = await fetchAdminSession();
+    const session = await refreshAdminSessionAfterTransition(queryClient);
 
     if (session.authenticated) {
       await router.replace(organizerPostAuthLanding(
