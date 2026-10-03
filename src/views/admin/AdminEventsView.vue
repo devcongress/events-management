@@ -118,7 +118,7 @@ const lifecycleStages: Array<{
     status: 'upcoming',
     label: 'Program set',
     description: 'Talks, speakers, and event basics are mostly ready.',
-    organizerMove: 'Confirm speakers, quiz, venue, and comms.',
+    organizerMove: 'Confirm speakers, venue, and comms.',
     actionLabel: 'Prepare',
   },
   {
@@ -455,7 +455,7 @@ function statusActionPath(event: CommunityEvent): string {
     cfp_open: 'talks',
     cfp_closed: 'talks',
     upcoming: '',
-    live: 'quiz/live',
+    live: '',
     completed: isQuarterlyEvent(event) ? 'feedback' : 'attendance',
   };
 
@@ -678,7 +678,7 @@ async function openEventNextStep(event: CommunityEvent) {
           <div>
             <p class="editorial-eyebrow">organizer</p>
             <h1 class="editorial-title">Events</h1>
-            <p class="editorial-subtitle">Create events, move them through the program lifecycle, and jump into talk, speaker, or quiz operations.</p>
+            <p class="editorial-subtitle">Create events, move them through the program lifecycle, and jump into talk or speaker operations.</p>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">
             <RouterLink

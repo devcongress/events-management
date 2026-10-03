@@ -6,9 +6,9 @@
 - **Components:** `PascalCase` (`DashboardView`, `TalkReviewCard`)
 - **Composables:** `use-` prefix for future Vue composables
 - **API routes:** Active feature routes live in cohesive registrars under `server/routes/*`; `server/app.ts` owns app-wide middleware and composition while legacy Next APIs remain under `app/api`
-- **Types:** `PascalCase` interfaces, `camelCase` properties (`QuizSession`, `event_date`)
+- **Types:** `PascalCase` interfaces, `camelCase` properties (`SystemDesignLearningRoom`, `event_date`)
 - **DB helpers:** `verb + entity` pattern (`getAllEvents`, `getEventById`, `createEvent`, `updateEvent`)
-- **Constants:** `SCREAMING_SNAKE_CASE` (`POLL_INTERVAL_MS`, `REVEALING_DURATION_MS`)
+- **Constants:** `SCREAMING_SNAKE_CASE` (`POLL_INTERVAL_MS`, `MAX_PUBLIC_BODY_BYTES`)
 
 ---
 
@@ -59,14 +59,16 @@ import { getAllEvents, createEvent } from '@/lib/mock-db/events';
 const events = await getAllEvents();
 ```
 
-### Quiz State Progression
-Keep quiz state reads and phase changes separate:
+### System Design Learning-Room State Progression
+Keep System Design learning-room state reads and presenter-controlled phase changes separate:
 ```ts
-await fetch('/api/quiz/state/advance', { method: 'POST', body: JSON.stringify({ session_id }) });
-const state = await fetch(`/api/quiz/state?sessionId=${session_id}`);
+await fetch(`/api/quiz/sessions/${sessionId}/release`, {
+  method: 'POST',
+});
+const state = await fetch(`/api/quiz/state?sessionId=${sessionId}`);
 ```
 
-`GET /api/quiz/state` should stay read-only. Hide `correct_index` from `current_question`; reveal player-specific correctness through `player_result.correct_index` only after a player has answered.
+The state read must remain read-only. Attendee state must withhold a prepared question until the presenter releases it, and must never disclose another participant's answers or final standing.
 
 ### Role Checks
 Auth and role checks have not been migrated yet. Add them in the Hono server first so the Vue app can rely on same-origin session cookies.
@@ -77,7 +79,7 @@ Auth and role checks have not been migrated yet. Add them in the Hono server fir
 
 `src/styles/forms.css`, loaded after legacy styles, owns regular field geometry and focus/error/disabled treatment. Existing `.editorial-input` controls inherit it; new/custom native text-entry fields use `.app-form-control`. The baseline is 50px minimum height, 8px corners, a one-pixel border, and 16px body text. Shared dropdown/date triggers use the same appearance while preserving their compact densities.
 
-Keep file/checkbox/radio inputs, calendar time inputs, composite quiz options, compact search/allocation controls, and inline editors specialized. Dropdown portals remain opt-in (`teleport`) because DOM placement affects drawer focus boundaries; enabled portals use the calculated viewport-clamped width.
+Keep file/checkbox/radio inputs, calendar time inputs, composite System Design question options, compact search/allocation controls, and inline editors specialized. Dropdown portals remain opt-in (`teleport`) because DOM placement affects drawer focus boundaries; enabled portals use the calculated viewport-clamped width.
 
 Shared textareas are not manually resizable (`resize: none`); longer content remains accessible through vertical scrolling (`overflow-y: auto`).
 

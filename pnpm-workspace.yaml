@@ -3,3 +3,9 @@ allowBuilds:
   sharp: set this to true or false
   vue-demi: set this to true or false
   workerd: set this to true or false
+
+auditConfig:
+  ignoreGhsas:
+    # Temporary build-tooling exception: no patched braces release exists.
+    # Review or remove by 2026-11-03.
+    - GHSA-vfj7-8cjw-p6xm

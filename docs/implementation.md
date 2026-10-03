@@ -26,10 +26,9 @@
 | `lib/speaker-archive-email.ts` | Eligible program-item selection and strict stored speaker-email resolution |
 | `lib/email/scenarios.ts` / `lib/email/resend.ts` / `lib/email/templates/monthly-archive-request.ts` | Code-owned sender and subject policy, Worker-native Resend client, and Archive Request email |
 | `lib/email/public-email-preflight.ts` | Shared public-form email syntax, provider-typo, disposable-domain, DNS fallback, domain-only cache, and fail-open resolver policy |
-| `src/components/NaviiAvatar.vue` | Local deterministic Navii avatar renderer for leaderboard profiles |
-| `src/views/PlayView.vue` / `PlayCodeView.vue` | Quiz join and live player gameplay |
+| `src/components/NaviiAvatar.vue` | Local deterministic Navii avatar renderer for System Design participants |
 | `src/views/NotFoundView.vue` | Branded fallback for unknown Vue routes |
-| `src/views/admin/*` | Active admin event/talk/speaker/quiz management views |
+| `src/views/admin/*` | Active admin event/talk/speaker/System Design management views |
 | `lib/luma-attendance.ts` | Luma guest CSV normalization and organizer attendance metrics |
 | `server/quiz-state.ts` | Quiz state read model and explicit phase-advance command helper |
 | `lib/supabase/browser.ts` / `server.ts` | Typed Supabase clients for browser-safe anon access and server-only service-role access |
@@ -86,11 +85,6 @@
   - Owner-only delivery test proposals carry the internal note `owner-only:test-speaker`. The server removes them before calculating non-owner list counts and also denies non-owner decisions, link visibility, previews, and sends. This is an explicit test-data convention, not a public proposal field.
   - Generated private links resolve to the standalone `/speaker-talks/:eventId/:token` route before the organizer-console catch-all.
   - APIs: `/api/events/[eventId]/talks` (`GET`/`POST`), `/api/events/[eventId]/speaker-submissions` (`GET`), `/api/events/[eventId]/speaker-submissions/test` (Owner-only `POST`), `/api/speaker-submissions/[submissionId]` (`PATCH`), `/api/events/[eventId]/speaker-intake-links` (`GET`/`POST`/`DELETE`), `/api/events/[eventId]/selected-speaker-emails/test` (Owner-only `POST`), `/api/internal/selected-speaker-emails/retry` (scheduled `POST`), `/api/events/[eventId]/speaker-intake-emails` (`POST`), `/api/events/[eventId]/speaker-intake/[token]` (`GET`/`POST`), `/api/talks/[talkId]`, `/api/talks/[talkId]/reminder`
-- **Quiz authoring + live ops**
-  - Active Vue pages: `src/views/admin/AdminQuizView.vue`, `src/views/PlayView.vue`, `src/views/PlayCodeView.vue`
-  - Builder: `app/(admin)/admin/events/[eventId]/quiz/page.tsx`
-  - Live control: `app/(admin)/admin/events/[eventId]/quiz/live/page.tsx`
-  - APIs: `/api/quiz/sessions*`, `/api/quiz/questions*`, `/api/quiz/state`, `/api/quiz/state/advance`, `/api/quiz/answer`, `/api/quiz/active`, `/api/quiz/join`
 - **Event feedback campaigns**
   - Active Vue pages: `src/views/admin/AdminFeedbackView.vue`, `src/views/FeedbackView.vue`
   - APIs: `/api/events/[eventId]/feedback-campaign`, `DELETE /api/events/[eventId]/feedback-campaign`, `/api/feedback/events/[eventId]`, `/api/feedback/events/[eventId]/submissions`
@@ -203,7 +197,6 @@
   - `/api/registration/events/[eventId]`
   - `/api/cfp/events/[eventId]`
   - `/api/talks`
-  - `/api/leaderboard`
 - **Public website contract:** `/api/public/meetups*` reads Supabase `community_events` when the server Supabase runtime is enabled; a configured query failure does not silently serve stale local data. Local JSON plus explicitly published compatibility `Talk` data remains the development fallback only when Supabase is disabled. The compatibility API returns DevCongress-owned meetups only. Public collections have explicit response/query bounds, reject unsupported query keys, carry short cache headers, and are edge-cached by the Pages proxy only for queryless unauthenticated reads. Browser CORS is restricted to `PUBLIC_API_CORS_ORIGINS`; capability routes remain same-origin. The additive `/api/public/events` feed always returns published DevCongress events; approved, published events promoted from public submissions appear only when the fail-closed `PUBLIC_EVENT_SUBMISSIONS_PUBLIC_DISCOVERY_ENABLED=true` runtime gate is explicit. `/api/public/event-submissions` stores no canonical event until authenticated review and first requires the independent fail-closed `PUBLIC_EVENT_SUBMISSIONS_ENABLED=true` intake gate; cover intake consumes a pre-parse distributed limit, then verifies the `event_submission` Turnstile action and dedicated website hostname allowlist before signature/dimension validation and storage. New management links keep bearer material in a URL fragment and send it to same-origin API routes through authorization headers; legacy path routes remain only for already-issued links and are redacted from application logs. Intake and moderation functions atomically queue receipt/approval/rejection outbox rows; Resend dispatch happens only after persistence, uses stable idempotency keys, and records queued/accepted/failed state for organizer retry without repeating the decision. Approved amendments transactionally update the canonical event, then clear reviewed registration-page findings and rebaseline the monitor without performing a source fetch or Slack notification; the next automatic comparison follows the event-date cadence, while **Check now** remains available for explicit early verification. Existing `/talks`, `talks`, and talk-count names remain for compatibility; each returned archive item may add `kind`, with a missing value interpreted as `talk`, so `product_demo` can be rendered without breaking older consumers. `/api/public/archive*` returns narrow public archive payloads, and `/api/public/home` excludes attendance identity under the same short public cache policy. Internal `/api/*` routes remain organizer-gated except explicit public intake routes.
 - **Public website verification:** `pnpm verify:public-api` validates the public meetup response shape against the current `devcongress.org` Astro meetup schema expectations, plus CORS headers, cache headers, detail lookup, and talks lookup against `PUBLIC_API_BASE_URL` before the Astro website is wired to consume it.
 - **Public event consumer preview:** authenticated organizers open `/organizer-console/website-preview/events` from Event Management to inspect the complete published collection returned by the private, non-cacheable `/api/admin/events-preview` contract. Every card opens `/organizer-console/website-preview/events/:slug`, backed by `/api/admin/events-preview/:slug`. This preview intentionally includes private-beta submissions excluded from `/api/public/events`; it remains organizer-gated and does not expose unpublished drafts.
@@ -216,7 +209,7 @@
 - `src/components/ui/page-skeletons/RegistrationPageSkeleton.vue`, `SpeakerTalkIntakePageSkeleton.vue`, and `SystemDesignParticipantPageSkeleton.vue` preserve the actual public form/room footprint while their data requests resolve; CFP and feedback continue using their existing page-shaped skeletons, and volunteer intake mounts directly because it has no initial data request.
 - `src/router.ts` lazy-loads routed page components with dynamic imports, keeping the shell and route guard eager while splitting public pages, organizer workspaces, quiz views, and fallback pages into route chunks. Once organizer auth resolves, its route guard applies the shared viewport policy before importing a desktop organizer page. The mobile organizer home reuses the cached events and Annual Conference work-plan queries to prioritize today's event action plus blocked, overdue, unassigned, or active conference tasks; volunteer sessions omit event reads and receive only server-filtered assigned work. Post-auth phone routing treats a bare Annual Conference overview as a broad landing request and opens mobile Home, while preserving exact event, check-in, filtered task, desktop, and volunteer destinations.
 - `src/organizer-viewport.ts` is the single organizer breakpoint and route-policy source. Authenticated phone routes resolve to Mobile Ops while preserving event identity and mapping supported desktop sections to mobile Overview, Guests, or Submissions. Annual Conference redirects carry the edition section plus supported phase, status, workstream, owner, and task query context in both directions. Redirects replace only the viewport-incompatible history entry; user tab and task selections push their own URL state, so browser Back restores the prior meaningful view. Unsupported sections and malformed query values deliberately fall back to Overview or default filters.
-- `src/App.vue` provides the protected organizer shell/nav, mounts `AppToaster`, and polls `/api/quiz/active` so the organizer-facing `Play` link appears only while a quiz session is waiting or active. Organizer pages begin directly beneath the primary navigation or event tabs; the shell does not render a breadcrumb layer or fetch event names solely for page context. The shell presents Annual Conference as a top-level organizer workspace while keeping Volunteers edition-scoped beneath December 2026, and gives protected QR displays the same standalone treatment so they cannot inherit organizer navigation or the phone ops view. It preserves the deployed cream header, yellow logo artwork, full-yellow ink-outlined active tabs, offset control shadows, and the established boxed event tabs. During a direct protected-route load, the shell uses the same `AppBootScreen` content as the organizer pre-JavaScript first paint while the organizer session resolves. It redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated and listens to the shared media query so crossing the phone/tablet boundary updates the canonical organizer route.
+- `src/App.vue` provides the protected organizer shell/nav, mounts `AppToaster`, and keeps organizer pages directly beneath the primary navigation or event tabs; it does not fetch an active classic Quiz session. The shell presents Annual Conference as a top-level organizer workspace while keeping Volunteers edition-scoped beneath December 2026, and gives protected QR displays the same standalone treatment so they cannot inherit organizer navigation or the phone ops view. It preserves the deployed cream header, yellow logo artwork, full-yellow ink-outlined active tabs, offset control shadows, and the established boxed event tabs. During a direct protected-route load, the shell uses the same `AppBootScreen` content as the organizer pre-JavaScript first paint while the organizer session resolves. It redirects organizer routes back to login if the cached/admin-session query later resolves unauthenticated and listens to the shared media query so crossing the phone/tablet boundary updates the canonical organizer route.
 - `src/views/admin/AdminAuditLogView.vue` exposes Email previews as an Owner-only subsection beside Email delivery, keeping email operations together rather than adding another primary organizer destination. Its embedded `src/views/admin/AdminEmailPreviewsView.vue` workbench reads the server-rendered active/planned inventory, keeps the scenario catalog and message metadata visible, and isolates each HTML email behind a same-origin sandbox document so the hosted app CSP remains strict while the email's inline-client styling remains faithful. The client also exposes the renderer's plain-text output and desktop/mobile email widths without any send mutation.
 - `src/views/admin/AdminLoginView.vue` presents the selected responsive Programme Cover sign-in as the single visual organizer-auth surface. It can be controlled by the protected-route gate and OAuth callback, while its ordinary login mode verifies that server-side Supabase organizer auth is configured before enabling Google. Session checking, callback exchange, non-organizer denial, service failure, and retry states all stay in the same access panel. `src/lib/admin-auth-flow.ts` maps response statuses to allowlisted generic copy, and `src/admin-routes.ts` rejects external or ambiguous redirect targets before a destination is stored or followed.
 - `src/App.vue` lazily renders `src/components/AdminEventTabs.vue` for event-scoped organizer routes only, keeping sub-section tabs stable while routed event pages change underneath without adding the tabs to the initial shell chunk. The tab bar reads the shared event-checklist query so a monthly System Design exclusion is rendered as a genuinely non-interactive tab and updates immediately when the checklist choice changes.
@@ -248,16 +241,14 @@
 - Event-feedback reporting treats every submission as anonymous, keeps missed-session counts separate, and calculates averages from valid numeric ratings only. Historical identity fields are not returned to the organizer surface. The event report renders dependency-free aggregate charts from all loaded submissions; individual responses are kept out of the page and are available through a full CSV download with one submission per row and every configured question as a column. `lib/event-feedback-export.ts` owns deterministic response ordering, CSV escaping, and spreadsheet-formula neutralization for attendee-provided values.
 - `src/views/admin/AdminSystemDesignView.vue` calls `/api/events/:eventId/system-design/draft` when organizers click `Generate Draft` with a Google Slides prompt URL, fills the scenario title if it was blank, writes the returned summary into the full-width public recap field, and switches back to a saved/read-only state after persistence with explicit edit/remove actions for each saved scenario. When the event already has a matching system-design slot in the program outline, this editor updates that existing row in place instead of appending a duplicate `system_design` row at the bottom. A saved source also mounts `SystemDesignLearningRoomPanel` directly on this workspace, including for completed meetups, while the presenter opens in a separate organizer-protected tab. Before anyone joins, organizers choose generated aliases or attendee-entered room names; the setting locks after the first participant.
 - `src/views/admin/AdminEventView.vue` also manages event media: organizers can upload selected cover/photo images to Supabase Storage or add website-compatible `{ url, type }` links where `type` is `image` for direct media or `folder` for shared galleries.
-- `src/views/admin/AdminQuizView.vue` generates local QR-code join links for the live lobby.
 - Legacy Next pages/components remain in `app/`, `components/`, and `hooks/` as a reference while routes are ported.
 
 ### Quiz State API (`server/quiz-state.ts`, `server/app.ts`)
 
 - **Key function:** `GET /api/quiz/state?sessionId=&userId=`
-- **Facilitator commands:** protected `POST /api/quiz/sessions/:sessionId/release` selects the next unreleased System Design question in reviewed order, while `POST /api/quiz/sessions/:sessionId/reveal` controls when its answer and explanation appear. The compatibility `POST /api/quiz/state/advance` remains timed/all-answered for the separate quiz flow and is a no-op for facilitator-led System Design rooms.
+- **Facilitator commands:** protected `POST /api/quiz/sessions/:sessionId/release` selects the next unreleased System Design question in reviewed order, while `POST /api/quiz/sessions/:sessionId/reveal` controls when its answer and explanation appear.
 - **Non-obvious logic:** `GET /api/quiz/state` is read-only. Attendee requests do not receive live answer distribution before reveal; the standalone authenticated presenter opts into aggregate option counts and percentages with `presenter=true`. Its shared-screen UI uses the current cream, paper, ink, pink, and yellow design system, with a fixed four-column vertical aggregate chart that highlights the correct option only after reveal. Per-answer respondent identities are not returned. On finish, the presenter receives the top-ten leaderboard with Navii avatars; a System Design attendee receives only `player_standing` for the requesting participant and never the full leaderboard.
 - `correct_index` is stripped from `current_question` in the state payload; player-specific reveal data is returned through `player_result.correct_index` after answering.
-- A `SIMULATED_DELAY_MS` (300ms) `setTimeout` is added to simulate realistic network latency.
 
 ### Scoring (`lib/scoring.ts`)
 
@@ -272,10 +263,6 @@
 - Convenience hooks: `useRole()`, `useSpeakerEmail()`
 - Legacy-only. The new Vue/Hono app has no migrated auth/session layer yet.
 
-### Quiz Polling (`hooks/use-quiz-polling.ts`)
-
-- `useQuizPolling(sessionId, userId)` → `{ state, loading, error, sessionEnded }`
-- Polls `GET /api/quiz/state` every `POLL_INTERVAL_MS` (1500ms)
 - Sets `sessionEnded = true` on HTTP 404 (session deleted or finished)
 
 ### Design System (`lib/design-system.ts`)
@@ -296,10 +283,6 @@
 |---|---|---|
 | `DEFAULT_TIME_LIMIT` | `20` (seconds) | Per-question time limit |
 | `DEFAULT_POINTS` | `1000` | Base points per correct answer |
-| `POLL_INTERVAL_MS` | `1500` | Quiz state polling frequency |
-| `SIMULATED_DELAY_MS` | `300` | Fake network latency in API routes |
-| `REVEALING_DURATION_MS` | `5000` | Time players see correct answer + distribution |
-| `SCOREBOARD_DURATION_MS` | `5000` | Time players see leaderboard between questions |
 | `STREAK_BONUSES` | `{2:100, 3:200, 4:300, 5:500}` | Bonus points per consecutive correct streak |
 | `VITE_SUPABASE_URL` | unset | Supabase project URL for browser and server clients |
 | `VITE_SUPABASE_ANON_KEY` | unset | Browser-safe Supabase anon key |
@@ -414,36 +397,33 @@ POST /api/talks/[talkId]/reminder
   → logs an organizer slide reminder for accepted archive items without uploaded slides
 ```
 
-### Quiz Session Lifecycle (Admin)
+### System Design Learning-Room Lifecycle (Admin)
 ```
 POST /api/quiz/sessions          → create session (status: 'draft')
 PATCH /api/quiz/sessions/[id]    → partial QuizSession field updates
 ```
 
-### Player Join + Play
+### System Design Participant Join + Answer
 ```
-POST /api/quiz/join              body: { join_code, device_id }
-  → creates/finds User by deviceId, creates an anonymous QuizParticipant
+POST /api/quiz/join              body: { join_code, device_id, purpose: 'system_design_learning' }
+  → creates/finds User by deviceId, creates an anonymous System Design participant
   → increments User.events_participated when joining a new session
   → returns { session_id, user_id, participant_id }
 
-System Design joins also send purpose: 'system_design_learning'. The response includes a unique default room-scoped `display_name` and immutable participant-derived `avatar_seed`. Hosted sessions, questions, participants, and responses live in relational Supabase storage; local development keeps serialized JSON fallbacks behind the same domain repository APIs. Unique `(quiz_session_id, user_id)` and `(quiz_session_id, nickname_key)` constraints reserve participant identities, while `(question_id, user_id)` prevents repeat answers. Concurrent generated-alias conflicts reload and retry, while a participant-edited duplicate returns `409 nickname_taken`. Answer acceptance, scoring/streak updates, presentation reset/release/reveal, timed advancement, and question reorder operations use short PostgreSQL functions. Participant counts, answer distribution, leaderboard ranks, and requesting-player response state are aggregated in SQL instead of rebuilding them from shared arrays on each poll. While the room is waiting, the same device can send a validated replacement name to `PATCH /api/quiz/participants/[participantId]/name`; the endpoint closes once presentation starts. On participant phones, expiry of the local question countdown removes the answer grid and shows a waiting-for-reveal state; answer submission errors remain local to the question rather than becoming room-level failures.
+The response includes a unique default room-scoped `display_name` and immutable participant-derived `avatar_seed`. Hosted sessions, questions, participants, and responses live in relational Supabase storage; local development keeps serialized JSON fallbacks behind the same domain repository APIs. Unique `(quiz_session_id, user_id)` and `(quiz_session_id, nickname_key)` constraints reserve participant identities, while `(question_id, user_id)` prevents repeat answers. Concurrent generated-alias conflicts reload and retry, while a participant-edited duplicate returns `409 nickname_taken`. Answer acceptance, scoring/streak updates, presentation reset/release/reveal, timed advancement, and question reorder operations use short PostgreSQL functions. Participant counts, answer distribution, leaderboard ranks, and requesting-player response state are aggregated in SQL instead of rebuilding them from shared arrays on each poll. While the room is waiting, the same device can send a validated replacement name to `PATCH /api/quiz/participants/[participantId]/name`; the endpoint closes once presentation starts. On participant phones, expiry of the local question countdown removes the answer grid and shows a waiting-for-reveal state; answer submission errors remain local to the question rather than becoming room-level failures.
 
 GET  /api/quiz/state?sessionId=&userId=   read-only state fetch, polled every 1500ms
 POST /api/quiz/answer            body: { session_id, user_id, answer_index }
-  → scores via scoring.ts, updates QuizParticipant totals and User.total_points
+  → records System Design participation and scores through the room runtime
 ```
 
 
-### Quiz Question Management (Admin)
+### System Design Question Management (Admin)
 ```
 POST   /api/quiz/questions                 body: { quiz_session_id, question_text, options[4], correct_index, order_index, time_limit_seconds?, points? }
 PATCH  /api/quiz/questions/[questionId]    body: Partial<Question>
 DELETE /api/quiz/questions/[questionId]
 POST   /api/quiz/questions/reorder         body: { session_id, question_ids[] }
-POST   /api/quiz/sessions/[sessionId]/questions/from-paper
-       multipart/form-data: { file: PDF, question_count? }
-       → requires admin session, extracts text locally, appends prototype rule-based questions to the session
 ```
 
 ### Slides Upload Endpoints

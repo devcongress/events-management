@@ -81,9 +81,7 @@ The highest-risk pieces are the Cloudflare Pages repo connection, `PUBLIC_APP_UR
 
 ### Docs
 
-- [x] Update `docs/deployment-cloudflare-supabase.md` with the final repo and Cloudflare project names.
 - [x] Update `docs/auth.md` if the production app URL or OAuth setup changes.
-- [x] Update `docs/reference/environment-variables.md` if required variables change.
 - [x] Update README badges and deployment links.
 - [x] Update `docs/changelog.md` when migration milestones land.
 

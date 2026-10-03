@@ -4,7 +4,6 @@ import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import { validateTaskDetailsInput } from '@/lib/annual-conference-task-details';
-import { compareSecretAnswer, hashSecretAnswer } from '@/lib/account-claim';
 import { attendanceUploadWindowForEvent } from '@/lib/attendance-upload-window';
 import { renderAppBootMarkup } from '@/lib/app-boot';
 import {
@@ -96,8 +95,7 @@ import { getEventChecklist, setEventChecklistItemDisabled, updateEventChecklistI
 import { createEvent as createMockEvent, deleteEvent as deleteMockEvent, getAllEvents as getAllMockEvents, getEventById as getMockEventById, updateEvent as updateMockEvent } from '@/lib/mock-db/events';
 import { createDefaultFeedbackCampaign, createEventFeedbackSubmission, deleteFeedbackCampaignByEvent, getAllFeedbackCampaigns, getAllFeedbackSubmissions, getFeedbackCampaignByEvent, getFeedbackSubmissionByResponseToken, getFeedbackSubmissionsByEvent, getOrCreateFeedbackCampaign, updateFeedbackCampaign } from '@/lib/mock-db/feedback';
 import { createQuestion, deleteQuestion, getQuestionById, getQuestionsBySession, reorderQuestions, updateQuestion } from '@/lib/mock-db/questions';
-import { readData, writeData } from '@/lib/mock-db';
-import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, mergeQuizParticipantUsers, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
+import { createQuizParticipant, getQuizParticipantById, getQuizParticipantBySessionAndUser, getQuizParticipantsBySession, QuizParticipantNicknameTakenError, renameQuizParticipant, updateQuizParticipant } from '@/lib/mock-db/quiz-participants';
 import { createQuizSession, deleteQuizSession, getAllQuizSessions, getQuizSessionByCode, getQuizSessionById, getQuizSessionsByEvent, updateQuizSession } from '@/lib/mock-db/quiz-sessions';
 import { createResponse, getResponseByQuestionAndUser, getResponsesByQuestion, QuizAnswerConflictError, submitQuizAnswerAtomically } from '@/lib/mock-db/responses';
 import { nextUnreleasedLearningQuestion, prepareSystemDesignPresentationRun, presentNextSystemDesignQuestion, rebuildSystemDesignScores, reopenSystemDesignQuestion, revealSystemDesignQuestion, skipSystemDesignQuestion, SYSTEM_DESIGN_ANSWER_START_DELAY_SECONDS } from '@/lib/mock-db/system-design-learning-room';
@@ -179,7 +177,7 @@ import {
   validateMeetupMediaFile,
 } from '@/lib/supabase/media';
 import { createTalk, deleteTalk, getAllTalks, getTalkById, getTalksByEvent, updateTalk } from '@/lib/mock-db/talks';
-import { createUser, getAllUsers, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
+import { createUser, getUserByDeviceId, getUserById, updateUser } from '@/lib/mock-db/users';
 import { calculatePoints, calculateStreakBonus } from '@/lib/scoring';
 import { consumePublicRateLimit } from '@/lib/public-rate-limit';
 import {
@@ -222,7 +220,7 @@ import { safeErrorName, securitySafeRequestPath } from '@/server/security-log';
 import { advanceQuizSessionState, buildQuizStateResponse } from '@/server/quiz-state';
 import type { Context } from 'hono';
 import crypto from 'crypto';
-import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionAmendment, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, GeneratedQuizFromPaperResponse, LeaderboardEntry, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, Response, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus, User } from '@/types';
+import type { ArchiveItemKind, ArchiveMaterialField, Event, EventChecklistItem, EventFeedbackSubmission, EventSeriesType, EventSubmission, EventSubmissionAmendment, EventSubmissionEmailKind, EventSubmissionQueueFilter, FeedbackAnswer, FeedbackCampaign, FeedbackCampaignStatus, FeedbackQuestion, FeedbackQuestionType, PublicArchiveEvent, PublicArchiveEventResponse, PublicArchiveTalk, PublicEvent, PublicHomeResponse, PublicMeetup, PublicMeetupScheduleItem, PublicMeetupSpeaker, Question, QuizParticipant, QuizSession, SpeakerIntakeLink, SpeakerSubmission, SpeakerSubmissionStatus, Talk, TalkStatus } from '@/types';
 import { projectNightPrimaryAction } from '@/lib/project-night-contact';
 import { isProjectNightEvent } from '@/lib/project-night-contact';
 import { advanceProjectNight, configureProjectNight, getProjectNightRecurrence } from '@/lib/supabase/project-night-recurrence';
@@ -405,13 +403,7 @@ const DEFAULT_MEETUP_LOCATION = {
   name: 'Accra, Ghana',
   url: null,
 };
-const PAPER_QUIZ_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const ATTENDANCE_CSV_MAX_BYTES = 2 * 1024 * 1024;
-const PAPER_QUIZ_MAX_TEXT_CHARS = 60_000;
-const PAPER_QUIZ_MIN_TEXT_CHARS = 350;
-const PAPER_QUIZ_DEFAULT_QUESTION_COUNT = 5;
-const PAPER_QUIZ_MAX_QUESTION_COUNT = 8;
-const PAPER_QUIZ_GENERATION_NOTE = 'Prototype rule-based generation from extracted PDF text. Review and edit every question before going live.';
 const EVENT_FEEDBACK_TOKEN_MIN_CHARS = 20;
 const EVENT_FEEDBACK_TOKEN_MAX_CHARS = 160;
 const EVENT_FEEDBACK_COMMENT_MAX_CHARS = 1500;
@@ -1996,7 +1988,7 @@ async function publicHomePayload(c: Context): Promise<PublicHomeResponse> {
     recent_talks: recentTalks,
     // Attendance records contain personal data and are intentionally excluded
     // from every public contract. Keep the field empty for additive consumer
-    // compatibility while the public website removes the old leaderboard UI.
+    // compatibility while the public website keeps attendance aggregates separate.
     regulars: [],
     cfp_event: cfpEvent ? { id: cfpEvent.id, name: cfpEvent.name } : null,
   };
@@ -6727,17 +6719,14 @@ function buildPublicAttendanceRegulars(events: Awaited<ReturnType<typeof getAllE
 }
 
 app.get('/api/overview', async (c) => {
-  const [events, talks, leaderboard, sessions, attendanceImports] = await Promise.all([
+  const [events, talks, attendanceImports] = await Promise.all([
     getAllEvents(c),
     getAllTalks(),
-    buildLeaderboard(),
-    getAllQuizSessions(),
     getAttendanceImports(),
   ]);
-  const activeSession = sessions.find((session) => session.status === 'waiting' || session.status === 'active') ?? null;
   const regulars = buildPublicAttendanceRegulars(events, attendanceImports);
 
-  return c.json({ events, talks, leaderboard, regulars, activeSession });
+  return c.json({ events, talks, regulars });
 });
 
 app.get('/api/public/meetups', async (c) => {
@@ -11353,32 +11342,6 @@ app.post('/api/cfp', async (c) => {
   }
 });
 
-app.get('/api/leaderboard', async (c) => {
-  const type = c.req.query('type') ?? 'all-time';
-  const sessionId = c.req.query('sessionId');
-
-  if (type === 'per-event' && sessionId) {
-    return c.json(await buildSessionLeaderboard(sessionId));
-  }
-
-  if (type === 'monthly') {
-    return c.json(await buildMonthlyLeaderboard());
-  }
-
-  return c.json(await buildLeaderboard());
-});
-
-app.get('/api/quiz/active', async (c) => {
-  const sessions = await getAllQuizSessions();
-  const active = sessions.find((session) => session.status === 'waiting' || session.status === 'active');
-
-  return c.json({
-    available: Boolean(active),
-    has_active_quiz: Boolean(active),
-    session: active ?? null,
-  });
-});
-
 async function expireQuizSessionIfNeeded(session: QuizSession, c: Context) {
   if (session.purpose === 'system_design_learning' || session.status === 'finished' || !session.expires_at || new Date(session.expires_at).getTime() > Date.now()) {
     return session;
@@ -11431,14 +11394,20 @@ function systemDesignMutationError(event: Event, session?: QuizSession): string 
   return null;
 }
 
+function isSystemDesignLearningSession(session: QuizSession | undefined): session is QuizSession {
+  return session?.purpose === 'system_design_learning';
+}
+
 app.get('/api/quiz/sessions', async (c) => {
   const eventId = c.req.query('eventId');
   const purpose = c.req.query('purpose');
   const sessions = eventId ? await getQuizSessionsByEvent(eventId) : await getAllQuizSessions();
 
-  return c.json(sessions.filter((session) => purpose === 'system_design_learning'
-    ? session.purpose === 'system_design_learning'
-    : session.purpose !== 'system_design_learning'));
+  if (purpose !== 'system_design_learning') {
+    return c.json({ error: 'Only System Design learning-room sessions are available.' }, 404);
+  }
+
+  return c.json(sessions.filter((session) => session.purpose === 'system_design_learning'));
 });
 
 app.post('/api/quiz/sessions', async (c) => {
@@ -11454,22 +11423,22 @@ app.post('/api/quiz/sessions', async (c) => {
   const event = await getEventById(String(event_id), c);
 
   if (!event) return c.json({ error: 'Event not found' }, 404);
-  const sessionPurpose = purpose === 'system_design_learning' ? 'system_design_learning' : 'quiz';
+  if (purpose !== 'system_design_learning') {
+    return c.json({ error: 'Only System Design learning-room sessions can be created.' }, 422);
+  }
 
-  if (sessionPurpose === 'system_design_learning') {
-    const systemDesignSource = findSystemDesignSource(event.schedule ?? []);
+  const systemDesignSource = findSystemDesignSource(event.schedule ?? []);
 
-    if (!systemDesignSource) {
-      return c.json({ error: 'Add the related System Design prompt link before creating the learning room.' }, 422);
-    }
-    if (isSystemDesignArchived(event)) {
-      return c.json({ error: 'This System Design session is archived after the event day and is now read-only.' }, 409);
-    }
+  if (!systemDesignSource) {
+    return c.json({ error: 'Add the related System Design prompt link before creating the learning room.' }, 422);
+  }
+  if (isSystemDesignArchived(event)) {
+    return c.json({ error: 'This System Design session is archived after the event day and is now read-only.' }, 409);
   }
   const session = await createQuizSession({
     event_id,
-    expires_at: sessionPurpose === 'system_design_learning' ? null : event.end_date ?? null,
-    purpose: sessionPurpose,
+    expires_at: null,
+    purpose: 'system_design_learning',
   });
 
   await auditAdminAction(c, {
@@ -11489,15 +11458,17 @@ app.get('/api/quiz/sessions/:sessionId', async (c) => {
 
   const existing = await getQuizSessionById(c.req.param('sessionId'));
 
-  if (existing?.purpose === 'system_design_learning' && existing.question_phase === 'presenting') {
+  if (!isSystemDesignLearningSession(existing)) {
+    return c.json({ error: 'System Design learning room not found.' }, 404);
+  }
+
+  if (existing.question_phase === 'presenting') {
     await advanceQuizSessionState(existing.id);
   }
   const current = await getQuizSessionById(c.req.param('sessionId'));
   const session = current ? await expireQuizSessionIfNeeded(current, c) : undefined;
 
-  if (!session) {
-    return c.json({ error: 'Session not found' }, 404);
-  }
+  if (!isSystemDesignLearningSession(session)) return c.json({ error: 'System Design learning room not found.' }, 404);
   const questions = await getQuestionsBySession(session.id);
   const participants = await getQuizParticipantsBySession(session.id);
   const event = session.purpose === 'system_design_learning'
@@ -11522,11 +11493,13 @@ app.patch('/api/quiz/sessions/:sessionId', async (c) => {
     const sessionId = c.req.param('sessionId');
     const existingSession = await getQuizSessionById(sessionId);
 
-    if (existingSession?.purpose === 'system_design_learning') {
-      const event = await getEventById(existingSession.event_id, c);
-
-      if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and read-only.' }, 409);
+    if (!isSystemDesignLearningSession(existingSession)) {
+      return c.json({ error: 'System Design learning room not found.' }, 404);
     }
+
+    const event = await getEventById(existingSession.event_id, c);
+
+    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and read-only.' }, 409);
     const parsed = quizSessionUpdateSchema.safeParse(await c.req.json().catch(() => null));
 
     if (!parsed.success) {
@@ -11593,20 +11566,16 @@ app.post('/api/quiz/sessions/:sessionId/release', async (c) => {
 
   const existing = await getQuizSessionById(c.req.param('sessionId'));
 
-  if (!existing) return c.json({ error: 'Session not found' }, 404);
+  if (!isSystemDesignLearningSession(existing)) return c.json({ error: 'System Design learning room not found.' }, 404);
   const session = await expireQuizSessionIfNeeded(existing, c);
 
-  if (session.purpose === 'system_design_learning') {
-    const event = await getEventById(session.event_id, c);
+  const event = await getEventById(session.event_id, c);
 
-    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
-  }
+  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
   if (session.status === 'finished') return c.json({ error: 'This live session has ended.' }, 409);
 
   try {
-    const hostedSession = session.purpose === 'system_design_learning'
-      ? await presentNextSystemDesignQuestion(session.id)
-      : null;
+    const hostedSession = await presentNextSystemDesignQuestion(session.id);
 
     if (hostedSession) {
       const latestQuestionId = hostedSession.released_question_ids?.at(-1) ?? null;
@@ -11709,21 +11678,17 @@ app.post('/api/quiz/sessions/:sessionId/reveal', async (c) => {
   if (adminError) return adminError;
   const existing = await getQuizSessionById(c.req.param('sessionId'));
 
-  if (!existing) return c.json({ error: 'Session not found' }, 404);
+  if (!isSystemDesignLearningSession(existing)) return c.json({ error: 'System Design learning room not found.' }, 404);
   const session = await expireQuizSessionIfNeeded(existing, c);
 
-  if (session.purpose === 'system_design_learning') {
-    const event = await getEventById(session.event_id, c);
+  const event = await getEventById(session.event_id, c);
 
-    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
-  }
+  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived and can no longer be presented.' }, 409);
   if (session.status !== 'active' || session.question_phase !== 'answering') {
     return c.json({ error: 'There is no question ready to reveal.' }, 409);
   }
   try {
-    const hostedSession = session.purpose === 'system_design_learning'
-      ? await revealSystemDesignQuestion(session.id)
-      : null;
+    const hostedSession = await revealSystemDesignQuestion(session.id);
 
     if (hostedSession) return c.json(hostedSession);
   } catch (error) {
@@ -11751,16 +11716,14 @@ app.post('/api/quiz/questions', async (c) => {
 
   const targetSession = await getQuizSessionById(String(quiz_session_id));
 
-  if (!targetSession) return c.json({ error: 'Session not found' }, 404);
-  if (targetSession.purpose === 'system_design_learning') {
-    const event = await getEventById(targetSession.event_id, c);
+  if (!isSystemDesignLearningSession(targetSession)) return c.json({ error: 'System Design learning room not found.' }, 404);
+  const event = await getEventById(targetSession.event_id, c);
 
-    if (!event) return c.json({ error: 'Event not found' }, 404);
-    const mutationError = systemDesignMutationError(event, targetSession);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const mutationError = systemDesignMutationError(event, targetSession);
 
-    if (mutationError) return c.json({ error: mutationError }, 409);
-  }
-  const explanationRequired = targetSession.purpose === 'system_design_learning';
+  if (mutationError) return c.json({ error: mutationError }, 409);
+  const explanationRequired = true;
   const validationError = validateQuestionPayload(
     question_text,
     options,
@@ -11782,7 +11745,7 @@ app.post('/api/quiz/questions', async (c) => {
     time_limit_seconds,
     points,
     explanation: explanation === undefined ? null : String(explanation).trim(),
-    authoring_source: targetSession.purpose === 'system_design_learning' ? 'manual' : undefined,
+    authoring_source: 'manual',
     difficulty: body.difficulty === 'foundational' || body.difficulty === 'advanced' ? body.difficulty : 'intermediate',
     category: typeof body.category === 'string' ? body.category.trim().slice(0, 80) || null : null,
   });
@@ -11795,122 +11758,6 @@ app.post('/api/quiz/questions', async (c) => {
   });
 
   return c.json(question, 201);
-});
-
-app.post('/api/quiz/sessions/:sessionId/questions/from-paper', async (c) => {
-  const adminError = await requireAdmin(c);
-
-  if (adminError) return adminError;
-
-  if (envValue('ENABLE_PDF_QUIZ_UPLOADS', c) !== 'true') {
-    return c.json({ error: 'PDF quiz generation is coming soon for hosted deployments.' }, 501);
-  }
-
-  const session = await getQuizSessionById(c.req.param('sessionId'));
-
-  if (!session) {
-    return c.json({ error: 'Session not found' }, 404);
-  }
-
-  if (session.status === 'active' || session.status === 'finished') {
-    return c.json({ error: 'Paper questions can only be added before the quiz starts' }, 409);
-  }
-
-  let formData: FormData;
-
-  try {
-    formData = await c.req.raw.formData();
-  } catch {
-    return c.json({ error: 'Upload must use multipart/form-data' }, 400);
-  }
-
-  const uploadedFile = formData.get('file');
-
-  if (!(uploadedFile instanceof File)) {
-    return c.json({ error: 'A PDF file is required' }, 400);
-  }
-
-  const fileValidationError = validatePaperQuizFile(uploadedFile);
-
-  if (fileValidationError) {
-    return c.json({ error: fileValidationError }, 400);
-  }
-
-  const arrayBuffer = await uploadedFile.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-
-  if (!hasPdfHeader(bytes)) {
-    return c.json({ error: 'Uploaded file does not look like a valid PDF' }, 400);
-  }
-
-  const requestedQuestionCount = parseRequestedQuestionCount(formData.get('question_count'));
-  let extractedText = '';
-
-  try {
-    extractedText = await extractTextFromPdf(bytes);
-  } catch (error) {
-    console.error(JSON.stringify({
-      event: 'pdf_extraction_failed',
-      error_name: safeErrorName(error),
-    }));
-
-    return c.json({ error: 'Could not extract text from this PDF. Try a text-based, non-password-protected PDF.' }, 422);
-  }
-
-  if (extractedText.length < PAPER_QUIZ_MIN_TEXT_CHARS) {
-    return c.json({
-      error: 'Not enough readable text was found in this PDF. Scanned/image-only PDFs are not supported by this prototype.',
-    }, 422);
-  }
-
-  const drafts = generateQuestionDraftsFromText(extractedText, requestedQuestionCount);
-
-  if (drafts.length === 0) {
-    return c.json({ error: 'Could not identify enough quiz-worthy terms in this PDF. Try a longer paper or add questions manually.' }, 422);
-  }
-
-  const existingQuestions = await getQuestionsBySession(session.id);
-  const firstOrderIndex = Math.max(-1, ...existingQuestions.map((question) => question.order_index)) + 1;
-  const createdQuestions: Question[] = [];
-
-  for (const [index, draft] of drafts.entries()) {
-    createdQuestions.push(await createQuestion({
-      quiz_session_id: session.id,
-      question_text: draft.question_text,
-      options: draft.options,
-      correct_index: draft.correct_index,
-      order_index: firstOrderIndex + index,
-      time_limit_seconds: 20,
-      points: 1000,
-    }));
-  }
-
-  const response: GeneratedQuizFromPaperResponse = {
-    session_id: session.id,
-    questions: createdQuestions,
-    summary: {
-      source_file_name: uploadedFile.name || 'uploaded.pdf',
-      extracted_character_count: extractedText.length,
-      requested_question_count: requestedQuestionCount,
-      created_question_count: createdQuestions.length,
-      generation_note: PAPER_QUIZ_GENERATION_NOTE,
-      warnings: createdQuestions.length < requestedQuestionCount
-        ? ['Fewer questions were generated than requested because the extracted text had limited distinct quiz terms.']
-        : [],
-    },
-  };
-
-  await auditAdminAction(c, {
-    action: 'quiz.question.generate_from_paper',
-    targetType: 'quiz_session',
-    targetId: session.id,
-    metadata: {
-      source_file_name: uploadedFile.name || 'uploaded.pdf',
-      created_question_count: createdQuestions.length,
-    },
-  });
-
-  return c.json(response, 201);
 });
 
 app.patch('/api/quiz/questions/:questionId', async (c) => {
@@ -11930,17 +11777,18 @@ app.patch('/api/quiz/questions/:questionId', async (c) => {
     const updates: Partial<Omit<Question, 'id' | 'created_at'>> = {};
     const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
 
-    if (targetSession?.purpose === 'system_design_learning') {
-      const event = await getEventById(targetSession.event_id, c);
+    if (!isSystemDesignLearningSession(targetSession)) return c.json({ error: 'System Design learning room not found.' }, 404);
+    const event = await getEventById(targetSession.event_id, c);
 
-      if (!event) return c.json({ error: 'Event not found' }, 404);
-      const mutationError = systemDesignMutationError(event, targetSession);
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+    const mutationError = systemDesignMutationError(event, targetSession);
 
-      if (mutationError) return c.json({ error: mutationError }, 409);
+    if (mutationError) return c.json({ error: mutationError }, 409);
+    const explanationRequired = true;
+
+    if (body.quiz_session_id !== undefined && String(body.quiz_session_id) !== existingQuestion.quiz_session_id) {
+      return c.json({ error: 'Questions stay in their System Design learning room.' }, 400);
     }
-    const explanationRequired = targetSession?.purpose === 'system_design_learning';
-
-    if (body.quiz_session_id !== undefined) updates.quiz_session_id = String(body.quiz_session_id);
     if (body.question_text !== undefined) updates.question_text = String(body.question_text).trim();
     if (body.options !== undefined) {
       if (!Array.isArray(body.options)) {
@@ -12007,18 +11855,16 @@ app.delete('/api/quiz/questions/:questionId', async (c) => {
     const questionId = c.req.param('questionId');
     const existingQuestion = await getQuestionById(questionId);
 
-    if (existingQuestion) {
-      const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
+    if (!existingQuestion) return c.json({ error: 'Question not found' }, 404);
+    const targetSession = await getQuizSessionById(existingQuestion.quiz_session_id);
 
-      if (targetSession?.purpose === 'system_design_learning') {
-        const event = await getEventById(targetSession.event_id, c);
+    if (!isSystemDesignLearningSession(targetSession)) return c.json({ error: 'System Design learning room not found.' }, 404);
+    const event = await getEventById(targetSession.event_id, c);
 
-        if (!event) return c.json({ error: 'Event not found' }, 404);
-        const mutationError = systemDesignMutationError(event, targetSession);
+    if (!event) return c.json({ error: 'Event not found' }, 404);
+    const mutationError = systemDesignMutationError(event, targetSession);
 
-        if (mutationError) return c.json({ error: mutationError }, 409);
-      }
-    }
+    if (mutationError) return c.json({ error: mutationError }, 409);
     await deleteQuestion(questionId);
     await auditAdminAction(c, {
       action: 'quiz.question.delete',
@@ -12045,14 +11891,13 @@ app.post('/api/quiz/questions/reorder', async (c) => {
   }
   const targetSession = await getQuizSessionById(String(session_id));
 
-  if (targetSession?.purpose === 'system_design_learning') {
-    const event = await getEventById(targetSession.event_id, c);
+  if (!isSystemDesignLearningSession(targetSession)) return c.json({ error: 'System Design learning room not found.' }, 404);
+  const event = await getEventById(targetSession.event_id, c);
 
-    if (!event) return c.json({ error: 'Event not found' }, 404);
-    const mutationError = systemDesignMutationError(event, targetSession);
+  if (!event) return c.json({ error: 'Event not found' }, 404);
+  const mutationError = systemDesignMutationError(event, targetSession);
 
-    if (mutationError) return c.json({ error: mutationError }, 409);
-  }
+  if (mutationError) return c.json({ error: mutationError }, 409);
   await reorderQuestions(session_id, question_ids);
   await auditAdminAction(c, {
     action: 'quiz.question.reorder',
@@ -12070,7 +11915,7 @@ app.post('/api/quiz/join', async (c) => {
   if (!parsed.success) {
     return c.json({ error: 'A valid join code and device are required' }, 400);
   }
-  const { join_code, device_id, nickname, purpose } = parsed.data;
+  const { join_code, device_id } = parsed.data;
 
   const clientRateLimitError = await enforcePublicRateLimit(c, {
     action: 'quiz_join_client',
@@ -12093,23 +11938,10 @@ app.post('/api/quiz/join', async (c) => {
   const foundSession = await getQuizSessionByCode(join_code);
   const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
 
-  if (!session) {
-    return c.json({ error: 'Invalid join code' }, 404);
-  }
+  if (!isSystemDesignLearningSession(session)) return c.json({ error: 'Invalid System Design learning-room code' }, 404);
 
   if (session.status === 'finished') {
     return c.json({ error: 'This quiz has already finished' }, 400);
-  }
-
-  if (purpose === 'system_design_learning' && session.purpose !== 'system_design_learning') {
-    return c.json({ error: 'This code is not for a System Design learning room.' }, 404);
-  }
-
-  const systemDesignLearningRoom = session.purpose === 'system_design_learning';
-  const requestedNickname = nickname.slice(0, 20);
-
-  if (!systemDesignLearningRoom && !requestedNickname) {
-    return c.json({ error: 'Enter a nickname to join this quiz.', code: 'nickname_required' }, 400);
   }
 
   let user = await getUserByDeviceId(device_id);
@@ -12122,20 +11954,14 @@ app.post('/api/quiz/join', async (c) => {
       session_id: session.id,
       user_id: user.id,
       participant_id: existingParticipant.id,
-      purpose: session.purpose ?? 'quiz',
+      purpose: 'system_design_learning',
       display_name: existingParticipant.nickname_used,
       avatar_seed: existingParticipant.id,
     });
   }
 
-  const participants = systemDesignLearningRoom
-    ? await getQuizParticipantsBySession(session.id)
-    : [];
-  let participantNickname = requestedNickname;
-
-  if (systemDesignLearningRoom) {
-    participantNickname = generateParticipantAlias(participants.map((participant) => participant.nickname_used));
-  }
+  const participants = await getQuizParticipantsBySession(session.id);
+  let participantNickname = generateParticipantAlias(participants.map((participant) => participant.nickname_used));
 
   if (!user) {
     user = await createUser({ device_id, nickname: participantNickname });
@@ -12143,33 +11969,24 @@ app.post('/api/quiz/join', async (c) => {
 
   let participant: QuizParticipant | undefined;
 
-  if (systemDesignLearningRoom) {
-    const maxAliasAttempts = 8;
+  const maxAliasAttempts = 8;
 
-    for (let attempt = 0; attempt < maxAliasAttempts; attempt += 1) {
-      try {
-        participant = await createQuizParticipant({
-          quiz_session_id: session.id,
-          user_id: user.id,
-          nickname_used: participantNickname,
-        }, { enforceUniqueName: true });
-        break;
-      } catch (error) {
-        if (!(error instanceof QuizParticipantNicknameTakenError)) throw error;
-        const latestParticipants = await getQuizParticipantsBySession(session.id);
+  for (let attempt = 0; attempt < maxAliasAttempts; attempt += 1) {
+    try {
+      participant = await createQuizParticipant({
+        quiz_session_id: session.id,
+        user_id: user.id,
+        nickname_used: participantNickname,
+      }, { enforceUniqueName: true });
+      break;
+    } catch (error) {
+      if (!(error instanceof QuizParticipantNicknameTakenError)) throw error;
+      const latestParticipants = await getQuizParticipantsBySession(session.id);
 
-        participantNickname = generateParticipantAlias(
-          latestParticipants.map((roomParticipant) => roomParticipant.nickname_used),
-        );
-      }
+      participantNickname = generateParticipantAlias(
+        latestParticipants.map((roomParticipant) => roomParticipant.nickname_used),
+      );
     }
-
-  } else {
-    participant = await createQuizParticipant({
-      quiz_session_id: session.id,
-      user_id: user.id,
-      nickname_used: participantNickname,
-    });
   }
   if (!participant) {
     return c.json({ error: 'We could not reserve a unique room name. Please try joining again.' }, 409);
@@ -12182,7 +11999,7 @@ app.post('/api/quiz/join', async (c) => {
     session_id: session.id,
     user_id: user.id,
     participant_id: participant.id,
-    purpose: session.purpose ?? 'quiz',
+    purpose: 'system_design_learning',
     display_name: participant.nickname_used,
     avatar_seed: participant.id,
   });
@@ -12266,14 +12083,11 @@ app.post('/api/quiz/answer', async (c) => {
   const foundSession = await getQuizSessionById(session_id);
   const session = foundSession ? await expireQuizSessionIfNeeded(foundSession, c) : undefined;
 
-  if (session?.purpose === 'system_design_learning') {
-    const event = await getEventById(session.event_id, c);
+  if (!isSystemDesignLearningSession(session)) return c.json({ error: 'System Design learning room not found.' }, 404);
+  const event = await getEventById(session.event_id, c);
 
-    if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived.' }, 409);
-  }
-  if (!session || session.status !== 'active') {
-    return c.json({ error: 'Quiz is not active' }, 400);
-  }
+  if (!event || isSystemDesignArchived(event)) return c.json({ error: 'This System Design session is archived.' }, 409);
+  if (session.status !== 'active') return c.json({ error: 'Learning room is not active' }, 400);
 
   if (session.question_phase !== 'answering') {
     return c.json({ error: 'Question is not accepting answers' }, 400);
@@ -12286,15 +12100,7 @@ app.post('/api/quiz/answer', async (c) => {
     const atomicResult = await submitQuizAnswerAtomically(session_id, user_id, answer_index);
 
     if (atomicResult) {
-      const user = await getUserById(user_id);
-
-      if (session.purpose !== 'system_design_learning' && user && !user.merged_into_user_id) {
-        await updateUser(user.id, { total_points: user.total_points + atomicResult.points_awarded });
-      }
-
-      return c.json(session.purpose === 'system_design_learning'
-        ? { accepted: true }
-        : atomicResult);
+      return c.json({ accepted: true });
     }
   } catch (error) {
     if (error instanceof QuizAnswerConflictError) {
@@ -12358,22 +12164,8 @@ app.post('/api/quiz/answer', async (c) => {
     total_score: participant.total_score + totalPoints,
     current_streak: newStreak,
   });
-  const user = await getUserById(user_id);
 
-  if (session.purpose !== 'system_design_learning' && user && !user.merged_into_user_id) {
-    await updateUser(user.id, {
-      total_points: user.total_points + totalPoints,
-    });
-  }
-
-  return c.json(session.purpose === 'system_design_learning'
-    ? { accepted: true }
-    : {
-      is_correct: isCorrect,
-      points_awarded: totalPoints,
-      correct_index: currentQuestion.correct_index,
-      streak_count: newStreak,
-    });
+  return c.json({ accepted: true });
 });
 
 app.get('/api/quiz/state', async (c) => {
@@ -12403,8 +12195,8 @@ app.get('/api/quiz/state', async (c) => {
 
   const foundSession = await getQuizSessionById(sessionId);
 
-  if (!foundSession) return c.json({ error: 'Session not found' }, 404);
-  if (foundSession.purpose === 'system_design_learning' && foundSession.question_phase === 'presenting') {
+  if (!isSystemDesignLearningSession(foundSession)) return c.json({ error: 'System Design learning room not found.' }, 404);
+  if (foundSession.question_phase === 'presenting') {
     await advanceQuizSessionState(sessionId);
   }
   await expireQuizSessionIfNeeded(foundSession, c);
@@ -12419,143 +12211,6 @@ app.get('/api/quiz/state', async (c) => {
   }
 
   return c.json(stateResponse);
-});
-
-app.post('/api/quiz/state/advance', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  const sessionId = typeof body.session_id === 'string' ? body.session_id : '';
-
-  if (!sessionId) {
-    return c.json({ error: 'session_id is required' }, 400);
-  }
-
-  const result = await advanceQuizSessionState(sessionId);
-
-  if (!result.session) {
-    return c.json({ error: 'Session not found' }, 404);
-  }
-
-  return c.json({ advanced: result.advanced });
-});
-
-app.post('/api/users/claim', async (c) => {
-  const body = await c.req.json();
-  const { user_id, device_id, username, email, secret_question, secret_answer } = body;
-
-  if (!user_id || !device_id || !username || !secret_question || !secret_answer) {
-    return c.json({ error: 'user_id, device_id, username, secret_question, and secret_answer are required' }, 400);
-  }
-
-  const user = await getUserById(user_id);
-
-  if (!user || user.merged_into_user_id) {
-    return c.json({ error: 'User not found' }, 404);
-  }
-
-  if (user.is_admin) {
-    return c.json({ error: 'Admin users cannot be claimed from this flow' }, 400);
-  }
-
-  const trimmedUsername = String(username).trim();
-  const trimmedQuestion = String(secret_question).trim();
-  const trimmedAnswer = String(secret_answer).trim();
-  const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
-
-  if (!trimmedUsername || !trimmedQuestion || !trimmedAnswer) {
-    return c.json({ error: 'username, secret_question, and secret_answer must be non-empty' }, 400);
-  }
-
-  if (user.is_claimed && user.device_id && user.device_id !== device_id) {
-    return c.json({ error: 'This profile is already claimed on another device' }, 409);
-  }
-
-  const existingDeviceUser = await getUserByDeviceId(device_id);
-
-  if (existingDeviceUser && existingDeviceUser.id !== user.id && !existingDeviceUser.merged_into_user_id) {
-    return c.json({
-      error: 'This device is already linked to another profile. Merge that profile into your claimed one instead.',
-      conflict_user_id: existingDeviceUser.id,
-    }, 409);
-  }
-
-  const updated = await updateUser(user.id, {
-    device_id,
-    username: trimmedUsername,
-    email: normalizedEmail,
-    secret_question: trimmedQuestion,
-    secret_answer_hash: hashSecretAnswer(trimmedAnswer),
-    is_claimed: true,
-  });
-
-  return c.json({
-    user_id: updated.id,
-    username: updated.username,
-    email: updated.email,
-    is_claimed: updated.is_claimed,
-    total_points: updated.total_points,
-    events_participated: updated.events_participated,
-  });
-});
-
-app.post('/api/users/merge', async (c) => {
-  const body = await c.req.json();
-  const { target_user_id, source_user_id, secret_answer } = body;
-
-  if (!target_user_id || !source_user_id || !secret_answer) {
-    return c.json({ error: 'target_user_id, source_user_id, and secret_answer are required' }, 400);
-  }
-
-  if (target_user_id === source_user_id) {
-    return c.json({ error: 'target_user_id and source_user_id must be different users' }, 400);
-  }
-
-  const users = await readData<User>('users');
-  const targetIndex = users.findIndex((user) => user.id === target_user_id);
-  const sourceIndex = users.findIndex((user) => user.id === source_user_id);
-
-  if (targetIndex === -1 || sourceIndex === -1) {
-    return c.json({ error: 'Target or source user not found' }, 404);
-  }
-
-  const target = users[targetIndex];
-  const source = users[sourceIndex];
-
-  if (!target.is_claimed) {
-    return c.json({ error: 'Target account must be claimed before merging' }, 400);
-  }
-
-  if (source.merged_into_user_id) {
-    return c.json({ error: 'Source account has already been merged' }, 409);
-  }
-
-  if (target.merged_into_user_id) {
-    return c.json({ error: 'Target account is already merged into another user' }, 409);
-  }
-
-  if (source.is_admin || target.is_admin) {
-    return c.json({ error: 'Admin users cannot be merged from this flow' }, 400);
-  }
-
-  if (!compareSecretAnswer(String(secret_answer), target.secret_answer_hash)) {
-    return c.json({ error: 'Secret answer does not match target account' }, 403);
-  }
-
-  target.total_points += source.total_points;
-  target.events_participated += source.events_participated;
-  source.merged_into_user_id = target.id;
-  source.total_points = 0;
-  source.events_participated = 0;
-
-  await writeData<User>('users', users);
-  await mergeParticipantRecords(target, source);
-  await mergeResponseRecords(target, source);
-
-  return c.json({
-    merged_into_user_id: target.id,
-    source_user_id: source.id,
-    target_total_points: target.total_points,
-    target_events_participated: target.events_participated,
-  });
 });
 
 app.get('*', (c) => {
@@ -12586,76 +12241,6 @@ app.get('*', (c) => {
   </body>
 </html>`);
 });
-
-function validatePaperQuizFile(file: File): string | null {
-  const isPdfType = file.type === 'application/pdf' || file.type === 'application/x-pdf' || file.type === '';
-  const isPdfName = file.name.toLowerCase().endsWith('.pdf');
-
-  if (!isPdfType || !isPdfName) {
-    return 'File must be a PDF';
-  }
-
-  if (file.size <= 0) {
-    return 'Uploaded PDF is empty';
-  }
-
-  if (file.size > PAPER_QUIZ_MAX_FILE_SIZE_BYTES) {
-    return 'PDF must be 5MB or smaller';
-  }
-
-  return null;
-}
-
-function hasPdfHeader(bytes: Uint8Array): boolean {
-  return bytes.length >= 5
-    && bytes[0] === 0x25
-    && bytes[1] === 0x50
-    && bytes[2] === 0x44
-    && bytes[3] === 0x46
-    && bytes[4] === 0x2d;
-}
-
-function parseRequestedQuestionCount(value: FormDataEntryValue | null): number {
-  const parsed = Number(value ?? PAPER_QUIZ_DEFAULT_QUESTION_COUNT);
-
-  if (!Number.isFinite(parsed)) {
-    return PAPER_QUIZ_DEFAULT_QUESTION_COUNT;
-  }
-
-  return Math.min(PAPER_QUIZ_MAX_QUESTION_COUNT, Math.max(1, Math.floor(parsed)));
-}
-
-async function extractTextFromPdf(bytes: Uint8Array): Promise<string> {
-  const { PDFParse } = await import('pdf-parse');
-  const parser = new PDFParse({
-    data: bytes,
-    useWorkerFetch: false,
-    useSystemFonts: true,
-    stopAtErrors: false,
-  });
-
-  try {
-    const result = await parser.getText({
-      first: 40,
-      pageJoiner: '\n\n',
-      parseHyperlinks: false,
-    });
-
-    return normalizeExtractedText(result.text).slice(0, PAPER_QUIZ_MAX_TEXT_CHARS);
-  } finally {
-    await parser.destroy().catch(() => undefined);
-  }
-}
-
-function normalizeExtractedText(text: string): string {
-  return text
-    .replace(/\u0000/g, ' ')
-    .replace(/-\s*\n\s*/g, '')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
 
 type QuestionDraft = Pick<Question, 'question_text' | 'options' | 'correct_index' | 'explanation'>;
 
@@ -12989,86 +12574,6 @@ function validateQuestionPayload(
   }
 
   return null;
-}
-
-async function buildLeaderboard(): Promise<(LeaderboardEntry & { events_participated: number; is_claimed: boolean; device_id: string | null })[]> {
-  const users = await getAllUsers();
-
-  return users
-    .filter((user) => !user.is_admin && !user.merged_into_user_id && user.total_points > 0)
-    .sort((a, b) => b.total_points - a.total_points)
-    .map((user, index) => ({
-      rank: index + 1,
-      nickname: user.username || user.nickname || 'Anonymous',
-      total_score: user.total_points,
-      events_participated: user.events_participated,
-      is_claimed: user.is_claimed,
-      user_id: user.id,
-      device_id: user.device_id,
-      streak_count: 0,
-    }));
-}
-
-async function buildSessionLeaderboard(sessionId: string): Promise<LeaderboardEntry[]> {
-  const participants = await getQuizParticipantsBySession(sessionId);
-
-  return participants
-    .sort((a, b) => b.total_score - a.total_score)
-    .map((participant, index) => ({
-      user_id: participant.user_id,
-      nickname: participant.nickname_used,
-      total_score: participant.total_score,
-      rank: index + 1,
-      streak_count: participant.current_streak,
-    }));
-}
-
-async function buildMonthlyLeaderboard(): Promise<(LeaderboardEntry & { events_participated: number; is_claimed: boolean; device_id: string | null })[]> {
-  const [users, responses] = await Promise.all([
-    getAllUsers(),
-    readData<Response>('responses'),
-  ]);
-  const userById = new Map(users.map((user) => [user.id, user]));
-  const nowDate = new Date();
-  const monthStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
-  const totals = new Map<string, number>();
-
-  for (const response of responses) {
-    if (new Date(response.created_at).getTime() < monthStart || !response.points_awarded) {
-      continue;
-    }
-    totals.set(response.user_id, (totals.get(response.user_id) ?? 0) + response.points_awarded);
-  }
-
-  return [...totals.entries()]
-    .map(([userId, score]) => ({ user: userById.get(userId), score }))
-    .filter((entry): entry is { user: User; score: number } => Boolean(entry.user && !entry.user.is_admin && !entry.user.merged_into_user_id))
-    .sort((a, b) => b.score - a.score)
-    .map(({ user, score }, index) => ({
-      rank: index + 1,
-      nickname: user.username || user.nickname || 'Anonymous',
-      total_score: score,
-      events_participated: user.events_participated,
-      is_claimed: user.is_claimed,
-      user_id: user.id,
-      device_id: user.device_id,
-      streak_count: 0,
-    }));
-}
-
-async function mergeParticipantRecords(target: User, source: User) {
-  await mergeQuizParticipantUsers(target.id, source.id);
-}
-
-async function mergeResponseRecords(target: User, source: User) {
-  const responses = await readData<Response>('responses');
-
-  for (const response of responses) {
-    if (response.user_id === source.id) {
-      response.user_id = target.id;
-    }
-  }
-  await writeData<Response>('responses', responses);
 }
 
 export default app;

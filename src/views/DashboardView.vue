@@ -132,9 +132,6 @@ onUnmounted(() => {
               >
                 {{ cfpOpenEvent ? 'Submit a Talk' : 'Explore Talks' }}
               </RouterLink>
-              <RouterLink to="/leaderboard" class="editorial-secondary-action">
-                Rankings Preview
-              </RouterLink>
             </div>
           </section>
 
@@ -244,20 +241,6 @@ onUnmounted(() => {
             </ol>
           </aside>
 
-          <aside class="editorial-panel relative self-start overflow-hidden border-dc-border bg-dc-paper-warm p-6 opacity-75">
-            <div class="coming-soon-ribbon">Coming soon</div>
-            <div class="mb-5 flex items-start justify-between gap-3 pl-16 sm:pl-20">
-              <div>
-                <p class="editorial-eyebrow">kahoot board</p>
-                <h2 class="mt-1 text-2xl font-bold tracking-tight text-dc-ink">Kahoot Leaderboard</h2>
-              </div>
-            </div>
-            <div class="rounded-md border border-dashed border-dc-border bg-dc-paper px-4 py-5">
-              <p class="text-sm font-medium leading-6 text-dc-gray">
-                Kahoot rankings will land here once the phase-one board is ready to publish.
-              </p>
-            </div>
-          </aside>
         </div>
       </section>
     </div>

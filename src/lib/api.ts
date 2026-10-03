@@ -10,12 +10,10 @@ import type {
   EventRegistration,
   EventRegistrationCampaign,
   EventRegistrationSummary,
-  LeaderboardEntry,
   PublicArchiveEventResponse,
   PublicArchiveResponse,
   PublicHomeResponse,
   PublicMeetup,
-  QuizSession,
   SpeakerSubmission,
   Talk,
   VolunteerApplication,
@@ -59,9 +57,7 @@ export interface OverviewRegular {
 export interface OverviewResponse {
   events: Event[];
   talks: Talk[];
-  leaderboard: LeaderboardEntry[];
   regulars: OverviewRegular[];
-  activeSession: QuizSession | null;
 }
 
 export interface FeedbackMonthEvent {

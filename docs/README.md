@@ -10,7 +10,6 @@ This folder keeps the README lightweight. Use this page to find the right level 
 | [Local Development](technical/local-development.md) | Set up the app, seed data, and run checks |
 | [Architecture](architecture.md) | Understand the Vue/Hono/Supabase/JSON split |
 | [Implementation Notes](implementation.md) | Find entry points and non-obvious behavior |
-| [Patterns](patterns.md) | Follow naming, folder, and UI conventions |
 | [Contributing](../CONTRIBUTING.md) | PR process and documentation expectations |
 
 ## For Organizers
@@ -19,7 +18,7 @@ This folder keeps the README lightweight. Use this page to find the right level 
 |---|---|
 | [Product Operating Model](product-operating-model.md) | See how monthly, quarterly, annual, special, and externally listed events fit together |
 | [Annual Conference Plan](annual-conference-plan.md) | Assign owners, dates, dependencies, and status across the active December edition |
-| [Organizer Guide](user-guides/organizer-guide.md) | Run events, CFP, attendance, feedback, and quiz workflows |
+| [Organizer Guide](user-guides/organizer-guide.md) | Run events, CFP, attendance, feedback, and System Design learning-room workflows |
 | [Community Guide](user-guides/community-guide.md) | Understand what public visitors see |
 | [Luma Attendance](features/luma-attendance.md) | Import and review Luma CSV exports |
 | [Feedback](features/feedback.md) | Create event feedback forms and review responses |
@@ -31,8 +30,6 @@ This folder keeps the README lightweight. Use this page to find the right level 
 | [Product Operating Model](product-operating-model.md) | Understand ownership, publication, privacy, and compatibility boundaries |
 | [Public Meetup API](public-meetups-api.md) | Consume published meetups from another site |
 | [Routes](reference/routes.md) | Locate public, organizer, and API routes |
-| [Environment Variables](reference/environment-variables.md) | Configure local or deployed environments |
-| [Deployment Plan](deployment-cloudflare-supabase.md) | Understand the Cloudflare/Supabase direction |
 | [Repository Migration Checklist](repository-migration-checklist.md) | Track the move from the old GitHub repo to `devcongress/events-management` |
 
 ## For Maintainers

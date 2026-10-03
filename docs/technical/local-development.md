@@ -24,7 +24,7 @@ The dev server runs Vite and the Hono API on the same origin at `http://localhos
 
 The server falls back to JSON mock data when local/dev runs omit `APP_DATA_SOURCE`, even when Supabase credentials exist in `.env.local`. The committed example selects `APP_DATA_SOURCE=supabase` because organizer access now uses Supabase in every environment; choose `local-json` only for public-only local work where organizer routes are not needed.
 
-See [Environment Variables](../reference/environment-variables.md) for the full table.
+Review the local configuration notes in this guide before starting the app.
 
 For local Turnstile flows, use Cloudflare's published dummy sitekey and matching dummy secret rather than adding `localhost` or `127.0.0.1` to the production widget. Application HMAC and internal-request secrets must be at least 32 random bytes; generate a local value with:
 
