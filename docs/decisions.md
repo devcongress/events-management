@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-101: Time-bound the no-fix braces audit exception
+
+**Date:** 2026-10-03
+
+**Decision:** Allow only `GHSA-vfj7-8cjw-p6xm` in pnpm's project audit configuration until 2026-11-03. Keep the dependency audit at moderate severity and retain CodeQL and secret scanning unchanged.
+
+**Reason:** The affected `braces@3.0.3` is a build-time transitive dependency through Tailwind 3, Chokidar, and Micromatch. The advisory lists no patched release, so an override cannot remediate it and would block every new PR. The exception is deliberately one advisory rather than a blanket ignore-unfixable rule.
+
+**Trade-offs:** pnpm ignores an advisory globally rather than by dependency path. If the same advisory reaches a runtime dependency, it will remain hidden until review. Remove the exception immediately when a patched upstream chain is available, or replace it through a separately reviewed Tailwind tooling migration.
+
 ## ADR-100: Preserve the mounted organizer session query across OAuth transitions
 
 **Date:** 2026-10-01

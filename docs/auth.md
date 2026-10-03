@@ -56,7 +56,7 @@ Disabled memberships remain visible to Owners with two explicit choices: re-enab
 
 ## Audit Log
 
-Owners can review recent admin activity at `/organizer-console/audit-log`. The ledger is backed by `public.admin_audit_log` and records successful organizer mutations such as login/logout, organizer allowlist changes, native event and registration changes, check-ins, checklist edits, media uploads, feedback status changes, historical attendance CSV import/removal, speaker access changes, talk review actions, and quiz builder changes.
+Owners can review recent admin activity at `/organizer-console/audit-log`. The ledger is backed by `public.admin_audit_log` and records successful organizer mutations such as login/logout, organizer allowlist changes, native event and registration changes, check-ins, checklist edits, media uploads, feedback status changes, historical attendance CSV import/removal, speaker access changes, talk review actions, and System Design learning-room authoring changes.
 
 Audit metadata should stay small and non-sensitive. Store identifiers, counts, statuses, and changed field names rather than raw CSV contents, feedback text, OAuth provider tokens, or full request bodies.
 

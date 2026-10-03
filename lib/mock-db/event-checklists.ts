@@ -51,8 +51,8 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
   },
   {
     phase: 'program',
-    label: 'Collect slides and prep quiz',
-    description: 'Gather speaker materials and prepare the community quiz.',
+    label: 'Collect slides and finalize the programme',
+    description: 'Gather speaker materials and confirm the event programme.',
     status_on_complete: null,
   },
   {
@@ -76,8 +76,8 @@ const DEFAULT_CHECKLIST: ChecklistTemplateItem[] = [
   },
   {
     phase: 'event_day',
-    label: 'Run live quiz',
-    description: 'Open the lobby, run questions, and finish the game.',
+    label: 'Facilitate the live programme',
+    description: 'Confirm the event programme is ready for attendees.',
     status_on_complete: null,
   },
   {

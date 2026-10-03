@@ -4,7 +4,7 @@ Date: 2026-09-07. Status: deferred at the user's request. This document preserve
 
 ## Scope and findings
 
-Source inventory on `feature/shared-form-polish`: 41 form blocks in 29 Vue files, plus inline editors, filters, and shared controls. Counts include conditional and paused/prototype forms. This was source-based research, not a browser or screen-reader certification of every route.
+Source inventory on `feature/shared-form-polish`: 41 form blocks in 29 Vue files, plus inline editors, filters, and shared controls. Counts include conditional and paused/prototype forms. The retired classic Quiz leaderboard claim and merge forms are no longer part of the application or this backlog. This was source-based research, not a browser or screen-reader certification of every route.
 
 The shared control baseline exists, but app-wide hierarchy, semantic labels, validation recovery, and feedback are not complete. Standardize the form language, not every form's layout.
 
@@ -30,8 +30,8 @@ Three layouts: short single-page form; longer intake with logical steps where us
 1. Shared foundation: contrast, density, labels/help/errors, dropdown positioning and wrapping.
 2. Public intake: conference/monthly CFP, accepted-speaker logistics/archive, registration, volunteer, event amendment, event feedback, route feedback and feedback bot. Short registration/volunteer forms should remain single-page. Conference CFP now uses steps on both desktop and mobile by explicit user decision.
 3. Organizer forms: event creation/community editing, registration settings, desktop/mobile blasts, conference tasks/editions/phases, annual/monthly finance, organizer access/delegation, speaker email/backfill and moderation replies.
-4. Builders and inline editors: feedback campaigns/questions/options, system-design teaching questions, quiz builder, event outline/media/artifacts.
-5. Small surfaces: login, nickname, room name, filters, check-in, deadline controls. Preserve specialized controls. Defer major work on paused speaker/leaderboard prototype forms.
+4. Builders and inline editors: feedback campaigns/questions/options, system-design teaching questions, event outline/media/artifacts.
+5. Small surfaces: login, nickname, room name, filters, check-in, deadline controls. Preserve specialized controls. Defer major work on paused speaker prototype forms.
 
 Suggested next pilots: public feedback and the conference task drawer. Review independently before delivery. Verification should cover 320px layouts, zoom/reflow, long labels, mobile keyboards, bottom-edge menus, dialog focus, reduced motion, failed submissions, and draft preservation. Aim for 44px touch controls as a product preference; WCAG AA's minimum is 24px with exceptions.
 

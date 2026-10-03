@@ -36,7 +36,6 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `TURNSTILE_SECRET_KEY` | Required for production public writes | No | Server-only Cloudflare Turnstile secret used to validate every protected public submission |
 | `TURNSTILE_EXPECTED_HOSTNAME` | Required in production | No | Strict hostname check for Turnstile verification; production uses `em.devcongress.org` |
 | `EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES` | Required for production community submissions | No | Comma-separated strict hostname allowlist for the `devcongress.org` submission widget, for example `devcongress.org,www.devcongress.org`; it does not weaken the `em.devcongress.org` check used by other forms |
-| `ENABLE_PDF_QUIZ_UPLOADS` | No | No | Set to `true` only in runtimes that support the PDF parser. Leave unset on Cloudflare Workers for phase one. |
 | `RESEND_API_KEY` | Required for transactional registration, community-submission, and speaker email sends | No | Server-only, sending-restricted Resend API key used by registration delivery, community-listing decisions, and the authenticated speaker email batch endpoint. |
 | `RESEND_DAILY_EMAIL_QUOTA` | No | No | Daily Resend plan limit used by the owner-only Audit Log capacity monitor. Defaults to 100 (Free plan) when omitted; update it if the plan changes. |
 | `RESEND_MONTHLY_EMAIL_QUOTA` | No | No | Monthly Resend plan limit used by the owner-only Audit Log capacity monitor. Defaults to 3,000 (Free plan) when omitted; update it if the plan changes. |

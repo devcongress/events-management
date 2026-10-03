@@ -99,7 +99,7 @@ export default async function HomePage() {
         <div className="absolute bottom-0 inset-x-0 border-t border-dc-yellow/20 bg-dc-dark-1/50 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto px-4 py-4 sm:py-6">
             <p className="text-center text-dc-gray font-mono text-xs sm:text-sm">
-              <span className="text-dc-yellow">©</span> DevCon-Comm - Community Presentations & Kahoot Sessions
+              <span className="text-dc-yellow">©</span> DevCon-Comm - Community Presentations & Technical Learning
             </p>
           </div>
         </div>

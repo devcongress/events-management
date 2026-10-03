@@ -123,7 +123,6 @@ const AdminCommunityEventView = () =>
   import("./views/admin/AdminCommunityEventView.vue");
 const AdminTalksView = () => import("./views/admin/AdminTalksView.vue");
 const AdminSpeakersView = () => import("./views/admin/AdminSpeakersView.vue");
-const AdminQuizView = () => import("./views/admin/AdminQuizView.vue");
 const AdminSystemDesignView = () =>
   import("./views/admin/AdminSystemDesignView.vue");
 const SystemDesignPresenterView = () =>
@@ -477,18 +476,6 @@ export const router = createRouter({
       path: adminPath("events/:eventId/registrations"),
       name: "admin-registrations",
       component: AdminRegistrationsView,
-      beforeEnter: redirectCommunitySubmissionWorkspace,
-    },
-    {
-      path: adminPath("events/:eventId/quiz"),
-      name: "admin-quiz",
-      component: AdminQuizView,
-      beforeEnter: redirectCommunitySubmissionWorkspace,
-    },
-    {
-      path: adminPath("events/:eventId/quiz/live"),
-      name: "admin-quiz-live",
-      component: AdminQuizView,
       beforeEnter: redirectCommunitySubmissionWorkspace,
     },
     {

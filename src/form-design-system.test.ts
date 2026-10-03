@@ -20,7 +20,7 @@ describe('shared form control coverage', () => {
 
         if (['input', 'textarea', 'select'].includes(node.tag)) {
           const specialized = /type="(?:file|checkbox|radio|hidden|search)"|inputmode="search"|event-outline-input|mobile-event-blast-(?:safe|reserve)/.test(attrs)
-            || filename.endsWith('AppDatePicker.vue') || filename.endsWith('PlayCodeView.vue') || nestedComposite;
+            || filename.endsWith('AppDatePicker.vue') || nestedComposite;
 
           if (!specialized && !/editorial-input|app-form-control/.test(attrs)) uncovered.push(`${filename}:${node.loc.start.line}`);
         }

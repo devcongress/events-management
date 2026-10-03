@@ -139,16 +139,6 @@ export default function EventDetailPage({ params }: { params: { eventId: string 
           <p className="text-dc-gray-light text-sm">Manage approved speaker list for CFP</p>
         </Link>
 
-        <Link
-          href={`/admin/events/${event.id}/quiz`}
-          className="block bg-dc-dark-1 border-2 border-dc-dark-3 p-6 hover:border-dc-yellow/50 transition-all group relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-12 h-12 border-l-2 border-b-2 border-dc-yellow/10 group-hover:border-dc-yellow/30 transition-colors" />
-          <h3 className="text-lg font-bold text-white mb-2 font-mono group-hover:text-dc-yellow transition-colors">
-            MANAGE QUIZ
-          </h3>
-          <p className="text-dc-gray-light text-sm">Create and run the live quiz for this event</p>
-        </Link>
       </div>
     </div>
   );

@@ -22,16 +22,13 @@ devcongress-comm-idea/
 │   ├── app.ts
 │   └── index.ts
 ├── app/                  ← Legacy Next.js routes kept as migration reference
-│   ├── (public)/          ← Attendee / speaker / player pages
+│   ├── (public)/          ← Attendee and speaker pages
 │   │   ├── page.tsx            Landing page
 │   │   ├── archive/            Past events & talks
 │   │   ├── cfp/[eventId]/      CFP submission form
-│   │   ├── play/               Quiz join + live player view
-│   │   └── leaderboard/        Global leaderboard
 │   ├── (admin)/           ← Organizer pages
 │   │   └── admin/
-│   │       ├── events/         Event CRUD + talk review
-│   │       └── leaderboard/    Admin leaderboard view
+│   │       └── events/         Event CRUD + talk review
 │   ├── api/               ← REST route handlers
 │   ├── layout.tsx
 │   └── globals.css
@@ -44,8 +41,8 @@ devcongress-comm-idea/
 ├── lib/
 │   ├── mock-db/           ← JSON CRUD layer (readData / writeData)
 │   ├── design-system.ts   ← Design tokens (JS-side)
-│   ├── constants.ts       ← Quiz timing & scoring constants
-│   ├── scoring.ts         ← Point calculation logic
+│   ├── constants.ts       ← Shared application constants
+│   ├── scoring.ts         ← System Design learning-room point calculation
 │   └── utils.ts           ← Shared helpers
 ├── hooks/                 ← Legacy custom React hooks
 ├── types/index.ts         ← All TypeScript interfaces
@@ -66,14 +63,14 @@ devcongress-comm-idea/
 | `server/event-submissions/` | Community-submission lifecycle, repository adapter, and request-scoped composition boundary |
 | `server/operations-read-model.ts` | Owner operations projection joining audit history with delivery, quota, and blast state |
 | `server/protected-mutation.ts` | Shared authenticated-mutation audit adapter |
-| `app/(public)` | Legacy public-facing Next pages: landing, archive, CFP, quiz play, leaderboard |
-| `app/(admin)` | Legacy organizer dashboard: event/talk/quiz/speaker management |
+| `app/(public)` | Legacy public-facing Next pages: landing, archive, and CFP |
+| `app/(admin)` | Legacy organizer dashboard: event, talk, and speaker management |
 | `app/api` | Legacy REST route handlers retained during migration |
 | `lib/mock-db` | Typed CRUD over JSON files; promise-queue serializes writes |
 | `lib/supabase` | Typed Supabase clients for browser anon access and server service-role access |
-| `lib/scoring.ts` | Speed-scaled point formula + streak bonus calculation |
+| `lib/scoring.ts` | System Design learning-room speed-scaled point formula + streak bonus calculation |
 | `lib/design-system.ts` | JS-side design tokens; mirrors `tailwind.config.ts` |
-| `hooks/` | Legacy React hooks: `useRole`, `useDeviceId`, `useQuizPolling`, `useCountdown` |
+| `hooks/` | Legacy React hooks retained during migration |
 | `types/index.ts` | Canonical entity types, enums, and API payload types |
 
 ## Organizer Boundary Pattern
@@ -112,12 +109,9 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/` — community hub backed by `/api/overview`
 - `/archive` — searchable completed event archive
 - `/archive/[eventId]` — explicitly published event archive items
-- `/leaderboard` — public leaderboard and prototype account claim/merge tools
 - `/cfp/[eventId]` — public talk or product-demo proposal form
 - `/speaker-talks/[eventId]/[token]` — private selected-proposal or manual Archive Request form (compatibility URL)
 - `/feedback/[eventId]` — public event feedback form for open feedback campaigns
-- `/play` — quiz join form
-- `/play/[code]` — live quiz player flow
 - `/:pathMatch(.*)*` — branded 404 for unknown client routes
 - Organizer routes live under `VITE_ADMIN_BASE_PATH` (`/organizer-console` by default) instead of `/admin`
 - `[adminBase]/login` — prototype organizer sign-in
@@ -135,8 +129,6 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `[adminBase]/events/[eventId]/registrations` — registration campaign, private guest list, and name/email check-in
 - `[adminBase]/events/[eventId]/speakers` — legacy speaker allowlist compatibility route, hidden from event navigation
 - `[adminBase]/events/[eventId]/attendance` — organizer-only Luma attendance analysis
-- `[adminBase]/events/[eventId]/quiz` — quiz builder
-- `[adminBase]/events/[eventId]/quiz/live` — live quiz host controls
 - `[adminBase]/events/[eventId]/system-design` — monthly system design scenario summary from the event program outline
 - `[adminBase]/events/[eventId]/feedback` — feedback campaign builder and response review
 
@@ -145,7 +137,7 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/health` — minimal public runtime smoke check
 - `/api/health/supabase` — minimal public Supabase readiness check
 - `/api/health/data-sources`, `/api/health/supabase/community-events`, `/api/health/supabase/storage` — owner-only internal diagnostics
-- `/api/overview` — events, talks, and leaderboard summary for the Vue shell
+- `/api/overview` — events and talks summary for the Vue shell
 - `/api/public/meetups*` — read-only DevCongress.org integration contract with CORS and short public cache headers
 - `/api/auth/session`, `/api/auth/admin/exchange`, `/api/auth/admin/callback`, `/api/auth/logout` — Google OAuth and app-owned organizer session lifecycle
 - `/api/admin/organizers*` — owner-only organizer email allowlist management
@@ -189,11 +181,8 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/talks` — all talks, optional `eventId` query filter
 - `/api/talks/[talkId]` — admin talk status update
 - `/api/talks/[talkId]/reminder` — logs organizer slide reminders for accepted talks
-- `/api/leaderboard` — all-time, monthly, or session leaderboard
-- `/api/users/claim`, `/api/users/merge` — prototype account tools
-- `/api/quiz/active`, `/api/quiz/join`, `/api/quiz/state`, `/api/quiz/answer` — player quiz flow
-- `/api/quiz/sessions*`, `/api/quiz/questions*` — quiz builder/live host flow
-- `/api/quiz/sessions/[sessionId]/questions/from-paper` — admin-only PDF upload, local text extraction, and prototype question generation
+- `/api/quiz/join`, `/api/quiz/state`, `/api/quiz/answer` — System Design learning-room participant flow
+- `/api/quiz/sessions*`, `/api/quiz/questions*` — System Design learning-room authoring and presenter flow
 
 ### Legacy Public App Routes (`app/(public)`)
 
@@ -202,9 +191,6 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/archive/[eventId]` — published talks for one event
 - `/cfp/[eventId]` — speaker CFP submission
 - `/speaker-talks/[eventId]/[token]` — private selected-proposal or manual Archive Request form (compatibility URL)
-- `/play` — quiz join form
-- `/play/[code]` — live quiz gameplay
-- `/leaderboard` — public leaderboard view
 
 ### Legacy Admin App Routes (`app/(admin)/admin`)
 
@@ -214,9 +200,6 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/admin/events/[eventId]` — event detail + status progression
 - `/admin/events/[eventId]/talks` — talk review/status management
 - `/admin/events/[eventId]/speakers` — speaker allowlist management
-- `/admin/events/[eventId]/quiz` — quiz builder (create/edit/delete/reorder questions)
-- `/admin/events/[eventId]/quiz/live` — live quiz control/monitor
-- `/admin/leaderboard` — admin leaderboard modes
 
 ### Legacy API Routes (`app/api`)
 
@@ -230,16 +213,6 @@ Public API evolution is additive: archive list and detail payloads expose `archi
 - `/api/cfp` (`POST`)
 - `/api/talks/[talkId]` (`PATCH`)
 - `/api/talks/[talkId]/upload` (`POST`, multipart file upload)
-- `/api/leaderboard` (`GET`)
-- `/api/quiz/active` (`GET`)
-- `/api/quiz/join` (`POST`)
-- `/api/quiz/state` (`GET`)
-- `/api/quiz/answer` (`POST`)
-- `/api/quiz/sessions` (`GET`, `POST`)
-- `/api/quiz/sessions/[sessionId]` (`GET`, `PATCH`)
-- `/api/quiz/questions` (`POST`)
-- `/api/quiz/questions/[questionId]` (`PATCH`, `DELETE`)
-- `/api/quiz/questions/reorder` (`POST`)
 - `/api/seed` (`POST`)
 
 ---
@@ -263,7 +236,7 @@ Browser GET /archive
   → renders HTML with embedded data
 ```
 
-### Quiz and System Design learning rooms (client + polling)
+### System Design learning rooms (client + polling)
 ```
 Browser (player)
   → POST /api/quiz/join           (get sessionId + participantId + room display name)
@@ -281,7 +254,7 @@ Browser (System Design presenter, organizer-protected)
   → finished state shows protected top-ten leaderboard
 ```
 
-### Admin quiz control
+### System Design presenter control
 ```
 Browser (admin) → PATCH /api/quiz/sessions/[id]
   { status | question_phase | runtime timestamps }
@@ -302,10 +275,9 @@ Browser (admin) → PATCH /api/quiz/sessions/[id]
 | `bun` | Production runtime and static/API server |
 | `@tanstack/vue-query` | Active browser query cache and mutation coordination |
 | `vue-router` | Active client routing |
-| `qrcode` | Local QR-code generation for quiz lobbies, feedback displays, volunteer intake, and on-site registration displays |
+| `qrcode` | Local QR-code generation for System Design learning rooms, feedback displays, volunteer intake, and on-site registration displays |
 | `tailwindcss` 3 | Utility CSS |
 | `tailwind-merge` | Merge Tailwind class strings without conflicts |
 | `class-variance-authority` | Variant-based component styling |
 | `uuid` | Generate entity IDs |
-| `pdf-parse` | Local server-side PDF text extraction for prototype quiz generation |
 | `tsx` | Run TypeScript seed script (`pnpm seed`) |

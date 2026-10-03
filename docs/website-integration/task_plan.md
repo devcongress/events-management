@@ -33,7 +33,7 @@ Make the Astro website the single public and organizer-facing DevCongress produc
 - Proposed for user approval: use Cloudflare Worker with Static Assets as the current Astro 6 implementation of the requested static-hosting-plus-Workers model.
 - During migration, unextracted backend routes may be reached only through a private Cloudflare Service Binding; the final browser contract remains same-origin.
 - Supabase Postgres is the durable source of truth for all dynamic organizer/community data; Supabase Auth and Storage remain the identity/media services, while repository YAML remains limited to stable editorial website content.
-- Durable Objects may coordinate live sessions but do not replace Supabase for durable quiz definitions, participation, results, or history.
+- The retired classic Quiz and global leaderboard are excluded from this roadmap. The retained System Design learning rooms use Supabase-backed relational state and polling; any future realtime transport requires a separate participant-scoped authorization decision.
 
 ## Errors Encountered
 

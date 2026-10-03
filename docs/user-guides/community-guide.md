@@ -40,17 +40,6 @@ After an event, organizers can open a public feedback form:
 
 Forms may include ratings, text questions, yes/no questions, and talk-picker questions.
 
-## Join a Quiz
-
-The quiz entry points only become useful when a host opens a session:
-
-```text
-/play
-/play/:code
-```
-
-If there is no active quiz, the app shows a waiting/empty state instead of a generic 404.
-
 ## Send App Feedback
 
 Testers can use the feedback launcher to report confusing flows, bugs, or suggestions. Feedback includes the current route so maintainers know where the issue happened.
