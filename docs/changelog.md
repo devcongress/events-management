@@ -8,6 +8,7 @@
 
 - Restore the Google-verified, explicit organizer access-request flow, its separate 30-minute request session, request form, and Owner-only People & Access queue without granting organizer access to requesters.
 - Keep the mounted organizer session query during OAuth identity transitions, clear only non-session data, and force the refreshed server session into the same observer before protected navigation. Unknown accounts remain unauthenticated and go only to the request form.
+- Restore the centered DevCongress-branded request form with its restrained editorial illustration, responsive layout, and reduced-motion-safe button feedback while preserving the existing request and authentication behavior.
 
 ## 2026-09-30 — Add bounded organizer access requests
 
