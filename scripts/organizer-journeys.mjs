@@ -64,7 +64,27 @@ let browser;
 
 async function waitForRouteTransition(page) {
   await page.waitForFunction(
-    () => document.querySelectorAll(".page-view").length === 1,
+    () => {
+      const routeViews = [...document.querySelectorAll(
+        ".page-route-stack > .page-view",
+      )];
+      const transitionClasses = [
+        "page-enter-active",
+        "page-leave-active",
+        "page-tab-forward-enter-active",
+        "page-tab-forward-leave-active",
+        "page-tab-back-enter-active",
+        "page-tab-back-leave-active",
+      ];
+
+      return routeViews.length === 1 && routeViews.every(
+        (routeView) => !transitionClasses.some((className) =>
+          routeView.classList.contains(className),
+        ),
+      );
+    },
+    undefined,
+    { timeout: 8_000 },
   );
 }
 
@@ -72,7 +92,7 @@ async function assertVisibleBoardCards(page, expectedLabels) {
   await waitForRouteTransition(page);
 
   const labels = await page
-    .locator(".task-board__card:visible")
+    .locator(".page-route-stack > .page-view .task-board__card:visible")
     .evaluateAll((cards) =>
       cards.map((card) => card.getAttribute("aria-label")).sort(),
     );
@@ -82,7 +102,7 @@ async function assertVisibleBoardCards(page, expectedLabels) {
 
 async function assertBoardColumnsAreContained(page) {
   const isContained = await page
-    .locator(".task-board:visible")
+    .locator(".page-route-stack > .page-view .task-board:visible")
     .evaluateAll((boards) => {
       return boards.every((board) => {
         const boardBounds = board.getBoundingClientRect();
@@ -119,7 +139,7 @@ async function assertBoardColumnsAreContained(page) {
 }
 
 async function moveBoardTask(page, taskLabel, targetStatusLabel) {
-  await page.locator(".task-board:visible").evaluate(
+  await page.locator(".page-route-stack > .page-view .task-board:visible").evaluate(
     (board, { taskLabel, targetStatusLabel }) => {
       const task = [...board.querySelectorAll(".task-board__card")].find(
         (card) => card.getAttribute("aria-label") === taskLabel,
@@ -158,6 +178,23 @@ function createSaveGate() {
   });
 
   return { entered, markEntered, release, response };
+}
+
+async function waitForSaveGate(gate, label) {
+  let timeoutId;
+
+  try {
+    await Promise.race([
+      gate.entered,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`Timed out waiting for ${label} status save.`));
+        }, 8000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function journey(
@@ -740,6 +777,7 @@ try {
       };
       let serverTask = task;
       const saveGates = [createSaveGate(), createSaveGate(), createSaveGate()];
+      const savedStatuses = [];
       let saveIndex = 0;
 
       responses.set("/api/annual-conference/2026/work-plan", () => ({
@@ -777,8 +815,10 @@ try {
         async (request) => {
           assert.equal(request.method(), "PATCH");
           const gate = saveGates[saveIndex++];
+          const input = JSON.parse(request.postData());
 
           assert.ok(gate, "Unexpected extra status PATCH");
+          savedStatuses.push(input.status);
           gate.markEntered();
           await gate.response;
 
@@ -787,7 +827,7 @@ try {
 
           serverTask = {
             ...serverTask,
-            status: JSON.parse(request.postData()).status,
+            status: input.status,
           };
 
           return { body: serverTask };
@@ -803,6 +843,7 @@ try {
       await page.goto(
         `${origin}/organizer-console/annual-conference/2026/work-plan`,
       );
+      await waitForRouteTransition(page);
       const phaseControl = page.locator(".annual-task-workspace__controls");
 
       await phaseControl
@@ -816,7 +857,10 @@ try {
         () =>
           new URL(window.location.href).searchParams.get("phase") === "earlier",
       );
-      const visibleBoard = page.locator(".task-board:visible");
+      await waitForRouteTransition(page);
+      const visibleBoard = page.locator(
+        ".page-route-stack > .page-view .task-board:visible",
+      );
       const taskCard = visibleBoard
         .getByRole("button", {
           name: "Open Move this task instantly",
@@ -828,12 +872,9 @@ try {
       await assertBoardColumnsAreContained(page);
       assert.equal(await taskCard.getAttribute("draggable"), "true");
 
-      const firstSaveRequested = page.waitForRequest((request) =>
-        request.url().endsWith("/work-plan/optimistic-task"),
-      );
-
       await moveBoardTask(page, "Open Move this task instantly", "In progress");
-      await Promise.all([firstSaveRequested, saveGates[0].entered]);
+      await waitForSaveGate(saveGates[0], "in-progress");
+      assert.deepEqual(savedStatuses, ["in_progress"]);
       await visibleBoard
         .getByLabel("In progress tasks")
         .getByRole("button", {
@@ -849,12 +890,6 @@ try {
         1,
       );
       assert.equal(await taskCard.getAttribute("draggable"), "true");
-
-      const queuedSaveRequested = page.waitForRequest(
-        (request) =>
-          request.url().endsWith("/work-plan/optimistic-task") &&
-          JSON.parse(request.postData()).status === "blocked",
-      );
 
       await moveBoardTask(page, "Open Move this task instantly", "Blocked");
       await visibleBoard
@@ -873,8 +908,8 @@ try {
       );
 
       saveGates[0].release();
-      await queuedSaveRequested;
-      await saveGates[1].entered;
+      await waitForSaveGate(saveGates[1], "blocked");
+      assert.deepEqual(savedStatuses, ["in_progress", "blocked"]);
       saveGates[1].release();
       await page
         .getByText("Conference task updated.", { exact: true })
@@ -888,12 +923,9 @@ try {
         .first()
         .waitFor();
 
-      const secondSaveRequested = page.waitForRequest((request) =>
-        request.url().endsWith("/work-plan/optimistic-task"),
-      );
-
       await moveBoardTask(page, "Open Move this task instantly", "Done");
-      await Promise.all([secondSaveRequested, saveGates[2].entered]);
+      await waitForSaveGate(saveGates[2], "done");
+      assert.deepEqual(savedStatuses, ["in_progress", "blocked", "done"]);
       await visibleBoard
         .getByLabel("Done tasks")
         .getByRole("button", {
@@ -1257,6 +1289,7 @@ try {
       await page.waitForURL(
         "**/organizer-console/annual-conference/2026/volunteers",
       );
+      await waitForRouteTransition(page);
       await page.getByRole("tab", { name: "Campaign", exact: true }).click();
       const followUp = page.getByRole("region", {
         name: "Volunteer follow-up",
@@ -1280,6 +1313,7 @@ try {
       });
       await page.setViewportSize({ width: 390, height: 844 });
       await page.waitForURL("**/organizer-console/mobile/annual-conference/2026*");
+      await waitForRouteTransition(page);
       const mobileConference = page.locator(".conference-mobile");
 
       await mobileConference.waitFor({ state: "visible" });
@@ -1294,6 +1328,7 @@ try {
       });
       await page.setViewportSize({ width: 1280, height: 1000 });
       await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
+      await waitForRouteTransition(page);
       await mobileConference.waitFor({ state: "detached" });
       await page.getByRole("tab", { name: "Campaign", exact: true }).click();
       await followUp.getByText(
@@ -1301,7 +1336,9 @@ try {
         { exact: true },
       ).waitFor();
 
-      let outcomes = page.locator(".outcome-campaign:visible");
+      let outcomes = page.locator(
+        "#admin-volunteers-campaign-panel .outcome-campaign:visible",
+      );
 
       await outcomes.getByText("Preview checks who can receive this email", { exact: false }).waitFor();
       await outcomes.getByText("Not sent includes recipients waiting in the queue", { exact: false }).waitFor();
@@ -1333,8 +1370,11 @@ try {
       await outcomes.screenshot({ path: `${artifacts}/volunteer-outcome-campaign.png` });
       await page.setViewportSize({ width: 320, height: 844 });
       await page.waitForURL("**/organizer-console/mobile/annual-conference/2026*");
+      await waitForRouteTransition(page);
       await mobileConference.getByRole("tab", { name: "Campaign", exact: true }).click();
-      const mobileOutcomes = page.locator(".outcome-campaign:visible");
+      const mobileOutcomes = mobileConference.locator(
+        "#mobile-volunteers-campaign-panel .outcome-campaign:visible",
+      );
 
       await mobileOutcomes.getByText("Delivery attempts and backoff", { exact: true }).waitFor();
       await mobileOutcomes.scrollIntoViewIfNeeded();
@@ -1351,8 +1391,11 @@ try {
       await mobileOutcomes.screenshot({ path: `${artifacts}/volunteer-outcome-campaign-320.png` });
       await page.setViewportSize({ width: 1280, height: 1000 });
       await page.waitForURL("**/organizer-console/annual-conference/2026/volunteers");
+      await waitForRouteTransition(page);
       await page.locator("#admin-volunteers-campaign-tab").click();
-      outcomes = page.locator(".outcome-campaign:visible");
+      outcomes = page.locator(
+        "#admin-volunteers-campaign-panel .outcome-campaign:visible",
+      );
       await outcomes.getByRole("button", { name: "Preview acceptances", exact: true }).waitFor();
       await outcomes.getByRole("button", { name: "Preview acceptances", exact: true }).click();
       const outcomePreview = page.getByRole("dialog", { name: "Send acceptances" });

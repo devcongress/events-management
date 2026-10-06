@@ -1,8 +1,13 @@
 # Changelog
 
+## 2026-10-06 — Stabilize controlled organizer browser saves
+
+- Replace teardown-prone Playwright request listeners in the optimistic work-plan journey with bounded fixture save gates and explicit PATCH-status sequence assertions.
+- Preserve the journey's optimistic movement, queued-save, rollback, request-count, and failure-state coverage while allowing the suite to exit cleanly after all scenarios finish.
+
 ## 2026-10-06 — Refresh newly patched audit dependencies
 
-- Raise the Vue runtime family to the patched 3.5.42 release and pin patched transitive `source-map-js` and `postcss-selector-parser` versions.
+- Pin the Vue runtime to patched 3.5.42 and pin patched transitive `source-map-js` and `postcss-selector-parser` versions.
 - Preserve the narrow, time-bound `GHSA-vfj7-8cjw-p6xm` exception as the only audit allowlist entry; all newly patched advisories remain enforced by CI.
 
 ## 2026-10-06 — Align request access with the DevCongress editorial system
