@@ -111,6 +111,8 @@ const AdminAnnualConferenceWorkPlanView = () =>
   import("./views/admin/AdminAnnualConferenceWorkPlanView.vue");
 const AdminAnnualConferenceFinanceView = () =>
   import("./views/admin/AdminAnnualConferenceFinanceView.vue");
+const AdminAnnualConferenceTicketingView = () =>
+  import("./views/admin/AdminAnnualConferenceTicketingView.vue");
 const AdminVolunteerView = () => import("./views/admin/AdminVolunteerView.vue");
 const AdminVolunteerDisplayView = () =>
   import("./views/admin/AdminVolunteerDisplayView.vue");
@@ -401,6 +403,11 @@ export const router = createRouter({
       component: AdminAnnualConferenceFinanceView,
     },
     {
+      path: adminPath("annual-conference/:year(\\d{4})/ticketing"),
+      name: "admin-annual-conference-ticketing",
+      component: AdminAnnualConferenceTicketingView,
+    },
+    {
       path: adminPath("annual-conference/:year(\\d{4})/volunteers"),
       name: "admin-annual-conference-volunteers",
       component: AdminVolunteerView,
@@ -619,7 +626,7 @@ router.beforeEach(async (to, from) => {
         : annualConferencePath();
     }
 
-    if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== "owner") {
+    if ((ownerOnlyPaths.has(to.path) || to.name === "admin-annual-conference-ticketing") && cachedSession.user?.role !== "owner") {
       return adminPath("events");
     }
 
@@ -676,7 +683,7 @@ router.beforeEach(async (to, from) => {
           : annualConferencePath();
       }
 
-      if (ownerOnlyPaths.has(to.path) && session.user?.role !== "owner") {
+      if ((ownerOnlyPaths.has(to.path) || to.name === "admin-annual-conference-ticketing") && session.user?.role !== "owner") {
         return adminPath("events");
       }
 
@@ -728,6 +735,7 @@ router.afterEach((to) => {
     to.name === "admin-annual-conference" ||
     to.name === "admin-annual-conference-work-plan" ||
     to.name === "admin-annual-conference-finance" ||
+    to.name === "admin-annual-conference-ticketing" ||
     to.name === "admin-annual-conference-volunteers" ||
     to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {

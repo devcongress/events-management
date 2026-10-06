@@ -37,9 +37,29 @@ Finance entries carry a source (`manual`, `sponsor`, or `ticket`) and optional s
 
 All financial mutations require an Owner server session, validate their input, run through transactional Supabase functions in production, and add an admin audit event. Local development uses the JSON fallback.
 
+## Ticketing foundation
+
+The ticketing foundation migration (`20261006110000_annual_conference_ticketing_foundation.sql`) creates the edition-scoped settings, paid-order, individual-ticket, and named sponsor-allocation records needed by DevCon26. It starts public inventory at 200, keeps GHS prices in integer pesewas, and makes sponsor allocations private rather than public complimentary ticket tiers. A ticket source is constrained to the same edition, and issued tickets require attendee identity.
+
+The checkout-hold migration (`20261006130000_annual_conference_checkout_holds.sql`) adds a service-role-only reservation command for eventual hosted checkout. It maps the published tier key to its server-owned quantity and price, expires pending orders after 15 minutes, and uses an edition settings lock to count paid seats, sponsor allocations, and live holds in one transaction. A caller-supplied UUID makes network retries return the original order rather than consume another hold; that key is bound to the normalized purchaser and tier so it cannot replay a different cart. The same lock now protects sponsor allocations and capacity reductions. Payment remains inactive until the merchant/provider adapter is deliberately configured; this migration creates neither a public checkout endpoint nor provider credentials.
+
+The Owner ticketing workspace presents this state as an inventory ledger: total capacity, every reservation, and currently available seats are shown separately, including active checkout holds. Capacity changes require a changed valid value and retain the server-enforced reduction floor. Sponsor reservations use labelled fields with local errors, and list private contact details behind an explicit disclosure rather than treating them as primary inventory data.
+
+Ticket prices are edition-scoped integer pesewa fields rather than a client cart value. An Owner can edit the three public prices only while the edition remains in `draft` and no order exists; the database command locks the edition row before checking both conditions. Checkout holds copy their amount from that locked row, so a historical order never depends on later configuration.
+
+The payment-processing migration (`20261006140000_annual_conference_ticket_payment_processing.sql`) adds a server-bound payment-attempt record, provider-event ledger, refund-required ledger, and ticket email outbox. A verified payment transition locks the held order, checks its GHS amount, records the provider event exactly once, marks the order paid, creates one stable numbered ticket row per seat, and queues one idempotent payment receipt in the same transaction. A single-seat order becomes an issued purchaser ticket with a hash-only QR capability and one ticket-delivery outbox item; team seats stay pending until their named attendees are collected. A late provider success re-checks capacity under the edition lock; if the hold can no longer be fulfilled its expired order is paired with a durable refund-required record and no tickets are issued.
+
+The webhook never trusts Paystack metadata to choose an order. It first resolves the server-created reference, then calls Paystack's verification endpoint and retains only a SHA-256 payload fingerprint plus bounded verified payment facts. Ticket QR tokens are intentionally deferred until a named attendee is assigned: the assignment flow will generate the one-time token, store only its hash, and enqueue that named attendee's `ticket_delivery` outbox item. The outbox already retains retry, provider-acceptance, and delivery fields for that later Resend worker.
+
+The assignment/delivery migration (`20261006150000_annual_conference_ticket_assignment_delivery.sql`) makes paid-order tickets non-transferable: a pending team seat can be named once, never reassigned, and gains a hashed QR capability plus a single delivery outbox record. The delivery worker foundation uses `FOR UPDATE SKIP LOCKED`, a ten-minute claim lease, idempotent finalization, bounded retry state, and provider-delivery updates. It stays inactive unless its own explicit Resend email configuration is enabled.
+
+The email-delivery operations migration (`20261006170000_annual_conference_ticket_email_delivery_operations.sql`) gives Owners an edition-scoped operational ledger without exposing email payloads, QR capabilities, idempotency keys, or worker claim leases. It caps automated attempts at five with bounded exponential backoff. An Owner can requeue only a definite pre-provider-acceptance failure; accepted, delivered, claimed, exhausted, and provider-ambiguous records deliberately require review instead of risking a duplicate email. The Ticketing workspace has status filtering and pagination for the full edition history; its health counts are calculated across the edition, not just the visible page. These controls inspect and safely requeue durable records only: no provider send is activated until the explicit Resend sender configuration and delivery worker are separately supplied and enabled.
+
+Paystack is represented by a hosted-checkout adapter and an HMAC-SHA512 verified webhook endpoint, but it is disabled unless all three server-only values are deliberately configured: `DEVCON26_PAYMENTS_ENABLED=true`, `DEVCON26_PAYMENT_PROVIDER=paystack`, and `PAYSTACK_SECRET_KEY`. No public checkout endpoint, merchant credential, email send, or provider request is enabled by this foundation.
+
 ## Deliberate follow-ups
 
-- Paid ticket checkout, refunds, fees, and settlement/reconciliation.
+- Public ticket checkout, refunds, fees, and settlement/reconciliation.
 - Sponsor contacts, packages, contracts, due dates, and deliverables.
 - Attachments and retention rules for invoices, receipts, and contracts.
 - Reimbursements and separation-of-duties approvals.

@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-10-06 — Harden DevCon26 ticket-email operations
+
+- Redact outbox payloads, idempotency keys, QR capabilities, and claim leases from both list and retry responses, even when a database RPC returns a full row.
+- Make the Owner delivery ledger filterable and paginated across the full conference edition, with edition-wide health counts so older failures remain discoverable and safe to retry.
+- Keep the ledger operational-only: it does not activate Resend or send any email until a separately configured sender and worker are deliberately enabled.
+
+## 2026-10-06 — Add safe DevCon26 ticket-email delivery operations
+
+- Add an edition-scoped Owner delivery ledger with queued, accepted, delivered, and failure visibility, without exposing transactional payloads, QR capabilities, idempotency keys, or worker leases.
+- Bound email sending to five attempts with backoff and provide a narrowly safe retry command only for definite pre-provider-acceptance failures; accepted or provider-ambiguous messages are never blindly resent.
+- Add audit-backed retry operations and a compact Ticketing delivery-health view for later provider-worker activation.
+
+## 2026-10-06 — Allow draft DevCon26 price setting
+
+- Replace generic pass cards with a compact pricing ledger and progressively disclosed Owner editor, with one explicit save action.
+- Store Regular, Team of 3, and Team of 5 prices as edition-scoped integer pesewa settings; validate exact decimal GHS input without JavaScript float conversion.
+- Lock price changes atomically when sales leave draft or any order exists, and copy the locked setting price into each checkout hold.
+
+## 2026-10-06 — Polish DevCon26 ticketing operations UI
+
+- Rework the Owner ticketing workspace into an inventory ledger that accounts for paid, sponsor-held, and active checkout-held seats before showing availability.
+- Add a clear checkout activation-readiness card, safer changed-value capacity controls, and pass cards that foreground price, group value, and draft status.
+- Make sponsor reservations accessible with named inputs, per-field inline validation, live feedback, and responsive contact disclosures that keep sponsor and seat inventory primary.
+
+## 2026-10-06
+
+- Added DevCon26 payment-processing foundations: a disabled-by-default Paystack adapter, signed webhook parsing, a provider-event idempotency ledger, atomic held-order payment confirmation, per-seat ticket creation, and a durable transactional email outbox for later Resend receipt and ticket/QR delivery.
+- Added non-transferable DevCon26 attendee assignment, hashed QR capabilities, idempotent ticket-delivery outbox entries, and leased, retry-safe transaction-email delivery commands for later Resend activation.
+
+## 2026-10-06 — Add atomic DevCon26 checkout holds
+
+- Add a retry-safe pending-payment order command with server-owned DevCon26 tier quantities and GHS pesewa pricing; it expires abandoned holds after 15 minutes.
+- Serialize each edition's paid seats, named sponsor allocations, and active checkout holds under the ticketing-settings row lock so parallel checkouts, sponsor allocations, and capacity reductions cannot oversell capacity.
+- Keep payment delivery deliberately inactive: no hosted checkout route, merchant configuration, provider credential, or ticket issuance is enabled by this lifecycle groundwork.
+
+## 2026-10-06 — Establish annual-conference ticketing foundation
+
+- Add an edition-scoped ticketing domain with immutable DevCon26 GHS prices: Regular at GHS 199.99, Team of 3 at GHS 549.99, and Team of 5 at GHS 849.99.
+- Add safe public-capacity accounting that starts at 200 and prevents reductions below issued, sponsor-held, or active checkout-held seats.
+- Add the relational ticketing foundation for private sponsor allocations, paid orders, and individual attendee tickets, with same-edition source constraints and mandatory identity for issued tickets.
+- Keep the foundation deliberately payment-inactive: no checkout, payment-provider credentials, ticket issuance, or public paid-ticket endpoint is enabled by this change.
+
 ## 2026-10-06 — Stabilize controlled organizer browser saves
 
 - Replace teardown-prone Playwright request listeners in the optimistic work-plan journey with bounded fixture save gates and explicit PATCH-status sequence assertions.

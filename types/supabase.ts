@@ -496,6 +496,54 @@ export interface Database {
         };
         Relationships: [];
       };
+      annual_conference_ticketing_settings: {
+        Row: { edition_id: string; public_capacity: number; sales_status: 'draft' | 'open' | 'closed'; currency: 'GHS'; regular_price_minor: number; team_3_price_minor: number; team_5_price_minor: number; updated_by_email: string | null; created_at: string; updated_at: string };
+        Insert: { edition_id: string; public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; currency?: 'GHS'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; created_at?: string; updated_at?: string };
+        Update: { public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; updated_at?: string };
+        Relationships: [];
+      };
+      annual_conference_sponsor_ticket_allocations: {
+        Row: { id: string; edition_id: string; sponsor_name: string; contact_name: string; contact_email: string; quantity: number; created_by_email: string; created_at: string; updated_at: string };
+        Insert: { id?: string; edition_id: string; sponsor_name: string; contact_name: string; contact_email: string; quantity: number; created_by_email: string; created_at?: string; updated_at?: string };
+        Update: { sponsor_name?: string; contact_name?: string; contact_email?: string; quantity?: number; updated_at?: string };
+        Relationships: [];
+      };
+      annual_conference_ticket_orders: {
+        Row: { id: string; edition_id: string; status: 'pending_payment' | 'paid' | 'refunded' | 'expired' | 'cancelled'; purchaser_name: string; purchaser_email: string; tier_key: string; quantity: number; amount_minor: number; currency: 'GHS'; payment_reference: string | null; provider: string | null; checkout_request_key: string | null; expires_at: string | null; paid_at: string | null; refunded_at: string | null; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_orders']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_ticket_orders']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_tickets: {
+        Row: { id: string; edition_id: string; order_id: string | null; sponsor_allocation_id: string | null; order_seat_number: number | null; status: 'pending' | 'issued' | 'cancelled' | 'checked_in'; attendee_name: string | null; attendee_email: string | null; qr_token_hash: string | null; issued_at: string | null; checked_in_at: string | null; checked_in_by_email: string | null; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_tickets']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_tickets']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_ticket_payment_events: {
+        Row: { id: string; provider: string; provider_event_id: string; order_id: string | null; event_type: string; payment_reference: string; payload_sha256: string; payload_facts: Json; status: 'received' | 'processed' | 'rejected'; rejection_reason: string | null; received_at: string; processed_at: string | null };
+        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_payment_events']['Row'], 'id' | 'received_at' | 'processed_at'> & { id?: string; received_at?: string; processed_at?: string | null };
+        Update: Partial<Database['public']['Tables']['annual_conference_ticket_payment_events']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_ticket_payment_attempts: {
+        Row: { id: string; order_id: string; provider: string; payment_reference: string; status: 'prepared' | 'initialized' | 'confirmed' | 'refund_pending'; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_payment_attempts']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_ticket_payment_attempts']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_ticket_refunds: {
+        Row: { id: string; order_id: string; provider: string; payment_reference: string; amount_minor: number; currency: 'GHS'; status: 'required' | 'processing' | 'refunded' | 'failed' | 'needs_attention'; reason: string; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_refunds']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_ticket_refunds']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_ticket_email_outbox: {
+        Row: { id: string; edition_id: string; order_id: string; kind: 'payment_receipt' | 'ticket_delivery'; recipient_name: string; recipient_email: string; payload: Json; idempotency_key: string; status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed'; attempt_count: number; provider_email_id: string | null; last_error: string | null; next_attempt_at: string; claim_token: string | null; claimed_until: string | null; accepted_at: string | null; delivered_at: string | null; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_ticket_email_outbox']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_ticket_email_outbox']['Insert']>;
+        Relationships: [];
+      };
       annual_conference_speaker_submissions: {
         Row: {
           id: string;
@@ -2258,6 +2306,26 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      create_annual_conference_checkout_hold: {
+        Args: {
+          p_edition_id: string;
+          p_purchaser_name: string;
+          p_purchaser_email: string;
+          p_tier_key: string;
+          p_checkout_request_key: string;
+        };
+        Returns: Database['public']['Tables']['annual_conference_ticket_orders']['Row'];
+      };
+      set_annual_conference_ticket_prices: {
+        Args: {
+          p_edition_id: string;
+          p_regular_price_minor: number;
+          p_team_3_price_minor: number;
+          p_team_5_price_minor: number;
+          p_actor_email: string;
+        };
+        Returns: Database['public']['Tables']['annual_conference_ticketing_settings']['Row'];
+      };
       submit_admin_access_request: {
         Args: { p_user_id: string; p_email: string; p_display_name: string; p_reason?: string | null };
         Returns: Database['public']['Tables']['admin_access_requests']['Row'];

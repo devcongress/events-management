@@ -253,6 +253,7 @@ import {
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
+import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
 import { registerVolunteerFollowUpRoutes } from '@/server/routes/volunteer-follow-up';
 
 const app = new Hono<AppBindings>();
@@ -5149,6 +5150,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
+registerAnnualConferenceTicketingRoutes(app);
 registerVolunteerFollowUpRoutes(app);
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
