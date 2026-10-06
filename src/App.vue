@@ -12,6 +12,7 @@ import {
 import { useRoute, useRouter } from "vue-router";
 import OrganizerSessionPause from "./components/OrganizerSessionPause.vue";
 import OrganizerRoleBadge from "./components/OrganizerRoleBadge.vue";
+import PublicFormRouteFrame from "./components/PublicFormRouteFrame.vue";
 import AppToaster from "./components/ui/AppToaster.vue";
 import AppBootScreen from "./components/ui/AppBootScreen.vue";
 import {
@@ -32,6 +33,7 @@ import { notify } from "./lib/notify";
 import { shouldRedirectUnauthenticatedOrganizer } from "./lib/organizer-session-continuation";
 import { shouldShowAuthenticatedAppHeader } from "./lib/app-shell";
 import { queryClient } from "./lib/query";
+import { isPublicFormRouteName } from "./public-form-routes";
 import { SYSTEM_DESIGN_PARTICIPANT_ROUTE_NAME } from "./system-design-participant-route";
 import {
   ORGANIZER_PHONE_MEDIA_QUERY,
@@ -1179,7 +1181,14 @@ onUnmounted(() => {
             :name="routeTransitionName"
             @after-enter="resetMainScroll"
           >
+            <PublicFormRouteFrame
+              v-if="isPublicFormRouteName(route.name)"
+              :key="routeViewKey(route)"
+            >
+              <component :is="Component" class="page-view" />
+            </PublicFormRouteFrame>
             <component
+              v-else
               :is="Component"
               :key="routeViewKey(route)"
               class="page-view"

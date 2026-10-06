@@ -13,7 +13,7 @@ The suite loads the production Vue build in headless Chromium and interacts with
 - An email-provider failure preserves form values and allows a successful retry.
 - Check-in is disabled before and after the event date; event-day interaction sends a mutation and updates the guest state.
 
-CI allows three minutes for the eight browser scenarios, within the existing 15-minute job budget. Build and browser installation are outside that step. Locator waits are bounded at eight seconds. `results.json` includes individual timings; failed journeys retain full-page screenshots and Playwright traces, and the static server log is always retained. Artifacts expire after seven days. Open a failure trace with `pnpm exec playwright show-trace artifacts/organizer-journeys/<name>.zip`.
+CI allows three minutes for the eight browser scenarios, within the existing 15-minute job budget. Build and browser installation are outside that step. Locator and controlled-save waits are bounded at eight seconds. `results.json` includes individual timings; failed journeys retain full-page screenshots and Playwright traces, and the static server log is always retained. Artifacts expire after seven days. Open a failure trace with `pnpm exec playwright show-trace artifacts/organizer-journeys/<name>.zip`.
 
 ## Reliability backlog and evidence limits
 

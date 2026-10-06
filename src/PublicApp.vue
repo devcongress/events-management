@@ -4,7 +4,13 @@
       <div class="page-route-stack">
         <RouterView v-slot="{ Component, route }">
           <Transition name="page">
-            <component :is="Component" :key="route.fullPath" class="page-view" />
+            <PublicFormRouteFrame
+              v-if="isPublicFormRouteName(route.name)"
+              :key="route.fullPath"
+            >
+              <component :is="Component" class="page-view" />
+            </PublicFormRouteFrame>
+            <component v-else :is="Component" :key="route.fullPath" class="page-view" />
           </Transition>
         </RouterView>
       </div>
@@ -15,4 +21,6 @@
 
 <script setup lang="ts">
 import AppToaster from './components/ui/AppToaster.vue';
+import PublicFormRouteFrame from './components/PublicFormRouteFrame.vue';
+import { isPublicFormRouteName } from './public-form-routes';
 </script>
