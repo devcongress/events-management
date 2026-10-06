@@ -18,10 +18,10 @@
 - Active product shape is a Vue SPA plus Hono API. `server/worker.ts` already exposes the Hono app as a Cloudflare Worker; `server/index.ts` is the separate Bun static-server entrypoint.
 - Organizer routes use `/organizer-console` by default. Hosted auth is Supabase Google OAuth followed by an app-owned HTTP-only session cookie and server-side membership/role checks.
 - The existing public/organizer shell already implements the desired mode switch and authenticated logout behavior in `src/App.vue`; it can serve as behavior reference without forcing its visual system onto the public Astro website.
-- Durable data is split: community events, feedback campaigns/submissions, organizer memberships/sessions/audit data, and media use dedicated Supabase tables/storage; talks, speakers, attendance, checklists, quiz state/results/users, and other prototype domains currently use `app_json_documents` as a Supabase-backed JSON bridge in hosted mode.
-- Local development still falls back to filesystem JSON. The `fs/promises` and `path` fallback in `lib/mock-db/index.ts`, Bun static server, and optional `pdf-parse` quiz upload path must not be copied blindly into an Astro/Workers runtime.
+- Durable data is split: community events, feedback campaigns/submissions, organizer memberships/sessions/audit data, media, and the System Design learning-room runtime use dedicated Supabase tables/storage; talks, speakers, attendance, checklists, and other prototype domains currently use `app_json_documents` as a Supabase-backed JSON bridge in hosted mode.
+- Local development still falls back to filesystem JSON. The `fs/promises` and `path` fallback in `lib/mock-db/index.ts` and Bun static server must not be copied blindly into an Astro/Workers runtime.
 - The current production topology is already split: Pages serves the Vue assets, `public/_worker.js` proxies `/api/*` to a hardcoded public `workers.dev` URL, and the Hono Worker talks to Supabase. The website target must replace that public proxy hop with colocated Hono routes or a private Service Binding.
-- The current Hono API is a roughly 4,800-line monolith with a wildcard Vue-shell handler. It must be split into route groups before composition with Astro; copying it wholesale would intercept Astro pages and bundle unrelated quiz/PDF/filesystem code.
+- The current Hono API is a roughly 4,800-line monolith with a wildcard Vue-shell handler. It must be split into route groups before composition with Astro; copying it wholesale would intercept Astro pages and bundle unrelated legacy/filesystem code.
 - Current auth fallback constants include development password/session defaults. A website production Worker must fail closed when Supabase auth configuration is absent rather than inheriting the fallback.
 
 ## Deployment Evidence
@@ -48,15 +48,14 @@
 - Supabase Postgres is the target system of record for every dynamic organizer/community domain. Supabase Auth owns organizer identity, and Supabase Storage owns uploaded media while Postgres stores media metadata.
 - Repository YAML remains appropriate only for stable editorial website content such as mission, programs, partners, admins, and site copy. It must not become a second source of truth for organizer-managed records.
 - Dedicated relational Supabase repositories are the preferred target. The `app_json_documents` bridge can preserve behavior during migration but is compatibility storage, not a final schema for any multi-writer domain.
-- The JSON bridge rewrites whole arrays and serializes only within one process/isolate. Concurrent Worker isolates can lose updates, so talks, speakers, attendance, checklists, quiz state, and account-merge flows need dedicated repositories or explicit concurrency control before becoming multi-writer website modules.
+- The JSON bridge rewrites whole arrays and serializes only within one process/isolate. Concurrent Worker isolates can lose updates, so talks, speakers, attendance, and checklists need dedicated repositories or explicit concurrency control before becoming multi-writer website modules.
 - Public pages fall into two classes:
   - Stable marketing/editorial content remains pre-rendered from Astro content collections.
   - Organizer-owned, time-sensitive event/community data uses same-origin runtime reads or deliberately invalidated cached output.
-- Worker-incompatible paths must be isolated or replaced: Bun static serving, filesystem fallback writes, and PDF parsing. PDF quiz imports should remain disabled until moved to a compatible asynchronous/storage path.
+- Worker-incompatible paths must be isolated or replaced: Bun static serving and filesystem fallback writes.
 - Safe first extraction: health, auth/session, organizer membership/audit, read-only organizer events, event CRUD/public meetup projections, and media paths backed by dedicated Supabase boundaries.
 - Temporary private-binding candidates: route groups still coupled to the monolith or JSON bridge. Do not expose the compatibility Worker directly to the browser.
-- Live quiz/account merging and PDF-to-quiz are explicitly late migrations because their present concurrency and runtime assumptions are not safe for the website Worker.
-- Durable Objects coordinate transient live quiz-room state only. Quiz definitions, participants, answers, scores, and completed-session history remain durable Supabase records.
+- The retained System Design learning rooms use relational database transitions and polling. Do not introduce a separate realtime runtime without a participant-scoped authorization design.
 - `feature/community-event-submissions` exists outside current `main`; treat it as a later feature candidate, not baseline parity scope.
 
 ## Verification Baseline

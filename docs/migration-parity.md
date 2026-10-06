@@ -8,18 +8,17 @@ Track the Next.js-to-Vue/Bun migration against user-visible product areas.
 - Satoshi + IBM Plex Mono typography direction with editorial page primitives
 - Role-aware top navigation and event-level admin tabs
 - Public archive and event talk pages
-- Public leaderboard and prototype account claim/merge tools
 - CFP submission with speaker allowlist validation
 - Private selected-speaker/archive intake links for slide and talk-detail collection
-- Quiz join and live player gameplay states
+- System Design learning-room join and live participant states
 - Admin event list, create, detail, and status progression
 - Admin talk review/status changes
 - Admin speaker allowlist add/remove
-- Admin quiz session creation, question builder, lobby, and live host controls
+- System Design learning-room question authoring, lobby, and presenter controls
 - Hono API parity for the above flows on the same origin
 
 ## Still intentionally legacy/reference
 
 - Previous React/Next pages under `app/`, React components under `components/`, and hooks under `hooks/` remain as source-reference until the migration is fully hardened.
 - File-upload mode for slides still uses the legacy Next route as reference; active Vue speaker intake links currently support slide URL updates.
-- The active Vue admin quiz builder is behavior-complete for basic CRUD/live flow, but does not yet reproduce every small UI affordance from the React version, such as drag-style question reordering.
+- The retained System Design learning-room workflow is documented separately in `docs/features/system-design-learning-room.md`.

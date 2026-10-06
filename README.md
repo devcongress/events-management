@@ -24,7 +24,7 @@ The app is a Vue 3 + Vite frontend with a Hono API. Cloudflare Pages/Workers and
 **What it helps a small organizer team keep moving:**
 
 - Give the community a trustworthy home for meetup details, CFPs, archives, and post-event feedback
-- Keep event publishing, talk review, speaker follow-up, attendance, media, feedback, and quiz setup in one organizer workspace
+- Keep event publishing, talk review, speaker follow-up, attendance, media, feedback, and System Design learning rooms in one organizer workspace
 - Turn Luma CSV exports into monthly attendance signals instead of another abandoned folder of spreadsheets
 - Protect organizer work with Supabase-backed access, short-lived app sessions, and scoped Annual Conference responsibilities
 - Serve the public and organizer experience through Cloudflare Pages/Workers with same-origin `/api/*` routing
@@ -78,8 +78,8 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 
 | Guide | Description |
 |---|---|
-| [Community Guide](docs/user-guides/community-guide.md) | Public event, CFP, archive, feedback, and quiz flows |
-| [Organizer Guide](docs/user-guides/organizer-guide.md) | Event operations, talks, speakers, attendance, feedback, and quiz hosting |
+| [Community Guide](docs/user-guides/community-guide.md) | Public event, CFP, archive, feedback, and System Design learning-room flows |
+| [Organizer Guide](docs/user-guides/organizer-guide.md) | Event operations, talks, speakers, attendance, feedback, and System Design learning rooms |
 
 ### Technical Documentation
 
@@ -89,7 +89,6 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 | [Implementation Notes](docs/implementation.md) | Entry points, module breakdown, constants, and key flows |
 | [Local Development](docs/technical/local-development.md) | Setup, scripts, seed data, environment variables, and troubleshooting |
 | [Auth](docs/auth.md) | Supabase-only organizer auth, roles, sessions, and security notes |
-| [Deployment Plan](docs/deployment-cloudflare-supabase.md) | Cloudflare Pages/Workers, Supabase, and production rollout notes |
 | [Public Meetup API](docs/public-meetups-api.md) | Read-only meetup API contract for `devcongress.org` integration |
 | [Technical Debt](docs/reference/technical-debt.md) | Evidence-backed production and architecture debt register |
 
@@ -97,9 +96,7 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 
 | Document | Description |
 |---|---|
-| [Environment Variables](docs/reference/environment-variables.md) | Local and production configuration reference |
 | [Routes](docs/reference/routes.md) | Public, organizer, and API route map |
-| [Patterns](docs/patterns.md) | Naming, folders, data access, UI tokens, and anti-patterns |
 | [Technical Debt](docs/reference/technical-debt.md) | Production-readiness and contributor planning backlog |
 | [Decisions](docs/decisions.md) | Architecture decision records |
 | [Changelog](docs/changelog.md) | Feature-level project history |
@@ -111,7 +108,6 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 | [Event Publishing](docs/features/event-publishing.md) | Active | Create, publish, and expose meetups to the public API |
 | [Luma Attendance](docs/features/luma-attendance.md) | Active | Import Luma CSV exports and review attendance insights |
 | [Feedback](docs/features/feedback.md) | Active | Route feedback and event-scoped post-event forms |
-| [Quiz](docs/features/quiz.md) | Preview | Live quiz flow, builder, and rollout limits |
 
 [How to document new features](docs/features/README.md)
 

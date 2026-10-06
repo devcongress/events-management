@@ -333,7 +333,6 @@ const adminEventSectionOrder = [
   "talks",
   "speakers",
   "attendance",
-  "quiz",
   "feedback",
 ];
 const annualConferenceSectionOrder = ["", "work-plan", "volunteers"];
@@ -349,8 +348,7 @@ function getAdminEventSection(
 
   if (!eventId || eventId === "new") return null;
 
-  const normalizedSection = section === "quiz" ? "quiz" : section;
-  const index = adminEventSectionOrder.indexOf(normalizedSection);
+  const index = adminEventSectionOrder.indexOf(section);
 
   if (index === -1) return null;
 

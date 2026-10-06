@@ -108,10 +108,6 @@ Generated session questions require the attendee to choose either a rating from 
 
 The Feedback Hub opens directly to event feedback reports, grouped by year and event period.
 
-## Prepare Quiz Sessions
-
-The Quiz section is a separate ice-breaker flow and remains a preview/phase-two area. It is not used for the System Design learning-room workflow.
-
 ## Prepare System Design Learning Rooms
 
 Use the learning-question panel directly on the saved System Design workspace. Generate and review five questions with concise reveal explanations, then choose **Open presentation view** to open a standalone shared screen in a new browser tab. The organizer workspace remains open in the original tab; the presenter has no admin navigation or editing links. Its QR-first lobby waits for attendees before the facilitator starts. Every attendee receives a default name and fixed Navii avatar after scanning, and may edit the name from their own phone while the lobby remains open; there is no organizer naming setting. Starting the first question closes identity editing. The facilitator then releases and reveals one question at a time, and the room pulse shows a scalable bar for each answer with its participant count and percentage. Finishing the room shows the final presenter leaderboard; attendee phones show only their own avatar, name, and position, with confetti reserved for the top five. This remains available for previous meetups with saved System Design links: meetup completion does not disable the artifact, questions, or presenter. Opening a completed room prepares a fresh live run while preserving the reviewed question set.

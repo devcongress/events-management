@@ -17,6 +17,17 @@
 - Bind the request-access view's public DevCongress logo through a runtime URL so Vite no longer asks the Hono fallback to serve the PNG as a JavaScript module when the post-Google route lazy-loads.
 - Add a focused source-level regression test for the runtime binding. The Google exchange and request-session API behavior are unchanged.
 
+## 2026-10-03 — Time-bound the braces dependency-audit exception
+
+- Allow only `GHSA-vfj7-8cjw-p6xm`, the currently unfixable build-tooling advisory in the Tailwind 3 dependency chain, until its 2026-11-03 review date.
+- Keep the moderate-severity dependency audit, CodeQL, and secret scanning active for every other advisory and security check.
+
+## 2026-10-03 — Retire the classic Quiz and global Leaderboard
+
+- Remove the standalone public and organizer Quiz/Leaderboard routes, navigation, legacy Next copies, profile claim/merge tools, PDF-to-quiz prototype, and their retired API endpoints.
+- Restrict the retained quiz-named runtime to System Design Learning Room sessions only, preserving its participant, presenter, scoring, and persisted compatibility data without a migration or data deletion.
+- Remove stale feature/configuration references and new-event checklist items while retaining explicitly historical product records for context.
+
 ## 2026-09-30 — Patch audited transitive dependencies
 
 - Override `brace-expansion` to 5.0.12 and `undici` to 7.29.1 to incorporate the audited Node 20-compatible security fixes.

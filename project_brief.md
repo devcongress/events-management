@@ -1,6 +1,8 @@
-# Project Brief: Community Presentations & Quiz Platform
+# Historical 2024 Product Brief: Community Presentations & Quiz Platform
 
-## Overview
+> **Superseded historical reference only:** This pre-Vue 2024 product brief describes an earlier Next.js architecture and the retired classic Quiz, global Leaderboard, and account claim/merge product. It is not current implementation or product guidance. Its routes, schema, realtime plan, MVP checklist, and deleted hooks (including `use-countdown.ts`) must not be restored or treated as active scope. The active product scope, including the retained System Design learning rooms, is documented in `docs/`.
+
+## Historical 2024 objective (superseded)
 
 Build a web platform for a monthly community event where speakers present topics and attendees participate in competitive quizzes. The platform manages the entire presentation lifecycle (submission → reminders → event day → public archive) and includes a Kahoot-style quiz system with persistent leaderboards.
 
@@ -340,7 +342,6 @@ CREATE INDEX idx_users_total_points ON users(total_points DESC);
 ├── hooks/
 │   ├── use-quiz-realtime.ts         # Supabase realtime for quiz
 │   ├── use-player-session.ts        # Anonymous auth + device ID
-│   └── use-countdown.ts             # Timer hook
 │
 ├── types/
 │   └── index.ts                     # TypeScript types

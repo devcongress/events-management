@@ -49,7 +49,6 @@ Start with these files before changing code:
 | [docs/README.md](docs/README.md) | Human-friendly documentation map |
 | [docs/architecture.md](docs/architecture.md) | System shape, data flow, auth strategy, and route groups |
 | [docs/implementation.md](docs/implementation.md) | Entry points, modules, configuration, and non-obvious behavior |
-| [docs/patterns.md](docs/patterns.md) | Naming, folder conventions, UI tokens, and anti-patterns |
 
 The legacy Next/React implementation remains in `app/`, `components/`, and `hooks/` as migration reference. New active UI work should go under `src/` unless you are explicitly cleaning up migration leftovers.
 

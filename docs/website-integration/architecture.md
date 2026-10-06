@@ -56,7 +56,6 @@ flowchart TD
     worker --> assets["Static Assets\nprerendered public HTML, CSS, JS, images"]
     worker --> runtime["Hono + Astro runtime routes\n/api, /auth, /organizer-console"]
     runtime --> supabase["Supabase\nAuth, Postgres, Storage"]
-    runtime --> quiz["Durable Object\nlive quiz rooms, later phase"]
     runtime -. temporary compatibility only .-> legacy["Private events-management Worker\nService Binding, no public URL"]
 ```
 
@@ -85,7 +84,7 @@ Supabase and Google OAuth remain server-side platform dependencies. Removing eve
 | Organizer mutations | Same-origin Hono endpoints | Supabase | Yes |
 | Meetup archive/detail after organizer move | On demand with edge caching | Supabase community events | Yes on cache miss |
 | Homepage meetup preview after organizer move | Server island or same-footprint client enhancement | Same-origin public data module | Only for the dynamic fragment |
-| Live quiz | On demand/realtime | Durable Object + Supabase durability | Yes |
+| System Design learning rooms | On demand with polling | Supabase-backed room runtime | Yes |
 
 This resolves the central tension: stable public content remains genuinely static, while organizer-owned content becomes fresh without rebuilding the entire website after every change.
 
@@ -113,7 +112,6 @@ This resolves the central tension: stable public content remains genuinely stati
 
 - Supabase Auth, Postgres, and Storage;
 - Cloudflare-managed DNS for `devcongress.org` (already confirmed);
-- Durable Objects for live coordinated state when the quiz moves.
 
 ## Supabase System-of-Record Plan
 
@@ -130,9 +128,7 @@ The boundary is deliberate:
 | Events, schedules, talks, speakers, CFP, and intake links | Supabase Postgres |
 | Attendance imports and attendee records | Supabase Postgres |
 | Feedback campaigns, questions, and responses | Supabase Postgres |
-| Community profiles, score events, and leaderboard history | Supabase Postgres |
-| Quiz definitions, sessions, participants, answers, and final results | Supabase Postgres |
-| Live quiz timer/phase/room coordination | Cloudflare Durable Object, persisted to Supabase at durable boundaries |
+| System Design learning-room definitions, sessions, participants, answers, and final results | Supabase Postgres |
 | Covers, photos, slide decks, and other uploads | Supabase Storage with Postgres metadata |
 | Stable mission/program/partner/admin/site copy | Repository content collections/YAML |
 | Request/HTML caching | Cloudflare cache; never a source of truth |
@@ -148,8 +144,7 @@ Replace each `app_json_documents` whole-array document with domain tables. The e
 - `attendance_imports` and normalized attendance records;
 - `feedback_campaigns`, `feedback_questions`, and `feedback_submissions`;
 - `admin_memberships`, `admin_sessions`, and `admin_audit_log`;
-- `community_profiles` and append-oriented score/activity records;
-- `quiz_sessions`, `quiz_questions`, `quiz_participants`, and `quiz_answers`.
+- `quiz_sessions`, `quiz_questions`, `quiz_participants`, and `quiz_answers` for the retained System Design learning-room runtime.
 
 Use JSONB only for genuinely flexible nested metadata, not as a replacement for tables or as one whole mutable array per domain.
 
@@ -173,7 +168,7 @@ Use JSONB only for genuinely flexible nested metadata, not as a replacement for 
 6. Compare old/new public and organizer responses during the rollback window.
 7. Remove the compatibility document only after the feature has no remaining readers or writers.
 
-This makes Supabase—not the website build, Cloudflare cache, Worker memory, local files, or Durable Object storage—the durable product source of truth.
+This makes Supabase—not the website build, Cloudflare cache, Worker memory, or local files—the durable product source of truth.
 
 ## Backend Integration Strategy
 
@@ -187,8 +182,7 @@ Do not copy `server/app.ts` wholesale. It is a large mixed route file and import
 4. event checklist, speakers, talks, and speaker intake;
 5. native registration and historical attendance compatibility;
 6. feedback and media;
-7. leaderboard/account compatibility domains;
-8. quiz builder and live quiz coordination.
+7. retained System Design learning-room authoring and presentation.
 
 Each module exposes its Hono routes, schema validation, server-side repository, and focused tests. The website Worker mounts the module before Astro's page middleware.
 
@@ -199,7 +193,6 @@ The following code must be replaced or isolated rather than copied into the Work
 - `server/index.ts` and all `Bun.serve`/`Bun.file` behavior;
 - local filesystem fallback reads/writes in `lib/mock-db/index.ts`;
 - unconditional `node:fs` or process-local persistence assumptions;
-- synchronous/local `pdf-parse` quiz imports;
 - process-local write queues as a concurrency guarantee.
 
 Hosted data is currently available from Supabase, so these exclusions do not require throwing away production data. The Supabase `app_json_documents` bridge may remain temporarily, but each feature should move to dedicated tables when its schema and query patterns justify it.
@@ -284,7 +277,7 @@ Move and verify in this order:
 3. talks, speakers, CFP decisions, and speaker intake after replacing unsafe whole-array write paths;
 4. checklist, Luma preview/import, and attendance after their relational backfills;
 5. feedback campaigns, responses, and event media;
-6. quiz builder/host controls after the data/runtime model is ready.
+6. retained System Design learning-room controls, preserving their relational runtime and polling boundary.
 
 For every slice:
 
@@ -322,8 +315,6 @@ Recommended order balances public value against runtime complexity:
 | 2 | CFP discovery/submission and speaker intake | Clear public-to-organizer workflow |
 | 3 | Event feedback and community event proposals | Bounded writes with visible organizer moderation |
 | 4 | Speaker/talk archive and slide/recording resources | Extends the durable knowledge archive |
-| 5 | Leaderboard and profile/claim flows | More identity and compatibility-state work |
-| 6 | Live quiz player flow | Highest coordination risk; move with Durable Objects rather than JSON polling state |
 
 Every feature is a complete vertical slice: public route, organizer controls, same-origin endpoint, storage, auth/rate limits, analytics, tests, documentation, and rollback.
 
@@ -348,7 +339,7 @@ Retirement requires:
 - no website build/runtime references to the old origin;
 - no unique production writes hitting the old Worker;
 - data counts and representative records reconciled;
-- auth, audit, media, attendance, feedback, and quiz retention checked;
+- auth, audit, media, attendance, feedback, and System Design learning-room retention checked;
 - rollback window completed;
 - old Worker changed to read-only/redirect mode before final shutdown;
 - repository archived only after operational sign-off.

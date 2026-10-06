@@ -113,7 +113,6 @@ const checklistPhaseLabels: Record<EventChecklistPhase, string> = {
 const availableChecklistFeatures = {
   cfp: true,
   speakerAccess: false,
-  quiz: false,
   talkManagement: true,
   systemDesign: true,
   eventDayStart: false,
@@ -139,13 +138,13 @@ function checklistItemAvailable(item: EventChecklistItem): boolean {
     case 'Confirm speakers and talks':
       return availableChecklistFeatures.speakerAccess || availableChecklistFeatures.talkManagement;
     case 'Collect slides and prep quiz':
-      return availableChecklistFeatures.talkManagement || availableChecklistFeatures.quiz;
+      return availableChecklistFeatures.talkManagement;
     case SYSTEM_DESIGN_CHECKLIST_LABEL:
       return availableChecklistFeatures.systemDesign;
     case 'Start event day':
       return availableChecklistFeatures.eventDayStart;
     case 'Run live quiz':
-      return availableChecklistFeatures.quiz;
+      return false;
     case 'Import attendance CSV':
       return availableChecklistFeatures.attendance && !currentEventIsQuarterly();
     case 'Open and review feedback':
@@ -182,7 +181,7 @@ function checklistViewItem(item: EventChecklistItem): ChecklistViewItem {
     };
   }
 
-  if (item.label === 'Collect slides and prep quiz' && !availableChecklistFeatures.quiz) {
+  if (item.label === 'Collect slides and prep quiz') {
     return {
       ...item,
       label: 'Collect presentation materials',

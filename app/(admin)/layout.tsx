@@ -83,14 +83,6 @@ export default function AdminLayout({
                 <span className="mr-3 text-dc-yellow">▸</span>
                 Events
               </a>
-              <a
-                href="/admin/leaderboard"
-                onClick={() => setSidebarOpen(false)}
-                className="flex items-center px-6 py-4 text-dc-gray-light hover:bg-dc-dark-2 hover:text-dc-yellow transition-colors font-semibold uppercase text-sm tracking-wide border-l-2 border-transparent hover:border-dc-yellow"
-              >
-                <span className="mr-3 text-dc-yellow">▸</span>
-                Leaderboard
-              </a>
               <div className="mt-8 mx-6 pt-6 border-t-2 border-dc-dark-3">
                 <a
                   href="/"

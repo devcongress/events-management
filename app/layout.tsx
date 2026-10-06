@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Lato } from "next/font/google";
 import "./globals.css";
 
-// Monospace font for quiz gameplay sections only
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: '--font-mono',
@@ -18,7 +17,7 @@ const lato = Lato({
 
 export const metadata: Metadata = {
   title: "DevCon-Comm",
-  description: "Monthly tech talks, live quizzes, eternal glory",
+  description: "Monthly tech talks and community learning",
 };
 
 export default function RootLayout({

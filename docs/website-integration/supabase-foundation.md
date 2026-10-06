@@ -14,7 +14,7 @@ Supabase is the durable system of record for every dynamic organizer and communi
 - Supabase Postgres owns durable application records and relationships.
 - Supabase Storage owns uploaded media; Postgres owns its metadata and lifecycle.
 - Cloudflare Workers run same-origin application logic but do not own durable data.
-- Durable Objects coordinate transient live quiz rooms but persist definitions, participation, answers, scores, and final state to Supabase.
+- The retained System Design learning-room runtime uses Supabase-backed relational state and polling; Cloudflare Workers do not own durable data.
 - Repository content collections/YAML remain only for stable editorial website content.
 
 This uses Supabase as a complete Postgres platform rather than treating it as a remote JSON-file host. Supabase documents that every project provides a full Postgres database underlying Auth and Storage, while RLS protects tables exposed through its API.
@@ -118,7 +118,7 @@ The compatibility inventory below records domains that were originally stored as
 | `quiz-participants` | 0 | Implemented by `20260801000000_quiz_participants.sql` as relational `quiz_participants`; the compatibility row remains only for rollback/backfill evidence |
 | `quiz-sessions` | 0 | Implemented by `20260801010000_relational_quiz_runtime.sql` as relational `quiz_sessions` |
 | `responses` | 0 | Implemented by `20260801010000_relational_quiz_runtime.sql` as relational `quiz_responses` |
-| `users` | 0 | `community_profiles` + identity/merge records |
+| `users` | 0 | Historical compatibility row; no active classic account-claim or merge workflow |
 
 This bridge is durable but unsafe as a final multi-writer store:
 
@@ -306,18 +306,15 @@ This wave must complete before removing `EVENTS_MANAGEMENT_ORIGIN`.
 - Make campaign/question changes transactional.
 - Replace isolate-local throttling with a durable shared limiter.
 
-### S5 — Community identity and reputation
+### S5 — Retired classic identity and reputation roadmap
 
-- Create community profiles and identity-link records.
-- Model merges explicitly.
-- Use append-oriented participation/score events and derive leaderboard totals.
+The classic account-claim, merge, reputation, and global leaderboard proposal is retired. This historical section is not a migration plan.
 
-### S6 — Quiz and realtime
+### S6 — System Design learning-room runtime
 
-- Completed: relational quiz sessions, questions, participants, answers, room scores, unique session codes, question order, participant membership, and one answer per participant/question.
+- Completed: relational System Design learning-room sessions, questions, participants, answers, room scores, unique session codes, question order, participant membership, and one answer per participant/question.
 - Completed: atomic PostgreSQL answer/scoring and presenter state transitions, plus database-owned aggregate state.
-- Remaining: add a secured Realtime broadcast boundary when participant-scoped authorization exists; do not expose answer-bearing tables directly to anonymous clients.
-- Reconsider a Durable Object only if measured active-room coordination exceeds the relational transaction model rather than making it a second source of truth preemptively.
+- Current transport is polling. Do not expose answer-bearing tables directly to anonymous clients; add a secured Realtime broadcast boundary only when participant-scoped authorization exists.
 
 ### S7 — Retire compatibility storage
 
@@ -344,8 +341,7 @@ Do not dual-write whole JSON documents from the old and new Workers.
 | Remove external meetup API | S2 public projection unified and verified |
 | Attendance/checklist UI | Corresponding S3 tables/backfill complete first |
 | Feedback community slice | S4 integrity and transactional updates complete |
-| Leaderboard/profiles | S5 complete |
-| Live quiz | S6 relational durability plus Durable Object coordination |
+| System Design learning rooms | S6 relational runtime and participant-scoped authorization boundary |
 
 ## Verification Contract
 

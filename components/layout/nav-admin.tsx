@@ -24,12 +24,6 @@ export function NavAdmin() {
             >
               <span>Events</span>
             </Link>
-            <Link
-              href="/admin/leaderboard"
-              className="flex items-center px-6 py-3 text-gray-300 hover:bg-brand-dark-light hover:text-brand-yellow"
-            >
-              <span>Leaderboard</span>
-            </Link>
           </nav>
         </div>
       </div>
