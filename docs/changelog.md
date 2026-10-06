@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-06 — Refresh newly patched audit dependencies
+
+- Raise the Vue runtime family to the patched 3.5.42 release and pin patched transitive `source-map-js` and `postcss-selector-parser` versions.
+- Preserve the narrow, time-bound `GHSA-vfj7-8cjw-p6xm` exception as the only audit allowlist entry; all newly patched advisories remain enforced by CI.
+
 ## 2026-10-06 — Align request access with the DevCongress editorial system
 
 - Bind the shared public-form collaboration image through a runtime constant so Vite keeps the public PNG URL intact during route boot instead of requesting it as a JavaScript module.
