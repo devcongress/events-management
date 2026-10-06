@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-06 — Align request access with the DevCongress editorial system
+
+- Bind the shared public-form collaboration image through a runtime constant so Vite keeps the public PNG URL intact during route boot instead of requesting it as a JavaScript module.
+- Add one motion-free decorative collaboration illustration around the active public-form route allowlist, keeping it out of organizer CRUD, authentication, system-design, and other non-form views.
+- Keep the artwork semantic-free and non-interactive as a clipped lower-right layer: it stays above wrapped form-root backgrounds while its pointer-transparent surface leaves controls unobstructed, uses compact mobile sizing, and scales into a deliberately cropped composition from 1280px upward without reserving layout space.
+- Refine the shared form artwork into a fixed, safe-area-aware background layer beneath transparent routed page roots. It now frames the visible collaboration group from the generated PNG rather than scaling its transparent canvas, so desktop uses the lower-right space confidently while mobile remains a compact viewport embellishment with no document-flow overflow.
+- Keep the subject crop intentionally light at the lower-right edge and opt only the shared form frame out of the existing page enter/leave transform so the decorative layer stays still during route changes.
+- Give the post-Google request-access flow the same shared form artwork as every other allowlisted public form.
+
+- Rebuild the request-access screen with the shared DevCongress editorial layout, panels, labels, inputs, and actions while retaining the existing access-request and session behavior.
+- State the review policy as a second introductory paragraph, with no separate card or divider: every request is reviewed by a DevCongress owner, access is never automatic, and no email is sent.
+
+## 2026-10-03 — Repair local request-access navigation
+
+- Bind the request-access view's public DevCongress logo through a runtime URL so Vite no longer asks the Hono fallback to serve the PNG as a JavaScript module when the post-Google route lazy-loads.
+- Add a focused source-level regression test for the runtime binding. The Google exchange and request-session API behavior are unchanged.
+
 ## 2026-09-30 — Patch audited transitive dependencies
 
 - Override `brace-expansion` to 5.0.12 and `undici` to 7.29.1 to incorporate the audited Node 20-compatible security fixes.
