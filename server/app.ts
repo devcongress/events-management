@@ -253,6 +253,9 @@ import {
 } from '@/server/annual-conference-request';
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
+import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
+import { registerDevcon26TestCheckoutRoutes } from '@/server/routes/devcon26-test-checkout';
+import { DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH, isDevcon26TestCheckoutRequest } from '@/lib/devcon26-test-checkout';
 import { registerVolunteerFollowUpRoutes } from '@/server/routes/volunteer-follow-up';
 
 const app = new Hono<AppBindings>();
@@ -361,6 +364,8 @@ function bodyLimitForPayloadMethods(maxSize: number) {
 app.use('/api/*', bodyLimitForPayloadMethods(API_BODY_MAX_BYTES));
 
 for (const publicWritePath of [
+  `${DEVCON26_TEST_CHECKOUT_PATH}/*`,
+  DEVCON26_TEST_WEBHOOK_PATH,
   '/api/feedback',
   '/api/feedback/events/*',
   '/api/volunteer-applications',
@@ -382,6 +387,7 @@ for (const publicWritePath of [
   '/api/quiz/participants/*',
   // Verify the webhook signature only after buffering the raw body; keep this
   // unauthenticated path on the same narrow ceiling as public form posts.
+  '/api/webhooks/paystack',
   '/api/webhooks/resend/inbound',
   '/api/webhooks/resend',
 ]) {
@@ -1139,7 +1145,7 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
 }
 
 export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
-  return (method === 'GET' && (
+  return isDevcon26TestCheckoutRequest(path, method) || (method === 'GET' && (
     path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
@@ -1156,6 +1162,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || (method === 'POST' && (
       path === '/api/webhooks/resend/inbound'
       || path === '/api/webhooks/resend'
+      || path === '/api/webhooks/paystack'
       || path === '/api/public/email-preflight'
       || path === '/api/cfp'
       || path === '/api/feedback'
@@ -1359,6 +1366,8 @@ const publicSubmissionCors = cors({
 });
 
 app.use('/api/public/*', async (c, next) => {
+  if (c.req.path === DEVCON26_TEST_CHECKOUT_PATH) return publicReadCors(c, next);
+  if (isDevcon26TestCheckoutRequest(c.req.path, 'POST')) return publicSubmissionCors(c, next);
   if (isPublicReadApiPath(c.req.path)) return publicReadCors(c, next);
   if (isPublicEventSubmissionIntakePath(c.req.path)) return publicSubmissionCors(c, next);
   await next();
@@ -5149,6 +5158,8 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
+registerAnnualConferenceTicketingRoutes(app);
+registerDevcon26TestCheckoutRoutes(app);
 registerVolunteerFollowUpRoutes(app);
 
 app.get('/api/annual-conference/:year/finance', async (c) => {
