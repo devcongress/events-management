@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-07 — Connect isolated public DevCon26 test checkout
+
+- Add no-login public Paystack sandbox initialization and server-verified return endpoints, plus a separately signed sandbox webhook. Reject live keys, client pricing, untrusted return origins, unsafe hosted-checkout URLs, and non-test provider results.
+- Keep sandbox sessions and provider-event deduplication in service-role-only tables, entirely separate from live inventory, orders, finance, refunds, admission tickets, and email outboxes. Fixed server-owned sandbox prices match the published cards.
+- Preserve the public website's approved modal, photo overlays, and scroll/animation behavior while adding availability, loading, retry, pending, failure, and verified-test states. The website defaults to the deployed EMS API, without organizer authentication or browser secrets.
+- Deployment, the new database migration, hosted test configuration, and an actual provider test transaction remain separate activation steps; this change does not open live sales.
+- Update the existing build-time `sharp` override to patched 0.35.5 so the high-severity librsvg advisory does not block the feature's dependency security check.
+
 ## 2026-10-06 — Harden DevCon26 ticket-email operations
 
 - Redact outbox payloads, idempotency keys, QR capabilities, and claim leases from both list and retry responses, even when a database RPC returns a full row.

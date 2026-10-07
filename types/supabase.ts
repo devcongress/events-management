@@ -496,6 +496,12 @@ export interface Database {
         };
         Relationships: [];
       };
+      devcon26_test_checkout_sessions: {
+        Row: { id: string; checkout_request_key: string; tier_key: 'regular' | 'team_3' | 'team_5'; quantity: number; amount_minor: number; currency: 'GHS'; payment_reference: string; status: 'prepared' | 'initialized' | 'verified' | 'rejected'; authorization_url: string | null; initialization_lease: string | null; initialization_lease_until: string | null; expires_at: string; verified_at: string | null; created_at: string };
+        Insert: { id?: string; checkout_request_key: string; tier_key: string; quantity: number; amount_minor: number; payment_reference: string };
+        Update: { authorization_url?: string; status?: 'initialized'; initialization_lease?: null; initialization_lease_until?: null };
+        Relationships: [];
+      };
       annual_conference_ticketing_settings: {
         Row: { edition_id: string; public_capacity: number; sales_status: 'draft' | 'open' | 'closed'; currency: 'GHS'; regular_price_minor: number; team_3_price_minor: number; team_5_price_minor: number; updated_by_email: string | null; created_at: string; updated_at: string };
         Insert: { edition_id: string; public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; currency?: 'GHS'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; created_at?: string; updated_at?: string };
@@ -2306,6 +2312,14 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      prepare_devcon26_test_checkout: {
+        Args: { p_request_key: string; p_tier_key: string };
+        Returns: Database['public']['Tables']['devcon26_test_checkout_sessions']['Row'];
+      };
+      confirm_devcon26_test_checkout: {
+        Args: { p_reference: string; p_event_id: string; p_amount_minor: number; p_currency: string; p_domain: string; p_provider_status: string; p_payload_sha256: string };
+        Returns: Database['public']['Tables']['devcon26_test_checkout_sessions']['Row'];
+      };
       create_annual_conference_checkout_hold: {
         Args: {
           p_edition_id: string;

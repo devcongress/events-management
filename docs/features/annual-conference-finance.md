@@ -55,7 +55,22 @@ The assignment/delivery migration (`20261006150000_annual_conference_ticket_assi
 
 The email-delivery operations migration (`20261006170000_annual_conference_ticket_email_delivery_operations.sql`) gives Owners an edition-scoped operational ledger without exposing email payloads, QR capabilities, idempotency keys, or worker claim leases. It caps automated attempts at five with bounded exponential backoff. An Owner can requeue only a definite pre-provider-acceptance failure; accepted, delivered, claimed, exhausted, and provider-ambiguous records deliberately require review instead of risking a duplicate email. The Ticketing workspace has status filtering and pagination for the full edition history; its health counts are calculated across the edition, not just the visible page. These controls inspect and safely requeue durable records only: no provider send is activated until the explicit Resend sender configuration and delivery worker are separately supplied and enabled.
 
-Paystack is represented by a hosted-checkout adapter and an HMAC-SHA512 verified webhook endpoint, but it is disabled unless all three server-only values are deliberately configured: `DEVCON26_PAYMENTS_ENABLED=true`, `DEVCON26_PAYMENT_PROVIDER=paystack`, and `PAYSTACK_SECRET_KEY`. No public checkout endpoint, merchant credential, email send, or provider request is enabled by this foundation.
+The live ticket-payment foundation remains disabled unless all three server-only values are deliberately configured: `DEVCON26_PAYMENTS_ENABLED=true`, `DEVCON26_PAYMENT_PROVIDER=paystack`, and `PAYSTACK_SECRET_KEY`. The sandbox described below is independently gated and never calls the live confirmation command.
+
+### Isolated public Paystack test checkout
+
+Buyers never log into EMS. The public website owns the modal and Paystack navigation; EMS owns initialization and verification through the following anonymous, exact-origin, rate-limited routes:
+
+- `GET /api/public/annual-conference/2026/test-checkout`: read-only readiness and the fixed GHS test catalog.
+- `POST /api/public/annual-conference/2026/test-checkout/initialize`: accepts only `tier_key` and a UUID `checkout_request_key`. A durable lease serializes initialization; initialized retries reuse the same hosted URL. The server supplies price, quantity, currency, controlled test buyer email, provider reference, and callback URL.
+- `POST /api/public/annual-conference/2026/test-checkout/verify`: accepts only a server-created `reference`; returns `verified`, `pending`, or `failed` from trusted provider evidence, never browser success claims.
+- `POST /api/webhooks/paystack/devcon26-test`: verifies the raw-body HMAC signature, looks up a sandbox reference, and uses the same provider-verification and durable confirmation path. It has no browser CORS or organizer-session requirement.
+
+Apply `20261007050000_devcon26_test_checkout.sql` through an approved migration release before enabling. `devcon26_test_checkout_sessions` and `devcon26_test_payment_events` are RLS-protected and service-role-only; they have no live inventory, finance, ticket, refund, or email effects. Both sandbox catalog and SQL mapping are fixed at GHS 199.99 / 549.99 / 849.99, independent of draft organizer price edits.
+
+Hosted activation requires `DEVCON26_TEST_CHECKOUT_ENABLED=true`, `DEVCON26_PAYMENT_PROVIDER=paystack`, `PAYSTACK_SECRET_KEY=sk_test_…`, `DEVCON26_TEST_BUYER_EMAIL` set to a controlled test inbox, and `PUBLIC_WEBSITE_ORIGIN` set to the exact HTTPS public-site origin. Also allow that origin in `PUBLIC_API_CORS_ORIGINS`. The callback is server-derived as `/devcon26/?test_checkout=return`; arbitrary client callback URLs are rejected. Local return origins are allowed only in explicit development mode. Keep `DEVCON26_PAYMENTS_ENABLED=false` and ticket emails disabled while testing.
+
+The Astro website defaults to `https://em.devcongress.org`; `PUBLIC_DEVCON26_API_ORIGIN` can override the API origin at build time. Deploy the corresponding public page before testing the callback, configure Paystack's test webhook URL to the sandbox endpoint, and use only Paystack test payment details. Test success confirms the hosted payment round trip but does not issue an admission ticket or test live seat reservation, attendee assignment, ticket email, QR validation, or settlement. Source-contract tests do not substitute for applying and executing the PostgreSQL migration in an approved isolated environment.
 
 ## Deliberate follow-ups
 

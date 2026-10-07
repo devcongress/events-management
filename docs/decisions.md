@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-102: Isolate public payment testing from admission ticketing
+
+**Date:** 2026-10-07
+
+**Decision:** The public website starts and verifies Paystack test transactions through narrowly public EMS APIs, without organizer login. Persist sandbox sessions and provider-event deduplication in new service-role-only tables with no relationship to the live conference ticketing domain. Require an independent test switch, an `sk_test_` secret, a controlled buyer inbox, and a validated public-site return origin. Use a fixed server-owned test catalog and verify the provider's test domain, reference, amount, and GHS currency before reporting success.
+
+**Reason:** The existing payment-confirmation command issues admission tickets, consumes inventory, and queues receipt/ticket emails regardless of the merchant key's mode. Testing against that command would pollute real operations even without moving real money. A signed browser state alone cannot durably deduplicate provider events or recover callback/webhook races.
+
+**Trade-offs:** Sandbox confirmation proves hosted payment initialization and verification, not live capacity reservation, named attendee assignment, email/QR delivery, or finance reconciliation. It needs a new unapplied migration and separate hosted activation. Live sales remain an explicit later release; buyers must still never need organizer authentication.
+
 ## ADR-101: Time-bound the no-fix braces audit exception
 
 **Date:** 2026-10-03

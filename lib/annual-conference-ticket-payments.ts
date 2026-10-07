@@ -17,13 +17,14 @@ const paystackWebhookSchema = z.object({
     amount: z.number().int().nonnegative(),
     currency: z.string().trim().length(3),
     status: z.string().trim().min(1).max(80),
+    domain: z.enum(['test', 'live']).optional(),
     metadata: z.object({ order_id: z.string().uuid().optional() }).passthrough().optional(),
   }).passthrough(),
 }).passthrough();
 
 const paystackInitializationSchema = z.object({
   status: z.literal(true),
-  data: z.object({ authorization_url: z.string().url() }),
+  data: z.object({ authorization_url: z.string().url(), reference: z.string() }),
 });
 
 function enabledFlag(value: string | undefined): boolean {
@@ -89,11 +90,11 @@ export function parseVerifiedPaystackCharge(rawBody: string): VerifiedPaystackCh
   };
 }
 
-export async function verifyPaystackTransaction(input: {
+async function readPaystackTransaction(input: {
   secretKey: string;
   paymentReference: string;
   fetcher?: typeof fetch;
-}): Promise<VerifiedPaystackTransaction> {
+}) {
   const response = await (input.fetcher ?? fetch)(`https://api.paystack.co/transaction/verify/${encodeURIComponent(input.paymentReference)}`, {
     headers: { Authorization: `Bearer ${input.secretKey}` },
     signal: AbortSignal.timeout(15_000),
@@ -101,24 +102,67 @@ export async function verifyPaystackTransaction(input: {
   const responsePayload = response ? await response.json().catch(() => null) : null;
   const parsed = paystackWebhookSchema.safeParse({ event: 'charge.success', data: responsePayload?.data });
 
-  if (!response?.ok || !parsed.success || parsed.data.data.status !== 'success' || parsed.data.data.reference !== input.paymentReference) {
+  if (!response?.ok || responsePayload?.status !== true || !parsed.success || parsed.data.data.reference !== input.paymentReference) {
     throw new Error('Paystack could not verify payment.');
   }
 
+  return parsed.data.data;
+}
+
+export async function verifyPaystackTransaction(input: {
+  secretKey: string;
+  paymentReference: string;
+  fetcher?: typeof fetch;
+}): Promise<VerifiedPaystackTransaction> {
+  const transaction = await readPaystackTransaction(input);
+
+  if (transaction.status !== 'success') throw new Error('Paystack could not verify payment.');
+
   return {
     provider: 'paystack',
-    providerEventId: `charge:${parsed.data.data.id}`,
+    providerEventId: `charge:${transaction.id}`,
     eventType: 'charge.success',
-    paymentReference: parsed.data.data.reference,
-    amountMinor: parsed.data.data.amount,
-    currency: parsed.data.data.currency.toUpperCase(),
+    paymentReference: transaction.reference,
+    amountMinor: transaction.amount,
+    currency: transaction.currency.toUpperCase(),
     facts: {
-      id: String(parsed.data.data.id),
-      amount: parsed.data.data.amount,
-      currency: parsed.data.data.currency.toUpperCase(),
-      status: parsed.data.data.status,
+      id: String(transaction.id),
+      amount: transaction.amount,
+      currency: transaction.currency.toUpperCase(),
+      status: transaction.status,
     },
   };
+}
+
+export async function readPaystackTestTransaction(input: {
+  secretKey: string;
+  paymentReference: string;
+  fetcher?: typeof fetch;
+}) {
+  if (!input.secretKey.startsWith('sk_test_')) throw new Error('Test payment configuration is invalid.');
+  const transaction = await readPaystackTransaction(input);
+
+  if (transaction.domain !== 'test') throw new Error('Test payment verification is invalid.');
+
+  return {
+    status: transaction.status === 'success' ? 'verified' as const
+      : ['pending', 'ongoing', 'processing', 'queued'].includes(transaction.status) ? 'pending' as const : 'failed' as const,
+    providerEventId: `charge:${transaction.id}`,
+    paymentReference: transaction.reference,
+    amountMinor: transaction.amount,
+    currency: transaction.currency.toUpperCase(),
+  };
+}
+
+export function isPaystackCheckoutUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === 'https:' && url.hostname === 'checkout.paystack.com'
+      && !url.username && !url.password && !url.port;
+  } catch {
+    return false;
+  }
 }
 
 export function paystackReferenceForTicketOrder(orderId: string): string {
@@ -131,9 +175,10 @@ export async function createPaystackHostedCheckout(input: {
   purchaserEmail: string;
   amountMinor: number;
   callbackUrl: string;
+  paymentReference?: string;
   fetcher?: typeof fetch;
 }): Promise<{ authorizationUrl: string; paymentReference: string }> {
-  const reference = paystackReferenceForTicketOrder(input.orderId);
+  const reference = input.paymentReference ?? paystackReferenceForTicketOrder(input.orderId);
   const response = await (input.fetcher ?? fetch)('https://api.paystack.co/transaction/initialize', {
     method: 'POST',
     headers: {
@@ -153,7 +198,9 @@ export async function createPaystackHostedCheckout(input: {
 
   const parsed = response ? paystackInitializationSchema.safeParse(await response.json().catch(() => null)) : null;
 
-  if (!response?.ok || !parsed?.success) throw new Error('Paystack could not initialize checkout.');
+  if (!response?.ok || !parsed?.success || parsed.data.data.reference !== reference || !isPaystackCheckoutUrl(parsed.data.data.authorization_url)) {
+    throw new Error('Paystack could not initialize checkout.');
+  }
 
   return { authorizationUrl: parsed.data.data.authorization_url, paymentReference: reference };
 }
