@@ -44,6 +44,7 @@ import type {
 import type { FeedbackKind, FeedbackStatus } from '@/types/supabase';
 import type { AdminMembershipStatus, AdminRole } from '@/types/supabase';
 import type { AnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
+import type { AnnualConferenceTicketingInventory, AnnualConferenceTicketingSettings } from '@/lib/annual-conference-ticketing';
 
 export interface OverviewRegular {
   key: string;
@@ -400,6 +401,36 @@ export interface AnnualConferenceEditionsResponse {
   editions: AnnualConferenceEdition[];
 }
 
+export interface AnnualConferenceTicketingResponse {
+  settings: AnnualConferenceTicketingSettings;
+  inventory: AnnualConferenceTicketingInventory;
+}
+export interface AnnualConferenceSponsorAllocation { id: string; sponsor_name: string; contact_name: string; contact_email: string; quantity: number; created_at: string; }
+export type AnnualConferenceTicketEmailDeliveryStatus = 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed';
+export interface AnnualConferenceTicketEmailDelivery {
+  id: string;
+  order_id: string;
+  kind: 'payment_receipt' | 'ticket_delivery';
+  recipient_name: string;
+  recipient_email: string;
+  status: AnnualConferenceTicketEmailDeliveryStatus;
+  attempt_count: number;
+  provider_email_id: string | null;
+  last_error: string | null;
+  next_attempt_at: string;
+  accepted_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface AnnualConferenceTicketEmailDeliveriesResponse {
+  deliveries: AnnualConferenceTicketEmailDelivery[];
+  total: number;
+  summary: Record<AnnualConferenceTicketEmailDeliveryStatus, number>;
+  page: number;
+  page_size: number;
+}
+
 export interface EventChecklistResponse {
   event_status: Event['status'];
   items: EventChecklistItem[];
@@ -483,6 +514,7 @@ export const queryKeys = {
   eventSubmissions: (status: EventSubmissionQueueFilter | 'all') => ['event-submissions', status] as const,
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
+  annualConferenceTicketing: (year: string) => ['annual-conference-ticketing', year] as const,
   annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
@@ -584,6 +616,57 @@ export function fetchAnnualConferenceFinance(year: string) {
   return fetchJson<AnnualConferenceFinanceResponse>('/api/annual-conference/' + year + '/finance', {
     credentials: 'include',
   });
+}
+
+export function fetchAnnualConferenceTicketing(year: string) {
+  return fetchJson<AnnualConferenceTicketingResponse>(`/api/annual-conference/${year}/ticketing`, {
+    credentials: 'include',
+  });
+}
+
+export function updateAnnualConferenceTicketingCapacity(year: string, publicCapacity: number) {
+  return fetchJson<{ settings: AnnualConferenceTicketingSettings }>(`/api/annual-conference/${year}/ticketing/capacity`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ public_capacity: publicCapacity }),
+  });
+}
+
+export function updateAnnualConferenceTicketPrices(year: string, prices: { regular: string; team_3: string; team_5: string }) {
+  return fetchJson<{ settings: AnnualConferenceTicketingSettings }>(`/api/annual-conference/${year}/ticketing/prices`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(prices),
+  });
+}
+
+export function fetchAnnualConferenceSponsorAllocations(year: string) { return fetchJson<{ allocations: AnnualConferenceSponsorAllocation[] }>(`/api/annual-conference/${year}/ticketing/sponsor-allocations`, { credentials: 'include' }); }
+export function createAnnualConferenceSponsorAllocation(year: string, input: Omit<AnnualConferenceSponsorAllocation, 'id' | 'created_at'>) { return fetchJson<{ allocation: AnnualConferenceSponsorAllocation }>(`/api/annual-conference/${year}/ticketing/sponsor-allocations`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }); }
+
+export function fetchAnnualConferenceTicketEmailDeliveries(year: string, input: {
+  page?: number;
+  pageSize?: number;
+  status?: AnnualConferenceTicketEmailDeliveryStatus;
+} = {}) {
+  const params = new URLSearchParams();
+
+  if (input.page) params.set('page', String(input.page));
+  if (input.pageSize) params.set('page_size', String(input.pageSize));
+  if (input.status) params.set('status', input.status);
+  const query = params.size ? `?${params}` : '';
+
+  return fetchJson<AnnualConferenceTicketEmailDeliveriesResponse>(`/api/annual-conference/${year}/ticketing/email-deliveries${query}`, {
+    credentials: 'include',
+  });
+}
+
+export function retryAnnualConferenceTicketEmailDelivery(year: string, deliveryId: string) {
+  return fetchJson<{ delivery: AnnualConferenceTicketEmailDelivery }>(
+    `/api/annual-conference/${year}/ticketing/email-deliveries/${deliveryId}/retry`,
+    { method: 'POST', credentials: 'include' },
+  );
 }
 
 export function createAnnualConferenceFinanceBudget(

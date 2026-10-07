@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -23,7 +23,7 @@ import {
   VOLUNTEER_SECTION_CAPABILITIES,
 } from '@/lib/annual-conference-capabilities';
 
-type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'volunteers' | 'speakers' | 'finance';
+type AnnualConferenceNavIcon = 'overview' | 'work-plan' | 'volunteers' | 'speakers' | 'finance' | 'tickets';
 
 type AnnualConferenceNavLink = {
   href: string;
@@ -112,7 +112,9 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
+  ...(sessionQuery.data.value?.user?.role === 'owner' ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }] : []),
 ]);
+const navViewport = ref<HTMLElement | null>(null);
 const editionOptions = computed(() => editions.value.map((edition) => ({
   value: String(edition.year),
   label: edition.label,
@@ -170,6 +172,16 @@ function isActive(href: string): boolean {
 
   return route.path === href || route.path.startsWith(`${href}/`);
 }
+
+function revealActiveNavLink() {
+  void nextTick(() => {
+    navViewport.value
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+  });
+}
+
+watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immediate: true });
 </script>
 
 <template>
@@ -207,15 +219,16 @@ function isActive(href: string): boolean {
         </button>
       </div>
 
-      <nav class="annual-conference-nav mt-1 w-full" aria-label="Annual Conference workspace">
-        <RouterLink
-          v-for="link in links"
-          :key="link.href"
-          :to="link.href"
-          class="annual-conference-nav-link"
-          :class="{ 'annual-conference-nav-link--active': isActive(link.href) }"
-          :aria-current="isActive(link.href) ? 'page' : undefined"
-        >
+      <div ref="navViewport" class="annual-conference-nav-viewport mt-1 w-full">
+        <nav class="annual-conference-nav" aria-label="Annual Conference workspace">
+          <RouterLink
+            v-for="link in links"
+            :key="link.href"
+            :to="link.href"
+            class="annual-conference-nav-link"
+            :class="{ 'annual-conference-nav-link--active': isActive(link.href) }"
+            :aria-current="isActive(link.href) ? 'page' : undefined"
+          >
           <svg class="annual-conference-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <template v-if="link.icon === 'overview'">
               <rect x="3" y="3" width="5.5" height="5.5" rx="1" />
@@ -236,14 +249,19 @@ function isActive(href: string): boolean {
               <circle cx="8.5" cy="7" r="2.75" />
               <path d="M13 8.5h3.75M14.9 6.6v3.8" />
             </template>
-            <template v-else>
+            <template v-else-if="link.icon === 'finance'">
               <path d="M3.5 6.25h13v8.5h-13z" />
               <path d="M3.5 8.25h13M6.5 12.5h3.25" />
             </template>
+            <template v-else>
+              <path d="M4 5.25h12v9.5H4z" />
+              <path d="M7 8h6M7 11h4" />
+            </template>
           </svg>
-          {{ link.label }}
-        </RouterLink>
-      </nav>
+            {{ link.label }}
+          </RouterLink>
+        </nav>
+      </div>
     </div>
 
     <form
@@ -293,8 +311,10 @@ function isActive(href: string): boolean {
   display: flex;
   gap: 1.5rem;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   border-bottom: 1px solid #d6d2c8;
   padding: 0 0.125rem;
+  scroll-padding-inline: 0.125rem;
   scrollbar-width: none;
 }
 
@@ -314,6 +334,7 @@ function isActive(href: string): boolean {
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0;
+  scroll-margin-inline: 0.75rem;
   transition:
     color 150ms cubic-bezier(0.4, 0, 0.2, 1),
     transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -381,8 +402,25 @@ function isActive(href: string): boolean {
 }
 
 @media (max-width: 639px) {
+  .annual-conference-nav-viewport {
+    position: relative;
+  }
+
+  .annual-conference-nav-viewport::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 2rem;
+    height: 2.875rem;
+    background: linear-gradient(90deg, rgb(245 242 232 / 0%), #f5f2e8 78%);
+    content: '';
+    pointer-events: none;
+  }
+
   .annual-conference-nav {
     gap: 1.125rem;
+    padding-right: 2rem;
+    scroll-padding-right: 2rem;
   }
 }
 

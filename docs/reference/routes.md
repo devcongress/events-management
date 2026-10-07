@@ -24,6 +24,8 @@ This deployment is a protected operations console, with full organizer access an
 
 The Hono public integration API remains available for the website and other approved consumers; removing browser routes does not remove that backend contract.
 
+DevCon26 buyers never need an organizer login. The independently gated Paystack sandbox exposes `GET /api/public/annual-conference/2026/test-checkout` plus public `POST` operations at `/initialize` and `/verify`. They accept no organizer cookies, use exact public-site origins, and write only isolated test records. The signed provider webhook is `POST /api/webhooks/paystack/devcon26-test`. See [test checkout activation and boundaries](../features/annual-conference-finance.md#isolated-public-paystack-test-checkout); live sales, tickets, revenue, inventory, and emails remain inactive.
+
 ## Organizer Routes
 
 The organizer base path defaults to `/organizer-console` and can be changed with `VITE_ADMIN_BASE_PATH`.
