@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-103: Scope sandbox preview access and payment returns by exact origin
+
+**Date:** 2026-10-07
+
+**Decision:** Add an optional `DEVCON26_TEST_CHECKOUT_ORIGINS` allowlist solely to the independently gated sandbox's catalog, initialization, and verification routes. Preserve the main website as the default sandbox origin. Require exact canonical HTTPS preview origins, fail closed for malformed lists, and derive the server-owned payment callback from the validated request origin. Namespace initialization UUIDs with a SHA-256-derived UUIDv8 per origin before using the existing sandbox persistence commands.
+
+**Reason:** The production EMS configuration correctly rejects website preview CORS and previously required every sandbox initialization to use the main website origin. Broadening general CORS or repointing the shared website origin would affect unrelated public routes, organizer access, and email links. A retry key reused across approved previews must not reuse a hosted URL with the other preview's callback.
+
+**Trade-offs:** A new commit preview requires explicit allowlist configuration, while the stable branch preview can be reused across builds. Older in-memory retry keys start a new isolated test session after this rollout; durable provider references and signed webhook verification remain compatible. This change has no live inventory, ticket, finance, email, or settlement effects, and a live merchant key still disables the sandbox rather than opening sales.
+
 ## ADR-102: Isolate public payment testing from admission ticketing
 
 **Date:** 2026-10-07

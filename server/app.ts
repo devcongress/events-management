@@ -254,8 +254,11 @@ import {
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
-import { registerDevcon26TestCheckoutRoutes } from '@/server/routes/devcon26-test-checkout';
-import { DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH, isDevcon26TestCheckoutRequest } from '@/lib/devcon26-test-checkout';
+import { devcon26TestConfigurationForRequest, registerDevcon26TestCheckoutRoutes } from '@/server/routes/devcon26-test-checkout';
+import {
+  DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH,
+  devcon26TestCheckoutOriginConfiguration, isDevcon26TestCheckoutRequest,
+} from '@/lib/devcon26-test-checkout';
 import { registerVolunteerFollowUpRoutes } from '@/server/routes/volunteer-follow-up';
 
 const app = new Hono<AppBindings>();
@@ -1365,9 +1368,21 @@ const publicSubmissionCors = cors({
   maxAge: 86400,
 });
 
+const publicTestCheckoutCors = cors({
+  origin: (origin, c) => {
+    const configuration = devcon26TestConfigurationForRequest(c);
+
+    return configuration && devcon26TestCheckoutOriginConfiguration(configuration, origin) ? origin : undefined;
+  },
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+  maxAge: 600,
+});
+
 app.use('/api/public/*', async (c, next) => {
-  if (c.req.path === DEVCON26_TEST_CHECKOUT_PATH) return publicReadCors(c, next);
-  if (isDevcon26TestCheckoutRequest(c.req.path, 'POST')) return publicSubmissionCors(c, next);
+  if (c.req.path === DEVCON26_TEST_CHECKOUT_PATH || isDevcon26TestCheckoutRequest(c.req.path, 'POST')) {
+    return publicTestCheckoutCors(c, next);
+  }
   if (isPublicReadApiPath(c.req.path)) return publicReadCors(c, next);
   if (isPublicEventSubmissionIntakePath(c.req.path)) return publicSubmissionCors(c, next);
   await next();

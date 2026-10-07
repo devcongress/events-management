@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Devcon26TestSession } from '@/lib/supabase/devcon26-test-checkout';
 import * as storage from '@/lib/supabase/devcon26-test-checkout';
 import { consumePublicRateLimit } from '@/lib/public-rate-limit';
+import { devcon26TestCheckoutRequestKey } from '@/lib/devcon26-test-checkout';
 import app, { isUnauthenticatedApiRequest } from '@/server/app';
 
 vi.mock('@/lib/supabase/devcon26-test-checkout', () => ({
@@ -16,6 +17,8 @@ const webhookPath = '/api/webhooks/paystack/devcon26-test';
 const reference = 'devcon26-test-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa';
 const requestKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const checkoutUrl = 'https://checkout.paystack.com/test-fixture';
+const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
+const commitOrigin = 'https://63b14d94-devcongress-website.admins-a7d.workers.dev';
 let session: Devcon26TestSession;
 let provider: ReturnType<typeof vi.fn>;
 let providerFacts: Record<string, unknown>;
@@ -35,6 +38,7 @@ beforeEach(() => {
     DEVCON26_TEST_CHECKOUT_ENABLED: 'true', DEVCON26_PAYMENT_PROVIDER: 'paystack',
     PAYSTACK_SECRET_KEY: 'sk_test_fixture', DEVCON26_TEST_BUYER_EMAIL: 'sandbox@example.com',
     PUBLIC_WEBSITE_ORIGIN: 'https://devcongress.org', PUBLIC_API_CORS_ORIGINS: 'https://devcongress.org',
+    DEVCON26_TEST_CHECKOUT_ORIGINS: `${previewOrigin},${commitOrigin}`,
   })) vi.stubEnv(key, value);
 
   session = {
@@ -75,6 +79,120 @@ afterEach(() => {
 });
 
 describe('public DevCon26 test checkout integration', () => {
+  it.each([previewOrigin, commitOrigin])('supports anonymous sandbox CORS, initialization and verification from %s', async (origin) => {
+    const catalog = await app.request(`https://ems.example${base}`, { headers: { Origin: origin } });
+
+    expect((await catalog.json()).mode).toBe('test');
+    expect(catalog.headers.get('access-control-allow-origin')).toBe(origin);
+    expect(catalog.headers.get('access-control-allow-credentials')).toBeNull();
+
+    const preflight = await app.request(`https://ems.example${base}/initialize`, {
+      method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' },
+    });
+
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(origin);
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('POST');
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('Content-Type');
+    expect(preflight.headers.get('access-control-allow-credentials')).toBeNull();
+
+    const initialized = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey }, { Origin: origin });
+
+    expect(initialized.status).toBe(200);
+    expect(initialized.headers.get('access-control-allow-origin')).toBe(origin);
+    expect(JSON.parse(provider.mock.calls[0][1].body).callback_url).toBe(`${origin}/devcon26/?test_checkout=return`);
+    expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'team_3');
+
+    const verified = await post(`${base}/verify`, { reference }, { Origin: origin });
+
+    expect(verified.status).toBe(200);
+    expect((await verified.json()).status).toBe('verified');
+    expect(verified.headers.get('access-control-allow-origin')).toBe(origin);
+  });
+
+  it('does not grant preview access to neighboring public, webhook or organizer routes', async () => {
+    for (const path of ['/api/public/meetups', `${base}/neighbor`, '/api/public/event-submissions', webhookPath, '/api/annual-conference/2026/ticketing']) {
+      const response = await app.request(`https://ems.example${path}`, {
+        method: 'OPTIONS', headers: { Origin: previewOrigin, 'Access-Control-Request-Method': 'POST' },
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).not.toBe(previewOrigin);
+    }
+
+    const production = await app.request('https://ems.example/api/public/meetups', {
+      method: 'OPTIONS', headers: { Origin: 'https://devcongress.org', 'Access-Control-Request-Method': 'GET' },
+    });
+
+    expect(production.headers.get('access-control-allow-origin')).toBe('https://devcongress.org');
+    expect((await app.request('https://ems.example/api/annual-conference/2026/ticketing')).status).toBe(401);
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for wildcard configuration and preview requests with live credentials', async () => {
+    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+
+    for (const override of [{ DEVCON26_TEST_CHECKOUT_ORIGINS: 'https://*.workers.dev' }, { PAYSTACK_SECRET_KEY: 'sk_live_fixture' }]) {
+      vi.stubEnv('DEVCON26_TEST_CHECKOUT_ORIGINS', `${previewOrigin},${commitOrigin}`);
+      vi.stubEnv('PAYSTACK_SECRET_KEY', 'sk_test_fixture');
+      for (const [key, value] of Object.entries(override)) vi.stubEnv(key, value);
+      const response = await post(`${base}/initialize`, input, { Origin: previewOrigin });
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    }
+
+    expect(provider).not.toHaveBeenCalled();
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
+  it.each(['null', '', `${previewOrigin}/`, `${previewOrigin}.attacker.example`, 'http://localhost:4321'])('rejects an unapproved request origin %s before storage or provider work', async (origin) => {
+    const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey }, { Origin: origin });
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(provider).not.toHaveBeenCalled();
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects browser initialization without an Origin header', async () => {
+    const response = await app.request(`https://ems.example${base}/initialize`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier_key: 'team_3', checkout_request_key: requestKey }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(provider).not.toHaveBeenCalled();
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
+  it('keeps retry keys stable within an origin and isolates callbacks across origins', async () => {
+    const initialized = new Map<string, Devcon26TestSession>();
+
+    vi.mocked(storage.prepareDevcon26TestSession).mockImplementation(async (_c, key) => {
+      const saved = initialized.get(key) ?? { ...session, checkout_request_key: key, authorization_url: null };
+
+      return saved;
+    });
+    vi.mocked(storage.initializeDevcon26TestSession).mockImplementation(async (_c, prepared, url) => {
+      const saved = { ...prepared, authorization_url: url, status: 'initialized' as const };
+
+      initialized.set(prepared.checkout_request_key, saved);
+
+      return saved;
+    });
+
+    const input = { tier_key: 'team_3', checkout_request_key: requestKey };
+
+    for (const origin of [previewOrigin, previewOrigin, commitOrigin]) {
+      expect((await post(`${base}/initialize`, input, { Origin: origin })).status).toBe(200);
+    }
+
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(provider.mock.calls.map((call) => JSON.parse(call[1].body).callback_url)).toEqual([
+      `${previewOrigin}/devcon26/?test_checkout=return`, `${commitOrigin}/devcon26/?test_checkout=return`,
+    ]);
+  });
+
   it('advertises only a ready sandbox, with no secrets or buyer identity', async () => {
     const response = await app.request(`https://ems.example${base}`, { headers: { Origin: 'https://devcongress.org' } });
     const payload = await response.json();

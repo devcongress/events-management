@@ -33,6 +33,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 | `PUBLIC_FRONTEND_ORIGIN` | Required on Worker when Pages and Worker use different origins | Yes | Allowed browser origin for credentialed API CORS and state-changing request checks; production is `https://em.devcongress.org` |
 | `PUBLIC_WEBSITE_ORIGIN` | Required for community submission email links | Yes | Public DevCongress website origin. Production uses `https://devcongress.org`; isolated preview deployments can point emails at the preview website. |
 | `PUBLIC_API_CORS_ORIGINS` | Required for hosted public API browser access | Yes | Comma-separated exact origins allowed to read public API routes and submit community events. Production uses `https://devcongress.org,https://www.devcongress.org`; capability routes remain same-origin only. |
+| `DEVCON26_TEST_CHECKOUT_ORIGINS` | Optional for approved website previews | No | Comma-separated exact canonical HTTPS origins added only to the independently gated sandbox catalog, initialization, and verification endpoints. Invalid entries fail closed. Callbacks return to the validated initiating origin; the shared website origin and general CORS remain unchanged. |
 | `TURNSTILE_SECRET_KEY` | Required for production public writes | No | Server-only Cloudflare Turnstile secret used to validate every protected public submission |
 | `TURNSTILE_EXPECTED_HOSTNAME` | Required in production | No | Strict hostname check for Turnstile verification; production uses `em.devcongress.org` |
 | `EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES` | Required for production community submissions | No | Comma-separated strict hostname allowlist for the `devcongress.org` submission widget, for example `devcongress.org,www.devcongress.org`; it does not weaken the `em.devcongress.org` check used by other forms |
@@ -60,6 +61,7 @@ Use `.env.local` for local development. Do not commit real credentials.
 
 ## Rules
 
+- Paystack sandbox credentials and activation stay server-only. `DEVCON26_TEST_CHECKOUT_ENABLED=true` requires `DEVCON26_PAYMENT_PROVIDER=paystack`, a valid `sk_test_` `PAYSTACK_SECRET_KEY`, and a controlled `DEVCON26_TEST_BUYER_EMAIL`. A live key never activates the sandbox. Keep `DEVCON26_PAYMENTS_ENABLED=false` while testing previews.
 - Only variables prefixed with `VITE_` are exposed to browser code.
 - Never prefix the Supabase service-role key with `VITE_`.
 - Prefer the committed Cloudflare Pages `_worker.js` proxy for `/api/*` so organizer cookies stay on the Pages hostname.

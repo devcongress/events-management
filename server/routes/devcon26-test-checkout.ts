@@ -7,6 +7,7 @@ import {
 import {
   DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH,
   devcon26TestCheckoutCatalog, devcon26TestCheckoutConfiguration,
+  devcon26TestCheckoutOriginConfiguration, devcon26TestCheckoutRequestKey,
   devcon26TestInitializeSchema, devcon26TestVerifySchema,
 } from '@/lib/devcon26-test-checkout';
 import {
@@ -17,11 +18,17 @@ import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
 
-function configurationForRequest(c: Context) {
+export function devcon26TestConfigurationForRequest(c: Context) {
   const keys = ['DEVCON26_TEST_CHECKOUT_ENABLED', 'DEVCON26_PAYMENT_PROVIDER', 'PAYSTACK_SECRET_KEY',
-    'DEVCON26_TEST_BUYER_EMAIL', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV'];
+    'DEVCON26_TEST_BUYER_EMAIL', 'PUBLIC_WEBSITE_ORIGIN', 'DEVCON26_TEST_CHECKOUT_ORIGINS', 'NODE_ENV'];
 
   return devcon26TestCheckoutConfiguration(Object.fromEntries(keys.map((key) => [key, envValue(key, c)])));
+}
+
+function originConfigurationForRequest(c: Context) {
+  const configuration = devcon26TestConfigurationForRequest(c);
+
+  return configuration ? devcon26TestCheckoutOriginConfiguration(configuration, c.req.header('Origin')) : null;
 }
 
 function publicSession(session: Devcon26TestSession, status: 'verified' | 'pending' | 'failed') {
@@ -54,7 +61,7 @@ async function verifySession(c: Context, reference: string, secretKey: string, f
 
 export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void {
   app.get(DEVCON26_TEST_CHECKOUT_PATH, async (c) => {
-    const configuration = configurationForRequest(c);
+    const configuration = devcon26TestConfigurationForRequest(c);
 
     if (!configuration) return c.json({ mode: 'unavailable' });
     const limited = await enforcePublicRateLimit(c, {
@@ -69,10 +76,12 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
 
   for (const operation of ['initialize', 'verify']) {
     app.use(`${DEVCON26_TEST_CHECKOUT_PATH}/${operation}`, async (c, next) => {
-      const configuration = configurationForRequest(c);
+      const configuration = devcon26TestConfigurationForRequest(c);
 
       if (!configuration) return c.json({ error: 'Test checkout is not available yet.' }, 503);
-      if (c.req.header('Origin') !== configuration.websiteOrigin) return c.json({ error: 'This checkout origin is not allowed.' }, 403);
+      if (!devcon26TestCheckoutOriginConfiguration(configuration, c.req.header('Origin'))) {
+        return c.json({ error: 'This checkout origin is not allowed.' }, 403);
+      }
       if (c.req.header('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
         return c.json({ error: 'Use a JSON checkout request.' }, 415);
       }
@@ -82,7 +91,7 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
   }
 
   app.post(`${DEVCON26_TEST_CHECKOUT_PATH}/initialize`, async (c) => {
-    const configuration = configurationForRequest(c)!;
+    const configuration = originConfigurationForRequest(c)!;
     const input = devcon26TestInitializeSchema.safeParse(await c.req.json().catch(() => null));
 
     if (!input.success) return c.json({ error: 'Choose a valid test ticket.' }, 400);
@@ -93,7 +102,8 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
     if (limited) return limited;
 
     try {
-      const session = await prepareDevcon26TestSession(c, input.data.checkout_request_key, input.data.tier_key);
+      const requestKey = devcon26TestCheckoutRequestKey(configuration.websiteOrigin, input.data.checkout_request_key);
+      const session = await prepareDevcon26TestSession(c, requestKey, input.data.tier_key);
 
       if (session.authorization_url) {
         if (!isPaystackCheckoutUrl(session.authorization_url)) throw new Error('test_checkout_invalid_url');
@@ -123,7 +133,7 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
   });
 
   app.post(`${DEVCON26_TEST_CHECKOUT_PATH}/verify`, async (c) => {
-    const configuration = configurationForRequest(c)!;
+    const configuration = originConfigurationForRequest(c)!;
     const input = devcon26TestVerifySchema.safeParse(await c.req.json().catch(() => null));
 
     if (!input.success) return c.json({ error: 'The test payment reference is invalid.' }, 400);
@@ -143,7 +153,7 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
   });
 
   app.post(DEVCON26_TEST_WEBHOOK_PATH, async (c) => {
-    const configuration = configurationForRequest(c);
+    const configuration = devcon26TestConfigurationForRequest(c);
 
     if (!configuration) return c.json({ error: 'Not found.' }, 404);
     const rawBody = await c.req.text();

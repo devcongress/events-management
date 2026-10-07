@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-07 — Allow exact website previews to test DevCon26 checkout
+
+- Add sandbox-only, non-credentialed CORS for explicitly configured HTTPS preview origins without changing the shared main website, general public API, or organizer origin settings.
+- Derive Paystack test return URLs from the validated initiating origin and namespace retry UUIDs by origin so another preview cannot reuse the wrong callback.
+- Retain anonymous checkout, server-owned GHS pricing and buyer inbox, test-key/provider-domain checks, rate limits, signed webhooks, and isolated test persistence; no live payments or admission tickets are enabled.
+- Add configuration, CORS, callback, retry, neighboring-route isolation, and live-key regression tests; document the exact preview allowlist and the separate live-checkout activation boundary. No database migration is required.
+
 ## 2026-10-07 — Harden combined DevCon26 ticketing delivery
 
 - Let the signed Paystack webhook reach its own verification handler without organizer login, enforce the public 64 KiB body ceiling, and keep all organizer Ticketing APIs protected.
