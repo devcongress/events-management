@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "migrations/**/*.ts",
+    "verify-supabase-migrations.ts",
+    "verify-supabase-migrations.test.ts",
+    "git-hooks.ts",
+    "install-git-hooks.ts",
+    "run-git-hook.ts"
+  ]
+}

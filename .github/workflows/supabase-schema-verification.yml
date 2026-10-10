@@ -1,0 +1,49 @@
+name: Supabase schema verification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-schema-verification
+  cancel-in-progress: true
+
+jobs:
+  schema:
+    name: Verify required target database schema
+    # Never provide database credentials to PR code or a dispatched feature ref.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production-schema-audit
+    steps:
+      - name: Checkout trusted main revision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          version: 10.24.0
+
+      - name: Setup Node
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 20
+
+      - name: Install dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Verify schema without applying migrations
+        env:
+          SUPABASE_SCHEMA_AUDIT_DB_URL: ${{ secrets.SUPABASE_SCHEMA_AUDIT_DB_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        run: pnpm verify:migrations

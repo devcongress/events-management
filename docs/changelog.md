@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-10 — Gate delivery on required Supabase schema verification
+
+- Add offline migration inventory/contract validation to CI and the feature-this workflow; reject unregistered SQL, changed hashes, unsupported/empty probes, and new migration-version collisions.
+- Keep full-history secret scanning enabled while narrowly excluding validated migration-inventory SHA-256 rows from the generic API-key rule; other lines and paths retain default detection.
+- Add bounded catalog-only verification in an explicit read-only transaction, with typed checks for five previously missing/partial schema changes and test-checkout coupons. Keep the 92 historical migrations clearly labeled as unverified hash inventory and do not infer execution/backfill history.
+- Add explicit, composable pre-push hooks that inspect the pushed HEAD's committed inputs, preserve the existing identity hook, and reject dirty gate inputs; guard the manual Worker deployment command.
+- Add a trusted-main/manual live CI workflow with a separate catalog-audit credential, keeping live credentials out of PR code. CI environment configuration and independent Cloudflare automatic-deployment enforcement remain external activation steps; no migration, credential, payment, or deployment is applied by this change.
+
 ## 2026-10-10 — Add isolated test checkout coupons and private purchaser tracking
 
 - Add read-only coupon quotes and frozen discounted test checkouts with bounded purchaser name/email, server-owned GHS pricing, exact-origin access, and coupon-specific rate limits. Keep provider messages directed to the configured test inbox and public responses free of purchaser identity.
