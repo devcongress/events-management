@@ -4,9 +4,18 @@ import { DEVCON26_TICKET_TIERS } from '@/lib/annual-conference-ticketing';
 
 export const DEVCON26_TEST_CHECKOUT_PATH = '/api/public/annual-conference/2026/test-checkout';
 export const DEVCON26_TEST_WEBHOOK_PATH = '/api/webhooks/paystack/devcon26-test';
+const couponCodeSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{3,48}$/);
+
+export const devcon26TestQuoteSchema = z.object({
+  tier_key: z.enum(['regular', 'team_3', 'team_5']),
+  coupon_code: couponCodeSchema.optional(),
+}).strict();
 export const devcon26TestInitializeSchema = z.object({
   tier_key: z.enum(['regular', 'team_3', 'team_5']),
   checkout_request_key: z.string().uuid(),
+  purchaser_name: z.string().trim().min(1).max(160).regex(/^[^\u0000-\u001f\u007f]+$/),
+  purchaser_email: z.string().trim().toLowerCase().email().max(254),
+  coupon_code: couponCodeSchema.optional(),
 }).strict();
 export const devcon26TestVerifySchema = z.object({
   reference: z.string().regex(/^devcon26-test-[a-f0-9]{32}$/),
@@ -86,6 +95,7 @@ export function devcon26TestCheckoutRequestKey(origin: string, requestKey: strin
 export function isDevcon26TestCheckoutRequest(path: string, method: string): boolean {
   return (method === 'GET' && path === DEVCON26_TEST_CHECKOUT_PATH)
     || (method === 'POST' && [
+      `${DEVCON26_TEST_CHECKOUT_PATH}/quote`,
       `${DEVCON26_TEST_CHECKOUT_PATH}/initialize`,
       `${DEVCON26_TEST_CHECKOUT_PATH}/verify`,
       DEVCON26_TEST_WEBHOOK_PATH,

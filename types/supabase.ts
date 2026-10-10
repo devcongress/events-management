@@ -497,9 +497,66 @@ export interface Database {
         Relationships: [];
       };
       devcon26_test_checkout_sessions: {
-        Row: { id: string; checkout_request_key: string; tier_key: 'regular' | 'team_3' | 'team_5'; quantity: number; amount_minor: number; currency: 'GHS'; payment_reference: string; status: 'prepared' | 'initialized' | 'verified' | 'rejected'; authorization_url: string | null; initialization_lease: string | null; initialization_lease_until: string | null; expires_at: string; verified_at: string | null; created_at: string };
+        Row: {
+          id: string;
+          checkout_request_key: string;
+          tier_key: 'regular' | 'team_3' | 'team_5';
+          quantity: number;
+          amount_minor: number;
+          base_amount_minor: number;
+          discount_amount_minor: number;
+          coupon_id: string | null;
+          coupon_code: string | null;
+          purchaser_name: string | null;
+          purchaser_email: string | null;
+          currency: 'GHS';
+          payment_reference: string;
+          status: 'prepared' | 'initialized' | 'verified' | 'rejected' | 'refund_required';
+          resolution_reason: string | null;
+          authorization_url: string | null;
+          initialization_lease: string | null;
+          initialization_lease_until: string | null;
+          expires_at: string;
+          verified_at: string | null;
+          created_at: string;
+        };
         Insert: { id?: string; checkout_request_key: string; tier_key: string; quantity: number; amount_minor: number; payment_reference: string };
         Update: { authorization_url?: string; status?: 'initialized'; initialization_lease?: null; initialization_lease_until?: null };
+        Relationships: [];
+      };
+      devcon26_test_coupon_codes: {
+        Row: {
+          id: string;
+          edition_year: number;
+          code: string;
+          discount_type: 'fixed_minor' | 'percentage_bps';
+          discount_value: number;
+          eligible_tiers: Array<'regular' | 'team_3' | 'team_5'>;
+          expires_at: string;
+          max_completed: number;
+          enabled: boolean;
+          created_by_email: string;
+          updated_by_email: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      devcon26_test_coupon_claims: {
+        Row: {
+          id: string;
+          coupon_id: string;
+          session_id: string;
+          status: 'held' | 'completed' | 'released' | 'exception';
+          expires_at: string;
+          completed_at: string | null;
+          resolution_reason: string | null;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       annual_conference_ticketing_settings: {
@@ -2313,8 +2370,24 @@ export interface Database {
     Views: Record<string, never>;
     Functions: {
       prepare_devcon26_test_checkout: {
-        Args: { p_request_key: string; p_tier_key: string };
+        Args: { p_request_key: string; p_tier_key: string; p_purchaser_name: string; p_purchaser_email: string; p_coupon_code?: string };
         Returns: Database['public']['Tables']['devcon26_test_checkout_sessions']['Row'];
+      };
+      quote_devcon26_test_checkout: {
+        Args: { p_tier_key: string; p_coupon_code?: string };
+        Returns: Json;
+      };
+      create_devcon26_test_coupon: {
+        Args: { p_year: number; p_code: string; p_discount_type: string; p_discount_value: number; p_eligible_tiers: string[]; p_expires_at: string; p_max_completed: number; p_actor_email: string };
+        Returns: Database['public']['Tables']['devcon26_test_coupon_codes']['Row'];
+      };
+      toggle_devcon26_test_coupon: {
+        Args: { p_id: string; p_enabled: boolean; p_actor_email: string };
+        Returns: Database['public']['Tables']['devcon26_test_coupon_codes']['Row'];
+      };
+      list_devcon26_test_coupons: {
+        Args: { p_year: number; p_page?: number; p_page_size?: number; p_checkout_page?: number; p_checkout_page_size?: number };
+        Returns: Json;
       };
       confirm_devcon26_test_checkout: {
         Args: { p_reference: string; p_event_id: string; p_amount_minor: number; p_currency: string; p_domain: string; p_provider_status: string; p_payload_sha256: string };

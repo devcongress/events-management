@@ -70,8 +70,9 @@ describe('DevCon26 sandbox boundary', () => {
     expect(devcon26TestCheckoutRequestKey(previewOrigin, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')).not.toBe(scopedKey);
   });
 
-  it('cannot accept browser prices, identities, quantities, callback URLs, or unknown tiers', () => {
-    const input = { tier_key: 'regular', checkout_request_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
+  it('accepts bounded purchaser details but never browser prices, quantities, callbacks, or unknown tiers', () => {
+    const input = { tier_key: 'regular', checkout_request_key: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      purchaser_name: 'Ada Lovelace', purchaser_email: 'ada@example.test' };
 
     expect(devcon26TestInitializeSchema.safeParse(input).success).toBe(true);
 
@@ -87,6 +88,7 @@ describe('DevCon26 sandbox boundary', () => {
 
     expect(isDevcon26TestCheckoutRequest(base, 'GET')).toBe(true);
     expect(isDevcon26TestCheckoutRequest(`${base}/initialize`, 'POST')).toBe(true);
+    expect(isDevcon26TestCheckoutRequest(`${base}/quote`, 'POST')).toBe(true);
     expect(isDevcon26TestCheckoutRequest('/api/webhooks/paystack/devcon26-test', 'POST')).toBe(true);
 
     for (const path of [base, `${base}/initialize/more`, '/api/annual-conference/2026/ticketing', '/api/webhooks/paystack']) {

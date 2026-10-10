@@ -8,11 +8,12 @@ import {
   DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH,
   devcon26TestCheckoutCatalog, devcon26TestCheckoutConfiguration,
   devcon26TestCheckoutOriginConfiguration, devcon26TestCheckoutRequestKey,
-  devcon26TestInitializeSchema, devcon26TestVerifySchema,
+  devcon26TestInitializeSchema, devcon26TestQuoteSchema, devcon26TestVerifySchema,
 } from '@/lib/devcon26-test-checkout';
+import { devcon26CouponError, devcon26TestQuoteForSession } from '@/lib/devcon26-test-coupons';
 import {
   confirmDevcon26TestSession, devcon26TestStorageReady, findDevcon26TestSession,
-  initializeDevcon26TestSession, prepareDevcon26TestSession, type Devcon26TestSession,
+  initializeDevcon26TestSession, prepareDevcon26TestSession, quoteDevcon26TestCheckout, type Devcon26TestSession,
 } from '@/lib/supabase/devcon26-test-checkout';
 import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
@@ -31,10 +32,9 @@ function originConfigurationForRequest(c: Context) {
   return configuration ? devcon26TestCheckoutOriginConfiguration(configuration, c.req.header('Origin')) : null;
 }
 
-function publicSession(session: Devcon26TestSession, status: 'verified' | 'pending' | 'failed') {
+function publicSession(session: Devcon26TestSession, status: 'verified' | 'pending' | 'failed' | 'refund_required') {
   return {
-    mode: 'test', status, tier_key: session.tier_key, quantity: session.quantity,
-    amount_minor: session.amount_minor, currency: session.currency,
+    ...devcon26TestQuoteForSession(session), status, amount_minor: session.amount_minor,
   };
 }
 
@@ -44,19 +44,21 @@ async function verifySession(c: Context, reference: string, secretKey: string, f
   // Unknown references never cause provider requests; query params cannot mint sessions.
   if (!session) return null;
   if (session.status === 'verified') return publicSession(session, 'verified');
-  if (session.status === 'rejected') return publicSession(session, 'failed');
+  if (session.status === 'refund_required') return publicSession(session, 'refund_required');
   const transaction = await readPaystackTestTransaction({ secretKey, paymentReference: session.payment_reference });
 
-  if (transaction.status !== 'verified') return publicSession(session, transaction.status);
+  if (transaction.status === 'pending') return publicSession(session, 'pending');
   const confirmed = await confirmDevcon26TestSession(c, {
     reference: transaction.paymentReference,
     eventId: transaction.providerEventId,
     amountMinor: transaction.amountMinor,
     currency: transaction.currency,
     payloadSha256: fingerprint ?? crypto.createHash('sha256').update(JSON.stringify(transaction)).digest('hex'),
+    providerStatus: transaction.status === 'verified' ? 'success' : 'failed',
   });
 
-  return publicSession(confirmed, confirmed.status === 'verified' ? 'verified' : 'failed');
+  return publicSession(confirmed, confirmed.status === 'verified' ? 'verified'
+    : confirmed.status === 'refund_required' ? 'refund_required' : 'failed');
 }
 
 export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void {
@@ -71,10 +73,10 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
     if (limited) return limited;
     const ready = await devcon26TestStorageReady(c).catch(() => false);
 
-    return c.json(ready ? { mode: 'test', tiers: devcon26TestCheckoutCatalog() } : { mode: 'unavailable' });
+    return c.json(ready ? { mode: 'test', accepts_coupon: true, tiers: devcon26TestCheckoutCatalog() } : { mode: 'unavailable' });
   });
 
-  for (const operation of ['initialize', 'verify']) {
+  for (const operation of ['quote', 'initialize', 'verify']) {
     app.use(`${DEVCON26_TEST_CHECKOUT_PATH}/${operation}`, async (c, next) => {
       const configuration = devcon26TestConfigurationForRequest(c);
 
@@ -90,6 +92,27 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
     });
   }
 
+  app.post(`${DEVCON26_TEST_CHECKOUT_PATH}/quote`, async (c) => {
+    const input = devcon26TestQuoteSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!input.success) return c.json({ error: 'Choose a valid pass and coupon.', coupon_error: 'invalid' }, 400);
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-test-quote', clientKey: publicClientKey(c), maxAttempts: 15, windowSeconds: 60,
+    }, 'Please wait before checking another coupon.');
+
+    if (limited) return limited;
+
+    try {
+      return c.json(await quoteDevcon26TestCheckout(c, input.data.tier_key, input.data.coupon_code));
+    } catch (error) {
+      const couponError = devcon26CouponError(error);
+
+      if (couponError) return c.json(couponError, couponError.coupon_error === 'unavailable' ? 409 : 400);
+
+      return c.json({ error: 'This test quote is not available yet.' }, 503);
+    }
+  });
+
   app.post(`${DEVCON26_TEST_CHECKOUT_PATH}/initialize`, async (c) => {
     const configuration = originConfigurationForRequest(c)!;
     const input = devcon26TestInitializeSchema.safeParse(await c.req.json().catch(() => null));
@@ -103,12 +126,14 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
 
     try {
       const requestKey = devcon26TestCheckoutRequestKey(configuration.websiteOrigin, input.data.checkout_request_key);
-      const session = await prepareDevcon26TestSession(c, requestKey, input.data.tier_key);
+      const session = await prepareDevcon26TestSession(c, requestKey, input.data.tier_key,
+        input.data.purchaser_name, input.data.purchaser_email, input.data.coupon_code);
+      const summary = devcon26TestQuoteForSession(session);
 
       if (session.authorization_url) {
         if (!isPaystackCheckoutUrl(session.authorization_url)) throw new Error('test_checkout_invalid_url');
 
-        return c.json({ mode: 'test', authorization_url: session.authorization_url, reference: session.payment_reference });
+        return c.json({ ...summary, authorization_url: session.authorization_url, reference: session.payment_reference });
       }
 
       const checkout = await createPaystackHostedCheckout({
@@ -122,13 +147,16 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
 
       await initializeDevcon26TestSession(c, session, checkout.authorizationUrl);
 
-      return c.json({ mode: 'test', authorization_url: checkout.authorizationUrl, reference: session.payment_reference });
+      return c.json({ ...summary, authorization_url: checkout.authorizationUrl, reference: session.payment_reference });
     } catch (error) {
+      const couponError = devcon26CouponError(error);
+
+      if (couponError) return c.json(couponError, couponError.coupon_error === 'unavailable' ? 409 : 400);
       const message = error instanceof Error ? error.message : '';
-      const conflict = ['test_checkout_cart_conflict', 'test_checkout_in_progress', 'test_checkout_finished'].some((code) => message.includes(code));
+      const conflict = (['cart_conflict', 'in_progress', 'finished'] as const).find((code) => message.includes(`test_checkout_${code}`));
 
       return c.json({ error: conflict ? 'This test checkout is already in progress or finished. Please try again shortly.'
-        : 'Test checkout could not start. Please try again shortly.' }, conflict ? 409 : 503);
+        : 'Test checkout could not start. Please try again shortly.', ...(conflict ? { checkout_error: conflict } : {}) }, conflict ? 409 : 503);
     }
   });
 

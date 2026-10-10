@@ -3,6 +3,7 @@ import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import Devcon26TestCoupons from '@/src/components/Devcon26TestCoupons.vue';
 import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
 import { formatTicketMoney, parseGhsAmountToMinor, tierSavings, validateAnnualConferenceCapacity, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
 import {
@@ -556,6 +557,8 @@ onUnmounted(() => {
             </div>
           </footer>
         </section>
+
+        <Devcon26TestCoupons v-if="year === '2026'" :year="year" />
 
         <section class="rounded-lg border-2 border-dc-ink bg-dc-paper p-5" aria-labelledby="sponsor-title">
           <p class="editorial-eyebrow">Sponsor allocations</p>

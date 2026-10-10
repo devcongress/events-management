@@ -24,6 +24,7 @@ import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
+import { registerDevcon26TestCouponRoutes } from '@/server/routes/devcon26-test-coupons';
 
 const yearSchema = z.string().regex(/^\d{4}$/, 'Conference year must use four digits.');
 const capacitySchema = z.object({
@@ -78,6 +79,8 @@ function ticketPaymentEnvironment(c: Context<AppBindings>): Record<string, strin
 }
 
 export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>): void {
+  registerDevcon26TestCouponRoutes(app);
+
   app.post('/api/webhooks/paystack', async (c) => {
     const configuration = annualConferencePaymentConfiguration(ticketPaymentEnvironment(c));
 
