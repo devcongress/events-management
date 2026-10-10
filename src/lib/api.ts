@@ -645,6 +645,26 @@ export function updateAnnualConferenceTicketPrices(year: string, prices: { regul
 export function fetchAnnualConferenceSponsorAllocations(year: string) { return fetchJson<{ allocations: AnnualConferenceSponsorAllocation[] }>(`/api/annual-conference/${year}/ticketing/sponsor-allocations`, { credentials: 'include' }); }
 export function createAnnualConferenceSponsorAllocation(year: string, input: Omit<AnnualConferenceSponsorAllocation, 'id' | 'created_at'>) { return fetchJson<{ allocation: AnnualConferenceSponsorAllocation }>(`/api/annual-conference/${year}/ticketing/sponsor-allocations`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }); }
 
+export function fetchDevcon26TestCoupons(year: string, page: number, checkoutPage: number) {
+  const params = new URLSearchParams({ page: String(page), page_size: '8', checkout_page: String(checkoutPage), checkout_page_size: '8' });
+
+  return fetchJson<import('@/lib/devcon26-test-coupons').Devcon26TestCouponsResponse>(
+    `/api/annual-conference/${year}/ticketing/test-coupons?${params}`, { credentials: 'include' },
+  );
+}
+
+export function createDevcon26TestCoupon(year: string, input: import('@/lib/devcon26-test-coupons').Devcon26TestCouponInput) {
+  return fetchJson<{ coupon: { id: string } }>(`/api/annual-conference/${year}/ticketing/test-coupons`, {
+    method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+}
+
+export function toggleDevcon26TestCoupon(year: string, couponId: string, enabled: boolean) {
+  return fetchJson<{ coupon: { id: string; enabled: boolean } }>(`/api/annual-conference/${year}/ticketing/test-coupons/${couponId}`, {
+    method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }),
+  });
+}
+
 export function fetchAnnualConferenceTicketEmailDeliveries(year: string, input: {
   page?: number;
   pageSize?: number;

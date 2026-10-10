@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-10 — Add isolated test checkout coupons and private purchaser tracking
+
+- Add read-only coupon quotes and frozen discounted test checkouts with bounded purchaser name/email, server-owned GHS pricing, exact-origin access, and coupon-specific rate limits. Keep provider messages directed to the configured test inbox and public responses free of purchaser identity.
+- Reserve uses atomically for 15 minutes, bind UUID retries to normalized purchaser/pass/code input, release trusted failures and expired holds, and count verified payments once. Persist late exhausted-coupon or money-mismatch outcomes as test payments needing attention.
+- Add Owner-only coupon creation/availability controls, immutable database terms, redemption counts, and paginated private checkout activity in Ticketing, with existing CSRF and audit protection.
+- Add domain, public/Owner API, UI boundary, migration isolation, and isolated real PostgreSQL regression coverage. The forward migration and coordinated website/backend rollout remain unapplied; live payments, inventory, finance, tickets, and email activation are unchanged.
+
 ## 2026-10-07 — Allow exact website previews to test DevCon26 checkout
 
 - Add sandbox-only, non-credentialed CORS for explicitly configured HTTPS preview origins without changing the shared main website, general public API, or organizer origin settings.

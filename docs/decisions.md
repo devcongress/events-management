@@ -1,5 +1,15 @@
 # Architectural Decisions
 
+## ADR-104: Keep coupon reservations and purchaser tracking inside test checkout
+
+**Date:** 2026-10-10
+**Decision:** Add coupon codes, immutable pricing/buyer snapshots, expiring claims, and private Owner checkout activity only to the existing DevCon26 sandbox. Quotes remain read-only. Initialization serializes retry keys and locks coupon before session/claim, so completed plus active reservations cannot exceed the code limit. Verified provider success completes once; late exhausted allowance or money mismatch becomes a durable `refund_required` test exception.
+**Why:** Public coupon feedback and actual purchaser tracking can be validated without creating live admission orders, reducing conference seat inventory, or confusing test results with financial revenue. The actual buyer is stored privately while the provider continues using the controlled test inbox.
+**Tradeoffs:** Percentage discounts floor to a whole pesewa; code terms cannot be edited or deleted after creation. The new purchaser-required RPC and website form require a coordinated migration/backend/website release with test checkout disabled during rollout. A later live coupon feature must establish its own order, capacity, refund, payment, and delivery contract rather than activating this sandbox by changing credentials.
+**Verification:** Focused application checks and an isolated PostgreSQL regression script cover concurrency, replay, expiration, immutable terms, privilege boundaries, backfill, and payment exceptions. No hosted database or provider operation is part of this implementation.
+
+---
+
 ## ADR-103: Scope sandbox preview access and payment returns by exact origin
 
 **Date:** 2026-10-07

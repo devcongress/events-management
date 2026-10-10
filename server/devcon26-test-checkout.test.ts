@@ -4,11 +4,13 @@ import type { Devcon26TestSession } from '@/lib/supabase/devcon26-test-checkout'
 import * as storage from '@/lib/supabase/devcon26-test-checkout';
 import { consumePublicRateLimit } from '@/lib/public-rate-limit';
 import { devcon26TestCheckoutRequestKey } from '@/lib/devcon26-test-checkout';
+import { devcon26TestQuoteForSession } from '@/lib/devcon26-test-coupons';
 import app, { isUnauthenticatedApiRequest } from '@/server/app';
 
 vi.mock('@/lib/supabase/devcon26-test-checkout', () => ({
   devcon26TestStorageReady: vi.fn(), prepareDevcon26TestSession: vi.fn(),
   initializeDevcon26TestSession: vi.fn(), findDevcon26TestSession: vi.fn(), confirmDevcon26TestSession: vi.fn(),
+  quoteDevcon26TestCheckout: vi.fn(),
 }));
 vi.mock('@/lib/public-rate-limit', () => ({ consumePublicRateLimit: vi.fn() }));
 
@@ -19,6 +21,7 @@ const requestKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const checkoutUrl = 'https://checkout.paystack.com/test-fixture';
 const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
 const commitOrigin = 'https://63b14d94-devcongress-website.admins-a7d.workers.dev';
+const buyer = { purchaser_name: 'Ada Lovelace', purchaser_email: 'ada@example.test' };
 let session: Devcon26TestSession;
 let provider: ReturnType<typeof vi.fn>;
 let providerFacts: Record<string, unknown>;
@@ -26,7 +29,7 @@ let providerFacts: Record<string, unknown>;
 function post(path: string, body: unknown, headers: Record<string, string> = {}) {
   return app.request(`https://ems.example${path}`, {
     method: 'POST', headers: { Origin: 'https://devcongress.org', 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
+    body: JSON.stringify(path.endsWith('/initialize') && body && typeof body === 'object' ? { ...buyer, ...body } : body),
   });
 }
 
@@ -47,10 +50,13 @@ beforeEach(() => {
     authorization_url: null, initialization_lease: requestKey,
     initialization_lease_until: '2026-10-07T12:01:00Z', expires_at: '2026-10-08T12:00:00Z',
     verified_at: null, created_at: '2026-10-07T12:00:00Z',
+    base_amount_minor: 54_999, discount_amount_minor: 0, coupon_id: null, coupon_code: null,
+    ...buyer, resolution_reason: null,
   };
   providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 54_999, currency: 'GHS' };
   vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: true });
   vi.mocked(storage.devcon26TestStorageReady).mockResolvedValue(true);
+  vi.mocked(storage.quoteDevcon26TestCheckout).mockImplementation(async () => devcon26TestQuoteForSession(session));
   vi.mocked(storage.prepareDevcon26TestSession).mockImplementation(async (_c, _key, tier) => {
     if (tier !== session.tier_key) throw new Error('test_checkout_cart_conflict');
 
@@ -63,7 +69,8 @@ beforeEach(() => {
   });
   vi.mocked(storage.findDevcon26TestSession).mockResolvedValue(session);
   vi.mocked(storage.confirmDevcon26TestSession).mockImplementation(async (_c, input) => {
-    session = { ...session, status: input.amountMinor === session.amount_minor && input.currency === 'GHS' ? 'verified' : 'rejected' };
+    session = { ...session, status: input.providerStatus === 'failed' ? 'rejected'
+      : input.amountMinor === session.amount_minor && input.currency === 'GHS' ? 'verified' : 'refund_required' };
     vi.mocked(storage.findDevcon26TestSession).mockResolvedValue(session);
 
     return session;
@@ -79,6 +86,85 @@ afterEach(() => {
 });
 
 describe('public DevCon26 test checkout integration', () => {
+  it.each([previewOrigin, commitOrigin])('quotes from %s without holding a use or initializing a provider payment', async (origin) => {
+    session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 53_999 };
+    const response = await post(`${base}/quote`, { tier_key: 'team_3', coupon_code: ' test-coupon ' }, { Origin: origin });
+    const quote = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+    expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(quote).toEqual(devcon26TestQuoteForSession(session));
+    expect(storage.quoteDevcon26TestCheckout).toHaveBeenCalledWith(expect.anything(), 'team_3', 'TEST-COUPON');
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+    expect(provider).not.toHaveBeenCalled();
+    expect(JSON.stringify(quote)).not.toMatch(/purchaser|Lovelace|example\.test|initialization_lease/);
+  });
+
+  it.each(['invalid', 'expired', 'ineligible', 'unavailable'])('returns a bounded %s coupon error before provider initialization', async (code) => {
+    vi.mocked(storage.quoteDevcon26TestCheckout).mockRejectedValue(new Error(`test_coupon_${code} private detail`));
+    vi.mocked(storage.prepareDevcon26TestSession).mockRejectedValue(new Error(`test_coupon_${code} private detail`));
+
+    for (const operation of ['quote', 'initialize']) {
+      const response = await post(`${base}/${operation}`, {
+        tier_key: 'team_3', ...(operation === 'initialize' ? { checkout_request_key: requestKey } : {}), coupon_code: 'TEST-COUPON',
+      });
+      const payload = await response.json();
+
+      expect(response.status).toBe(code === 'unavailable' ? 409 : 400);
+      expect(payload.coupon_error).toBe(code);
+      expect(JSON.stringify(payload)).not.toMatch(/private detail|test_coupon_|purchaser/);
+    }
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('charges only the stored discounted total and never sends visitor PII to the test provider', async () => {
+    session = { ...session, coupon_code: 'TEST-COUPON', coupon_id: requestKey, discount_amount_minor: 1000, amount_minor: 53_999 };
+    providerFacts.amount = 53_999;
+    const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey, coupon_code: ' test-coupon ' });
+    const initialized = await response.json();
+
+    expect(initialized).toMatchObject({ base_amount_minor: 54_999, discount_amount_minor: 1000, final_amount_minor: 53_999, coupon_applied: 'TEST-COUPON' });
+    expect(JSON.parse(provider.mock.calls[0][1].body)).toMatchObject({ amount: 53_999, email: 'sandbox@example.com' });
+    expect(JSON.stringify(initialized)).not.toMatch(/Lovelace|ada@example/);
+    expect(provider.mock.calls[0][1].body).not.toMatch(/Lovelace|ada@example/);
+    const verified = await (await post(`${base}/verify`, { reference })).json();
+
+    expect(verified).toMatchObject({ status: 'verified', amount_minor: 53_999, final_amount_minor: 53_999, coupon_applied: 'TEST-COUPON' });
+  });
+
+  it.each(['finished', 'cart_conflict', 'in_progress'])('returns the bounded %s retry state', async (code) => {
+    vi.mocked(storage.prepareDevcon26TestSession).mockRejectedValue(new Error(`test_checkout_${code}`));
+    const response = await post(`${base}/initialize`, { tier_key: 'team_3', checkout_request_key: requestKey });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).checkout_error).toBe(code);
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing purchaser details and closes quote neighbors and Owner coupon routes', async () => {
+    const response = await app.request(`https://ems.example${base}/initialize`, {
+      method: 'POST', headers: { Origin: 'https://devcongress.org', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier_key: 'team_3', checkout_request_key: requestKey }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(isUnauthenticatedApiRequest(`${base}/quote`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${base}/quote/neighbor`, 'POST')).toBe(false);
+    expect(isUnauthenticatedApiRequest('/api/annual-conference/2026/ticketing/test-coupons', 'GET')).toBe(false);
+    expect((await app.request('https://ems.example/api/annual-conference/2026/ticketing/test-coupons')).status).toBe(401);
+    expect(storage.prepareDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
+  it('retains a persisted needs-attention outcome without asking the provider again', async () => {
+    vi.mocked(storage.findDevcon26TestSession).mockResolvedValue({ ...session, status: 'refund_required', resolution_reason: 'coupon_allowance_unavailable' });
+    const response = await post(`${base}/verify`, { reference });
+
+    expect((await response.json()).status).toBe('refund_required');
+    expect(provider).not.toHaveBeenCalled();
+    expect(storage.confirmDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
   it.each([previewOrigin, commitOrigin])('supports anonymous sandbox CORS, initialization and verification from %s', async (origin) => {
     const catalog = await app.request(`https://ems.example${base}`, { headers: { Origin: origin } });
 
@@ -101,7 +187,8 @@ describe('public DevCon26 test checkout integration', () => {
     expect(initialized.status).toBe(200);
     expect(initialized.headers.get('access-control-allow-origin')).toBe(origin);
     expect(JSON.parse(provider.mock.calls[0][1].body).callback_url).toBe(`${origin}/devcon26/?test_checkout=return`);
-    expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'team_3');
+    expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'team_3',
+      buyer.purchaser_name, buyer.purchaser_email, undefined);
 
     const verified = await post(`${base}/verify`, { reference }, { Origin: origin });
 
@@ -283,12 +370,22 @@ describe('public DevCon26 test checkout integration', () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
-  it.each(['pending', 'failed'])('reports a %s transaction without confirmation', async (status) => {
+  it('reports a pending transaction without releasing its coupon claim', async () => {
+    const status = 'pending';
+
     providerFacts.status = status;
     const response = await post(`${base}/verify`, { reference });
 
     expect((await response.json()).status).toBe(status);
     expect(storage.confirmDevcon26TestSession).not.toHaveBeenCalled();
+  });
+
+  it('persists a trusted failed transaction so the coupon hold is released', async () => {
+    providerFacts.status = 'failed';
+    const response = await post(`${base}/verify`, { reference });
+
+    expect((await response.json()).status).toBe('failed');
+    expect(storage.confirmDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ providerStatus: 'failed' }));
   });
 
   it.each([{ domain: 'live' }, { domain: undefined }, { reference: 'wrong' }, { amount: '54999' }])('rejects untrusted verification facts %j', async (override) => {
@@ -299,7 +396,7 @@ describe('public DevCon26 test checkout integration', () => {
 
   it.each([{ amount: 1 }, { currency: 'USD' }])('does not verify mismatched money %j', async (override) => {
     Object.assign(providerFacts, override);
-    expect((await (await post(`${base}/verify`, { reference })).json()).status).toBe('failed');
+    expect((await (await post(`${base}/verify`, { reference })).json()).status).toBe('refund_required');
   });
 
   it('converges a return and duplicate signed webhook into the same verified sandbox result', async () => {

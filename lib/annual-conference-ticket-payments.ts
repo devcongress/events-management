@@ -154,7 +154,7 @@ export async function readPaystackTestTransaction(input: {
 
   return {
     status: transaction.status === 'success' ? 'verified' as const
-      : ['pending', 'ongoing', 'processing', 'queued'].includes(transaction.status) ? 'pending' as const : 'failed' as const,
+      : ['failed', 'abandoned'].includes(transaction.status) ? 'failed' as const : 'pending' as const,
     providerEventId: `charge:${transaction.id}`,
     paymentReference: transaction.reference,
     amountMinor: transaction.amount,
