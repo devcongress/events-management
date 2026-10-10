@@ -60,11 +60,7 @@ export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
       });
 
       return c.json({ coupon }, 201);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'test_coupon_duplicate') {
-        return c.json({ error: 'This coupon code already exists.' }, 409);
-      }
-
+    } catch {
       return c.json({ error: 'The test coupon could not be created.' }, 503);
     }
   });

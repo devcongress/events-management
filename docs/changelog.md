@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-10-10 — Compact ticket email delivery filtering
+
+- Replace Delivery health's status pills with the shared app dropdown beside Refresh, with keyboard support and 44px controls/options in a responsive toolbar.
+- Preserve all five filter choices, status-to-query mapping, page resets, record counts, health totals, and safe retry behavior. No email send, migration, or payment activation is added.
+
+## 2026-10-10 — Align test coupon form fields
+
+- Give discount type/amount and maximum uses/expiry consistent label-to-control spacing in two aligned desktop rows, with a single-column mobile layout.
+- Keep spacing local to the coupon form, preserving shared dropdown/date-time behavior, validation, disabled states, and nearby discount guidance. No migration or payment activation is required.
+
+## 2026-10-10 — Match eligible-pass checkboxes to the app UI
+
+- Replace browser-blue coupon pass controls with app-styled pink checkboxes, crisp checkmarks, visible keyboard focus, and 44px label targets.
+- Preserve independent native checkbox selection, validation focus, and the disabled form during coupon creation. Restore platform rendering in forced-colors mode; keep reduced-motion support.
+- Change presentation only, without a migration or checkout/payment activation.
+
+## 2026-10-10 — Simplify test checkout activity into a five-row table
+
+- Replace stacked checkout entries with a compact, semantic table showing date/reference, pass/coupon, payment amounts, and status. Keep private purchaser details and full identifiers in each row's disclosure.
+- Request five checkout records per page with a visible range and Previous/Next controls, independently of the existing eight-coupon pages. Keep horizontal scrolling within the table on small screens.
+- Preserve legacy purchaser fallbacks, failure/attention reasons, and the test-only boundary. Reuse existing server pagination; no migration or payment activation is required.
+
+## 2026-10-10 — Generate test coupon codes and use app-owned form controls
+
+- Replace the native discount select and expiry popup in Owner Ticketing with EMS's shared dropdown and date/time picker, preserving local-time expiry conversion, keyboard focus, validation, and disabled states during creation.
+- Generate grouped, cryptographically random test coupon codes on the server rather than accepting manual codes. Retry unique collisions at most four times and never automatically retry other database or ambiguous transport failures.
+- Show the stored code immediately after creation and add copy feedback to the latest code and coupon list, including manual-copy fallback and cleanup on navigation.
+- Keep Owner/session/CSRF protection, redacted audit metadata, immutable terms, and the test-only checkout boundary unchanged. Reuse the existing coupon RPC and migration; no new migration or live payment activation is required.
+
 ## 2026-10-10 — Gate delivery on required Supabase schema verification
 
 - Add offline migration inventory/contract validation to CI and the feature-this workflow; reject unregistered SQL, changed hashes, unsupported/empty probes, and new migration-version collisions.
