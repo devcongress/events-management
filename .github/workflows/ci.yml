@@ -40,6 +40,12 @@ jobs:
       - name: Audit dependencies
         run: pnpm audit:dependencies
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Verify migration inventory and contracts (offline)
+        run: pnpm verify:migrations:offline
+
       - name: Typecheck
         run: pnpm typecheck
 

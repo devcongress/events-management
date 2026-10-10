@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-105: Verify migration readiness at delivery without running migrations
+
+**Date:** 2026-10-10
+
+**Decision:** Use a reviewed typed schema contract and frozen legacy SQL inventory for pre-push, feature-this, CI, and manual Worker deployment checks. Query only PostgreSQL catalogs in an explicit read-only transaction. PR CI validates inventory/contracts offline; a trusted-main/manual workflow uses a dedicated schema-audit credential. Preserve inherited Git hooks and verify committed push inputs rather than dirty worktree replacements.
+
+**Why:** Missing migration history and manually applied partial changes make ledger-only checks insufficient. Blindly replaying SQL risks overwriting hosted fixes or triggering data changes. A failing delivery check catches missing or changed required schema without adding an EMS screen or a migration runner.
+
+**Tradeoffs:** Six current migrations have explicit catalog verification; 92 historical files remain unproved legacy inventory. Arbitrary backfills require separately reviewed typed invariants. Main-push verification is post-merge, and independent Cloudflare deployments must explicitly depend on the gate before they are protected. Environment provisioning, database rollout, and migration-history reconciliation remain separate authorized operations.
+
+---
+
 ## ADR-104: Keep coupon reservations and purchaser tracking inside test checkout
 
 **Date:** 2026-10-10

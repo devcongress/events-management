@@ -57,6 +57,9 @@ The seed script resets JSON mock data under `data/`. Use it when you want a know
 | `pnpm start` | Serve `dist/` and `/api/*` with Bun |
 | `pnpm test` | Run Vitest tests |
 | `pnpm verify:public-api` | Validate public meetup API shape and headers |
+| `pnpm verify:migrations:offline` | Validate migration hashes, contract coverage, and duplicate versions without database credentials |
+| `pnpm verify:migrations` | Verify required target schema read-only before delivery; see [Migration delivery gate](./migration-delivery-gate.md) |
+| `pnpm hooks:install` / `pnpm hooks:uninstall` | Enable/remove repository-local pre-push verification while preserving existing supported hooks |
 
 ### Scenario Atlas
 

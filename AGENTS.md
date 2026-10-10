@@ -19,6 +19,9 @@ When the user says **"feature this"** or **"feature-this"**, treat it as an expl
 1. Audit the current branch and complete worktree first. Unless the user narrows the scope, include all current intended changes and preserve unrelated user work.
 2. Create a new branch from the current base branch using `feature/<concise-descriptive-slug>`. If the worktree is dirty, carry its changes onto the new branch without losing or rewriting them.
 3. Run verification appropriate to the combined change before committing.
+   - Run `pnpm verify:migrations:offline` on the intended changes before committing.
+   - After committing, run `pnpm verify:migrations --revision "$(git rev-parse HEAD)"` before pushing. Missing credentials, connectivity failures, or schema mismatches block delivery. Do not apply migrations or bypass the gate automatically.
+   - Install the repository pre-push hook with `pnpm hooks:install` when needed; preserve existing hooks. See `docs/technical/migration-delivery-gate.md` for coverage and CI/CD boundaries.
 4. Stage all intended files and create exactly one detailed commit.
 5. Use a concise conventional commit subject. In the commit body, list each logical sub-change as a bullet and finish with the verification performed.
 6. Push the feature branch to `origin` and set its upstream.

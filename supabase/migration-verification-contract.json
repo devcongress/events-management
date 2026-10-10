@@ -1,0 +1,863 @@
+{
+  "version": 1,
+  "legacyInventory": {
+    "20260530000000_feedback.sql": "a083d58addeec5fde71f69ee0f4b85ad96032b1f807e4a7c84effc411546a18a",
+    "20260613000000_event_feedback_campaigns.sql": "a08045bd8a6f6e54d6dcd75b6b03104b219146fef59464de3e777d797b5d411a",
+    "20260615000000_community_events.sql": "257758d8088f8cdae98d327fbb888ffc7e2eee526021b0efe093a136a15d3e1c",
+    "20260615001000_meetup_media_bucket.sql": "0f3ef8232b452d2bd865a3ab6dc62b44bf68417cb65f7e6514a39bea9a023cae",
+    "20260616000000_admin_auth.sql": "d33d9acf96c7497621d8d1c2a55c507f481296c3866e990f27bd77859f87f63f",
+    "20260616000000_luma_event_imports.sql": "a35412b7f5d2d450f27d5b0c10136be962d3bfe4846e5c01afac7f2742939a80",
+    "20260617000000_admin_audit_request_context.sql": "6a273ce56fc3455d746ddbaeae145dfeb31fcd17ac8f6a0dc687d203eb35cb41",
+    "20260617001000_event_feedback_response_tokens.sql": "87d1551b6b806fc4296ce485718c8f81cf06c831e27911dff2da4b7f7f14374d",
+    "20260620032000_event_series_type.sql": "99dc9a87f0ba835c31be3ca7deb91614051d15d698515d5069967299c11b152b",
+    "20260630000000_app_json_documents.sql": "468e52d5872e80c6be58f8d255b9cc650cdf5575876341f1021d06455b405d2c",
+    "20260726000000_annual_conference_work_plan.sql": "0b40b7bed1af9daa86589bd7a00061971d7d81c096f2342fcccbc043db0cb697",
+    "20260728000000_native_event_registrations.sql": "6b865ec6428305ab9033f59464d101b607e485d21c0c3b96cf941119a2a24689",
+    "20260728010000_fix_registration_email_ambiguity.sql": "e870387a0601a5d22e8a6d5b9ddd1064f9f1024714cac6352bc16bfe1ddb826f",
+    "20260728020000_security_hardening.sql": "8adcc3e51ea96128bb2e2211634dde3f79fb858d5219fd0af9fb294752f59920",
+    "20260729000000_fix_public_rate_limit_timestamp_ambiguity.sql": "6eea5cba7805b0a80622be2b6b9c433c1411a16c8c6b4f8cbed9b34f25f2e7d3",
+    "20260730000000_event_email_blasts.sql": "c160bfdd1348d92b5eb6f11b5022f719c9356c6d8ed6a376d255817dc73b1bd1",
+    "20260730010000_event_email_blast_permissions.sql": "e84371b7a58fc07ffae24fc93b5648aebefc6e8159e245bbcca7f58a053c44cd",
+    "20260731000000_event_blast_preparing_status.sql": "c53658c114f77d8ca423f082b9122cc9f59e929cb89d3ff4d7ed80f5edbf246d",
+    "20260801000000_quiz_participants.sql": "c22855cf06db39e57b2bc38e03ee377fbc3ad06ed23f3c7fe92424a4a6db3a86",
+    "20260801010000_relational_quiz_runtime.sql": "c5566039a6b5029fafc62c16ffeb57e592354278b73800b8c8eef7b9a0bcec03",
+    "20260801020000_community_event_submissions.sql": "48e1261642724eb169a2a939b23d3fa6f55181a1c3701e5858f8e87affe50c84",
+    "20260802000000_event_submission_notifications.sql": "2e1f6cebe3dc5ae53c744bc90f4771caabde1599c43ee3fe1acc1e89c707a659",
+    "20260802120000_annual_conference_phases.sql": "78a1b27b207d0697fb1289bc730de238b31273dab1e980c39b566e2d9f69a878",
+    "20260803000000_volunteer_conference_access.sql": "68ec2a4ff8b96333da77b5e38bb309925014696ca2f5c8c099a83db2b05b53d7",
+    "20260803110000_annual_conference_phase_1_assignments.sql": "d6f07e5c1075e9031e48de8bb505d6a61ae5b350686436ffdcab90ae8d76b517",
+    "20260803120000_annual_conference_owner_override_and_identity_backfill.sql": "82c63da1e20b307ce4207a35f21ce43277fd857eb8144d0e909064e7b6ee66e4",
+    "20260805000000_annual_conference_access_grants.sql": "184c7321a743d3af21ff1c197199fe994bdf0b9f28ecf0fbbb07593083a0816a",
+    "20260805010000_annual_conference_finance.sql": "e74c6dc629b68254a66ff5bac41d57ae831582f894858fbcb7ceb6e67d714bd2",
+    "20260806020000_monthly_meetup_finance.sql": "00a260e06f2a885d69c1bf2896ce9cdca99a8db0c2b0d11c7214dc1f0fd5de9e",
+    "20260806030000_monthly_meetup_finance_categories.sql": "84bd1d3af6f6d11102395095f8e994a3afc6425d0b35d8aaba0cf69988aa5f79",
+    "20260807120000_event_submission_replies.sql": "8894886ded372d97ad46beb6047a390c7b74fdeff0e502358ab5bd8d2945e756",
+    "20260808070000_annual_conference_income_lifecycle.sql": "cacaf4a59083ce31d51719bbc6a13415c854ee67b3e144b7be8ce45df03945e3",
+    "20260808123000_annual_conference_task_dependencies.sql": "162cfac49cd39d22f5d54c35ab7819d50bb121dc4363b9730473418bedbcb1f3",
+    "20260808150000_archive_materials_follow_up.sql": "570c46d106c9f3d8ce1f86b776e71315afb98606ca53e5970d641e0304e69cf7",
+    "20260808150000_integrity_hardening.sql": "5cb4374af8583425c38f2a392e75a80897da7786305e7c3bed7506b23d2246af",
+    "20260808160000_feedback_history_snapshots.sql": "6be8b18e8c0524af4c7d0e43e66d418e63c43e979fcc70889363d3ba7818a4ae",
+    "20260808170000_email_delivery_health.sql": "ef7d79c07db2b32d7ef8ab79d909d5d3622bb3cdb17f06361a016b90e4057800",
+    "20260808180000_annual_conference_speaker_calls.sql": "b4e4bd888f9fb3e2ad77fc2033150d6be30889feb0af8dad531d94fcea33e308",
+    "20260809100000_reviewed_event_amendments.sql": "89614327f3ffb2ba8afcd3670a48399563171ff365f0244f52d59bf37df2cb6b",
+    "20260809103000_event_submission_management_links_expire_at_event_end.sql": "fbf562ef5fc50abeabdf5f1e33f05511a0dd90aa84c2e07ba253106f0b2bd797",
+    "20260809110000_annual_conference_speaker_scope.sql": "4f498ce918aa13ad2c215fe77cb9dbaa246d085a0ec30daa3232bc15825824b8",
+    "20260809120000_short_links.sql": "d5ba24b794aff9bf982a7c0f821c121ca51bc05c9fa8f5bc69f5e3c29a756726",
+    "20260809193000_short_link_canonical_destinations.sql": "3afbef757310558f28ba7eaaa781c30711dedfdfe2f5a0d64c0f857355cdc0c3",
+    "20260810180000_fix_event_submission_root_outbox_conflicts.sql": "fd87303b6014ba68a48f0942e195772302d86ecb2eec6e9023ef94208242285f",
+    "20260810210000_event_submission_covers.sql": "d7478c9d5ff3269ecbc607f705f733ed459d0e23635d70c6296211ba99b20cb2",
+    "20260810220000_event_submission_amendment_covers.sql": "a71d7d5fb917bb84f7140b7a2ec05595a67b9969454773435a8131cfd56890d5",
+    "20260810230000_event_slack_announcements.sql": "5d2ae9dee602f030f304a2b80a9e38522eaf6b97dca7eb9b23cde4d532a68055",
+    "20260810233000_event_submission_cover_fallback.sql": "6c1a04936f00b6c00ab30bd49d847eac2fde44e018cf268e628dbdab5b62d8d6",
+    "20260811090000_speaker_submission_resource_links.sql": "608e73e2ec62598b3b99708e80b2125109736225be8c0374b7cda8eb345a3988",
+    "20260812123000_fix_event_submission_amendment_review.sql": "2491b83ddda2903a0982595800db56ef7ac96131fd62fc9eebb4a172ee73c6c9",
+    "20260812195500_fix_event_submission_amendment_email_kind.sql": "b0a5fe3795dfd4684d42f68d0c9ac137d4e3700e69731a94783488c58edd85e7",
+    "20260812210500_event_archive_lifecycle.sql": "a2ef29c63a2648787d06517ab1623360e0fbe4d0666cc7cc07e33d84454b007d",
+    "20260813010000_security_audit_privilege_hardening.sql": "33c42570ddd2904f8f79825e5963ccbd0161385d179ba6f44ae00ad7233b252a",
+    "20260817000000_system_design_sessions.sql": "f567e37bc3bcbf119eee36dc6e356cf1163d76a052b7ff5a471a12e5729afc36",
+    "20260817010000_system_design_presenter_gate.sql": "5958148e7ff2a910ad5c93fc46cbc8da409a43d0c32fe2be7e5ff30e603b3da8",
+    "20260818010000_system_design_automatic_question_start.sql": "e19c0487011fca30d3b5c68fd881eae1a124ccc5b6d6425a18bcc97ecaf75a43",
+    "20260818020000_system_design_skip_advances.sql": "9715230af908000057c12d3b96df88abc909aa24649a72d3a23feed4a88541e0",
+    "20260820200000_volunteer_short_link_destination.sql": "71f3797b2048ab1ab77a5cea0767ffa7d0929546f6c6d146fd511ac0955d84dc",
+    "20260820200500_volunteer_short_link_support.sql": "3302d4be6eba989d68d8bc7010d4ddecdb81a1084ceed43c7277cec7a0bd3ba2",
+    "20260821090000_event_page_monitors.sql": "72ca230ff5b47aae3508fc5be730242caa13518c77cd7e84374424e04eb11dd3",
+    "20260824113000_speaker_rejection_email_delivery.sql": "35c8af5310c134c5088bfdf968e55eeb4eeb7fad123267d73175c78751c9537f",
+    "20260828194500_event_blast_reserve_per_campaign.sql": "6c6e05faccab0ae9b1495739b0a0c5f4b1ad0fe4c338e7c50976f8f774a0c01b",
+    "20260828211500_event_blast_resumable_preparation.sql": "1498ad2b68575574e26b3b2e02b58914b5a00995f5269c807469816d5e43a116",
+    "20260829151000_event_feedback_short_link.sql": "a34a8c968f9796aac21f67d7bfb3372ceb17ce606356c025faeb539e3f2158bb",
+    "20260829151500_event_feedback_short_link_support.sql": "2ae9efc5bf026b379e860794fe21c87bdc92c3911b5221ea11002ab8e4687bb8",
+    "20260907120000_annual_conference_complete_proposals.sql": "cfd4d7596126fb67f858dceefa75adfa971712d13031385b72c30f628b58d9fe",
+    "20260907190000_annual_conference_speaker_email_lifecycle.sql": "0cc978a7008862dbcc1fa87a4af9a2c1f9225298ae17633947f22cbc669ac1b0",
+    "20260908090000_annual_conference_task_resources.sql": "2e2fb38bfc65627821353f375c16f79033da71282c0d0b21ca6f6b0c8551f9be",
+    "20260908090100_annual_conference_task_details_format.sql": "38260c1c27d900f75c289cd047cbdabeb1954424f7b0abc676967a35378b525c",
+    "20260909113000_editable_event_slack_announcements.sql": "8a32792f7c3de58540516d7ca4e1504c2a49e678699f474d3a4bcf407763b55e",
+    "20260910020000_remove_monthly_meetup_finance.sql": "b9080d7c832148ba20a3144efe1950c47aff1eb900a23cbccd00c5d15297819b",
+    "20260912020000_project_night_recurrence.sql": "dc7db3a40e53e611dd729497c6a3d66ffc3386ba3ae5f504a9c50cc1f85ba125",
+    "20260921193000_event_submission_amendment_timezones.sql": "92a6a6a25467acf8c1ac391e69ea42fdb8966b3575e30d90ef9f572a038a489c",
+    "20260922130000_annual_conference_confirmed_assignment_mappings.sql": "ff6bd0df7f8125b2328f52a255831dde02d66c0aabdae8c7a85183ceb506696d",
+    "20260922134500_allow_organizer_work_plan_management_grants.sql": "fb3bc4607f973332e801d5b112a28bdd9b85c59795a0a04339e8011153bad077",
+    "20260922150000_annual_conference_access_permission_overrides.sql": "dcef4590e4dcd27e2b29c866fbcba3293891ef79c4b35270c198b5f80150247c",
+    "20260922200000_volunteer_follow_up_campaign.sql": "a632d475990efefec893f554c13b5aaac0e02f98140e27c5d23c21bd02a01cf0",
+    "20260923120000_volunteer_outcome_decisions.sql": "8e207f7f1dbddc5a2f6e1e1cd5ad793e5217c81f30b8e1446d3bbc319d758a05",
+    "20260925100000_event_blast_segment_pool.sql": "4474e82c3a426d3406ecd1ab62250eeee116f3c229a8be2fd6c0d1ec4cbb89f6",
+    "20260925140000_volunteer_follow_up_test_short_link.sql": "3312ad7aecb6a1a771feb226fe7afc5bf77e35f10c6bc5c1e86516a1c7687a2b",
+    "20260925140500_volunteer_follow_up_test_short_link_support.sql": "62ba78bdc204816737bfd3f4d337c656a1c0438091b24007243ec55b8cc2fe0c",
+    "20260928120000_volunteer_delivery_retry_diagnostics.sql": "8c7f44755d571ec49cb812caa398fc904241ecb12ec3d23c76e85204f95646bc",
+    "20260930090000_admin_access_requests.sql": "1f01c2ad253b5829261a9c044faeff0fcdde52b858f7c078049be6ae47213157",
+    "20261006110000_annual_conference_ticketing_foundation.sql": "2ab80bd872fd819903d94a56c75f8399b3580f3cc35680f34611bdf17742c5b4",
+    "20261006120000_atomic_sponsor_ticket_allocations.sql": "849e555f05122030ae78ea881016c9932402c4f2efc9bc008328d12cb7ce24a3",
+    "20261006130000_annual_conference_checkout_holds.sql": "2cff1aa9207216c4979c2a5ac457fc780b496e2c13f3367dcc24d901a1c7f8f8",
+    "20261006140000_annual_conference_ticket_payment_processing.sql": "8b9935dbb9d44ed0955febe1e75cdc2c786208ed2ce13eefa8d7b21c4d29bb23",
+    "20261006150000_annual_conference_ticket_assignment_delivery.sql": "500cbbff95ce826e17a41402bd846a05cdef0574b67537c34d361415d079b6f4",
+    "20261006160000_annual_conference_ticket_prices.sql": "706f9f0c64b084458d040c645cfc41d02b99e70108972982d3fb2b35d661135c",
+    "20261006170000_annual_conference_ticket_email_delivery_operations.sql": "9e80eeda675b309ff950f799aa75667b44b805ad0d4e411db4d213e8703c54b3",
+    "20261007050000_devcon26_test_checkout.sql": "de36c6b038c4d2d5970e763d9267ea30ec3a67ae62dea13f468e1dd698a20a54",
+    "20261007060000_ticket_email_capability_retention.sql": "705c2d56b339a8a93ce361079762e98e532e2ec05367c3f4e0f43cc4c50265dd"
+  },
+  "verified": [
+    {
+      "file": "20260616010000_feedback_archive.sql",
+      "sha256": "1da27c142ed06ae961e3ac561c7feeb010b378a894d594eeb7727d03c7264786",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "feedback_submissions",
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "feedback_submissions",
+          "name": "feedback_submissions_archived_created_idx",
+          "contains": [
+            "archived_at",
+            "created_at DESC"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "20260729010000_registration_waitlist_promotion.sql",
+      "sha256": "634d4a90a7fc2afa62f028be9ca540ed2fe4a076d326fa6b9499e1cd1aed75da",
+      "checks": [
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_registration_campaigns",
+          "name": "event_registration_campaigns_automatic_allocation",
+          "contains": [
+            "auto_confirm AND waitlist_enabled"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "registration_email_deliveries",
+          "name": "registration_email_deliveries_kind_check",
+          "contains": [
+            "'confirmation'",
+            "'promotion'"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "cancel_registration_and_promote",
+          "argumentTypes": "uuid",
+          "bodySha256": "cfa79d2989e0bbdf6759e45d0e0737b50efc114af674292d71e7b7b18b6e243d",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public",
+          "language": "plpgsql",
+          "result": "TABLE(cancelled boolean, promoted_registration_id uuid)"
+        }
+      ]
+    },
+    {
+      "file": "20260803130000_event_registration_public_description.sql",
+      "sha256": "3c569d65021069bce389a12d9bc629d8bf1557b9f5cecfe62443962bbb79773e",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "event_registration_campaigns",
+          "name": "description",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "event_registration_campaigns",
+          "name": "event_registration_campaigns_description_length",
+          "contains": [
+            "description IS NULL",
+            "char_length(description)",
+            "2000"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "20260922123000_annual_conference_task_board_order.sql",
+      "sha256": "081700d9f6175897bfce89ea721afedc08092014a071fdb7d74def3d884f2cae",
+      "checks": [
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_tasks",
+          "name": "board_entered_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "set_annual_conference_task_board_entered_at",
+          "argumentTypes": "",
+          "bodySha256": "b56340704fdc8138441c96c9e648eafd9a81e2b77d2b8c5f0c2325f15751b7e3",
+          "securityDefiner": false,
+          "private": false,
+          "serviceExecute": true,
+          "searchPath": "public",
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_tasks",
+          "name": "set_annual_conference_task_board_entered_at",
+          "contains": [
+            "BEFORE INSERT OR UPDATE",
+            "FOR EACH ROW"
+          ],
+          "function": "set_annual_conference_task_board_entered_at",
+          "functionSchema": "public"
+        }
+      ]
+    },
+    {
+      "file": "20260922141500_annual_conference_task_delete_cleanup.sql",
+      "sha256": "bb73bb0bdf7e3ba7709ac733596d1bc6a37a71bae49b05a72e75126e2817d031",
+      "checks": [
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "remove_annual_conference_task_dependencies",
+          "argumentTypes": "",
+          "bodySha256": "b83af0a3fe5b0d28a290cf4cde20509e69124aaa09d8cecb8ac6b6a64e570849",
+          "securityDefiner": false,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public",
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_tasks",
+          "name": "remove_annual_conference_task_dependencies",
+          "contains": [
+            "BEFORE DELETE",
+            "FOR EACH ROW"
+          ],
+          "function": "remove_annual_conference_task_dependencies",
+          "functionSchema": "public"
+        }
+      ]
+    },
+    {
+      "file": "20261010120000_devcon26_test_checkout_coupons.sql",
+      "sha256": "3a9dee4661c74915d1c629fe049a622f948919bb2fcf50e823ddd5a83e73ee7c",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "devcon26_test_coupon_codes",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "devcon26_test_coupon_claims",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": "gen_random_uuid()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "edition_year",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "2026"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "code",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "discount_type",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "discount_value",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "eligible_tiers",
+          "type": "text[]",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "max_completed",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "enabled",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "true"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "created_by_email",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "updated_by_email",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": "gen_random_uuid()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "coupon_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "session_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "resolution_reason",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "purchaser_name",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "purchaser_email",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "base_amount_minor",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "discount_amount_minor",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "0"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "coupon_id",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "coupon_code",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "resolution_reason",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_sessions_status_check",
+          "contains": [
+            "'refund_required'"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_amounts_check",
+          "contains": [
+            "base_amount_minor > 0",
+            "discount_amount_minor >= 0",
+            "amount_minor = (base_amount_minor - discount_amount_minor)",
+            "amount_minor > 0"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_coupon_check",
+          "contains": [
+            "coupon_id IS NULL",
+            "coupon_code IS NULL",
+            "discount_amount_minor = 0",
+            "discount_amount_minor > 0"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_payment_events",
+          "name": "devcon26_test_payment_events_status_check",
+          "contains": [
+            "'refund_required'"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_usage_idx",
+          "contains": [
+            "coupon_id, status, expires_at"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_coupon_idx",
+          "contains": [
+            "coupon_id, created_at DESC"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_terms_immutable",
+          "contains": [
+            "BEFORE UPDATE",
+            "FOR EACH ROW"
+          ],
+          "function": "freeze_devcon26_test_coupon_terms",
+          "functionSchema": "public"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_terms_immutable",
+          "contains": [
+            "BEFORE UPDATE",
+            "FOR EACH ROW"
+          ],
+          "function": "freeze_devcon26_test_checkout_terms",
+          "functionSchema": "public"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "freeze_devcon26_test_coupon_terms",
+          "argumentTypes": "",
+          "bodySha256": "716aef41d921f695139cf4973d29195a860067b5c9661dfe22d109a89086c619",
+          "securityDefiner": false,
+          "private": true,
+          "serviceExecute": false,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "freeze_devcon26_test_checkout_terms",
+          "argumentTypes": "",
+          "bodySha256": "5d24db6a536a60dd9a06f4663ec463a47112121df0120ef2d3cb61484a61b992",
+          "securityDefiner": false,
+          "private": true,
+          "serviceExecute": false,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "trigger"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "create_devcon26_test_coupon",
+          "argumentTypes": "integer, text, text, integer, text[], timestamp with time zone, integer, text",
+          "bodySha256": "cf088bfdf81fccd792073be6ff53c1225f07dca3c37ab29b03162bf4d82e01c1",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "devcon26_test_coupon_codes"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "toggle_devcon26_test_coupon",
+          "argumentTypes": "uuid, boolean, text",
+          "bodySha256": "c41e388c6dadf51d0e9c9a82149ff35051494e25dfac3cb32cc926ff9122d3ac",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "devcon26_test_coupon_codes"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "quote_devcon26_test_checkout",
+          "argumentTypes": "text, text",
+          "bodySha256": "1543874cb51142130c19b0e7f587cb35207b1b5e77d1802800b99208edf39005",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "jsonb"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "prepare_devcon26_test_checkout",
+          "argumentTypes": "uuid, text, text, text, text",
+          "bodySha256": "82f53a0f22748a5ef84473f68b68b9a9cf3d30c1cfc615287a71863a9443b7b2",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "devcon26_test_checkout_sessions"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "confirm_devcon26_test_checkout",
+          "argumentTypes": "text, text, integer, text, text, text, text",
+          "bodySha256": "022549e5c2da6236e40a4a964a17583fbb378aca48cc575bdc07c9943ca3448d",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "devcon26_test_checkout_sessions"
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "list_devcon26_test_coupons",
+          "argumentTypes": "integer, integer, integer, integer, integer",
+          "bodySha256": "a0f060ff073e9678894024a987d8297560b32f1af6eca23d256fe549e6454a04",
+          "securityDefiner": true,
+          "private": true,
+          "serviceExecute": true,
+          "searchPath": "public, pg_temp",
+          "language": "plpgsql",
+          "result": "jsonb"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_check",
+          "contains": [
+            "CHECK ((((discount_type = 'percentage_bps'::text) AND (discount_value < 10000)) OR ((discount_type = 'fixed_minor'::text) AND (discount_value < CASE WHEN ('regular'::text = ANY (eligible_tiers)) THEN 19999 WHEN ('team_3'::text = ANY (eligible_tiers)) THEN 54999 ELSE 84999 END))))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_code_check",
+          "contains": [
+            "CHECK ((code ~ '^[A-Z0-9-]{3,48}$'::text))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_discount_type_check",
+          "contains": [
+            "CHECK ((discount_type = ANY (ARRAY['fixed_minor'::text, 'percentage_bps'::text])))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_discount_value_check",
+          "contains": [
+            "CHECK ((discount_value > 0))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_edition_year_check",
+          "contains": [
+            "CHECK ((edition_year = 2026))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_edition_year_code_key",
+          "contains": [
+            "UNIQUE (edition_year, code)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_eligible_tiers_check",
+          "contains": [
+            "CHECK ((((cardinality(eligible_tiers) >= 1) AND (cardinality(eligible_tiers) <= 3)) AND (eligible_tiers <@ ARRAY['regular'::text, 'team_3'::text, 'team_5'::text]) AND (array_position(eligible_tiers, NULL::text) IS NULL)))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_max_completed_check",
+          "contains": [
+            "CHECK (((max_completed >= 1) AND (max_completed <= 1000000)))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_codes",
+          "name": "devcon26_test_coupon_codes_pkey",
+          "contains": [
+            "PRIMARY KEY (id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_coupon_id_fkey",
+          "contains": [
+            "FOREIGN KEY (coupon_id) REFERENCES devcon26_test_coupon_codes(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_coupon_id_session_id_key",
+          "contains": [
+            "UNIQUE (coupon_id, session_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_pkey",
+          "contains": [
+            "PRIMARY KEY (id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_session_id_fkey",
+          "contains": [
+            "FOREIGN KEY (session_id) REFERENCES devcon26_test_checkout_sessions(id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_session_id_key",
+          "contains": [
+            "UNIQUE (session_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_coupon_claims",
+          "name": "devcon26_test_coupon_claims_status_check",
+          "contains": [
+            "CHECK ((status = ANY (ARRAY['held'::text, 'completed'::text, 'released'::text, 'exception'::text])))"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_sessions_coupon_id_fkey",
+          "contains": [
+            "FOREIGN KEY (coupon_id) REFERENCES devcon26_test_coupon_codes(id)"
+          ]
+        }
+      ]
+    }
+  ]
+}
