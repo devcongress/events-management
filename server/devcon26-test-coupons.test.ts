@@ -14,7 +14,8 @@ vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: vi
 const app = new Hono<AppBindings>();
 const path = '/api/annual-conference/2026/ticketing/test-coupons';
 const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const input = { code: 'TEST-COUPON', discount_type: 'fixed_minor', discount_value: 1000,
+const code = 'TEST-ABCD-EFGH-JKLM-NPQR';
+const input = { discount_type: 'fixed_minor', discount_value: 1000,
   eligible_tiers: ['regular'], expires_at: '2099-12-19T23:00:00Z', max_completed: 5 };
 let role: AdminRole | null = 'owner';
 
@@ -43,7 +44,7 @@ beforeEach(() => {
   vi.mocked(storage.listDevcon26TestCoupons).mockResolvedValue({
     coupons: [], checkouts: [], total: 0, page: 1, page_size: 25, checkout_total: 0, checkout_page: 1, checkout_page_size: 25,
   });
-  vi.mocked(storage.createDevcon26TestCoupon).mockResolvedValue({ id });
+  vi.mocked(storage.createDevcon26TestCoupon).mockResolvedValue({ id, code });
   vi.mocked(storage.toggleDevcon26TestCoupon).mockResolvedValue({ id, enabled: false });
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -69,7 +70,10 @@ describe('Owner test coupon operations', () => {
   });
 
   it('creates and toggles only test terms, auditing coupon identity without code or purchaser PII', async () => {
-    expect((await request('POST', path, input)).status).toBe(201);
+    const response = await request('POST', path, input);
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ coupon: { id, code } });
     expect((await request('PATCH', `${path}/${id}`, { enabled: false })).status).toBe(200);
     expect(storage.createDevcon26TestCoupon).toHaveBeenCalledWith(expect.anything(), input, 'owner@example.test');
     const events = vi.mocked(recordProtectedMutationAudit).mock.calls.map((call) => call[1]);
@@ -78,12 +82,27 @@ describe('Owner test coupon operations', () => {
       { action: 'annual_conference.test_coupon.create', targetId: id, metadata: { edition_year: 2026 } },
       { action: 'annual_conference.test_coupon.toggle', targetId: id, metadata: { edition_year: 2026, enabled: false } },
     ]);
-    expect(JSON.stringify(events)).not.toMatch(/TEST-COUPON|owner@example|purchaser/);
+    expect(JSON.stringify(events)).not.toMatch(/TEST-ABCD|owner@example|purchaser/);
+  });
+
+  it('rejects manual codes before storage and audit', async () => {
+    expect((await request('POST', path, { ...input, code: 'MANUAL-CODE' })).status).toBe(400);
+    expect(storage.createDevcon26TestCoupon).not.toHaveBeenCalled();
+    expect(recordProtectedMutationAudit).not.toHaveBeenCalled();
+  });
+
+  it('returns a bounded storage failure without exposing generated codes or database details', async () => {
+    vi.mocked(storage.createDevcon26TestCoupon).mockRejectedValue(new Error(`test_coupon_storage_unavailable ${code}`));
+    const response = await request('POST', path, input);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'The test coupon could not be created.' });
+    expect(recordProtectedMutationAudit).not.toHaveBeenCalled();
   });
 
   it('bounds both coupon and private purchaser ledger pages and rejects unknown query fields', async () => {
-    expect((await request('GET', `${path}?page=2&page_size=8&checkout_page=3&checkout_page_size=8`)).status).toBe(200);
-    expect(storage.listDevcon26TestCoupons).toHaveBeenCalledWith(expect.anything(), { page: 2, page_size: 8, checkout_page: 3, checkout_page_size: 8 });
+    expect((await request('GET', `${path}?page=2&page_size=8&checkout_page=3&checkout_page_size=5`)).status).toBe(200);
+    expect(storage.listDevcon26TestCoupons).toHaveBeenCalledWith(expect.anything(), { page: 2, page_size: 8, checkout_page: 3, checkout_page_size: 5 });
     for (const query of ['page_size=51', 'checkout_page_size=51', 'page=0', 'checkout_page=10001', 'code=private']) {
       expect((await request('GET', `${path}?${query}`)).status).toBe(400);
     }

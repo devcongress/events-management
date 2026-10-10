@@ -3,7 +3,7 @@ import { createDevcon26TestCouponSchema, devcon26CouponError, devcon26TestQuoteF
 import { devcon26TestInitializeSchema, devcon26TestQuoteSchema } from '@/lib/devcon26-test-checkout';
 
 const coupon = {
-  code: ' TEST-COUPON ', discount_type: 'fixed_minor', discount_value: 1000,
+  discount_type: 'fixed_minor', discount_value: 1000,
   eligible_tiers: ['regular', 'team_3'], expires_at: '2099-12-19T23:00:00Z', max_completed: 5,
 };
 const buyer = {
@@ -12,6 +12,18 @@ const buyer = {
 };
 
 describe('test coupon input and public summaries', () => {
+  it('accepts Owner coupon terms without a code and rejects manual or caller-owned codes', () => {
+    expect(createDevcon26TestCouponSchema.parse(coupon)).toEqual(coupon);
+    expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, code: 'MANUAL-CODE' }).success).toBe(false);
+  });
+
+  it('accepts a generated code in the existing public checkout contract', () => {
+    const code = 'TEST-ABCD-EFGH-JKLM-NPQR';
+
+    expect(devcon26TestQuoteSchema.parse({ tier_key: 'regular', coupon_code: code.toLowerCase() }).coupon_code).toBe(code);
+    expect(devcon26TestInitializeSchema.parse({ ...buyer, coupon_code: code }).coupon_code).toBe(code);
+  });
+
   it('normalizes code and buyer fields once and accepts a quote without buyer PII', () => {
     expect(devcon26TestInitializeSchema.parse(buyer)).toMatchObject({
       purchaser_name: 'Ada Lovelace', purchaser_email: 'ada@example.test', coupon_code: 'TEST-COUPON',

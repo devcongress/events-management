@@ -13,7 +13,6 @@ export interface Devcon26TestQuote {
 }
 
 export const createDevcon26TestCouponSchema = z.object({
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{3,48}$/, 'Use 3–48 letters, numbers, or hyphens.'),
   discount_type: z.enum(['fixed_minor', 'percentage_bps']),
   discount_value: z.number().int().positive(),
   eligible_tiers: z.array(z.enum(['regular', 'team_3', 'team_5'])).min(1).max(3),
@@ -37,6 +36,9 @@ export const createDevcon26TestCouponSchema = z.object({
 });
 
 export type Devcon26TestCouponInput = z.infer<typeof createDevcon26TestCouponSchema>;
+
+export type Devcon26TestCouponCreated = Pick<Devcon26TestCoupon, 'id' | 'code'>;
+
 export interface Devcon26TestCoupon {
   id: string;
   code: string;

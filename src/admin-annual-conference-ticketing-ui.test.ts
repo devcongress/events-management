@@ -88,4 +88,43 @@ describe('annual conference ticketing operations UI', () => {
     expect(ticketingSource).toContain('emailDeliveryPage.value = finalPage');
     expect(ticketingSource).toContain('await emailDeliveryQuery.refetch();');
   });
+
+  it('places an app-owned status dropdown beside Refresh instead of status pills', () => {
+    const deliverySection = ticketingSource.slice(ticketingSource.indexOf('aria-labelledby="email-delivery-title"'));
+    const header = deliverySection.match(/<header\b[\s\S]*?<\/header>/)?.[0] ?? '';
+    const dropdown = header.match(/<AppDropdown\b[\s\S]*?\/>/)?.[0] ?? '';
+
+    expect(ticketingSource).toContain("import AppDropdown from '@/src/components/AppDropdown.vue'");
+    expect(header).toContain('role="group" aria-label="Delivery health controls"');
+    expect(header).toContain('flex w-full flex-wrap items-center gap-2 sm:w-auto');
+    expect(dropdown).toContain(':model-value="emailDeliveryStatus"');
+    expect(dropdown).toContain(':options="emailDeliveryFilters"');
+    expect(dropdown).toContain('aria-label="Filter ticket email deliveries by status"');
+    expect(dropdown).toContain('density="compact"');
+    expect(dropdown).toContain('trigger-class="min-h-11"');
+    expect(dropdown).toContain('menu-class="[&_button]:min-h-11"');
+    expect(dropdown).toContain('menu-align="right"');
+    expect(dropdown).toContain('teleport');
+    expect(dropdown).toContain('@update:model-value="setEmailDeliveryStatus"');
+    expect(header).toMatch(/<button\b[^>]*min-h-11[^>]*:disabled="emailDeliveryQuery.isFetching.value"[^>]*@click="emailDeliveryQuery.refetch\(\)">Refresh<\/button>/);
+    expect(header.indexOf('<AppDropdown')).toBeLessThan(header.indexOf('>Refresh</button>'));
+    expect(ticketingSource).not.toContain('v-for="filter in emailDeliveryFilters"');
+    expect(ticketingSource).not.toContain(':aria-pressed="emailDeliveryStatus === filter.value"');
+  });
+
+  it('preserves status choices, filtered counts, and page resets through the dropdown', () => {
+    for (const [value, label] of [
+      ['all', 'All'], ['failed', 'Needs review'], ['queued', 'Queued'], ['accepted', 'Accepted'], ['delivered', 'Delivered'],
+    ]) {
+      expect(ticketingSource).toContain(`{ value: '${value}', label: '${label}' }`);
+    }
+    expect(ticketingSource).toContain("status: emailDeliveryStatus.value === 'all' ? undefined : emailDeliveryStatus.value");
+    expect(ticketingSource).toMatch(/watch\(\[emailDeliveryStatus, year\], \(\) => \{\s*emailDeliveryPage.value = 1;/);
+    expect(ticketingSource).toContain('function setEmailDeliveryStatus(value: string | number)');
+    expect(ticketingSource).toContain('emailDeliveryFilters.find((option) => option.value === value)');
+    expect(ticketingSource).toMatch(/if \(!filter\) return;\s*emailDeliveryStatus.value = filter.value;/);
+    expect(ticketingSource).toContain('emailDeliveryQuery.data.value?.total ?? 0');
+    expect(ticketingSource).toContain('emailDeliverySummary.failed');
+    expect(ticketingSource).toContain('emailDeliverySummary.delivered');
+  });
 });

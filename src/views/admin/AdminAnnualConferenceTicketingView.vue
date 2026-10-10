@@ -2,6 +2,7 @@
 import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
+import AppDropdown from '@/src/components/AppDropdown.vue';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import Devcon26TestCoupons from '@/src/components/Devcon26TestCoupons.vue';
 import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
@@ -370,8 +371,12 @@ function deliveryStatusLabel(delivery: AnnualConferenceTicketEmailDelivery) {
   return delivery.status;
 }
 
-function setEmailDeliveryStatus(status: AnnualConferenceTicketEmailDeliveryStatus | 'all') {
-  emailDeliveryStatus.value = status;
+function setEmailDeliveryStatus(value: string | number) {
+  const filter = emailDeliveryFilters.find((option) => option.value === value);
+
+  if (!filter) return;
+
+  emailDeliveryStatus.value = filter.value;
 }
 
 function sponsorContactLabel(allocation: AnnualConferenceSponsorAllocation) {
@@ -499,7 +504,21 @@ onUnmounted(() => {
               <h2 id="email-delivery-title" class="mt-1 text-xl font-semibold text-dc-ink">Delivery health</h2>
               <p class="mt-1 text-sm leading-6 text-dc-gray">All ticket-email activity for this conference. Provider acceptance is not proof of inbox delivery.</p>
             </div>
-            <button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink" :disabled="emailDeliveryQuery.isFetching.value" @click="emailDeliveryQuery.refetch()">Refresh</button>
+            <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto" role="group" aria-label="Delivery health controls">
+              <AppDropdown
+                :model-value="emailDeliveryStatus"
+                :options="emailDeliveryFilters"
+                class="min-w-0 flex-1 sm:w-44 sm:flex-none"
+                aria-label="Filter ticket email deliveries by status"
+                density="compact"
+                trigger-class="min-h-11"
+                menu-align="right"
+                menu-class="[&_button]:min-h-11"
+                teleport
+                @update:model-value="setEmailDeliveryStatus"
+              />
+              <button type="button" class="motion-press min-h-11 shrink-0 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="emailDeliveryQuery.isFetching.value" @click="emailDeliveryQuery.refetch()">Refresh</button>
+            </div>
           </header>
 
           <div class="grid divide-y divide-dc-border sm:grid-cols-4 sm:divide-x sm:divide-y-0">
@@ -514,20 +533,7 @@ onUnmounted(() => {
             </dl>
           </div>
 
-          <div class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border px-5 py-3">
-            <div class="flex flex-wrap items-center gap-2" aria-label="Filter ticket email deliveries">
-              <button
-                v-for="filter in emailDeliveryFilters"
-                :key="filter.value"
-                type="button"
-                class="motion-press rounded-full border px-3 py-1.5 font-mono text-[10px] font-semibold uppercase"
-                :class="emailDeliveryStatus === filter.value ? 'border-dc-ink bg-dc-ink text-dc-paper' : 'border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink'"
-                :aria-pressed="emailDeliveryStatus === filter.value"
-                @click="setEmailDeliveryStatus(filter.value)"
-              >{{ filter.label }}</button>
-            </div>
-            <p class="text-xs text-dc-gray">{{ emailDeliveryQuery.data.value?.total ?? 0 }} {{ emailDeliveryStatus === 'all' ? 'records' : `${emailDeliveryStatus} records` }}</p>
-          </div>
+          <p class="border-t border-dc-border px-5 py-3 text-xs text-dc-gray">{{ emailDeliveryQuery.data.value?.total ?? 0 }} {{ emailDeliveryStatus === 'all' ? 'records' : `${emailDeliveryStatus} records` }}</p>
 
           <div class="divide-y divide-dc-border">
             <p v-if="emailDeliveryQuery.isLoading.value" class="px-5 py-5 text-sm text-dc-gray">Loading email delivery activity…</p>

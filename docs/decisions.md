@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-106: Generate test coupon codes at the server-owned creation boundary
+
+**Date:** 2026-10-10
+
+**Decision:** Accept only Owner-defined coupon terms and generate an 80-bit cryptographic code in the server adapter when creation is submitted. Reuse the existing service-only SQL RPC and its unique-code constraint, retrying only unique violations with at most four fresh candidates. Return the stored ID/code to the Owner interface and keep codes out of audit metadata.
+
+**Why:** Organizers should configure a discount rather than invent and check codes. Server generation prevents caller-controlled or predictable codes while preserving the existing immutable database contract without another migration.
+
+**Tradeoffs:** Existing manually created coupons remain usable, but the Owner creation API no longer accepts a code field. Non-unique and transport failures are not retried automatically because the write outcome may be ambiguous. This remains a sandbox feature, not a live discount or admission-ticket model.
+
+---
+
 ## ADR-105: Verify migration readiness at delivery without running migrations
 
 **Date:** 2026-10-10
