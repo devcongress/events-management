@@ -88,6 +88,7 @@ Start with the centralized [Documentation Map](docs/README.md) if you are unsure
 | [Architecture](docs/architecture.md) | App shape, route groups, API surface, persistence, realtime, and auth strategy |
 | [Implementation Notes](docs/implementation.md) | Entry points, module breakdown, constants, and key flows |
 | [Local Development](docs/technical/local-development.md) | Setup, scripts, seed data, environment variables, and troubleshooting |
+| [Migration Delivery Gate](docs/technical/migration-delivery-gate.md) | Read-only schema-contract checks, required audit-environment configuration, and delivery boundaries |
 | [Auth](docs/auth.md) | Supabase-only organizer auth, roles, sessions, and security notes |
 | [Public Meetup API](docs/public-meetups-api.md) | Read-only meetup API contract for `devcongress.org` integration |
 | [Technical Debt](docs/reference/technical-debt.md) | Evidence-backed production and architecture debt register |
