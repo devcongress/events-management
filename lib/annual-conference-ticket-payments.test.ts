@@ -19,7 +19,23 @@ describe('annual conference ticket payment adapter', () => {
       DEVCON26_PAYMENT_PROVIDER: 'paystack',
       DEVCON26_PAYMENTS_ENABLED: 'true',
       PAYSTACK_SECRET_KEY: secretKey,
-    })).toEqual({ enabled: false, provider: null, secretKey: null });
+    })).toEqual({ enabled: false, provider: null, secretKey: null, feeMode: 'merchant_absorbs' });
+  });
+
+  it('only enables the explicit Paystack pass-fees policy with a valid live configuration', () => {
+    expect(annualConferencePaymentConfiguration({
+      DEVCON26_PAYMENT_PROVIDER: 'paystack',
+      DEVCON26_PAYMENTS_ENABLED: 'true',
+      DEVCON26_PAYSTACK_FEE_MODE: 'paystack_pass_fees',
+      PAYSTACK_SECRET_KEY: 'sk_live_fixture',
+    })).toMatchObject({ enabled: true, feeMode: 'paystack_pass_fees' });
+
+    expect(annualConferencePaymentConfiguration({
+      DEVCON26_PAYMENT_PROVIDER: 'paystack',
+      DEVCON26_PAYMENTS_ENABLED: 'true',
+      DEVCON26_PAYSTACK_FEE_MODE: 'buyer_pays_whatever',
+      PAYSTACK_SECRET_KEY: 'sk_live_fixture',
+    })).toMatchObject({ enabled: false });
   });
 
   it('rejects test credentials before calling the live verification provider', async () => {
@@ -39,11 +55,11 @@ describe('annual conference ticket payment adapter', () => {
 
   it('accepts successful live-order verification only with live credentials and provider domain', async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: true, data: {
-      id: 123, reference: 'devcon26_fixture', amount: 19_999, currency: 'GHS', status: 'success', domain: 'live',
+      id: 123, reference: 'devcon26_fixture', amount: 20_397, requested_amount: 19_999, fees: 398, currency: 'GHS', status: 'success', domain: 'live',
     } })));
 
     await expect(verifyPaystackTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'devcon26_fixture', fetcher: fetcher as unknown as typeof fetch })).resolves.toMatchObject({
-      paymentReference: 'devcon26_fixture', amountMinor: 19_999, currency: 'GHS', facts: { domain: 'live' },
+      paymentReference: 'devcon26_fixture', amountMinor: 20_397, requestedAmountMinor: 19_999, providerFeeMinor: 398, currency: 'GHS', facts: { domain: 'live', requested_amount: 19_999, fees: 398 },
     });
   });
 

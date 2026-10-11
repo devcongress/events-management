@@ -83,6 +83,7 @@ function ticketPaymentEnvironment(c: Context<AppBindings>): Record<string, strin
   return {
     DEVCON26_PAYMENT_PROVIDER: envValue('DEVCON26_PAYMENT_PROVIDER', c),
     DEVCON26_PAYMENTS_ENABLED: envValue('DEVCON26_PAYMENTS_ENABLED', c),
+    DEVCON26_PAYSTACK_FEE_MODE: envValue('DEVCON26_PAYSTACK_FEE_MODE', c),
     PAYSTACK_SECRET_KEY: envValue('PAYSTACK_SECRET_KEY', c),
   };
 }
@@ -129,7 +130,10 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
         amountMinor: charge.amountMinor,
         currency: charge.currency,
         payloadSha256: crypto.createHash('sha256').update(rawBody).digest('hex'),
-        paymentFacts: charge.facts,
+        paymentFacts: {
+          ...charge.facts,
+          fee_mode: configuration.feeMode,
+        },
       }, c);
 
       if (order === null) return ticketingUnavailable(c);
