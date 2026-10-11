@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   hasDue: vi.fn(),
   claimOutcome: vi.fn(),
   validateSend: vi.fn(),
-  finalizeSend: vi.fn(),
+  finalizeBatch: vi.fn(),
   replayEvents: vi.fn(),
   readQuota: vi.fn(),
   emailHealth: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("../lib/supabase/volunteer-follow-up", () => ({
   hasDueVolunteerOutcomeDelivery: mocks.hasDue,
   claimVolunteerOutcome: mocks.claimOutcome,
   validateVolunteerOutcomeSend: mocks.validateSend,
-  finalizeVolunteerOutcomeSend: mocks.finalizeSend,
+  finalizeVolunteerOutcomeBatch: mocks.finalizeBatch,
   replayVolunteerFollowUpProviderEvents: mocks.replayEvents,
   recordVolunteerFollowUpDrain: mocks.recordDrain,
   reconcileVolunteerFollowUpApplicants: vi.fn(),
@@ -84,6 +84,7 @@ describe("volunteer outcome email drain", () => {
     mocks.hasDue.mockResolvedValue(true);
     mocks.claimOutcome.mockResolvedValue({
       id: "delivery-1",
+      batch_id: "batch-1",
       idempotency_key: "volunteer-outcome/recipient-1/4",
       attempt_count: 1,
       first_attempt_at: new Date().toISOString(),
@@ -96,7 +97,7 @@ describe("volunteer outcome email drain", () => {
       },
     });
     mocks.validateSend.mockResolvedValue(true);
-    mocks.finalizeSend.mockResolvedValue(true);
+    mocks.finalizeBatch.mockResolvedValue(true);
     mocks.replayEvents.mockResolvedValue(undefined);
     mocks.readQuota.mockResolvedValue({ dailyUsed: 5, monthlyUsed: 40 });
     mocks.emailHealth.mockResolvedValue({ daily_quota_limit: 100, monthly_quota_limit: 3000 });
@@ -145,8 +146,8 @@ describe("volunteer outcome email drain", () => {
         text: "Accepted",
       }],
     }));
-    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
-      deliveryId: "delivery-1",
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
+      batchId: "batch-1",
       status: "retrying",
       nextAttemptAt: expect.any(String),
     }), expect.anything());
@@ -157,6 +158,7 @@ describe("volunteer outcome email drain", () => {
   it("reaches a lone expired sending outcome after the invitation campaign is closed", async () => {
     mocks.claimOutcome.mockResolvedValueOnce({
       id: "delivery-1",
+      batch_id: "batch-1",
       status: "sending",
       idempotency_key: "volunteer-outcome/recipient-1/4",
       attempt_count: 2,
@@ -180,9 +182,9 @@ describe("volunteer outcome email drain", () => {
     expect(mocks.hasDue).toHaveBeenCalled();
     expect(mocks.claimOutcome).toHaveBeenCalledOnce();
     expect(mocks.sendBatch).toHaveBeenCalledOnce();
-    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
       status: "accepted",
-      providerEmailId: "provider-email-recovered",
+      providerEmailIds: ["provider-email-recovered"],
     }), expect.anything());
   });
 
@@ -205,13 +207,29 @@ describe("volunteer outcome email drain", () => {
         text: "Accepted",
       }],
     }));
-    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
-      deliveryId: "delivery-1",
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
+      batchId: "batch-1",
       status: "accepted",
-      providerEmailId: "provider-email-1",
+      providerEmailIds: ["provider-email-1"],
       claimToken: expect.any(String),
     }), expect.anything());
     expect(mocks.replayEvents).toHaveBeenCalledWith("provider-email-1", expect.anything());
+  });
+
+  it("does not report a provider-accepted batch as sent when its atomic receipt loses the claim", async () => {
+    mocks.sendBatch.mockResolvedValueOnce({
+      ids: ["provider-email-1"],
+      quota: { dailyUsed: 6, monthlyUsed: 41 },
+    });
+    mocks.finalizeBatch.mockResolvedValueOnce(false);
+
+    const response = await drain();
+    const payload = await response.json() as { sent: number; reason: string };
+
+    expect(response.status).toBe(200);
+    expect(payload.sent).toBe(0);
+    expect(payload.reason).toContain("outcome_finalize_claim_lost");
+    expect(mocks.replayEvents).not.toHaveBeenCalled();
   });
 
   it("keeps an accepted outcome final even when its batch response omits quota headers", async () => {
@@ -226,11 +244,51 @@ describe("volunteer outcome email drain", () => {
     expect(response.status).toBe(200);
     expect(payload.sent).toBe(1);
     expect(payload.reason).toContain("capacity_unverified");
-    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
       status: "accepted",
-      providerEmailId: "provider-email-1",
+      providerEmailIds: ["provider-email-1"],
     }), expect.anything());
     expect(mocks.sendBatch).toHaveBeenCalledOnce();
+  });
+
+  it("sends one frozen batch with its stable key and maps provider IDs by payload order", async () => {
+    mocks.claimOutcome.mockResolvedValueOnce([
+      {
+        id: "delivery-1",
+        batch_id: "batch-1",
+        batch_idempotency_key: "volunteer-outcome-batch/preview-1/1",
+        attempt_count: 1,
+        first_attempt_at: new Date().toISOString(),
+        payload: { from: "DevCongress <volunteers@devcongress.org>", to: ["ama@example.test"], subject: "Outcome", html: "<p>Ama</p>", text: "Ama" },
+      },
+      {
+        id: "delivery-2",
+        batch_id: "batch-1",
+        batch_idempotency_key: "volunteer-outcome-batch/preview-1/1",
+        attempt_count: 1,
+        first_attempt_at: new Date().toISOString(),
+        payload: { from: "DevCongress <volunteers@devcongress.org>", to: ["kojo@example.test"], subject: "Outcome", html: "<p>Kojo</p>", text: "Kojo" },
+      },
+    ]);
+    mocks.sendBatch.mockResolvedValueOnce({
+      ids: ["provider-ama", "provider-kojo"],
+      quota: { dailyUsed: 7, monthlyUsed: 42 },
+    });
+
+    await drain();
+
+    expect(mocks.sendBatch).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey: "volunteer-outcome-batch/preview-1/1",
+      emails: [
+        expect.objectContaining({ to: ["ama@example.test"] }),
+        expect.objectContaining({ to: ["kojo@example.test"] }),
+      ],
+    }));
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
+      batchId: "batch-1",
+      providerEmailIds: ["provider-ama", "provider-kojo"],
+      status: "accepted",
+    }), expect.anything());
   });
 
   it("records definite provider rate limits as retryable failures without changing the decision", async () => {
@@ -239,7 +297,7 @@ describe("volunteer outcome email drain", () => {
     mocks.sendBatch.mockRejectedValueOnce(new ResendBatchError("rate limited", 429));
     await drain();
 
-    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
       status: "failed",
       nextAttemptAt: expect.any(String),
     }), expect.anything());
@@ -276,7 +334,7 @@ describe("volunteer outcome email drain", () => {
     expect(mocks.sendBatch).toHaveBeenCalledWith(expect.objectContaining({
       idempotencyKey: "volunteer-outcome/recipient-1/4",
     }));
-    expect(mocks.finalizeSend).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.finalizeBatch).toHaveBeenCalledWith(expect.objectContaining({
       status: "retrying",
       nextAttemptAt: expect.any(String),
     }), expect.anything());

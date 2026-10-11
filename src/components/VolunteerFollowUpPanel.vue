@@ -634,7 +634,11 @@ const retryConfirmationMessage = computed(() => {
       ? "The outcome queue is running independently of the invitation campaign."
       : "The invitation queue is running, so the scheduled sender may process it after this is queued.";
 
-  return `This keeps ${retry.name}'s existing email content and idempotency key. It only queues work for the scheduled sender; no email is sent now. ${queueState}`;
+  const batchScope = retry.kind === "outcome"
+    ? "Outcome emails retry as their original frozen batch, so this queues every recipient in that batch with the same content and idempotency key."
+    : `This keeps ${retry.name}'s existing email content and idempotency key.`;
+
+  return `${batchScope} It only queues work for the scheduled sender; no email is sent now. ${queueState}`;
 });
 
 async function queueDeliveryRetry(): Promise<void> {

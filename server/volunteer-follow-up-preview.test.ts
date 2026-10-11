@@ -227,12 +227,12 @@ describe("volunteer follow-up invitation preview route", () => {
     const denied = await app.request(path, {
       method: "POST",
       headers: { "x-test-role": "organizer", "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: "accepted" }),
+      body: JSON.stringify({ decision: "accepted", subject: "Volunteer outcome", message: "Welcome to DevCongress." }),
     });
     const allowed = await app.request(path, {
       method: "POST",
       headers: { "x-test-role": "owner", "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: "accepted" }),
+      body: JSON.stringify({ decision: "accepted", subject: "Volunteer outcome", message: "Welcome to DevCongress." }),
     });
     const payload = await allowed.json() as Record<string, unknown>;
     const confirmation = await app.request(
@@ -284,7 +284,7 @@ describe("volunteer follow-up invitation preview route", () => {
       app.request(`${base}/preview`, {
         method: "POST",
         headers: { "x-test-role": "organizer", "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: "accepted" }),
+        body: JSON.stringify({ decision: "accepted", subject: "Volunteer outcome", message: "Welcome to DevCongress." }),
       }),
       app.request(`${base}/confirm`, {
         method: "POST",

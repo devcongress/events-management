@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-108: Freeze volunteer outcome sends as deterministic provider batches
+
+**Date:** 2026-10-11
+
+**Decision:** Confirmed volunteer outcome snapshots are partitioned in frozen recipient order into durable batches of 50. Each batch owns one Resend idempotency key, while every recipient retains its own frozen payload and ordered provider-ID mapping. A claim and retry always operate on the complete batch; a response is accepted only when it has exactly one unique provider ID for each frozen recipient.
+
+**Why:** Per-recipient sends leave the scheduler needlessly slow and make ambiguous multi-send outcomes unsafe to recover. Durable batch membership makes retries deterministic without giving a partially acknowledged response permission to resend only selected recipients.
+
+**Tradeoffs:** One ambiguous recipient blocks the whole batch until Resend can safely replay the exact request or an Owner investigates. The default size is deliberately 50, below Resend's 100-email cap, to bound recovery scope and leave room for future provider constraints.
+
+---
+
 ## ADR-107: Issue independently scanable bearer seats to the purchasing contact
 
 **Date:** 2026-10-11

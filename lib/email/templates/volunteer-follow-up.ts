@@ -47,15 +47,18 @@ export function volunteerFollowUpEmail(input: {
 function volunteerOutcomeEmail(
   input: { name: string },
   decision: "accepted" | "not_selected",
+  composer?: { subject: string; message: string },
 ) {
   const firstName = input.name.trim().split(/\s+/u)[0] || "there";
   const accepted = decision === "accepted";
-  const subject = accepted
+  const defaultSubject = accepted
     ? "Your DevCongress 2026 volunteer application"
     : "An update on your DevCongress 2026 volunteer application";
-  const message = accepted
+  const defaultMessage = accepted
     ? "We’re pleased to let you know that you’ve been selected to volunteer with DevCongress 2026. Our team will share the next steps and event information with you soon."
     : "Thank you for offering your time and for completing the volunteer follow-up. We’re unable to offer you a volunteer place for DevCongress 2026. We appreciate your interest and hope to see you at the event.";
+  const subject = composer?.subject ?? defaultSubject;
+  const message = composer?.message ?? defaultMessage;
   const html = renderSpeakerEmailLayout({
     subject,
     preheader: accepted
@@ -65,7 +68,7 @@ function volunteerOutcomeEmail(
     contentHtml: `
       <p class="email-eyebrow" style="margin:0 0 10px;color:#C80D68;font-family:'IBM Plex Mono','Courier New',monospace;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;">Volunteer decision / 2026</p>
       <h1 class="email-heading" style="margin:0 0 12px;color:#111111;font-size:34px;font-weight:800;line-height:1.15;">Hi ${escapeHtml(firstName)},</h1>
-      <p class="email-copy" style="margin:0;color:#444444;font-size:16px;line-height:1.6;">${escapeHtml(message)}</p>`,
+      <p class="email-copy" style="margin:0;color:#444444;font-size:16px;line-height:1.6;">${escapeHtml(message).replaceAll("\n", "<br>")}</p>`,
     footerTitle: "DevCongress 2026 · Accra",
     footerCopy: "Thank you for being part of the DevCongress community.",
   });
@@ -77,6 +80,10 @@ function volunteerOutcomeEmail(
 export function volunteerOutcomeEmailPreview(input: {
   name: string;
   decision: "accepted" | "not_selected";
+  subject?: string;
+  message?: string;
 }) {
-  return volunteerOutcomeEmail(input, input.decision);
+  return volunteerOutcomeEmail(input, input.decision, input.subject && input.message
+    ? { subject: input.subject, message: input.message }
+    : undefined);
 }

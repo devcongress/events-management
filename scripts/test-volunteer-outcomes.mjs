@@ -96,9 +96,14 @@ const leaseToken = randomUUID();
 const claimToken = randomUUID();
 
 sql(`update public.volunteer_follow_up_campaigns set drain_lease_token='${leaseToken}', drain_lease_until=now()+interval '2 minutes' where id='${campaignId}'`);
-const claimedId = sql(`select id from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, '${claimToken}', '${leaseToken}')`);
+const claimedIds = sql(`select id from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, '${claimToken}', '${leaseToken}')`).split('\n');
 
-assert.match(claimedId, /^[a-f0-9-]{36}$/);
+assert.equal(claimedIds.length, 2, 'one preview with two recipients claims one ordered provider batch');
+assert.ok(claimedIds.every((id) => /^[a-f0-9-]{36}$/.test(id)));
+const [claimedId] = claimedIds;
+const claimedBatchId = sql(`select batch_id from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`);
+
+assert.equal(sql(`select count(*) from public.volunteer_follow_up_outcome_deliveries where batch_id='${claimedBatchId}'`), '2');
 const claimedRecipientId = sql(`select recipient_id from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`);
 
 assert.equal(sql(`select public.validate_volunteer_follow_up_outcome_send('${claimedId}','${claimToken}','${leaseToken}')`), 't');
@@ -117,30 +122,37 @@ const noteEdit = sql(`select decision_version from public.save_volunteer_follow_
 
 assert.equal(noteEdit, '1', 'note-only edit retains decision version while sending');
 
-sql(`update public.volunteer_follow_up_outcome_deliveries set status='sending', claimed_until=null,
-  first_attempt_at=now()-interval '1 minute', claim_token=null where id='${claimedId}';`);
+sql(`update public.volunteer_follow_up_outcome_batches set status='sending', claimed_until=null,
+  first_attempt_at=now()-interval '1 minute', claim_token=null where id='${claimedBatchId}';
+update public.volunteer_follow_up_outcome_deliveries set status='sending', claimed_until=null,
+  first_attempt_at=now()-interval '1 minute', claim_token=null where batch_id='${claimedBatchId}';`);
 const retryLeaseToken = randomUUID();
 
 sql(`update public.volunteer_follow_up_campaigns set drain_lease_token='${retryLeaseToken}', drain_lease_until=now()+interval '2 minutes' where id='${campaignId}'`);
-const recoveredId = sql(`select id from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, gen_random_uuid(), '${retryLeaseToken}')`);
+const recoveredIds = sql(`select id from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, gen_random_uuid(), '${retryLeaseToken}')`).split('\n');
 
-assert.equal(recoveredId, claimedId, 'an expired sending claim inside 23 hours can be reclaimed');
+assert.deepEqual(recoveredIds, claimedIds, 'an expired sending claim inside 23 hours reclaims the complete ordered batch');
 assert.equal(sql(`select attempt_count from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`), '2');
 
-sql(`update public.volunteer_follow_up_outcome_deliveries set status='sending', claimed_until=null,
-  first_attempt_at=now()-interval '24 hours', claim_token=null where id='${claimedId}';`);
+sql(`update public.volunteer_follow_up_outcome_batches set status='sending', claimed_until=null,
+  first_attempt_at=now()-interval '24 hours', claim_token=null where id='${claimedBatchId}';
+update public.volunteer_follow_up_outcome_deliveries set status='sending', claimed_until=null,
+  first_attempt_at=now()-interval '24 hours', claim_token=null where batch_id='${claimedBatchId}';`);
 sql(`select * from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, gen_random_uuid(), '${retryLeaseToken}')`);
 assert.equal(sql(`select status from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`), 'needs_attention', 'expired ambiguous provider result is not automatically retried');
 
 // A manual Owner retry is only a queue transition for a definite, recent
 // provider rejection. It preserves the frozen payload/key and is idempotent.
-sql(`update public.volunteer_follow_up_outcome_deliveries set
+sql(`update public.volunteer_follow_up_outcome_batches set status='failed', next_attempt_at=null,
+  first_attempt_at=now()-interval '1 hour', last_attempt_at=now()-interval '1 hour',
+  claimed_until=null, claim_token=null, attempt_count=2 where id='${claimedBatchId}';
+update public.volunteer_follow_up_outcome_deliveries set
   status='failed', provider_email_id=null, provider_event_at=null,
   first_attempt_at=now()-interval '1 hour', last_attempt_at=now()-interval '1 hour',
   next_attempt_at=null, claimed_until=null, claim_token=null, attempt_count=2,
   delivery_stage='provider_response', provider_http_status=422,
   failure_certainty='definite', diagnostic_at=now()
-where id='${claimedId}';`);
+where batch_id='${claimedBatchId}';`);
 const outcomeBeforeRetry = sql(`select idempotency_key || ':' || attempt_count || ':' || first_attempt_at::text
   from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`);
 const queuedOutcomeRetry = sql(`select queued::text || ':' || coalesce(block_reason, '')
@@ -214,27 +226,33 @@ assert.deepEqual(
 // Reclaiming or expiring an outcome claim must discard an older definite
 // rejection: the provider may have accepted the reclaimed attempt before a
 // worker crash, so manual retry must see an ambiguous result instead.
-sql(`update public.volunteer_follow_up_outcome_deliveries set
+sql(`update public.volunteer_follow_up_outcome_batches set status='failed', next_attempt_at=now(),
+  first_attempt_at=now()-interval '1 hour', claimed_until=null, claim_token=null, attempt_count=2
+where id='${claimedBatchId}';
+update public.volunteer_follow_up_outcome_deliveries set
   status='failed', provider_email_id=null, provider_event_at=null,
   first_attempt_at=now()-interval '1 hour', next_attempt_at=now(), claimed_until=null,
   attempt_count=2, delivery_stage='provider_response', provider_http_status=422,
   failure_certainty='definite', diagnostic_at=now()
-where id='${claimedId}';`);
+where batch_id='${claimedBatchId}';`);
 const reclaimedToken = randomUUID();
-const reclaimedId = sql(`select id from public.claim_volunteer_follow_up_outcome(
-  '${campaignId}', 54, '${reclaimedToken}', '${retryLeaseToken}')`);
+const reclaimedIds = sql(`select id from public.claim_volunteer_follow_up_outcome(
+  '${campaignId}', 54, '${reclaimedToken}', '${retryLeaseToken}')`).split('\n');
 
-assert.equal(reclaimedId, claimedId);
+assert.deepEqual(reclaimedIds, claimedIds, 'a retry claims the original complete batch in the original order');
 assert.equal(
   sql(`select coalesce(provider_http_status::text, 'null') || ':' || coalesce(failure_certainty, 'null')
     from public.volunteer_follow_up_outcome_deliveries where id='${claimedId}'`),
   'null:null',
   'a reclaimed outcome clears stale definite rejection evidence before its new provider attempt',
 );
-sql(`update public.volunteer_follow_up_outcome_deliveries set
+sql(`update public.volunteer_follow_up_outcome_batches set status='sending',
+  first_attempt_at=now()-interval '24 hours', claimed_until=null, claim_token=null
+where id='${claimedBatchId}';
+update public.volunteer_follow_up_outcome_deliveries set
   status='sending', first_attempt_at=now()-interval '24 hours', claimed_until=null, claim_token=null,
   delivery_stage='provider_response', provider_http_status=422, failure_certainty='definite'
-where id='${claimedId}';`);
+where batch_id='${claimedBatchId}';`);
 sql(`select * from public.claim_volunteer_follow_up_outcome('${campaignId}', 54, gen_random_uuid(), '${retryLeaseToken}')`);
 assert.equal(
   sql(`select status || ':' || delivery_stage || ':' || coalesce(provider_http_status::text, 'null') || ':' || failure_certainty

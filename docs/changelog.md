@@ -13,6 +13,12 @@
 - Use the verified gross amount for capacity-exhaustion refunds and preserve the immutable breakdown in payment-receipt payloads. Document that a public exact fee quote requires separate merchant-account and rounding validation.
 - Simplify the organizer-login secondary action to “Request access”; it gains its underline only on pointer hover while retaining keyboard focus treatment.
 
+## 2026-10-11 — Compose and batch volunteer outcome emails
+
+- Let Owners maintain distinct accepted and not-selected plain-text subjects and messages, then freeze escaped personalized HTML/text payloads and the complete recipient audience in the existing confirmation preview.
+- Queue the frozen audience into durable 50-recipient Resend batches, each with a stable idempotency key and ordered per-recipient mapping. A provider response must return exactly one unique ID per frozen recipient; ambiguous results retry the complete unchanged batch.
+- Preserve Owner-only preview/confirmation, decision-version locks, no-email-before-confirmation, existing delivery records, and the unapplied migration boundary.
+
 ## 2026-10-11 — Recover stalled organizer OAuth callbacks
 
 - Bound the complete browser-side organizer OAuth callback with one deadline so a provider, exchange, session refresh, navigation, or cleanup promise cannot leave the Programme Cover permanently busy.
