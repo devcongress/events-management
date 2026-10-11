@@ -61,6 +61,10 @@ The live ticket-payment foundation remains disabled unless all three server-only
 
 The forward correction `20261007060000_ticket_email_capability_retention.sql` requires a nonempty provider message id before marking an email accepted. It removes the raw QR capability from ticket-delivery payloads as soon as the provider accepts the message, defensively repeats that scrub during delivery updates, and cleans up previously accepted payloads. Definite pre-acceptance failures retain the token needed for a safe retry; accepted messages must never be blindly resent.
 
+### DevCon26 social-card foundation
+
+The forward social-card migration creates private attendee/speaker card drafts, a non-public image bucket, separate hash-only management capabilities, and revocable public slugs. A named issued ticket receives its independent card capability inside the pending ticket-delivery payload; the capability is scrubbed after provider acceptance or delivery, just like a high-value transient credential. Cards must never contain QR capabilities, payment references, ticket identifiers, email addresses, or other admission data. The current source includes only the storage/domain/UI foundation: it does not publish cards, upload photos, or activate a public share route.
+
 ### Isolated public Paystack test checkout
 
 Buyers never log into EMS. The public website owns the modal and Paystack navigation; EMS owns initialization and verification through the following anonymous, exact-origin, rate-limited routes:

@@ -858,6 +858,15 @@
           ]
         }
       ]
+    },
+    {
+      "file": "20261011100000_annual_conference_social_cards.sql",
+      "sha256": "357c5916a9815af80c7316ce2ff8bc73a5ccf88a297eab8a7731b3fff6f4f0c9",
+      "checks": [
+        { "kind": "table", "schema": "public", "name": "annual_conference_social_cards", "rls": true, "private": true },
+        { "kind": "column", "schema": "public", "table": "annual_conference_social_cards", "name": "management_token_hash", "type": "text", "notNull": true, "defaultExpression": null },
+        { "kind": "column", "schema": "public", "table": "annual_conference_social_cards", "name": "public_enabled", "type": "boolean", "notNull": true, "defaultExpression": "false" }
+      ]
     }
   ]
 }
