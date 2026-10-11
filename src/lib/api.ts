@@ -410,7 +410,7 @@ export type AnnualConferenceTicketEmailDeliveryStatus = 'queued' | 'sending' | '
 export interface AnnualConferenceTicketEmailDelivery {
   id: string;
   order_id: string;
-  kind: 'payment_receipt' | 'ticket_delivery';
+  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery';
   recipient_name: string;
   recipient_email: string;
   status: AnnualConferenceTicketEmailDeliveryStatus;
@@ -427,6 +427,36 @@ export interface AnnualConferenceTicketEmailDeliveriesResponse {
   deliveries: AnnualConferenceTicketEmailDelivery[];
   total: number;
   summary: Record<AnnualConferenceTicketEmailDeliveryStatus, number>;
+  page: number;
+  page_size: number;
+}
+export type AnnualConferenceTicketOrderStatus = 'pending_payment' | 'paid' | 'refunded' | 'expired' | 'cancelled';
+export type AnnualConferenceTicketStatus = 'pending' | 'issued' | 'cancelled' | 'checked_in';
+export interface AnnualConferenceTicketOrderSeat {
+  id: string;
+  order_seat_number: number | null;
+  status: AnnualConferenceTicketStatus;
+  issued_at: string | null;
+  checked_in_at: string | null;
+}
+export interface AnnualConferenceTicketOrderOverview {
+  id: string;
+  purchaser_name: string;
+  purchaser_email: string;
+  tier_key: string;
+  quantity: number;
+  amount_minor: number;
+  currency: string;
+  status: AnnualConferenceTicketOrderStatus;
+  payment_reference: string | null;
+  paid_at: string | null;
+  created_at: string;
+  seats: AnnualConferenceTicketOrderSeat[];
+  delivery_status: AnnualConferenceTicketEmailDeliveryStatus | null;
+}
+export interface AnnualConferenceTicketOrdersResponse {
+  orders: AnnualConferenceTicketOrderOverview[];
+  total: number;
   page: number;
   page_size: number;
 }
@@ -515,6 +545,7 @@ export const queryKeys = {
   annualConferenceWorkPlan: (year: string) => ['annual-conference-work-plan', year] as const,
   annualConferenceFinance: (year: string) => ['annual-conference-finance', year] as const,
   annualConferenceTicketing: (year: string) => ['annual-conference-ticketing', year] as const,
+  annualConferenceTicketOrders: (year: string, page: number) => ['annual-conference-ticket-orders', year, page] as const,
   annualConferenceEditions: ['annual-conference-editions'] as const,
   adminSession: ['admin-session'] as const,
   adminOrganizers: ['admin-organizers'] as const,
@@ -620,6 +651,19 @@ export function fetchAnnualConferenceFinance(year: string) {
 
 export function fetchAnnualConferenceTicketing(year: string) {
   return fetchJson<AnnualConferenceTicketingResponse>(`/api/annual-conference/${year}/ticketing`, {
+    credentials: 'include',
+  });
+}
+
+export const ANNUAL_CONFERENCE_TICKET_ORDER_PAGE_SIZE = 5;
+
+export function fetchAnnualConferenceTicketOrders(year: string, page: number) {
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(ANNUAL_CONFERENCE_TICKET_ORDER_PAGE_SIZE),
+  });
+
+  return fetchJson<AnnualConferenceTicketOrdersResponse>(`/api/annual-conference/${year}/ticketing/orders?${params}`, {
     credentials: 'include',
   });
 }

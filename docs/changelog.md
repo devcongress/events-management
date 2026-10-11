@@ -6,6 +6,13 @@
 - Abort a stalled token-exchange request where supported and show a retry-safe failure state that keeps organizer content closed until the server confirms an active membership.
 - Clarify that the self-service access-request path is for unapproved accounts; approved accounts continue through ordinary Google sign-in.
 
+## 2026-10-11 — Prepare bearer ticket operations and private order detail
+
+- Create one independently usable, hash-only QR ticket capability per confirmed paid seat, including team orders, and queue one buyer-addressed bundle instead of requiring attendee assignment.
+- Add an atomic, Owner-gated check-in command with neutral invalid outcomes, validated input, and successful-scan audit events; QR credentials remain absent from logs and operator reads.
+- Add a distinct five-row real Ticket orders table and accessible right-side detail drawer. Sandbox coupons, test references, and test activity remain in their separate test-only area.
+- The migration, future email sender, scanner interface, live payment activation, and deployment remain separately approved operational steps; this change does not send email or collect live payments.
+
 ## 2026-10-11 — Separate DevCon26 social-card magic-link delivery
 
 - Replace the social-card foundation’s ticket-email trigger with an independent, retry-safe capability-issuance and transactional-delivery outbox. Issued attendee and selected/confirmed speaker cards have separate hashed management capabilities, public slugs, and no QR, payment, receipt, or speaker-intake authority.

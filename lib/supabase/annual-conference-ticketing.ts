@@ -272,7 +272,7 @@ export type AnnualConferenceTicketEmailDeliveryStatus = 'queued' | 'sending' | '
 export interface AnnualConferenceTicketEmailDelivery {
   id: string;
   order_id: string;
-  kind: 'payment_receipt' | 'ticket_delivery';
+  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery';
   recipient_name: string;
   recipient_email: string;
   status: AnnualConferenceTicketEmailDeliveryStatus;
@@ -292,6 +292,153 @@ export interface AnnualConferenceTicketEmailDeliverySummary {
   accepted: number;
   delivered: number;
   failed: number;
+}
+
+export type AnnualConferenceTicketOrderStatus = 'pending_payment' | 'paid' | 'refunded' | 'expired' | 'cancelled';
+export type AnnualConferenceTicketStatus = 'pending' | 'issued' | 'cancelled' | 'checked_in';
+
+export interface AnnualConferenceTicketOrderSeat {
+  id: string;
+  order_seat_number: number | null;
+  status: AnnualConferenceTicketStatus;
+  issued_at: string | null;
+  checked_in_at: string | null;
+}
+
+export interface AnnualConferenceTicketOrderOverview {
+  id: string;
+  purchaser_name: string;
+  purchaser_email: string;
+  tier_key: string;
+  quantity: number;
+  amount_minor: number;
+  currency: string;
+  status: AnnualConferenceTicketOrderStatus;
+  payment_reference: string | null;
+  paid_at: string | null;
+  created_at: string;
+  seats: AnnualConferenceTicketOrderSeat[];
+  delivery_status: AnnualConferenceTicketEmailDeliveryStatus | null;
+}
+
+type AnnualConferenceTicketOrderRow = Omit<AnnualConferenceTicketOrderOverview, 'seats' | 'delivery_status'>;
+
+/**
+ * Operator order reads deliberately omit QR hashes, email payloads, provider
+ * metadata, and outbox leases. The drawer receives only what staff need to
+ * resolve a purchase or understand its admission state.
+ */
+export async function listSupabaseAnnualConferenceTicketOrders(input: {
+  editionId: string;
+  page: number;
+  pageSize: number;
+}, c?: Context): Promise<{ orders: AnnualConferenceTicketOrderOverview[]; total: number } | null> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+
+  const from = (input.page - 1) * input.pageSize;
+  const to = from + input.pageSize - 1;
+  const client = getSupabaseAdminClient(c);
+  const orderResult = await client
+    .from('annual_conference_ticket_orders')
+    .select('id, purchaser_name, purchaser_email, tier_key, quantity, amount_minor, currency, status, payment_reference, paid_at, created_at', { count: 'exact' })
+    .eq('edition_id', input.editionId)
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (orderResult.error) throw new Error(orderResult.error.message);
+
+  const orderRows = (orderResult.data ?? []) as unknown as AnnualConferenceTicketOrderRow[];
+  const orderIds = orderRows.map((order) => order.id);
+
+  if (!orderIds.length) return { orders: [], total: orderResult.count ?? 0 };
+
+  const [seatsResult, deliveriesResult] = await Promise.all([
+    client
+      .from('annual_conference_tickets')
+      .select('id, order_id, order_seat_number, status, issued_at, checked_in_at')
+      .in('order_id', orderIds)
+      .order('order_seat_number', { ascending: true }),
+    client
+      .from('annual_conference_ticket_email_outbox')
+      .select('order_id, status, created_at')
+      .in('order_id', orderIds)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  if (seatsResult.error) throw new Error(seatsResult.error.message);
+  if (deliveriesResult.error) throw new Error(deliveriesResult.error.message);
+
+  const seatsByOrder = new Map<string, AnnualConferenceTicketOrderSeat[]>();
+
+  for (const seat of seatsResult.data ?? []) {
+    const orderId = String(seat.order_id);
+    const current = seatsByOrder.get(orderId) ?? [];
+
+    current.push({
+      id: String(seat.id),
+      order_seat_number: typeof seat.order_seat_number === 'number' ? seat.order_seat_number : null,
+      status: seat.status as AnnualConferenceTicketStatus,
+      issued_at: seat.issued_at,
+      checked_in_at: seat.checked_in_at,
+    });
+    seatsByOrder.set(orderId, current);
+  }
+
+  const deliveryStatusByOrder = new Map<string, AnnualConferenceTicketEmailDeliveryStatus>();
+
+  for (const delivery of deliveriesResult.data ?? []) {
+    const orderId = String(delivery.order_id);
+
+    if (!deliveryStatusByOrder.has(orderId)) {
+      deliveryStatusByOrder.set(orderId, delivery.status as AnnualConferenceTicketEmailDeliveryStatus);
+    }
+  }
+
+  return {
+    orders: orderRows.map((order) => ({
+      ...order,
+      seats: seatsByOrder.get(order.id) ?? [],
+      delivery_status: deliveryStatusByOrder.get(order.id) ?? null,
+    })),
+    total: orderResult.count ?? 0,
+  };
+}
+
+export type AnnualConferenceBearerTicketCheckInOutcome = 'checked_in' | 'already_checked_in' | 'invalid';
+
+export async function checkInSupabaseAnnualConferenceBearerTicket(input: {
+  editionId: string;
+  qrToken: string;
+  checkedInByEmail: string;
+}, c?: Context): Promise<{
+  outcome: AnnualConferenceBearerTicketCheckInOutcome;
+  ticket_id: string | null;
+  order_id: string | null;
+  order_seat_number: number | null;
+} | null> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+
+  const result = await getSupabaseAdminClient(c).rpc(
+    'check_in_annual_conference_bearer_ticket' as never,
+    {
+      p_edition_id: input.editionId,
+      p_qr_token: input.qrToken,
+      p_checked_in_by_email: input.checkedInByEmail,
+    } as never,
+  );
+
+  if (result.error) throw new Error(result.error.message);
+
+  const row = Array.isArray(result.data) ? result.data[0] : null;
+
+  if (!row) throw new Error('Ticket check-in did not return an outcome.');
+
+  return row as {
+    outcome: AnnualConferenceBearerTicketCheckInOutcome;
+    ticket_id: string | null;
+    order_id: string | null;
+    order_seat_number: number | null;
+  };
 }
 
 type AnnualConferenceTicketEmailDeliveryRow = AnnualConferenceTicketEmailDelivery & {
