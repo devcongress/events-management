@@ -2,12 +2,14 @@ import type { Context, Hono } from 'hono';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import {
+  checkInSupabaseAnnualConferenceBearerTicket,
   confirmSupabaseAnnualConferenceTicketPayment,
   createSupabaseAnnualConferenceSponsorAllocation,
   getSupabaseAnnualConferenceTicketEmailDeliverySummary,
   getSupabaseAnnualConferenceTicketing,
   getSupabaseAnnualConferenceTicketPaymentAttempt,
   listSupabaseAnnualConferenceTicketEmailDeliveries,
+  listSupabaseAnnualConferenceTicketOrders,
   listSupabaseAnnualConferenceSponsorAllocations,
   retrySupabaseAnnualConferenceTicketEmailDelivery,
   updateSupabaseAnnualConferenceTicketingCapacity,
@@ -65,6 +67,13 @@ const emailDeliveryQuerySchema = z.object({
   status: z.enum(['queued', 'sending', 'accepted', 'delivered', 'failed']).optional(),
 }).strict();
 const emailDeliveryIdSchema = z.string().uuid('Email delivery id is invalid.');
+const ticketOrderQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  page_size: z.coerce.number().int().min(1).max(25).default(5),
+}).strict();
+const ticketCheckInSchema = z.object({
+  qr_token: z.string().regex(/^[0-9a-f]{64}$/, 'Ticket code is invalid.'),
+}).strict();
 
 function ticketingUnavailable(c: Context<AppBindings>) {
   return c.json({ error: 'Ticketing storage is not configured for this environment.' }, 503);
@@ -154,6 +163,81 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
       return c.json(ticketing);
     } catch {
       return c.json({ error: 'Unable to load conference ticketing.' }, 500);
+    }
+  });
+
+  app.get('/api/annual-conference/:year/ticketing/orders', async (c) => {
+    const adminError = await requireAdmin(c, ['owner']);
+
+    if (adminError) return adminError;
+    const year = yearSchema.safeParse(c.req.param('year'));
+    const query = ticketOrderQuerySchema.safeParse(c.req.query());
+
+    if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
+    if (!query.success) return c.json({ error: query.error.issues[0]?.message ?? 'Ticket order filters are invalid.' }, 400);
+
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(Number(year.data), c);
+
+      if (ticketing === null) return ticketingUnavailable(c);
+      if (!ticketing) return c.json({ error: `Annual conference ${year.data} was not found.` }, 404);
+
+      const result = await listSupabaseAnnualConferenceTicketOrders({
+        editionId: ticketing.settings.edition_id,
+        page: query.data.page,
+        pageSize: query.data.page_size,
+      }, c);
+
+      if (result === null) return ticketingUnavailable(c);
+
+      return c.json({
+        ...result,
+        page: query.data.page,
+        page_size: query.data.page_size,
+      });
+    } catch {
+      return c.json({ error: 'Unable to load ticket orders.' }, 500);
+    }
+  });
+
+  app.post('/api/annual-conference/:year/ticketing/check-in', async (c) => {
+    const adminError = await requireAdmin(c, ['owner']);
+
+    if (adminError) return adminError;
+    const year = yearSchema.safeParse(c.req.param('year'));
+    const body = ticketCheckInSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
+    if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? 'Ticket code is invalid.' }, 400);
+
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(Number(year.data), c);
+
+      if (ticketing === null) return ticketingUnavailable(c);
+      if (!ticketing) return c.json({ error: `Annual conference ${year.data} was not found.` }, 404);
+      const session = c.get('adminSession') ?? await getAdminSession(c);
+
+      if (!session.authenticated || !session.email) return c.json({ error: 'Conference owner access required.' }, 403);
+      const result = await checkInSupabaseAnnualConferenceBearerTicket({
+        editionId: ticketing.settings.edition_id,
+        qrToken: body.data.qr_token,
+        checkedInByEmail: session.email,
+      }, c);
+
+      if (result === null) return ticketingUnavailable(c);
+
+      if (result.outcome === 'checked_in') {
+        await recordProtectedMutationAudit(c, {
+          action: 'annual_conference.ticketing.ticket_check_in',
+          targetType: 'annual_conference_ticket',
+          targetId: result.ticket_id ?? 'unknown',
+          metadata: { edition_year: Number(year.data), order_id: result.order_id, order_seat_number: result.order_seat_number },
+        });
+      }
+
+      return c.json(result);
+    } catch {
+      return c.json({ error: 'Unable to check in this ticket.' }, 500);
     }
   });
 

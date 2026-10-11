@@ -9,6 +9,7 @@ import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/An
 import { formatTicketMoney, parseGhsAmountToMinor, tierSavings, validateAnnualConferenceCapacity, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
 import {
   createAnnualConferenceSponsorAllocation,
+  fetchAnnualConferenceTicketOrders,
   fetchAnnualConferenceTicketEmailDeliveries,
   fetchAnnualConferenceSponsorAllocations,
   fetchAnnualConferenceTicketing,
@@ -16,6 +17,7 @@ import {
   retryAnnualConferenceTicketEmailDelivery,
   type AnnualConferenceTicketEmailDelivery,
   type AnnualConferenceTicketEmailDeliveryStatus,
+  type AnnualConferenceTicketOrderOverview,
   updateAnnualConferenceTicketingCapacity,
   updateAnnualConferenceTicketPrices,
   type AnnualConferenceSponsorAllocation,
@@ -40,6 +42,10 @@ const pricingOpen = ref(false);
 const pricingError = ref('');
 const pricingDrawerPanel = ref<HTMLElement | null>(null);
 const pricingDrawerCloseButton = ref<HTMLButtonElement | null>(null);
+const orderDrawerPanel = ref<HTMLElement | null>(null);
+const orderDrawerCloseButton = ref<HTMLButtonElement | null>(null);
+const selectedOrder = ref<AnnualConferenceTicketOrderOverview | null>(null);
+const ticketOrderPage = ref(1);
 const sponsorStatus = ref('');
 const sponsorFormErrors = reactive<Partial<Record<SponsorFormField, string>>>({});
 const sponsorForm = reactive({ sponsor_name: '', contact_name: '', contact_email: '', quantity: 1 });
@@ -54,6 +60,7 @@ const emailDeliveryFilters: Array<{ value: AnnualConferenceTicketEmailDeliverySt
   { value: 'delivered', label: 'Delivered' },
 ];
 let pricingDrawerTrigger: HTMLElement | null = null;
+let orderDrawerTrigger: HTMLElement | null = null;
 let pricingDrawerAppWasInert = false;
 let previousBodyOverflow = '';
 let previousDocumentOverflow = '';
@@ -80,6 +87,10 @@ const emailDeliveryQuery = useQuery({
     pageSize: 8,
     status: emailDeliveryStatus.value === 'all' ? undefined : emailDeliveryStatus.value,
   }),
+});
+const ticketOrderQuery = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceTicketOrders(year.value, ticketOrderPage.value)),
+  queryFn: () => fetchAnnualConferenceTicketOrders(year.value, ticketOrderPage.value),
 });
 const regularTier = computed(() => ticketing.value?.settings.ticket_tiers.find((tier) => tier.key === 'regular'));
 const pricingIsEditable = computed(() => ticketing.value?.settings.ticket_sales_status === 'draft');
@@ -127,9 +138,15 @@ const emailDeliverySummary = computed(() => {
   };
 });
 const emailDeliveryPageCount = computed(() => Math.max(1, Math.ceil((emailDeliveryQuery.data.value?.total ?? 0) / 8)));
+const ticketOrderPageCount = computed(() => Math.max(1, Math.ceil((ticketOrderQuery.data.value?.total ?? 0) / 5)));
 
 watch([emailDeliveryStatus, year], () => {
   emailDeliveryPage.value = 1;
+});
+
+watch(year, () => {
+  ticketOrderPage.value = 1;
+  selectedOrder.value = null;
 });
 
 async function refreshEmailDeliveriesAfterRetry() {
@@ -304,6 +321,73 @@ function handlePricingDrawerKeydown(event: KeyboardEvent) {
   }
 }
 
+function ticketTierLabel(tier: string) {
+  return tier === 'team_3' ? 'Team of 3' : tier === 'team_5' ? 'Team of 5' : 'Regular pass';
+}
+
+function formatTicketDate(value: string | null) {
+  if (!value) return '—';
+
+  return new Intl.DateTimeFormat('en-GH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function ticketOrderCheckInCount(order: AnnualConferenceTicketOrderOverview) {
+  return order.seats.filter((seat) => seat.status === 'checked_in').length;
+}
+
+async function openTicketOrder(order: AnnualConferenceTicketOrderOverview, event: Event) {
+  orderDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  selectedOrder.value = order;
+  lockPricingDrawerPage();
+  await nextTick();
+  orderDrawerCloseButton.value?.focus();
+}
+
+function closeTicketOrder() {
+  selectedOrder.value = null;
+  unlockPricingDrawerPage();
+  orderDrawerTrigger?.focus();
+  orderDrawerTrigger = null;
+}
+
+function handleTicketOrderDrawerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeTicketOrder();
+
+    return;
+  }
+
+  if (event.key !== 'Tab' || !orderDrawerPanel.value) return;
+  const focusable = Array.from(orderDrawerPanel.value.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )).filter((element) => !element.hasAttribute('hidden'));
+
+  if (!focusable.length) {
+    event.preventDefault();
+    orderDrawerPanel.value.focus();
+
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function savePrices() {
   pricingError.value = pricingValidation.value ?? '';
 
@@ -371,6 +455,13 @@ function deliveryStatusLabel(delivery: AnnualConferenceTicketEmailDelivery) {
   return delivery.status;
 }
 
+function deliveryKindLabel(delivery: AnnualConferenceTicketEmailDelivery) {
+  if (delivery.kind === 'ticket_bundle_delivery') return 'Ticket bundle delivery';
+  if (delivery.kind === 'ticket_delivery') return 'Ticket delivery';
+
+  return 'Payment receipt';
+}
+
 function setEmailDeliveryStatus(value: string | number) {
   const filter = emailDeliveryFilters.find((option) => option.value === value);
 
@@ -385,6 +476,7 @@ function sponsorContactLabel(allocation: AnnualConferenceSponsorAllocation) {
 
 onUnmounted(() => {
   if (pricingOpen.value) unlockPricingDrawerPage();
+  if (selectedOrder.value) unlockPricingDrawerPage();
 });
 </script>
 
@@ -497,6 +589,49 @@ onUnmounted(() => {
           <p v-if="!pricingIsEditable" class="mt-5 text-sm text-dc-gray">Prices are locked because ticket sales have started. Existing order amounts remain unchanged.</p>
         </section>
 
+        <section class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="ticket-orders-title">
+          <header class="flex flex-wrap items-start justify-between gap-4 border-b border-dc-border px-5 py-4">
+            <div>
+              <p class="editorial-eyebrow">Admissions operations</p>
+              <h2 id="ticket-orders-title" class="mt-1 text-xl font-semibold text-dc-ink">Ticket orders</h2>
+              <p class="mt-1 max-w-2xl text-sm leading-6 text-dc-gray">Paid orders, delivery state, and check-in progress. Select an order for the private purchaser and seat details.</p>
+            </div>
+            <button type="button" class="motion-press min-h-11 shrink-0 rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderQuery.isFetching.value" @click="ticketOrderQuery.refetch()">Refresh</button>
+          </header>
+
+          <div class="overflow-x-auto">
+            <p v-if="ticketOrderQuery.isLoading.value" class="px-5 py-5 text-sm text-dc-gray">Loading ticket orders…</p>
+            <div v-else-if="ticketOrderQuery.isError.value" class="flex flex-wrap items-center justify-between gap-3 px-5 py-5">
+              <p class="text-sm text-dc-pink" role="alert">Ticket orders could not be loaded.</p>
+              <button type="button" class="motion-press rounded-md border border-dc-ink px-3 py-2 font-mono text-[10px] font-semibold uppercase" @click="ticketOrderQuery.refetch()">Try again</button>
+            </div>
+            <p v-else-if="!ticketOrderQuery.data.value?.orders.length" class="px-5 py-5 text-sm text-dc-gray">No real ticket orders yet. Test checkout activity remains in its separate sandbox section.</p>
+            <table v-else class="w-full min-w-[720px] text-left text-sm">
+              <thead class="border-b border-dc-border font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">
+                <tr><th class="px-5 py-3 pr-4">Purchaser</th><th class="px-4 py-3">Pass</th><th class="px-4 py-3 text-right">Amount</th><th class="px-4 py-3">Delivery</th><th class="px-4 py-3">Check-in</th><th class="px-5 py-3 pl-4 text-right"><span class="sr-only">Open details</span></th></tr>
+              </thead>
+              <tbody class="divide-y divide-dc-border">
+                <tr v-for="order in ticketOrderQuery.data.value?.orders" :key="order.id" class="group">
+                  <th scope="row" class="px-5 py-4 pr-4 font-normal"><p class="font-semibold text-dc-ink">{{ order.purchaser_name }}</p><p class="mt-1 max-w-[16rem] truncate text-xs text-dc-gray">{{ order.purchaser_email }}</p></th>
+                  <td class="px-4 py-4"><p class="font-semibold text-dc-ink">{{ ticketTierLabel(order.tier_key) }}</p><p class="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-dc-gray">{{ order.quantity }} {{ order.quantity === 1 ? 'seat' : 'seats' }}</p></td>
+                  <td class="px-4 py-4 text-right font-semibold text-dc-ink">{{ formatTicketMoney(order.amount_minor) }}</td>
+                  <td class="px-4 py-4"><span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ order.delivery_status ?? 'Not queued' }}</span></td>
+                  <td class="px-4 py-4 font-mono text-xs font-semibold text-dc-ink">{{ ticketOrderCheckInCount(order) }} / {{ order.quantity }}</td>
+                  <td class="px-5 py-4 pl-4 text-right"><button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray hover:border-dc-ink hover:text-dc-ink" @click="openTicketOrder(order, $event)">Details</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <footer v-if="(ticketOrderQuery.data.value?.total ?? 0) > 0" class="flex items-center justify-between gap-3 border-t border-dc-border px-5 py-3">
+            <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-dc-gray">Page {{ ticketOrderPage }} of {{ ticketOrderPageCount }} · 5 per page</p>
+            <div class="flex gap-2">
+              <button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderPage <= 1 || ticketOrderQuery.isFetching.value" @click="ticketOrderPage -= 1">Previous</button>
+              <button type="button" class="motion-press rounded-md border border-dc-border px-3 py-2 font-mono text-[10px] font-semibold uppercase text-dc-gray disabled:cursor-not-allowed disabled:opacity-50" :disabled="ticketOrderPage >= ticketOrderPageCount || ticketOrderQuery.isFetching.value" @click="ticketOrderPage += 1">Next</button>
+            </div>
+          </footer>
+        </section>
+
         <section class="rounded-lg border border-dc-border bg-dc-paper" aria-labelledby="email-delivery-title">
           <header class="flex flex-wrap items-start justify-between gap-4 border-b border-dc-border px-5 py-4">
             <div>
@@ -544,7 +679,7 @@ onUnmounted(() => {
             <p v-else-if="!emailDeliveryQuery.data.value?.deliveries.length" class="px-5 py-5 text-sm text-dc-gray">No ticket emails have been queued yet.</p>
             <article v-for="delivery in emailDeliveryQuery.data.value?.deliveries" :key="delivery.id" class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
               <div class="min-w-0">
-                <p class="font-semibold text-dc-ink">{{ delivery.kind === 'ticket_delivery' ? 'Ticket delivery' : 'Payment receipt' }}</p>
+                <p class="font-semibold text-dc-ink">{{ deliveryKindLabel(delivery) }}</p>
                 <p class="mt-1 break-all text-sm text-dc-gray">{{ delivery.recipient_email }}</p>
                 <p v-if="delivery.last_error" class="mt-1 text-xs leading-5 text-dc-pink">{{ delivery.last_error }}</p>
               </div>
@@ -633,6 +768,40 @@ onUnmounted(() => {
   </div>
 
   <Teleport to="body">
+    <Transition name="pricing-drawer">
+      <div v-if="selectedOrder" class="pricing-drawer-backdrop fixed inset-0 z-[110] flex justify-end" role="presentation" @click.self="closeTicketOrder">
+        <aside ref="orderDrawerPanel" class="pricing-drawer flex h-full w-full max-w-xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="ticket-order-drawer-title" aria-describedby="ticket-order-drawer-description" tabindex="-1" @keydown="handleTicketOrderDrawerKeydown">
+          <header class="flex shrink-0 items-start justify-between gap-5 border-b border-dc-border px-5 py-5 sm:px-6">
+            <div class="min-w-0">
+              <p class="editorial-eyebrow">Ticket order</p>
+              <h2 id="ticket-order-drawer-title" class="mt-1 break-words text-2xl font-semibold tracking-tight text-dc-ink">{{ selectedOrder.purchaser_name }}</h2>
+              <p id="ticket-order-drawer-description" class="mt-2 break-all text-sm leading-6 text-dc-gray">{{ selectedOrder.purchaser_email }}</p>
+            </div>
+            <button ref="orderDrawerCloseButton" type="button" class="motion-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink" aria-label="Close ticket order details" @click="closeTicketOrder"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg></button>
+          </header>
+
+          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            <dl class="divide-y divide-dc-border border-y border-dc-border">
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ ticketTierLabel(selectedOrder.tier_key) }} · {{ selectedOrder.quantity }} {{ selectedOrder.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Paid amount</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedOrder.amount_minor) }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Purchased</dt><dd class="text-right text-sm font-medium text-dc-ink">{{ formatTicketDate(selectedOrder.created_at) }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="max-w-[16rem] break-all text-right font-mono text-xs font-semibold text-dc-ink">{{ selectedOrder.payment_reference ?? 'Not available' }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Delivery</dt><dd class="font-mono text-xs font-semibold uppercase text-dc-ink">{{ selectedOrder.delivery_status ?? 'Not queued' }}</dd></div>
+            </dl>
+
+            <section class="mt-7" aria-labelledby="order-seats-title">
+              <p class="editorial-eyebrow">Admission seats</p>
+              <h3 id="order-seats-title" class="mt-1 text-lg font-semibold text-dc-ink">Check-in progress</h3>
+              <p class="mt-2 text-sm leading-6 text-dc-gray">Each seat will carry its own bearer ticket and can be scanned independently. QR credentials are never exposed in this organizer view.</p>
+              <ol class="mt-4 divide-y divide-dc-border border-y border-dc-border">
+                <li v-for="seat in selectedOrder.seats" :key="seat.id" class="flex items-center justify-between gap-4 py-3"><div><p class="font-semibold text-dc-ink">Seat {{ seat.order_seat_number ?? '—' }}</p><p class="mt-1 text-xs text-dc-gray">{{ seat.checked_in_at ? `Checked in ${formatTicketDate(seat.checked_in_at)}` : seat.issued_at ? `Issued ${formatTicketDate(seat.issued_at)}` : 'Awaiting ticket issue' }}</p></div><span class="rounded-full border border-dc-border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase text-dc-ink">{{ seat.status }}</span></li>
+              </ol>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </Transition>
+
     <Transition name="pricing-drawer">
       <div v-if="pricingOpen && ticketing" class="pricing-drawer-backdrop fixed inset-0 z-[110] flex justify-end" role="presentation" @click.self="requestClosePricingEditor">
         <aside ref="pricingDrawerPanel" class="pricing-drawer flex h-full w-full max-w-xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="pricing-drawer-title" aria-describedby="pricing-drawer-description" tabindex="-1" @keydown="handlePricingDrawerKeydown">

@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-107: Issue independently scanable bearer seats to the purchasing contact
+
+**Date:** 2026-10-11
+
+**Decision:** A verified paid conference order creates one issued bearer ticket per seat, each with a unique hash-only QR capability. The purchasing contact receives a single ticket bundle and may distribute the tickets. Seat holders do not need to be named in EMS and may arrive independently. The transactional sender retains raw capabilities only until provider acceptance; it then removes them. Check-in atomically consumes an issued bearer ticket and returns a neutral invalid result for unknown or stale capabilities.
+
+**Why:** Requiring a group purchaser to collect attendee names and emails creates friction without improving door operations. Per-seat bearer credentials solve independent arrivals while retaining a bounded, auditable admission state.
+
+**Tradeoffs:** Bearer tickets are transferable until scanned, so reissue/revocation needs a separately designed owner action. The Ticketing workspace never reveals QR values or hashes. Initial access remains Owner-only; delegated gate-staff access and a camera scanner require distinct authorization and device UX work.
+
+---
+
 ## ADR-106: Generate test coupon codes at the server-owned creation boundary
 
 **Date:** 2026-10-10
