@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Recover stalled organizer OAuth callbacks
+
+- Bound the complete browser-side organizer OAuth callback with one deadline so a provider, exchange, session refresh, navigation, or cleanup promise cannot leave the Programme Cover permanently busy.
+- Abort a stalled token-exchange request where supported and show a retry-safe failure state that keeps organizer content closed until the server confirms an active membership.
+- Clarify that the self-service access-request path is for unapproved accounts; approved accounts continue through ordinary Google sign-in.
+
 ## 2026-10-11 — Separate DevCon26 social-card magic-link delivery
 
 - Replace the social-card foundation’s ticket-email trigger with an independent, retry-safe capability-issuance and transactional-delivery outbox. Issued attendee and selected/confirmed speaker cards have separate hashed management capabilities, public slugs, and no QR, payment, receipt, or speaker-intake authority.
