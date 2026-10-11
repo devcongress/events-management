@@ -338,7 +338,7 @@ onMounted(async () => {
               :disabled="loading"
               @click="login"
             >
-              Request access
+              Request access — approved accounts sign in normally
             </button>
 
             <p id="organizer-access-note" class="login-access-note">
