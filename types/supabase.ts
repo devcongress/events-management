@@ -607,6 +607,18 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['annual_conference_ticket_email_outbox']['Insert']>;
         Relationships: [];
       };
+      annual_conference_social_cards: {
+        Row: { id: string; edition_id: string; subject_type: 'attendee' | 'speaker'; ticket_id: string | null; session_id: string | null; display_name: string; management_token_hash: string; public_slug: string; photo_path: string | null; crop_x: number; crop_y: number; crop_scale: number; public_enabled: boolean; published_at: string | null; revoked_at: string | null; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_social_cards']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_social_cards']['Insert']>;
+        Relationships: [];
+      };
+      annual_conference_social_card_email_outbox: {
+        Row: { id: string; edition_id: string; social_card_id: string; recipient_name: string; recipient_email: string; capability: string; idempotency_key: string; status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed'; attempt_count: number; provider_email_id: string | null; last_error: string | null; next_attempt_at: string; claim_token: string | null; claimed_until: string | null; accepted_at: string | null; delivered_at: string | null; created_at: string; updated_at: string };
+        Insert: Omit<Database['public']['Tables']['annual_conference_social_card_email_outbox']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_social_card_email_outbox']['Insert']>;
+        Relationships: [];
+      };
       annual_conference_speaker_submissions: {
         Row: {
           id: string;

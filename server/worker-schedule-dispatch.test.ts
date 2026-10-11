@@ -24,7 +24,7 @@ const scheduledPathsBySlot = [
   '/api/internal/annual-conference-speaker-emails/retry',
   '/api/internal/annual-conference/phases/rollover',
   volunteerDrainPath,
-  null,
+  '/api/internal/annual-conference-social-card-emails/retry',
   volunteerDrainPath,
   null,
   volunteerDrainPath,
@@ -69,8 +69,8 @@ describe('scheduled worker cycle dispatch', () => {
 
     expect(dispatchedPaths).toEqual(scheduledPathsBySlot.filter(Boolean));
     expect(dispatchedPaths.filter((path) => path === volunteerDrainPath)).toHaveLength(4);
-    expect(dispatchedPaths.filter((path) => path !== volunteerDrainPath)).toHaveLength(8);
-    expect(scheduledPathsBySlot.filter((path) => path === null)).toHaveLength(3);
+    expect(dispatchedPaths.filter((path) => path !== volunteerDrainPath)).toHaveLength(9);
+    expect(scheduledPathsBySlot.filter((path) => path === null)).toHaveLength(2);
   });
 
   it('keeps the exact cadence through multiple cycles and an hour rollover', async () => {

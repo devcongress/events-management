@@ -63,7 +63,7 @@ The forward correction `20261007060000_ticket_email_capability_retention.sql` re
 
 ### DevCon26 social-card foundation
 
-The forward social-card migration creates private attendee/speaker card drafts, a non-public image bucket, separate hash-only management capabilities, and revocable public slugs. A named issued ticket receives its independent card capability inside the pending ticket-delivery payload; the capability is scrubbed after provider acceptance or delivery, just like a high-value transient credential. Cards must never contain QR capabilities, payment references, ticket identifiers, email addresses, or other admission data. The current source includes only the storage/domain/UI foundation: it does not publish cards, upload photos, or activate a public share route.
+The forward social-card migrations create private attendee/speaker card drafts, a non-public image bucket, separate hash-only management capabilities, revocable public slugs, and a dedicated social-card delivery outbox. A named issued attendee or selected speaker with a confirmed session receives an independent capability in that outbox, never in ticket delivery; it is scrubbed after provider acceptance. Cards must never contain QR capabilities, payment references, ticket identifiers, email addresses, or other admission data. EMS exposes backend-only website APIs; the DevCongress website owns public rendering and Open Graph pages. Its sender is code-complete but fails closed until distinct deployed Resend and social-card enablement settings are approved.
 
 ### Isolated public Paystack test checkout
 

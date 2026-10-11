@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Separate DevCon26 social-card magic-link delivery
+
+- Replace the social-card foundation’s ticket-email trigger with an independent, retry-safe capability-issuance and transactional-delivery outbox. Issued attendee and selected/confirmed speaker cards have separate hashed management capabilities, public slugs, and no QR, payment, receipt, or speaker-intake authority.
+- Add Owner-only issuance, fragment/header-based management reads and updates, private validated photo upload, opt-in public JSON, and website-owned rendering/OG integration. Public responses exclude capability and recipient data; private photos are proxied without signed URLs.
+- Add a dedicated scheduled Resend sender which issues only `https://devcongress.org/devcon26/social-card/#<capability>` links, requires a provider message ID before acceptance/scrubbing, and remains fail-closed until distinct deployed sender settings are approved. Clean legacy ticket-outbox capability payloads before removing the old trigger.
+
 ## 2026-10-11 — Add private DevCon26 social-card foundation
 
 - Add a private, RLS-protected social-card record and Storage bucket for future attendee and selected-speaker cards, with separate hashed management capabilities and revocable public slugs.

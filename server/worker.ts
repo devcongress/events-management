@@ -24,7 +24,7 @@ const SCHEDULED_JOBS = [
   { path: '/api/internal/annual-conference-speaker-emails/retry', event: 'scheduled_annual_conference_speaker_email_retry_http_failed' },
   { path: '/api/internal/annual-conference/phases/rollover', event: 'scheduled_annual_conference_phase_rollover_http_failed' },
   VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
-  null,
+  { path: '/api/internal/annual-conference-social-card-emails/retry', event: 'scheduled_annual_conference_social_card_email_retry_http_failed' },
   VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
   null,
   VOLUNTEER_FOLLOW_UP_DRAIN_JOB,

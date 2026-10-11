@@ -17,8 +17,8 @@ describe('Supabase backup safeguards', () => {
     expect(() => parseBackupArguments(['--execute'])).toThrow('Unknown argument');
   });
 
-  it('uses the meetup media bucket by default and rejects unsafe names', () => {
-    expect(parseBucketNames(undefined)).toEqual(['meetup-media']);
+  it('backs up meetup and social-card buckets by default and rejects unsafe names', () => {
+    expect(parseBucketNames(undefined)).toEqual(['meetup-media', 'annual-conference-social-cards']);
     expect(parseBucketNames('meetup-media, speaker-slides,meetup-media')).toEqual([
       'meetup-media',
       'speaker-slides',

@@ -35,7 +35,7 @@ Connections force TLS and project identity matching. Credentials are passed thro
 
 ## Coverage and adding migrations
 
-`supabase/migration-verification-contract.json` pins all 99 current SQL files. Seven migrations have explicit checks: feedback archive, registration waitlist promotion, public registration description, task-board ordering, task dependency cleanup, test-checkout coupons, and DevCon26 social-card storage. The 92 older files are a frozen hash inventory, **not proof they were applied fully**. A successful gate verifies the required contracts, not every historical backfill or all application behavior.
+`supabase/migration-verification-contract.json` pins all 100 current SQL files. Eight migrations have explicit checks: feedback archive, registration waitlist promotion, public registration description, task-board ordering, task dependency cleanup, test-checkout coupons, DevCon26 social-card storage, and DevCon26 social-card delivery. The 92 older files are a frozen hash inventory, **not proof they were applied fully**. A successful gate verifies the required contracts, not every historical backfill or all application behavior.
 
 Checks cover column types/nullability/defaults, index and constraint definitions/validity, table RLS and effective public privileges, exact function overload/body/return-type/language/security/search-path/privileges, and enabled trigger binding to the correct function schema. This catches partial schema changes where an object name exists but its required definition does not.
 
