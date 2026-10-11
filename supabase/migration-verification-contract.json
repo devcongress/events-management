@@ -867,6 +867,18 @@
         { "kind": "column", "schema": "public", "table": "annual_conference_social_cards", "name": "management_token_hash", "type": "text", "notNull": true, "defaultExpression": null },
         { "kind": "column", "schema": "public", "table": "annual_conference_social_cards", "name": "public_enabled", "type": "boolean", "notNull": true, "defaultExpression": "false" }
       ]
+    },
+    {
+      "file": "20261011110000_annual_conference_social_card_delivery.sql",
+      "sha256": "f7e941fb83880c6a3110fddfacaa31f9965b833a23b5a615f22538e1f3c04c02",
+      "checks": [
+        { "kind": "table", "schema": "public", "name": "annual_conference_social_card_email_outbox", "rls": true, "private": true },
+        { "kind": "column", "schema": "public", "table": "annual_conference_social_card_email_outbox", "name": "capability", "type": "text", "notNull": true, "defaultExpression": null },
+        { "kind": "index", "schema": "public", "table": "annual_conference_social_card_email_outbox", "name": "annual_conference_social_card_email_outbox_due_idx", "contains": ["next_attempt_at", "attempt_count < 5"] },
+        { "kind": "function", "schema": "public", "name": "issue_annual_conference_social_card_delivery", "argumentTypes": "uuid, annual_conference_social_card_subject, uuid", "bodySha256": "5c8c65fdceb13c1a6da4f7e20da1a25af9f1b6aba74507b10bd5e4b52db439c9", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "TABLE(social_card_id uuid, management_capability text)" },
+        { "kind": "function", "schema": "public", "name": "claim_annual_conference_social_card_email_outbox", "argumentTypes": "uuid, integer", "bodySha256": "f9b0b9a59c98071650fbca628d0789c6b55d19cb16e61944821c9dc3db91a0c5", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "SETOF annual_conference_social_card_email_outbox" },
+        { "kind": "function", "schema": "public", "name": "finalize_annual_conference_social_card_email_outbox", "argumentTypes": "uuid, uuid, annual_conference_social_card_email_status, text, text, timestamp with time zone", "bodySha256": "bcf7fab943a7648a46352ce1411176e16f7067914f2bb7632c620034f2c651c1", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "annual_conference_social_card_email_outbox" }
+      ]
     }
   ]
 }

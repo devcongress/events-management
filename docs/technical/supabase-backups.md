@@ -10,7 +10,7 @@ Every successful archive contains:
 - database schema;
 - database table data, including the application and managed data included by Supabase's dump workflow;
 - `supabase_migrations` schema and migration history when present, or an explicit marker recording that the source database has no CLI migration-history schema;
-- every object downloaded from `meetup-media` or the configured bucket list;
+- every object downloaded from `meetup-media`, `annual-conference-social-cards`, or the configured bucket list;
 - a manifest containing file sizes, SHA-256 hashes, the source Git commit, Supabase CLI version, and Storage object counts.
 
 Database components and Storage objects are downloaded sequentially. The result is a logical operational backup, not a single transactionally consistent snapshot across PostgreSQL and Storage.
@@ -36,7 +36,7 @@ Copy `.env.backup.example` to `.env.backup.local`, then run `chmod 600 .env.back
 - `SUPABASE_DB_URL` with the **Session Pooler** connection string from Supabase Dashboard → Connect. It must contain the database password, with special characters percent-encoded.
 - `SUPABASE_BACKUP_DIR` with an absolute directory outside the Git repository.
 - `SUPABASE_BACKUP_AGE_RECIPIENT` with the public recipient printed by `age-keygen`.
-- `SUPABASE_BACKUP_BUCKETS` when additional Storage buckets are introduced.
+- `SUPABASE_BACKUP_BUCKETS=meetup-media,annual-conference-social-cards` so private social-card photos are included when that feature is enabled.
 
 The existing `.env.local` supplies `VITE_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Never commit either local environment file, a database URL, an encryption identity, or a backup archive.
 

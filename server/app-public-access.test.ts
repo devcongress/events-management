@@ -39,6 +39,60 @@ describe('public API access policy', () => {
     expect(isUnauthenticatedApiRequest('/api/webhooks/paystack', 'PATCH')).toBe(false);
     expect(isUnauthenticatedApiRequest('/api/webhooks/paystack/other', 'POST')).toBe(false);
     expect(isUnauthenticatedApiRequest('/api/annual-conference/2026/ticketing', 'GET')).toBe(false);
+    const socialCardSlug = 'a'.repeat(32);
+
+    const socialCardBase = '/api/public/annual-conference/2026/social-cards';
+
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage`, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage`, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/photo`, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/photo`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/publish`, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/revoke`, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/${socialCardSlug}`, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/${socialCardSlug}/image`, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage`, 'POST')).toBe(false);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/photo`, 'PATCH')).toBe(false);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/${socialCardSlug}`, 'PATCH')).toBe(false);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/too-short`, 'GET')).toBe(false);
+    expect(isUnauthenticatedApiRequest('/api/annual-conference/2026/social-cards/deliveries', 'POST')).toBe(false);
+    expect(isUnauthenticatedApiRequest('/api/internal/annual-conference-social-card-emails/retry', 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest('/api/internal/annual-conference-social-card-emails/retry', 'GET')).toBe(false);
+  });
+
+  it('allows social-card CORS only for the website origin without credentials', async () => {
+    const path = '/api/public/annual-conference/2026/social-cards/manage';
+    const allowed = await app.request(`https://ems.example${path}`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://devcongress.org',
+        'Access-Control-Request-Method': 'PATCH',
+        'Access-Control-Request-Headers': 'x-social-card-capability, content-type',
+      },
+    });
+
+    expect(allowed.headers.get('access-control-allow-origin')).toBe('https://devcongress.org');
+    expect(allowed.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(allowed.headers.get('access-control-allow-headers')).toContain('X-Social-Card-Capability');
+
+    const denied = await app.request(`https://ems.example${path}`, {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://other.example', 'Access-Control-Request-Method': 'PATCH' },
+    });
+
+    expect(denied.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('lets the shared-secret social-card sender reach its internal route without an organizer session', async () => {
+    vi.stubEnv('SLACK_EVENTS_RETRY_SECRET', 'social-card-scheduled-retry-secret-at-least-32-bytes');
+
+    const response = await app.request('https://ems.example/api/internal/annual-conference-social-card-emails/retry', {
+      method: 'POST',
+      headers: { 'x-scheduled-job-secret': 'social-card-scheduled-retry-secret-at-least-32-bytes' },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ configured: false, accepted: 0, failed: 0 });
   });
 
   it('allows the public volunteer follow-up test form without opening the owner campaign API', () => {

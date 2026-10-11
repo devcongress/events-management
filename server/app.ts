@@ -254,6 +254,7 @@ import {
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
+import { registerAnnualConferenceSocialCardRoutes } from '@/server/routes/annual-conference-social-cards';
 import { devcon26TestConfigurationForRequest, registerDevcon26TestCheckoutRoutes } from '@/server/routes/devcon26-test-checkout';
 import {
   DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH,
@@ -1124,6 +1125,16 @@ function isPublicEventRegistrationRequest(path: string, method: string): boolean
     || (method === 'POST' && eventRegistrationPath.test(path));
 }
 
+function isPublicSocialCardRequest(path: string, method: string): boolean {
+  const managementPath = '/api/public/annual-conference/2026/social-cards/manage';
+  const publicPath = '/api/public/annual-conference/2026/social-cards';
+
+  return ((method === 'GET' || method === 'PATCH') && path === managementPath)
+    || ((method === 'GET' || method === 'POST') && path === `${managementPath}/photo`)
+    || (method === 'PATCH' && (path === `${managementPath}/publish` || path === `${managementPath}/revoke`))
+    || (method === 'GET' && new RegExp(`^${publicPath}/[A-Za-z0-9_-]{22,80}(?:/image)?$`).test(path));
+}
+
 function isPublicEventSubmissionRequest(path: string, method: string): boolean {
   const managementPath = /^\/api\/public\/event-submissions\/manage\/[^/]+$/;
   const managementCoverPath = /^\/api\/public\/event-submissions\/manage\/[^/]+\/with-cover$/;
@@ -1180,6 +1191,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
     || isPublicCfpEventRequest(path, method)
     || isSpeakerTalkIntakeRequest(path, method)
     || isPublicEventRegistrationRequest(path, method)
+    || isPublicSocialCardRequest(path, method)
     || (method === 'POST' && (
       path === '/api/internal/slack-announcements/retry'
       || path === '/api/internal/project-night/advance'
@@ -1187,6 +1199,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
       || path === '/api/internal/speaker-rejection-emails/retry'
       || path === '/api/internal/selected-speaker-emails/retry'
       || path === '/api/internal/annual-conference-speaker-emails/retry'
+      || path === '/api/internal/annual-conference-social-card-emails/retry'
       || path === '/api/internal/event-blasts/prepare'
       || path === '/api/internal/event-blasts/reconcile'
       || path === '/api/internal/volunteer-follow-up/drain'
@@ -1378,6 +1391,20 @@ const publicTestCheckoutCors = cors({
   allowHeaders: ['Content-Type'],
   maxAge: 600,
 });
+
+const socialCardWebsiteCors = cors({
+  origin: (origin, c) => {
+    if (origin === 'https://devcongress.org') return origin;
+    if (envValue('NODE_ENV', c) === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) return origin;
+
+    return undefined;
+  },
+  allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'X-Social-Card-Capability'],
+  maxAge: 600,
+});
+
+app.use('/api/public/annual-conference/2026/social-cards/*', socialCardWebsiteCors);
 
 app.use('/api/public/*', async (c, next) => {
   if (c.req.path === DEVCON26_TEST_CHECKOUT_PATH || isDevcon26TestCheckoutRequest(c.req.path, 'POST')) {
@@ -5174,6 +5201,7 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
 registerAnnualConferenceTicketingRoutes(app);
+registerAnnualConferenceSocialCardRoutes(app);
 registerDevcon26TestCheckoutRoutes(app);
 registerVolunteerFollowUpRoutes(app);
 

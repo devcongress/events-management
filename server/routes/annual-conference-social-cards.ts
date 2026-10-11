@@ -1,0 +1,261 @@
+import crypto from 'crypto';
+import type { Context, Hono } from 'hono';
+import { z } from 'zod';
+import { annualConferenceSocialCardEmailConfigurationForRequest, retryAnnualConferenceSocialCardEmails } from '@/server/annual-conference-social-card-email-delivery';
+import { DEVCON26_SOCIAL_CARD_BUCKET, normalizeDevcon26SocialCardName, validateDevcon26SocialCardCrop, validateDevcon26SocialCardImage } from '@/lib/annual-conference-social-cards';
+import {
+  getSupabaseAnnualConferenceSocialCardByCapability,
+  getSupabasePublicAnnualConferenceSocialCard,
+  issueSupabaseAnnualConferenceSocialCardDelivery,
+  updateSupabaseAnnualConferenceSocialCard,
+  uploadSupabaseAnnualConferenceSocialCardPhoto,
+} from '@/lib/supabase/annual-conference-social-cards';
+import { getSupabaseAdminClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/supabase/admin-auth';
+import { getAnnualConferenceEditionByYear } from '@/server/annual-conference-request';
+import { envValue } from '@/server/env';
+import type { AppBindings } from '@/server/http/app-bindings';
+import { recordProtectedMutationAudit } from '@/server/protected-mutation';
+import { secureSharedSecret } from '@/lib/security/shared-secret';
+
+const yearSchema = z.string().regex(/^\d{4}$/);
+const issueSchema = z.object({ subject_type: z.enum(['attendee', 'speaker']), subject_id: z.string().uuid() }).strict();
+const managementUpdateSchema = z.object({ display_name: z.string().trim().min(1).max(120).optional(), crop: z.object({ x: z.number(), y: z.number(), scale: z.number() }).optional(), public_enabled: z.boolean().optional() }).strict();
+const managementPath = '/api/public/annual-conference/2026/social-cards/manage';
+const publicPath = '/api/public/annual-conference/2026/social-cards';
+
+function unavailable(c: Context<AppBindings>) {
+  c.header('Cache-Control', 'no-store');
+
+  return c.json({ error: 'Social-card storage is not configured for this environment.' }, 503);
+}
+
+function scheduledJobAuthorized(c: Context<AppBindings>): boolean {
+  const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+  const received = c.req.header('x-scheduled-job-secret')?.trim();
+
+  if (!expected || !received) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(received);
+
+  return expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+async function managedCard(c: Context<AppBindings>) {
+  const capability = c.req.header('x-social-card-capability')?.trim();
+
+  if (!capability || capability.length > 200) return null;
+
+  return getSupabaseAnnualConferenceSocialCardByCapability(capability, c);
+}
+
+function managementCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabaseAnnualConferenceSocialCardByCapability>>>) {
+  return {
+    display_name: card.display_name,
+    role: card.role,
+    crop: { x: card.crop_x, y: card.crop_y, scale: card.crop_scale },
+    public_enabled: card.public_enabled,
+    public_slug: card.public_slug,
+    photo_available: Boolean(card.photo_path),
+  };
+}
+
+function publicCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabasePublicAnnualConferenceSocialCard>>>) {
+  return {
+    display_name: card.display_name,
+    role: card.role,
+    event_name: 'DevCon26',
+    event_date: '19 December 2026',
+    location: 'Accra, Ghana',
+    photo_available: Boolean(card.photo_path),
+  };
+}
+
+export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>): void {
+  app.post('/api/annual-conference/:year/social-cards/deliveries', async (c) => {
+    const access = await requireAdmin(c, ['owner']);
+
+    if (access) return access;
+    const year = yearSchema.safeParse(c.req.param('year'));
+    const body = issueSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!year.success || !body.success) return c.json({ error: body.error?.issues[0]?.message ?? 'Check the social-card delivery details.' }, 400);
+    if (!annualConferenceSocialCardEmailConfigurationForRequest(c).enabled) {
+      return c.json({ error: 'Social-card email delivery is not configured.' }, 503);
+    }
+    const edition = await getAnnualConferenceEditionByYear(Number(year.data), c);
+
+    if (!edition) return c.json({ error: `Annual conference ${year.data} was not found.` }, 404);
+    try {
+      const issued = await issueSupabaseAnnualConferenceSocialCardDelivery({ editionId: edition.id, subjectType: body.data.subject_type, subjectId: body.data.subject_id }, c);
+
+      if (issued === null) return unavailable(c);
+      if (!issued) return c.json({ error: 'This attendee or confirmed speaker is not eligible for a social card.' }, 409);
+      await recordProtectedMutationAudit(c, { action: 'annual_conference.social_card.delivery_issue', targetType: 'annual_conference_social_card', targetId: issued.social_card_id, metadata: { edition_year: Number(year.data), subject_type: body.data.subject_type } });
+
+      return c.json({ social_card_id: issued.social_card_id, delivery: 'queued' }, 202);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+
+      return c.json({ error: message.includes('ineligible') ? 'This attendee or confirmed speaker is not eligible for a social card.' : 'Unable to issue the social-card delivery.' }, message.includes('ineligible') ? 409 : 500);
+    }
+  });
+
+  app.get(managementPath, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const card = await managedCard(c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) return c.json({ error: 'This social-card link is invalid or has been replaced.' }, 401);
+
+    return c.json({ card: managementCardResponse(card) });
+  });
+
+  app.patch(managementPath, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const card = await managedCard(c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) return c.json({ error: 'This social-card link is invalid or has been replaced.' }, 401);
+    const body = managementUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!body.success || (body.data.crop && !validateDevcon26SocialCardCrop(body.data.crop))) return c.json({ error: 'Check the display name or crop settings.' }, 400);
+    const name = body.data.display_name === undefined ? undefined : normalizeDevcon26SocialCardName(body.data.display_name);
+
+    if (body.data.display_name !== undefined && !name) return c.json({ error: 'Check the display name.' }, 400);
+    const updated = await updateSupabaseAnnualConferenceSocialCard(card.id, { displayName: name ?? undefined, crop: body.data.crop, publicEnabled: body.data.public_enabled }, c);
+
+    if (!updated) return unavailable(c);
+
+    return c.json({ card: managementCardResponse(updated) });
+  });
+
+  app.post(`${managementPath}/photo`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const card = await managedCard(c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) return c.json({ error: 'This social-card link is invalid or has been replaced.' }, 401);
+    const body = await c.req.parseBody();
+    const file = body.photo;
+
+    if (!(file instanceof File)) return c.json({ error: 'Choose an image to upload.' }, 400);
+    const fileError = validateDevcon26SocialCardImage(file);
+
+    if (fileError) return c.json({ error: fileError }, 400);
+    try {
+      const photoPath = await uploadSupabaseAnnualConferenceSocialCardPhoto(card.id, file, c);
+      const updated = await updateSupabaseAnnualConferenceSocialCard(card.id, { photoPath }, c);
+
+      if (!updated) return unavailable(c);
+
+      return c.json({ card: managementCardResponse(updated) });
+    } catch {
+      return c.json({ error: 'Unable to save the social-card photo.' }, 500);
+    }
+  });
+
+  app.get(`${managementPath}/photo`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const card = await managedCard(c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) return c.json({ error: 'This social-card link is invalid or has been replaced.' }, 401);
+    if (!card.photo_path) return c.json({ error: 'Social-card image not found.' }, 404);
+    const result = await getSupabaseAdminClient(c).storage.from(DEVCON26_SOCIAL_CARD_BUCKET).download(card.photo_path);
+
+    if (result.error) return c.json({ error: 'Social-card image not found.' }, 404);
+
+    c.header('Content-Type', result.data.type || 'application/octet-stream');
+
+    return c.body(await result.data.arrayBuffer());
+  });
+
+  app.patch(`${managementPath}/publish`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const card = await managedCard(c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) return c.json({ error: 'This social-card link is invalid or has been replaced.' }, 401);
+    const updated = await updateSupabaseAnnualConferenceSocialCard(card.id, { publicEnabled: true }, c);
+
+    if (!updated) return unavailable(c);
+
+    return c.json({ card: managementCardResponse(updated) });
+  });
+
+  app.patch(`${managementPath}/revoke`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const card = await managedCard(c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) return c.json({ error: 'This social-card link is invalid or has been replaced.' }, 401);
+    const updated = await updateSupabaseAnnualConferenceSocialCard(card.id, { publicEnabled: false }, c);
+
+    if (!updated) return unavailable(c);
+
+    return c.json({ card: managementCardResponse(updated) });
+  });
+
+  app.get(`${publicPath}/:slug`, async (c) => {
+    const slug = c.req.param('slug');
+
+    if (!/^[A-Za-z0-9_-]{22,80}$/.test(slug)) {
+      c.header('Cache-Control', 'no-store');
+
+      return c.json({ error: 'Social card not found.' }, 404);
+    }
+    const card = await getSupabasePublicAnnualConferenceSocialCard(slug, c);
+
+    if (card === undefined) return unavailable(c);
+    if (card === null) {
+      c.header('Cache-Control', 'no-store');
+
+      return c.json({ error: 'Social card not found.' }, 404);
+    }
+    if (!card) {
+      c.header('Cache-Control', 'no-store');
+
+      return c.json({ error: 'Social card not found.' }, 404);
+    }
+    c.header('Cache-Control', 'public, max-age=300');
+
+    return c.json({ card: publicCardResponse(card) });
+  });
+
+  app.get(`${publicPath}/:slug/image`, async (c) => {
+    const slug = c.req.param('slug');
+
+    if (!/^[A-Za-z0-9_-]{22,80}$/.test(slug)) {
+      c.header('Cache-Control', 'no-store');
+
+      return c.json({ error: 'Social card not found.' }, 404);
+    }
+    const card = await getSupabasePublicAnnualConferenceSocialCard(slug, c);
+
+    if (card === undefined) return unavailable(c);
+    if (!card?.photo_path) {
+      c.header('Cache-Control', 'no-store');
+
+      return c.json({ error: 'Social-card image not found.' }, 404);
+    }
+    const result = await getSupabaseAdminClient(c).storage.from(DEVCON26_SOCIAL_CARD_BUCKET).download(card.photo_path);
+
+    if (result.error) return c.json({ error: 'Social-card image not found.' }, 404);
+
+    c.header('Cache-Control', 'public, max-age=300');
+    c.header('Content-Type', result.data.type || 'application/octet-stream');
+
+    return c.body(await result.data.arrayBuffer());
+  });
+
+  app.post('/api/internal/annual-conference-social-card-emails/retry', async (c) => {
+    if (!scheduledJobAuthorized(c)) return c.json({ error: 'Not found' }, 404);
+
+    try {
+      return c.json(await retryAnnualConferenceSocialCardEmails(c));
+    } catch {
+      return c.json({ error: 'Unable to retry social-card emails.' }, 500);
+    }
+  });
+}

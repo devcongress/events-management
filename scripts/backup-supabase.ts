@@ -22,7 +22,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import WebSocket from 'ws';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_BUCKETS = ['meetup-media'];
+const DEFAULT_BUCKETS = ['meetup-media', 'annual-conference-social-cards'];
 const DATABASE_DUMPS = [
   { name: 'roles.sql', args: ['--role-only'], optionalSchema: false },
   { name: 'schema.sql', args: [], optionalSchema: false },
@@ -189,7 +189,7 @@ Required environment variables:
   SUPABASE_BACKUP_AGE_RECIPIENT     Public age recipient used for encryption
 
 Optional environment variables:
-  SUPABASE_BACKUP_BUCKETS           Comma-separated buckets (default: meetup-media)
+  SUPABASE_BACKUP_BUCKETS           Comma-separated buckets (default: meetup-media,annual-conference-social-cards)
   SUPABASE_BACKUP_STORAGE_CONCURRENCY  Parallel Storage downloads, 1-16 (default: 4)
 
 The final artifact is a .tar.gz.age archive. Plaintext staging files are removed
