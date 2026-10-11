@@ -61,7 +61,7 @@ export function devcon26TestCheckoutConfiguration(env: Record<string, string | u
     allowedOrigins.add(origin);
   }
 
-  const callback = new URL('/devcon26/', websiteOrigin);
+  const callback = new URL('/devcon26/payment-confirmation/', websiteOrigin);
 
   callback.searchParams.set('test_checkout', 'return');
 
@@ -73,7 +73,7 @@ export function devcon26TestCheckoutOriginConfiguration(
   origin: string | undefined,
 ) {
   if (!origin || !configuration.allowedOrigins.includes(origin)) return null;
-  const callback = new URL('/devcon26/', origin);
+  const callback = new URL('/devcon26/payment-confirmation/', origin);
 
   callback.searchParams.set('test_checkout', 'return');
 

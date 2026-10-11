@@ -6,6 +6,11 @@
 - Add Owner-only issuance, fragment/header-based management reads and updates, private validated photo upload, opt-in public JSON, and website-owned rendering/OG integration. Public responses exclude capability and recipient data; private photos are proxied without signed URLs.
 - Add a dedicated scheduled Resend sender which issues only `https://devcongress.org/devcon26/social-card/#<capability>` links, requires a provider message ID before acceptance/scrubbing, and remains fail-closed until distinct deployed sender settings are approved. Clean legacy ticket-outbox capability payloads before removing the old trigger.
 
+## 2026-10-11 — Send DevCon26 sandbox returns straight to confirmation
+
+- Derive each approved origin's Paystack sandbox callback at the DevCon26 payment-confirmation route, avoiding the visible event-page relay after a successful hosted payment.
+- Preserve exact-origin validation and sandbox-only activation; the confirmation page normalizes the provider reference before server-side verification. No migration, live payment activation, ticket issuance, or email delivery is added.
+
 ## 2026-10-11 — Add private DevCon26 social-card foundation
 
 - Add a private, RLS-protected social-card record and Storage bucket for future attendee and selected-speaker cards, with separate hashed management capabilities and revocable public slugs.

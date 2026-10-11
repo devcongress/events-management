@@ -186,7 +186,7 @@ describe('public DevCon26 test checkout integration', () => {
 
     expect(initialized.status).toBe(200);
     expect(initialized.headers.get('access-control-allow-origin')).toBe(origin);
-    expect(JSON.parse(provider.mock.calls[0][1].body).callback_url).toBe(`${origin}/devcon26/?test_checkout=return`);
+    expect(JSON.parse(provider.mock.calls[0][1].body).callback_url).toBe(`${origin}/devcon26/payment-confirmation/?test_checkout=return`);
     expect(storage.prepareDevcon26TestSession).toHaveBeenCalledWith(expect.anything(), devcon26TestCheckoutRequestKey(origin, requestKey), 'team_3',
       buyer.purchaser_name, buyer.purchaser_email, undefined);
 
@@ -276,7 +276,7 @@ describe('public DevCon26 test checkout integration', () => {
 
     expect(provider).toHaveBeenCalledTimes(2);
     expect(provider.mock.calls.map((call) => JSON.parse(call[1].body).callback_url)).toEqual([
-      `${previewOrigin}/devcon26/?test_checkout=return`, `${commitOrigin}/devcon26/?test_checkout=return`,
+      `${previewOrigin}/devcon26/payment-confirmation/?test_checkout=return`, `${commitOrigin}/devcon26/payment-confirmation/?test_checkout=return`,
     ]);
   });
 
@@ -324,7 +324,7 @@ describe('public DevCon26 test checkout integration', () => {
     const outbound = JSON.parse(provider.mock.calls[0][1].body);
 
     expect(outbound).toMatchObject({ amount: 54_999, currency: 'GHS', email: 'sandbox@example.com', reference,
-      callback_url: 'https://devcongress.org/devcon26/?test_checkout=return' });
+      callback_url: 'https://devcongress.org/devcon26/payment-confirmation/?test_checkout=return' });
     expect((await post(`${base}/initialize`, { ...input, tier_key: 'regular' })).status).toBe(409);
   });
 

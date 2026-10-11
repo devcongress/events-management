@@ -14,7 +14,7 @@ const commitOrigin = 'https://63b14d94-devcongress-website.admins-a7d.workers.de
 
 describe('DevCon26 sandbox boundary', () => {
   it('requires an explicit independent gate, test key, inbox, and trusted HTTPS return origin', () => {
-    expect(devcon26TestCheckoutConfiguration(environment)?.callbackUrl).toBe('https://devcongress.org/devcon26/?test_checkout=return');
+    expect(devcon26TestCheckoutConfiguration(environment)?.callbackUrl).toBe('https://devcongress.org/devcon26/payment-confirmation/?test_checkout=return');
 
     for (const override of [
       { DEVCON26_TEST_CHECKOUT_ENABLED: 'false' }, { PAYSTACK_SECRET_KEY: 'sk_live_fixture' },
@@ -40,7 +40,7 @@ describe('DevCon26 sandbox boundary', () => {
 
     for (const origin of configuration.allowedOrigins) {
       expect(devcon26TestCheckoutOriginConfiguration(configuration, origin)?.callbackUrl)
-        .toBe(`${origin}/devcon26/?test_checkout=return`);
+        .toBe(`${origin}/devcon26/payment-confirmation/?test_checkout=return`);
     }
 
     for (const origin of [undefined, '', 'null', 'https://attacker.example', `${previewOrigin}.attacker.example`, `${previewOrigin}/`]) {
