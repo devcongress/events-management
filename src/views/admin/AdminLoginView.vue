@@ -338,7 +338,7 @@ onMounted(async () => {
               :disabled="loading"
               @click="login"
             >
-              Request access — approved accounts sign in normally
+              Request access
             </button>
 
             <p id="organizer-access-note" class="login-access-note">
@@ -639,8 +639,6 @@ onMounted(async () => {
   font-family: var(--font-sans);
   font-size: 0.8rem;
   font-weight: var(--font-weight-label);
-  text-decoration: underline;
-  text-underline-offset: 0.2rem;
   transition:
     color 150ms var(--motion-fast),
     transform 100ms var(--motion-fast);
@@ -780,6 +778,11 @@ onMounted(async () => {
 
   .login-submit:not(:disabled):hover {
     background: #fffdf4;
+  }
+
+  .login-secondary:not(:disabled):hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
   }
 }
 

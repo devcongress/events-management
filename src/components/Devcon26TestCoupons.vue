@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
 import { formatTicketMoney, parseGhsAmountToMinor, type AnnualConferenceTicketTierKey } from '@/lib/annual-conference-ticketing';
-import { createDevcon26TestCouponSchema, type Devcon26TestCoupon, type Devcon26TestCouponCreated } from '@/lib/devcon26-test-coupons';
+import { createDevcon26TestCouponSchema, type Devcon26TestCheckoutLedgerRow, type Devcon26TestCoupon, type Devcon26TestCouponCreated } from '@/lib/devcon26-test-coupons';
 import { createDevcon26TestCoupon, DEVCON26_TEST_CHECKOUT_PAGE_SIZE, fetchDevcon26TestCoupons, toggleDevcon26TestCoupon } from '@/src/lib/api';
 import { copyTextToClipboard } from '@/src/lib/clipboard';
 import AppDropdown from '@/src/components/AppDropdown.vue';
@@ -11,9 +11,13 @@ import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 
 const props = defineProps<{ year: string }>();
 const queryClient = useQueryClient();
+const isBrowser = typeof document !== 'undefined';
 const page = ref(1);
 const checkoutPage = ref(1);
+const selectedCheckout = ref<Devcon26TestCheckoutLedgerRow | null>(null);
 const formElement = ref<HTMLFormElement | null>(null);
+const checkoutDrawerPanel = ref<HTMLElement | null>(null);
+const checkoutDrawerCloseButton = ref<HTMLButtonElement | null>(null);
 const error = ref('');
 const feedback = ref('');
 const expiryError = ref('');
@@ -21,6 +25,10 @@ const createdCoupon = ref<Devcon26TestCouponCreated | null>(null);
 const copyStates = reactive<Record<string, 'idle' | 'copying' | 'copied'>>({});
 const copyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let copyGeneration = 0;
+let checkoutDrawerTrigger: HTMLElement | null = null;
+let checkoutDrawerAppWasInert = false;
+let previousBodyOverflow = '';
+let previousDocumentOverflow = '';
 
 const form = reactive({
   discount_type: 'fixed_minor' as 'fixed_minor' | 'percentage_bps', discount: '',
@@ -76,6 +84,7 @@ const toggleMutation = useMutation({
 });
 
 watch(() => props.year, () => {
+  closeCheckoutDetails(false);
   page.value = 1;
   checkoutPage.value = 1;
   error.value = '';
@@ -86,7 +95,10 @@ watch(() => props.year, () => {
 });
 
 watch(() => form.expires_at, () => { expiryError.value = ''; });
-onBeforeUnmount(resetCopyStates);
+onBeforeUnmount(() => {
+  closeCheckoutDetails(false);
+  resetCopyStates();
+});
 
 function setDiscountType(value: string | number) {
   if (value === 'fixed_minor' || value === 'percentage_bps') {
@@ -166,6 +178,79 @@ function couponState(coupon: Devcon26TestCoupon) {
 
 function dateLabel(value: string) {
   return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function lockCheckoutDrawerPage() {
+  previousBodyOverflow = document.body.style.overflow;
+  previousDocumentOverflow = document.documentElement.style.overflow;
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+
+  const app = document.querySelector<HTMLElement>('#app');
+
+  checkoutDrawerAppWasInert = app?.hasAttribute('inert') ?? false;
+  if (!checkoutDrawerAppWasInert) app?.setAttribute('inert', '');
+}
+
+function unlockCheckoutDrawerPage() {
+  document.body.style.overflow = previousBodyOverflow;
+  document.documentElement.style.overflow = previousDocumentOverflow;
+
+  const app = document.querySelector<HTMLElement>('#app');
+
+  if (!checkoutDrawerAppWasInert) app?.removeAttribute('inert');
+}
+
+async function openCheckoutDetails(checkout: Devcon26TestCheckoutLedgerRow, event: Event) {
+  checkoutDrawerTrigger = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  selectedCheckout.value = checkout;
+  lockCheckoutDrawerPage();
+  await nextTick();
+  checkoutDrawerCloseButton.value?.focus();
+}
+
+function closeCheckoutDetails(restoreFocus = true) {
+  if (!selectedCheckout.value) return;
+
+  selectedCheckout.value = null;
+  unlockCheckoutDrawerPage();
+
+  if (restoreFocus) checkoutDrawerTrigger?.focus();
+
+  checkoutDrawerTrigger = null;
+}
+
+function handleCheckoutDrawerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCheckoutDetails();
+
+    return;
+  }
+
+  if (event.key !== 'Tab' || !checkoutDrawerPanel.value) return;
+
+  const focusable = Array.from(checkoutDrawerPanel.value.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )).filter((element) => !element.hasAttribute('hidden'));
+
+  if (!focusable.length) {
+    event.preventDefault();
+    checkoutDrawerPanel.value.focus();
+
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 </script>
 
@@ -304,72 +389,88 @@ function dateLabel(value: string) {
       </div>
 
       <h3 id="test-checkout-activity-title" class="mt-6 text-base font-semibold text-dc-ink">Test checkout activity</h3>
-      <p class="mt-1 text-xs text-dc-gray">Private purchaser details and payment references. A verified test payment is not an admission ticket.</p>
+      <p class="mt-1 text-xs text-dc-gray">Sandbox checkout activity only. Open a row for private purchaser details and payment references; verified test payments never issue admission tickets.</p>
       <p v-if="!checkoutRows.length" class="py-4 text-sm text-dc-gray">No test checkouts have started yet.</p>
-      <div v-else class="mt-3 overflow-x-auto" role="region" aria-labelledby="test-checkout-activity-title" tabindex="0">
-        <table class="w-full min-w-[760px] text-left text-sm">
-          <caption class="sr-only">Test checkout activity, up to five checkouts per page</caption>
-          <thead class="border-b border-dc-border text-xs text-dc-gray">
-            <tr>
-              <th scope="col" class="py-3 pr-4 font-medium">Checkout</th>
-              <th scope="col" class="px-4 py-3 font-medium">Pass / coupon</th>
-              <th scope="col" class="px-4 py-3 text-right font-medium">Amount</th>
-              <th scope="col" class="px-4 py-3 font-medium">Status</th>
-              <th scope="col" class="py-3 pl-4 font-medium">Details</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-dc-border">
-            <tr v-for="checkout in checkoutRows" :key="checkout.id" class="align-top">
-              <td class="py-4 pr-4">
-                <p class="whitespace-nowrap text-dc-ink">{{ dateLabel(checkout.created_at) }}</p>
-                <p class="mt-1 max-w-48 truncate font-mono text-xs text-dc-gray" :title="checkout.payment_reference">{{ checkout.payment_reference }}</p>
-              </td>
-              <td class="px-4 py-4">
-                <p class="whitespace-nowrap font-medium text-dc-ink">{{ tiers.find((tier) => tier.key === checkout.tier_key)?.label }}</p>
-                <p class="mt-1 text-xs text-dc-gray">{{ checkout.quantity }} {{ checkout.quantity === 1 ? 'seat' : 'seats' }}</p>
-                <p class="mt-1 max-w-48 break-all text-xs text-dc-gray">{{ checkout.coupon_code ?? 'No coupon' }}</p>
-              </td>
-              <td class="px-4 py-4 text-right tabular-nums">
-                <p class="whitespace-nowrap font-semibold text-dc-ink">{{ formatTicketMoney(checkout.amount_minor) }}</p>
-                <p class="mt-1 whitespace-nowrap text-xs text-dc-gray"><span class="sr-only">Base amount minus discount: </span>{{ formatTicketMoney(checkout.base_amount_minor) }} − {{ formatTicketMoney(checkout.discount_amount_minor) }}</p>
-              </td>
-              <td class="px-4 py-4">
-                <span class="inline-block whitespace-nowrap rounded-md border border-dc-border px-2 py-1 text-xs font-semibold capitalize" :class="checkout.status === 'refund_required' ? 'text-dc-pink' : 'text-dc-ink'">{{ checkout.status === 'refund_required' ? 'Needs attention' : checkout.status === 'rejected' ? 'Failed' : checkout.status }}</span>
-                <p v-if="checkout.resolution_reason" class="mt-1 max-w-48 break-words text-xs text-dc-pink">{{ checkout.resolution_reason.replaceAll('_', ' ') }}</p>
-              </td>
-              <td class="py-4 pl-4">
-                <details class="max-w-64 text-xs">
-                  <summary class="min-h-11 cursor-pointer py-1 text-sm text-dc-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Details: View purchaser and checkout ID for ${checkout.payment_reference}`">Details</summary>
-                  <dl class="space-y-2 pb-2">
-                    <div>
-                      <dt class="text-dc-gray">Purchaser</dt>
-                      <dd class="mt-1 break-words text-dc-ink">{{ checkout.purchaser_name ?? 'Legacy test checkout' }}</dd>
-                      <dd class="mt-1 break-all text-dc-gray">{{ checkout.purchaser_email ?? 'Purchaser not collected' }}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-dc-gray">Payment reference</dt>
-                      <dd class="mt-1 break-all font-mono text-dc-ink">{{ checkout.payment_reference }}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-dc-gray">Checkout ID</dt>
-                      <dd class="mt-1 break-all font-mono text-dc-ink">{{ checkout.id }}</dd>
-                    </div>
-                  </dl>
-                </details>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <nav v-if="checkoutRows.length" class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border py-3" aria-label="Checkout pagination">
-        <p class="text-xs text-dc-gray" aria-live="polite">{{ checkoutStart }}–{{ checkoutEnd }} of {{ query.data.value?.checkout_total }} · Page {{ checkoutPage }} of {{ checkoutPageCount }}</p>
-        <div class="flex gap-2">
-          <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" aria-label="Previous checkout page" :disabled="checkoutPage <= 1 || query.isFetching.value" @click="checkoutPage--">Previous</button>
-          <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" aria-label="Next checkout page" :disabled="checkoutPage >= checkoutPageCount || query.isFetching.value" @click="checkoutPage++">Next</button>
+      <section v-else class="mt-3 overflow-hidden rounded-md border border-dc-border" aria-labelledby="test-checkout-activity-title">
+        <div class="overflow-x-auto" role="region" aria-label="Test checkout activity table" tabindex="0">
+          <table class="w-full min-w-[640px] text-left text-sm">
+            <caption class="sr-only">Sandbox test checkout activity, up to five checkouts per page</caption>
+            <thead class="border-b border-dc-border text-xs text-dc-gray">
+              <tr>
+                <th scope="col" class="py-3 pl-4 pr-4 font-medium">Checkout</th>
+                <th scope="col" class="px-4 py-3 font-medium">Pass / coupon</th>
+                <th scope="col" class="px-4 py-3 text-right font-medium">Amount</th>
+                <th scope="col" class="px-4 py-3 font-medium">Status</th>
+                <th scope="col" class="py-3 pl-4 pr-4 font-medium">Details</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-dc-border">
+              <tr
+                v-for="checkout in checkoutRows"
+                :key="checkout.id"
+                class="checkout-activity-row align-top"
+              >
+                <td class="py-4 pl-4 pr-4">
+                  <p class="whitespace-nowrap text-dc-ink">{{ dateLabel(checkout.created_at) }}</p>
+                  <p class="mt-1 text-xs text-dc-gray">Open private details</p>
+                </td>
+                <td class="px-4 py-4">
+                  <p class="whitespace-nowrap font-medium text-dc-ink">{{ tiers.find((tier) => tier.key === checkout.tier_key)?.label }}</p>
+                  <p class="mt-1 text-xs text-dc-gray">{{ checkout.quantity }} {{ checkout.quantity === 1 ? 'seat' : 'seats' }}</p>
+                  <p class="mt-1 max-w-48 break-all text-xs text-dc-gray">{{ checkout.coupon_code ?? 'No coupon' }}</p>
+                </td>
+                <td class="px-4 py-4 text-right tabular-nums">
+                  <p class="whitespace-nowrap font-semibold text-dc-ink">{{ formatTicketMoney(checkout.amount_minor) }}</p>
+                  <p class="mt-1 whitespace-nowrap text-xs text-dc-gray"><span class="sr-only">Base amount minus discount: </span>{{ formatTicketMoney(checkout.base_amount_minor) }} − {{ formatTicketMoney(checkout.discount_amount_minor) }}</p>
+                </td>
+                <td class="px-4 py-4">
+                  <span class="inline-block whitespace-nowrap rounded-md border border-dc-border px-2 py-1 text-xs font-semibold capitalize" :class="checkout.status === 'refund_required' ? 'text-dc-pink' : 'text-dc-ink'">{{ checkout.status === 'refund_required' ? 'Needs attention' : checkout.status === 'rejected' ? 'Failed' : checkout.status }}</span>
+                  <p v-if="checkout.resolution_reason" class="mt-1 max-w-48 break-words text-xs text-dc-pink">{{ checkout.resolution_reason.replaceAll('_', ' ') }}</p>
+                </td>
+                <td class="py-4 pl-4 pr-4">
+                  <button type="button" class="motion-press min-h-11 rounded-md px-1 text-sm text-dc-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dc-pink" :aria-label="`Open private sandbox checkout details from ${dateLabel(checkout.created_at)}`" @click="openCheckoutDetails(checkout, $event)">Details</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </nav>
+        <nav class="flex flex-wrap items-center justify-between gap-3 border-t border-dc-border px-4 py-3" aria-label="Checkout pagination">
+          <p class="text-xs text-dc-gray" aria-live="polite">{{ checkoutStart }}–{{ checkoutEnd }} of {{ query.data.value?.checkout_total }} · Page {{ checkoutPage }} of {{ checkoutPageCount }}</p>
+          <div class="flex gap-2">
+            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" aria-label="Previous checkout page" :disabled="checkoutPage <= 1 || query.isFetching.value" @click="checkoutPage--">Previous</button>
+            <button type="button" class="motion-press min-h-11 rounded-md border border-dc-border px-3 text-sm disabled:opacity-50" aria-label="Next checkout page" :disabled="checkoutPage >= checkoutPageCount || query.isFetching.value" @click="checkoutPage++">Next</button>
+          </div>
+        </nav>
+      </section>
     </template>
   </section>
+
+  <Teleport to="body" :disabled="!isBrowser">
+    <Transition name="checkout-drawer">
+      <div v-if="selectedCheckout" class="checkout-drawer-backdrop fixed inset-0 z-[110] flex justify-end" role="presentation" @click.self="closeCheckoutDetails()">
+        <aside ref="checkoutDrawerPanel" class="checkout-drawer flex h-full w-full max-w-xl flex-col border-l border-dc-border bg-dc-paper shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="test-checkout-drawer-title" aria-describedby="test-checkout-drawer-description" tabindex="-1" @keydown="handleCheckoutDrawerKeydown">
+          <header class="flex shrink-0 items-start justify-between gap-5 border-b border-dc-border px-5 py-5 sm:px-6">
+            <div class="min-w-0">
+              <p class="editorial-eyebrow">Sandbox checkout</p>
+              <h2 id="test-checkout-drawer-title" class="mt-1 text-2xl font-semibold tracking-tight text-dc-ink">Private checkout details</h2>
+              <p id="test-checkout-drawer-description" class="mt-2 text-sm leading-6 text-dc-gray">This sandbox payment is not an admission ticket and cannot be used for event entry.</p>
+            </div>
+            <button ref="checkoutDrawerCloseButton" type="button" class="motion-press inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-dc-border text-dc-gray hover:border-dc-ink hover:text-dc-ink" aria-label="Close test checkout details" @click="closeCheckoutDetails()"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18" /></svg></button>
+          </header>
+
+          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+            <dl class="divide-y divide-dc-border border-y border-dc-border">
+              <div class="py-3"><dt class="text-sm text-dc-gray">Purchaser</dt><dd class="mt-1 break-words font-semibold text-dc-ink">{{ selectedCheckout.purchaser_name ?? 'Legacy test checkout' }}</dd><dd class="mt-1 break-all text-sm text-dc-gray">{{ selectedCheckout.purchaser_email ?? 'Purchaser not collected' }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Pass</dt><dd class="text-right font-semibold text-dc-ink">{{ tiers.find((tier) => tier.key === selectedCheckout?.tier_key)?.label }} · {{ selectedCheckout.quantity }} {{ selectedCheckout.quantity === 1 ? 'seat' : 'seats' }}</dd></div>
+              <div class="flex items-center justify-between gap-5 py-3"><dt class="text-sm text-dc-gray">Paid amount</dt><dd class="font-semibold text-dc-ink">{{ formatTicketMoney(selectedCheckout.amount_minor) }}</dd></div>
+              <div class="py-3"><dt class="text-sm text-dc-gray">Payment reference</dt><dd class="mt-1 break-all font-mono text-xs font-semibold text-dc-ink">{{ selectedCheckout.payment_reference }}</dd></div>
+              <div class="py-3"><dt class="text-sm text-dc-gray">Checkout ID</dt><dd class="mt-1 break-all font-mono text-xs font-semibold text-dc-ink">{{ selectedCheckout.id }}</dd></div>
+            </dl>
+          </div>
+        </aside>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -386,6 +487,37 @@ function dateLabel(value: string) {
   margin: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .checkout-activity-row:hover {
+    background-color: var(--dc-paper-warm, rgb(250 247 239));
+  }
+}
+
+.checkout-drawer-backdrop {
+  background: linear-gradient(270deg, rgb(28 28 28 / 14%), rgb(28 28 28 / 8%));
+  backdrop-filter: blur(2px);
+}
+
+.checkout-drawer-enter-active,
+.checkout-drawer-leave-active {
+  transition: opacity 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.checkout-drawer-enter-active .checkout-drawer,
+.checkout-drawer-leave-active .checkout-drawer {
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.checkout-drawer-enter-from,
+.checkout-drawer-leave-to {
+  opacity: 0;
+}
+
+.checkout-drawer-enter-from .checkout-drawer,
+.checkout-drawer-leave-to .checkout-drawer {
+  transform: translateX(100%);
+}
+
 @media (forced-colors: active) {
   .coupon-pass-input {
     appearance: auto;
@@ -393,6 +525,22 @@ function dateLabel(value: string) {
 
   .coupon-pass-check {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkout-activity-row,
+  .checkout-drawer-enter-active,
+  .checkout-drawer-leave-active,
+  .checkout-drawer-enter-active .checkout-drawer,
+  .checkout-drawer-leave-active .checkout-drawer {
+    transition-duration: 0.01ms;
+    transition-delay: 0ms;
+  }
+
+  .checkout-drawer-enter-from .checkout-drawer,
+  .checkout-drawer-leave-to .checkout-drawer {
+    transform: none;
   }
 }
 </style>

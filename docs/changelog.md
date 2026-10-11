@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-11 — Protect private sandbox checkout activity
+
+- Replace inline test-checkout disclosures with an app-native bordered five-row table panel and an in-panel pagination footer, preserving the existing server pagination boundary.
+- Keep purchaser identity and payment/checkout references out of the closed table; its keyboard-accessible Details control opens an accessible right-side private-details drawer with focus trapping, Escape/backdrop close, focus restoration, and background inert/scroll lock cleanup.
+- Repeat the sandbox-only, no-admission boundary in the activity panel and private drawer. No migration, payment activation, or live ticket behavior is changed.
+
+## 2026-10-11 — Preserve verified DevCon26 payment-fee breakdowns
+
+- Add a forward-only ticket-order ledger that keeps the frozen ticket subtotal, buyer-paid processing charge, provider-requested amount, provider fee, and verified gross amount distinct without changing the sandbox checkout or enabling live sales.
+- Keep merchant-absorbed payments strict by default; an explicit server-only pass-fees policy accepts a surcharge only when verified Paystack facts prove the requested ticket amount and provider fee details.
+- Use the verified gross amount for capacity-exhaustion refunds and preserve the immutable breakdown in payment-receipt payloads. Document that a public exact fee quote requires separate merchant-account and rounding validation.
+- Simplify the organizer-login secondary action to “Request access”; it gains its underline only on pointer hover while retaining keyboard focus treatment.
+
 ## 2026-10-11 — Recover stalled organizer OAuth callbacks
 
 - Bound the complete browser-side organizer OAuth callback with one deadline so a provider, exchange, session refresh, navigation, or cleanup promise cannot leave the Programme Cover permanently busy.

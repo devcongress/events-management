@@ -2,11 +2,13 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 
 export type AnnualConferencePaymentProvider = 'paystack';
+export type AnnualConferencePaymentFeeMode = 'merchant_absorbs' | 'paystack_pass_fees';
 
 export type AnnualConferencePaymentConfiguration = {
   enabled: boolean;
   provider: AnnualConferencePaymentProvider | null;
   secretKey: string | null;
+  feeMode: AnnualConferencePaymentFeeMode;
 };
 
 const paystackWebhookSchema = z.object({
@@ -15,6 +17,8 @@ const paystackWebhookSchema = z.object({
     id: z.union([z.string(), z.number().int().nonnegative()]),
     reference: z.string().trim().min(1).max(200),
     amount: z.number().int().nonnegative(),
+    fees: z.number().int().nonnegative().nullable().optional(),
+    requested_amount: z.number().int().nonnegative().nullable().optional(),
     currency: z.string().trim().length(3),
     status: z.string().trim().min(1).max(80),
     domain: z.enum(['test', 'live']).optional(),
@@ -31,16 +35,23 @@ function enabledFlag(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === 'true';
 }
 
+function paymentFeeMode(value: string | undefined): AnnualConferencePaymentFeeMode | null {
+  const normalized = value?.trim().toLowerCase() || 'merchant_absorbs';
+
+  return normalized === 'merchant_absorbs' || normalized === 'paystack_pass_fees' ? normalized : null;
+}
+
 export function annualConferencePaymentConfiguration(env: Record<string, string | undefined>): AnnualConferencePaymentConfiguration {
   const provider = env.DEVCON26_PAYMENT_PROVIDER?.trim().toLowerCase();
   const secretKey = env.PAYSTACK_SECRET_KEY?.trim() || null;
+  const feeMode = paymentFeeMode(env.DEVCON26_PAYSTACK_FEE_MODE);
 
   if (provider !== 'paystack' || !enabledFlag(env.DEVCON26_PAYMENTS_ENABLED)
-    || !secretKey?.startsWith('sk_live_') || secretKey.length <= 8) {
-    return { enabled: false, provider: null, secretKey: null };
+    || !secretKey?.startsWith('sk_live_') || secretKey.length <= 8 || !feeMode) {
+    return { enabled: false, provider: null, secretKey: null, feeMode: 'merchant_absorbs' };
   }
 
-  return { enabled: true, provider: 'paystack', secretKey };
+  return { enabled: true, provider: 'paystack', secretKey, feeMode };
 }
 
 function signatureMatches(provided: string | null, expected: string): boolean {
@@ -69,6 +80,8 @@ export type VerifiedPaystackTransaction = {
   eventType: 'charge.success';
   paymentReference: string;
   amountMinor: number;
+  providerFeeMinor: number | null;
+  requestedAmountMinor: number | null;
   currency: string;
   facts: Record<string, string | number>;
 };
@@ -131,10 +144,14 @@ export async function verifyPaystackTransaction(input: {
     eventType: 'charge.success',
     paymentReference: transaction.reference,
     amountMinor: transaction.amount,
+    providerFeeMinor: transaction.fees ?? null,
+    requestedAmountMinor: transaction.requested_amount ?? null,
     currency: transaction.currency.toUpperCase(),
     facts: {
       id: String(transaction.id),
       amount: transaction.amount,
+      ...(transaction.fees === null || transaction.fees === undefined ? {} : { fees: transaction.fees }),
+      ...(transaction.requested_amount === null || transaction.requested_amount === undefined ? {} : { requested_amount: transaction.requested_amount }),
       currency: transaction.currency.toUpperCase(),
       status: transaction.status,
       domain: transaction.domain,

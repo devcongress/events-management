@@ -887,10 +887,20 @@
         { "kind": "column", "schema": "public", "table": "annual_conference_tickets", "name": "is_bearer_ticket", "type": "boolean", "notNull": true, "defaultExpression": "false" },
         { "kind": "constraint", "schema": "public", "table": "annual_conference_tickets", "name": "annual_conference_tickets_identity", "contains": ["is_bearer_ticket"] },
         { "kind": "constraint", "schema": "public", "table": "annual_conference_ticket_email_outbox", "name": "annual_conference_ticket_email_outbox_kind", "contains": ["ticket_bundle_delivery"] },
-        { "kind": "function", "schema": "public", "name": "confirm_annual_conference_ticket_payment", "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb", "bodySha256": "e94c30f017d4b9e6480495b2891c9d11ff4917add7a50ea2d98433ddd68d4940", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "annual_conference_ticket_orders" },
         { "kind": "function", "schema": "public", "name": "finalize_annual_conference_ticket_email_outbox", "argumentTypes": "uuid, uuid, annual_conference_ticket_email_status, text, text, timestamp with time zone", "bodySha256": "cef082ceb84f1b6f7bd286d050ac955bd575024e69d0d0fdd08623cf81869b0d", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "annual_conference_ticket_email_outbox" },
         { "kind": "function", "schema": "public", "name": "record_annual_conference_ticket_email_delivery", "argumentTypes": "text, boolean", "bodySha256": "ea60368340af398c219a19868cf73c3821d357199e5f9fa3ebef244d36323680", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "boolean" },
         { "kind": "function", "schema": "public", "name": "check_in_annual_conference_bearer_ticket", "argumentTypes": "uuid, text, text", "bodySha256": "38f2f5508c82ed298be6b8d403f2bcb146750b2a7ae3a2f3d3e1661373ac97d1", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "TABLE(outcome text, ticket_id uuid, order_id uuid, order_seat_number integer)" }
+      ]
+    },
+    {
+      "file": "20261011140000_annual_conference_ticket_payment_fee_breakdown.sql",
+      "sha256": "8d7fa3ec3ff748353fc0125aabfc7ccca16ed270b81136d3254afa7aee27ee26",
+      "checks": [
+        { "kind": "column", "schema": "public", "table": "annual_conference_ticket_orders", "name": "ticket_amount_minor", "type": "integer", "notNull": true, "defaultExpression": null },
+        { "kind": "column", "schema": "public", "table": "annual_conference_ticket_orders", "name": "amount_paid_minor", "type": "integer", "notNull": false, "defaultExpression": null },
+        { "kind": "column", "schema": "public", "table": "annual_conference_ticket_orders", "name": "processing_fee_minor", "type": "integer", "notNull": true, "defaultExpression": "0" },
+        { "kind": "constraint", "schema": "public", "table": "annual_conference_ticket_orders", "name": "annual_conference_ticket_orders_amount_paid", "contains": ["amount_paid_minor = (ticket_amount_minor + processing_fee_minor)"] },
+        { "kind": "function", "schema": "public", "name": "confirm_annual_conference_ticket_payment", "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb", "bodySha256": "42ff67e6102495b37647f596fdd05d8f62a0c00cec2bd3e03a90c27d5b1e173b", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "annual_conference_ticket_orders" }
       ]
     }
   ]
