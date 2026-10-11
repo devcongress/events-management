@@ -6,6 +6,10 @@
 - Create an attendee capability only when a named ticket is issued, carry it only in the pending ticket-delivery payload, and remove it once the provider accepts or delivers the email. QR, payment, and ticket data remain absent from cards.
 - Add shared attendee/speaker visual card primitives plus eligibility, display-name, crop, and opaque-id helpers. The migration is included but unapplied; card management, image upload, and public sharing endpoints remain future work.
 
+## 2026-10-11 — Link migration delivery guidance from the README
+
+- Add the migration delivery gate to the top-level technical documentation map, directing maintainers to the read-only verification setup and its audit-environment boundary.
+
 ## 2026-10-10 — Compact ticket email delivery filtering
 
 - Replace Delivery health's status pills with the shared app dropdown beside Refresh, with keyboard support and 44px controls/options in a responsive toolbar.
