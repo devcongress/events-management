@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Add private DevCon26 social-card foundation
+
+- Add a private, RLS-protected social-card record and Storage bucket for future attendee and selected-speaker cards, with separate hashed management capabilities and revocable public slugs.
+- Create an attendee capability only when a named ticket is issued, carry it only in the pending ticket-delivery payload, and remove it once the provider accepts or delivers the email. QR, payment, and ticket data remain absent from cards.
+- Add shared attendee/speaker visual card primitives plus eligibility, display-name, crop, and opaque-id helpers. The migration is included but unapplied; card management, image upload, and public sharing endpoints remain future work.
+
 ## 2026-10-10 — Compact ticket email delivery filtering
 
 - Replace Delivery health's status pills with the shared app dropdown beside Refresh, with keyboard support and 44px controls/options in a responsive toolbar.
