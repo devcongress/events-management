@@ -49,6 +49,10 @@ describe('public API access policy', () => {
     expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/photo`, 'POST')).toBe(true);
     expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/publish`, 'PATCH')).toBe(true);
     expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage/revoke`, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/collection`, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/collection/seats/3`, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/collection/seats/3/photo`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${socialCardBase}/collection/seats/3/photo`, 'GET')).toBe(true);
     expect(isUnauthenticatedApiRequest(`${socialCardBase}/${socialCardSlug}`, 'GET')).toBe(true);
     expect(isUnauthenticatedApiRequest(`${socialCardBase}/${socialCardSlug}/image`, 'GET')).toBe(true);
     expect(isUnauthenticatedApiRequest(`${socialCardBase}/manage`, 'POST')).toBe(false);
@@ -67,13 +71,14 @@ describe('public API access policy', () => {
       headers: {
         Origin: 'https://devcongress.org',
         'Access-Control-Request-Method': 'PATCH',
-        'Access-Control-Request-Headers': 'x-social-card-capability, content-type',
+        'Access-Control-Request-Headers': 'x-social-card-capability, x-social-card-collection-capability, content-type',
       },
     });
 
     expect(allowed.headers.get('access-control-allow-origin')).toBe('https://devcongress.org');
     expect(allowed.headers.get('access-control-allow-credentials')).toBeNull();
     expect(allowed.headers.get('access-control-allow-headers')).toContain('X-Social-Card-Capability');
+    expect(allowed.headers.get('access-control-allow-headers')).toContain('X-Social-Card-Collection-Capability');
 
     const denied = await app.request(`https://ems.example${path}`, {
       method: 'OPTIONS',

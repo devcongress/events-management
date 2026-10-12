@@ -59,4 +59,24 @@ describe('annual conference social-card sender', () => {
       status: 'accepted', providerEmailId: 'resend-message-id',
     }), expect.anything());
   });
+
+  it('sends ticket buyers a collection link with clear optional and per-ticket copy', async () => {
+    mocks.claim.mockResolvedValue([{
+      id: '10000000-0000-4000-8000-000000000002',
+      recipient_name: 'Ama Mensah',
+      recipient_email: 'ama@example.test',
+      capability: 'buyer-collection-capability',
+      idempotency_key: 'annual-conference-social-card-collection:test',
+      collection_order_id: 'order-id',
+    }]);
+
+    await retryAnnualConferenceSocialCardEmails({} as Context);
+
+    expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
+      emails: [expect.objectContaining({
+        subject: 'Create your DevCon26 ticket cards',
+        text: expect.stringContaining('https://devcongress.org/devcon26/social-card/#collection=buyer-collection-capability'),
+      })],
+    }));
+  });
 });

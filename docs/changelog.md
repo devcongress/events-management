@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-12 — Offer optional social cards after paid DevCon26 ticket orders
+
+- Create one optional social-card slot per real issued ticket only after an order transitions to paid; sandbox checkouts and existing historical orders do not receive slots.
+- Send the buyer a separate, retry-safe collection link, with a card per ticket and the option to personalize, download without a photo, or return later.
+- Keep buyer collection access scoped to the paid order, use a hashed collection capability, and reuse the existing private photo storage, crop, opt-in publishing, and revocation controls.
+- Preserve ticket QR delivery and check-in as separate flows; collection email remains disabled unless its dedicated Resend configuration is enabled.
+
 ## 2026-10-12 — Delegate Annual Conference Ticketing safely
 
 - Add an edition-scoped **Manage ticketing** responsibility in People & Access for Organizers, while retaining platform Owner access by default and denying Volunteer grants.

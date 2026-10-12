@@ -1129,10 +1129,14 @@ function isPublicEventRegistrationRequest(path: string, method: string): boolean
 function isPublicSocialCardRequest(path: string, method: string): boolean {
   const managementPath = '/api/public/annual-conference/2026/social-cards/manage';
   const publicPath = '/api/public/annual-conference/2026/social-cards';
+  const collectionPath = '/api/public/annual-conference/2026/social-cards/collection';
 
   return ((method === 'GET' || method === 'PATCH') && path === managementPath)
     || ((method === 'GET' || method === 'POST') && path === `${managementPath}/photo`)
     || (method === 'PATCH' && (path === `${managementPath}/publish` || path === `${managementPath}/revoke`))
+    || (method === 'GET' && (path === collectionPath || new RegExp(`^${collectionPath}/seats/\\d+(?:/photo)?$`).test(path)))
+    || (method === 'PATCH' && new RegExp(`^${collectionPath}/seats/\\d+(?:/publish|/revoke)?$`).test(path))
+    || (method === 'POST' && new RegExp(`^${collectionPath}/seats/\\d+/photo$`).test(path))
     || (method === 'GET' && new RegExp(`^${publicPath}/[A-Za-z0-9_-]{22,80}(?:/image)?$`).test(path));
 }
 
@@ -1439,7 +1443,7 @@ const socialCardWebsiteCors = cors({
     return undefined;
   },
   allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'X-Social-Card-Capability'],
+  allowHeaders: ['Content-Type', 'X-Social-Card-Capability', 'X-Social-Card-Collection-Capability'],
   maxAge: 600,
 });
 

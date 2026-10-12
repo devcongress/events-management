@@ -24,6 +24,7 @@ export type AnnualConferenceSocialCardEmailDelivery = {
   recipient_email: string;
   capability: string;
   idempotency_key: string;
+  collection_order_id: string | null;
 };
 
 function mapCard(row: Record<string, unknown>): AnnualConferenceSocialCard {
@@ -117,6 +118,61 @@ export async function getSupabaseAnnualConferenceSocialCardByCapability(capabili
   const card = mapCard(result.data);
 
   return await socialCardSubjectIsEligible(card, c) ? card : null;
+}
+
+export async function getSupabaseAnnualConferenceSocialCardCollection(capability: string, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return undefined;
+  const result = await getSupabaseAdminClient(c).rpc('get_annual_conference_social_card_collection' as never, {
+    p_capability: capability,
+  } as never) as unknown as {
+    data: Array<{ seat_number: number; display_name: string; crop_x: number; crop_y: number; crop_scale: number; public_enabled: boolean; public_slug: string; photo_available: boolean }> | null;
+    error: { message: string } | null;
+  };
+
+  if (result.error) throw new Error(result.error.message);
+
+  return result.data ?? [];
+}
+
+export async function getSupabaseAnnualConferenceSocialCardByCollectionCapability(capability: string, seatNumber: number, c?: Context): Promise<AnnualConferenceSocialCard | null | undefined> {
+  if (!isSupabaseRuntimeEnabled(c)) return undefined;
+  const client = getSupabaseAdminClient(c);
+  const collectionResult = await client.from('annual_conference_social_card_collections' as never)
+    .select('order_id')
+    .eq('capability_hash', hashDevcon26SocialCardCapability(capability))
+    .maybeSingle() as unknown as { data: { order_id: string } | null; error: { message: string } | null };
+
+  if (collectionResult.error) throw new Error(collectionResult.error.message);
+  if (!collectionResult.data) return null;
+
+  const orderResult = await client.from('annual_conference_ticket_orders')
+    .select('id')
+    .eq('id', collectionResult.data.order_id)
+    .eq('status', 'paid')
+    .maybeSingle();
+
+  if (orderResult.error) throw new Error(orderResult.error.message);
+  if (!orderResult.data) return null;
+
+  const ticketResult = await client.from('annual_conference_tickets')
+    .select('id')
+    .eq('order_id', collectionResult.data.order_id)
+    .eq('order_seat_number', seatNumber)
+    .in('status', ['issued', 'checked_in'])
+    .maybeSingle();
+
+  if (ticketResult.error) throw new Error(ticketResult.error.message);
+  if (!ticketResult.data) return null;
+
+  const cardResult = await client.from('annual_conference_social_cards' as never)
+    .select('*')
+    .eq('ticket_id', ticketResult.data.id)
+    .is('revoked_at', null)
+    .maybeSingle() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };
+
+  if (cardResult.error) throw new Error(cardResult.error.message);
+
+  return cardResult.data ? mapCard(cardResult.data) : null;
 }
 
 export async function getSupabasePublicAnnualConferenceSocialCard(slug: string, c?: Context): Promise<AnnualConferenceSocialCard | null | undefined> {

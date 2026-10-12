@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
 import {
+  annualConferenceSocialCardCollectionManagementUrl,
   annualConferenceSocialCardEmailDeliveryConfiguration,
   annualConferenceSocialCardManagementUrl,
 } from '@/lib/annual-conference-social-card-email-delivery';
@@ -25,14 +26,20 @@ export function annualConferenceSocialCardEmailConfigurationForRequest(c: Contex
   });
 }
 
-function deliveryContent(recipientName: string, capability: string) {
-  const privateUrl = annualConferenceSocialCardManagementUrl(capability);
+function deliveryContent(recipientName: string, capability: string, isCollection: boolean) {
+  const privateUrl = isCollection
+    ? annualConferenceSocialCardCollectionManagementUrl(capability)
+    : annualConferenceSocialCardManagementUrl(capability);
   const name = htmlEscape(recipientName);
+  const title = isCollection ? 'Create your DevCon26 ticket cards' : 'Create your DevCon26 social card';
+  const prompt = isCollection
+    ? 'Your tickets each have an optional card. Personalize any now, or return to this private link later.'
+    : 'This personal link lets you update your card.';
 
   return {
-    subject: 'Create your DevCon26 social card',
-    text: `Hi ${recipientName},\n\nCreate and manage your DevCon26 social card: ${privateUrl}\n\nThis personal link lets you update your card.`,
-    html: `<p>Hi ${name},</p><p><a href="${privateUrl}">Create and manage your DevCon26 social card</a></p><p>This personal link lets you update your card.</p>`,
+    subject: title,
+    text: `Hi ${recipientName},\n\n${title}: ${privateUrl}\n\n${prompt}`,
+    html: `<p>Hi ${name},</p><p><a href="${privateUrl}">${title}</a></p><p>${prompt}</p>`,
   };
 }
 
@@ -60,7 +67,7 @@ export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise
 
   for (const delivery of deliveries) {
     try {
-      const content = deliveryContent(delivery.recipient_name, delivery.capability);
+      const content = deliveryContent(delivery.recipient_name, delivery.capability, Boolean(delivery.collection_order_id));
       const result = await sendResendEmailBatch({
         apiKey: configured.apiKey,
         idempotencyKey: delivery.idempotency_key,

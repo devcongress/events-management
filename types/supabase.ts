@@ -635,8 +635,14 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['annual_conference_social_cards']['Insert']>;
         Relationships: [];
       };
+      annual_conference_social_card_collections: {
+        Row: { order_id: string; edition_id: string; capability_hash: string; created_at: string };
+        Insert: { order_id: string; edition_id: string; capability_hash: string; created_at?: string };
+        Update: Partial<Database['public']['Tables']['annual_conference_social_card_collections']['Insert']>;
+        Relationships: [];
+      };
       annual_conference_social_card_email_outbox: {
-        Row: { id: string; edition_id: string; social_card_id: string; recipient_name: string; recipient_email: string; capability: string; idempotency_key: string; status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed'; attempt_count: number; provider_email_id: string | null; last_error: string | null; next_attempt_at: string; claim_token: string | null; claimed_until: string | null; accepted_at: string | null; delivered_at: string | null; created_at: string; updated_at: string };
+        Row: { id: string; edition_id: string; social_card_id: string | null; collection_order_id: string | null; recipient_name: string; recipient_email: string; capability: string; idempotency_key: string; status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed'; attempt_count: number; provider_email_id: string | null; last_error: string | null; next_attempt_at: string; claim_token: string | null; claimed_until: string | null; accepted_at: string | null; delivered_at: string | null; created_at: string; updated_at: string };
         Insert: Omit<Database['public']['Tables']['annual_conference_social_card_email_outbox']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
         Update: Partial<Database['public']['Tables']['annual_conference_social_card_email_outbox']['Insert']>;
         Relationships: [];

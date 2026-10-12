@@ -906,6 +906,19 @@
         { "kind": "function", "schema": "public", "name": "quote_devcon26_test_checkout", "argumentTypes": "text, text", "bodySha256": "c7410fae2fc143fc91557588ed7d2f2a338ef580b99657e9536f3f51a02f8a25", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public, pg_temp", "language": "plpgsql", "result": "jsonb" },
         { "kind": "constraint", "schema": "public", "table": "devcon26_test_coupon_codes", "name": "devcon26_test_coupon_codes_discount_check", "contains": ["CHECK ((((discount_type = 'percentage_bps'::text) AND (discount_value < 10000)) OR ((discount_type = 'fixed_minor'::text) AND (discount_value > 0))))"] }
       ]
+    },
+    {
+      "file": "20261012160000_annual_conference_social_card_collections.sql",
+      "sha256": "3f3cd2f9431f47352c8640c14a71ec011489314a1a1c5b9d22c04fdc9d23bedc",
+      "checks": [
+        { "kind": "table", "schema": "public", "name": "annual_conference_social_card_collections", "rls": true, "private": true },
+        { "kind": "column", "schema": "public", "table": "annual_conference_social_card_collections", "name": "capability_hash", "type": "text", "notNull": true, "defaultExpression": null },
+        { "kind": "constraint", "schema": "public", "table": "annual_conference_social_card_email_outbox", "name": "annual_conference_social_card_email_destination", "contains": ["social_card_id IS NOT NULL", "collection_order_id IS NOT NULL"] },
+        { "kind": "index", "schema": "public", "table": "annual_conference_social_card_collections", "name": "annual_conference_social_card_collections_edition_idx", "contains": ["edition_id", "created_at DESC"] },
+        { "kind": "trigger", "schema": "public", "table": "annual_conference_ticket_orders", "name": "provision_annual_conference_social_card_collection", "function": "provision_annual_conference_social_card_collection", "functionSchema": "public", "contains": ["AFTER UPDATE OF status", "FOR EACH ROW"] },
+        { "kind": "trigger", "schema": "public", "table": "annual_conference_tickets", "name": "provision_annual_conference_ticket_social_card", "function": "provision_annual_conference_ticket_social_card", "functionSchema": "public", "contains": ["AFTER INSERT", "FOR EACH ROW"] },
+        { "kind": "function", "schema": "public", "name": "get_annual_conference_social_card_collection", "argumentTypes": "text", "bodySha256": "faf3e2159a023bb010c22c27ed6d78a90c51d68ef0c759398e3aa1921a29b5ea", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "TABLE(order_id uuid, seat_number integer, display_name text, crop_x numeric, crop_y numeric, crop_scale numeric, public_enabled boolean, public_slug text, photo_available boolean)" }
+      ]
     }
   ]
 }
