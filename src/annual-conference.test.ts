@@ -5,6 +5,7 @@ import {
   VOLUNTEER_PUBLIC_PATH,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
+  canAccessAnnualConferenceTicketingPath,
   currentAnnualConferenceYear,
   mobileAnnualConferencePath,
   volunteerCanAccessOrganizerPath,
@@ -42,6 +43,13 @@ describe('volunteer organizer routes', () => {
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/events/event-1/finance')).toBe(false);
     expect(volunteerCanAccessOrganizerPath('/organizer-console/organizers')).toBe(false);
+  });
+
+  it('admits Ticketing only when the edition capability is effective', () => {
+    const ticketingPath = annualConferencePath('ticketing');
+
+    expect(canAccessAnnualConferenceTicketingPath(ticketingPath)).toBe(false);
+    expect(canAccessAnnualConferenceTicketingPath(ticketingPath, ['ticketing.manage'])).toBe(true);
   });
 
   it('uses the current Accra year for the default conference route', () => {

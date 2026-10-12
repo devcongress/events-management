@@ -8,6 +8,7 @@ import {
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
   annualConferencePath,
+  canAccessAnnualConferenceTicketingPath,
   mobileAnnualConferencePath,
   volunteerCanAccessOrganizerPath,
 } from "./annual-conference";
@@ -540,6 +541,30 @@ async function volunteerCanOpenRoute(
   }
 }
 
+async function canOpenAnnualConferenceTicketingRoute(
+  path: string,
+  yearParam: unknown,
+): Promise<boolean> {
+  const year =
+    typeof yearParam === "string"
+      ? yearParam
+      : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+
+  try {
+    const workspace = await queryClient.fetchQuery({
+      queryKey: queryKeys.annualConferenceWorkPlan(year),
+      queryFn: () => fetchAnnualConferenceWorkPlan(year),
+    });
+
+    return canAccessAnnualConferenceTicketingPath(
+      path,
+      workspace.permissions.capabilities,
+    );
+  } catch {
+    return false;
+  }
+}
+
 router.beforeEach(async (to, from) => {
   const oauthCode = typeof to.query.code === "string" ? to.query.code : "";
   const oauthError =
@@ -626,7 +651,16 @@ router.beforeEach(async (to, from) => {
         : annualConferencePath();
     }
 
-    if ((ownerOnlyPaths.has(to.path) || to.name === "admin-annual-conference-ticketing") && cachedSession.user?.role !== "owner") {
+    if (to.name === "admin-annual-conference-ticketing") {
+      return (await canOpenAnnualConferenceTicketingRoute(to.path, to.params.year))
+        ? true
+        : annualConferencePath(
+          "",
+          typeof to.params.year === "string" ? to.params.year : undefined,
+        );
+    }
+
+    if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== "owner") {
       return adminPath("events");
     }
 
@@ -683,7 +717,16 @@ router.beforeEach(async (to, from) => {
           : annualConferencePath();
       }
 
-      if ((ownerOnlyPaths.has(to.path) || to.name === "admin-annual-conference-ticketing") && session.user?.role !== "owner") {
+      if (to.name === "admin-annual-conference-ticketing") {
+        return (await canOpenAnnualConferenceTicketingRoute(to.path, to.params.year))
+          ? true
+          : annualConferencePath(
+            "",
+            typeof to.params.year === "string" ? to.params.year : undefined,
+          );
+      }
+
+      if (ownerOnlyPaths.has(to.path) && session.user?.role !== "owner") {
         return adminPath("events");
       }
 

@@ -102,6 +102,10 @@ const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
   ['speakers.view', 'speakers.manage'],
 ));
+const canManageTicketing = computed(() => hasAnyAnnualConferenceCapability(
+  capabilities.value,
+  ['ticketing.manage'],
+));
 const links = computed<AnnualConferenceNavLink[]>(() => [
   { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
   {
@@ -112,7 +116,7 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
-  ...(sessionQuery.data.value?.user?.role === 'owner' ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }] : []),
+  ...(canManageTicketing.value ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }] : []),
 ]);
 const navViewport = ref<HTMLElement | null>(null);
 const editionOptions = computed(() => editions.value.map((edition) => ({
