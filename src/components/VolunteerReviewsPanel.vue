@@ -73,6 +73,11 @@ const outcomeBody = ref("");
 const outcomeMessage = computed(() =>
   outcomeMessages.value.find((message) => message.decision === outcomeDecision.value) ?? null,
 );
+const outcomeMessageDirty = computed(() =>
+  Boolean(outcomeMessage.value) &&
+  (outcomeSubject.value !== outcomeMessage.value?.subject ||
+    outcomeBody.value !== outcomeMessage.value?.message),
+);
 const pageCount = computed(() =>
   Math.max(1, Math.ceil(filtered.value.length / pageSize)),
 );
@@ -388,16 +393,64 @@ onBeforeUnmount(() => {
         <div>
           <span class="reviews-eyebrow">Outcome messages</span>
           <h3 id="outcome-messages-title">Saved email copy</h3>
-          <p>Review-capability users save the shared messages here. Campaign preview always uses this persisted version.</p>
+          <p>Previews use the latest saved copy.</p>
         </div>
         <div class="outcome-messages-controls">
-          <label class="reviews-field"><span>Outcome</span><AppDropdown v-model="outcomeDecision" :options="[
-            { value: 'accepted', label: 'Accepted applicants' },
-            { value: 'not_selected', label: 'Not-selected applicants' },
-          ]" density="compact" :teleport="true" aria-label="Outcome message audience" /></label>
-          <label class="reviews-field"><span>Subject</span><input v-model.trim="outcomeSubject" class="app-form-control" maxlength="200" aria-label="Outcome email subject" /></label>
-          <label class="reviews-field"><span>Message</span><textarea v-model.trim="outcomeBody" class="app-form-control" rows="4" maxlength="5000" aria-label="Outcome email message" /></label>
-          <div class="outcome-messages-save"><span v-if="outcomeMessage">Current version {{ outcomeMessage.version }}</span><button class="reviews-save" type="button" :disabled="outcomeMutation.isPending.value || !outcomeMessage" @click="saveOutcomeMessage">{{ outcomeMutation.isPending.value ? "Saving…" : "Save message" }}</button></div>
+          <div class="outcome-messages-fields">
+            <label class="reviews-field">
+              <span>Outcome</span>
+              <AppDropdown
+                v-model="outcomeDecision"
+                :options="[
+                  { value: 'accepted', label: 'Accepted applicants' },
+                  { value: 'not_selected', label: 'Not-selected applicants' },
+                ]"
+                density="compact"
+                :teleport="true"
+                aria-label="Outcome message audience"
+              />
+            </label>
+            <label class="reviews-field">
+              <span>Subject</span>
+              <input
+                v-model.trim="outcomeSubject"
+                class="app-form-control"
+                maxlength="200"
+                aria-label="Outcome email subject"
+              />
+            </label>
+          </div>
+          <label class="reviews-field">
+            <span>Message</span>
+            <textarea
+              v-model.trim="outcomeBody"
+              class="app-form-control"
+              rows="3"
+              maxlength="5000"
+              aria-label="Outcome email message"
+            />
+          </label>
+          <div class="outcome-messages-save">
+            <span
+              v-if="outcomeMessage"
+              class="outcome-message-version"
+              :class="{ 'outcome-message-version--dirty': outcomeMessageDirty }"
+              :aria-label="`Version ${outcomeMessage.version}, ${outcomeMessageDirty ? 'unsaved changes' : 'saved'}`"
+              aria-live="polite"
+            >
+              v{{ outcomeMessage.version }}
+              <span aria-hidden="true">·</span>
+              {{ outcomeMessageDirty ? "Unsaved" : "Saved" }}
+            </span>
+            <button
+              class="reviews-save"
+              type="button"
+              :disabled="outcomeMutation.isPending.value || !outcomeMessage || !outcomeMessageDirty"
+              @click="saveOutcomeMessage"
+            >
+              {{ outcomeMutation.isPending.value ? "Saving…" : "Save message" }}
+            </button>
+          </div>
           <p v-if="outcomeMutation.isError.value" class="reviews-save-error" role="alert">{{ outcomeMutation.error.value instanceof Error ? outcomeMutation.error.value.message : "Unable to save the outcome message." }}</p>
         </div>
       </section>
@@ -739,16 +792,22 @@ onBeforeUnmount(() => {
 }
 .outcome-messages {
   display: grid;
-  grid-template-columns: minmax(12rem, .6fr) minmax(0, 1fr);
-  gap: 1rem;
-  padding: 1rem;
+  grid-template-columns: minmax(11rem, 0.32fr) minmax(0, 1fr);
+  gap: clamp(1rem, 3vw, 2rem);
+  padding: 1rem 1.25rem;
   border: 1px solid #dedbd4;
   border-top: 0;
   background: #faf9f6;
 }
+.outcome-messages > div:first-child {
+  padding-top: 0.4rem;
+}
 .outcome-messages h3 {
   margin: .3rem 0;
   font-size: 1rem;
+}
+.outcome-messages > div:first-child p {
+  max-width: 28rem;
 }
 .outcome-messages p {
   margin: 0;
@@ -758,15 +817,46 @@ onBeforeUnmount(() => {
 }
 .outcome-messages-controls {
   display: grid;
-  gap: .7rem;
+  gap: 0.55rem;
+}
+.outcome-messages-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 0.75rem;
+}
+.outcome-messages-controls .reviews-field {
+  gap: 0.3rem;
+  margin-top: 0;
+}
+.outcome-messages-controls textarea.app-form-control {
+  height: 6rem;
+  min-height: 6rem;
+  max-height: 6rem;
+  padding: 0.6rem 0.75rem;
+  resize: none;
+  overflow-y: auto;
 }
 .outcome-messages-save {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.outcome-message-version {
+  margin-right: auto;
   color: #69665f;
-  font-size: .76rem;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+.outcome-message-version--dirty {
+  color: #8b4b00;
+  font-weight: 600;
+}
+.outcome-messages-save .reviews-save {
+  width: auto;
+  min-width: 8.5rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.8rem;
 }
 .reviews-search {
   flex: 1;
@@ -1116,6 +1206,19 @@ onBeforeUnmount(() => {
 @media (max-width: 900px) {
   .outcome-messages {
     grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+  .outcome-messages-fields {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+  }
+  .outcome-messages-save {
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .outcome-messages-save .reviews-save {
+    min-width: 7.5rem;
   }
   .reviews-header {
     padding: 1rem;

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-12 — Refine the volunteer outcome-message editor
+
+- Give the saved-copy editor a clearer desktop proportion and a compact mobile layout, with labels and controls aligned consistently.
+- Place outcome and subject side by side on wider screens, use a compact fixed non-resizable message field, and reduce editor spacing.
+- Show the persisted template version and whether the current edits are saved; disable Save message until the content changes.
+- Assert the compact, non-resizable field in the organizer browser journeys.
+- Keep campaign previews tied to the saved server-side message and preserve the existing reviewer permissions and version guard.
+
 ## 2026-10-12 — Align mobile dropdown journey checks with the visual viewport
 
 - Compare teleported review-filter geometry against the same visual viewport bounds used by the dropdown component, and report individual failed bounds and measured rectangles.
