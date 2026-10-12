@@ -175,6 +175,66 @@ export async function getSupabaseAnnualConferenceSocialCardByCollectionCapabilit
   return cardResult.data ? mapCard(cardResult.data) : null;
 }
 
+export async function getSupabaseAnnualConferenceSocialCardCollectionByOrder(orderId: string, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return undefined;
+  const client = getSupabaseAdminClient(c);
+  const orderResult = await client.from('annual_conference_ticket_orders').select('id').eq('id', orderId).eq('status', 'paid').maybeSingle();
+
+  if (orderResult.error) throw new Error(orderResult.error.message);
+  if (!orderResult.data) return null;
+
+  const ticketResult = await client.from('annual_conference_tickets')
+    .select('id, order_seat_number')
+    .eq('order_id', orderId)
+    .in('status', ['issued', 'checked_in'])
+    .order('order_seat_number');
+
+  if (ticketResult.error) throw new Error(ticketResult.error.message);
+
+  const tickets = ticketResult.data ?? [];
+  const cardsResult = tickets.length
+    ? await client.from('annual_conference_social_cards' as never).select('*').in('ticket_id', tickets.map((ticket) => ticket.id)).is('revoked_at', null) as unknown as { data: Array<Record<string, unknown>> | null; error: { message: string } | null }
+    : { data: [], error: null };
+
+  if (cardsResult.error) throw new Error(cardsResult.error.message);
+  const cardsByTicket = new Map((cardsResult.data ?? []).map((row) => [String(row.ticket_id), mapCard(row)]));
+
+  return tickets.flatMap((ticket) => {
+    const card = cardsByTicket.get(ticket.id);
+
+    return card ? [{ seat_number: ticket.order_seat_number, card }] : [];
+  });
+}
+
+export async function getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId: string, seatNumber: number, c?: Context): Promise<AnnualConferenceSocialCard | null | undefined> {
+  if (!isSupabaseRuntimeEnabled(c)) return undefined;
+  const client = getSupabaseAdminClient(c);
+  const orderResult = await client.from('annual_conference_ticket_orders').select('id').eq('id', orderId).eq('status', 'paid').maybeSingle();
+
+  if (orderResult.error) throw new Error(orderResult.error.message);
+  if (!orderResult.data) return null;
+
+  const ticketResult = await client.from('annual_conference_tickets')
+    .select('id')
+    .eq('order_id', orderId)
+    .eq('order_seat_number', seatNumber)
+    .in('status', ['issued', 'checked_in'])
+    .maybeSingle();
+
+  if (ticketResult.error) throw new Error(ticketResult.error.message);
+  if (!ticketResult.data) return null;
+
+  const cardResult = await client.from('annual_conference_social_cards' as never)
+    .select('*')
+    .eq('ticket_id', ticketResult.data.id)
+    .is('revoked_at', null)
+    .maybeSingle() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };
+
+  if (cardResult.error) throw new Error(cardResult.error.message);
+
+  return cardResult.data ? mapCard(cardResult.data) : null;
+}
+
 export async function getSupabasePublicAnnualConferenceSocialCard(slug: string, c?: Context): Promise<AnnualConferenceSocialCard | null | undefined> {
   if (!isSupabaseRuntimeEnabled(c)) return undefined;
   const result = await getSupabaseAdminClient(c).from('annual_conference_social_cards' as never).select('*').eq('public_slug', slug).eq('public_enabled', true).is('revoked_at', null).maybeSingle() as unknown as { data: Record<string, unknown> | null; error: { message: string } | null };

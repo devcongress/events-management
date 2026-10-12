@@ -153,6 +153,19 @@ export async function createSupabaseAnnualConferenceCheckoutHold(input: {
   return result.data;
 }
 
+export async function prepareSupabaseAnnualConferenceTicketPaymentAttempt(orderId: string, paymentReference: string, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const result = await getSupabaseAdminClient(c).rpc('prepare_annual_conference_ticket_payment_attempt' as never, {
+    p_order_id: orderId,
+    p_provider: 'paystack',
+    p_payment_reference: paymentReference,
+  } as never) as unknown as { data: unknown; error: { message: string } | null };
+
+  if (result.error) throw new Error(result.error.message);
+
+  return result.data;
+}
+
 export async function confirmSupabaseAnnualConferenceTicketPayment(input: {
   orderId: string;
   provider: string;
@@ -200,6 +213,37 @@ export async function getSupabaseAnnualConferenceTicketPaymentAttempt(paymentRef
     .select('order_id, provider, payment_reference')
     .eq('payment_reference', paymentReference)
     .maybeSingle();
+
+  if (result.error) throw new Error(result.error.message);
+
+  return result.data;
+}
+
+export async function hasSupabaseAnnualConferenceTicketRefund(orderId: string, c?: Context): Promise<boolean | null> {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const result = await getSupabaseAdminClient(c).from('annual_conference_ticket_refunds')
+    .select('id')
+    .eq('order_id', orderId)
+    .maybeSingle();
+
+  if (result.error) throw new Error(result.error.message);
+
+  return Boolean(result.data);
+}
+
+export async function getSupabaseAnnualConferencePaidOrderSummary(orderId: string, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+  const result = await getSupabaseAdminClient(c).from('annual_conference_ticket_orders' as never)
+    .select('status,tier_key,quantity,ticket_amount_minor,amount_paid_minor,currency')
+    .eq('id', orderId)
+    .maybeSingle() as unknown as { data: {
+      status: string;
+      tier_key: string;
+      quantity: number;
+      ticket_amount_minor: number;
+      amount_paid_minor: number | null;
+      currency: string;
+    } | null; error: { message: string } | null };
 
   if (result.error) throw new Error(result.error.message);
 

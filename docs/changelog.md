@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12
+
+- Added a separately gated DevCon26 live checkout bridge that creates standard EMS holds and Paystack attempts, verifies payment server-side, and only then grants the buyer access to per-seat social-card editing.
+- Scoped buyer editing to seats from the verified paid order, with private photo upload and name updates. The later option depends on the existing collection-email delivery configuration; the test checkout remains sandbox-only and creates no persistent cards or admission claims.
+- Kept production activation, email configuration, migration application, and deployment as separate operational actions; no database migration was added.
+
 ## 2026-10-12 — Offer optional social cards after paid DevCon26 ticket orders
 
 - Create one optional social-card slot per real issued ticket only after an order transitions to paid; sandbox checkouts and existing historical orders do not receive slots.

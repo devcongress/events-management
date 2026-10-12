@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import {
   annualConferencePaymentConfiguration,
+  inspectPaystackLiveTransaction,
   parseVerifiedPaystackCharge,
   verifyPaystackWebhookSignature,
   verifyPaystackTransaction,
@@ -61,6 +62,19 @@ describe('annual conference ticket payment adapter', () => {
     await expect(verifyPaystackTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'devcon26_fixture', fetcher: fetcher as unknown as typeof fetch })).resolves.toMatchObject({
       paymentReference: 'devcon26_fixture', amountMinor: 20_397, requestedAmountMinor: 19_999, providerFeeMinor: 398, currency: 'GHS', facts: { domain: 'live', requested_amount: 19_999, fees: 398 },
     });
+  });
+
+  it.each([
+    ['pending', 'pending'],
+    ['failed', 'failed'],
+    ['abandoned', 'failed'],
+  ] as const)('classifies live provider status %s without treating it as a verification error', async (providerStatus, expectedStatus) => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: true, data: {
+      id: 123, reference: 'devcon26_fixture', amount: 19_999, currency: 'GHS', status: providerStatus, domain: 'live',
+    } })));
+
+    await expect(inspectPaystackLiveTransaction({ secretKey: 'sk_live_fixture', paymentReference: 'devcon26_fixture', fetcher: fetcher as unknown as typeof fetch }))
+      .resolves.toEqual({ status: expectedStatus });
   });
 
   it('only accepts a signed successful charge payload and preserves its server-verifiable facts', () => {
