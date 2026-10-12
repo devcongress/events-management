@@ -2,12 +2,16 @@ import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminSession, AdminRole } from '@/lib/supabase/admin-auth';
 import * as storage from '@/lib/supabase/devcon26-test-coupons';
+import * as ticketingStorage from '@/lib/supabase/annual-conference-ticketing';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { registerDevcon26TestCouponRoutes } from '@/server/routes/devcon26-test-coupons';
 
 vi.mock('@/lib/supabase/devcon26-test-coupons', () => ({
   listDevcon26TestCoupons: vi.fn(), createDevcon26TestCoupon: vi.fn(), toggleDevcon26TestCoupon: vi.fn(),
+}));
+vi.mock('@/lib/supabase/annual-conference-ticketing', () => ({
+  getSupabaseAnnualConferencePublicTicketPrices: vi.fn(),
 }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: vi.fn() }));
 
@@ -46,6 +50,13 @@ beforeEach(() => {
   });
   vi.mocked(storage.createDevcon26TestCoupon).mockResolvedValue({ id, code });
   vi.mocked(storage.toggleDevcon26TestCoupon).mockResolvedValue({ id, enabled: false });
+  vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue({
+    currency: 'GHS', tiers: [
+      { tier_key: 'regular', quantity: 1, amount_minor: 19_999 },
+      { tier_key: 'team_3', quantity: 3, amount_minor: 54_999 },
+      { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
+    ],
+  });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -89,6 +100,19 @@ describe('Owner test coupon operations', () => {
     expect((await request('POST', path, { ...input, code: 'MANUAL-CODE' })).status).toBe(400);
     expect(storage.createDevcon26TestCoupon).not.toHaveBeenCalled();
     expect(recordProtectedMutationAudit).not.toHaveBeenCalled();
+  });
+
+  it('validates fixed discounts against current EMS prices before creating a coupon', async () => {
+    const tooLarge = await request('POST', path, { ...input, eligible_tiers: ['team_5'], discount_value: 89_999 });
+
+    expect(tooLarge.status).toBe(400);
+    expect(storage.createDevcon26TestCoupon).not.toHaveBeenCalled();
+
+    vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue(null);
+    const unavailable = await request('POST', path, input);
+
+    expect(unavailable.status).toBe(503);
+    expect(storage.createDevcon26TestCoupon).not.toHaveBeenCalled();
   });
 
   it('returns a bounded storage failure without exposing generated codes or database details', async () => {

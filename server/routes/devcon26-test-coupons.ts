@@ -1,7 +1,8 @@
 import type { Context, Hono } from 'hono';
 import { z } from 'zod';
-import { createDevcon26TestCouponSchema } from '@/lib/devcon26-test-coupons';
+import { createDevcon26TestCouponSchema, validateDevcon26TestCouponDiscount } from '@/lib/devcon26-test-coupons';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
+import { getSupabaseAnnualConferencePublicTicketPrices } from '@/lib/supabase/annual-conference-ticketing';
 import { createDevcon26TestCoupon, listDevcon26TestCoupons, toggleDevcon26TestCoupon } from '@/lib/supabase/devcon26-test-coupons';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
@@ -52,6 +53,14 @@ export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
     if (!input.success) return c.json({ error: input.error.issues[0]?.message ?? 'Check the coupon details.' }, 400);
 
     try {
+      const prices = await getSupabaseAnnualConferencePublicTicketPrices(2026, c);
+
+      if (!prices) return c.json({ error: 'Current ticket prices are not available.' }, 503);
+
+      const priceError = validateDevcon26TestCouponDiscount(input.data, prices);
+
+      if (priceError) return c.json({ error: priceError }, 400);
+
       const coupon = await createDevcon26TestCoupon(c, input.data, owner.actor!);
 
       await recordProtectedMutationAudit(c, {
@@ -60,7 +69,11 @@ export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
       });
 
       return c.json({ coupon }, 201);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === 'test_coupon_invalid') {
+        return c.json({ error: 'The fixed discount must be less than the lowest selected ticket price.' }, 400);
+      }
+
       return c.json({ error: 'The test coupon could not be created.' }, 503);
     }
   });

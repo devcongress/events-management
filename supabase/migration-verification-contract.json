@@ -638,19 +638,6 @@
         {
           "kind": "function",
           "schema": "public",
-          "name": "create_devcon26_test_coupon",
-          "argumentTypes": "integer, text, text, integer, text[], timestamp with time zone, integer, text",
-          "bodySha256": "cf088bfdf81fccd792073be6ff53c1225f07dca3c37ab29b03162bf4d82e01c1",
-          "securityDefiner": true,
-          "private": true,
-          "serviceExecute": true,
-          "searchPath": "public, pg_temp",
-          "language": "plpgsql",
-          "result": "devcon26_test_coupon_codes"
-        },
-        {
-          "kind": "function",
-          "schema": "public",
           "name": "toggle_devcon26_test_coupon",
           "argumentTypes": "uuid, boolean, text",
           "bodySha256": "c41e388c6dadf51d0e9c9a82149ff35051494e25dfac3cb32cc926ff9122d3ac",
@@ -660,19 +647,6 @@
           "searchPath": "public, pg_temp",
           "language": "plpgsql",
           "result": "devcon26_test_coupon_codes"
-        },
-        {
-          "kind": "function",
-          "schema": "public",
-          "name": "quote_devcon26_test_checkout",
-          "argumentTypes": "text, text",
-          "bodySha256": "1543874cb51142130c19b0e7f587cb35207b1b5e77d1802800b99208edf39005",
-          "securityDefiner": true,
-          "private": true,
-          "serviceExecute": true,
-          "searchPath": "public, pg_temp",
-          "language": "plpgsql",
-          "result": "jsonb"
         },
         {
           "kind": "function",
@@ -712,15 +686,6 @@
           "searchPath": "public, pg_temp",
           "language": "plpgsql",
           "result": "jsonb"
-        },
-        {
-          "kind": "constraint",
-          "schema": "public",
-          "table": "devcon26_test_coupon_codes",
-          "name": "devcon26_test_coupon_codes_check",
-          "contains": [
-            "CHECK ((((discount_type = 'percentage_bps'::text) AND (discount_value < 10000)) OR ((discount_type = 'fixed_minor'::text) AND (discount_value < CASE WHEN ('regular'::text = ANY (eligible_tiers)) THEN 19999 WHEN ('team_3'::text = ANY (eligible_tiers)) THEN 54999 ELSE 84999 END))))"
-          ]
         },
         {
           "kind": "constraint",
@@ -923,6 +888,15 @@
         { "kind": "table", "schema": "public", "name": "volunteer_follow_up_outcome_messages", "rls": true, "private": true },
         { "kind": "column", "schema": "public", "table": "volunteer_follow_up_outcome_messages", "name": "version", "type": "integer", "notNull": true, "defaultExpression": null },
         { "kind": "index", "schema": "public", "table": "volunteer_follow_up_outcome_messages", "name": "volunteer_follow_up_outcome_messages_current_idx", "contains": ["campaign_id", "decision", "version DESC"] }
+      ]
+    },
+    {
+      "file": "20261012130000_devcon26_ems_ticket_price_source.sql",
+      "sha256": "1e537511159cda7db31e349fec3946bb6838dff5b8d71633f8dca470d1476c79",
+      "checks": [
+        { "kind": "function", "schema": "public", "name": "create_devcon26_test_coupon", "argumentTypes": "integer, text, text, integer, text[], timestamp with time zone, integer, text", "bodySha256": "8f2a08a3035748dabf2af4dd9fc113b781dcfdb8a7c530d6ad1723484dcf34fe", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public, pg_temp", "language": "plpgsql", "result": "devcon26_test_coupon_codes" },
+        { "kind": "function", "schema": "public", "name": "quote_devcon26_test_checkout", "argumentTypes": "text, text", "bodySha256": "c7410fae2fc143fc91557588ed7d2f2a338ef580b99657e9536f3f51a02f8a25", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public, pg_temp", "language": "plpgsql", "result": "jsonb" },
+        { "kind": "constraint", "schema": "public", "table": "devcon26_test_coupon_codes", "name": "devcon26_test_coupon_codes_discount_check", "contains": ["CHECK ((((discount_type = 'percentage_bps'::text) AND (discount_value < 10000)) OR ((discount_type = 'fixed_minor'::text) AND (discount_value > 0))))"] }
       ]
     }
   ]

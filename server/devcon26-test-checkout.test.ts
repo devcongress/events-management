@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Devcon26TestSession } from '@/lib/supabase/devcon26-test-checkout';
 import * as storage from '@/lib/supabase/devcon26-test-checkout';
+import * as ticketingStorage from '@/lib/supabase/annual-conference-ticketing';
 import { consumePublicRateLimit } from '@/lib/public-rate-limit';
 import { devcon26TestCheckoutRequestKey } from '@/lib/devcon26-test-checkout';
 import { devcon26TestQuoteForSession } from '@/lib/devcon26-test-coupons';
@@ -12,9 +13,13 @@ vi.mock('@/lib/supabase/devcon26-test-checkout', () => ({
   initializeDevcon26TestSession: vi.fn(), findDevcon26TestSession: vi.fn(), confirmDevcon26TestSession: vi.fn(),
   quoteDevcon26TestCheckout: vi.fn(),
 }));
+vi.mock('@/lib/supabase/annual-conference-ticketing', () => ({
+  getSupabaseAnnualConferencePublicTicketPrices: vi.fn(),
+}));
 vi.mock('@/lib/public-rate-limit', () => ({ consumePublicRateLimit: vi.fn() }));
 
 const base = '/api/public/annual-conference/2026/test-checkout';
+const ticketPricesPath = '/api/public/annual-conference/2026/ticket-prices';
 const webhookPath = '/api/webhooks/paystack/devcon26-test';
 const reference = 'devcon26-test-aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa';
 const requestKey = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -56,6 +61,13 @@ beforeEach(() => {
   providerFacts = { id: 123, reference, domain: 'test', status: 'success', amount: 54_999, currency: 'GHS' };
   vi.mocked(consumePublicRateLimit).mockResolvedValue({ allowed: true });
   vi.mocked(storage.devcon26TestStorageReady).mockResolvedValue(true);
+  vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue({
+    currency: 'GHS', tiers: [
+      { tier_key: 'regular', quantity: 1, amount_minor: 19_999 },
+      { tier_key: 'team_3', quantity: 3, amount_minor: 54_999 },
+      { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
+    ],
+  });
   vi.mocked(storage.quoteDevcon26TestCheckout).mockImplementation(async () => devcon26TestQuoteForSession(session));
   vi.mocked(storage.prepareDevcon26TestSession).mockImplementation(async (_c, _key, tier) => {
     if (tier !== session.tier_key) throw new Error('test_checkout_cart_conflict');
@@ -168,7 +180,11 @@ describe('public DevCon26 test checkout integration', () => {
   it.each([previewOrigin, commitOrigin])('supports anonymous sandbox CORS, initialization and verification from %s', async (origin) => {
     const catalog = await app.request(`https://ems.example${base}`, { headers: { Origin: origin } });
 
-    expect((await catalog.json()).mode).toBe('test');
+    expect(await catalog.json()).toMatchObject({ mode: 'test', tiers: [
+      { tier_key: 'regular', quantity: 1, amount_minor: 19_999, currency: 'GHS' },
+      { tier_key: 'team_3', quantity: 3, amount_minor: 54_999, currency: 'GHS' },
+      { tier_key: 'team_5', quantity: 5, amount_minor: 89_999, currency: 'GHS' },
+    ] });
     expect(catalog.headers.get('access-control-allow-origin')).toBe(origin);
     expect(catalog.headers.get('access-control-allow-credentials')).toBeNull();
 
@@ -195,6 +211,51 @@ describe('public DevCon26 test checkout integration', () => {
     expect(verified.status).toBe(200);
     expect((await verified.json()).status).toBe('verified');
     expect(verified.headers.get('access-control-allow-origin')).toBe(origin);
+  });
+
+  it('publishes only the current EMS price catalog with narrow credential-free CORS even when sandbox payments are disabled', async () => {
+    vi.stubEnv('DEVCON26_TEST_CHECKOUT_ENABLED', 'false');
+
+    for (const origin of ['https://devcongress.org', previewOrigin]) {
+      const response = await app.request(`https://ems.example${ticketPricesPath}`, { headers: { Origin: origin } });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+      expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+      expect(response.headers.get('cache-control')).toContain('no-store');
+      expect(await response.json()).toEqual({ currency: 'GHS', tiers: [
+        { tier_key: 'regular', quantity: 1, amount_minor: 19_999 },
+        { tier_key: 'team_3', quantity: 3, amount_minor: 54_999 },
+        { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
+      ] });
+    }
+
+    expect(isUnauthenticatedApiRequest(ticketPricesPath, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(ticketPricesPath, 'PATCH')).toBe(false);
+    expect(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).toHaveBeenCalledWith(2026, expect.anything());
+  });
+
+  it('fails closed for missing EMS prices, hostile origins, and unsupported catalog queries', async () => {
+    vi.mocked(ticketingStorage.getSupabaseAnnualConferencePublicTicketPrices).mockResolvedValue(undefined);
+    const missing = await app.request(`https://ems.example${ticketPricesPath}`, {
+      headers: { Origin: 'https://devcongress.org' },
+    });
+
+    expect(missing.status).toBe(503);
+    expect((await missing.json()).tiers).toBeUndefined();
+
+    const hostile = await app.request(`https://ems.example${ticketPricesPath}`, {
+      headers: { Origin: 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev.attacker.example' },
+    });
+
+    expect(hostile.headers.get('access-control-allow-origin')).toBeNull();
+
+    const query = await app.request(`https://ems.example${ticketPricesPath}?debug=true`, {
+      headers: { Origin: 'https://devcongress.org' },
+    });
+
+    expect(query.status).toBe(400);
+    expect(isUnauthenticatedApiRequest(ticketPricesPath + '/neighbor', 'GET')).toBe(false);
   });
 
   it('does not grant preview access to neighboring public, webhook or organizer routes', async () => {

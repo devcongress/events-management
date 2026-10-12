@@ -6,6 +6,7 @@ import {
   confirmSupabaseAnnualConferenceTicketPayment,
   createSupabaseAnnualConferenceSponsorAllocation,
   getSupabaseAnnualConferenceTicketEmailDeliverySummary,
+  getSupabaseAnnualConferencePublicTicketPrices,
   getSupabaseAnnualConferenceTicketing,
   getSupabaseAnnualConferenceTicketPaymentAttempt,
   listSupabaseAnnualConferenceTicketEmailDeliveries,
@@ -90,6 +91,20 @@ function ticketPaymentEnvironment(c: Context<AppBindings>): Record<string, strin
 
 export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>): void {
   registerDevcon26TestCouponRoutes(app);
+
+  app.get('/api/public/annual-conference/2026/ticket-prices', async (c) => {
+    c.header('Cache-Control', 'no-store');
+
+    try {
+      const prices = await getSupabaseAnnualConferencePublicTicketPrices(2026, c);
+
+      if (!prices) return c.json({ error: 'Ticket prices are temporarily unavailable.' }, 503);
+
+      return c.json(prices);
+    } catch {
+      return c.json({ error: 'Ticket prices are temporarily unavailable.' }, 503);
+    }
+  });
 
   app.post('/api/webhooks/paystack', async (c) => {
     const configuration = annualConferencePaymentConfiguration(ticketPaymentEnvironment(c));

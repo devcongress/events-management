@@ -1082,7 +1082,8 @@ function publicApiCorsOrigin(origin: string | undefined, c: Context): string | u
 }
 
 function isPublicReadApiPath(path: string): boolean {
-  return path === '/api/public/meetups'
+  return path === '/api/public/annual-conference/2026/ticket-prices'
+    || path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
     || /^\/api\/public\/events\/[^/]+$/.test(path)
@@ -1159,8 +1160,9 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
 }
 
 export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
-  return isDevcon26TestCheckoutRequest(path, method) || (method === 'GET' && (
-    path === '/api/public/meetups'
+  return isDevcon26TestCheckoutRequest(path, method) || ((method === 'GET' || method === 'HEAD') && (
+    path === '/api/public/annual-conference/2026/ticket-prices'
+    || path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
     || path === '/api/public/events'
     || /^\/api\/public\/events\/[^/]+$/.test(path)
@@ -1374,6 +1376,43 @@ const publicReadCors = cors({
   maxAge: 86400,
 });
 
+function publicDevcon26TicketPricesCorsOrigin(origin: string | undefined, c: Context): string | undefined {
+  const publicOrigin = publicApiCorsOrigin(origin, c);
+
+  if (publicOrigin) return publicOrigin;
+  if (!origin || envValue('NODE_ENV', c) === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) {
+    return origin;
+  }
+
+  const configuredOrigins = envValue('DEVCON26_TEST_CHECKOUT_ORIGINS', c)?.split(',').map((entry) => entry.trim()) ?? [];
+
+  if (configuredOrigins.length === 0) return undefined;
+
+  const allowedOrigins = new Set<string>();
+
+  for (const value of configuredOrigins) {
+    try {
+      const url = new URL(value);
+
+      if (url.protocol !== 'https:' || url.origin !== value || url.username || url.password || url.hostname.includes('*')
+        || url.pathname !== '/' || url.search || url.hash) return undefined;
+
+      allowedOrigins.add(url.origin);
+    } catch {
+      return undefined;
+    }
+  }
+
+  return allowedOrigins.has(origin) ? origin : undefined;
+}
+
+const publicDevcon26TicketPricesCors = cors({
+  origin: publicDevcon26TicketPricesCorsOrigin,
+  allowMethods: ['GET', 'HEAD', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+  maxAge: 86400,
+});
+
 const publicSubmissionCors = cors({
   origin: publicApiCorsOrigin,
   allowMethods: ['POST', 'OPTIONS'],
@@ -1409,6 +1448,9 @@ app.use('/api/public/annual-conference/2026/social-cards/*', socialCardWebsiteCo
 app.use('/api/public/*', async (c, next) => {
   if (c.req.path === DEVCON26_TEST_CHECKOUT_PATH || isDevcon26TestCheckoutRequest(c.req.path, 'POST')) {
     return publicTestCheckoutCors(c, next);
+  }
+  if (c.req.path === '/api/public/annual-conference/2026/ticket-prices') {
+    return publicDevcon26TicketPricesCors(c, next);
   }
   if (isPublicReadApiPath(c.req.path)) return publicReadCors(c, next);
   if (isPublicEventSubmissionIntakePath(c.req.path)) return publicSubmissionCors(c, next);
