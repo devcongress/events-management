@@ -11,6 +11,7 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
   'speakers.view',
   'speakers.manage',
   'finance.view',
+  'ticketing.manage',
 ] as const;
 
 export type AnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[number];
@@ -21,7 +22,7 @@ export interface AnnualConferenceCapabilityOverride {
 
 export interface AnnualConferenceCapabilityDefinition {
   value: AnnualConferenceCapability;
-  section: 'Work plan' | 'Volunteers' | 'Speakers' | 'Finance';
+  section: 'Work plan' | 'Volunteers' | 'Speakers' | 'Finance' | 'Ticketing';
   label: string;
   description: string;
 }
@@ -75,6 +76,12 @@ export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConference
     label: 'View the finance workspace',
     description: 'See the private GHS budget, expenses, income, and financial summary for this edition.',
   },
+  {
+    value: 'ticketing.manage',
+    section: 'Ticketing',
+    label: 'Manage ticketing',
+    description: 'Manage ticket capacity, prices, orders, delivery operations, and sponsor allocations for this edition.',
+  },
 ] as const;
 
 const ORGANIZER_DEFAULT_CAPABILITIES: readonly AnnualConferenceCapability[] = [
@@ -108,7 +115,7 @@ export function effectiveAnnualConferenceCapabilities(input: {
   const capabilities = new Set<AnnualConferenceCapability>(annualConferenceRoleCapabilities(input.role));
 
   for (const capability of input.grants ?? []) {
-    if ((capability === 'finance.view' || capability.startsWith('speakers.')) && input.role === 'volunteer') continue;
+    if ((capability === 'finance.view' || capability.startsWith('speakers.') || capability === 'ticketing.manage') && input.role === 'volunteer') continue;
     capabilities.add(capability);
   }
   if (input.isPlanningOwner) {

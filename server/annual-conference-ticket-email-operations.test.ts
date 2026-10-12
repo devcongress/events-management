@@ -29,10 +29,10 @@ describe('annual conference ticket email delivery operations', () => {
     expect(migrationSource).toContain('grant execute on function public.retry_annual_conference_ticket_email_outbox(uuid, uuid) to service_role;');
   });
 
-  it('offers Owner-only, edition-scoped delivery operations', () => {
+  it('offers capability-gated, edition-scoped delivery operations', () => {
     expect(routeSource).toContain("/ticketing/email-deliveries'");
     expect(routeSource).toContain("/ticketing/email-deliveries/:deliveryId/retry'");
-    expect(routeSource).toContain("requireAdmin(c, ['owner'])");
+    expect(routeSource).toContain("requireAnnualConferenceCapability(c, year, 'ticketing.manage')");
     expect(routeSource).toContain("annual_conference.ticketing.email_delivery_retry");
   });
 

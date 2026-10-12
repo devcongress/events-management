@@ -136,7 +136,7 @@ const delegationMemberOptions = computed(() => organizers.value
 const delegationMember = computed(() => organizers.value.find((member) => member.id === delegationMemberId.value) ?? null);
 const responsibilityMember = computed(() => organizers.value.find((member) => member.id === responsibilityMemberId.value) ?? null);
 const responsibilityAccessMember = computed(() => accessQuery.data.value?.members.find((member) => member.id === responsibilityMemberId.value) ?? null);
-const responsibilitySections = computed(() => ['Work plan', 'Volunteers', 'Speakers', 'Finance']
+const responsibilitySections = computed(() => ['Work plan', 'Volunteers', 'Speakers', 'Finance', 'Ticketing']
   .map((section) => ({
     section,
     capabilities: ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS

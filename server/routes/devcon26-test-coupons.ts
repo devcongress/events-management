@@ -5,6 +5,7 @@ import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { getSupabaseAnnualConferencePublicTicketPrices } from '@/lib/supabase/annual-conference-ticketing';
 import { createDevcon26TestCoupon, listDevcon26TestCoupons, toggleDevcon26TestCoupon } from '@/lib/supabase/devcon26-test-coupons';
 import type { AppBindings } from '@/server/http/app-bindings';
+import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 
 const path = '/api/annual-conference/:year/ticketing/test-coupons';
@@ -16,21 +17,24 @@ const querySchema = z.object({
 }).strict();
 const toggleSchema = z.object({ enabled: z.boolean() }).strict();
 
-async function couponOwner(c: Context) {
-  const denied = await requireAdmin(c, ['owner']);
+async function couponOperator(c: Context) {
+  if (c.req.param('year') !== '2026') return { error: c.json({ error: 'Test coupons are available for DevCon26 only.' }, 400), actor: null };
+  const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
+
+  if (sessionError) return { error: sessionError, actor: null };
+  const denied = await requireAnnualConferenceCapability(c, 2026, 'ticketing.manage');
 
   if (denied) return { error: denied, actor: null };
-  if (c.req.param('year') !== '2026') return { error: c.json({ error: 'Test coupons are available for DevCon26 only.' }, 400), actor: null };
   const session = c.get('adminSession') ?? await getAdminSession(c);
 
-  if (!session.authenticated || !session.email) return { error: c.json({ error: 'Conference owner access required.' }, 403), actor: null };
+  if (!session.authenticated || !session.email) return { error: c.json({ error: 'Conference ticketing access required.' }, 403), actor: null };
 
   return { error: null, actor: session.email };
 }
 
 export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
   app.get(path, async (c) => {
-    const owner = await couponOwner(c);
+    const owner = await couponOperator(c);
 
     if (owner.error) return owner.error;
     const query = querySchema.safeParse(c.req.query());
@@ -45,7 +49,7 @@ export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
   });
 
   app.post(path, async (c) => {
-    const owner = await couponOwner(c);
+    const owner = await couponOperator(c);
 
     if (owner.error) return owner.error;
     const input = createDevcon26TestCouponSchema.safeParse(await c.req.json().catch(() => null));
@@ -79,7 +83,7 @@ export function registerDevcon26TestCouponRoutes(app: Hono<AppBindings>) {
   });
 
   app.patch(`${path}/:couponId`, async (c) => {
-    const owner = await couponOwner(c);
+    const owner = await couponOperator(c);
 
     if (owner.error) return owner.error;
     const id = z.string().uuid().safeParse(c.req.param('couponId'));

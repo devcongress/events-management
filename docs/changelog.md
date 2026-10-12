@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-12 — Delegate Annual Conference Ticketing safely
+
+- Add an edition-scoped **Manage ticketing** responsibility in People & Access for Organizers, while retaining platform Owner access by default and denying Volunteer grants.
+- Drive Ticketing navigation, direct-route admission, ticket operations, check-in, delivery retries, sponsor allocations, and DevCon26 test coupons from the same capability instead of the generic Owner role.
+- Add a forward-only database constraint and eligibility trigger update so invalid Ticketing grants cannot be persisted.
+
 ## 2026-10-12 — Refine the volunteer outcome-message editor
 
 - Give the saved-copy editor a clearer desktop proportion and a compact mobile layout, with labels and controls aligned consistently.

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminSession, AdminRole } from '@/lib/supabase/admin-auth';
 import * as storage from '@/lib/supabase/devcon26-test-coupons';
 import * as ticketingStorage from '@/lib/supabase/annual-conference-ticketing';
+import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { registerDevcon26TestCouponRoutes } from '@/server/routes/devcon26-test-coupons';
@@ -14,6 +15,7 @@ vi.mock('@/lib/supabase/annual-conference-ticketing', () => ({
   getSupabaseAnnualConferencePublicTicketPrices: vi.fn(),
 }));
 vi.mock('@/server/protected-mutation', () => ({ recordProtectedMutationAudit: vi.fn() }));
+vi.mock('@/server/annual-conference-request', () => ({ requireAnnualConferenceCapability: vi.fn() }));
 
 const app = new Hono<AppBindings>();
 const path = '/api/annual-conference/2026/ticketing/test-coupons';
@@ -22,6 +24,7 @@ const code = 'TEST-ABCD-EFGH-JKLM-NPQR';
 const input = { discount_type: 'fixed_minor', discount_value: 1000,
   eligible_tiers: ['regular'], expires_at: '2099-12-19T23:00:00Z', max_completed: 5 };
 let role: AdminRole | null = 'owner';
+let ticketingAllowed = true;
 
 app.use('*', async (c, next) => {
   if (role) c.set('adminSession', {
@@ -42,6 +45,7 @@ function request(method: string, route = path, body?: unknown, origin: string | 
 beforeEach(() => {
   vi.clearAllMocks();
   role = 'owner';
+  ticketingAllowed = true;
   vi.stubEnv('APP_DATA_SOURCE', 'local-json');
   vi.stubEnv('NODE_ENV', 'production');
   vi.stubEnv('PUBLIC_APP_URL', 'https://ems.example');
@@ -57,12 +61,16 @@ beforeEach(() => {
       { tier_key: 'team_5', quantity: 5, amount_minor: 89_999 },
     ],
   });
+  vi.mocked(requireAnnualConferenceCapability).mockImplementation(async (c) => (
+    ticketingAllowed ? null : c.json({ error: 'This account has not been assigned that conference responsibility.' }, 403)
+  ));
 });
 afterEach(() => vi.unstubAllEnvs());
 
-describe('Owner test coupon operations', () => {
+describe('Ticketing-capable test coupon operations', () => {
   it.each(['organizer', 'volunteer', null] as const)('denies %s before any storage or audit', async (value) => {
     role = value;
+    ticketingAllowed = false;
 
     for (const [method, route, body] of [['GET', path, undefined], ['POST', path, input], ['PATCH', `${path}/${id}`, { enabled: false }]] as const) {
       expect((await request(method, route, body)).status).toBe(value ? 403 : 401);
@@ -71,6 +79,14 @@ describe('Owner test coupon operations', () => {
     expect(storage.createDevcon26TestCoupon).not.toHaveBeenCalled();
     expect(storage.toggleDevcon26TestCoupon).not.toHaveBeenCalled();
     expect(recordProtectedMutationAudit).not.toHaveBeenCalled();
+  });
+
+  it('allows an organizer only after the ticketing capability check succeeds', async () => {
+    role = 'organizer';
+    ticketingAllowed = true;
+
+    expect((await request('GET')).status).toBe(200);
+    expect(requireAnnualConferenceCapability).toHaveBeenCalledWith(expect.anything(), 2026, 'ticketing.manage');
   });
 
   it.each([null, 'https://attacker.example'])('uses the existing CSRF origin guard for %s', async (origin) => {

@@ -41,7 +41,8 @@ export type AnnualConferenceCapability =
   | 'volunteers.review_applications'
   | 'speakers.view'
   | 'speakers.manage'
-  | 'finance.view';
+  | 'finance.view'
+  | 'ticketing.manage';
 export type AnnualConferenceTaskStatus =
   | 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =

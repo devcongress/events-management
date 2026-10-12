@@ -46,14 +46,17 @@ describe('annual conference capabilities', () => {
 
     const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
 
-    expect(owner).toHaveLength(10);
+    expect(owner).toHaveLength(11);
     expect(owner).toContain('finance.view');
+    expect(owner).toContain('ticketing.manage');
   });
 
   it('keeps finance private to owners unless an organizer is explicitly granted access', () => {
     expect(effectiveAnnualConferenceCapabilities({ role: 'organizer' })).not.toContain('finance.view');
     expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', grants: ['finance.view'] })).toContain('finance.view');
     expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['finance.view'] })).not.toContain('finance.view');
+    expect(effectiveAnnualConferenceCapabilities({ role: 'organizer', grants: ['ticketing.manage'] })).toContain('ticketing.manage');
+    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['ticketing.manage'] })).not.toContain('ticketing.manage');
   });
 
   it('lets an owner delegate work-plan management to either an organizer or volunteer', () => {
@@ -61,6 +64,8 @@ describe('annual conference capabilities', () => {
     expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'volunteer')).toBe(true);
     expect(canDelegateAnnualConferenceCapability('work_plan.manage', 'owner')).toBe(false);
     expect(canDelegateAnnualConferenceCapability('finance.view', 'volunteer')).toBe(false);
+    expect(canDelegateAnnualConferenceCapability('ticketing.manage', 'organizer')).toBe(true);
+    expect(canDelegateAnnualConferenceCapability('ticketing.manage', 'volunteer')).toBe(false);
   });
 
   it('rejects capabilities outside the code-owned catalogue', () => {

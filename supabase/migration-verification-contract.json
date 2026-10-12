@@ -891,6 +891,14 @@
       ]
     },
     {
+      "file": "20261012140000_annual_conference_ticketing_capability.sql",
+      "sha256": "786f3fd037136f60f6d3360e530151406f0c395f8f7c69acc8fd850a09ad9d26",
+      "checks": [
+        { "kind": "constraint", "schema": "public", "table": "annual_conference_access_grants", "name": "annual_conference_access_grants_capability_valid", "contains": ["ticketing.manage"] },
+        { "kind": "function", "schema": "public", "name": "enforce_annual_conference_access_grant_eligibility", "argumentTypes": "", "bodySha256": "0fc1ce3df17cf9be847ebce4a3d299651375b88281fabc90d6ebe23da73e2b40", "securityDefiner": false, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "trigger" }
+      ]
+    },
+    {
       "file": "20261012130000_devcon26_ems_ticket_price_source.sql",
       "sha256": "1e537511159cda7db31e349fec3946bb6838dff5b8d71633f8dca470d1476c79",
       "checks": [

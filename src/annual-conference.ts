@@ -60,3 +60,11 @@ export function volunteerCanAccessOrganizerPath(
     || (/^\/organizer-console\/annual-conference\/\d{4}\/volunteers\/display$/.test(path)
       && hasAnyAnnualConferenceCapability(capabilities, ['volunteers.share_intake']));
 }
+
+export function canAccessAnnualConferenceTicketingPath(
+  path: string,
+  capabilities: readonly AnnualConferenceCapability[] = [],
+): boolean {
+  return /^\/organizer-console\/annual-conference\/\d{4}\/ticketing$/.test(path)
+    && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.manage']);
+}
