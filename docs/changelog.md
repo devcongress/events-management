@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — Keep volunteer outcome browser journey aligned with its preview contract
+
+- Include the frozen per-recipient subject and text payload in the Owner outcome-preview browser fixture, matching the API response rendered by the organizer UI.
+- Restore coverage of the rendered email preview without changing the live email, migration, or send behavior.
+
 ## 2026-10-12 — Correct volunteer outcome migration audit metadata
 
 - Align the two volunteer outcome batch function probes with the intentionally empty, hardened PostgreSQL `search_path` created by the existing migration.
