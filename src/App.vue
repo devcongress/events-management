@@ -86,6 +86,8 @@ const keyboardDismissVisible = ref(false);
 const keyboardInset = ref(0);
 const adminEventTabsShell = ref<HTMLElement | null>(null);
 const adminEventTabsHeight = ref(0);
+let mainScrollResetTimer: number | null = null;
+let removeMainScrollResetInteractionListeners: (() => void) | null = null;
 const logoSrc = "/brand/dev-con-logo.png";
 const ORGANIZER_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const ORGANIZER_IDLE_WARNING_MS = 2 * 60 * 1000;
@@ -664,7 +666,19 @@ function toggleMobileMenu() {
   mobileMenuOpen.value = !mobileMenuOpen.value;
 }
 
+function clearMainScrollResetTimer() {
+  if (mainScrollResetTimer !== null) {
+    window.clearTimeout(mainScrollResetTimer);
+    mainScrollResetTimer = null;
+  }
+
+  removeMainScrollResetInteractionListeners?.();
+  removeMainScrollResetInteractionListeners = null;
+}
+
 function resetMainScroll() {
+  clearMainScrollResetTimer();
+
   const scrollToTop = () => {
     document
       .querySelector(".app-main")
@@ -675,7 +689,31 @@ function resetMainScroll() {
   scrollToTop();
   void nextTick(scrollToTop);
   window.requestAnimationFrame(scrollToTop);
-  window.setTimeout(scrollToTop, 280);
+
+  const cancelResetOnInteraction = () => clearMainScrollResetTimer();
+
+  window.addEventListener("pointerdown", cancelResetOnInteraction, true);
+  window.addEventListener("keydown", cancelResetOnInteraction, true);
+  window.addEventListener("focusin", cancelResetOnInteraction, true);
+  window.addEventListener("wheel", cancelResetOnInteraction, { passive: true });
+  window.addEventListener("touchstart", cancelResetOnInteraction, {
+    passive: true,
+  });
+
+  removeMainScrollResetInteractionListeners = () => {
+    window.removeEventListener("pointerdown", cancelResetOnInteraction, true);
+    window.removeEventListener("keydown", cancelResetOnInteraction, true);
+    window.removeEventListener("focusin", cancelResetOnInteraction, true);
+    window.removeEventListener("wheel", cancelResetOnInteraction);
+    window.removeEventListener("touchstart", cancelResetOnInteraction);
+  };
+
+  mainScrollResetTimer = window.setTimeout(() => {
+    mainScrollResetTimer = null;
+    removeMainScrollResetInteractionListeners?.();
+    removeMainScrollResetInteractionListeners = null;
+    scrollToTop();
+  }, 280);
 }
 
 function isMobileViewport() {

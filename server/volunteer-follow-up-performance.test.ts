@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   requireAnnualConferenceCapability: vi.fn(),
   getVolunteerFollowUpCampaign: vi.fn(),
   listVolunteerFollowUpRecipients: vi.fn(),
+  listVolunteerFollowUpOutcomeMessages: vi.fn(),
   listVolunteerOutcomeDeliveries: vi.fn(),
   getVolunteerOutcomeSentRecipientIds: vi.fn(),
   hasDueVolunteerOutcomeDelivery: vi.fn(),
@@ -78,6 +79,8 @@ vi.mock("@/server/annual-conference-request", () => ({
 vi.mock("@/lib/supabase/volunteer-follow-up", () => ({
   getVolunteerFollowUpCampaign: mocks.getVolunteerFollowUpCampaign,
   listVolunteerFollowUpRecipients: mocks.listVolunteerFollowUpRecipients,
+  listVolunteerFollowUpOutcomeMessages:
+    mocks.listVolunteerFollowUpOutcomeMessages,
   listVolunteerOutcomeDeliveries: mocks.listVolunteerOutcomeDeliveries,
   getVolunteerOutcomeSentRecipientIds: mocks.getVolunteerOutcomeSentRecipientIds,
   hasDueVolunteerOutcomeDelivery: mocks.hasDueVolunteerOutcomeDelivery,
@@ -145,6 +148,7 @@ beforeEach(() => {
   mocks.listVolunteerFollowUpRecipients.mockResolvedValue([
     { ...mocks.recipient },
   ]);
+  mocks.listVolunteerFollowUpOutcomeMessages.mockResolvedValue([]);
   mocks.listVolunteerOutcomeDeliveries.mockResolvedValue([]);
   mocks.getVolunteerOutcomeSentRecipientIds.mockResolvedValue(new Set());
   mocks.hasDueVolunteerOutcomeDelivery.mockResolvedValue(false);
@@ -187,7 +191,7 @@ beforeEach(() => {
 });
 
 describe("volunteer follow-up read and recovery", () => {
-  it("serves the dedicated safe reviewer read without campaign diagnostics, reconciling, or sending", async () => {
+  it("serves the dedicated safe reviewer read with templates but without campaign diagnostics, reconciling, or sending", async () => {
     mocks.session.role = "organizer";
 
     const response = await createApp().request(
@@ -195,6 +199,7 @@ describe("volunteer follow-up read and recovery", () => {
     );
     const payload = (await response.json()) as {
       recipients: Array<Record<string, unknown>>;
+      outcome_messages: unknown[];
     };
 
     expect(response.status).toBe(200);
@@ -215,7 +220,9 @@ describe("volunteer follow-up read and recovery", () => {
     expect(payload.recipients[0]?.invitation_sent).toBe(true);
     expect(mocks.reconcileVolunteerFollowUpApplicants).not.toHaveBeenCalled();
     expect(mocks.listVolunteerFollowUpRecipients).toHaveBeenCalledOnce();
-    expect(mocks.getVolunteerFollowUpCampaign).not.toHaveBeenCalled();
+    expect(mocks.getVolunteerFollowUpCampaign).toHaveBeenCalledOnce();
+    expect(mocks.listVolunteerFollowUpOutcomeMessages).toHaveBeenCalledOnce();
+    expect(payload.outcome_messages).toEqual([]);
     expect(mocks.getEmailDeliveryHealth).not.toHaveBeenCalled();
     expect(mocks.readResendEmailQuota).not.toHaveBeenCalled();
   });

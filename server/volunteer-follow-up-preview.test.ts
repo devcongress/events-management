@@ -40,6 +40,12 @@ const mockAdmin = vi.hoisted(() => ({
     confirmedAt: null,
   })),
   confirmOutcomePreview: vi.fn(async () => ({ queuedCount: 1, deliveryIds: ["delivery-1"] })),
+  listOutcomeMessages: vi.fn(async () => [{
+    decision: "accepted",
+    version: 4,
+    subject: "Saved outcome subject",
+    message: "Saved outcome message",
+  }]),
   requireAdmin: vi.fn(
     async (
       c: {
@@ -83,6 +89,7 @@ vi.mock("../lib/supabase/volunteer-follow-up", () => ({
   saveVolunteerOutcomePreviewPayloads: mockAdmin.saveOutcomePayloads,
   readVolunteerOutcomePreview: mockAdmin.readOutcomePreview,
   confirmVolunteerOutcomePreview: mockAdmin.confirmOutcomePreview,
+  listVolunteerFollowUpOutcomeMessages: mockAdmin.listOutcomeMessages,
 }));
 
 describe("volunteer follow-up invitation preview route", () => {
@@ -92,6 +99,7 @@ describe("volunteer follow-up invitation preview route", () => {
     mockAdmin.saveOutcomePayloads.mockClear();
     mockAdmin.readOutcomePreview.mockClear();
     mockAdmin.confirmOutcomePreview.mockClear();
+    mockAdmin.listOutcomeMessages.mockClear();
     mockIntakeProtection.enforcePublicRateLimit.mockClear();
     mockIntakeProtection.requirePublicTurnstile.mockClear();
   });
@@ -232,7 +240,7 @@ describe("volunteer follow-up invitation preview route", () => {
     const allowed = await app.request(path, {
       method: "POST",
       headers: { "x-test-role": "owner", "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: "accepted", subject: "Volunteer outcome", message: "Welcome to DevCongress." }),
+      body: JSON.stringify({ decision: "accepted" }),
     });
     const payload = await allowed.json() as Record<string, unknown>;
     const confirmation = await app.request(
@@ -263,6 +271,7 @@ describe("volunteer follow-up invitation preview route", () => {
       payloads: {
         "00000000-0000-4000-8000-000000000002": {
           to: ["ama@example.test"],
+          subject: "Saved outcome subject",
           html: expect.stringContaining("Hi Ama,"),
           text: expect.stringContaining("Hi Ama,"),
         },
@@ -271,6 +280,28 @@ describe("volunteer follow-up invitation preview route", () => {
     expect(confirmation.status).toBe(200);
     expect(await confirmation.json()).toEqual({ queued_count: 1 });
     expect(mockAdmin.confirmOutcomePreview).toHaveBeenCalledOnce();
+  });
+
+  it("rejects client-authored outcome copy so preview uses the persisted message", async () => {
+    const { registerVolunteerFollowUpRoutes } = await import("./routes/volunteer-follow-up");
+    const app = new Hono<AppBindings>();
+
+    registerVolunteerFollowUpRoutes(app);
+    const response = await app.request(
+      "http://localhost/api/annual-conference/2026/volunteer-follow-up/outcomes/preview",
+      {
+        method: "POST",
+        headers: { "x-test-role": "owner", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision: "accepted",
+          subject: "Browser override",
+          message: "This must never be used.",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockAdmin.createOutcomePreview).not.toHaveBeenCalled();
   });
 
   it("denies organizer access to preview, confirmation, and pause controls before database reads", async () => {

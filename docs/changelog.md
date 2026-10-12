@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-12 — Align mobile dropdown journey checks with the visual viewport
+
+- Compare teleported review-filter geometry against the same visual viewport bounds used by the dropdown component, and report individual failed bounds and measured rectangles.
+- Wait for dropdown placement styles to settle across animation frames before measuring mobile filter geometry.
+- Cancel delayed route scroll resets after user interaction so they cannot move an open mobile menu away from its trigger.
+- Allow local journey screenshots and traces to be written to an explicit directory without replacing existing repository artifacts.
+
+## 2026-10-12 — Guard volunteer outcome browser coverage at push time
+
+- Refresh the Owner and reviewer fixtures with persisted accepted and not-selected outcome templates, including a reviewer PATCH save with its optimistic version guard and an Owner preview that sends only the selected decision.
+- Align review filtering journeys with Submission status and verify the four controls remain a contained 2x2 mobile grid beneath search while each teleported menu panel stays in the 320px viewport with an operable scroll region. The Submission journey scrolls to `All applicants` before its ordinary click.
+- Run the local production build and organizer browser journeys for journey-sensitive pushed source/contracts, while safely skipping documentation-, migration-, test-, and presentation-only changes before the existing migration gate.
+
+## 2026-10-12 — Persist volunteer outcome messages before Owner preview
+
+- Add service-only, append-only accepted and not-selected outcome-message templates with safe initial copy and optimistic version guards.
+- Let application reviewers edit and save the shared message versions above Reviews, with Submission, Review, Decision, and Invitation filters retained in the queue.
+- Make the Owner Campaign display saved messages read-only and reject browser-authored copy during outcome preview, so queued payloads are always derived from persisted server data.
+
 ## 2026-10-12 — Keep volunteer outcome browser journey aligned with its preview contract
 
 - Include the frozen per-recipient subject and text payload in the Owner outcome-preview browser fixture, matching the API response rendered by the organizer UI.

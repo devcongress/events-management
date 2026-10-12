@@ -35,8 +35,28 @@ const mocks = vi.hoisted(() => ({
   })),
   listRecipients: vi.fn(async () => [] as Record<string, unknown>[]),
   listOutcomeDeliveries: vi.fn(async () => [] as Record<string, unknown>[]),
+  listOutcomeMessages: vi.fn(async () => [
+    {
+      decision: "accepted",
+      version: 1,
+      subject: "Accepted subject",
+      message: "Accepted message",
+    },
+    {
+      decision: "not_selected",
+      version: 1,
+      subject: "Not selected subject",
+      message: "Not selected message",
+    },
+  ]),
   outcomeSentIds: vi.fn(async () => new Set<string>()),
   reviewResponse: vi.fn(async () => null as Record<string, unknown> | null),
+  saveOutcomeMessage: vi.fn(async () => ({
+    decision: "accepted",
+    version: 2,
+    subject: "Saved subject",
+    message: "Saved message",
+  })),
   requireAdmin: vi.fn(async (c: any, roles?: readonly string[]) => {
     const role = c.req.header("x-test-role");
 
@@ -76,9 +96,11 @@ vi.mock("../lib/supabase/volunteer-follow-up", () => ({
   getVolunteerFollowUpCampaign: mocks.campaignReads,
   saveVolunteerFollowUpCampaign: mocks.saveCampaign,
   listVolunteerFollowUpRecipients: mocks.listRecipients,
+  listVolunteerFollowUpOutcomeMessages: mocks.listOutcomeMessages,
   listVolunteerOutcomeDeliveries: mocks.listOutcomeDeliveries,
   getVolunteerOutcomeSentRecipientIds: mocks.outcomeSentIds,
   reviewVolunteerFollowUpResponse: mocks.reviewResponse,
+  saveVolunteerFollowUpOutcomeMessage: mocks.saveOutcomeMessage,
 }));
 
 vi.mock("../lib/email/delivery-health", () => ({
@@ -130,6 +152,8 @@ describe("volunteer follow-up reviews and campaign boundary", () => {
     vi.clearAllMocks();
     mocks.listRecipients.mockResolvedValue([]);
     mocks.reviewResponse.mockResolvedValue(null);
+    mocks.listOutcomeMessages.mockClear();
+    mocks.saveOutcomeMessage.mockClear();
   });
 
   async function createApp() {
@@ -168,6 +192,7 @@ describe("volunteer follow-up reviews and campaign boundary", () => {
     );
     const payload = (await response.json()) as {
       recipients: Array<Record<string, unknown>>;
+      outcome_messages: Array<Record<string, unknown>>;
     };
 
     expect(response.status).toBe(200);
@@ -191,6 +216,60 @@ describe("volunteer follow-up reviews and campaign boundary", () => {
     expect(JSON.stringify(payload)).not.toMatch(
       /campaign_id|application_id|idempotency|provider_email|attempt_count|last_error|next_attempt|status":"queued/,
     );
+    expect(payload.outcome_messages).toEqual([
+      {
+        decision: "accepted",
+        version: 1,
+        subject: "Accepted subject",
+        message: "Accepted message",
+      },
+      {
+        decision: "not_selected",
+        version: 1,
+        subject: "Not selected subject",
+        message: "Not selected message",
+      },
+    ]);
+  });
+
+  it("saves an outcome message with a reviewer capability and version guard", async () => {
+    const app = await createApp();
+    const response = await app.request(
+      "http://localhost/api/annual-conference/2026/volunteer-follow-up/outcome-messages",
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-test-role": "organizer",
+          "x-test-capability": "allowed",
+        },
+        body: JSON.stringify({
+          decision: "accepted",
+          expected_version: 1,
+          subject: "Saved subject",
+          message: "Saved message",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.saveOutcomeMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        campaignId: "campaign-2026",
+        decision: "accepted",
+        expectedVersion: 1,
+        actorEmail: "reviewer@example.com",
+      }),
+      expect.anything(),
+    );
+    expect(await response.json()).toEqual({
+      outcome_message: {
+        decision: "accepted",
+        version: 2,
+        subject: "Saved subject",
+        message: "Saved message",
+      },
+    });
   });
 
   it("denies anonymous and unauthorized sessions before reading recipient data", async () => {
