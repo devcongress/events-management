@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-12 — Correct volunteer outcome migration audit metadata
+
+- Align the two volunteer outcome batch function probes with the intentionally empty, hardened PostgreSQL `search_path` created by the existing migration.
+- Keep the applied database functions and migration SQL unchanged; this corrects only the read-only verification contract and avoids replaying an already-applied migration.
+
 ## 2026-10-11 — Protect private sandbox checkout activity
 
 - Replace inline test-checkout disclosures with an app-native bordered five-row table panel and an in-panel pagination footer, preserving the existing server pagination boundary.
