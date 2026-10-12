@@ -17,3 +17,7 @@ export function annualConferenceSocialCardEmailDeliveryConfiguration(env: Record
 export function annualConferenceSocialCardManagementUrl(capability: string): string {
   return `https://devcongress.org/devcon26/social-card/#${capability}`;
 }
+
+export function annualConferenceSocialCardCollectionManagementUrl(capability: string): string {
+  return `https://devcongress.org/devcon26/social-card/#collection=${capability}`;
+}

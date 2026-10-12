@@ -7,10 +7,14 @@ const mocks = vi.hoisted(() => ({
   publicCard: vi.fn(),
   issueDelivery: vi.fn(),
   download: vi.fn(),
+  collection: vi.fn(),
+  collectionCard: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/annual-conference-social-cards', () => ({
   getSupabaseAnnualConferenceSocialCardByCapability: mocks.cardByCapability,
+  getSupabaseAnnualConferenceSocialCardByCollectionCapability: mocks.collectionCard,
+  getSupabaseAnnualConferenceSocialCardCollection: mocks.collection,
   getSupabasePublicAnnualConferenceSocialCard: mocks.publicCard,
   issueSupabaseAnnualConferenceSocialCardDelivery: mocks.issueDelivery,
   updateSupabaseAnnualConferenceSocialCard: vi.fn(),
@@ -50,6 +54,22 @@ beforeEach(() => {
   mocks.download.mockResolvedValue({
     data: new Blob(['private photo'], { type: 'image/png' }),
     error: null,
+  });
+  mocks.collection.mockResolvedValue([{ seat_number: 1, display_name: 'Ticket 1', crop_x: 0.5, crop_y: 0.5, crop_scale: 1, public_enabled: false, public_slug: 'public-slug-1234567890123456', photo_available: false }]);
+  mocks.collectionCard.mockResolvedValue({
+    id: '10000000-0000-4000-8000-000000000001',
+    edition_id: 'edition-id',
+    role: 'attendee',
+    display_name: 'Ticket 1',
+    public_slug: 'public-slug-1234567890123456',
+    photo_path: null,
+    crop_x: 0.5,
+    crop_y: 0.5,
+    crop_scale: 1,
+    public_enabled: false,
+    revoked_at: null,
+    ticket_id: 'ticket-id',
+    session_id: null,
   });
 });
 
@@ -94,6 +114,32 @@ describe('Annual Conference social-card routes', () => {
 
     expect(response.status).toBe(503);
     expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('returns safe card slots only through the paid-buyer collection capability', async () => {
+    const response = await app().request('http://localhost/api/public/annual-conference/2026/social-cards/collection', {
+      headers: { 'X-Social-Card-Collection-Capability': 'buyer-collection-capability' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    await expect(response.json()).resolves.toEqual({
+      seats: [{ seat_number: 1, card: {
+        display_name: 'Ticket 1',
+        role: 'attendee',
+        crop: { x: 0.5, y: 0.5, scale: 1 },
+        public_enabled: false,
+        public_slug: 'public-slug-1234567890123456',
+        photo_available: false,
+      } }],
+    });
+  });
+
+  it('does not resolve buyer collection data without a collection capability', async () => {
+    const response = await app().request('http://localhost/api/public/annual-conference/2026/social-cards/collection');
+
+    expect(response.status).toBe(401);
+    expect(mocks.collection).not.toHaveBeenCalled();
   });
 
   it('does not issue an outbox row while the dedicated sender is disabled', async () => {
