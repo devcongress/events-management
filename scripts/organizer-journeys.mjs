@@ -1734,6 +1734,19 @@ try {
           }
 
           await page.getByRole("tab", { name: "Reviews", exact: true }).click();
+          const outcomeTextarea = await page
+            .getByLabel("Outcome email message")
+            .evaluate((element) => {
+              const style = getComputedStyle(element);
+
+              return {
+                height: element.getBoundingClientRect().height,
+                resize: style.resize,
+              };
+            });
+
+          assert.equal(outcomeTextarea.resize, "none");
+          assert.ok(outcomeTextarea.height <= 104, "Outcome message editor should stay compact.");
           await page.getByLabel("Outcome email subject").fill("Accepted outcome subject saved by reviewer");
           await page.getByLabel("Outcome email message").fill("Accepted outcome body saved by reviewer.");
           await page.getByRole("button", { name: "Save message", exact: true }).click();
