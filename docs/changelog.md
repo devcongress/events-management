@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-12 — Keep volunteer outcome browser journey aligned with its preview contract
+
+- Include the frozen per-recipient subject and text payload in the Owner outcome-preview browser fixture, matching the API response rendered by the organizer UI.
+- Restore coverage of the rendered email preview without changing the live email, migration, or send behavior.
+
+## 2026-10-12 — Correct volunteer outcome migration audit metadata
+
+- Align the two volunteer outcome batch function probes with the intentionally empty, hardened PostgreSQL `search_path` created by the existing migration.
+- Keep the applied database functions and migration SQL unchanged; this corrects only the read-only verification contract and avoids replaying an already-applied migration.
+
 ## 2026-10-11 — Protect private sandbox checkout activity
 
 - Replace inline test-checkout disclosures with an app-native bordered five-row table panel and an in-panel pagination footer, preserving the existing server pagination boundary.
@@ -12,6 +22,12 @@
 - Keep merchant-absorbed payments strict by default; an explicit server-only pass-fees policy accepts a surcharge only when verified Paystack facts prove the requested ticket amount and provider fee details.
 - Use the verified gross amount for capacity-exhaustion refunds and preserve the immutable breakdown in payment-receipt payloads. Document that a public exact fee quote requires separate merchant-account and rounding validation.
 - Simplify the organizer-login secondary action to “Request access”; it gains its underline only on pointer hover while retaining keyboard focus treatment.
+
+## 2026-10-11 — Compose and batch volunteer outcome emails
+
+- Let Owners maintain distinct accepted and not-selected plain-text subjects and messages, then freeze escaped personalized HTML/text payloads and the complete recipient audience in the existing confirmation preview.
+- Queue the frozen audience into durable 50-recipient Resend batches, each with a stable idempotency key and ordered per-recipient mapping. A provider response must return exactly one unique ID per frozen recipient; ambiguous results retry the complete unchanged batch.
+- Preserve Owner-only preview/confirmation, decision-version locks, no-email-before-confirmation, existing delivery records, and the unapplied migration boundary.
 
 ## 2026-10-11 — Recover stalled organizer OAuth callbacks
 

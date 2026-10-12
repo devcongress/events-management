@@ -28,6 +28,10 @@ type Preview = {
     decision_version: number;
     name: string;
     email: string;
+    payload: {
+      subject: string;
+      text: string;
+    };
   }>;
   from: string;
   subject: string;
@@ -41,6 +45,16 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ updated: [] }>();
 const decision = ref<Decision>("accepted");
+const composers = ref<Record<Decision, { subject: string; message: string }>>({
+  accepted: {
+    subject: "Your DevCongress 2026 volunteer application",
+    message: "We’re pleased to let you know that you’ve been selected to volunteer with DevCongress 2026. Our team will share the next steps and event information with you soon.",
+  },
+  not_selected: {
+    subject: "An update on your DevCongress 2026 volunteer application",
+    message: "Thank you for offering your time and for completing the volunteer follow-up. We’re unable to offer you a volunteer place for DevCongress 2026. We appreciate your interest and hope to see you at the event.",
+  },
+});
 const drawerOpen = ref(false);
 const loading = ref(false);
 const busy = ref(false);
@@ -61,6 +75,7 @@ const choiceOptions = [
   { value: "accepted", label: "Accepted applicants" },
   { value: "not_selected", label: "Not-selected applicants" },
 ];
+const composer = computed(() => composers.value[decision.value]);
 const eligibleDecisions = computed(() =>
   props.recipients.filter((recipient) => recipient.decision === decision.value),
 );
@@ -140,7 +155,11 @@ async function openPreview(): Promise<void> {
         credentials: "include",
         signal: controller.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: decision.value }),
+        body: JSON.stringify({
+          decision: decision.value,
+          subject: composer.value.subject,
+          message: composer.value.message,
+        }),
       },
     );
 
@@ -294,7 +313,17 @@ onBeforeUnmount(() => {
           Preview {{ decision === "accepted" ? "acceptances" : "rejections" }}
         </button>
       </div>
-      <p class="outcome-preview-helper">Preview checks who can receive this email and shows the exact frozen audience before anything is queued.</p>
+      <div class="outcome-composer">
+        <label>
+          <span>Subject</span>
+          <input v-model.trim="composer.subject" class="app-form-control" maxlength="200" aria-label="Outcome email subject" />
+        </label>
+        <label>
+          <span>Message</span>
+          <textarea v-model.trim="composer.message" class="app-form-control" rows="5" maxlength="5000" aria-label="Outcome email message" />
+        </label>
+      </div>
+      <p class="outcome-preview-helper">Preview checks who can receive this email. Each outcome keeps its own subject and plain-text message, then freezes the exact personalized payload and audience before anything is queued.</p>
       <dl class="outcome-summary" :class="{ 'outcome-summary--with-attention': attentionCount }">
         <div><dt>Decisions</dt><dd>{{ eligibleDecisions.length }}</dd></div>
         <div><dt>Not sent</dt><dd>{{ pendingCount }}</dd></div>
@@ -363,6 +392,11 @@ onBeforeUnmount(() => {
                         <strong>{{ recipient.name }}</strong>
                         <span>{{ recipient.email }}</span>
                         <span>Decision version {{ recipient.decision_version }}</span>
+                        <details class="outcome-recipient-payload">
+                          <summary>Frozen personalized payload</summary>
+                          <strong>{{ recipient.payload.subject }}</strong>
+                          <pre>{{ recipient.payload.text }}</pre>
+                        </details>
                       </li>
                     </ol>
                   </div>
@@ -437,6 +471,35 @@ onBeforeUnmount(() => {
   min-width: min(100%, 16rem);
   gap: 0.35rem;
 }
+.outcome-composer {
+  display: grid;
+  gap: .7rem;
+  margin-top: .9rem;
+}
+.outcome-composer label {
+  display: grid;
+  gap: .35rem;
+}
+.outcome-composer span {
+  color: #69665f;
+  font: 700 0.65rem/1.2 var(--font-mono), monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.outcome-composer input,
+.outcome-composer textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d3d0c9;
+  border-radius: 6px;
+  background: #fff;
+  color: #25231f;
+  font: inherit;
+  font-size: .84rem;
+  line-height: 1.45;
+  padding: .6rem .7rem;
+}
+.outcome-composer textarea { resize: vertical; }
 .outcome-audience-picker > span,
 .outcome-summary dt {
   color: #69665f;
@@ -667,6 +730,19 @@ onBeforeUnmount(() => {
 .outcome-recipient-scroll li strong,
 .outcome-diagnostics-scroll li strong {
   color: #25231f;
+}
+.outcome-recipient-payload {
+  margin-top: .25rem;
+}
+.outcome-recipient-payload summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.outcome-recipient-payload pre {
+  margin: .4rem 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: .72rem/1.4 ui-monospace, monospace;
 }
 
 .outcome-sample-note {

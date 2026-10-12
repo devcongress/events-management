@@ -139,6 +139,9 @@ export type VolunteerFollowUpOutcomeDeliveryRow = {
   payload: Record<string, unknown>;
   template_version: string;
   idempotency_key: string;
+  batch_id: string | null;
+  batch_idempotency_key: string | null;
+  batch_position: number | null;
   status:
     | 'queued' | 'sending' | 'retrying' | 'accepted' | 'delivered' | 'delayed' | 'failed' | 'bounced' | 'suppressed' | 'complained' | 'needs_attention' | 'cancelled';
   attempt_count: number;
@@ -2556,6 +2559,21 @@ export interface Database {
           p_provider_http_status?: number | null;
           p_failure_certainty?: string | null;
           p_diagnostic_at?: string;
+        };
+        Returns: boolean;
+      };
+      finalize_volunteer_follow_up_outcome_batch: {
+        Args: {
+          p_batch_id: string;
+          p_claim_token: string;
+          p_status: string;
+          p_provider_email_ids: string[];
+          p_last_error: string | null;
+          p_next_attempt_at: string | null;
+          p_delivery_stage: string;
+          p_provider_http_status: number | null;
+          p_failure_certainty: string | null;
+          p_diagnostic_at: string;
         };
         Returns: boolean;
       };

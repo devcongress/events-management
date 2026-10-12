@@ -902,6 +902,19 @@
         { "kind": "constraint", "schema": "public", "table": "annual_conference_ticket_orders", "name": "annual_conference_ticket_orders_amount_paid", "contains": ["amount_paid_minor = (ticket_amount_minor + processing_fee_minor)"] },
         { "kind": "function", "schema": "public", "name": "confirm_annual_conference_ticket_payment", "argumentTypes": "uuid, text, text, text, text, integer, text, text, jsonb", "bodySha256": "42ff67e6102495b37647f596fdd05d8f62a0c00cec2bd3e03a90c27d5b1e173b", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "public", "language": "plpgsql", "result": "annual_conference_ticket_orders" }
       ]
+    },
+    {
+      "file": "20261011150000_volunteer_outcome_composer_batches.sql",
+      "sha256": "793d29cad8aa1d5d89758ea5bed5642e46271f2d4f0d83379340ec1a1d5c29d9",
+      "checks": [
+        { "kind": "table", "schema": "public", "name": "volunteer_follow_up_outcome_batches", "rls": true, "private": true },
+        { "kind": "column", "schema": "public", "table": "volunteer_follow_up_outcome_deliveries", "name": "batch_id", "type": "uuid", "notNull": false, "defaultExpression": null },
+        { "kind": "column", "schema": "public", "table": "volunteer_follow_up_outcome_deliveries", "name": "batch_idempotency_key", "type": "text", "notNull": false, "defaultExpression": null },
+        { "kind": "column", "schema": "public", "table": "volunteer_follow_up_outcome_deliveries", "name": "batch_position", "type": "integer", "notNull": false, "defaultExpression": null },
+        { "kind": "index", "schema": "public", "table": "volunteer_follow_up_outcome_deliveries", "name": "volunteer_outcome_delivery_batch_idx", "contains": ["batch_id", "batch_position"] },
+        { "kind": "function", "schema": "public", "name": "claim_volunteer_follow_up_outcome", "argumentTypes": "uuid, integer, uuid, uuid", "bodySha256": "b8e89839b8de52c1de6a5f1cf6bc581becdae4f2739d21299b38b363c2955ff2", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "\"\"", "language": "plpgsql", "result": "SETOF volunteer_follow_up_outcome_deliveries" },
+        { "kind": "function", "schema": "public", "name": "finalize_volunteer_follow_up_outcome_batch", "argumentTypes": "uuid, uuid, text, text[], text, timestamp with time zone, text, integer, text, timestamp with time zone", "bodySha256": "f7e6793edf4fbeed15283aff5ac0bcfa4771aaa413f257f0f6f0071caf4c9528", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "\"\"", "language": "plpgsql", "result": "boolean" }
+      ]
     }
   ]
 }

@@ -60,7 +60,7 @@ const mocks = vi.hoisted(() => ({
   replayVolunteerFollowUpProviderEvents: vi.fn(),
   claimVolunteerOutcome: vi.fn(),
   validateVolunteerOutcomeSend: vi.fn(),
-  finalizeVolunteerOutcomeSend: vi.fn(),
+  finalizeVolunteerOutcomeBatch: vi.fn(),
   readResendEmailQuota: vi.fn(),
   sendResendEmailBatch: vi.fn(),
   enforcePublicRateLimit: vi.fn(),
@@ -95,7 +95,7 @@ vi.mock("@/lib/supabase/volunteer-follow-up", () => ({
   replayVolunteerFollowUpProviderEvents: mocks.replayVolunteerFollowUpProviderEvents,
   claimVolunteerOutcome: mocks.claimVolunteerOutcome,
   validateVolunteerOutcomeSend: mocks.validateVolunteerOutcomeSend,
-  finalizeVolunteerOutcomeSend: mocks.finalizeVolunteerOutcomeSend,
+  finalizeVolunteerOutcomeBatch: mocks.finalizeVolunteerOutcomeBatch,
 }));
 vi.mock("@/lib/email/delivery-health", () => ({
   getEmailDeliveryHealth: mocks.getEmailDeliveryHealth,
@@ -165,7 +165,7 @@ beforeEach(() => {
   mocks.replayVolunteerFollowUpProviderEvents.mockResolvedValue(undefined);
   mocks.claimVolunteerOutcome.mockResolvedValue(null);
   mocks.validateVolunteerOutcomeSend.mockResolvedValue(true);
-  mocks.finalizeVolunteerOutcomeSend.mockResolvedValue(true);
+  mocks.finalizeVolunteerOutcomeBatch.mockResolvedValue(true);
   mocks.readResendEmailQuota.mockResolvedValue({
     dailyUsed: null,
     monthlyUsed: 4,
@@ -437,6 +437,7 @@ describe("volunteer follow-up read and recovery", () => {
     });
     mocks.claimVolunteerOutcome.mockResolvedValue({
       id: crypto.randomUUID(),
+      batch_id: crypto.randomUUID(),
       idempotency_key: "outcome-idempotency-key",
       attempt_count: 1,
       payload: {
@@ -508,6 +509,7 @@ describe("volunteer follow-up read and recovery", () => {
     mocks.claimVolunteerFollowUpRecipient.mockResolvedValue(null);
     mocks.claimVolunteerOutcome.mockResolvedValue({
       id: crypto.randomUUID(),
+      batch_id: crypto.randomUUID(),
       idempotency_key: "outcome-idempotency-key",
       attempt_count: 1,
       payload: {

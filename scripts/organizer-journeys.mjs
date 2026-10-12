@@ -1263,6 +1263,10 @@ try {
               decision_version: 1,
               name: "Ama Mensah",
               email: "ama@example.com",
+              payload: {
+                subject: "Your DevCongress 2026 volunteer application",
+                text: "Your application has been selected.",
+              },
             }],
             from: "DevCongress <volunteers@devcongress.org>",
             subject: "Your DevCongress 2026 volunteer application",

@@ -513,7 +513,7 @@ export async function claimVolunteerOutcome(
   claimToken: string,
   leaseToken: string,
   c: Context,
-): Promise<Record<string, unknown> | null> {
+): Promise<Record<string, unknown>[]> {
   const { data, error } = await getSupabaseAdminClient(c).rpc(
     "claim_volunteer_follow_up_outcome",
     {
@@ -526,7 +526,7 @@ export async function claimVolunteerOutcome(
 
   if (error) throw new Error(error.message);
 
-  return data?.[0] ?? null;
+  return data ?? [];
 }
 
 export async function validateVolunteerOutcomeSend(
@@ -549,12 +549,12 @@ export async function validateVolunteerOutcomeSend(
   return data === true;
 }
 
-export async function finalizeVolunteerOutcomeSend(
+export async function finalizeVolunteerOutcomeBatch(
   input: {
-    deliveryId: string;
+    batchId: string;
     claimToken: string;
     status: "accepted" | "failed" | "retrying" | "needs_attention";
-    providerEmailId: string | null;
+    providerEmailIds: string[];
     lastError: string | null;
     nextAttemptAt: string | null;
     deliveryStage: "queue" | "provider_request" | "provider_response";
@@ -565,12 +565,12 @@ export async function finalizeVolunteerOutcomeSend(
   c: Context,
 ): Promise<boolean> {
   const { data, error } = await getSupabaseAdminClient(c).rpc(
-    "finalize_volunteer_follow_up_outcome_send",
+    "finalize_volunteer_follow_up_outcome_batch",
     {
-      p_delivery_id: input.deliveryId,
+      p_batch_id: input.batchId,
       p_claim_token: input.claimToken,
       p_status: input.status,
-      p_provider_email_id: input.providerEmailId,
+      p_provider_email_ids: input.providerEmailIds,
       p_last_error: input.lastError,
       p_next_attempt_at: input.nextAttemptAt,
       p_delivery_stage: input.deliveryStage,

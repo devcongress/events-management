@@ -40,7 +40,7 @@ import {
   renewVolunteerFollowUpDrainLease,
   updateVolunteerFollowUpDelivery,
   validateVolunteerOutcomeSend,
-  finalizeVolunteerOutcomeSend,
+  finalizeVolunteerOutcomeBatch,
   getVolunteerOutcomeSentRecipientIds,
   hasDueVolunteerOutcomeDelivery,
   queueVolunteerFollowUpFailedDeliveryRetry,
@@ -105,6 +105,9 @@ const reviewSchema = z
 
 const outcomePreviewSchema = z.object({
   decision: z.enum(["accepted", "not_selected"]),
+  subject: z.string().trim().min(1, "Write an email subject.").max(200)
+    .refine((value) => !/[\r\n]/u.test(value), "Use a one-line email subject."),
+  message: z.string().trim().min(1, "Write the outcome message.").max(5000),
 }).strict();
 
 const outcomeConfirmSchema = z.object({
@@ -558,7 +561,7 @@ async function drainVolunteerOutcomeEmails(
     if (safeSlots < 1) return finish(sent, "capacity_reserved");
 
     const claimToken = crypto.randomUUID();
-    const delivery = await claimVolunteerOutcome(
+    const claimed = await claimVolunteerOutcome(
       campaign.id,
       safeSlots,
       claimToken,
@@ -566,38 +569,13 @@ async function drainVolunteerOutcomeEmails(
       c,
     );
 
-    if (!delivery) return finish(sent, "outcome_queue_empty_or_daily_limit");
+    // Older records are one-recipient batches. New claims are one deterministic
+    // provider batch, so no item can be peeled off and retried independently.
+    const deliveries = Array.isArray(claimed) ? claimed : claimed ? [claimed] : [];
 
-    const deliveryId = String(delivery.id);
-    const valid = await validateVolunteerOutcomeSend(
-      deliveryId,
-      claimToken,
-      leaseToken,
-      c,
-    );
+    if (!deliveries.length) return finish(sent, "outcome_queue_empty_or_daily_limit");
 
-    if (!valid) {
-      await finalizeVolunteerOutcomeSend(
-        {
-          deliveryId,
-          claimToken,
-          status: "needs_attention",
-          providerEmailId: null,
-          lastError:
-            "The decision or drain lease changed before the provider call.",
-          nextAttemptAt: null,
-          deliveryStage: "queue",
-          providerHttpStatus: null,
-          failureCertainty: null,
-          diagnosticAt: new Date().toISOString(),
-        },
-        c,
-      );
-
-      return finish(sent, "outcome_claim_no_longer_valid");
-    }
-
-    const email = z
+    const emailSchema = z
       .object({
         from: z.string().min(1),
         to: z.array(z.string().email()).length(1),
@@ -606,36 +584,71 @@ async function drainVolunteerOutcomeEmails(
         text: z.string().min(1),
         reply_to: z.string().email().optional(),
       })
-      .strict()
-      .safeParse(delivery.payload);
+      .strict();
+    const parsedEmails = deliveries.map((delivery) =>
+      emailSchema.safeParse(delivery.payload),
+    );
+    const valid = await Promise.all(
+      deliveries.map((delivery) =>
+        validateVolunteerOutcomeSend(String(delivery.id), claimToken, leaseToken, c),
+      ),
+    );
+    const batchId = String(deliveries[0].batch_id ?? "");
+    const finalizeAll = async (
+      input: Omit<Parameters<typeof finalizeVolunteerOutcomeBatch>[0], "batchId" | "claimToken" | "providerEmailIds">,
+      providerEmailIds: string[] = [],
+    ) => {
+      if (!batchId) throw new Error("Outcome batch identity is missing.");
 
-    if (!email.success) {
-      await finalizeVolunteerOutcomeSend(
-        {
-          deliveryId,
-          claimToken,
-          status: "needs_attention",
-          providerEmailId: null,
-          lastError: "The frozen outcome email payload could not be validated.",
-          nextAttemptAt: null,
-          deliveryStage: "queue",
-          providerHttpStatus: null,
-          failureCertainty: null,
-          diagnosticAt: new Date().toISOString(),
-        },
-        c,
-      );
+      return finalizeVolunteerOutcomeBatch({
+        ...input,
+        batchId,
+        claimToken,
+        providerEmailIds,
+      }, c);
+    };
+
+    if (valid.some((item) => !item)) {
+      await finalizeAll({
+        status: "needs_attention",
+        lastError: "The decision or drain lease changed before the provider call.",
+        nextAttemptAt: null,
+        deliveryStage: "queue",
+        providerHttpStatus: null,
+        failureCertainty: null,
+        diagnosticAt: new Date().toISOString(),
+      });
+
+      return finish(sent, "outcome_claim_no_longer_valid");
+    }
+    if (parsedEmails.some((item) => !item.success)) {
+      await finalizeAll({
+        status: "needs_attention",
+        lastError: "The frozen outcome email payload could not be validated.",
+        nextAttemptAt: null,
+        deliveryStage: "queue",
+        providerHttpStatus: null,
+        failureCertainty: null,
+        diagnosticAt: new Date().toISOString(),
+      });
 
       return finish(sent, "outcome_payload_invalid");
     }
+    const emails = parsedEmails.map((item) => {
+      if (!item.success) throw new Error("Outcome payload validation changed unexpectedly.");
+
+      return item.data;
+    });
 
     let result: Awaited<ReturnType<typeof sendResendEmailBatch>>;
 
     try {
       result = await sendResendEmailBatch({
         apiKey,
-        idempotencyKey: String(delivery.idempotency_key),
-        emails: [email.data],
+        idempotencyKey: String(
+          deliveries[0].batch_idempotency_key ?? deliveries[0].idempotency_key,
+        ),
+        emails,
       });
     } catch (error) {
       const providerError = error instanceof ResendBatchError ? error : null;
@@ -643,7 +656,7 @@ async function drainVolunteerOutcomeEmails(
       const ambiguous =
         status === null || status >= 500 || status === 200 || status === 409;
       const retryable = ambiguous || status === 429;
-      const attempts = Number(delivery.attempt_count);
+      const attempts = Number(deliveries[0].attempt_count);
       const retryDelayMinutes =
         status === 429
           ? 60
@@ -651,34 +664,28 @@ async function drainVolunteerOutcomeEmails(
       const canRetry =
         retryable &&
         attempts < 4 &&
-        Boolean(delivery.first_attempt_at) &&
-        Date.now() - new Date(String(delivery.first_attempt_at)).getTime() <
+        Boolean(deliveries[0].first_attempt_at) &&
+        Date.now() - new Date(String(deliveries[0].first_attempt_at)).getTime() <
           23 * 60 * 60_000;
 
-      await finalizeVolunteerOutcomeSend(
-        {
-          deliveryId,
-          claimToken,
-          status: ambiguous
-            ? canRetry
-              ? "retrying"
-              : "needs_attention"
-            : "failed",
-          providerEmailId: null,
-          lastError:
-            providerError?.providerMessage ??
-            "The provider did not confirm this outcome email.",
-          nextAttemptAt: canRetry
-            ? new Date(Date.now() + retryDelayMinutes * 60_000).toISOString()
-            : null,
-          deliveryStage:
-            status === null ? "provider_request" : "provider_response",
-          providerHttpStatus: status,
-          failureCertainty: ambiguous ? "ambiguous" : "definite",
-          diagnosticAt: new Date().toISOString(),
-        },
-        c,
-      );
+      await finalizeAll({
+        status: ambiguous
+          ? canRetry
+            ? "retrying"
+            : "needs_attention"
+          : "failed",
+        lastError:
+          providerError?.providerMessage ??
+          "The provider did not confirm this outcome email.",
+        nextAttemptAt: canRetry
+          ? new Date(Date.now() + retryDelayMinutes * 60_000).toISOString()
+          : null,
+        deliveryStage:
+          status === null ? "provider_request" : "provider_response",
+        providerHttpStatus: status,
+        failureCertainty: ambiguous ? "ambiguous" : "definite",
+        diagnosticAt: new Date().toISOString(),
+      });
 
       return finish(
         sent,
@@ -688,50 +695,37 @@ async function drainVolunteerOutcomeEmails(
       );
     }
 
-    const providerEmailId = result.ids[0];
-
-    if (!providerEmailId) {
-      await finalizeVolunteerOutcomeSend(
-        {
-          deliveryId,
-          claimToken,
-          status: "needs_attention",
-          providerEmailId: null,
-          lastError:
-            "The provider response did not identify the accepted email.",
-          nextAttemptAt: null,
-          deliveryStage: "provider_response",
-          providerHttpStatus: 200,
-          failureCertainty: "ambiguous",
-          diagnosticAt: new Date().toISOString(),
-        },
-        c,
-      );
+    if (result.ids.length !== deliveries.length || new Set(result.ids).size !== result.ids.length) {
+      await finalizeAll({
+        status: "needs_attention",
+        lastError: "The provider response did not uniquely identify every accepted email.",
+        nextAttemptAt: null,
+        deliveryStage: "provider_response",
+        providerHttpStatus: 200,
+        failureCertainty: "ambiguous",
+        diagnosticAt: new Date().toISOString(),
+      });
 
       return finish(sent, "outcome_provider_result_unconfirmed");
     }
 
-    const finalized = await finalizeVolunteerOutcomeSend(
-      {
-        deliveryId,
-        claimToken,
-        status: "accepted",
-        providerEmailId,
-        lastError: null,
-        nextAttemptAt: null,
-        deliveryStage: "provider_response",
-        providerHttpStatus: 200,
-        failureCertainty: null,
-        diagnosticAt: new Date().toISOString(),
-      },
-      c,
+    const finalized = await finalizeAll({
+      status: "accepted",
+      lastError: null,
+      nextAttemptAt: null,
+      deliveryStage: "provider_response",
+      providerHttpStatus: 200,
+      failureCertainty: null,
+      diagnosticAt: new Date().toISOString(),
+    }, result.ids);
+
+    if (!finalized)
+      return finish(sent, "outcome_finalize_claim_lost");
+    await Promise.all(
+      result.ids.map((providerEmailId) => replayVolunteerFollowUpProviderEvents(providerEmailId, c)),
     );
-
-    if (!finalized) return finish(sent, "outcome_finalize_claim_lost");
-
-    await replayVolunteerFollowUpProviderEvents(providerEmailId, c);
     await recordResendEmailHealth(c, result.quota);
-    sent += 1;
+    sent += deliveries.length;
 
     if (!volunteerFollowUpQuotaIsComplete(result.quota))
       return finish(sent, "capacity_unverified");
@@ -1261,12 +1255,16 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
         const email = volunteerOutcomeEmailPreview({
           name: "Applicant",
           decision: parsed.data.decision,
+          subject: parsed.data.subject,
+          message: parsed.data.message,
         });
         const payloads = Object.fromEntries(
           snapshot.recipients.map((recipient) => {
             const personalized = volunteerOutcomeEmailPreview({
               name: recipient.name,
               decision: parsed.data.decision,
+              subject: parsed.data.subject,
+              message: parsed.data.message,
             });
 
             return [
@@ -1296,7 +1294,10 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           decision: parsed.data.decision,
           eligible_count: snapshot.eligibleCount,
           excluded_count: snapshot.excludedCount,
-          recipients: snapshot.recipients,
+          recipients: snapshot.recipients.map((recipient) => ({
+            ...recipient,
+            payload: payloads[recipient.recipient_id],
+          })),
           expires_in_seconds: 600,
           from: email.from,
           subject: email.subject,
@@ -1494,9 +1495,11 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           paused,
           message: paused
             ? parsed.data.kind === "outcome"
-              ? "Outcome retry queued. Outcome delivery is paused, so it will wait for that queue to resume."
+              ? "The frozen outcome batch retry is queued. Outcome delivery is paused, so it will wait for that queue to resume."
               : "Invitation retry queued. Invitation delivery is paused, so it will wait for the campaign to resume."
-            : "Retry queued for the scheduled sender. No email was sent from this action.",
+            : parsed.data.kind === "outcome"
+              ? "The frozen outcome batch retry is queued for the scheduled sender. No email was sent from this action."
+              : "Retry queued for the scheduled sender. No email was sent from this action.",
         });
       } catch (error) {
         return internalErrorResponse(
