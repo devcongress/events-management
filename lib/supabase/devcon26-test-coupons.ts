@@ -50,7 +50,7 @@ export async function createDevcon26TestCoupon(
     });
 
     if (error?.code === '23505') continue;
-    if (error) throw new Error('test_coupon_storage_unavailable');
+    if (error) throw new Error(error.message.includes('test_coupon_invalid') ? 'test_coupon_invalid' : 'test_coupon_storage_unavailable');
 
     const coupon = createdCouponSchema.safeParse(data);
 

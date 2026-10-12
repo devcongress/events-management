@@ -8,6 +8,13 @@
 - Assert the compact, non-resizable field in the organizer browser journeys.
 - Keep campaign previews tied to the saved server-side message and preserve the existing reviewer permissions and version guard.
 
+## 2026-10-12 — Use EMS ticket settings as the DevCon26 price source of truth
+
+- Publish a price-only, no-store public catalog from EMS edition settings; the website cards and isolated test checkout consume current prices and fail closed when the catalog is unavailable.
+- Recalculate sandbox quotes and fixed-coupon eligibility against current EMS prices while preserving already-prepared checkout snapshots; no live order, admission, finance, or payment behavior is activated.
+- Add a forward-only migration contract and isolated PostgreSQL regression coverage for repricing and coupon bounds.
+- Match the coupon-constraint contract to PostgreSQL's live catalog rendering; the applied schema rule and migration SQL remain unchanged.
+
 ## 2026-10-12 — Align mobile dropdown journey checks with the visual viewport
 
 - Compare teleported review-filter geometry against the same visual viewport bounds used by the dropdown component, and report individual failed bounds and measured rectangles.

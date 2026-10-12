@@ -19,12 +19,7 @@ export const createDevcon26TestCouponSchema = z.object({
   expires_at: z.string().datetime({ offset: true }),
   max_completed: z.number().int().min(1).max(1_000_000),
 }).strict().superRefine((coupon, context) => {
-  const lowestPrice = Math.min(...coupon.eligible_tiers.map((tier) => (
-    tier === 'regular' ? 19_999 : tier === 'team_3' ? 54_999 : 84_999
-  )));
-
-  if ((coupon.discount_type === 'percentage_bps' && coupon.discount_value >= 10_000)
-    || (coupon.discount_type === 'fixed_minor' && coupon.discount_value >= lowestPrice)) {
+  if (coupon.discount_type === 'percentage_bps' && coupon.discount_value >= 10_000) {
     context.addIssue({ code: 'custom', path: ['discount_value'], message: 'The discount must leave a positive payment for every eligible pass.' });
   }
   if (new Set(coupon.eligible_tiers).size !== coupon.eligible_tiers.length) {
@@ -34,6 +29,27 @@ export const createDevcon26TestCouponSchema = z.object({
     context.addIssue({ code: 'custom', path: ['expires_at'], message: 'Choose a future expiry.' });
   }
 });
+
+export function validateDevcon26TestCouponDiscount(
+  coupon: Pick<Devcon26TestCouponInput, 'discount_type' | 'discount_value' | 'eligible_tiers'>,
+  prices: { tiers: Array<{ tier_key: string; amount_minor: number }> },
+): string | null {
+  if (coupon.discount_type !== 'fixed_minor') return null;
+
+  const eligiblePrices = coupon.eligible_tiers.map((tierKey) => (
+    prices.tiers.find((tier) => tier.tier_key === tierKey)?.amount_minor
+  ));
+
+  if (eligiblePrices.some((price) => !Number.isSafeInteger(price) || (price ?? 0) <= 0)) {
+    return 'Current ticket prices are unavailable for one or more selected passes.';
+  }
+
+  const lowestPrice = Math.min(...eligiblePrices as number[]);
+
+  return coupon.discount_value < lowestPrice
+    ? null
+    : 'The fixed discount must be less than the lowest selected ticket price.';
+}
 
 export type Devcon26TestCouponInput = z.infer<typeof createDevcon26TestCouponSchema>;
 

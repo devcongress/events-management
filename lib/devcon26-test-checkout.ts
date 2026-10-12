@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { DEVCON26_TICKET_TIERS } from '@/lib/annual-conference-ticketing';
 
 export const DEVCON26_TEST_CHECKOUT_PATH = '/api/public/annual-conference/2026/test-checkout';
 export const DEVCON26_TEST_WEBHOOK_PATH = '/api/webhooks/paystack/devcon26-test';
@@ -102,8 +101,9 @@ export function isDevcon26TestCheckoutRequest(path: string, method: string): boo
     ].includes(path));
 }
 
-export function devcon26TestCheckoutCatalog() {
-  return DEVCON26_TICKET_TIERS.map(({ key, quantity, price_minor }) => ({
-    tier_key: key, quantity, amount_minor: price_minor, currency: 'GHS' as const,
-  }));
+export function devcon26TestCheckoutCatalog(prices: {
+  currency: 'GHS';
+  tiers: Array<{ tier_key: string; quantity: number; amount_minor: number }>;
+}) {
+  return prices.tiers.map((tier) => ({ ...tier, currency: prices.currency }));
 }

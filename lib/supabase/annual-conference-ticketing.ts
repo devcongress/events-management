@@ -4,6 +4,7 @@ import {
   summarizeAnnualConferenceTicketingInventory,
   ticketTiersForPrices,
   type AnnualConferenceTicketingSettings,
+  validateAnnualConferenceTicketPrices,
 } from '@/lib/annual-conference-ticketing';
 import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 
@@ -93,6 +94,37 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
       sponsorSeatsHeld,
       checkoutSeatsHeld,
     }),
+  };
+}
+
+export async function getSupabaseAnnualConferencePublicTicketPrices(year: number, c?: Context) {
+  if (!isSupabaseRuntimeEnabled(c)) return null;
+
+  const client = getSupabaseAdminClient(c);
+  const editionResult = await client.from('annual_conference_editions').select('id').eq('year', year).maybeSingle();
+
+  if (editionResult.error) throw new Error(editionResult.error.message);
+  if (!editionResult.data) return undefined;
+
+  const settingsResult = await client.from('annual_conference_ticketing_settings')
+    .select('currency,regular_price_minor,team_3_price_minor,team_5_price_minor')
+    .eq('edition_id', editionResult.data.id)
+    .maybeSingle();
+
+  if (settingsResult.error) throw new Error(settingsResult.error.message);
+  if (!settingsResult.data || settingsResult.data.currency !== 'GHS') return undefined;
+
+  const prices = {
+    regular: settingsResult.data.regular_price_minor,
+    team_3: settingsResult.data.team_3_price_minor,
+    team_5: settingsResult.data.team_5_price_minor,
+  };
+
+  if (validateAnnualConferenceTicketPrices(prices)) return undefined;
+
+  return {
+    currency: settingsResult.data.currency,
+    tiers: ticketTiersForPrices(prices).map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor })),
   };
 }
 

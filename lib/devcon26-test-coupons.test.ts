@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createDevcon26TestCouponSchema, devcon26CouponError, devcon26TestQuoteForSession } from '@/lib/devcon26-test-coupons';
+import { createDevcon26TestCouponSchema, devcon26CouponError, devcon26TestQuoteForSession, validateDevcon26TestCouponDiscount } from '@/lib/devcon26-test-coupons';
 import { devcon26TestInitializeSchema, devcon26TestQuoteSchema } from '@/lib/devcon26-test-checkout';
 
 const coupon = {
-  discount_type: 'fixed_minor', discount_value: 1000,
+  discount_type: 'fixed_minor' as const, discount_value: 1000,
   eligible_tiers: ['regular', 'team_3'], expires_at: '2099-12-19T23:00:00Z', max_completed: 5,
 };
 const buyer = {
@@ -42,7 +42,7 @@ describe('test coupon input and public summaries', () => {
   });
 
   it.each([
-    { discount_value: 19_999 }, { discount_value: 0 }, { discount_value: -1 },
+    { discount_value: 0 }, { discount_value: -1 },
     { discount_type: 'percentage_bps', discount_value: 10_000 },
     { discount_type: 'percentage_bps', discount_value: 12_000 },
     { eligible_tiers: [] }, { eligible_tiers: ['regular', 'regular'] },
@@ -54,6 +54,17 @@ describe('test coupon input and public summaries', () => {
   it('supports a fixed discount above regular price only when regular passes are excluded', () => {
     expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, eligible_tiers: ['team_5'], discount_value: 30_000 }).success).toBe(true);
     expect(createDevcon26TestCouponSchema.safeParse({ ...coupon, discount_type: 'percentage_bps', discount_value: 1 }).success).toBe(true);
+  });
+
+  it('validates fixed discounts against current EMS ticket prices', () => {
+    const prices = { tiers: [
+      { tier_key: 'regular', amount_minor: 19_999 },
+      { tier_key: 'team_3', amount_minor: 54_999 },
+      { tier_key: 'team_5', amount_minor: 89_999 },
+    ] };
+
+    expect(validateDevcon26TestCouponDiscount({ ...coupon, eligible_tiers: ['team_5'], discount_value: 85_000 }, prices)).toBeNull();
+    expect(validateDevcon26TestCouponDiscount({ ...coupon, eligible_tiers: ['team_5'], discount_value: 89_999 }, prices)).toContain('less than');
   });
 
   it('redacts purchaser details and exposes only bounded coupon errors', () => {

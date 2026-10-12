@@ -115,6 +115,16 @@ try {
     }
   }
 
+  await sql(`create table public.annual_conference_editions (id uuid primary key, year integer unique not null);
+    create table public.annual_conference_ticketing_settings (
+      edition_id uuid primary key, currency text not null,
+      regular_price_minor integer not null, team_3_price_minor integer not null, team_5_price_minor integer not null
+    );
+    insert into public.annual_conference_editions values ('20261012-0000-4000-8000-000000000026', 2026);
+    insert into public.annual_conference_ticketing_settings values
+      ('20261012-0000-4000-8000-000000000026', 'GHS', 19999, 54999, 89999);`);
+  await run(join(bindir, 'psql'), [...connectionArgs, '-f', join(repo, 'supabase/migrations/20261012130000_devcon26_ems_ticket_price_source.sql')]);
+
   const legacy = await json("select row_to_json(s) from public.devcon26_test_checkout_sessions s where payment_reference = 'legacy-payment';");
 
   check(legacy.base_amount_minor === 19999 && legacy.discount_amount_minor === 0
@@ -132,9 +142,18 @@ try {
 
   const percentage = await json("select public.quote_devcon26_test_checkout('team_5', 'PERCENT');");
 
-  check(percentage.discount_amount_minor === 10624 && percentage.final_amount_minor === 74375,
+  check(percentage.discount_amount_minor === 11249 && percentage.final_amount_minor === 78750,
     'Percentage uses integer pesewas and floors the discount.');
-  await assert.rejects(() => createCoupon('FREE', { value: 19999 }), /check constraint/i);
+  await assert.rejects(() => createCoupon('FREE', { value: 19999 }), /test_coupon_invalid/i);
+  checks += 1;
+
+  await sql(`update public.annual_conference_ticketing_settings set team_5_price_minor = 94999
+    where edition_id = '20261012-0000-4000-8000-000000000026';`);
+  const repriced = await json("select public.quote_devcon26_test_checkout('team_5', null);");
+
+  check(repriced.base_amount_minor === 94999 && repriced.final_amount_minor === 94999,
+    'Sandbox quotes use the latest EMS ticket price settings.');
+  await assert.rejects(() => createCoupon('TOO-LARGE', { value: 95000, tiers: ['team_5'] }), /test_coupon_invalid/i);
   checks += 1;
   await createCoupon('SOLO', { tiers: ['regular'] });
   await expectFailure("select public.quote_devcon26_test_checkout('team_3', 'SOLO');", /coupon|tier/i);

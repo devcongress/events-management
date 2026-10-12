@@ -15,6 +15,7 @@ import {
   confirmDevcon26TestSession, devcon26TestStorageReady, findDevcon26TestSession,
   initializeDevcon26TestSession, prepareDevcon26TestSession, quoteDevcon26TestCheckout, type Devcon26TestSession,
 } from '@/lib/supabase/devcon26-test-checkout';
+import { getSupabaseAnnualConferencePublicTicketPrices } from '@/lib/supabase/annual-conference-ticketing';
 import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
@@ -71,9 +72,14 @@ export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void
     }, 'Please wait before checking checkout again.');
 
     if (limited) return limited;
-    const ready = await devcon26TestStorageReady(c).catch(() => false);
+    const [ready, prices] = await Promise.all([
+      devcon26TestStorageReady(c).catch(() => false),
+      getSupabaseAnnualConferencePublicTicketPrices(2026, c).catch(() => null),
+    ]);
 
-    return c.json(ready ? { mode: 'test', accepts_coupon: true, tiers: devcon26TestCheckoutCatalog() } : { mode: 'unavailable' });
+    return c.json(ready && prices
+      ? { mode: 'test', accepts_coupon: true, tiers: devcon26TestCheckoutCatalog(prices) }
+      : { mode: 'unavailable' });
   });
 
   for (const operation of ['quote', 'initialize', 'verify']) {
