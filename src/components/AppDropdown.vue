@@ -36,6 +36,7 @@ const emit = defineEmits<{
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 const menuPanel = ref<HTMLElement | null>(null);
+const menuScroll = ref<HTMLElement | null>(null);
 const placement = ref<FloatingPlacement>('bottom');
 const menuStyle = ref<CSSProperties>({});
 const menuScrollStyle = ref<CSSProperties>({});
@@ -147,7 +148,7 @@ function updatePlacement() {
   const position = calculateFloatingPosition({
     anchor: rect,
     viewport: viewportBounds(),
-    panelHeight: menuPanel.value?.scrollHeight ?? estimatedMenuHeight.value,
+    panelHeight: menuScroll.value?.scrollHeight ?? estimatedMenuHeight.value,
     preferredWidth: naturalWidth,
     align: props.menuAlign === 'right' ? 'right' : 'left',
   });
@@ -162,7 +163,9 @@ function updatePlacement() {
     maxWidth: 'calc(100vw - 1rem)',
   };
   menuScrollStyle.value = {
-    maxHeight: `${Math.max(0, Math.min(256, position.maxHeight - 12))}px`,
+    // The scroll region owns the menu padding. Only reserve the panel border so
+    // a menu that exactly fits its available space does not clip its last option.
+    maxHeight: `${Math.max(0, Math.min(256, position.maxHeight - 2))}px`,
   };
 }
 
@@ -305,7 +308,8 @@ watch(open, async (isOpen) => {
           :style="teleport ? menuStyle : undefined"
         >
           <div
-            class="app-dropdown-scroll overflow-y-auto p-1.5"
+            ref="menuScroll"
+            class="app-dropdown-scroll overflow-y-auto overscroll-contain p-1.5"
             :class="teleport ? '' : 'max-h-64'"
             :style="teleport ? menuScrollStyle : undefined"
             role="listbox"

@@ -25,6 +25,7 @@ import {
   getVolunteerFollowUpCampaign,
   getVolunteerFollowUpRecipient,
   listVolunteerFollowUpRecipients,
+  listVolunteerFollowUpOutcomeMessages,
   listVolunteerOutcomeDeliveries,
   recordVolunteerFollowUpDrain,
   reconcileVolunteerFollowUpApplicants,
@@ -33,6 +34,7 @@ import {
   readVolunteerOutcomePreview,
   reviewVolunteerFollowUpResponse,
   saveVolunteerFollowUpCampaign,
+  saveVolunteerFollowUpOutcomeMessage,
   saveVolunteerOutcomePreviewPayloads,
   setVolunteerOutcomePaused,
   setVolunteerFollowUpCampaignStatus,
@@ -105,6 +107,11 @@ const reviewSchema = z
 
 const outcomePreviewSchema = z.object({
   decision: z.enum(["accepted", "not_selected"]),
+}).strict();
+
+const outcomeMessageSchema = z.object({
+  decision: z.enum(["accepted", "not_selected"]),
+  expected_version: z.number().int().positive(),
   subject: z.string().trim().min(1, "Write an email subject.").max(200)
     .refine((value) => !/[\r\n]/u.test(value), "Use a one-line email subject."),
   message: z.string().trim().min(1, "Write the outcome message.").max(5000),
@@ -326,6 +333,20 @@ function reviewerRecipient(
       ["accepted", "delivered", "delayed", "bounced", "complained"].includes(
         recipient.status,
       ),
+  };
+}
+
+function outcomeMessageResponse(message: {
+  decision: "accepted" | "not_selected";
+  version: number;
+  subject: string;
+  message: string;
+}) {
+  return {
+    decision: message.decision,
+    version: message.version,
+    subject: message.subject,
+    message: message.message,
   };
 }
 
@@ -953,11 +974,13 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
     try {
       const campaign = await getVolunteerFollowUpCampaign(c);
 
-      if (!campaign) return c.json({ campaign: null, recipients: [] });
-      const [recipients, health, outcomes] = await Promise.all([
+      if (!campaign)
+        return c.json({ campaign: null, recipients: [], outcome_messages: [] });
+      const [recipients, health, outcomes, messages] = await Promise.all([
         listVolunteerFollowUpRecipients(c),
         getEmailDeliveryHealth(c),
         listVolunteerOutcomeDeliveries(campaign.id, c),
+        listVolunteerFollowUpOutcomeMessages(campaign.id, c),
       ]);
       const outcomeSentIds = new Set(
         outcomes
@@ -1009,6 +1032,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
             : null,
         })),
         email_health: health,
+        outcome_messages: messages.map(outcomeMessageResponse),
         can_manage: true,
       });
     } catch (error) {
@@ -1033,7 +1057,13 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
       if (accessError) return accessError;
 
       try {
-        const recipients = await listVolunteerFollowUpRecipients(c);
+        const campaign = await getVolunteerFollowUpCampaign(c);
+        const [recipients, messages] = await Promise.all([
+          listVolunteerFollowUpRecipients(c),
+          campaign
+            ? listVolunteerFollowUpOutcomeMessages(campaign.id, c)
+            : Promise.resolve([]),
+        ]);
         const sentIds = await getVolunteerOutcomeSentRecipientIds(
           recipients.map((recipient) => recipient.id),
           c,
@@ -1043,6 +1073,7 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           recipients: recipients.map((recipient) =>
             reviewerRecipient(recipient, sentIds.has(recipient.id)),
           ),
+          outcome_messages: messages.map(outcomeMessageResponse),
         });
       } catch (error) {
         return internalErrorResponse(
@@ -1050,6 +1081,73 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
           "volunteer_follow_up_review_list_failed",
           error,
           "Unable to load volunteer reviews.",
+        );
+      }
+    },
+  );
+
+  app.patch(
+    "/api/annual-conference/2026/volunteer-follow-up/outcome-messages",
+    async (c) => {
+      const accessError = await requireAnnualConferenceCapability(
+        c,
+        2026,
+        "volunteers.review_applications",
+      );
+
+      if (accessError) return accessError;
+      const parsed = outcomeMessageSchema.safeParse(
+        await c.req.json().catch(() => null),
+      );
+
+      if (!parsed.success)
+        return c.json(
+          { error: parsed.error.issues[0]?.message ?? "Check the outcome message." },
+          400,
+        );
+
+      try {
+        const campaign = await getVolunteerFollowUpCampaign(c);
+
+        if (!campaign)
+          return c.json({ error: "The volunteer campaign is unavailable." }, 404);
+
+        const session = c.get("adminSession") ?? (await getAdminSession(c));
+        const actorEmail = session.authenticated ? (session.email ?? "") : "";
+
+        if (!actorEmail)
+          return c.json({ error: "Reviewer session identity is unavailable." }, 403);
+
+        const message = await saveVolunteerFollowUpOutcomeMessage(
+          {
+            campaignId: campaign.id,
+            decision: parsed.data.decision,
+            expectedVersion: parsed.data.expected_version,
+            subject: parsed.data.subject,
+            message: parsed.data.message,
+            actorEmail,
+          },
+          c,
+        );
+
+        return message
+          ? c.json({ outcome_message: outcomeMessageResponse(message) })
+          : c.json({ error: "The outcome message is unavailable." }, 404);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes("outcome_message_version_conflict")
+        )
+          return c.json(
+            { error: "This outcome message changed elsewhere. Refresh before saving." },
+            409,
+          );
+
+        return internalErrorResponse(
+          c,
+          "volunteer_outcome_message_save_failed",
+          error,
+          "Unable to save the outcome message.",
         );
       }
     },
@@ -1244,6 +1342,17 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
             403,
           );
 
+        const messages = await listVolunteerFollowUpOutcomeMessages(campaign.id, c);
+        const message = messages.find(
+          (candidate) => candidate.decision === parsed.data.decision,
+        );
+
+        if (!message)
+          return c.json(
+            { error: "The saved outcome message is unavailable. Refresh Reviews and try again." },
+            409,
+          );
+
         const snapshot = await createVolunteerOutcomePreview(
           {
             campaignId: campaign.id,
@@ -1255,16 +1364,16 @@ export function registerVolunteerFollowUpRoutes(app: Hono<AppBindings>): void {
         const email = volunteerOutcomeEmailPreview({
           name: "Applicant",
           decision: parsed.data.decision,
-          subject: parsed.data.subject,
-          message: parsed.data.message,
+          subject: message.subject,
+          message: message.message,
         });
         const payloads = Object.fromEntries(
           snapshot.recipients.map((recipient) => {
             const personalized = volunteerOutcomeEmailPreview({
               name: recipient.name,
               decision: parsed.data.decision,
-              subject: parsed.data.subject,
-              message: parsed.data.message,
+              subject: message.subject,
+              message: message.message,
             });
 
             return [

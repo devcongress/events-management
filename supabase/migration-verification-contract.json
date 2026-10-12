@@ -915,6 +915,15 @@
         { "kind": "function", "schema": "public", "name": "claim_volunteer_follow_up_outcome", "argumentTypes": "uuid, integer, uuid, uuid", "bodySha256": "b8e89839b8de52c1de6a5f1cf6bc581becdae4f2739d21299b38b363c2955ff2", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "\"\"", "language": "plpgsql", "result": "SETOF volunteer_follow_up_outcome_deliveries" },
         { "kind": "function", "schema": "public", "name": "finalize_volunteer_follow_up_outcome_batch", "argumentTypes": "uuid, uuid, text, text[], text, timestamp with time zone, text, integer, text, timestamp with time zone", "bodySha256": "f7e6793edf4fbeed15283aff5ac0bcfa4771aaa413f257f0f6f0071caf4c9528", "securityDefiner": true, "private": true, "serviceExecute": true, "searchPath": "\"\"", "language": "plpgsql", "result": "boolean" }
       ]
+    },
+    {
+      "file": "20261012120000_volunteer_follow_up_outcome_messages.sql",
+      "sha256": "a3bc5237f637c4118c9c82675edd2493ca870c9c10a61fdedd2245cc4f049fc7",
+      "checks": [
+        { "kind": "table", "schema": "public", "name": "volunteer_follow_up_outcome_messages", "rls": true, "private": true },
+        { "kind": "column", "schema": "public", "table": "volunteer_follow_up_outcome_messages", "name": "version", "type": "integer", "notNull": true, "defaultExpression": null },
+        { "kind": "index", "schema": "public", "table": "volunteer_follow_up_outcome_messages", "name": "volunteer_follow_up_outcome_messages_current_idx", "contains": ["campaign_id", "decision", "version DESC"] }
+      ]
     }
   ]
 }

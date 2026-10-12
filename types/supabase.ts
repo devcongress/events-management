@@ -166,6 +166,17 @@ export type VolunteerFollowUpOutcomeDeliveryRow = {
   updated_at: string;
 };
 
+export type VolunteerFollowUpOutcomeMessageRow = {
+  id: string;
+  campaign_id: string;
+  decision: 'accepted' | 'not_selected';
+  version: number;
+  subject: string;
+  message: string;
+  created_by: string;
+  created_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -202,6 +213,13 @@ export interface Database {
         Insert: Pick<VolunteerFollowUpOutcomeDeliveryRow,
           | 'campaign_id' | 'recipient_id' | 'decision' | 'decision_version' | 'recipient_name' | 'recipient_email' | 'payload' | 'template_version' | 'idempotency_key' | 'created_by'> & Partial<VolunteerFollowUpOutcomeDeliveryRow>;
         Update: Partial<VolunteerFollowUpOutcomeDeliveryRow>;
+        Relationships: [];
+      };
+      volunteer_follow_up_outcome_messages: {
+        Row: VolunteerFollowUpOutcomeMessageRow;
+        Insert: Pick<VolunteerFollowUpOutcomeMessageRow,
+          | 'campaign_id' | 'decision' | 'version' | 'subject' | 'message' | 'created_by'> & Partial<VolunteerFollowUpOutcomeMessageRow>;
+        Update: never;
         Relationships: [];
       };
       project_night_recurrence: {
@@ -2463,6 +2481,17 @@ export interface Database {
           p_actor: string;
         };
         Returns: VolunteerFollowUpRecipientRow[];
+      };
+      save_volunteer_follow_up_outcome_message: {
+        Args: {
+          p_campaign_id: string;
+          p_decision: string;
+          p_expected_version: number;
+          p_subject: string;
+          p_message: string;
+          p_actor: string;
+        };
+        Returns: VolunteerFollowUpOutcomeMessageRow[];
       };
       create_volunteer_follow_up_outcome_preview: {
         Args: { p_campaign_id: string; p_decision: string; p_actor: string };

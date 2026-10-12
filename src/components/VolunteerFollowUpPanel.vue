@@ -71,6 +71,12 @@ type FollowUpResponse = {
   campaign: Campaign | null;
   response_deadline?: string | null;
   recipients: Recipient[];
+  outcome_messages: Array<{
+    decision: "accepted" | "not_selected";
+    version: number;
+    subject: string;
+    message: string;
+  }>;
   can_manage?: boolean;
   email_health?: {
     daily_quota_used: number | null;
@@ -105,6 +111,7 @@ const query = useQuery({
 });
 const campaign = computed(() => query.data.value?.campaign);
 const recipients = computed(() => query.data.value?.recipients ?? []);
+const outcomeMessages = computed(() => query.data.value?.outcome_messages ?? []);
 const isOwner = computed(() => props.isOwnerSession);
 const deadlineDate = ref("2026-09-30");
 const filter = ref<RecipientFilter>("all");
@@ -1080,6 +1087,7 @@ onUnmounted(() => {
         v-if="isOwner"
         :recipients="recipients"
         :outcome-paused="campaign.outcome_paused"
+        :outcome-messages="outcomeMessages"
         @updated="query.refetch"
       />
 

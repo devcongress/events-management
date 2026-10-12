@@ -22,6 +22,16 @@ type Recipient = {
   outcome_sent: boolean;
   invitation_sent: boolean;
 };
+type OutcomeMessage = {
+  decision: Exclude<Decision, "pending">;
+  version: number;
+  subject: string;
+  message: string;
+};
+type ReviewsResponse = {
+  recipients: Recipient[];
+  outcome_messages: OutcomeMessage[];
+};
 
 const queryClient = useQueryClient();
 const props = defineProps<{ sessionIdentity: string }>();
@@ -34,15 +44,18 @@ const reviewQueryKey = computed(() => [
 const query = useQuery({
   queryKey: reviewQueryKey,
   queryFn: () =>
-    fetchJson<{ recipients: Recipient[] }>(
+    fetchJson<ReviewsResponse>(
       "/api/annual-conference/2026/volunteer-follow-up/reviews",
       { credentials: "include" },
     ),
 });
 const recipients = computed(() => query.data.value?.recipients ?? []);
+const outcomeMessages = computed(() => query.data.value?.outcome_messages ?? []);
 const search = ref("");
 const statusFilter = ref<"all" | ReviewStatus>("all");
-const answerFilter = ref<"all" | "submitted" | "awaiting">("submitted");
+const submissionFilter = ref<"all" | "submitted" | "awaiting">("submitted");
+const decisionFilter = ref<"all" | Decision>("all");
+const invitationFilter = ref<"all" | "sent" | "not_sent">("all");
 const page = ref(1);
 const pageSize = 10;
 const selectedId = ref<string | null>(null);
@@ -54,6 +67,12 @@ const closeButton = ref<HTMLButtonElement | null>(null);
 const reviewStatus = ref<ReviewStatus>("unreviewed");
 const reviewNote = ref("");
 const decision = ref<Decision>("pending");
+const outcomeDecision = ref<Exclude<Decision, "pending">>("accepted");
+const outcomeSubject = ref("");
+const outcomeBody = ref("");
+const outcomeMessage = computed(() =>
+  outcomeMessages.value.find((message) => message.decision === outcomeDecision.value) ?? null,
+);
 const pageCount = computed(() =>
   Math.max(1, Math.ceil(filtered.value.length / pageSize)),
 );
@@ -65,16 +84,24 @@ const filtered = computed(() =>
       `${item.name} ${item.email} ${item.motivation ?? ""}`
         .toLowerCase()
         .includes(term);
-    const matchesAnswer =
-      answerFilter.value === "all" ||
-      (answerFilter.value === "submitted"
+    const matchesSubmission =
+      submissionFilter.value === "all" ||
+      (submissionFilter.value === "submitted"
         ? Boolean(item.submitted_at)
         : !item.submitted_at);
     const matchesReview =
       statusFilter.value === "all" ||
       (Boolean(item.submitted_at) && item.review_status === statusFilter.value);
 
-    return matchesSearch && matchesAnswer && matchesReview;
+    const matchesDecision =
+      decisionFilter.value === "all" || item.decision === decisionFilter.value;
+    const matchesInvitation =
+      invitationFilter.value === "all" ||
+      (invitationFilter.value === "sent"
+        ? item.invitation_sent
+        : !item.invitation_sent);
+
+    return matchesSearch && matchesSubmission && matchesReview && matchesDecision && matchesInvitation;
   }),
 );
 const visible = computed(() =>
@@ -126,11 +153,12 @@ const mutation = useMutation({
       variables.sessionIdentity,
     ];
 
-    queryClient.setQueryData<{ recipients: Recipient[] }>(
+    queryClient.setQueryData<ReviewsResponse>(
       identityQueryKey,
       (current) =>
         current
           ? {
+              ...current,
               recipients: current.recipients.map((item) =>
                 item.id === recipient.id ? recipient : item,
               ),
@@ -139,6 +167,41 @@ const mutation = useMutation({
     );
     await queryClient.invalidateQueries({ queryKey: identityQueryKey });
     notify.success("Review saved.");
+  },
+});
+const outcomeMutation = useMutation({
+  mutationFn: (input: {
+    decision: Exclude<Decision, "pending">;
+    expectedVersion: number;
+    subject: string;
+    message: string;
+  }) =>
+    fetchJson<{ outcome_message: OutcomeMessage }>(
+      "/api/annual-conference/2026/volunteer-follow-up/outcome-messages",
+      {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decision: input.decision,
+          expected_version: input.expectedVersion,
+          subject: input.subject,
+          message: input.message,
+        }),
+      },
+    ),
+  onSuccess: ({ outcome_message }) => {
+    queryClient.setQueryData<ReviewsResponse>(reviewQueryKey.value, (current) =>
+      current
+        ? {
+            ...current,
+            outcome_messages: current.outcome_messages.map((message) =>
+              message.decision === outcome_message.decision ? outcome_message : message,
+            ),
+          }
+        : current,
+    );
+    notify.success(`Outcome message saved as version ${outcome_message.version}.`);
   },
 });
 const statusLabel = (status: ReviewStatus) =>
@@ -159,9 +222,17 @@ let previousBodyOverflow = "";
 let previousDocumentOverflow = "";
 let drawerLocked = false;
 
-watch([search, statusFilter, answerFilter], () => {
+watch([search, statusFilter, submissionFilter, decisionFilter, invitationFilter], () => {
   page.value = 1;
 });
+watch(
+  outcomeMessage,
+  (message) => {
+    outcomeSubject.value = message?.subject ?? "";
+    outcomeBody.value = message?.message ?? "";
+  },
+  { immediate: true },
+);
 watch(pageCount, (count) => {
   page.value = Math.min(page.value, count);
 });
@@ -261,6 +332,17 @@ function saveReview() {
   });
 }
 
+function saveOutcomeMessage() {
+  if (!outcomeMessage.value) return;
+
+  outcomeMutation.mutate({
+    decision: outcomeDecision.value,
+    expectedVersion: outcomeMessage.value.version,
+    subject: outcomeSubject.value,
+    message: outcomeBody.value,
+  });
+}
+
 onBeforeUnmount(() => {
   selectedId.value = null;
   unlockDrawer();
@@ -301,11 +383,29 @@ onBeforeUnmount(() => {
       <h3>Reviews are unavailable</h3>
       <p>We couldn’t load volunteer responses. Refresh to try again.</p>
     </div>
-    <div v-else-if="!recipients.length" class="reviews-state">
-      <h3>No responses yet</h3>
-      <p>Submitted volunteer answers will appear here.</p>
-    </div>
     <template v-else>
+      <section class="outcome-messages" aria-labelledby="outcome-messages-title">
+        <div>
+          <span class="reviews-eyebrow">Outcome messages</span>
+          <h3 id="outcome-messages-title">Saved email copy</h3>
+          <p>Review-capability users save the shared messages here. Campaign preview always uses this persisted version.</p>
+        </div>
+        <div class="outcome-messages-controls">
+          <label class="reviews-field"><span>Outcome</span><AppDropdown v-model="outcomeDecision" :options="[
+            { value: 'accepted', label: 'Accepted applicants' },
+            { value: 'not_selected', label: 'Not-selected applicants' },
+          ]" density="compact" :teleport="true" aria-label="Outcome message audience" /></label>
+          <label class="reviews-field"><span>Subject</span><input v-model.trim="outcomeSubject" class="app-form-control" maxlength="200" aria-label="Outcome email subject" /></label>
+          <label class="reviews-field"><span>Message</span><textarea v-model.trim="outcomeBody" class="app-form-control" rows="4" maxlength="5000" aria-label="Outcome email message" /></label>
+          <div class="outcome-messages-save"><span v-if="outcomeMessage">Current version {{ outcomeMessage.version }}</span><button class="reviews-save" type="button" :disabled="outcomeMutation.isPending.value || !outcomeMessage" @click="saveOutcomeMessage">{{ outcomeMutation.isPending.value ? "Saving…" : "Save message" }}</button></div>
+          <p v-if="outcomeMutation.isError.value" class="reviews-save-error" role="alert">{{ outcomeMutation.error.value instanceof Error ? outcomeMutation.error.value.message : "Unable to save the outcome message." }}</p>
+        </div>
+      </section>
+      <div v-if="!recipients.length" class="reviews-state">
+        <h3>No responses yet</h3>
+        <p>Submitted volunteer answers will appear here.</p>
+      </div>
+      <template v-else>
       <div class="reviews-toolbar">
         <label class="reviews-search"
           ><span class="sr-only">Search applicants</span
@@ -315,8 +415,8 @@ onBeforeUnmount(() => {
             placeholder="Search name, email, or motivation"
         /></label>
         <div class="reviews-filter-controls">
-          <AppDropdown
-            v-model="answerFilter"
+          <label class="reviews-filter"><span>Submission</span><AppDropdown
+            v-model="submissionFilter"
             :options="[
               { value: 'submitted', label: 'Submitted' },
               { value: 'awaiting', label: 'Awaiting' },
@@ -324,15 +424,17 @@ onBeforeUnmount(() => {
             ]"
             density="compact"
             :teleport="true"
-            aria-label="Filter by response status"
-          />
-          <AppDropdown
+            aria-label="Filter by submission status"
+          /></label>
+          <label class="reviews-filter"><span>Review</span><AppDropdown
             v-model="statusFilter"
             :options="options"
             density="compact"
             :teleport="true"
             aria-label="Filter by review status"
-          />
+          /></label>
+          <label class="reviews-filter"><span>Decision</span><AppDropdown v-model="decisionFilter" :options="[{ value: 'all', label: 'All decisions' }, ...decisionOptions]" density="compact" :teleport="true" aria-label="Filter by decision" /></label>
+          <label class="reviews-filter"><span>Invitation</span><AppDropdown v-model="invitationFilter" :options="[{ value: 'all', label: 'All invitations' }, { value: 'sent', label: 'Sent' }, { value: 'not_sent', label: 'Not sent' }]" density="compact" :teleport="true" aria-label="Filter by invitation" /></label>
         </div>
       </div>
       <div v-if="!filtered.length" class="reviews-state">
@@ -411,6 +513,7 @@ onBeforeUnmount(() => {
           item-label="applicants"
           aria-label="Review pages"
         />
+      </template>
       </template>
     </template>
 
@@ -634,6 +737,37 @@ onBeforeUnmount(() => {
   border-top: 0;
   background: #faf9f6;
 }
+.outcome-messages {
+  display: grid;
+  grid-template-columns: minmax(12rem, .6fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #dedbd4;
+  border-top: 0;
+  background: #faf9f6;
+}
+.outcome-messages h3 {
+  margin: .3rem 0;
+  font-size: 1rem;
+}
+.outcome-messages p {
+  margin: 0;
+  color: #69665f;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.outcome-messages-controls {
+  display: grid;
+  gap: .7rem;
+}
+.outcome-messages-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: #69665f;
+  font-size: .76rem;
+}
 .reviews-search {
   flex: 1;
 }
@@ -641,6 +775,17 @@ onBeforeUnmount(() => {
   display: flex;
   flex: none;
   gap: 0.75rem;
+}
+.reviews-filter {
+  display: grid;
+  min-width: 7.5rem;
+  gap: .25rem;
+}
+.reviews-filter > span {
+  color: #69665f;
+  font: 700 .62rem/1.2 var(--font-mono), monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
 }
 .reviews-search input,
 .reviews-field textarea {
@@ -969,6 +1114,9 @@ onBeforeUnmount(() => {
   transform: translateX(1rem);
 }
 @media (max-width: 900px) {
+  .outcome-messages {
+    grid-template-columns: 1fr;
+  }
   .reviews-header {
     padding: 1rem;
   }

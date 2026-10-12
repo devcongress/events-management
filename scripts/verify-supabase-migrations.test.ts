@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { catalogSchema, CATALOG_SQL, databaseEnvironment, evaluateCatalog, probePasses, readCatalog, type Catalog } from './migrations/catalog';
 import { contractSchema, functionDigest, sha256, validateInventory, type Probe } from './migrations/contract';
-import { assertCleanGateInputs, previousHook, pushedCommits } from './git-hooks';
+import { assertCleanGateInputs, assertCleanJourneyInputs, changedPathsForPush, hasJourneySensitiveChanges, previousHook, pushedCommits, pushedUpdates } from './git-hooks';
 import { installHooks } from './install-git-hooks';
 import { verificationArguments, verificationInputs } from './verify-supabase-migrations';
 
@@ -30,10 +30,10 @@ function fixtureCatalog(): Catalog {
 }
 
 describe('migration contract inventory', () => {
-  it('covers the current files with an honest legacy exemption and eleven reviewed contracts', () => {
+  it('covers the current files with an honest legacy exemption and twelve reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(11);
+    expect(contract.verified).toHaveLength(12);
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {
@@ -190,6 +190,82 @@ describe('migration push hook safeguards', () => {
     expect(() => pushedCommits('malformed', head)).toThrow('Invalid pre-push');
   });
 
+  it('identifies exact push refs and only gates journey-sensitive application changes', () => {
+    const head = 'a'.repeat(40);
+
+    expect(pushedUpdates(`refs/heads/test ${head} refs/heads/test ${'b'.repeat(40)}`, head)).toEqual([
+      {
+        local: 'refs/heads/test',
+        localSha: head,
+        remote: 'refs/heads/test',
+        remoteSha: 'b'.repeat(40),
+      },
+    ]);
+    expect(hasJourneySensitiveChanges([
+      'docs/changelog.md',
+      'supabase/migrations/20261012000000_fixture.sql',
+      'server/volunteer-follow-up.test.ts',
+      'public/presentation/community-photo-illustration.png',
+    ])).toBe(false);
+    expect(hasJourneySensitiveChanges(['src/components/VolunteerReviewsPanel.vue'])).toBe(true);
+    expect(hasJourneySensitiveChanges(['server/routes/volunteer-follow-up.ts'])).toBe(true);
+    expect(hasJourneySensitiveChanges(['scripts/organizer-journeys.mjs'])).toBe(true);
+    expect(hasJourneySensitiveChanges(['pnpm-lock.yaml'])).toBe(true);
+  });
+
+  it('calculates changed paths from the exact existing or new remote ref range', () => {
+    const root = temporaryRepository();
+
+    writeFileSync(join(root, 'README.md'), '# fixture\n');
+    execFileSync('git', ['add', 'README.md'], { cwd: root });
+    execFileSync('git', ['-c', 'core.hooksPath=/nonexistent', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'baseline'], { cwd: root });
+    const baseline = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+
+    execFileSync('git', ['update-ref', 'refs/remotes/origin/main', baseline], { cwd: root });
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'app.ts'), 'export const version = 1;\n');
+    execFileSync('git', ['add', 'src'], { cwd: root });
+    execFileSync('git', ['-c', 'core.hooksPath=/nonexistent', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'source'], { cwd: root });
+    mkdirSync(join(root, 'docs'), { recursive: true });
+    writeFileSync(join(root, 'docs', 'notes.md'), 'notes\n');
+    execFileSync('git', ['add', 'docs'], { cwd: root });
+    execFileSync('git', ['-c', 'core.hooksPath=/nonexistent', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'docs'], { cwd: root });
+    const docsHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+
+    const newlyPushedPaths = changedPathsForPush(root, [{
+      local: 'refs/heads/test', localSha: docsHead, remote: 'refs/heads/test', remoteSha: '0'.repeat(40),
+    }], 'origin');
+
+    expect(newlyPushedPaths).toEqual(expect.arrayContaining(['docs/notes.md', 'src/app.ts']));
+    expect(hasJourneySensitiveChanges(newlyPushedPaths)).toBe(true);
+
+    writeFileSync(join(root, 'src', 'app.ts'), 'export const version = 2;\n');
+    execFileSync('git', ['add', 'src'], { cwd: root });
+    execFileSync('git', ['-c', 'core.hooksPath=/nonexistent', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'source'], { cwd: root });
+    const sourceHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+
+    expect(changedPathsForPush(root, [{
+      local: 'refs/heads/test', localSha: sourceHead, remote: 'refs/heads/test', remoteSha: baseline,
+    }], 'origin')).toEqual(expect.arrayContaining(['docs/notes.md', 'src/app.ts']));
+  });
+
+  it('detects journey-sensitive paths in a root commit on a new remote ref', () => {
+    const root = temporaryRepository();
+
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'app.ts'), 'export const version = 1;\n');
+    execFileSync('git', ['add', 'src'], { cwd: root });
+    execFileSync('git', ['-c', 'core.hooksPath=/nonexistent', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'root source'], { cwd: root });
+    const rootHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+
+    const newlyPushedPaths = changedPathsForPush(root, [{
+      local: 'refs/heads/test', localSha: rootHead, remote: 'refs/heads/test', remoteSha: '0'.repeat(40),
+    }], 'origin');
+
+    expect(newlyPushedPaths).toEqual(['src/app.ts']);
+    expect(hasJourneySensitiveChanges(newlyPushedPaths)).toBe(true);
+  });
+
   it('composes the inherited hook without overwriting its files and safely uninstalls', () => {
     const root = temporaryRepository();
     const prior = join(root, 'prior');
@@ -234,13 +310,20 @@ describe('migration push hook safeguards', () => {
   it('permits unrelated dirty files but refuses dirty migration-gate inputs', () => {
     const root = temporaryRepository();
 
-    writeFileSync(join(root, 'presentation.txt'), 'unrelated');
+    mkdirSync(join(root, 'public/presentation'), { recursive: true });
+    writeFileSync(join(root, 'public/presentation', 'slide.png'), 'unrelated');
     expect(() => assertCleanGateInputs(root)).toThrow(); // Uncommitted hook files are gate inputs.
     execFileSync('git', ['add', '.githooks'], { cwd: root });
     execFileSync('git', ['-c', 'core.hooksPath=/nonexistent', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--quiet', '-m', 'fixture'], { cwd: root });
     expect(() => assertCleanGateInputs(root)).not.toThrow();
+    expect(() => assertCleanJourneyInputs(root)).not.toThrow();
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'src', 'app.ts'), 'export const version = 1;\n');
+    expect(() => assertCleanGateInputs(root)).not.toThrow();
+    expect(() => assertCleanJourneyInputs(root)).toThrow('Commit journey-test inputs');
     writeFileSync(join(root, 'package.json'), '{}');
     expect(() => assertCleanGateInputs(root)).toThrow('Commit migration-gate inputs');
+    expect(() => assertCleanJourneyInputs(root)).toThrow('Commit journey-test inputs');
   });
 
   it('reads migration blobs from the pushed commit, not replacement worktree files', () => {

@@ -6,9 +6,11 @@ The reviewer list uses the shared application pager and retains the ten-record p
 
 The follow-up progress summary describes invitation delivery rather than volunteer selection: `Invitations pending` is limited to queued or sending invitations, `Responses received` means the follow-up form was submitted, and `Delivery issues` covers failed, bounced, suppressed, or complained invitations. These labels do not alter the underlying count rules.
 
-## Owner-controlled sends
+## Saved outcome messages and Owner-controlled sends
 
-The Owner chooses Accepted or Not selected, composes a separate plain-text subject and message for that outcome, and requests a preview. The server stores a ten-minute cohort snapshot containing eligible recipient IDs, decision versions, and the exact personalized escaped HTML/text payload to send. The preview shows production-rendered sample HTML/text, eligible/excluded counts, and the complete frozen recipient list (name, email, and decision version) in a keyboard-scrollable disclosure. The sample is labelled so it cannot be mistaken for every personalized message. Confirmation revalidates the complete eligible cohort and versions and queues only that snapshot in one transaction. A stale preview fails instead of expanding or silently replacing its audience. Reconfirming a completed preview does not enqueue duplicates. Pending decisions are never eligible.
+Review-capability users maintain one accepted and one not-selected plain-text message above the review queue. Each save is append-only and compares the expected message version, so an older editor cannot replace a newer message. The versioned templates are service-role-only in the database; review and campaign APIs expose only decision, version, subject, and message. The Owner Campaign surface is intentionally read-only: it displays the saved copy and can request a preview, but cannot author browser-only text.
+
+The Owner chooses Accepted or Not selected and requests a preview. The server rejects client subject/message fields, loads the saved template itself, and stores a ten-minute cohort snapshot containing eligible recipient IDs, decision versions, and the exact personalized escaped HTML/text payload to send. The preview shows production-rendered sample HTML/text, eligible/excluded counts, and the complete frozen recipient list (name, email, and decision version) in a keyboard-scrollable disclosure. The sample is labelled so it cannot be mistaken for every personalized message. Confirmation revalidates the complete eligible cohort and versions and queues only that snapshot in one transaction. A stale preview fails instead of expanding or silently replacing its audience. Reconfirming a completed preview does not enqueue duplicates. Pending decisions are never eligible.
 
 Confirmation partitions the frozen ordered audience into durable Resend batches of 50 (never over 100). Every batch has one stable idempotency key, and each delivery retains its exact batch mapping and frozen payload. A claim obtains one whole batch atomically; a malformed, incomplete, duplicate, or ambiguous provider result retries the whole exact batch with that same key. Provider IDs are accepted only when their count equals the frozen batch count and every ID is unique, then mapped positionally to the frozen payload order. No individual recipient is retried from an ambiguous batch.
 
@@ -33,6 +35,7 @@ The scheduled worker gives this queue four isolated processing opportunities in 
 ## Key files
 
 - Migration: `supabase/migrations/20260923120000_volunteer_outcome_decisions.sql`
+- Outcome messages migration: `supabase/migrations/20261012120000_volunteer_follow_up_outcome_messages.sql`
 - Retry diagnostics migration: `supabase/migrations/20260928120000_volunteer_delivery_retry_diagnostics.sql`
 - API, drain, and provider events: `server/routes/volunteer-follow-up.ts`
 - Supabase RPC wrappers: `lib/supabase/volunteer-follow-up.ts`

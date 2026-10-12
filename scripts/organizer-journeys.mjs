@@ -5,7 +5,8 @@ import { chromium } from "playwright";
 
 // Serve only built static assets: no application server, credentials, or database.
 const origin = "http://127.0.0.1:4189";
-const artifacts = "artifacts/organizer-journeys";
+const artifacts = process.env.ORGANIZER_JOURNEYS_ARTIFACTS ??
+  "artifacts/organizer-journeys";
 const server = spawn(
   process.execPath,
   [
@@ -1234,6 +1235,20 @@ try {
             monthly_quota_limit: 3000,
             last_provider_response_at: null,
           },
+          outcome_messages: [
+            {
+              decision: "accepted",
+              version: 4,
+              subject: "Your DevCongress 2026 volunteer application",
+              message: "Your application has been selected.",
+            },
+            {
+              decision: "not_selected",
+              version: 2,
+              subject: "Update on your DevCongress 2026 volunteer application",
+              message: "Thank you for applying to volunteer with DevCongress.",
+            },
+          ],
         },
       }));
       responses.set("/api/annual-conference/2026/volunteer-follow-up/preview", {
@@ -1401,6 +1416,10 @@ try {
         "#admin-volunteers-campaign-panel .outcome-campaign:visible",
       );
       await outcomes.getByRole("button", { name: "Preview acceptances", exact: true }).waitFor();
+      await outcomes.getByLabel("Saved outcome message").getByText(
+        "Your DevCongress 2026 volunteer application",
+        { exact: true },
+      ).waitFor();
       await outcomes.getByRole("button", { name: "Preview acceptances", exact: true }).click();
       const outcomePreview = page.getByRole("dialog", { name: "Send acceptances" });
 
@@ -1410,7 +1429,24 @@ try {
         .waitFor();
       await outcomePreview.getByText("Frozen recipients (1)", { exact: true }).waitFor();
       await outcomePreview.getByText("ama@example.com", { exact: true }).waitFor();
+      await outcomePreview.getByText("Frozen personalized payload", { exact: true }).click();
+      const outcomeRecipientPayload = outcomePreview.locator(".outcome-recipient-payload");
+
+      await outcomeRecipientPayload.getByText(
+        "Your DevCongress 2026 volunteer application",
+        { exact: true },
+      ).waitFor();
+      await outcomeRecipientPayload.getByText("Your application has been selected.", { exact: true }).waitFor();
       await outcomePreview.getByText("Sample template preview", { exact: false }).waitFor();
+      assert.equal(
+        requests.some((request) =>
+          request.path.endsWith("/outcomes/preview") &&
+          request.method === "POST" &&
+          JSON.stringify(JSON.parse(request.body ?? "{}")) === JSON.stringify({ decision: "accepted" }),
+        ),
+        true,
+        "Campaign preview must select a saved template by decision only.",
+      );
       await page.waitForFunction(() => {
         const backdrop = document.querySelector(".outcome-backdrop");
 
@@ -1577,6 +1613,20 @@ try {
           ];
           let persistedRecipient = recipient;
           let shrinkAfterSave = false;
+          let outcomeMessages = [
+            {
+              decision: "accepted",
+              version: 3,
+              subject: "Original accepted outcome subject",
+              message: "Original accepted outcome body.",
+            },
+            {
+              decision: "not_selected",
+              version: 2,
+              subject: "Original not-selected outcome subject",
+              message: "Original not-selected outcome body.",
+            },
+          ];
 
           responses.set("/api/annual-conference/2026/work-plan", {
             body: reviewerWorkspace,
@@ -1603,8 +1653,33 @@ try {
                         .slice(0, 12),
                     ]
                   : reviewRecipients,
+                outcome_messages: outcomeMessages,
               },
             }),
+          );
+          responses.set(
+            "/api/annual-conference/2026/volunteer-follow-up/outcome-messages",
+            (request) => {
+              const input = JSON.parse(request.postData() ?? "{}");
+              const current = outcomeMessages.find((message) => message.decision === input.decision);
+
+              if (!current || input.expected_version !== current.version) {
+                return { status: 409, body: { error: "Outcome message version is stale." } };
+              }
+
+              const outcomeMessage = {
+                decision: current.decision,
+                version: current.version + 1,
+                subject: input.subject,
+                message: input.message,
+              };
+
+              outcomeMessages = outcomeMessages.map((message) =>
+                message.decision === outcomeMessage.decision ? outcomeMessage : message,
+              );
+
+              return { body: { outcome_message: outcomeMessage } };
+            },
           );
           const saveReview = (request) => {
             const recipientId = new URL(request.url()).pathname.split("/").at(-2);
@@ -1659,53 +1734,232 @@ try {
           }
 
           await page.getByRole("tab", { name: "Reviews", exact: true }).click();
+          await page.getByLabel("Outcome email subject").fill("Accepted outcome subject saved by reviewer");
+          await page.getByLabel("Outcome email message").fill("Accepted outcome body saved by reviewer.");
+          await page.getByRole("button", { name: "Save message", exact: true }).click();
+          await page.getByText("Outcome message saved as version 4.", { exact: true }).waitFor();
+          assert.equal(
+            requests.some((request) => {
+              const body = JSON.parse(request.body ?? "{}");
+
+              return request.path.endsWith("/outcome-messages") &&
+                request.method === "PATCH" &&
+                body.decision === "accepted" &&
+                body.expected_version === 3 &&
+                body.subject === "Accepted outcome subject saved by reviewer" &&
+                body.message === "Accepted outcome body saved by reviewer.";
+            }),
+            true,
+            "Reviewers must persist the subject and body with the template version guard.",
+          );
           if (mobile) {
+            const assertReviewFilterMenuFitsAt320 = async (label) => {
+              await page.getByRole("button", { name: label }).click();
+              const menu = page.locator(".app-dropdown-menu:visible");
+
+              await menu.waitFor();
+              await page.waitForFunction(async () => {
+                const element = document.querySelector(".app-dropdown-menu");
+
+                if (!(element instanceof HTMLElement) ||
+                  element.style.position !== "fixed" ||
+                  element.style.top === "" ||
+                  element.style.left === "") {
+                  return false;
+                }
+
+                const placementSignature = () => [
+                  element.dataset.placement,
+                  element.style.top,
+                  element.style.left,
+                  element.style.width,
+                  element.style.maxHeight,
+                ].join("|");
+                let previousSignature = placementSignature();
+                let stableFrames = 0;
+
+                for (let frame = 0; frame < 6; frame += 1) {
+                  await new Promise(requestAnimationFrame);
+
+                  const currentSignature = placementSignature();
+
+                  stableFrames = currentSignature === previousSignature
+                    ? stableFrames + 1
+                    : 0;
+                  previousSignature = currentSignature;
+                }
+
+                return stableFrames >= 4 &&
+                  element.style.position === "fixed" &&
+                  element.style.top !== "" &&
+                  element.style.left !== "";
+              }, undefined, { timeout: 8_000 });
+              const menuGeometry = await menu.evaluate((element) => {
+                const menuBounds = element.getBoundingClientRect();
+                const scrollRegion = element.querySelector(".app-dropdown-scroll");
+                const visualViewport = window.visualViewport;
+                const viewportTop = visualViewport?.offsetTop ?? 0;
+                const viewportLeft = visualViewport?.offsetLeft ?? 0;
+                const viewportRight = viewportLeft +
+                  (visualViewport?.width ?? window.innerWidth);
+                const viewportBottom = viewportTop +
+                  (visualViewport?.height ?? window.innerHeight);
+
+                const menuRect = {
+                  top: menuBounds.top,
+                  right: menuBounds.right,
+                  bottom: menuBounds.bottom,
+                  left: menuBounds.left,
+                };
+                const menuStyle = {
+                  position: element.style.position,
+                  top: element.style.top,
+                  left: element.style.left,
+                  width: element.style.width,
+                };
+                const viewportRect = {
+                  top: viewportTop,
+                  right: viewportRight,
+                  bottom: viewportBottom,
+                  left: viewportLeft,
+                };
+
+                if (!(scrollRegion instanceof HTMLElement)) {
+                  return {
+                    menuRect,
+                    menuStyle,
+                    scrollRegionPresent: false,
+                    viewportRect,
+                  };
+                }
+
+                const scrollBounds = scrollRegion.getBoundingClientRect();
+                const scrollRegionRect = {
+                  top: scrollBounds.top,
+                  right: scrollBounds.right,
+                  bottom: scrollBounds.bottom,
+                  left: scrollBounds.left,
+                };
+                const panelIsContained = menuBounds.top >= viewportTop &&
+                  menuBounds.bottom <= viewportBottom &&
+                  menuBounds.left >= viewportLeft &&
+                  menuBounds.right <= viewportRight;
+                const scrollRegionIsContained = scrollBounds.top >= menuBounds.top &&
+                  scrollBounds.bottom <= menuBounds.bottom &&
+                  scrollBounds.left >= menuBounds.left &&
+                  scrollBounds.right <= menuBounds.right;
+                const hasUsableScrollRegion = scrollRegion.clientHeight > 0 &&
+                  scrollRegion.scrollHeight >= scrollRegion.clientHeight;
+                const scrollOffset = scrollRegion.scrollTop;
+
+                scrollRegion.scrollTop = scrollRegion.scrollHeight;
+                const scrollsWhenOverflowing =
+                  scrollRegion.scrollHeight <= scrollRegion.clientHeight ||
+                  scrollRegion.scrollTop > scrollOffset;
+
+                scrollRegion.scrollTop = scrollOffset;
+
+                return {
+                  hasUsableScrollRegion,
+                  menuRect,
+                  menuStyle,
+                  panelIsContained,
+                  scrollRegionPresent: true,
+                  scrollRegionIsContained,
+                  scrollRegionRect,
+                  scrollsWhenOverflowing,
+                  viewportRect,
+                  windowViewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                  },
+                  visualViewport: visualViewport
+                    ? {
+                        offsetTop: visualViewport.offsetTop,
+                        offsetLeft: visualViewport.offsetLeft,
+                        width: visualViewport.width,
+                        height: visualViewport.height,
+                      }
+                    : null,
+                };
+              });
+
+              assert.equal(
+                menuGeometry.scrollRegionPresent,
+                true,
+                `The ${label.toLowerCase()} teleported menu must include its scroll region: ${JSON.stringify(menuGeometry)}`,
+              );
+              assert.equal(
+                menuGeometry.panelIsContained,
+                true,
+                `The ${label.toLowerCase()} teleported menu must stay inside the visual viewport: ${JSON.stringify(menuGeometry)}`,
+              );
+              assert.equal(
+                menuGeometry.scrollRegionIsContained,
+                true,
+                `The ${label.toLowerCase()} menu scroll region must stay inside its panel: ${JSON.stringify(menuGeometry)}`,
+              );
+              assert.equal(
+                menuGeometry.hasUsableScrollRegion,
+                true,
+                `The ${label.toLowerCase()} menu must retain a usable scroll region: ${JSON.stringify(menuGeometry)}`,
+              );
+              assert.equal(
+                menuGeometry.scrollsWhenOverflowing,
+                true,
+                `The ${label.toLowerCase()} menu must scroll when its options overflow: ${JSON.stringify(menuGeometry)}`,
+              );
+              await page.keyboard.press("Escape");
+              await menu.waitFor({ state: "hidden" });
+            };
+
             for (const width of [320, 390]) {
               await page.setViewportSize({ width, height: 844 });
               const toolbarLayout = await page.locator(".reviews-toolbar").evaluate((toolbar) => {
                 const search = toolbar.querySelector(".reviews-search");
-                const filters = [...toolbar.querySelectorAll(".reviews-filter-controls > div")];
+                const filters = [...toolbar.querySelectorAll(".reviews-filter-controls > label")];
 
-                if (!search || filters.length !== 2) return false;
+                if (!search || filters.length !== 4) return false;
 
                 const searchBounds = search.getBoundingClientRect();
-                const [firstBounds, secondBounds] = filters.map((filter) =>
+                const toolbarBounds = toolbar.getBoundingClientRect();
+                const [submissionBounds, reviewBounds, decisionBounds, invitationBounds] = filters.map((filter) =>
                   filter.getBoundingClientRect(),
                 );
 
                 return (
-                  searchBounds.bottom <= firstBounds.top &&
-                  Math.abs(firstBounds.top - secondBounds.top) < 1 &&
-                  firstBounds.right <= secondBounds.left
+                  searchBounds.bottom <= submissionBounds.top &&
+                  [submissionBounds, reviewBounds, decisionBounds, invitationBounds].every((bounds) =>
+                    bounds.left >= toolbarBounds.left &&
+                    bounds.right <= toolbarBounds.right &&
+                    bounds.left >= 0 &&
+                    bounds.right <= window.innerWidth,
+                  ) &&
+                  Math.abs(submissionBounds.top - reviewBounds.top) < 1 &&
+                  Math.abs(decisionBounds.top - invitationBounds.top) < 1 &&
+                  decisionBounds.top > submissionBounds.bottom &&
+                  Math.abs(submissionBounds.left - decisionBounds.left) < 1 &&
+                  Math.abs(reviewBounds.left - invitationBounds.left) < 1 &&
+                  submissionBounds.right <= reviewBounds.left &&
+                  decisionBounds.right <= invitationBounds.left
                 );
               });
 
               assert.equal(
                 toolbarLayout,
                 true,
-                `Mobile review toolbar must fit at ${width}px with search above aligned filters.`,
+                `Mobile review toolbar must fit at ${width}px with search above a contained 2x2 filter grid.`,
               );
             }
             await page.setViewportSize({ width: 320, height: 844 });
-            await page
-              .getByRole("button", { name: "Filter by review status" })
-              .click();
-            const reviewStatusMenu = page.locator(".app-dropdown-menu:visible");
-
-            await reviewStatusMenu.waitFor();
-            const reviewStatusMenuFits = await reviewStatusMenu.evaluate((menu) => {
-              const bounds = menu.getBoundingClientRect();
-
-              return bounds.left >= 0 && bounds.right <= window.innerWidth;
-            });
-
-            assert.equal(
-              reviewStatusMenuFits,
-              true,
-              "The 320px review-status menu must remain within the viewport.",
-            );
-            await page.keyboard.press("Escape");
-            await reviewStatusMenu.waitFor({ state: "hidden" });
+            for (const label of [
+              "Filter by submission status",
+              "Filter by review status",
+              "Filter by decision",
+              "Filter by invitation",
+            ]) {
+              await assertReviewFilterMenuFitsAt320(label);
+            }
             await page.setViewportSize({ width: 390, height: 844 });
           } else {
             await page.setViewportSize({ width: 800, height: 1000 });
@@ -1731,13 +1985,14 @@ try {
             await page.setViewportSize({ width: 1440, height: 1000 });
           }
           await page
-            .getByRole("button", { name: "Filter by response status" })
+            .getByRole("button", { name: "Filter by submission status" })
             .click();
           const allApplicantsOption = page.getByRole("option", {
             name: "All applicants",
             exact: true,
           });
 
+          await allApplicantsOption.scrollIntoViewIfNeeded();
           await allApplicantsOption.click();
           await allApplicantsOption.waitFor({ state: "hidden" });
           await page.getByText("Showing 1–10 of 23 applicants", { exact: true }).waitFor();
@@ -1829,17 +2084,24 @@ try {
             .click();
           await page.getByRole("option", { name: "All", exact: true }).click();
           await page.getByRole("button", { name: "Next page" }).click();
+          if (mobile) await page.setViewportSize({ width: 320, height: 844 });
           await page
-            .getByRole("button", { name: "Filter by response status" })
+            .getByRole("button", { name: "Filter by submission status" })
             .click();
           await page.getByRole("option", { name: "Awaiting", exact: true }).click();
           await page.getByText("Showing 1–2 of 2 applicants", { exact: true }).waitFor();
           await page.getByText("Awaiting response", { exact: true }).waitFor();
           await page.getByText("Not invited", { exact: true }).waitFor();
           await page
-            .getByRole("button", { name: "Filter by response status" })
+            .getByRole("button", { name: "Filter by submission status" })
             .click();
-          await page.getByRole("option", { name: "All applicants", exact: true }).click();
+          const resetAllApplicantsOption = page.getByRole("option", {
+            name: "All applicants",
+            exact: true,
+          });
+
+          await resetAllApplicantsOption.scrollIntoViewIfNeeded();
+          await resetAllApplicantsOption.click();
           await page.getByRole("button", { name: "Next page" }).click();
           await page.getByRole("button", { name: "Next page" }).click();
           await page.getByRole("button", { name: "Review Applicant 21" }).click();

@@ -38,23 +38,20 @@ type Preview = {
   html: string;
   text: string;
 };
+type OutcomeMessage = {
+  decision: Decision;
+  version: number;
+  subject: string;
+  message: string;
+};
 
 const props = defineProps<{
   recipients: Recipient[];
   outcomePaused: boolean;
+  outcomeMessages: OutcomeMessage[];
 }>();
 const emit = defineEmits<{ updated: [] }>();
 const decision = ref<Decision>("accepted");
-const composers = ref<Record<Decision, { subject: string; message: string }>>({
-  accepted: {
-    subject: "Your DevCongress 2026 volunteer application",
-    message: "We’re pleased to let you know that you’ve been selected to volunteer with DevCongress 2026. Our team will share the next steps and event information with you soon.",
-  },
-  not_selected: {
-    subject: "An update on your DevCongress 2026 volunteer application",
-    message: "Thank you for offering your time and for completing the volunteer follow-up. We’re unable to offer you a volunteer place for DevCongress 2026. We appreciate your interest and hope to see you at the event.",
-  },
-});
 const drawerOpen = ref(false);
 const loading = ref(false);
 const busy = ref(false);
@@ -75,7 +72,9 @@ const choiceOptions = [
   { value: "accepted", label: "Accepted applicants" },
   { value: "not_selected", label: "Not-selected applicants" },
 ];
-const composer = computed(() => composers.value[decision.value]);
+const outcomeMessage = computed(() =>
+  props.outcomeMessages.find((message) => message.decision === decision.value) ?? null,
+);
 const eligibleDecisions = computed(() =>
   props.recipients.filter((recipient) => recipient.decision === decision.value),
 );
@@ -155,11 +154,7 @@ async function openPreview(): Promise<void> {
         credentials: "include",
         signal: controller.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          decision: decision.value,
-          subject: composer.value.subject,
-          message: composer.value.message,
-        }),
+        body: JSON.stringify({ decision: decision.value }),
       },
     );
 
@@ -309,21 +304,17 @@ onBeforeUnmount(() => {
           <span>Audience</span>
           <AppDropdown v-model="decision" :options="choiceOptions" density="compact" aria-label="Choose outcome audience" />
         </label>
-        <button class="outcome-send" type="button" :disabled="busy || !canRequestPreview" @click="openPreview">
+        <button class="outcome-send" type="button" :disabled="busy || !canRequestPreview || !outcomeMessage" @click="openPreview">
           Preview {{ decision === "accepted" ? "acceptances" : "rejections" }}
         </button>
       </div>
-      <div class="outcome-composer">
-        <label>
-          <span>Subject</span>
-          <input v-model.trim="composer.subject" class="app-form-control" maxlength="200" aria-label="Outcome email subject" />
-        </label>
-        <label>
-          <span>Message</span>
-          <textarea v-model.trim="composer.message" class="app-form-control" rows="5" maxlength="5000" aria-label="Outcome email message" />
-        </label>
+      <div v-if="outcomeMessage" class="outcome-message" aria-label="Saved outcome message">
+        <span class="outcome-message-label">Saved message · version {{ outcomeMessage.version }}</span>
+        <strong>{{ outcomeMessage.subject }}</strong>
+        <p>{{ outcomeMessage.message }}</p>
       </div>
-      <p class="outcome-preview-helper">Preview checks who can receive this email. Each outcome keeps its own subject and plain-text message, then freezes the exact personalized payload and audience before anything is queued.</p>
+      <p v-else class="outcome-empty" role="status">The saved {{ decision === "accepted" ? "accepted" : "not-selected" }} message is unavailable. Open Reviews to restore it before previewing.</p>
+      <p class="outcome-preview-helper">Preview checks who can receive this email. It loads the saved plain-text message from Reviews, then freezes the exact personalized payload and audience before anything is queued.</p>
       <dl class="outcome-summary" :class="{ 'outcome-summary--with-attention': attentionCount }">
         <div><dt>Decisions</dt><dd>{{ eligibleDecisions.length }}</dd></div>
         <div><dt>Not sent</dt><dd>{{ pendingCount }}</dd></div>
@@ -471,35 +462,31 @@ onBeforeUnmount(() => {
   min-width: min(100%, 16rem);
   gap: 0.35rem;
 }
-.outcome-composer {
+.outcome-message {
   display: grid;
   gap: .7rem;
   margin-top: .9rem;
+  padding: .85rem;
+  border: 1px solid #dedbd4;
+  border-radius: 8px;
+  background: #faf9f6;
 }
-.outcome-composer label {
-  display: grid;
-  gap: .35rem;
-}
-.outcome-composer span {
+.outcome-message-label {
   color: #69665f;
   font: 700 0.65rem/1.2 var(--font-mono), monospace;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-.outcome-composer input,
-.outcome-composer textarea {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #d3d0c9;
-  border-radius: 6px;
-  background: #fff;
-  color: #25231f;
-  font: inherit;
-  font-size: .84rem;
-  line-height: 1.45;
-  padding: .6rem .7rem;
+.outcome-message strong {
+  font-size: .9rem;
 }
-.outcome-composer textarea { resize: vertical; }
+.outcome-message p {
+  margin: 0;
+  color: #59564f;
+  font-size: .84rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
 .outcome-audience-picker > span,
 .outcome-summary dt {
   color: #69665f;

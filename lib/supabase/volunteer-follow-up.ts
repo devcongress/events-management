@@ -3,7 +3,7 @@ import { getVolunteerApplications } from '@/lib/mock-db/volunteer-applications';
 import { getSupabaseAdminClient, isSupabaseServerConfigured } from '@/lib/supabase/server';
 import { volunteerFollowUpApplicationIsEligible } from '@/lib/volunteer-follow-up';
 import type { VolunteerApplication } from '@/types';
-import type { VolunteerFollowUpCampaignRow, VolunteerFollowUpRecipientRow, VolunteerFollowUpOutcomeDeliveryRow } from '@/types/supabase';
+import type { VolunteerFollowUpCampaignRow, VolunteerFollowUpRecipientRow, VolunteerFollowUpOutcomeDeliveryRow, VolunteerFollowUpOutcomeMessageRow } from '@/types/supabase';
 
 export async function getVolunteerFollowUpCampaign(c?: Context): Promise<VolunteerFollowUpCampaignRow | null> {
   if (!isSupabaseServerConfigured(c)) return null;
@@ -199,6 +199,64 @@ export async function getVolunteerOutcomeSentRecipientIds(
   if (error) throw new Error(error.message);
 
   return new Set((data ?? []).map((row) => row.recipient_id));
+}
+
+export async function listVolunteerFollowUpOutcomeMessages(
+  campaignId: string,
+  c?: Context,
+): Promise<VolunteerFollowUpOutcomeMessageRow[]> {
+  if (!isSupabaseServerConfigured(c)) return [];
+
+  const { data, error } = await getSupabaseAdminClient(c)
+    .from("volunteer_follow_up_outcome_messages")
+    .select("id, campaign_id, decision, version, subject, message, created_by, created_at")
+    .eq("campaign_id", campaignId)
+    .order("decision", { ascending: true })
+    .order("version", { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  const current = new Map<VolunteerFollowUpOutcomeMessageRow["decision"], VolunteerFollowUpOutcomeMessageRow>();
+
+  const rows = (data ?? []) as VolunteerFollowUpOutcomeMessageRow[];
+
+  for (const row of rows) {
+    if (!current.has(row.decision)) current.set(row.decision, row);
+  }
+
+  return (["accepted", "not_selected"] as const).flatMap((decision) => {
+    const message = current.get(decision);
+
+    return message ? [message] : [];
+  });
+}
+
+export async function saveVolunteerFollowUpOutcomeMessage(
+  input: {
+    campaignId: string;
+    decision: "accepted" | "not_selected";
+    expectedVersion: number;
+    subject: string;
+    message: string;
+    actorEmail: string;
+  },
+  c: Context,
+): Promise<VolunteerFollowUpOutcomeMessageRow | null> {
+  const { data, error } = await getSupabaseAdminClient(c).rpc(
+    "save_volunteer_follow_up_outcome_message",
+    {
+      p_campaign_id: input.campaignId,
+      p_decision: input.decision,
+      p_expected_version: input.expectedVersion,
+      p_subject: input.subject,
+      p_message: input.message,
+      p_actor: input.actorEmail,
+    },
+  );
+
+  if (error) throw new Error(error.message);
+
+  return (data?.[0] as VolunteerFollowUpOutcomeMessageRow | undefined) ?? null;
 }
 
 export async function listVolunteerOutcomeDeliveries(
