@@ -260,6 +260,7 @@ import {
   DEVCON26_TEST_CHECKOUT_PATH, DEVCON26_TEST_WEBHOOK_PATH,
   devcon26TestCheckoutOriginConfiguration, isDevcon26TestCheckoutRequest,
 } from '@/lib/devcon26-test-checkout';
+import { DEVCON26_PUBLIC_CHECKOUT_PATH, devcon26PublicCheckoutConfiguration, devcon26PublicCheckoutOriginConfiguration, isDevcon26PublicCheckoutRequest } from '@/lib/devcon26-public-checkout';
 import { registerVolunteerFollowUpRoutes } from '@/server/routes/volunteer-follow-up';
 
 const app = new Hono<AppBindings>();
@@ -368,6 +369,7 @@ function bodyLimitForPayloadMethods(maxSize: number) {
 app.use('/api/*', bodyLimitForPayloadMethods(API_BODY_MAX_BYTES));
 
 for (const publicWritePath of [
+  `${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`,
   `${DEVCON26_TEST_CHECKOUT_PATH}/*`,
   DEVCON26_TEST_WEBHOOK_PATH,
   '/api/feedback',
@@ -1140,6 +1142,14 @@ function isPublicSocialCardRequest(path: string, method: string): boolean {
     || (method === 'GET' && new RegExp(`^${publicPath}/[A-Za-z0-9_-]{22,80}(?:/image)?$`).test(path));
 }
 
+function isBuyerSocialCardRequest(path: string, method: string): boolean {
+  const collectionPath = '/api/public/annual-conference/2026/social-cards/buyer/collection';
+
+  return (method === 'GET' && (path === collectionPath || new RegExp(`^${collectionPath}/seats/\\d+(?:/photo)?$`).test(path)))
+    || (method === 'PATCH' && new RegExp(`^${collectionPath}/seats/\\d+$`).test(path))
+    || (method === 'POST' && new RegExp(`^${collectionPath}/seats/\\d+/photo$`).test(path));
+}
+
 function isPublicEventSubmissionRequest(path: string, method: string): boolean {
   const managementPath = /^\/api\/public\/event-submissions\/manage\/[^/]+$/;
   const managementCoverPath = /^\/api\/public\/event-submissions\/manage\/[^/]+\/with-cover$/;
@@ -1164,7 +1174,10 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
 }
 
 export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
-  return isDevcon26TestCheckoutRequest(path, method) || ((method === 'GET' || method === 'HEAD') && (
+  return isDevcon26TestCheckoutRequest(path, method)
+    || isDevcon26PublicCheckoutRequest(path, method)
+    || isBuyerSocialCardRequest(path, method)
+    || ((method === 'GET' || method === 'HEAD') && (
     path === '/api/public/annual-conference/2026/ticket-prices'
     || path === '/api/public/meetups'
     || path.startsWith('/api/public/meetups/')
@@ -1435,15 +1448,36 @@ const publicTestCheckoutCors = cors({
   maxAge: 600,
 });
 
+const publicDevcon26CheckoutCors = cors({
+  origin: (origin, c) => {
+    const configuration = devcon26PublicCheckoutConfiguration(Object.fromEntries([
+      'DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'DEVCON26_PAYMENT_PROVIDER',
+      'DEVCON26_PAYMENTS_ENABLED', 'PAYSTACK_SECRET_KEY', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
+    ].map((key) => [key, envValue(key, c)])));
+
+    return configuration && devcon26PublicCheckoutOriginConfiguration(configuration, origin) ? origin : undefined;
+  },
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+  maxAge: 600,
+});
+
+app.use(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`, publicDevcon26CheckoutCors);
+app.use(DEVCON26_PUBLIC_CHECKOUT_PATH, publicDevcon26CheckoutCors);
+
 const socialCardWebsiteCors = cors({
   origin: (origin, c) => {
     if (origin === 'https://devcongress.org') return origin;
     if (envValue('NODE_ENV', c) === 'development' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) return origin;
 
+    const configuredOrigins = (envValue('DEVCON26_PUBLIC_CHECKOUT_ORIGINS', c) ?? '').split(',').map((entry) => entry.trim());
+
+    if (origin && configuredOrigins.includes(origin)) return origin;
+
     return undefined;
   },
   allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'X-Social-Card-Capability', 'X-Social-Card-Collection-Capability'],
+  allowHeaders: ['Content-Type', 'X-Social-Card-Capability', 'X-Social-Card-Collection-Capability', 'X-Social-Card-Buyer-Grant'],
   maxAge: 600,
 });
 

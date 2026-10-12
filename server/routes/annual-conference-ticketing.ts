@@ -9,6 +9,10 @@ import {
   getSupabaseAnnualConferencePublicTicketPrices,
   getSupabaseAnnualConferenceTicketing,
   getSupabaseAnnualConferenceTicketPaymentAttempt,
+  hasSupabaseAnnualConferenceTicketRefund,
+  getSupabaseAnnualConferencePaidOrderSummary,
+  createSupabaseAnnualConferenceCheckoutHold,
+  prepareSupabaseAnnualConferenceTicketPaymentAttempt,
   listSupabaseAnnualConferenceTicketEmailDeliveries,
   listSupabaseAnnualConferenceTicketOrders,
   listSupabaseAnnualConferenceSponsorAllocations,
@@ -17,9 +21,14 @@ import {
   updateSupabaseAnnualConferenceTicketPrices,
 } from '@/lib/supabase/annual-conference-ticketing';
 import { parseGhsAmountToMinor, validateAnnualConferenceTicketPrices } from '@/lib/annual-conference-ticketing';
+import { createAnnualConferenceSocialCardBuyerGrant, verifyAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
+import { DEVCON26_PUBLIC_CHECKOUT_PATH, devcon26PublicCheckoutConfiguration, devcon26PublicCheckoutInitializeSchema, devcon26PublicCheckoutOriginConfiguration, devcon26PublicCheckoutVerifySchema } from '@/lib/devcon26-public-checkout';
 import {
   annualConferencePaymentConfiguration,
+  createPaystackHostedCheckout,
   parseVerifiedPaystackCharge,
+  paystackReferenceForTicketOrder,
+  inspectPaystackLiveTransaction,
   verifyPaystackTransaction,
   verifyPaystackWebhookSignature,
 } from '@/lib/annual-conference-ticket-payments';
@@ -29,6 +38,8 @@ import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import { registerDevcon26TestCouponRoutes } from '@/server/routes/devcon26-test-coupons';
+import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
+import { annualConferenceSocialCardEmailConfigurationForRequest } from '@/server/annual-conference-social-card-email-delivery';
 
 const yearSchema = z.string().regex(/^\d{4}$/, 'Conference year must use four digits.');
 const capacitySchema = z.object({
@@ -100,6 +111,203 @@ function ticketPaymentEnvironment(c: Context<AppBindings>): Record<string, strin
 
 export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>): void {
   registerDevcon26TestCouponRoutes(app);
+
+  const publicCheckoutEnvironment = (c: Context<AppBindings>) => Object.fromEntries([
+    'DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'DEVCON26_PUBLIC_CHECKOUT_ORIGINS', 'DEVCON26_PAYMENT_PROVIDER',
+    'DEVCON26_PAYMENTS_ENABLED', 'DEVCON26_PAYSTACK_FEE_MODE', 'PAYSTACK_SECRET_KEY', 'PUBLIC_WEBSITE_ORIGIN', 'NODE_ENV',
+  ].map((key) => [key, envValue(key, c)]));
+
+  for (const operation of ['initialize', 'verify']) {
+    app.use(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/${operation}`, async (c, next) => {
+      const configuration = devcon26PublicCheckoutConfiguration(publicCheckoutEnvironment(c));
+
+      if (!configuration || !devcon26PublicCheckoutOriginConfiguration(configuration, c.req.header('Origin'))) {
+        return c.json({ error: 'Public ticket checkout is not available.' }, 503);
+      }
+      if (c.req.header('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+        return c.json({ error: 'Use a JSON checkout request.' }, 415);
+      }
+
+      await next();
+    });
+  }
+
+  app.get(DEVCON26_PUBLIC_CHECKOUT_PATH, async (c) => {
+    const rawConfiguration = devcon26PublicCheckoutConfiguration(publicCheckoutEnvironment(c));
+    const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
+
+    if (!configuration || !annualConferencePaymentConfiguration(publicCheckoutEnvironment(c)).enabled) return c.json({ mode: 'unavailable' });
+
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
+
+      if (!ticketing || ticketing.settings.ticket_sales_status !== 'open') return c.json({ mode: 'unavailable' });
+
+      return c.json({
+        mode: 'live', accepts_coupon: false, currency: ticketing.settings.currency,
+        tiers: ticketing.settings.ticket_tiers.map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor, currency: ticketing.settings.currency })),
+      });
+    } catch {
+      return c.json({ mode: 'unavailable' });
+    }
+  });
+
+  app.post(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/quote`, async (c) => {
+    const rawConfiguration = devcon26PublicCheckoutConfiguration(publicCheckoutEnvironment(c));
+    const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
+    const input = z.object({ tier_key: z.enum(['regular', 'team_3', 'team_5']) }).strict().safeParse(await c.req.json().catch(() => null));
+
+    if (!configuration || !input.success || !annualConferencePaymentConfiguration(publicCheckoutEnvironment(c)).enabled) {
+      return c.json({ error: 'Ticket quote is not available.' }, 503);
+    }
+
+    try {
+      const prices = await getSupabaseAnnualConferencePublicTicketPrices(2026, c);
+      const tier = prices?.tiers.find((item) => item.tier_key === input.data.tier_key);
+
+      if (!prices || !tier) return c.json({ error: 'Ticket quote is not available.' }, 503);
+
+      return c.json({
+        mode: 'live', tier_key: tier.tier_key, quantity: tier.quantity, currency: prices.currency,
+        base_amount_minor: tier.amount_minor, discount_amount_minor: 0, final_amount_minor: tier.amount_minor, coupon_applied: null,
+      });
+    } catch {
+      return c.json({ error: 'Ticket quote is not available.' }, 503);
+    }
+  });
+
+  app.post(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/initialize`, async (c) => {
+    const environment = publicCheckoutEnvironment(c);
+    const rawConfiguration = devcon26PublicCheckoutConfiguration(environment);
+    const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
+    const input = devcon26PublicCheckoutInitializeSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!configuration || !annualConferencePaymentConfiguration(environment).enabled || !input.success) {
+      return c.json({ error: 'Choose a valid ticket.' }, 400);
+    }
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-public-checkout-initialize', clientKey: publicClientKey(c), maxAttempts: 5, windowSeconds: 300,
+    }, 'Please wait before starting another checkout.');
+
+    if (limited) return limited;
+
+    try {
+      const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
+
+      if (!ticketing || ticketing.settings.ticket_sales_status !== 'open') return c.json({ error: 'Ticket sales are not open.' }, 409);
+      const order = await createSupabaseAnnualConferenceCheckoutHold({
+        editionId: ticketing.settings.edition_id,
+        purchaserName: input.data.purchaser_name,
+        purchaserEmail: input.data.purchaser_email,
+        tierKey: input.data.tier_key,
+        checkoutRequestKey: input.data.checkout_request_key,
+      }, c) as Record<string, unknown> | null;
+
+      if (!order?.id || !Number.isSafeInteger(order.amount_minor) || Number(order.amount_minor) <= 0) return ticketingUnavailable(c);
+
+      const reference = paystackReferenceForTicketOrder(String(order.id));
+
+      await prepareSupabaseAnnualConferenceTicketPaymentAttempt(String(order.id), reference, c);
+      const checkout = await createPaystackHostedCheckout({
+        secretKey: configuration.secretKey,
+        orderId: String(order.id),
+        purchaserEmail: input.data.purchaser_email,
+        amountMinor: Number(order.amount_minor),
+        callbackUrl: configuration.callbackUrl,
+        paymentReference: reference,
+      });
+      const verifier = crypto.randomBytes(32).toString('base64url');
+      const buyerGrant = createAnnualConferenceSocialCardBuyerGrant({
+        orderId: String(order.id), verifier, origin: configuration.websiteOrigin, secretKey: configuration.secretKey,
+      });
+
+      return c.json({
+        mode: 'live', authorization_url: checkout.authorizationUrl, reference: checkout.paymentReference,
+        buyer_grant: buyerGrant, buyer_verifier: verifier, tier_key: order.tier_key,
+        quantity: order.quantity, amount_minor: order.amount_minor, currency: order.currency,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+
+      if (message.includes('ticketing_capacity_exhausted')) return c.json({ error: 'This ticket is no longer available.' }, 409);
+      if (message.includes('ticket_checkout_not_payable')) {
+        return c.json({ error: 'This checkout has expired.', checkout_error: 'finished' }, 409);
+      }
+
+      return c.json({ error: 'We could not prepare this checkout.' }, 503);
+    }
+  });
+
+  app.post(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/verify`, async (c) => {
+    const environment = publicCheckoutEnvironment(c);
+    const rawConfiguration = devcon26PublicCheckoutConfiguration(environment);
+    const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
+    const input = devcon26PublicCheckoutVerifySchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!configuration || !annualConferencePaymentConfiguration(environment).enabled || !input.success) {
+      return c.json({ error: 'Checkout could not be verified.' }, 400);
+    }
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-public-checkout-verify', clientKey: publicClientKey(c), maxAttempts: 12, windowSeconds: 300,
+    }, 'Please wait before checking this payment again.');
+
+    if (limited) return limited;
+
+    const claims = verifyAnnualConferenceSocialCardBuyerGrant({
+      grant: input.data.buyer_grant,
+      verifier: input.data.buyer_verifier,
+      origin: configuration.websiteOrigin,
+      secretKey: configuration.secretKey,
+    });
+    const attempt = await getSupabaseAnnualConferenceTicketPaymentAttempt(input.data.reference, c);
+
+    if (!claims || !attempt || attempt.order_id !== claims.order_id || attempt.provider !== 'paystack') {
+      return c.json({ error: 'Checkout could not be verified.' }, 404);
+    }
+
+    try {
+      const providerResult = await inspectPaystackLiveTransaction({ secretKey: configuration.secretKey, paymentReference: attempt.payment_reference });
+
+      if (providerResult.status !== 'success') {
+        return c.json({ mode: 'live', status: providerResult.status });
+      }
+
+      const charge = providerResult.charge;
+      const order = await confirmSupabaseAnnualConferenceTicketPayment({
+        orderId: attempt.order_id,
+        provider: charge.provider,
+        providerEventId: charge.providerEventId,
+        eventType: charge.eventType,
+        paymentReference: charge.paymentReference,
+        amountMinor: charge.amountMinor,
+        currency: charge.currency,
+        payloadSha256: crypto.createHash('sha256').update(JSON.stringify(charge.facts)).digest('hex'),
+        paymentFacts: { ...charge.facts, fee_mode: annualConferencePaymentConfiguration(publicCheckoutEnvironment(c)).feeMode },
+      }, c);
+
+      if (!order) return ticketingUnavailable(c);
+      if (order.status === 'expired' && await hasSupabaseAnnualConferenceTicketRefund(attempt.order_id, c)) {
+        return c.json({ mode: 'live', status: 'refund_required', reference: attempt.payment_reference });
+      }
+      if (order.status !== 'paid') return c.json({ mode: 'live', status: order.status === 'pending_payment' ? 'pending' : 'failed' });
+
+      const summary = await getSupabaseAnnualConferencePaidOrderSummary(attempt.order_id, c);
+
+      if (!summary || summary.status !== 'paid' || summary.currency !== 'GHS'
+        || !Number.isSafeInteger(summary.ticket_amount_minor) || !Number.isSafeInteger(summary.amount_paid_minor)) {
+        return ticketingUnavailable(c);
+      }
+
+      return c.json({
+        mode: 'live', status: 'verified', buyer_grant: input.data.buyer_grant,
+        tier_key: summary.tier_key, quantity: summary.quantity, currency: summary.currency,
+        ticket_amount_minor: summary.ticket_amount_minor, amount_paid_minor: summary.amount_paid_minor,
+        can_return_later: annualConferenceSocialCardEmailConfigurationForRequest(c).enabled,
+      });
+    } catch {
+      return c.json({ error: 'Payment is not confirmed yet. Check again shortly.' }, 503);
+    }
+  });
 
   app.get('/api/public/annual-conference/2026/ticket-prices', async (c) => {
     c.header('Cache-Control', 'no-store');

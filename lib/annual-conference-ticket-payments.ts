@@ -86,6 +86,10 @@ export type VerifiedPaystackTransaction = {
   facts: Record<string, string | number>;
 };
 
+export type PaystackLiveTransactionStatus =
+  | { status: 'success'; charge: VerifiedPaystackTransaction }
+  | { status: 'pending' | 'failed' };
+
 export function parseVerifiedPaystackCharge(rawBody: string): VerifiedPaystackCharge | null {
   const parsed = (() => {
     try {
@@ -123,22 +127,26 @@ async function readPaystackTransaction(input: {
   return parsed.data.data;
 }
 
-export async function verifyPaystackTransaction(input: {
+export async function inspectPaystackLiveTransaction(input: {
   secretKey: string;
   paymentReference: string;
   fetcher?: typeof fetch;
-}): Promise<VerifiedPaystackTransaction> {
+}): Promise<PaystackLiveTransactionStatus> {
   if (!input.secretKey.startsWith('sk_live_') || input.secretKey.length <= 8) {
     throw new Error('Live payment configuration is invalid.');
   }
 
   const transaction = await readPaystackTransaction(input);
 
-  if (transaction.status !== 'success' || transaction.domain !== 'live') {
+  if (transaction.domain !== 'live') {
     throw new Error('Paystack could not verify payment.');
   }
 
-  return {
+  if (transaction.status !== 'success') {
+    return { status: ['failed', 'abandoned', 'reversed'].includes(transaction.status) ? 'failed' : 'pending' };
+  }
+
+  return { status: 'success', charge: {
     provider: 'paystack',
     providerEventId: `charge:${transaction.id}`,
     eventType: 'charge.success',
@@ -156,7 +164,19 @@ export async function verifyPaystackTransaction(input: {
       status: transaction.status,
       domain: transaction.domain,
     },
-  };
+  } };
+}
+
+export async function verifyPaystackTransaction(input: {
+  secretKey: string;
+  paymentReference: string;
+  fetcher?: typeof fetch;
+}): Promise<VerifiedPaystackTransaction> {
+  const result = await inspectPaystackLiveTransaction(input);
+
+  if (result.status !== 'success') throw new Error('Paystack could not verify payment.');
+
+  return result.charge;
 }
 
 export async function readPaystackTestTransaction(input: {

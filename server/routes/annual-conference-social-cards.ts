@@ -6,6 +6,8 @@ import { DEVCON26_SOCIAL_CARD_BUCKET, normalizeDevcon26SocialCardName, validateD
 import {
   getSupabaseAnnualConferenceSocialCardByCapability,
   getSupabaseAnnualConferenceSocialCardByCollectionCapability,
+  getSupabaseAnnualConferenceSocialCardByOrderSeat,
+  getSupabaseAnnualConferenceSocialCardCollectionByOrder,
   getSupabaseAnnualConferenceSocialCardCollection,
   getSupabasePublicAnnualConferenceSocialCard,
   issueSupabaseAnnualConferenceSocialCardDelivery,
@@ -19,6 +21,8 @@ import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { recordProtectedMutationAudit } from '@/server/protected-mutation';
 import { secureSharedSecret } from '@/lib/security/shared-secret';
+import { verifyAnnualConferenceSocialCardBuyerGrant } from '@/lib/annual-conference-social-card-buyer-grant';
+import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
 
 const yearSchema = z.string().regex(/^\d{4}$/);
 const issueSchema = z.object({ subject_type: z.enum(['attendee', 'speaker']), subject_id: z.string().uuid() }).strict();
@@ -26,6 +30,7 @@ const managementUpdateSchema = z.object({ display_name: z.string().trim().min(1)
 const managementPath = '/api/public/annual-conference/2026/social-cards/manage';
 const publicPath = '/api/public/annual-conference/2026/social-cards';
 const collectionPath = '/api/public/annual-conference/2026/social-cards/collection';
+const buyerCollectionPath = '/api/public/annual-conference/2026/social-cards/buyer/collection';
 
 function unavailable(c: Context<AppBindings>) {
   c.header('Cache-Control', 'no-store');
@@ -60,6 +65,16 @@ async function managedCollectionCard(c: Context<AppBindings>, seatNumber: number
   return getSupabaseAnnualConferenceSocialCardByCollectionCapability(capability, seatNumber, c);
 }
 
+function buyerOrderId(c: Context<AppBindings>): string | null {
+  const grant = c.req.header('x-social-card-buyer-grant')?.trim();
+  const origin = c.req.header('origin');
+  const secretKey = envValue('PAYSTACK_SECRET_KEY', c)?.trim();
+
+  if (!grant || !origin || !secretKey?.startsWith('sk_live_')) return null;
+
+  return verifyAnnualConferenceSocialCardBuyerGrant({ grant, origin, secretKey })?.order_id ?? null;
+}
+
 function managementCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupabaseAnnualConferenceSocialCardByCapability>>>) {
   return {
     display_name: card.display_name,
@@ -83,6 +98,127 @@ function publicCardResponse(card: NonNullable<Awaited<ReturnType<typeof getSupab
 }
 
 export function registerAnnualConferenceSocialCardRoutes(app: Hono<AppBindings>): void {
+  app.use(`${buyerCollectionPath}*`, async (c, next) => {
+    if (!buyerOrderId(c)) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-buyer-social-card', clientKey: publicClientKey(c), maxAttempts: 80, windowSeconds: 300,
+    }, 'Please wait before editing more ticket cards.');
+
+    if (limited) return limited;
+
+    await next();
+  });
+
+  app.use(`${buyerCollectionPath}/seats/:seatNumber/photo`, async (c, next) => {
+    const limited = await enforcePublicRateLimit(c, {
+      action: 'devcon26-buyer-social-card-upload', clientKey: publicClientKey(c), maxAttempts: 8, windowSeconds: 300,
+    }, 'Please wait before uploading another photo.');
+
+    if (limited) return limited;
+
+    await next();
+  });
+
+  app.get(buyerCollectionPath, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const orderId = buyerOrderId(c);
+
+    if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const collection = await getSupabaseAnnualConferenceSocialCardCollectionByOrder(orderId, c);
+
+    if (collection === undefined) return unavailable(c);
+    if (!collection?.length) return c.json({ error: 'Ticket cards are available after payment is confirmed.' }, 409);
+
+    return c.json({ seats: collection.map((seat) => ({ seat_number: seat.seat_number, card: managementCardResponse(seat.card) })) });
+  });
+
+  app.get(`${buyerCollectionPath}/seats/:seatNumber`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const orderId = buyerOrderId(c);
+    const seatNumber = Number(c.req.param('seatNumber'));
+
+    if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+
+    if (card === undefined) return unavailable(c);
+    if (!card) return c.json({ error: 'This ticket card is no longer available.' }, 404);
+
+    return c.json({ card: managementCardResponse(card) });
+  });
+
+  app.patch(`${buyerCollectionPath}/seats/:seatNumber`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const orderId = buyerOrderId(c);
+    const seatNumber = Number(c.req.param('seatNumber'));
+
+    if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+
+    if (card === undefined) return unavailable(c);
+    if (!card) return c.json({ error: 'This ticket card is no longer available.' }, 404);
+    const body = managementUpdateSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!body.success || body.data.public_enabled !== undefined || (body.data.crop && !validateDevcon26SocialCardCrop(body.data.crop))) {
+      return c.json({ error: 'Check the display name or crop settings.' }, 400);
+    }
+    const name = body.data.display_name === undefined ? undefined : normalizeDevcon26SocialCardName(body.data.display_name);
+
+    if (body.data.display_name !== undefined && !name) return c.json({ error: 'Check the display name.' }, 400);
+    const updated = await updateSupabaseAnnualConferenceSocialCard(card.id, { displayName: name ?? undefined, crop: body.data.crop }, c);
+
+    if (!updated) return unavailable(c);
+
+    return c.json({ card: managementCardResponse(updated) });
+  });
+
+  app.post(`${buyerCollectionPath}/seats/:seatNumber/photo`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const orderId = buyerOrderId(c);
+    const seatNumber = Number(c.req.param('seatNumber'));
+
+    if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+
+    if (card === undefined) return unavailable(c);
+    if (!card) return c.json({ error: 'This ticket card is no longer available.' }, 404);
+    const body = await c.req.parseBody();
+    const file = body.photo;
+
+    if (!(file instanceof File)) return c.json({ error: 'Choose an image to upload.' }, 400);
+    const fileError = validateDevcon26SocialCardImage(file);
+
+    if (fileError) return c.json({ error: fileError }, 400);
+
+    try {
+      const photoPath = await uploadSupabaseAnnualConferenceSocialCardPhoto(card.id, file, c);
+      const updated = await updateSupabaseAnnualConferenceSocialCard(card.id, { photoPath }, c);
+
+      if (!updated) return unavailable(c);
+
+      return c.json({ card: managementCardResponse(updated) });
+    } catch {
+      return c.json({ error: 'Unable to save the social-card photo.' }, 500);
+    }
+  });
+
+  app.get(`${buyerCollectionPath}/seats/:seatNumber/photo`, async (c) => {
+    c.header('Cache-Control', 'no-store');
+    const orderId = buyerOrderId(c);
+    const seatNumber = Number(c.req.param('seatNumber'));
+
+    if (!orderId) return c.json({ error: 'This ticket-card session is invalid or has expired.' }, 401);
+    const card = await getSupabaseAnnualConferenceSocialCardByOrderSeat(orderId, seatNumber, c);
+
+    if (card === undefined) return unavailable(c);
+    if (!card?.photo_path) return c.json({ error: 'Social-card image not found.' }, 404);
+    const result = await getSupabaseAdminClient(c).storage.from(DEVCON26_SOCIAL_CARD_BUCKET).download(card.photo_path);
+
+    if (result.error) return c.json({ error: 'Social-card image not found.' }, 404);
+    c.header('Content-Type', result.data.type || 'application/octet-stream');
+
+    return c.body(await result.data.arrayBuffer());
+  });
+
   app.post('/api/annual-conference/:year/social-cards/deliveries', async (c) => {
     const access = await requireAdmin(c, ['owner']);
 

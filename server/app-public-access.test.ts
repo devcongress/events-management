@@ -64,6 +64,31 @@ describe('public API access policy', () => {
     expect(isUnauthenticatedApiRequest('/api/internal/annual-conference-social-card-emails/retry', 'GET')).toBe(false);
   });
 
+  it('allows anonymous access only to exact buyer checkout and paid-order card routes', () => {
+    const checkoutBase = '/api/public/annual-conference/2026/checkout';
+    const buyerCollection = '/api/public/annual-conference/2026/social-cards/buyer/collection';
+
+    expect(isUnauthenticatedApiRequest(checkoutBase, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${checkoutBase}/quote`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${checkoutBase}/initialize`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${checkoutBase}/verify`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${checkoutBase}/neighbor`, 'POST')).toBe(false);
+    expect(isUnauthenticatedApiRequest(buyerCollection, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${buyerCollection}/seats/3`, 'PATCH')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${buyerCollection}/seats/3/photo`, 'POST')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${buyerCollection}/seats/3/photo`, 'GET')).toBe(true);
+    expect(isUnauthenticatedApiRequest(`${buyerCollection}/seats/3/publish`, 'PATCH')).toBe(false);
+    expect(isUnauthenticatedApiRequest(`${buyerCollection}/seats/3`, 'DELETE')).toBe(false);
+  });
+
+  it('keeps the public live checkout unavailable until the explicit activation flag is enabled', async () => {
+    vi.stubEnv('DEVCON26_PUBLIC_CHECKOUT_ENABLED', 'false');
+    const response = await app.request('https://ems.example/api/public/annual-conference/2026/checkout');
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ mode: 'unavailable' });
+  });
+
   it('allows social-card CORS only for the website origin without credentials', async () => {
     const path = '/api/public/annual-conference/2026/social-cards/manage';
     const allowed = await app.request(`https://ems.example${path}`, {
