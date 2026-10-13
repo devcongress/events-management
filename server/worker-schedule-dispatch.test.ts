@@ -26,7 +26,7 @@ const scheduledPathsBySlot = [
   volunteerDrainPath,
   '/api/internal/annual-conference-social-card-emails/retry',
   volunteerDrainPath,
-  null,
+  '/api/internal/devcon26-test-checkout-emails/retry',
   volunteerDrainPath,
   null,
 ];
@@ -43,7 +43,7 @@ describe('scheduled worker cycle dispatch', () => {
     vi.useRealTimers();
   });
 
-  it('dispatches exactly one route in each scheduled slot, with four volunteer turns and three idles', async () => {
+  it('dispatches exactly one route in each scheduled slot, with four volunteer turns and one idle', async () => {
     const cycleStart = 60 * 60_000;
 
     for (let slot = 0; slot < 15; slot += 1) {
@@ -69,8 +69,8 @@ describe('scheduled worker cycle dispatch', () => {
 
     expect(dispatchedPaths).toEqual(scheduledPathsBySlot.filter(Boolean));
     expect(dispatchedPaths.filter((path) => path === volunteerDrainPath)).toHaveLength(4);
-    expect(dispatchedPaths.filter((path) => path !== volunteerDrainPath)).toHaveLength(9);
-    expect(scheduledPathsBySlot.filter((path) => path === null)).toHaveLength(2);
+    expect(dispatchedPaths.filter((path) => path !== volunteerDrainPath)).toHaveLength(10);
+    expect(scheduledPathsBySlot.filter((path) => path === null)).toHaveLength(1);
   });
 
   it('keeps the exact cadence through multiple cycles and an hour rollover', async () => {

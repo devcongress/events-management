@@ -518,6 +518,31 @@ export interface Database {
         };
         Relationships: [];
       };
+      devcon26_test_checkout_email_outbox: {
+        Row: {
+          id: string;
+          session_id: string;
+          recipient_email: string;
+          recipient_name: string;
+          tier_key: string;
+          quantity: number;
+          amount_minor: number;
+          idempotency_key: string;
+          status: 'queued' | 'sending' | 'accepted' | 'failed' | 'suppressed' | 'needs_attention';
+          provider_payload: Json | null;
+          provider_email_id: string | null;
+          attempt_count: number;
+          first_attempt_at: string | null;
+          next_attempt_at: string;
+          claim_token: string | null;
+          lease_until: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       devcon26_test_checkout_sessions: {
         Row: {
           id: string;
@@ -2409,6 +2434,18 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      claim_devcon26_test_checkout_emails: {
+        Args: { p_claim_token: string };
+        Returns: Database['public']['Tables']['devcon26_test_checkout_email_outbox']['Row'][];
+      };
+      freeze_devcon26_test_checkout_email: {
+        Args: { p_id: string; p_claim_token: string; p_payload: Json };
+        Returns: Json;
+      };
+      finish_devcon26_test_checkout_email: {
+        Args: { p_id: string; p_claim_token: string; p_status: string; p_provider_email_id?: string };
+        Returns: boolean;
+      };
       prepare_devcon26_test_checkout: {
         Args: { p_request_key: string; p_tier_key: string; p_purchaser_name: string; p_purchaser_email: string; p_coupon_code?: string };
         Returns: Database['public']['Tables']['devcon26_test_checkout_sessions']['Row'];

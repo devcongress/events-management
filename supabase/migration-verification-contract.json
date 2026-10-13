@@ -96,6 +96,330 @@
   },
   "verified": [
     {
+      "file": "20261013180000_devcon26_test_checkout_emails.sql",
+      "sha256": "4bb37b2d1a87408245222fd503e3987c34ec7bb5c75d620f4093cadab1c438cb",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "devcon26_test_checkout_email_outbox",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": "gen_random_uuid()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "session_id",
+          "type": "uuid",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "recipient_email",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "recipient_name",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "tier_key",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "quantity",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "amount_minor",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "idempotency_key",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "defaultExpression": "'queued'::text"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "provider_payload",
+          "type": "jsonb",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "provider_email_id",
+          "type": "text",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "attempt_count",
+          "type": "integer",
+          "notNull": true,
+          "defaultExpression": "0"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "first_attempt_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "claim_token",
+          "type": "uuid",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "defaultExpression": null
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "defaultExpression": "now()"
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_session_id_key",
+          "contains": [
+            "UNIQUE (session_id)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_idempotency_key_key",
+          "contains": [
+            "UNIQUE (idempotency_key)"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_session_id_fkey",
+          "contains": [
+            "REFERENCES devcon26_test_checkout_sessions(id)",
+            "ON DELETE CASCADE"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_status_check",
+          "contains": [
+            "'queued'::text",
+            "'sending'::text",
+            "'accepted'::text",
+            "'failed'::text",
+            "'suppressed'::text",
+            "'needs_attention'::text"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_attempt_count_check",
+          "contains": [
+            "attempt_count >= 0",
+            "attempt_count <= 5"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_quantity_check",
+          "contains": [
+            "quantity",
+            "1, 3, 5"
+          ]
+        },
+        {
+          "kind": "constraint",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_checkout_email_outbox_amount_minor_check",
+          "contains": [
+            "amount_minor > 0"
+          ]
+        },
+        {
+          "kind": "index",
+          "schema": "public",
+          "table": "devcon26_test_checkout_email_outbox",
+          "name": "devcon26_test_email_due_idx",
+          "contains": [
+            "next_attempt_at",
+            "'queued'::text",
+            "'sending'::text",
+            "'failed'::text"
+          ]
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "devcon26_test_checkout_sessions",
+          "name": "devcon26_test_checkout_email_verified",
+          "function": "queue_devcon26_test_checkout_email",
+          "functionSchema": "public",
+          "contains": [
+            "AFTER UPDATE OF status",
+            "FOR EACH ROW",
+            "old.status IS DISTINCT FROM 'verified'::text",
+            "new.status = 'verified'::text"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "queue_devcon26_test_checkout_email",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "e6dead4de3ee1815aaf6524a6f207bafcac8ac5c9d2c2093b3b7fe04b1a0161f",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_devcon26_test_checkout_emails",
+          "argumentTypes": "uuid",
+          "result": "SETOF devcon26_test_checkout_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "65a1f35ae1e2090da7524567c71a6abc92b991f975024820e5100cba0268fd46",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "freeze_devcon26_test_checkout_email",
+          "argumentTypes": "uuid, uuid, jsonb",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "6f74723742bfa6fa34b046edeb1124c4ebf12f5984bfc9c8a7633c0285ca5d41",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "finish_devcon26_test_checkout_email",
+          "argumentTypes": "uuid, uuid, text, text",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "25c30c4c2c494681e0227b2a69f793e8be8c13e713007a2358c256beb110d28b",
+          "securityDefiner": true,
+          "searchPath": "public, pg_temp",
+          "private": true,
+          "serviceExecute": true
+        }
+      ]
+    },
+    {
       "file": "20260616010000_feedback_archive.sql",
       "sha256": "1da27c142ed06ae961e3ac561c7feeb010b378a894d594eeb7727d03c7264786",
       "checks": [

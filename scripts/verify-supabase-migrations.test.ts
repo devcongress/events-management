@@ -30,10 +30,10 @@ function fixtureCatalog(): Catalog {
 }
 
 describe('migration contract inventory', () => {
-  it('covers the current files with an honest legacy exemption and fifteen reviewed contracts', () => {
+  it('covers the current files with an honest legacy exemption and sixteen reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(15);
+    expect(contract.verified).toHaveLength(16);
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {
@@ -113,7 +113,7 @@ describe('read-only schema verification', () => {
   it('requires the intended overload, RLS, validated constraints, and correct privilege state', () => {
     const probe = contract.verified.flatMap((entry) => entry.checks).find((check) => check.kind === 'function')!;
 
-    for (const mutation of [{ argumentTypes: 'text' }, { private: false }, { searchPath: 'unsafe' }, { securityDefiner: false }, { serviceExecute: false }, { result: 'text' }, { language: 'sql' }]) {
+    for (const mutation of [{ argumentTypes: 'text' }, { private: false }, { searchPath: 'unsafe' }, { securityDefiner: false }, { serviceExecute: !probe.serviceExecute }, { result: 'text' }, { language: 'sql' }]) {
       const catalog = fixtureCatalog();
       const object = catalog.objects.find((entry) => entry.kind === 'function' && entry.name === probe.name)!;
 

@@ -2,6 +2,8 @@
 
 ## Entry Points
 
+Sandbox checkout confirmations use `lib/devcon26-test-checkout-email-delivery.ts` for fail-closed configuration and TEST content, `lib/supabase/devcon26-test-checkout-emails.ts` for typed outbox RPCs, and `server/devcon26-test-checkout-email-delivery.ts` for frozen-payload delivery. The sandbox route module registers the shared-secret-protected internal retry endpoint. Worker slot 12 of each 15-minute cycle claims at most five emails; payment verify/webhook requests never call Resend synchronously. See the finance feature document for activation boundaries.
+
 | File | Role |
 |---|---|
 | `src/main.ts` | Vue app bootstrap — waits for initial router readiness, then selects the public or organizer root before mounting Vue Router, TanStack Query, global CSS, and delegated button press feedback |

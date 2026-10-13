@@ -1,5 +1,17 @@
 # Architectural Decisions
 
+## ADR-109: Isolate sandbox confirmation delivery from admission emails
+
+**Date:** 2026-10-13
+
+**Decision:** A first transition to verified queues a private sandbox-only TEST confirmation atomically. A separately gated scheduler drains only exact approved purchaser addresses while sandbox checkout uses test credentials. Each message freezes its entire provider payload and idempotency key, uses claim-token leases, and stops after five attempts or one hour from its first attempt. Existing verified sessions are not backfilled.
+
+**Why:** A Paystack sandbox receipt does not prove EMS email delivery. Testing that integration must not issue real admission credentials, persist sandbox cards, expose a capability link, or send to arbitrary public visitors. Keeping provider acceptance separate from local acknowledgement prevents unsafe retries after partial failures.
+
+**Tradeoffs:** Emails are confirmations, not live ticket/card-flow replicas. A suppressed recipient cannot be reactivated by merely changing the allowlist. Expired or exhausted rows require investigation; there is deliberately no automatic replay or resend UI. Provider acceptance does not establish inbox delivery.
+
+---
+
 ## ADR-108: Freeze volunteer outcome sends as deterministic provider batches
 
 **Date:** 2026-10-11
