@@ -19,6 +19,8 @@ import { getSupabaseAnnualConferencePublicTicketPrices } from '@/lib/supabase/an
 import { envValue } from '@/server/env';
 import type { AppBindings } from '@/server/http/app-bindings';
 import { enforcePublicRateLimit, publicClientKey } from '@/server/http/public-intake-protection';
+import { secureSharedSecret } from '@/lib/security/shared-secret';
+import { retrySandboxCheckoutEmails } from '@/server/devcon26-test-checkout-email-delivery';
 
 export function devcon26TestConfigurationForRequest(c: Context) {
   const keys = ['DEVCON26_TEST_CHECKOUT_ENABLED', 'DEVCON26_PAYMENT_PROVIDER', 'PAYSTACK_SECRET_KEY',
@@ -63,6 +65,22 @@ async function verifySession(c: Context, reference: string, secretKey: string, f
 }
 
 export function registerDevcon26TestCheckoutRoutes(app: Hono<AppBindings>): void {
+  app.post('/api/internal/devcon26-test-checkout-emails/retry', async (c) => {
+    const expected = secureSharedSecret(envValue('SLACK_EVENTS_RETRY_SECRET', c));
+    const received = c.req.header('x-scheduled-job-secret')?.trim();
+
+    if (!expected || !received || Buffer.byteLength(expected) !== Buffer.byteLength(received)
+      || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) {
+      return c.json({ error: 'Not found.' }, 404);
+    }
+
+    try {
+      return c.json(await retrySandboxCheckoutEmails(c));
+    } catch {
+      return c.json({ error: 'Sandbox email retry could not complete.' }, 500);
+    }
+  });
+
   app.get(DEVCON26_TEST_CHECKOUT_PATH, async (c) => {
     const configuration = devcon26TestConfigurationForRequest(c);
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-13 — Isolated sandbox payment confirmation emails
+
+- Queue one clearly marked TEST confirmation per newly verified sandbox checkout, independent of real ticket and social-card email delivery.
+- Require a separate disabled-by-default email gate, complete sandbox/test-key configuration, Resend sender settings, and an exact purchaser-email allowlist. Unapproved recipients are suppressed; no admission tickets, QR codes, persistent social cards, or resume links are created.
+- Freeze provider payloads and idempotency keys; use claim-token leases and bounded retries, with ambiguous/expired work held for investigation instead of unbounded resends.
+- Add forward migration `20261013180000_devcon26_test_checkout_emails.sql` and verified schema contracts. Deployment, migration application to shared databases, recipient approval, and sending remain separate activation steps.
+
 ## 2026-10-12
 
 - Added a separately gated DevCon26 live checkout bridge that creates standard EMS holds and Paystack attempts, verifies payment server-side, and only then grants the buyer access to per-seat social-card editing.

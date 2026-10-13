@@ -4,6 +4,10 @@ Use `.env.local` for local development. Do not commit real credentials.
 
 | Variable | Required | Browser-safe | Purpose |
 |---|---:|---:|---|
+| `DEVCON26_TEST_CHECKOUT_EMAILS_ENABLED` | Only for sandbox TEST confirmations | No | Defaults off; requires complete test checkout configuration including `sk_test_`, Resend key, sender/reply-to, exact recipient allowlist, and the sandbox email migration. Does not activate live ticket emails. |
+| `DEVCON26_TEST_CHECKOUT_EMAIL_FROM` | When sandbox email is enabled | No | Plain email address on a verified Resend sending domain; stored with the first frozen provider payload. |
+| `DEVCON26_TEST_CHECKOUT_EMAIL_REPLY_TO` | When sandbox email is enabled | No | Plain reply-to email address; frozen with the message. |
+| `DEVCON26_TEST_CHECKOUT_EMAIL_RECIPIENTS` | When sandbox email is enabled | No | Comma-separated exact approved purchaser email addresses, normalized to lowercase. Empty, invalid, or wildcard entries disable delivery; unapproved queued recipients are terminally suppressed. Not the fixed Paystack buyer sink. |
 | `VITE_SUPABASE_URL` | Optional locally | Yes | Supabase project URL used by browser and server helpers |
 | `VITE_SUPABASE_ANON_KEY` | Optional locally | Yes | Public Supabase anon key for browser-safe operations |
 | `VITE_API_BASE_URL` | No | Yes | Optional Worker origin used only when `VITE_FORCE_API_BASE_URL=true`; the Pages `_worker.js` proxy is preferred for organizer auth |
