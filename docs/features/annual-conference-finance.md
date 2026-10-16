@@ -2,7 +2,9 @@
 
 ## Status
 
-Active for the Annual Conference only. Apply the finance migrations and the forward-only integrity hardening migration before using the relational production ledger:
+The Annual Conference Finance UI is currently disabled: authorized users see a disabled navigation item, and direct UI links return to the edition overview. Its implementation, protected APIs, permissions, and ledger records remain intact. Disabling the UI requires no migration.
+
+Before re-enabling the relational production ledger, its existing prerequisites remain:
 
 - `20260805010000_annual_conference_finance.sql`
 - `20260808070000_annual_conference_income_lifecycle.sql`

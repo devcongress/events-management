@@ -114,7 +114,7 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   },
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
-  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
+  ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const, disabled: true }] : []),
   ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
   ...(hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
     ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const, disabled: true }]
@@ -172,7 +172,7 @@ function submitEdition() {
 }
 
 function isActive(href: string): boolean {
-  if (href === annualConferencePath('ticketing', year.value)) return false;
+  if (href === annualConferencePath('ticketing', year.value) || href === annualConferencePath('finance', year.value)) return false;
 
   if (href === registrationTarget.value && route.path === annualConferencePath('check-in', year.value)) {
     return true;

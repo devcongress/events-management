@@ -5,10 +5,10 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
 import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
 import AnnualConferenceRegistrationEmails from '@/src/components/AnnualConferenceRegistrationEmails.vue';
-import RegistrationAlphabetFilter from '@/src/components/ui/RegistrationAlphabetFilter.vue';
+import AnnualConferenceGuests from '@/src/components/AnnualConferenceGuests.vue';
+import type { ConferenceRegistrationGuest as Registration } from '@/src/lib/conference-guests';
 import AppPagination from '@/src/components/AppPagination.vue';
 import { eventBlastStarters } from '@/src/lib/event-blast-workspace';
-import { ALL_REGISTRATION_INITIALS, registrationInitials, filterRegistrationsForCheckIn } from '@/src/lib/registration-checkin';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
@@ -23,7 +23,6 @@ import {
   updateAnnualConferenceTicketingCapacity,
 } from '@/src/lib/api';
 
-type Registration = { id: string; name: string; email: string; status: 'confirmed' | 'waitlisted' | 'cancelled'; created_at: string; is_test: boolean };
 type Overview = { mode: 'free' | 'paid'; status: 'draft' | 'open' | 'closed'; capacity: number; reserved: number; confirmed: number; waitlisted: number };
 type Blast = { id: string; subject: string; body: string; status: string; recipients: number; accepted: number; needs_attention: number };
 const route = useRoute();
@@ -35,15 +34,6 @@ const activeSection = computed(() => {
 
   return section === 'guests' || section === 'form' || section === 'emails' || section === 'blasts' ? section : 'summary';
 });
-const search = ref('');
-const guestStatus = ref('all');
-const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
-const guestPage = ref(1);
-const guestPageSize = 8;
-const statusOptionsForGuests = [
-  { value: 'all', label: 'All' }, { value: 'confirmed', label: 'Confirmed' },
-  { value: 'waitlisted', label: 'Waitlisted' }, { value: 'cancelled', label: 'Cancelled' },
-];
 const message = ref('');
 const busy = ref(false);
 const capacityBusy = ref(false);
@@ -90,6 +80,7 @@ const testingError = computed(() => testerEmails.value.length > 200
     ? 'Check each email address. Use one per line.' : '');
 const registrations = useQuery({
   queryKey: computed(() => ['conference-registrations', year.value]),
+  enabled: canManageRegistration,
   queryFn: async () => {
     const requestEndpoint = endpoint.value;
     const all: Registration[] = [];
@@ -111,18 +102,10 @@ const registrations = useQuery({
   refetchIntervalInBackground: false,
 });
 const guests = computed(() => registrations.data.value?.registrations ?? []);
-const initials = computed(() => registrationInitials(guests.value));
-const filteredGuests = computed(() => filterRegistrationsForCheckIn(guests.value, {
-  query: search.value, initial: selectedInitial.value,
-}).filter((person) => guestStatus.value === 'all' || person.status === guestStatus.value));
-const guestPageCount = computed(() => Math.max(1, Math.ceil(filteredGuests.value.length / guestPageSize)));
-const displayedGuests = computed(() => filteredGuests.value.slice((guestPage.value - 1) * guestPageSize, guestPage.value * guestPageSize));
 const overview = computed(() => registrations.data.value?.overview);
 const placesLeft = computed(() => Math.max(0, (overview.value?.capacity ?? 0) - (overview.value?.reserved ?? 0)));
 const filledPercent = computed(() => Math.min(100, Math.round(100 * (overview.value?.reserved ?? 0) / Math.max(1, overview.value?.capacity ?? 1))));
 
-watch([search, guestStatus, selectedInitial], () => { guestPage.value = 1; });
-watch(guestPageCount, (count) => { guestPage.value = Math.min(guestPage.value, count); });
 const capacityValidation = computed(() => {
   const data = ticketing.data.value;
 
@@ -167,10 +150,6 @@ watch(year, () => {
   message.value = '';
   blastComposerOpen.value = false;
   blastPage.value = 1;
-  guestPage.value = 1;
-  search.value = '';
-  guestStatus.value = 'all';
-  selectedInitial.value = ALL_REGISTRATION_INITIALS;
   cancellation.value = null;
   review.value = null;
   settingsConfirmation.value = false;
@@ -356,44 +335,13 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
       </section>
-      <section v-if="activeSection === 'guests'" class="ops-panel registration-guest-panel overflow-hidden">
-        <div class="registration-guest-controls border-b border-dc-border bg-dc-paper-warm px-4 py-4">
-          <div class="flex flex-col gap-4">
-            <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:gap-4">
-              <div class="w-full max-w-xs">
-                <label for="guest-search" class="editorial-label">Search guests</label>
-                <input id="guest-search" v-model="search" type="search" class="editorial-input" placeholder="Name or email" />
-              </div>
-              <div class="flex flex-wrap gap-2" aria-label="Guest status filters">
-                <button v-for="option in statusOptionsForGuests" :key="option.value" type="button"
-                  class="guest-status-filter" :class="{ 'guest-status-filter--active': guestStatus === option.value }"
-                  :aria-pressed="guestStatus === option.value" @click="guestStatus = option.value">
-                  {{ option.label }} · {{ option.value === 'all' ? guests.length : guests.filter((person) => person.status === option.value).length }}
-                </button>
-              </div>
-              <p class="font-mono text-[10px] uppercase text-dc-gray xl:ml-auto">{{ filteredGuests.length }} guests shown</p>
-            </div>
-            <RegistrationAlphabetFilter v-if="guests.length" v-model="selectedInitial" :initials="initials" />
-          </div>
-        </div>
-        <div v-if="!filteredGuests.length" class="px-5 py-12 text-center text-sm text-dc-gray">
-          <p>{{ guests.length ? 'No guests match these filters.' : 'No one has registered yet.' }}</p>
-          <button v-if="guests.length" class="mt-3" @click="search = ''; guestStatus = 'all'; selectedInitial = ALL_REGISTRATION_INITIALS">Clear filters</button>
-        </div>
-        <div v-else class="divide-y divide-dc-border" role="list" aria-label="Guest list">
-          <div v-for="person in displayedGuests" :key="person.id" class="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center" role="listitem">
-            <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2"><strong>{{ person.name }}</strong><span class="registration-badge">{{ person.status }}</span><span v-if="person.is_test" class="registration-badge">Testing</span></div>
-              <p class="break-all text-sm text-dc-gray">{{ person.email }}</p>
-            </div>
-            <button v-if="person.status !== 'cancelled'" :disabled="busy" @click="cancellation = person">Cancel registration</button>
-          </div>
-        </div>
-        <AppPagination v-if="filteredGuests.length > guestPageSize" v-model:page="guestPage" :page-count="guestPageCount" :total="filteredGuests.length" :range-start="(guestPage - 1) * guestPageSize + 1" :range-end="Math.min(guestPage * guestPageSize, filteredGuests.length)" item-label="guests" />
+      <AnnualConferenceGuests v-if="activeSection === 'guests'" :registrations="guests"
+        :refresh-registrations="() => registrations.refetch()" :management-busy="busy"
+        @cancel="cancellation = $event" />
         <ConfirmDialog :open="Boolean(cancellation)" :title="'Cancel ' + (cancellation?.name ?? '') + '’s registration?'" message="Their QR will stop working. Available places go to the oldest waitlisted registrations, which are queued for email. Checked-in registrations cannot be cancelled." confirm-label="Cancel registration" danger :busy="busy" @cancel="cancellation = null" @confirm="cancellation && mutate('/' + cancellation.id + '/cancel', {}, 'Registration cancelled.')">
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
         </ConfirmDialog>
-      </section>
+
       <AnnualConferenceRegistrationEmails v-if="activeSection === 'emails'" :year="year" />
       <section v-if="activeSection === 'blasts'" class="ops-panel registration-panel">
         <div class="flex flex-wrap items-center justify-between gap-3">

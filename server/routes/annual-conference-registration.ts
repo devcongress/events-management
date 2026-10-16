@@ -138,7 +138,23 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
 
     if (result.error) return c.json({ error: 'Unable to load registrations.' }, 503);
 
-    return c.json({ overview, registrations: result.data });
+    const registrations = (result.data ?? []) as Array<{ id: string } & Record<string, unknown>>;
+    const tickets = registrations.length ? await getSupabaseAdminClient(c)
+      .from('annual_conference_tickets')
+      .select('id,registration_id')
+      .eq('edition_id', overview.edition_id)
+      .in('registration_id', registrations.map((registration) => registration.id))
+      .returns<Array<{ id: string; registration_id: string | null }>>()
+      : { data: [], error: null };
+
+    if (tickets.error) return c.json({ error: 'Unable to load registration admissions.' }, 503);
+    const ticketIds = new Map((tickets.data ?? []).map((ticket) => [ticket.registration_id, ticket.id]));
+
+    c.header('Cache-Control', 'no-store');
+
+    return c.json({ overview, registrations: registrations.map((registration) => ({
+      ...registration, ticket_id: ticketIds.get(registration.id) ?? null,
+    })) });
   });
 
   app.get(`${privatePath}/testing`, async (c) => {

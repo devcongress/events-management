@@ -2539,6 +2539,7 @@ try {
       id: "guest-" + index, name: index === 100 ? "Zara Finalpage" : "Ada Guest " + index,
       email: "guest" + index + "@example.test", status: "confirmed", is_test: false,
       created_at: "2026-10-16T09:00:00Z",
+      ticket_id: index === 100 ? "ticket-zara" : null,
     }));
 
     responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
@@ -2568,8 +2569,16 @@ try {
       },
     });
     responses.set("/api/annual-conference/2026/ticketing/email-deliveries/mail-1/retry", { body: { delivery: {} } });
-    responses.set("/api/annual-conference/2026/check-in/attendees", {
-      body: { attendees: [], page: 1, page_size: 100, has_more: false },
+    const zara = { ticket_id: "ticket-zara", attendee_name: "Zara Finalpage", status: "issued", checked_in_at: null, order_seat_number: 1 };
+
+    responses.set("/api/annual-conference/2026/check-in/attendees", () => ({
+      body: { attendees: [zara], page: 1, page_size: 100, has_more: false },
+    }));
+    responses.set("/api/annual-conference/2026/check-in/admit", () => {
+      zara.status = "checked_in";
+      zara.checked_in_at = "2026-12-19T10:00:00Z";
+
+      return { body: { outcome: "checked_in" } };
     });
 
     await page.goto(origin + "/organizer-console/annual-conference/2026/registrations");
@@ -2577,7 +2586,7 @@ try {
     const nav = page.getByRole("navigation", { name: "Registration sections" });
 
     assert.deepEqual(await nav.getByRole("link").allTextContents().then((items) => items.map((item) => item.trim())), [
-      "Summary", "Guests", "Form & capacity", "Emails", "Blasts", "Check-in",
+      "Summary", "Guests", "Form & capacity", "Emails", "Blasts",
     ]);
     const headingBefore = await page.getByRole("heading", { name: "Registration", exact: true }).boundingBox();
 
@@ -2585,6 +2594,18 @@ try {
     await nav.getByRole("link", { name: "Guests", exact: true }).click();
     await page.getByLabel("Search guests").fill("Finalpage");
     await page.getByText("Zara Finalpage", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Zara Finalpage", { exact: true }).count(), 1);
+    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Admit guest", exact: true }).click();
+    await page.getByLabel("Already checked in").waitFor();
+    responses.set("/api/annual-conference/2026/check-in/search", { body: { attendees: [
+      { ticket_id: "paid-ticket", attendee_name: "Paid Guest", status: "issued", checked_in_at: null },
+    ] } });
+    await page.getByLabel("Search guests").fill("paid@example.test");
+    await page.getByRole("button", { name: "Find exact email", exact: true }).click();
+    await page.getByText("Paid Guest", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Zara Finalpage", { exact: true }).count(), 0);
+    await page.getByLabel("Search guests").fill("Finalpage");
     assert.equal(await nav.locator('[aria-current="page"]').count(), 1);
     assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Guests");
     await page.screenshot({ path: artifacts + "/annual-registration-guests-desktop.png", fullPage: true });
@@ -2604,7 +2625,7 @@ try {
     assert.equal(requests.filter((item) => item.path.endsWith("/blast-1/send")).length, 0);
     await page.getByRole("button", { name: "Queue update", exact: true }).click();
     await page.getByText("Update queued.", { exact: true }).waitFor();
-    await nav.getByRole("link", { name: "Check-in", exact: true }).click();
+    await nav.getByRole("link", { name: "Guests", exact: true }).click();
     await page.getByRole("button", { name: "Scan with camera", exact: true }).waitFor();
     await page.locator(".page-leave-active, .page-stable-leave-active").waitFor({ state: "detached" });
     await page.locator(".page-enter-active, .page-stable-enter-active").waitFor({ state: "detached" });
@@ -2619,6 +2640,17 @@ try {
 
     assert.ok(checkInPanel.x >= 0 && checkInPanel.x + checkInPanel.width <= 391, "Check-in panel must fit the mobile viewport");
     await page.screenshot({ path: artifacts + "/annual-registration-checkin-mobile.png", fullPage: true });
+    await page.goto(origin + "/organizer-console/annual-conference/2026/check-in");
+    await page.waitForURL(/\/registrations\?section=guests$/);
+    guests[0].status = "waitlisted";
+    responses.set("/api/annual-conference/2026/check-in/attendees", { status: 503, body: { error: "Fixture outage" } });
+    await page.reload();
+    await page.getByRole("alert").filter({ hasText: "complete attendee list" }).waitFor();
+    await page.getByLabel("Search guests").fill("guest0@example.test");
+    const waitlistedRow = page.getByRole("listitem").filter({ hasText: "guest0@example.test" });
+
+    await waitlistedRow.waitFor();
+    assert.equal(await waitlistedRow.getByRole("button", { name: "Cancel registration", exact: true }).isEnabled(), true);
   });
 
   await journey("annual-check-in-list-first", async ({ page, responses, requests }) => {
@@ -2692,6 +2724,8 @@ try {
       true,
     );
     assert.equal(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link", { name: "Registration", exact: true }).count(), 0);
+    assert.deepEqual(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link").allTextContents().then((items) => items.map((item) => item.trim())), ["Guests"]);
+    assert.equal(requests.some((request) => request.path.endsWith("/registrations")), false);
     assert.equal(await page.getByRole("navigation", { name: "Annual Conference workspace" }).getByRole("link", { name: "Ticketing", exact: true }).count(), 0);
 
     await page.getByLabel("Search guests").fill("Kofi");

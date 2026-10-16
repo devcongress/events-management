@@ -4,7 +4,7 @@ import { RouterLink, useRoute } from 'vue-router';
 import { annualConferencePath } from '@/src/annual-conference';
 
 const props = defineProps<{
-  active: 'summary' | 'guests' | 'form' | 'emails' | 'blasts' | 'check-in';
+  active: 'summary' | 'guests' | 'form' | 'emails' | 'blasts';
   canManageRegistration: boolean;
   canCheckIn: boolean;
 }>();
@@ -18,7 +18,7 @@ const tabs = computed(() => [
     { key: 'emails', label: 'Emails', icon: 'emails' },
     { key: 'blasts', label: 'Blasts', icon: 'blasts' },
   ] : []),
-  ...(props.canCheckIn ? [{ key: 'check-in', label: 'Check-in', icon: 'guests' }] : []),
+  ...(!props.canManageRegistration && props.canCheckIn ? [{ key: 'guests', label: 'Guests', icon: 'guests' }] : []),
 ]);
 </script>
 
@@ -31,7 +31,7 @@ const tabs = computed(() => [
     <RouterLink
       v-for="tab in tabs"
       :key="tab.key"
-      :to="tab.key === 'check-in'
+      :to="!canManageRegistration
         ? annualConferencePath('check-in', year)
         : { path: annualConferencePath('registrations', year), query: { section: tab.key } }"
       class="registration-workspace-tab"
