@@ -71,7 +71,7 @@ async function sendTest() {
     <fieldset :disabled="sending">
       <div class="outcome-test-recipient">
         <label for="outcome-test-email">Test recipient</label>
-        <input id="outcome-test-email" v-model="recipient" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" />
+        <input id="outcome-test-email" class="app-form-control" v-model="recipient" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" />
       </div>
       <button class="outcome-test-secondary" type="button" :disabled="!signedInEmail" @click="recipient = signedInEmail">Use my email</button>
       <button class="outcome-test-submit" type="submit" :disabled="!available || !recipient.trim()">
@@ -133,7 +133,6 @@ label {
   font-weight: 700;
 }
 
-input,
 button {
   min-height: 2.75rem;
   padding: .65rem .8rem;
@@ -143,11 +142,6 @@ button {
   color: #25231f;
   font: inherit;
   font-size: .82rem;
-}
-
-input {
-  width: 100%;
-  min-width: 0;
 }
 
 button {
@@ -171,7 +165,6 @@ button:enabled:active {
   transform: scale(.97);
 }
 
-input:focus-visible,
 button:focus-visible {
   outline: 2px solid #c80d68;
   outline-offset: 3px;

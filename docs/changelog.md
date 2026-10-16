@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-16 — Test-email field consistency
+
+- Use the shared form control styles for the volunteer test recipient, including focus, validation and disabled states. Remove conflicting local input styles; keep the form coverage regression unchanged.
+
 ## 2026-10-16 — Explicit cancelled registration recovery
 
 - Add Owner-confirmed recovery in Guests, creating a fresh linked registration and queued notice while retaining the cancelled ticket and email history. Preserve waitlist priority, testing restrictions, and idempotent repeated actions.
