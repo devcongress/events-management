@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { CONFERENCE_REGISTRATION_PREVIEW_ORIGIN } from '@/lib/annual-conference-registration';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -1086,6 +1087,11 @@ function publicApiCorsOrigin(origin: string | undefined, c: Context): string | u
   return undefined;
 }
 
+function registrationCorsOrigin(origin: string | undefined, c: Context): string | undefined {
+  return publicApiCorsOrigin(origin, c)
+    ?? (origin === CONFERENCE_REGISTRATION_PREVIEW_ORIGIN ? origin : undefined);
+}
+
 function isPublicReadApiPath(path: string): boolean {
   return path === '/api/public/annual-conference/2026/ticket-prices'
     || path === '/api/public/meetups'
@@ -1444,12 +1450,12 @@ const publicSubmissionCors = cors({
 });
 
 app.use('/api/public/annual-conference/2026/registration', cors({
-  origin: publicApiCorsOrigin,
+  origin: registrationCorsOrigin,
   allowMethods: ['GET', 'POST', 'OPTIONS'],
   allowHeaders: ['Content-Type'],
 }));
 app.use('/api/public/annual-conference/2026/registration', async (c, next) => {
-  if (c.req.method === 'POST' && !publicApiCorsOrigin(c.req.header('Origin'), c)) {
+  if (c.req.method === 'POST' && !registrationCorsOrigin(c.req.header('Origin'), c)) {
     return c.json({ error: 'Registration origin is not allowed.' }, 403);
   }
   await next();

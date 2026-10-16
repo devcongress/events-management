@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-16 — Scoped DevCon26 registration preview access
+
+- Allow the exact website branch preview origin for registration CORS and POST-origin checks, with matching registration-only Turnstile hostname validation.
+- Keep unrelated public/organizer endpoints, other preview hosts, production localhost restrictions, and registration/email activation unchanged. Cloudflare widget hostname configuration remains a separate prerequisite.
+
 ## 2026-10-16 — Annual conference registration and volunteer admission
 
 - Add free name/email registration with per-edition normalized-email uniqueness, capacity-aware FIFO waitlisting, cancellation/promotion, and an Owner-controlled free/paid switch. Paid intake is Regular-only; incompatible late payments are recorded for refund rather than issued admission.

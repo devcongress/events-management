@@ -2,6 +2,14 @@ import { z } from 'zod';
 
 export const CONFERENCE_REGISTRATION_PATH = '/api/public/annual-conference/2026/registration';
 export const CONFERENCE_REGISTRATION_ACTION = 'conference_registration';
+export const CONFERENCE_REGISTRATION_PREVIEW_ORIGIN = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
+export const CONFERENCE_REGISTRATION_TURNSTILE_HOSTNAMES = [
+  'devcongress.org',
+  'www.devcongress.org',
+  'em.devcongress.org',
+  new URL(CONFERENCE_REGISTRATION_PREVIEW_ORIGIN).hostname,
+];
+
 export const conferenceRegistrationSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(254),

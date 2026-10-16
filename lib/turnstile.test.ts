@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ROUTE_FEEDBACK_TURNSTILE_ACTION, validateTurnstileToken } from '@/lib/turnstile';
+import { CONFERENCE_REGISTRATION_ACTION, CONFERENCE_REGISTRATION_TURNSTILE_HOSTNAMES } from '@/lib/annual-conference-registration';
 
 const fetchMock = vi.fn();
 
@@ -9,6 +10,24 @@ beforeEach(() => {
 });
 
 describe('turnstile validation', () => {
+  it.each([
+    ['feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev', CONFERENCE_REGISTRATION_ACTION, true],
+    ['other.workers.dev', CONFERENCE_REGISTRATION_ACTION, false],
+    ['feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev.attacker.example', CONFERENCE_REGISTRATION_ACTION, false],
+    ['feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev', 'cfp_submission', false],
+  ])('binds registration tokens to the exact hostname %s and action %s', async (hostname, action, accepted) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, hostname, action })));
+
+    const result = await validateTurnstileToken({
+      token: 'fixture-token',
+      secretKey: 'fixture-secret',
+      expectedAction: CONFERENCE_REGISTRATION_ACTION,
+      expectedHostname: CONFERENCE_REGISTRATION_TURNSTILE_HOSTNAMES,
+    });
+
+    expect(result.ok).toBe(accepted);
+  });
+
   it('accepts a successful response with the expected action and hostname', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({
       success: true,

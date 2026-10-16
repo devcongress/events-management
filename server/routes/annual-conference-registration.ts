@@ -1,7 +1,7 @@
 import type { Hono, Context } from 'hono';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { CONFERENCE_REGISTRATION_ACTION, CONFERENCE_REGISTRATION_PATH, conferenceRegistrationAccepted, conferenceRegistrationOverviewSchema, conferenceRegistrationSchema } from '@/lib/annual-conference-registration';
+import { CONFERENCE_REGISTRATION_ACTION, CONFERENCE_REGISTRATION_PATH, CONFERENCE_REGISTRATION_TURNSTILE_HOSTNAMES, conferenceRegistrationAccepted, conferenceRegistrationOverviewSchema, conferenceRegistrationSchema } from '@/lib/annual-conference-registration';
 import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { getAdminSession, requireAdmin } from '@/lib/supabase/admin-auth';
 import { requireAnnualConferenceCapability } from '@/server/annual-conference-request';
@@ -68,7 +68,7 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
       token: parsed.data.turnstile_token,
       submittedAction: parsed.data.turnstile_action,
       expectedAction: CONFERENCE_REGISTRATION_ACTION,
-      expectedHostname: ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org'],
+      expectedHostname: CONFERENCE_REGISTRATION_TURNSTILE_HOSTNAMES,
     });
 
     if (challenge) return challenge;
