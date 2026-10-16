@@ -51,6 +51,8 @@ export function volunteerCanAccessOrganizerPath(
   capabilities: readonly AnnualConferenceCapability[] = [],
 ): boolean {
   return path === annualConferencePath()
+    || (/^\/organizer-console\/annual-conference\/\d{4}\/check-in$/.test(path)
+      && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in']))
     || path === annualConferencePath('work-plan')
     || /^\/organizer-console\/mobile\/annual-conference\/\d{4}$/.test(path)
     || (/^\/organizer-console\/annual-conference\/\d{4}\/timeline$/.test(path)

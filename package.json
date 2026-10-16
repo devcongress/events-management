@@ -44,6 +44,7 @@
     "clsx": "^2.1.1",
     "disposable-email-domains-js": "1.25.0",
     "hono": "^4.13.7",
+    "jsqr": "^1.4.0",
     "qrcode": "^1.5.4",
     "tailwind-merge": "^3.4.0",
     "uuid": "^11.0.5",

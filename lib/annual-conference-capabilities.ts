@@ -12,6 +12,7 @@ export const ANNUAL_CONFERENCE_CAPABILITIES = [
   'speakers.manage',
   'finance.view',
   'ticketing.manage',
+  'ticketing.check_in',
 ] as const;
 
 export type AnnualConferenceCapability = typeof ANNUAL_CONFERENCE_CAPABILITIES[number];
@@ -28,6 +29,12 @@ export interface AnnualConferenceCapabilityDefinition {
 }
 
 export const ANNUAL_CONFERENCE_CAPABILITY_DEFINITIONS: readonly AnnualConferenceCapabilityDefinition[] = [
+  {
+    value: 'ticketing.check_in',
+    section: 'Ticketing',
+    label: 'Check in attendees',
+    description: 'Scan admission QR codes for this edition without access to finances or ticketing administration.',
+  },
   {
     value: 'work_plan.view_all',
     section: 'Work plan',
@@ -159,6 +166,6 @@ export function canDelegateAnnualConferenceCapability(
   }
 
   return role === 'volunteer' && (
-    capability.startsWith('work_plan.') || capability.startsWith('volunteers.')
+    capability.startsWith('work_plan.') || capability.startsWith('volunteers.') || capability === 'ticketing.check_in'
   );
 }

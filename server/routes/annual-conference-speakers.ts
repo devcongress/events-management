@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
+import { getSupabaseAdminClient, isSupabaseRuntimeEnabled } from '@/lib/supabase/server';
 import {
   ANNUAL_CONFERENCE_ABSTRACT_WORD_LIMIT,
   ANNUAL_CONFERENCE_BIO_WORD_LIMIT,
@@ -768,6 +769,13 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
       if (volunteerMatched) return c.body(null, 204);
 
+      const admission = isSupabaseRuntimeEnabled(c) ? await getSupabaseAdminClient(c).rpc('apply_annual_conference_admission_email_event' as never, {
+        p_provider_id: parsed.data.data.email_id, p_type: parsed.data.type,
+      } as never) : { data: false, error: null };
+
+      if (admission.error) throw new Error('Admission delivery status unavailable.');
+      if (admission.data) return c.body(null, 204);
+
       const matched = await applyAnnualConferenceDecisionEmailProviderEvent({
         providerEmailId: parsed.data.data.email_id,
         eventAt: parsed.data.created_at,
@@ -832,6 +840,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       token: parsed.data.turnstile_token,
       submittedAction: parsed.data.turnstile_action,
       expectedAction: CFP_SUBMISSION_TURNSTILE_ACTION,
+      expectedHostname: ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org'],
     });
 
     if (turnstileError) return turnstileError;

@@ -46,7 +46,8 @@ describe('annual conference capabilities', () => {
 
     const owner = effectiveAnnualConferenceCapabilities({ role: 'owner' });
 
-    expect(owner).toHaveLength(11);
+    expect(owner).toHaveLength(12);
+    expect(owner).toContain('ticketing.check_in');
     expect(owner).toContain('finance.view');
     expect(owner).toContain('ticketing.manage');
   });
@@ -71,5 +72,11 @@ describe('annual conference capabilities', () => {
   it('rejects capabilities outside the code-owned catalogue', () => {
     expect(isAnnualConferenceCapability('timeline.view')).toBe(true);
     expect(isAnnualConferenceCapability('admin.everything')).toBe(false);
+  });
+
+  it('grants volunteers admission scanning only when assigned', () => {
+    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer' })).not.toContain('ticketing.check_in');
+    expect(effectiveAnnualConferenceCapabilities({ role: 'volunteer', grants: ['ticketing.check_in'] })).toEqual(['ticketing.check_in']);
+    expect(canDelegateAnnualConferenceCapability('ticketing.check_in', 'volunteer')).toBe(true);
   });
 });

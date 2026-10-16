@@ -1012,6 +1012,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           key="overview"
           class="conference-view"
         >
+          <RouterLink v-if="hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in', 'ticketing.manage'])" :to="annualConferencePath('check-in', year)" class="primary-button">Open attendee scanner →</RouterLink>
           <header v-if="assignedAccess" class="volunteer-intro">
             <span>Your conference work</span>
             <div

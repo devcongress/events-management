@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-16 — Annual conference registration and volunteer admission
+
+- Add free name/email registration with per-edition normalized-email uniqueness, capacity-aware FIFO waitlisting, cancellation/promotion, and an Owner-controlled free/paid switch. Paid intake is Regular-only; incompatible late payments are recorded for refund rather than issued admission.
+- Add Annual Conference Registration management, repeat reviewed attendee updates, and a mobile Check-in section for explicitly delegated volunteers. QR and manual admission use row locks so concurrent volunteers cannot admit the same ticket twice.
+- Queue private QR confirmation and separate optional social-card links. Admission/update senders are disabled until configured, use bounded idempotent retries, and distinguish provider acceptance from inbox delivery.
+- Support the website registration and annual CFP flows with narrow public CORS, Turnstile, request limits, and neutral duplicate responses.
+- Add four forward migrations and their final-state verification contracts. Shared-database application, live registration activation, and real email sends remain separate rollout steps; see `features/annual-conference-registration.md`.
+
 ## 2026-10-13 — Isolated sandbox payment confirmation emails
 
 - Queue one clearly marked TEST confirmation per newly verified sandbox checkout, independent of real ticket and social-card email delivery.

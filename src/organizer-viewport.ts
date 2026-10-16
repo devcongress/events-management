@@ -34,6 +34,8 @@ export interface OrganizerViewportRedirectTarget {
 type OrganizerRouteQuery = Record<string, unknown>;
 
 const PHONE_ALLOWED_ADMIN_ROUTE_NAMES = new Set([
+  "admin-annual-conference-check-in",
+  "admin-annual-conference-registrations",
   "admin-login",
   "admin-auth-callback",
   "admin-feedback-display",

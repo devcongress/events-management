@@ -141,11 +141,11 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
 
-      if (!ticketing || ticketing.settings.ticket_sales_status !== 'open') return c.json({ mode: 'unavailable' });
+      if (!ticketing || ticketing.settings.public_mode !== 'paid' || ticketing.settings.ticket_sales_status !== 'open') return c.json({ mode: 'unavailable' });
 
       return c.json({
         mode: 'live', accepts_coupon: false, currency: ticketing.settings.currency,
-        tiers: ticketing.settings.ticket_tiers.map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor, currency: ticketing.settings.currency })),
+        tiers: ticketing.settings.ticket_tiers.filter((tier) => tier.key === 'regular').map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor, currency: ticketing.settings.currency })),
       });
     } catch {
       return c.json({ mode: 'unavailable' });
@@ -155,7 +155,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
   app.post(`${DEVCON26_PUBLIC_CHECKOUT_PATH}/quote`, async (c) => {
     const rawConfiguration = devcon26PublicCheckoutConfiguration(publicCheckoutEnvironment(c));
     const configuration = rawConfiguration && devcon26PublicCheckoutOriginConfiguration(rawConfiguration, c.req.header('Origin'));
-    const input = z.object({ tier_key: z.enum(['regular', 'team_3', 'team_5']) }).strict().safeParse(await c.req.json().catch(() => null));
+    const input = z.object({ tier_key: z.literal('regular') }).strict().safeParse(await c.req.json().catch(() => null));
 
     if (!configuration || !input.success || !annualConferencePaymentConfiguration(publicCheckoutEnvironment(c)).enabled) {
       return c.json({ error: 'Ticket quote is not available.' }, 503);
@@ -194,7 +194,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(2026, c);
 
-      if (!ticketing || ticketing.settings.ticket_sales_status !== 'open') return c.json({ error: 'Ticket sales are not open.' }, 409);
+      if (!ticketing || ticketing.settings.public_mode !== 'paid' || ticketing.settings.ticket_sales_status !== 'open') return c.json({ error: 'Ticket sales are not open.' }, 409);
       const order = await createSupabaseAnnualConferenceCheckoutHold({
         editionId: ticketing.settings.edition_id,
         purchaserName: input.data.purchaser_name,
@@ -442,9 +442,16 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
 
     if (!year.success) return c.json({ error: year.error.issues[0]?.message }, 400);
     if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? 'Ticket code is invalid.' }, 400);
-    const accessError = await requireTicketingManagement(c, Number(year.data));
+    const sessionError = await requireAdmin(c, ['owner', 'organizer', 'volunteer']);
 
-    if (accessError) return accessError;
+    if (sessionError) return sessionError;
+    const scanError = await requireAnnualConferenceCapability(c, Number(year.data), 'ticketing.check_in');
+
+    if (scanError) {
+      const managementError = await requireTicketingManagement(c, Number(year.data));
+
+      if (managementError) return scanError;
+    }
 
     try {
       const ticketing = await getSupabaseAnnualConferenceTicketing(Number(year.data), c);
@@ -471,7 +478,7 @@ export function registerAnnualConferenceTicketingRoutes(app: Hono<AppBindings>):
         });
       }
 
-      return c.json(result);
+      return c.json({ outcome: result.outcome });
     } catch {
       return c.json({ error: 'Unable to check in this ticket.' }, 500);
     }

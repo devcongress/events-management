@@ -107,6 +107,8 @@ const canManageTicketing = computed(() => hasAnyAnnualConferenceCapability(
   ['ticketing.manage'],
 ));
 const links = computed<AnnualConferenceNavLink[]>(() => [
+  ...(hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage'])
+    ? [{ href: annualConferencePath('check-in', year.value), label: 'Check-in', icon: 'tickets' as const }] : []),
   { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
   {
     href: annualConferencePath('work-plan', year.value),
@@ -117,6 +119,7 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
   ...(canManageTicketing.value ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }] : []),
+  ...(canManageTicketing.value ? [{ href: annualConferencePath('registrations', year.value), label: 'Registration', icon: 'tickets' as const }] : []),
 ]);
 const navViewport = ref<HTMLElement | null>(null);
 const editionOptions = computed(() => editions.value.map((edition) => ({

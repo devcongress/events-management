@@ -28,7 +28,7 @@ const SCHEDULED_JOBS = [
   VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
   { path: '/api/internal/devcon26-test-checkout-emails/retry', event: 'scheduled_sandbox_checkout_email_retry_http_failed' },
   VOLUNTEER_FOLLOW_UP_DRAIN_JOB,
-  null,
+  { path: '/api/internal/annual-conference-admission-emails/retry', event: 'scheduled_conference_admission_email_retry_http_failed' },
 ] as const;
 
 const SCHEDULE_CYCLE_MINUTES = 15;

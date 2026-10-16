@@ -42,7 +42,8 @@ export type AnnualConferenceCapability =
   | 'speakers.view'
   | 'speakers.manage'
   | 'finance.view'
-  | 'ticketing.manage';
+  | 'ticketing.manage'
+  | 'ticketing.check_in';
 export type AnnualConferenceTaskStatus =
   | 'not_started' | 'in_progress' | 'blocked' | 'done';
 export type AnnualConferenceWorkstream =
@@ -607,9 +608,9 @@ export interface Database {
         Relationships: [];
       };
       annual_conference_ticketing_settings: {
-        Row: { edition_id: string; public_capacity: number; sales_status: 'draft' | 'open' | 'closed'; currency: 'GHS'; regular_price_minor: number; team_3_price_minor: number; team_5_price_minor: number; updated_by_email: string | null; created_at: string; updated_at: string };
-        Insert: { edition_id: string; public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; currency?: 'GHS'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; created_at?: string; updated_at?: string };
-        Update: { public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; updated_at?: string };
+        Row: { public_mode: 'free' | 'paid'; edition_id: string; public_capacity: number; sales_status: 'draft' | 'open' | 'closed'; currency: 'GHS'; regular_price_minor: number; team_3_price_minor: number; team_5_price_minor: number; updated_by_email: string | null; created_at: string; updated_at: string };
+        Insert: { public_mode?: 'free' | 'paid'; edition_id: string; public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; currency?: 'GHS'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; created_at?: string; updated_at?: string };
+        Update: { public_mode?: 'free' | 'paid'; public_capacity?: number; sales_status?: 'draft' | 'open' | 'closed'; regular_price_minor?: number; team_3_price_minor?: number; team_5_price_minor?: number; updated_by_email?: string | null; updated_at?: string };
         Relationships: [];
       };
       annual_conference_sponsor_ticket_allocations: {
