@@ -650,7 +650,15 @@ export interface Database {
         Relationships: [];
       };
       annual_conference_ticket_email_outbox: {
-        Row: { id: string; edition_id: string; order_id: string; kind: 'payment_receipt' | 'ticket_delivery'; recipient_name: string; recipient_email: string; payload: Json; idempotency_key: string; status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed'; attempt_count: number; provider_email_id: string | null; last_error: string | null; next_attempt_at: string; claim_token: string | null; claimed_until: string | null; accepted_at: string | null; delivered_at: string | null; created_at: string; updated_at: string };
+        Row: {
+          id: string; edition_id: string; order_id: string | null; registration_id: string | null;
+          kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice';
+          recipient_name: string; recipient_email: string; payload: Json; idempotency_key: string;
+          status: 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed';
+          attempt_count: number; provider_email_id: string | null; last_error: string | null;
+          next_attempt_at: string; claim_token: string | null; claimed_until: string | null;
+          accepted_at: string | null; delivered_at: string | null; created_at: string; updated_at: string;
+        };
         Insert: Omit<Database['public']['Tables']['annual_conference_ticket_email_outbox']['Row'], 'id' | 'created_at' | 'updated_at'> & { id?: string; created_at?: string; updated_at?: string };
         Update: Partial<Database['public']['Tables']['annual_conference_ticket_email_outbox']['Insert']>;
         Relationships: [];

@@ -10,7 +10,7 @@ vi.mock('@/server/env', () => ({ envValue: (key: string) => ({
   DEVCON26_ADMISSION_EMAIL_FROM: 'events@example.test', DEVCON26_ADMISSION_EMAIL_REPLY_TO: 'help@example.test',
 })[key] }));
 
-import { admissionEmailContent, retryAnnualConferenceAdmissionEmails } from './annual-conference-admission-email-delivery';
+import { admissionEmailContent, admissionEmailReadiness, retryAnnualConferenceAdmissionEmails } from './annual-conference-admission-email-delivery';
 
 const delivery = {
   id: '10000000-0000-4000-8000-000000000001', recipient_name: '<Fixture>', recipient_email: 'fixture@example.test',
@@ -31,6 +31,12 @@ beforeEach(() => {
 });
 
 describe('conference admission delivery', () => {
+  it('reports readiness without exposing sender secrets', () => {
+    expect(admissionEmailReadiness({} as Context)).toEqual({ enabled: true, configured: true, ready: true });
+    mocks.enabled = false;
+    expect(admissionEmailReadiness({} as Context)).toEqual({ enabled: false, configured: true, ready: false });
+  });
+
   it('creates a private PNG attachment without exposing a raw token or unescaped name in HTML', async () => {
     const email = await admissionEmailContent(delivery, 'events@example.test', 'help@example.test');
 

@@ -563,6 +563,8 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
   page: number;
   pageSize: number;
   status?: AnnualConferenceTicketEmailDeliveryStatus;
+  registrationId?: string;
+  recipient?: string;
 }, c?: Context) {
   if (!isSupabaseRuntimeEnabled(c)) return null;
 
@@ -577,6 +579,8 @@ export async function listSupabaseAnnualConferenceTicketEmailDeliveries(input: {
     .range(from, to);
 
   if (input.status) query = query.eq('status', input.status);
+  if (input.registrationId) query = query.eq('registration_id', input.registrationId);
+  if (input.recipient) query = query.ilike('recipient_email', input.recipient.replace(/[\\%_]/g, '\\$&'));
 
   const result = await query;
 

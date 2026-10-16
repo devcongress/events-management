@@ -149,11 +149,25 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
 
     if (tickets.error) return c.json({ error: 'Unable to load registration admissions.' }, 503);
     const ticketIds = new Map((tickets.data ?? []).map((ticket) => [ticket.registration_id, ticket.id]));
+    const emailRecords = registrations.length ? await getSupabaseAdminClient(c)
+      .from('annual_conference_ticket_email_outbox')
+      .select('registration_id,status')
+      .eq('edition_id', overview.edition_id)
+      .in('registration_id', registrations.map((registration) => registration.id))
+      .order('created_at', { ascending: false })
+      .returns<Array<{ registration_id: string | null; status: string }>>()
+      : { data: [], error: null };
+    const emailStatuses = new Map<string, string>();
+
+    for (const email of emailRecords.data ?? []) {
+      if (email.registration_id && !emailStatuses.has(email.registration_id)) emailStatuses.set(email.registration_id, email.status);
+    }
 
     c.header('Cache-Control', 'no-store');
 
     return c.json({ overview, registrations: registrations.map((registration) => ({
       ...registration, ticket_id: ticketIds.get(registration.id) ?? null,
+      email_status: emailRecords.error ? 'unavailable' : emailStatuses.get(registration.id) ?? 'not_sent',
     })) });
   });
 

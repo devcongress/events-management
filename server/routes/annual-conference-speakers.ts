@@ -343,10 +343,6 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
         }, 409);
       }
 
-      if (!annualConferenceEmailConfigured(c)) {
-        return c.json({ error: 'Speaker decision email is not configured. The proposal was not decided.' }, 503);
-      }
-
       if (parsed.data.status === 'selected') {
         const tokenSecret = secureSharedSecret(envValue('SPEAKER_INTAKE_LINK_TOKEN_SECRET', c));
 
@@ -383,18 +379,11 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
             error_name: safeErrorName(auditError),
           }));
         }
-        const emailStatus = await deliverAnnualConferenceDecisionEmail(c, {
-          editionLabel: edition.label,
-          editionYear: edition.year,
-          deadline,
-          submission: accepted.submission,
-          token: accepted.token,
-        });
 
         return c.json({
           submission: accepted.submission,
           token: null,
-          decision_email: { status: emailStatus },
+          decision_email: { status: 'pending' },
         });
       }
 
@@ -417,14 +406,8 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
           error_name: safeErrorName(auditError),
         }));
       }
-      const emailStatus = await deliverAnnualConferenceDecisionEmail(c, {
-        editionLabel: edition.label,
-        editionYear: edition.year,
-        deadline: null,
-        submission,
-      });
 
-      return c.json({ submission, token: null, decision_email: { status: emailStatus } });
+      return c.json({ submission, token: null, decision_email: { status: 'pending' } });
     } catch (error) {
       return c.json({
         error: error instanceof Error ? error.message : 'Unable to update conference proposal.',
@@ -516,7 +499,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
 
       try {
         await recordProtectedMutationAudit(c, {
-          action: 'annual_conference.speaker_workspace_email.resend',
+          action: submission.decision_email_attempt_count === 0 ? 'annual_conference.speaker_workspace_email.send' : 'annual_conference.speaker_workspace_email.resend',
           targetType: 'annual_conference_speaker_submission',
           targetId: submission.id,
           metadata: { edition_year: year, email_status: emailStatus },
@@ -563,8 +546,11 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       if (!edition || !submission || submission.edition_id !== edition.id || submission.status !== 'not_selected') {
         return c.json({ error: 'Rejected conference proposal not found.' }, 404);
       }
-      if (submission.decision_email_status !== 'failed') {
-        return c.json({ error: 'Only a failed rejection email can be retried.' }, 409);
+      const initialSend = submission.decision_email_status === 'pending'
+        && submission.decision_email_attempt_count === 0 && !submission.decision_email_last_attempt_at;
+
+      if (submission.decision_email_status !== 'failed' && !initialSend) {
+        return c.json({ error: 'Only an unsent or failed rejection email can be sent.' }, 409);
       }
       if (!annualConferenceDecisionEmailCanBeRetriedManually(submission)) {
         return c.json({ error: 'The provider permanently failed this delivery. Correct the address before sending again.' }, 409);
@@ -582,7 +568,7 @@ export function registerAnnualConferenceSpeakerRoutes(app: Hono<AppBindings>): v
       });
 
       await recordProtectedMutationAudit(c, {
-        action: 'annual_conference.speaker_decision_email.retry',
+        action: initialSend ? 'annual_conference.speaker_decision_email.send' : 'annual_conference.speaker_decision_email.retry',
         targetType: 'annual_conference_speaker_submission',
         targetId: submission.id,
         metadata: { edition_year: year, email_status: status },

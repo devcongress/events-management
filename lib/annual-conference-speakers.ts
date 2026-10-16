@@ -852,6 +852,7 @@ export async function getPendingAnnualConferenceDecisionEmails(
       .select('*')
       .in('decision_email_status', statuses)
       .eq('decision_email_retryable', true)
+      .gt('decision_email_attempt_count', 0)
       .lt('decision_email_attempt_count', 5)
       .order('decision_email_last_attempt_at', { ascending: true, nullsFirst: true })
       .limit(limit);
@@ -867,6 +868,7 @@ export async function getPendingAnnualConferenceDecisionEmails(
       submission.decision_email_status
       && statuses.includes(submission.decision_email_status)
       && submission.decision_email_retryable
+      && submission.decision_email_attempt_count > 0
       && submission.decision_email_attempt_count < 5,
     ))
     .sort((a, b) => (a.decision_email_last_attempt_at ?? '').localeCompare(b.decision_email_last_attempt_at ?? ''))

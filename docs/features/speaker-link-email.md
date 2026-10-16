@@ -2,6 +2,10 @@
 
 ## Status
 
+### Annual speaker decision delivery (2026-10-16)
+
+Annual speaker accept/reject actions save the decision without sending email. In the existing speaker drawer, organizers review delivery status and explicitly confirm **Send workspace email** for selected speakers or **Send decision email** for rejected speakers. Sender configuration gates sending, not rejection. The drawer exposes stored attempt, provider-acceptance, and delivery timestamps with existing recovery actions. Scheduled retry excludes never-sent decisions; after the organizer initiates delivery, existing bounded transport retry continues. This does not change monthly Archive Requests.
+
 Implemented for organizer-triggered monthly Archive Requests. Organizers can select up to 100 eligible program rows, and the Worker sends one personalized, private-link email per row through Resend's Batch API.
 
 Resend acceptance, safe retry, duplicate-send prevention, and organizer toasts are active. Provider delivery webhooks, scheduled reminders, and annual-conference Broadcasts remain future work.

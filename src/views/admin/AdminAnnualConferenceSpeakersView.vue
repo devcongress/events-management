@@ -78,7 +78,7 @@ const canManage = computed(() => speakersQuery.data.value?.permissions.can_manag
 const approvalBlockedReason = computed(() => {
   const data = speakersQuery.data.value;
 
-  if (!data?.email_delivery.configured) return 'Configure speaker decision email before accepting or rejecting proposals.';
+  if (!data) return 'Loading speaker settings.';
   if (!data.email_delivery.workspace_links_configured) return 'Configure speaker workspace link signing before accepting proposals.';
   if (!data.call.logistics_deadline || new Date(data.call.logistics_deadline).getTime() <= Date.now()) return 'Set a future speaker logistics deadline before accepting proposals.';
 
@@ -138,19 +138,15 @@ const callMutation = useMutation({
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the Call for Speakers.'),
 });
 const decisionMutation = useMutation({
-  mutationFn: ({ id, status }: { id: string; status: 'selected' | 'not_selected' }) => fetchJson<{ decision_email: { status: 'accepted' | 'failed' | null } }>(`/api/annual-conference/${year.value}/speaker-submissions/${id}`, {
+  mutationFn: ({ id, status }: { id: string; status: 'selected' | 'not_selected' }) => fetchJson<{ decision_email: { status: 'pending' } }>(`/api/annual-conference/${year.value}/speaker-submissions/${id}`, {
     method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
   }),
-  onSuccess: async (result, variables) => {
+  onSuccess: async (_result, variables) => {
     await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
     if (variables.status === 'selected') statusFilter.value = 'selected';
     notify.success(variables.status === 'selected'
-      ? result.decision_email.status === 'accepted'
-        ? 'Proposal accepted and the private workspace was emailed to the speaker.'
-        : 'Proposal accepted, but the workspace email needs attention.'
-      : result.decision_email.status === 'accepted'
-        ? 'Proposal rejected and the decision email was sent.'
-        : 'Proposal rejected, but the decision email needs attention.');
+      ? 'Proposal accepted. Review and send the workspace email when ready.'
+      : 'Proposal rejected. Review and send the decision email when ready.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to update the proposal.'),
 });
@@ -173,7 +169,7 @@ const resendWorkspaceEmailMutation = useMutation({
   }),
   onSuccess: async (result) => {
     await queryClient.invalidateQueries({ queryKey: ['annual-conference-speakers', year.value] });
-    notify.success(result.decision_email.status === 'accepted' ? 'The private workspace email was retried without changing its link.' : 'The email provider still did not accept the message.');
+    notify.success(result.decision_email.status === 'accepted' ? 'The workspace email was accepted by the provider. Its private link is unchanged.' : 'The email provider did not accept the message.');
   },
   onError: (error) => notify.error(error instanceof Error ? error.message : 'Unable to resend the workspace email.'),
 });

@@ -54,6 +54,15 @@ export async function admissionEmailContent(delivery: z.infer<typeof deliverySch
   };
 }
 
+export function admissionEmailReadiness(c: Context) {
+  const enabled = envValue('DEVCON26_ADMISSION_EMAILS_ENABLED', c) === 'true';
+  const configured = Boolean(envValue('RESEND_API_KEY', c)?.trim()
+    && envValue('DEVCON26_ADMISSION_EMAIL_FROM', c)?.trim()
+    && envValue('DEVCON26_ADMISSION_EMAIL_REPLY_TO', c)?.trim());
+
+  return { enabled, configured, ready: enabled && configured };
+}
+
 export async function retryAnnualConferenceAdmissionEmails(c: Context) {
   const apiKey = envValue('RESEND_API_KEY', c)?.trim();
   const from = envValue('DEVCON26_ADMISSION_EMAIL_FROM', c)?.trim();

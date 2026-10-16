@@ -6,6 +6,7 @@ export type ConferenceRegistrationGuest = {
   created_at: string;
   is_test: boolean;
   ticket_id: string | null;
+  email_status?: string;
 };
 
 export type ConferenceAdmission = {

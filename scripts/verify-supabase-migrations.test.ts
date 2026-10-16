@@ -38,10 +38,10 @@ function fixtureCatalog(): Catalog {
 }
 
 describe('migration contract inventory', () => {
-  it('covers the current files with an honest legacy exemption and twenty-two reviewed contracts', () => {
+  it('covers the current files with an honest legacy exemption and twenty-three reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(22);
+    expect(contract.verified).toHaveLength(23);
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {

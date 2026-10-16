@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useRoute } from 'vue-router';
 import AppPagination from '@/src/components/AppPagination.vue';
+import AnnualConferenceGuestEmails from '@/src/components/AnnualConferenceGuestEmails.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import RegistrationAlphabetFilter from '@/src/components/ui/RegistrationAlphabetFilter.vue';
 import { fetchAnnualConferenceWorkPlan, fetchJson, queryKeys } from '@/src/lib/api';
@@ -66,6 +67,9 @@ const page = ref(1);
 const attendees = ref<AttendeeRecord[]>([]);
 const emailResults = ref<AttendeeRecord[] | null>(null);
 const selected = ref<AttendeeRecord | null>(null);
+const emailGuest = ref<ConferenceRegistrationGuest | null>(null);
+
+watch(year, () => { emailGuest.value = null; });
 const rosterLoaded = ref(false);
 const visibleAttendees = computed(() => {
   const admissions = emailResults.value ?? (rosterError.value ? [] : attendees.value);
@@ -517,6 +521,7 @@ onBeforeUnmount(() => {
                 @click="selectAttendee(guest.admission)"
               >Check in</button>
               <span v-else-if="guest.admission?.status === 'checked_in'" class="check-in-checked-label" aria-label="Already checked in">Done</span>
+              <button v-if="canManageRegistration && guest.registration" type="button" class="check-in-text-button" @click="emailGuest = guest.registration">Email: {{ guest.registration.email_status === 'accepted' ? 'Accepted by provider' : (guest.registration.email_status ?? 'View activity').replaceAll('_', ' ') }}</button>
               <button v-if="canManageRegistration && guest.registration && guest.registration.status !== 'cancelled' && guest.admission?.status !== 'checked_in'"
                 type="button" class="check-in-text-button" :disabled="busy || managementBusy || (guest.registration.status === 'confirmed' && (rosterLoading || Boolean(rosterError)))"
                 @click="emit('cancel', guest.registration)">Cancel registration</button>
@@ -539,6 +544,7 @@ onBeforeUnmount(() => {
       <p class="check-in-safety-note">Stay online while admitting guests. If an action fails or is still pending, do not admit; retry after checking the list status.</p>
     </section>
 
+    <AnnualConferenceGuestEmails v-if="canManageRegistration" :year="year" :guest="emailGuest" @close="emailGuest = null" />
     <ConfirmDialog
       :open="Boolean(selected)"
       title="Confirm guest check-in"
