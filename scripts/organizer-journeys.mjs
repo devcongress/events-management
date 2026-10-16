@@ -2532,6 +2532,143 @@ try {
       .waitFor();
   });
 
+  await journey("annual-check-in-list-first", async ({ page, responses, requests }) => {
+    const attendees = [
+      {
+        ticket_id: "ticket-adjoa",
+        attendee_name: "Adjoa Mensah",
+        status: "issued",
+        checked_in_at: null,
+        order_seat_number: 1,
+      },
+      {
+        ticket_id: "ticket-kofi",
+        attendee_name: "Kofi Mensah",
+        status: "issued",
+        checked_in_at: null,
+        order_seat_number: 2,
+      },
+      {
+        ticket_id: "ticket-unnamed",
+        attendee_name: null,
+        status: "issued",
+        checked_in_at: null,
+        order_seat_number: 3,
+      },
+    ];
+
+    responses.set("/api/annual-conference/editions", {
+      body: { editions: [edition] },
+    });
+    responses.set("/api/annual-conference/2026/work-plan", {
+      body: {
+        ...workspace,
+        edition,
+        permissions: { ...workspace.permissions, capabilities: ["ticketing.check_in"] },
+      },
+    });
+    responses.set("/api/annual-conference/2026/check-in/attendees", (request) => {
+      const url = new URL(request.url());
+      const requestedPage = Number(url.searchParams.get("page") ?? 1);
+      const pageSize = Number(url.searchParams.get("page_size") ?? 100);
+      const from = (requestedPage - 1) * pageSize;
+      const rows = attendees.slice(from, from + pageSize);
+
+      return {
+        body: {
+          attendees: rows,
+          page: requestedPage,
+          page_size: pageSize,
+          has_more: from + pageSize < attendees.length,
+        },
+      };
+    });
+    responses.set("/api/annual-conference/2026/check-in/admit", (request) => {
+      const { ticket_id: ticketId } = JSON.parse(request.postData() ?? "{}");
+      const attendee = attendees.find((ticket) => ticket.ticket_id === ticketId);
+
+      if (!attendee || attendee.status === "checked_in")
+        return { body: { outcome: "already_checked_in" } };
+      attendee.status = "checked_in";
+      attendee.checked_in_at = "2026-12-19T10:00:00.000Z";
+
+      return { body: { outcome: "checked_in" } };
+    });
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/registrations`);
+    await page.waitForURL(/\/annual-conference\/2026\/check-in$/);
+    await page.goto(`${origin}/organizer-console/annual-conference/2026/check-in`);
+    await page.getByText("Adjoa Mensah", { exact: true }).waitFor();
+    assert.equal(
+      requests.some((request) => request.path.endsWith("/check-in/attendees")),
+      true,
+    );
+    assert.equal(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link", { name: "Registration", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("navigation", { name: "Annual Conference workspace" }).getByRole("link", { name: "Ticketing", exact: true }).count(), 0);
+
+    await page.getByLabel("Search the attendee list").fill("Kofi");
+    await page.getByText("Kofi Mensah", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Adjoa Mensah", { exact: true }).count(), 0);
+    await page.getByLabel("Search the attendee list").fill("");
+    await page
+      .getByRole("button", { name: "Show guests whose names start with A" })
+      .click();
+    await page.getByText("Adjoa Mensah", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Kofi Mensah", { exact: true }).count(), 0);
+    await page
+      .getByRole("button", { name: "Show guests whose names start with U" })
+      .click();
+    const unnamedTicket = page.getByRole("listitem").filter({
+      hasText: "Unnamed ticket",
+    });
+
+    await unnamedTicket.waitFor();
+    assert.equal(
+      await unnamedTicket.getByRole("button", { name: "Check in" }).count(),
+      0,
+    );
+    assert.match(await unnamedTicket.innerText(), /QR only/i);
+
+    await page
+      .getByRole("button", { name: "Show all guests" })
+      .click();
+    await page.getByLabel("Search the attendee list").fill("Kofi");
+    await page.getByRole("button", { name: "Check in", exact: true }).click();
+    await page.getByRole("dialog", { name: "Confirm guest check-in" }).waitFor();
+    await page.getByRole("button", { name: "Admit guest" }).click();
+    await page.getByText("Checked in", { exact: true }).waitFor();
+    assert.equal(
+      requests.filter(
+        (request) => request.path.endsWith("/check-in/admit") && request.method === "POST",
+      ).length,
+      1,
+    );
+
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: {
+          getUserMedia: () => {
+            const count = Number(sessionStorage.getItem("fixture-camera-requests") ?? 0);
+
+            sessionStorage.setItem("fixture-camera-requests", String(count + 1));
+
+            return Promise.reject(new Error("Fixture permission denied"));
+          },
+        },
+      });
+    });
+    assert.equal(
+      await page.evaluate(() => sessionStorage.getItem("fixture-camera-requests")),
+      null,
+    );
+    await page.getByRole("button", { name: "Scan a ticket instead" }).click();
+    await page.getByText("Camera access failed.", { exact: false }).waitFor();
+    assert.equal(
+      await page.evaluate(() => sessionStorage.getItem("fixture-camera-requests")),
+      "1",
+    );
+  }, { role: "volunteer" });
+
   for (const [name, date, allowed] of [
     ["check-in-before", "2026-09-25T12:00:00Z", false],
     ["check-in-day", "2026-09-26T12:00:00Z", true],

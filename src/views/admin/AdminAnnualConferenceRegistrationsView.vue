@@ -1,22 +1,36 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { useQuery } from '@tanstack/vue-query';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import AnnualConferenceNav from '@/src/components/AnnualConferenceNav.vue';
+import AnnualConferenceRegistrationNav from '@/src/components/AnnualConferenceRegistrationNav.vue';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import ConfirmDialog from '@/src/components/ui/ConfirmDialog.vue';
 import AnnualConferenceRouteSkeleton from '@/src/components/ui/page-skeletons/AnnualConferenceRouteSkeleton.vue';
-import { fetchAdminSession, fetchJson, queryKeys } from '@/src/lib/api';
+import { validateAnnualConferenceCapacity } from '@/lib/annual-conference-ticketing';
+import { hasAnyAnnualConferenceCapability } from '@/lib/annual-conference-capabilities';
+import {
+  fetchAdminSession,
+  fetchAnnualConferenceTicketing,
+  fetchAnnualConferenceWorkPlan,
+  fetchJson,
+  queryKeys,
+  updateAnnualConferenceTicketingCapacity,
+} from '@/src/lib/api';
 
 type Registration = { id: string; name: string; email: string; status: 'confirmed' | 'waitlisted' | 'cancelled'; created_at: string; is_test: boolean };
 type Overview = { mode: 'free' | 'paid'; status: 'draft' | 'open' | 'closed'; capacity: number; reserved: number; confirmed: number; waitlisted: number };
 type Blast = { id: string; subject: string; body: string; status: string; recipients: number; accepted: number; needs_attention: number };
 const route = useRoute();
+const queryClient = useQueryClient();
 const year = computed(() => String(route.params.year));
 const endpoint = computed(() => `/api/annual-conference/${year.value}/registrations`);
 const offset = ref(0);
 const message = ref('');
 const busy = ref(false);
+const capacityBusy = ref(false);
+const capacity = ref<number | null>(null);
+const capacityError = ref('');
 const cancellation = ref<Registration | null>(null);
 const review = ref<Blast | null>(null);
 const draft = reactive({ subject: '', body: '' });
@@ -31,6 +45,18 @@ const modeOptions = [{ value: 'free', label: 'Free registration' }, { value: 'pa
 const statusOptions = [{ value: 'draft', label: 'Draft' }, { value: 'open', label: 'Open' }, { value: 'closed', label: 'Closed' }];
 const session = useQuery({ queryKey: queryKeys.adminSession, queryFn: fetchAdminSession });
 const owner = computed(() => session.data.value?.user?.role === 'owner');
+const workPlan = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceWorkPlan(year.value)),
+  queryFn: () => fetchAnnualConferenceWorkPlan(year.value),
+});
+const capabilities = computed(() => workPlan.data.value?.permissions.capabilities ?? []);
+const canManageRegistration = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage']));
+const canCheckIn = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage']));
+const ticketing = useQuery({
+  queryKey: computed(() => queryKeys.annualConferenceTicketing(year.value)),
+  queryFn: () => fetchAnnualConferenceTicketing(year.value),
+  enabled: canManageRegistration,
+});
 const testingQuery = useQuery({
   queryKey: computed(() => ['conference-registration-testing', year.value]),
   enabled: owner,
@@ -45,6 +71,21 @@ const registrations = useQuery({
   queryKey: computed(() => ['conference-registrations', year.value, offset.value]),
   queryFn: () => fetchJson<{ overview: Overview; registrations: Registration[] }>(`${endpoint.value}?offset=${offset.value}`, { credentials: 'include' }),
 });
+const capacityValidation = computed(() => {
+  const data = ticketing.data.value;
+
+  if (!data || capacity.value === null) return null;
+  if (capacity.value > 5000) return 'Capacity cannot be higher than 5,000.';
+
+  return validateAnnualConferenceCapacity(capacity.value, data.inventory);
+});
+const capacityHasChanged = computed(() => (
+  capacity.value !== null && capacity.value !== ticketing.data.value?.settings.public_capacity
+));
+const capacityCanSave = computed(() => (
+  capacityHasChanged.value && !capacityValidation.value && capacity.value !== null && capacity.value <= 5000
+));
+let capacityRequestGeneration = 0;
 const blasts = useQuery({
   queryKey: computed(() => ['conference-attendee-blasts', year.value]),
   queryFn: () => fetchJson<{ blasts: Blast[] }>(`${endpoint.value}/blasts`, { credentials: 'include' }),
@@ -60,6 +101,8 @@ watch(() => testingQuery.data.value, (value, previous) => {
 
   if (value && unchanged && !testingConfirmation.value) Object.assign(testing, { enabled: value.enabled, emails: value.tester_emails.join('\n') });
 }, { immediate: true });
+let hydratedCapacityYear = '';
+
 watch(year, () => {
   offset.value = 0;
   cancellation.value = null;
@@ -68,9 +111,56 @@ watch(year, () => {
   testingConfirmation.value = false;
   draftConfirmation.value = false;
   deliveryConfirmation.value = false;
+  capacityRequestGeneration += 1;
+  capacityBusy.value = false;
+  capacity.value = null;
+  capacityError.value = '';
   error.value = '';
   Object.assign(draft, { subject: '', body: '' });
 });
+watch([year, () => ticketing.data.value?.settings.public_capacity], ([currentYear, value]) => {
+  if (value !== undefined && (currentYear !== hydratedCapacityYear || capacity.value === null)) {
+    capacity.value = value;
+    hydratedCapacityYear = currentYear;
+  }
+}, { immediate: true });
+
+async function saveCapacity() {
+  if (!canManageRegistration.value || !capacityCanSave.value || capacity.value === null || busy.value || capacityBusy.value) return;
+  const requestGeneration = ++capacityRequestGeneration;
+  const requestYear = year.value;
+  const requestedCapacity = capacity.value;
+
+  capacityBusy.value = true;
+  capacityError.value = '';
+
+  try {
+    await updateAnnualConferenceTicketingCapacity(requestYear, requestedCapacity);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.annualConferenceTicketing(requestYear) }),
+      queryClient.invalidateQueries({ queryKey: ['conference-registrations', requestYear] }),
+    ]);
+
+    if (requestGeneration === capacityRequestGeneration) {
+      capacity.value = requestedCapacity;
+      message.value = 'Conference capacity updated.';
+    }
+  } catch (cause) {
+    if (requestGeneration === capacityRequestGeneration) {
+      capacityError.value = cause instanceof Error ? cause.message : 'Unable to update conference capacity.';
+    }
+  } finally {
+    if (requestGeneration === capacityRequestGeneration) capacityBusy.value = false;
+  }
+}
+
+function reviewCapacityChange() {
+  capacityError.value = capacityValidation.value ?? '';
+
+  if (capacityError.value || !capacityCanSave.value) return;
+
+  void saveCapacity();
+}
 
 async function mutate(path: string, body: unknown, success: string, method = 'POST') {
   if (busy.value) return;
@@ -105,10 +195,11 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
 <template>
   <main class="editorial-page"><div class="editorial-wrap registration-content">
     <AnnualConferenceNav :show-page-heading="false" />
+    <AnnualConferenceRegistrationNav active="registration" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" />
     <header class="border-b-2 border-dc-ink pb-5">
       <p class="editorial-eyebrow">DevCon{{ year.slice(-2) }} · attendees</p>
       <h1 class="mt-2 text-3xl font-semibold text-dc-ink">Registration</h1>
-      <p class="mt-2 text-sm text-dc-gray">Manage places, the waitlist, and conference updates.</p>
+        <p class="mt-2 text-sm text-dc-gray">Manage registration, waitlist, venue capacity, and conference updates.</p>
     </header>
     <p role="status" aria-live="polite">{{ message }}</p>
     <AnnualConferenceRouteSkeleton v-if="registrations.isPending.value" variant="overview" />
@@ -121,8 +212,24 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p><strong>{{ registrations.data.value.overview.waitlisted }}</strong> waitlisted</p>
           <p><strong>{{ registrations.data.value.overview.reserved }} / {{ registrations.data.value.overview.capacity }}</strong> total reserved capacity</p>
         </div>
-        <p>Capacity includes registrations, paid bookings, sponsor allocations, and active checkout holds. Change the capacity in Ticketing; increasing it promotes the oldest waitlisted registrations automatically.</p>
-        <form v-if="owner" @submit.prevent="error = ''; settingsConfirmation = true">
+        <p>Capacity includes registrations, paid bookings, sponsor allocations, and active checkout holds. Increasing it promotes the oldest waitlisted registrations automatically.</p>
+        <div v-if="canManageRegistration" class="registration-capacity-control">
+          <p v-if="ticketing.isPending.value" role="status">Loading capacity controls…</p>
+          <div v-else-if="ticketing.isError.value" role="alert">
+            <p class="text-dc-pink">Capacity controls could not be loaded.</p>
+            <button type="button" :disabled="capacityBusy" @click="ticketing.refetch()">Try again</button>
+          </div>
+          <form v-else-if="ticketing.data.value" class="registration-settings-row" @submit.prevent="reviewCapacityChange">
+            <label for="conference-capacity" class="min-w-48 flex-1">
+              <span class="editorial-label">Venue capacity</span>
+              <input id="conference-capacity" v-model.number="capacity" class="app-form-control" type="number" inputmode="numeric" :min="Math.max(1, ticketing.data.value.inventory.reduction_floor)" max="5000" :disabled="capacityBusy || busy" :aria-describedby="capacityError || capacityValidation ? 'conference-capacity-error' : 'conference-capacity-help'" @input="capacityError = ''" />
+            </label>
+            <button type="submit" :disabled="capacityBusy || busy || !capacityCanSave">{{ capacityBusy ? 'Saving…' : 'Save capacity' }}</button>
+            <p id="conference-capacity-help" class="text-xs text-dc-gray">Current {{ ticketing.data.value.settings.public_capacity }}. Minimum {{ ticketing.data.value.inventory.reduction_floor }} reserved seats; maximum 5,000.</p>
+            <p v-if="capacityError || capacityValidation" id="conference-capacity-error" class="text-sm text-dc-pink" role="alert">{{ capacityError || capacityValidation }}</p>
+          </form>
+        </div>
+        <form v-if="owner" class="registration-settings-row" @submit.prevent="error = ''; settingsConfirmation = true">
           <AppDropdown v-model="settings.mode" label="Registration mode" :options="modeOptions" :disabled="busy" />
           <AppDropdown v-model="settings.status" label="Availability" :options="statusOptions" :disabled="busy" />
           <button type="submit" :disabled="busy">Review settings</button>
@@ -142,13 +249,16 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p class="text-dc-pink">Apply the registration testing migration to enable these controls.</p>
           <button @click="testingQuery.refetch()">Try again</button>
         </div>
-        <form v-else @submit.prevent="error = ''; testingConfirmation = true">
+        <form v-else class="testing-settings-form" @submit.prevent="error = ''; testingConfirmation = true">
           <label class="testing-toggle"><input v-model="testing.enabled" type="checkbox" :disabled="busy" /> Restrict to approved testers</label>
-          <label for="tester-emails">Approved tester emails</label>
-          <textarea id="tester-emails" v-model="testing.emails" class="app-form-control w-full" rows="4" maxlength="51000" :disabled="busy" aria-describedby="tester-help tester-error" :aria-invalid="Boolean(testingError)" />
+          <div class="testing-settings-row">
+            <label for="tester-emails">Approved tester emails
+              <textarea id="tester-emails" v-model="testing.emails" class="app-form-control w-full" rows="4" maxlength="51000" :disabled="busy" aria-describedby="tester-help tester-error" :aria-invalid="Boolean(testingError)" />
+            </label>
+            <button type="submit" :disabled="busy || Boolean(testingError)">Review testing settings</button>
+          </div>
           <p id="tester-help" class="text-xs text-dc-gray">One address per line. Add or remove addresses, then save. {{ testerEmails.length }} / 200 addresses. An empty list blocks everyone while enabled.</p>
           <p id="tester-error" role="status" class="text-sm text-dc-pink">{{ testingError }}</p>
-          <button type="submit" :disabled="busy || Boolean(testingError)">Review testing settings</button>
         </form>
         <ConfirmDialog :open="testingConfirmation" :title="testing.enabled ? 'Save testing restrictions?' : 'Turn off testing restrictions?'" :message="testing.enabled ? 'Only the ' + testerEmails.length + ' approved addresses can register and receive conference emails. Changes apply to future sends; messages already in flight or sent cannot be recalled.' : 'Open registration will no longer be restricted to testers. Existing testing records, valid QR codes, and capacity remain. Review cleanup separately before launch. Testing-record emails remain restricted to the saved list.'" confirm-label="Save testing settings" :busy="busy" :confirm-disabled="Boolean(testingError)" :danger="!testing.enabled && Boolean(testingQuery.data.value?.enabled)" @cancel="testingConfirmation = false" @confirm="mutate('/testing', { enabled: testing.enabled, tester_emails: testerEmails }, 'Testing settings saved.', 'PATCH')">
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
@@ -237,6 +347,28 @@ form {
   gap: 16px;
   max-width: 660px;
   margin-top: 20px;
+}
+.registration-settings-row,
+.testing-settings-form {
+  max-width: none;
+}
+.testing-settings-row {
+  display: grid;
+  gap: 16px;
+}
+.registration-settings-row > *,
+.testing-settings-row > * {
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .registration-settings-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+    align-items: end;
+  }
+  .testing-settings-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
 }
 label {
   display: grid;

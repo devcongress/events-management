@@ -165,6 +165,33 @@ describe("admin API role policy", () => {
     ).not.toContain("volunteer");
   });
 
+  it("allows volunteers to read only the annual check-in attendee list endpoint", () => {
+    expect(
+      adminRolesForApiRequest(
+        "/api/annual-conference/2026/check-in/attendees",
+        "GET",
+      ),
+    ).toContain("volunteer");
+    expect(
+      adminRolesForApiRequest(
+        "/api/annual-conference/2026/check-in/attendees",
+        "POST",
+      ),
+    ).not.toContain("volunteer");
+    expect(
+      adminRolesForApiRequest(
+        "/api/annual-conference/2026/check-in/attendees/extra",
+        "GET",
+      ),
+    ).not.toContain("volunteer");
+    expect(
+      adminRolesForApiRequest(
+        "/api/annual-conference/2026/check-in/search",
+        "GET",
+      ),
+    ).not.toContain("volunteer");
+  });
+
   it("admits conference reviewers to the dedicated Reviews endpoints but not the Owner Campaign read", () => {
     expect(
       adminRolesForApiRequest(

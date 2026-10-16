@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query';
-import { useRoute, useRouter } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import AppDropdown from '@/src/components/AppDropdown.vue';
 import AppDatePicker from '@/src/components/ui/AppDatePicker.vue';
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
+  annualConferenceRegistrationTarget,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
 } from '@/src/annual-conference';
@@ -29,6 +30,7 @@ type AnnualConferenceNavLink = {
   href: string;
   label: string;
   icon: AnnualConferenceNavIcon;
+  disabled?: boolean;
 };
 
 withDefaults(defineProps<{
@@ -102,13 +104,8 @@ const canViewSpeakers = computed(() => hasAnyAnnualConferenceCapability(
   capabilities.value,
   ['speakers.view', 'speakers.manage'],
 ));
-const canManageTicketing = computed(() => hasAnyAnnualConferenceCapability(
-  capabilities.value,
-  ['ticketing.manage'],
-));
+const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
 const links = computed<AnnualConferenceNavLink[]>(() => [
-  ...(hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.check_in', 'ticketing.manage'])
-    ? [{ href: annualConferencePath('check-in', year.value), label: 'Check-in', icon: 'tickets' as const }] : []),
   { href: annualConferencePath('', year.value), label: 'Overview', icon: 'overview' },
   {
     href: annualConferencePath('work-plan', year.value),
@@ -118,8 +115,10 @@ const links = computed<AnnualConferenceNavLink[]>(() => [
   ...(canViewVolunteers.value ? [{ href: annualConferencePath('volunteers', year.value), label: 'Volunteers', icon: 'volunteers' as const }] : []),
   ...(canViewSpeakers.value ? [{ href: annualConferencePath('speakers', year.value), label: 'Speakers', icon: 'speakers' as const }] : []),
   ...(canViewFinance.value ? [{ href: annualConferencePath('finance', year.value), label: 'Finance', icon: 'finance' as const }] : []),
-  ...(canManageTicketing.value ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const }] : []),
-  ...(canManageTicketing.value ? [{ href: annualConferencePath('registrations', year.value), label: 'Registration', icon: 'tickets' as const }] : []),
+  ...(registrationTarget.value ? [{ href: registrationTarget.value, label: 'Registration', icon: 'tickets' as const }] : []),
+  ...(hasAnyAnnualConferenceCapability(capabilities.value, ['ticketing.manage'])
+    ? [{ href: annualConferencePath('ticketing', year.value), label: 'Ticketing', icon: 'tickets' as const, disabled: true }]
+    : []),
 ]);
 const navViewport = ref<HTMLElement | null>(null);
 const editionOptions = computed(() => editions.value.map((edition) => ({
@@ -173,6 +172,12 @@ function submitEdition() {
 }
 
 function isActive(href: string): boolean {
+  if (href === annualConferencePath('ticketing', year.value)) return false;
+
+  if (href === registrationTarget.value && route.path === annualConferencePath('check-in', year.value)) {
+    return true;
+  }
+
   if (href === annualConferencePath('', year.value)) {
     return route.path === href;
   }
@@ -228,12 +233,14 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 
       <div ref="navViewport" class="annual-conference-nav-viewport mt-1 w-full">
         <nav class="annual-conference-nav" aria-label="Annual Conference workspace">
-          <RouterLink
+          <component
+            :is="link.disabled ? 'span' : RouterLink"
             v-for="link in links"
             :key="link.href"
-            :to="link.href"
+            :to="link.disabled ? undefined : link.href"
             class="annual-conference-nav-link"
-            :class="{ 'annual-conference-nav-link--active': isActive(link.href) }"
+            :class="{ 'annual-conference-nav-link--active': isActive(link.href), 'annual-conference-nav-link--disabled': link.disabled }"
+            :aria-disabled="link.disabled ? 'true' : undefined"
             :aria-current="isActive(link.href) ? 'page' : undefined"
           >
           <svg class="annual-conference-nav-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -266,7 +273,8 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
             </template>
           </svg>
             {{ link.label }}
-          </RouterLink>
+            <span v-if="link.disabled" class="annual-conference-nav-disabled-label">Disabled</span>
+          </component>
         </nav>
       </div>
     </div>
@@ -368,6 +376,26 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
   color: #111111;
 }
 
+.annual-conference-nav-link--disabled {
+  cursor: not-allowed;
+  color: #959188;
+  opacity: 0.72;
+}
+
+.annual-conference-nav-link--disabled::after {
+  display: none;
+}
+
+.annual-conference-nav-disabled-label {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.08rem 0.35rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 .annual-conference-nav-link--active::after {
   opacity: 1;
   transform: scaleX(1);
@@ -394,7 +422,7 @@ watch([links, () => route.fullPath], revealActiveNavLink, { flush: 'post', immed
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .annual-conference-nav-link:hover {
+  .annual-conference-nav-link:not(.annual-conference-nav-link--disabled):hover {
     color: #111111;
   }
 }

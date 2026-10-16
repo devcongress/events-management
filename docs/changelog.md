@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-16 — Make annual conference check-in list-first
+
+- Add a capability-gated, stable paged attendee roster limited to the current edition’s issued and checked-in tickets; return only the fields required for check-in and never expose roster email addresses.
+- Make name search and the existing alphabetical filter the primary flow, with confirmed manual check-in for named tickets and a QR-only path for unnamed bearer tickets. Camera scanning is optional and requests access only after volunteers choose it.
+- Reload the complete roster after manual or QR admission while keeping the current search and alphabet filter. Preserve the exact-email server lookup and all existing atomic check-in behavior; no database or live-data changes.
+- Nest Check-in under Registration for managers and scanner-only volunteers, move the existing capability-gated capacity control into Registration, and show Ticketing as disabled in desktop and mobile navigation while redirecting its old UI route. Ticket/order APIs and data remain unchanged.
+
+## 2026-10-16 — Compact registration settings rows
+
+- Align registration mode, availability, and their review action on one desktop row; align the approved-tester email field and review action side by side. Keep stacked controls on narrow screens and preserve confirmation behavior.
+
+## 2026-10-16 — Prepare temporary DevCon26 CFP website handoff
+
+- Add an exact-path, default-off, no-store `302` for the public EMS annual CFP page and its trailing-slash alias, with a matching Vue navigation guard and a fixed production website destination.
+- Keep query strings out of the redirect and leave CFP APIs, monthly/other-year forms, organizer routes, and private speaker links untouched. Activation waits for the production website route to be deployed and the EMS CFP request to work from the production website origin.
+
 ## 2026-10-16 — Owner-managed registration rehearsal
 
 - Add dynamic tester-only registration and conference-email restrictions using the existing database, with internal testing markers, private settings, and a forward migration. Testing consumes real capacity and does not automatically clean up records.
@@ -11,6 +27,11 @@
 
 - Allow the exact website branch preview origin for registration CORS and POST-origin checks, with matching registration-only Turnstile hostname validation.
 - Keep unrelated public/organizer endpoints, other preview hosts, production localhost restrictions, and registration/email activation unchanged. Cloudflare widget hostname configuration remains a separate prerequisite.
+
+## 2026-10-16 — Scoped DevCon26 annual CFP preview access
+
+- Allow the exact website branch preview origin on `/api/cfp/conferences/2026` and accept its hostname in the 2026 CFP Turnstile check while retaining the existing production hostnames.
+- Keep other CFP years, routes, preview origins, production localhost, submission action validation, rate limits, and configured public/organizer CORS behavior unchanged. Cloudflare widget hostname configuration remains a separate prerequisite.
 
 ## 2026-10-16 — Annual conference registration and volunteer admission
 

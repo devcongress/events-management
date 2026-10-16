@@ -49,6 +49,10 @@ export function adminRolesForApiRequest(
   path: string,
   method: string,
 ): AdminRole[] {
+  if (method === "GET" && /^\/api\/annual-conference\/\d{4}\/check-in\/attendees$/.test(path)) {
+    return CONFERENCE_MEMBER_ROLES;
+  }
+
   if (method === 'POST' && /^\/api\/annual-conference\/\d{4}\/(?:ticketing\/check-in|check-in\/(?:search|admit))$/.test(path)) {
     return CONFERENCE_MEMBER_ROLES;
   }

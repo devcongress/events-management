@@ -111,6 +111,63 @@ afterEach(async () => {
 });
 
 describe('Annual Conference proposal lifecycle', () => {
+  it('accepts the preview Turnstile hostname only for DevCon26 and retains the public hostnames', async () => {
+    vi.resetModules();
+    vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-test-secret');
+    const previewHostname = 'feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
+    const acceptedHostnames = ['devcongress.org', 'www.devcongress.org', 'em.devcongress.org', previewHostname];
+    const tokenResults = new Map(acceptedHostnames.map((hostname, index) => [`valid-token-${index}`, {
+      action: 'cfp_submission', hostname,
+    }]));
+
+    tokenResults.set('preview-token-other-year', { action: 'cfp_submission', hostname: previewHostname });
+    tokenResults.set('unrelated-preview-token', { action: 'cfp_submission', hostname: 'other.workers.dev' });
+    tokenResults.set('suffix-spoof-token', { action: 'cfp_submission', hostname: `${previewHostname}.attacker.example` });
+    tokenResults.set('wrong-action-token', { action: 'registration', hostname: previewHostname });
+    const providerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const token = String((init?.body as FormData).get('response'));
+
+      return new Response(JSON.stringify({ success: true, ...tokenResults.get(token) }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    vi.stubGlobal('fetch', providerFetch);
+    const app = (await import('./app')).default;
+
+    for (const [index, hostname] of acceptedHostnames.entries()) {
+      const token = `valid-token-${index}`;
+      const response = await app.request('http://localhost/api/cfp/conferences/2026', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...proposal(`CFP hostname ${index}`), turnstile_token: token, turnstile_action: 'cfp_submission' }),
+      });
+
+      expect(response.status, hostname).toBe(202);
+    }
+
+    const rejectedCases = [
+      { token: 'preview-token-other-year', year: 2025, expectedError: 'Human verification did not match this site. Please refresh and try again.' },
+      { token: 'unrelated-preview-token', year: 2026, expectedError: 'Human verification did not match this site. Please refresh and try again.' },
+      { token: 'suffix-spoof-token', year: 2026, expectedError: 'Human verification did not match this site. Please refresh and try again.' },
+      { token: 'wrong-action-token', year: 2026, expectedError: 'Human verification did not match this form. Please try again.' },
+    ];
+
+    for (const { token, year, expectedError } of rejectedCases) {
+      const response = await app.request(`http://localhost/api/cfp/conferences/${year}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...proposal(`Rejected ${token}`), turnstile_token: token, turnstile_action: 'cfp_submission' }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: expectedError });
+    }
+
+    expect(providerFetch).toHaveBeenCalledTimes(acceptedHostnames.length + rejectedCases.length);
+  });
+
   it('treats 150 bio words as guidance while keeping the bio required', async () => {
     vi.resetModules();
     const providerFetch = vi.fn();

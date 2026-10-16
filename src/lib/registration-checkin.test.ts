@@ -65,4 +65,22 @@ describe('registration check-in helpers', () => {
     }).map((registration) => registration.name)).toEqual(['Adjoa Mensah']);
   });
 
+  it('filters name-only annual check-in rows without requiring attendee emails', () => {
+    const annualAttendees = [
+      { name: 'Unnamed ticket', ticket_id: 'a' },
+      { name: 'Ési Mensah', ticket_id: 'b' },
+      { name: 'Kojo Poku', ticket_id: 'c' },
+    ];
+
+    expect(registrationInitials(annualAttendees)).toEqual(['E', 'K', 'U']);
+    expect(filterRegistrationsForCheckIn(annualAttendees, {
+      query: 'mensah',
+      initial: ALL_REGISTRATION_INITIALS,
+    }).map((attendee) => attendee.ticket_id)).toEqual(['b']);
+    expect(filterRegistrationsForCheckIn(annualAttendees, {
+      query: '',
+      initial: 'K',
+    }).map((attendee) => attendee.ticket_id)).toEqual(['c']);
+  });
+
 });

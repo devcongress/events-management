@@ -20,6 +20,49 @@ export async function requireConferenceCheckIn(c: Context, year: number) {
 export function registerAnnualConferenceCheckInRoutes(app: Hono<AppBindings>) {
   const path = '/api/annual-conference/:year/check-in';
 
+  app.get(`${path}/attendees`, async (c) => {
+    const year = z.coerce.number().int().min(2000).max(2200).safeParse(c.req.param('year'));
+    const query = z.object({
+      page: z.coerce.number().int().min(1).max(10_000).default(1),
+      page_size: z.coerce.number().int().min(1).max(100).default(100),
+    }).strict().safeParse(c.req.query());
+
+    if (!year.success || !query.success) return c.json({ error: 'Choose a valid attendee list page.' }, 400);
+    const auth = await requireConferenceCheckIn(c, year.data);
+
+    if (auth) return auth;
+    const edition = await getAnnualConferenceEditionByYear(year.data, c);
+
+    if (!edition) return c.json({ error: 'Conference not found.' }, 404);
+    const { page, page_size: pageSize } = query.data;
+    const from = (page - 1) * pageSize;
+    const result = await getSupabaseAdminClient(c)
+      .from('annual_conference_tickets')
+      .select('id,attendee_name,status,checked_in_at,order_seat_number')
+      .eq('edition_id', edition.id)
+      .in('status', ['issued', 'checked_in'])
+      .order('id', { ascending: true })
+      .range(from, from + pageSize);
+
+    if (result.error) return c.json({ error: 'Unable to load attendees.' }, 503);
+    const rows = result.data ?? [];
+
+    c.header('Cache-Control', 'no-store');
+
+    return c.json({
+      attendees: rows.slice(0, pageSize).map((ticket) => ({
+        ticket_id: ticket.id,
+        attendee_name: ticket.attendee_name,
+        status: ticket.status,
+        checked_in_at: ticket.checked_in_at,
+        order_seat_number: ticket.order_seat_number,
+      })),
+      page,
+      page_size: pageSize,
+      has_more: rows.length > pageSize,
+    });
+  });
+
   app.post(`${path}/search`, async (c) => {
     const year = z.coerce.number().int().min(2000).max(2200).safeParse(c.req.param('year'));
     const input = z.object({ search: z.string().trim().min(3).max(254) }).strict().safeParse(await c.req.json().catch(() => null));

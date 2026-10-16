@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { CONFERENCE_REGISTRATION_PREVIEW_ORIGIN } from '@/lib/annual-conference-registration';
+import { ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN } from '@/lib/annual-conference-cfp';
 import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -264,6 +265,13 @@ import {
   devcon26TestCheckoutOriginConfiguration, isDevcon26TestCheckoutRequest,
 } from '@/lib/devcon26-test-checkout';
 import { DEVCON26_PUBLIC_CHECKOUT_PATH, devcon26PublicCheckoutConfiguration, devcon26PublicCheckoutOriginConfiguration, isDevcon26PublicCheckoutRequest } from '@/lib/devcon26-public-checkout';
+import {
+  DEVCON26_ANNUAL_CFP_PATH,
+  DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV,
+  devCon26AnnualCfpRedirectEnabled,
+  devCon26AnnualCfpRedirectMetaTag,
+  devCon26AnnualCfpRedirectResponse,
+} from '@/lib/devcon26-annual-cfp-redirect';
 import { registerVolunteerFollowUpRoutes } from '@/server/routes/volunteer-follow-up';
 
 const app = new Hono<AppBindings>();
@@ -1540,7 +1548,13 @@ const credentialedApiCors = cors({
 
 app.use('/api/*', async (c, next) => {
   if (/^\/api\/cfp\/conferences\/\d{4}$/.test(c.req.path)) {
-    return cors({ origin: (origin, context) => publicApiCorsOrigin(origin, context) ?? corsOrigin(origin, context), allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] })(c, next);
+    return cors({
+      origin: (origin, context) => publicApiCorsOrigin(origin, context)
+        ?? corsOrigin(origin, context)
+        ?? (context.req.path === '/api/cfp/conferences/2026' && origin === ANNUAL_CONFERENCE_CFP_PREVIEW_ORIGIN ? origin : undefined),
+      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      allowHeaders: ['Content-Type'],
+    })(c, next);
   }
   if (c.req.path.startsWith('/api/public/')) {
     await next();
@@ -12376,6 +12390,21 @@ app.get('/api/quiz/state', async (c) => {
   return c.json(stateResponse);
 });
 
+app.on(
+  ['GET', 'HEAD'],
+  [DEVCON26_ANNUAL_CFP_PATH, `${DEVCON26_ANNUAL_CFP_PATH}/`],
+  (c, next) => {
+    const redirect = devCon26AnnualCfpRedirectResponse(
+      c.req.raw,
+      devCon26AnnualCfpRedirectEnabled(envValue(DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV, c)),
+    );
+
+    if (redirect) return redirect;
+
+    return next();
+  },
+);
+
 app.get('*', (c) => {
   const pathname = new URL(c.req.url).pathname;
   const adminBasePath = `/${(envValue('VITE_ADMIN_BASE_PATH', c) ?? 'organizer-console').replace(/^\/+|\/+$/g, '')}`;
@@ -12383,6 +12412,9 @@ app.get('*', (c) => {
   const pageTitle = isOrganizerPath
     ? 'DevCongress | Organizers'
     : 'DevCongress | Community';
+  const annualCfpRedirectEnabled = devCon26AnnualCfpRedirectEnabled(
+    envValue(DEVCON26_ANNUAL_CFP_REDIRECT_ENABLED_ENV, c),
+  );
 
   return c.html(`<!doctype html>
 <html lang="en">
@@ -12395,6 +12427,7 @@ app.get('*', (c) => {
     <link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png" />
     <link rel="preconnect" href="https://api.fontshare.com" />
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&display=swap" rel="stylesheet" />
+    ${devCon26AnnualCfpRedirectMetaTag(annualCfpRedirectEnabled)}
     <title>${pageTitle}</title>
     <link rel="stylesheet" href="/app-boot.css" />
   </head>

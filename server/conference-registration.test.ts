@@ -3,9 +3,9 @@ import { Hono, type Context } from 'hono';
 import { CONFERENCE_REGISTRATION_ACTION } from '@/lib/annual-conference-registration';
 import type { AppBindings } from '@/server/http/app-bindings';
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), role: 'owner', capability: true, challenge: false, turnstile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), role: 'owner', capability: true, challenge: false, turnstile: vi.fn(), tickets: [] as Array<Record<string, unknown>> }));
 
-vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/supabase/server', () => ({ getSupabaseAdminClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('@/lib/supabase/admin-auth', () => ({
   requireAdmin: async (c: Context, roles: string[]) => roles.includes(mocks.role) ? null : c.json({ error: 'Forbidden' }, 403),
   getAdminSession: async () => ({ authenticated: true, email: 'owner@example.test' }),
@@ -39,12 +39,28 @@ const post = (path: string, body: unknown) => app.request(path, { method: 'POST'
 
 beforeEach(() => {
   mocks.rpc.mockReset();
+  mocks.from.mockReset();
+  mocks.tickets = [];
   mocks.role = 'owner';
   mocks.capability = true;
   mocks.challenge = false;
   mocks.turnstile.mockReset().mockImplementation(async (c: Context) => mocks.challenge ? c.json({ error: 'Challenge required' }, 403) : null);
   mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview
     : name === 'get_annual_conference_registration_testing' ? { enabled: false, tester_emails: [] } : [], error: null }));
+  const query = {
+    select: vi.fn(),
+    eq: vi.fn(),
+    in: vi.fn(),
+    order: vi.fn(),
+    range: vi.fn(),
+  };
+
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  query.in.mockReturnValue(query);
+  query.order.mockReturnValue(query);
+  query.range.mockImplementation(async () => ({ data: mocks.tickets, error: null }));
+  mocks.from.mockReturnValue(query);
 });
 
 describe('annual conference registration access and privacy', () => {
@@ -138,5 +154,47 @@ describe('annual conference registration access and privacy', () => {
     expect((await post('/api/annual-conference/2026/check-in/search', { search: 'Fixture' })).status).toBe(200);
     mocks.capability = false;
     expect((await post('/api/annual-conference/2026/check-in/search', { search: 'Fixture' })).status).toBe(403);
+  });
+
+  it('loads only a paged edition roster after volunteer check-in authorization', async () => {
+    mocks.role = 'volunteer';
+    mocks.tickets = [
+      { id: 'ticket-1', attendee_name: 'Adjoa Mensah', attendee_email: 'private@example.test', status: 'issued', checked_in_at: null, order_seat_number: 1 },
+      { id: 'ticket-2', attendee_name: null, status: 'checked_in', checked_in_at: '2026-12-19T10:00:00.000Z', order_seat_number: 2 },
+      { id: 'ticket-3', attendee_name: 'Not returned', status: 'issued', checked_in_at: null, order_seat_number: 3 },
+    ];
+
+    const response = await app.request('/api/annual-conference/2026/check-in/attendees?page=2&page_size=2');
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toEqual({
+      attendees: [
+        { ticket_id: 'ticket-1', attendee_name: 'Adjoa Mensah', status: 'issued', checked_in_at: null, order_seat_number: 1 },
+        { ticket_id: 'ticket-2', attendee_name: null, status: 'checked_in', checked_in_at: '2026-12-19T10:00:00.000Z', order_seat_number: 2 },
+      ],
+      page: 2,
+      page_size: 2,
+      has_more: true,
+    });
+    expect(mocks.from).toHaveBeenCalledWith('annual_conference_tickets');
+    const query = mocks.from.mock.results[0]?.value;
+
+    expect(query.select).toHaveBeenCalledWith('id,attendee_name,status,checked_in_at,order_seat_number');
+    expect(query.eq).toHaveBeenCalledWith('edition_id', overview.edition_id);
+    expect(query.in).toHaveBeenCalledWith('status', ['issued', 'checked_in']);
+    expect(query.order).toHaveBeenCalledWith('id', { ascending: true });
+    expect(query.range).toHaveBeenCalledWith(2, 4);
+  });
+
+  it('rejects malformed roster pages and prevents unauthorized roster queries', async () => {
+    mocks.role = 'volunteer';
+    expect((await app.request('/api/annual-conference/2026/check-in/attendees?page=0')).status).toBe(400);
+    expect((await app.request('/api/annual-conference/2026/check-in/attendees?page_size=101')).status).toBe(400);
+    expect(mocks.from).not.toHaveBeenCalled();
+
+    mocks.capability = false;
+    expect((await app.request('/api/annual-conference/2026/check-in/attendees')).status).toBe(403);
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });
