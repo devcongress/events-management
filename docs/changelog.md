@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-16 — Explicit cancelled registration recovery
+
+- Add Owner-confirmed recovery in Guests, creating a fresh linked registration and queued notice while retaining the cancelled ticket and email history. Preserve waitlist priority, testing restrictions, and idempotent repeated actions.
+- Keep public duplicate intake opaque and non-reactivating; explain on the website receipt that an existing or cancelled registration does not queue another email.
+- Add API, disposable PostgreSQL concurrency/history, and organizer confirmation-flow coverage. The new recovery migration must be applied before rollout; implementation verification does not recover live registrations or send mail.
+
+## 2026-10-16 — Volunteer outcome test emails
+
+- Add a test-email box for saved acceptance and non-acceptance messages, with a custom recipient or the signed-in Owner email, including when the selected applicant group is empty.
+- Send one production-rendered `[TEST]` sample without changing decisions or campaign queues. Keep Owner access, recipient validation, rate limits, stable retry keys, and explicit provider-acceptance feedback.
+- Add route regressions and organizer journey coverage. No database migration or live email send is part of implementation verification.
+
 ## 2026-10-16 — Contextual registration email activity and manual speaker sends
 
 - Add manager-only email activity beside each registration guest, with scoped delivery milestones, errors, sender readiness, and confirmed safe retries; retain the edition-wide Emails screen and exact recipient search.

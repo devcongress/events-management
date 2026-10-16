@@ -20,8 +20,10 @@ const props = defineProps<{
   registrations?: ConferenceRegistrationGuest[];
   refreshRegistrations?: () => Promise<unknown>;
   managementBusy?: boolean;
+  allowRecovery?: boolean;
 }>();
-const emit = defineEmits<{ cancel: [registration: ConferenceRegistrationGuest] }>();
+const recoveredSources = computed(() => new Set(props.registrations?.map((item) => item.recovered_from_id).filter(Boolean)));
+const emit = defineEmits<{ cancel: [registration: ConferenceRegistrationGuest]; recover: [registration: ConferenceRegistrationGuest] }>();
 
 type ScanOutcome = 'checked_in' | 'already_checked_in' | 'invalid';
 type Detector = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue: string }>> };
@@ -522,6 +524,10 @@ onBeforeUnmount(() => {
               >Check in</button>
               <span v-else-if="guest.admission?.status === 'checked_in'" class="check-in-checked-label" aria-label="Already checked in">Done</span>
               <button v-if="canManageRegistration && guest.registration" type="button" class="check-in-text-button" @click="emailGuest = guest.registration">Email: {{ guest.registration.email_status === 'accepted' ? 'Accepted by provider' : (guest.registration.email_status ?? 'View activity').replaceAll('_', ' ') }}</button>
+              <span v-if="guest.registration && recoveredSources.has(guest.registration.id)" class="check-in-status">Recovered as a new registration</span>
+              <button v-else-if="canManageRegistration && allowRecovery && guest.registration?.status === 'cancelled'"
+                type="button" class="check-in-text-button" :disabled="busy || managementBusy"
+                @click="emit('recover', guest.registration)">Recover registration</button>
               <button v-if="canManageRegistration && guest.registration && guest.registration.status !== 'cancelled' && guest.admission?.status !== 'checked_in'"
                 type="button" class="check-in-text-button" :disabled="busy || managementBusy || (guest.registration.status === 'confirmed' && (rosterLoading || Boolean(rosterError)))"
                 @click="emit('cancel', guest.registration)">Cancel registration</button>

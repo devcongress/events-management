@@ -19,7 +19,7 @@ export const conferenceRegistrationSchema = z.object({
 
 export const conferenceRegistrationAccepted = {
   accepted: true,
-  message: 'Check your email for your registration or waitlist confirmation. If you have already registered, your existing registration is unchanged.',
+  message: 'Request received. If a new registration was created, its confirmation or waitlist email will be queued. Existing registrations, including cancelled ones, are unchanged and no new email is queued for repeat submissions. Contact the event team to recover a cancelled registration.',
 } as const;
 
 export const conferenceRegistrationOverviewSchema = z.object({

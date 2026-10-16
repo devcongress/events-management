@@ -175,3 +175,63 @@ assert.equal(sql(`select is_test from annual_conference_registrations where norm
 assert.equal(sql(`select has_function_privilege('anon', 'configure_annual_conference_registration_testing(uuid,boolean,text[],text)', 'execute')`), 'f');
 assert.equal(sql(`select has_table_privilege('authenticated', 'annual_conference_registration_test_settings', 'select')`), 'f');
 console.log('Shared-database testing: normalized dynamic list, DB intake guard, real waitlist/promotion, sender policy matrix, revoked claims, persistent marking, local-mode gate and privileges passed.');
+
+sql(read('20261016190000_cancelled_registration_recovery'));
+const recoveryEdition = sql('insert into annual_conference_editions(year) values (2030) returning id');
+
+sql(`insert into annual_conference_ticketing_settings(edition_id, public_capacity) values ('${recoveryEdition}', 1)`);
+sql(`select configure_annual_conference_registration('${recoveryEdition}', 'free', 'open', 'owner@example.test')`);
+sql(`select register_for_annual_conference('${recoveryEdition}', 'Recover Me', 'recover@example.test')`);
+const originalId = sql(`select id from annual_conference_registrations where edition_id='${recoveryEdition}'`);
+
+sql(`select cancel_annual_conference_registration('${recoveryEdition}', '${originalId}')`);
+const oldHistory = sql(`select row_to_json(o) from annual_conference_ticket_email_outbox o where registration_id='${originalId}'`);
+const oldTicket = sql(`select row_to_json(t) from annual_conference_tickets t where registration_id='${originalId}'`);
+const oldSocial = sql(`select row_to_json(s) from annual_conference_social_card_email_outbox s where edition_id='${recoveryEdition}'`);
+
+sql(`select register_for_annual_conference('${recoveryEdition}', 'Changed Name', 'RECOVER@example.test')`);
+assert.equal(sql(`select count(*) from annual_conference_registrations where edition_id='${recoveryEdition}'`), '1');
+const recover = (id) => JSON.parse(sql(`select recover_annual_conference_registration('${recoveryEdition}', '${id}')`));
+const concurrentRecovery = await Promise.all([
+  concurrent(`select recover_annual_conference_registration('${recoveryEdition}', '${originalId}')`),
+  concurrent(`select recover_annual_conference_registration('${recoveryEdition}', '${originalId}')`),
+]);
+const outcomes = concurrentRecovery.map((r) => JSON.parse(r.stdout));
+
+assert.deepEqual(outcomes.map((r) => r.created).sort(), [false, true]);
+assert.equal(outcomes[0].registration_id, outcomes[1].registration_id);
+const firstRecovery = outcomes.find((r) => r.created);
+
+assert.equal(firstRecovery.status, 'confirmed');
+assert.equal(sql(`select row_to_json(o) from annual_conference_ticket_email_outbox o where registration_id='${originalId}'`), oldHistory);
+assert.equal(sql(`select row_to_json(t) from annual_conference_tickets t where registration_id='${originalId}'`), oldTicket);
+assert.equal(sql(`select row_to_json(s) from annual_conference_social_card_email_outbox s where edition_id='${recoveryEdition}' order by created_at limit 1`), oldSocial);
+assert.equal(sql(`select count(distinct qr_token_hash) from annual_conference_tickets where edition_id='${recoveryEdition}' and status='issued'`), '1');
+assert.throws(() => recover(firstRecovery.registration_id), /requires_cancelled/);
+
+sql(`select register_for_annual_conference('${recoveryEdition}', 'Older Waiter', 'waiter@example.test')`);
+sql(`select cancel_annual_conference_registration('${recoveryEdition}', '${firstRecovery.registration_id}')`);
+assert.equal(sql(`select status from annual_conference_registrations where edition_id='${recoveryEdition}' and email='waiter@example.test'`), 'confirmed');
+const secondRecovery = recover(firstRecovery.registration_id);
+
+assert.equal(secondRecovery.status, 'waitlisted');
+assert.equal(sql(`select kind from annual_conference_ticket_email_outbox where registration_id='${secondRecovery.registration_id}'`), 'waitlist_notice');
+sql(`select configure_annual_conference_registration('${recoveryEdition}', 'free', 'closed', 'owner@example.test')`);
+assert.deepEqual(recover(originalId), { registration_id: firstRecovery.registration_id, status: 'cancelled', created: false });
+assert.equal(recover(firstRecovery.registration_id).created, false);
+sql(`select cancel_annual_conference_registration('${recoveryEdition}', '${secondRecovery.registration_id}')`);
+assert.throws(() => recover(secondRecovery.registration_id), /registration_closed/);
+sql(`select configure_annual_conference_registration('${recoveryEdition}', 'free', 'open', 'owner@example.test')`);
+sql(`select configure_annual_conference_registration_testing('${recoveryEdition}', true, array['other@example.test'], 'owner@example.test')`);
+assert.throws(() => recover(secondRecovery.registration_id), /tester_not_allowed/);
+sql(`select configure_annual_conference_registration_testing('${recoveryEdition}', true, array['recover@example.test'], 'owner@example.test')`);
+const thirdRecovery = recover(secondRecovery.registration_id);
+
+assert.equal(sql(`select is_test from annual_conference_registrations where id='${thirdRecovery.registration_id}'`), 't');
+sql(`select cancel_annual_conference_registration('${recoveryEdition}', '${thirdRecovery.registration_id}')`);
+sql(`select configure_annual_conference_registration_testing('${recoveryEdition}', false, array['recover@example.test'], 'owner@example.test')`);
+assert.throws(() => recover(thirdRecovery.registration_id), /testing_disabled/);
+assert.equal(sql(`select has_function_privilege('anon', 'recover_annual_conference_registration(uuid,uuid)', 'execute')`), 'f');
+assert.equal(sql(`select has_function_privilege('authenticated', 'recover_annual_conference_registration(uuid,uuid)', 'execute')`), 'f');
+assert.equal(sql(`select has_function_privilege('service_role', 'recover_annual_conference_registration(uuid,uuid)', 'execute')`), 't');
+console.log('Recovery: concurrent idempotency, retained history, capacity/waitlist priority, explicit chains, closed intake, tester policy and private grants passed.');

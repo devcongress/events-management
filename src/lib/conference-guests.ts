@@ -5,6 +5,7 @@ export type ConferenceRegistrationGuest = {
   status: 'confirmed' | 'waitlisted' | 'cancelled';
   created_at: string;
   is_test: boolean;
+  recovered_from_id?: string | null;
   ticket_id: string | null;
   email_status?: string;
 };
