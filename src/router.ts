@@ -372,6 +372,16 @@ export const router = createRouter({
     },
     { path: adminPath("annual-conference"), redirect: annualConferencePath() },
     {
+      path: adminPath("annual-conference/:year(\\d{4})/registrations"),
+      name: "admin-annual-conference-registrations",
+      component: () => import("./views/admin/AdminAnnualConferenceRegistrationsView.vue"),
+    },
+    {
+      path: adminPath("annual-conference/:year(\\d{4})/check-in"),
+      name: "admin-annual-conference-check-in",
+      component: () => import("./views/admin/AdminAnnualConferenceCheckInView.vue"),
+    },
+    {
       path: adminPath("annual-conference/:year(\\d{4})"),
       name: "admin-annual-conference",
       component: AdminAnnualConferenceView,
@@ -625,7 +635,8 @@ router.beforeEach(async (to, from) => {
       cachedSession.user?.role === "volunteer" &&
       isPhone &&
       to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
-      to.name !== "admin-annual-conference-volunteer-display"
+      to.name !== "admin-annual-conference-volunteer-display" &&
+      to.name !== "admin-annual-conference-check-in"
     ) {
       if (
         viewportRedirect?.path.startsWith(
@@ -691,7 +702,8 @@ router.beforeEach(async (to, from) => {
         session.user?.role === "volunteer" &&
         isPhone &&
         to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
-        to.name !== "admin-annual-conference-volunteer-display"
+        to.name !== "admin-annual-conference-volunteer-display" &&
+        to.name !== "admin-annual-conference-check-in"
       ) {
         if (
           viewportRedirect?.path.startsWith(

@@ -11,29 +11,37 @@ import { installHooks } from './install-git-hooks';
 import { verificationArguments, verificationInputs } from './verify-supabase-migrations';
 
 const { contract, sources } = verificationInputs();
+let fixture: Catalog | undefined;
 
 function fixtureCatalog(): Catalog {
-  return {
+  if (fixture) return structuredClone(fixture);
+  const objects = contract.verified.flatMap((migration) => migration.checks.map((check) => {
+    if (check.kind === 'function') {
+      const expression = new RegExp(`function\\s+public\\.${check.name}\\s*\\([\\s\\S]*?\\)\\s*returns\\b[\\s\\S]*?\\bas\\s*(\\$\\w*\\$)([\\s\\S]*?)\\1\\s*;`, 'i');
+      // Catalogs contain the final definition, not one copy per migration.
+      const body = [...sources].reverse().map(source => source.sql.match(expression)?.[2]).find(Boolean)!;
+
+      return { ...check, body };
+    }
+
+    return { ...check, definition: 'contains' in check ? check.contains.join(' ') : undefined, valid: true };
+  }));
+
+  fixture = {
     readOnly: 'on', historyPresent: false,
-    objects: contract.verified.flatMap((migration) => migration.checks.map((check) => {
-      if (check.kind === 'function') {
-        const sql = sources.find((source) => source.file === migration.file)!.sql;
-        const expression = new RegExp(`function\\s+public\\.${check.name}\\s*\\([\\s\\S]*?\\)\\s*returns\\b[\\s\\S]*?\\bas\\s*(\\$\\w*\\$)([\\s\\S]*?)\\1\\s*;`, 'i');
-        const body = sql.match(expression)![2];
-
-        return { ...check, body };
-      }
-
-      return { ...check, definition: 'contains' in check ? check.contains.join(' ') : undefined, valid: true };
-    })),
+    objects: [...new Map(objects.map(object => [
+      `${object.kind}:${object.schema}:${'table' in object ? object.table : ''}:${object.name}:${'argumentTypes' in object ? object.argumentTypes : ''}`, object,
+    ])).values()],
   };
+
+  return structuredClone(fixture);
 }
 
 describe('migration contract inventory', () => {
-  it('covers the current files with an honest legacy exemption and sixteen reviewed contracts', () => {
+  it('covers the current files with an honest legacy exemption and twenty reviewed contracts', () => {
     expect(validateInventory(contract, sources)).toEqual([]);
     expect(Object.keys(contract.legacyInventory)).toHaveLength(92);
-    expect(contract.verified).toHaveLength(16);
+    expect(contract.verified).toHaveLength(20);
   });
 
   it('rejects unregistered SQL, changed legacy SQL, missing files and new version collisions', () => {

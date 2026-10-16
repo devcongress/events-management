@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
 import { Hono } from "hono";
 import type { AppBindings } from "./http/app-bindings";
@@ -120,6 +120,8 @@ vi.mock("@/server/http/public-intake-protection", () => ({
 }));
 
 import { registerVolunteerFollowUpRoutes } from "./routes/volunteer-follow-up";
+
+afterEach(() => vi.useRealTimers());
 
 function createApp() {
   const app = new Hono<AppBindings>();
@@ -562,6 +564,9 @@ describe("volunteer follow-up read and recovery", () => {
   });
 
   it("does not launch when backfill fails, leaving the draft state unchanged", async () => {
+    // Exercise backfill failure rather than letting the wall clock close this fixture.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-29T12:00:00Z"));
     mocks.reconcileVolunteerFollowUpApplicants.mockRejectedValueOnce(
       new Error("storage unavailable"),
     );

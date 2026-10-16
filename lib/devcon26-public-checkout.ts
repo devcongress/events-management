@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const DEVCON26_PUBLIC_CHECKOUT_PATH = '/api/public/annual-conference/2026/checkout';
 
 export const devcon26PublicCheckoutInitializeSchema = z.object({
-  tier_key: z.enum(['regular', 'team_3', 'team_5']),
+  tier_key: z.literal('regular'),
   checkout_request_key: z.string().uuid(),
   purchaser_name: z.string().trim().min(1).max(160).regex(/^[^\u0000-\u001f\u007f]+$/),
   purchaser_email: z.string().trim().toLowerCase().email().max(254),

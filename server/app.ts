@@ -254,6 +254,8 @@ import {
 import { registerAnnualConferenceSpeakerRoutes } from '@/server/routes/annual-conference-speakers';
 import { registerAnnualConferenceTaskResourceRoutes } from '@/server/routes/annual-conference-task-resources';
 import { registerAnnualConferenceTicketingRoutes } from '@/server/routes/annual-conference-ticketing';
+import { registerAnnualConferenceRegistrationRoutes } from '@/server/routes/annual-conference-registration';
+import { registerAnnualConferenceCheckInRoutes } from '@/server/routes/annual-conference-check-in';
 import { registerAnnualConferenceSocialCardRoutes } from '@/server/routes/annual-conference-social-cards';
 import { devcon26TestConfigurationForRequest, registerDevcon26TestCheckoutRoutes } from '@/server/routes/devcon26-test-checkout';
 import {
@@ -369,6 +371,7 @@ function bodyLimitForPayloadMethods(maxSize: number) {
 app.use('/api/*', bodyLimitForPayloadMethods(API_BODY_MAX_BYTES));
 
 for (const publicWritePath of [
+  '/api/public/annual-conference/2026/registration',
   `${DEVCON26_PUBLIC_CHECKOUT_PATH}/*`,
   `${DEVCON26_TEST_CHECKOUT_PATH}/*`,
   DEVCON26_TEST_WEBHOOK_PATH,
@@ -1174,7 +1177,8 @@ function isPublicEventSubmissionRequest(path: string, method: string): boolean {
 }
 
 export function isUnauthenticatedApiRequest(path: string, method: string): boolean {
-  return isDevcon26TestCheckoutRequest(path, method)
+  return (path === '/api/public/annual-conference/2026/registration' && ['GET', 'POST'].includes(method))
+    || isDevcon26TestCheckoutRequest(path, method)
     || isDevcon26PublicCheckoutRequest(path, method)
     || isBuyerSocialCardRequest(path, method)
     || ((method === 'GET' || method === 'HEAD') && (
@@ -1220,6 +1224,7 @@ export function isUnauthenticatedApiRequest(path: string, method: string): boole
       || path === '/api/internal/annual-conference-speaker-emails/retry'
       || path === '/api/internal/annual-conference-social-card-emails/retry'
       || path === '/api/internal/devcon26-test-checkout-emails/retry'
+      || path === '/api/internal/annual-conference-admission-emails/retry'
       || path === '/api/internal/event-blasts/prepare'
       || path === '/api/internal/event-blasts/reconcile'
       || path === '/api/internal/volunteer-follow-up/drain'
@@ -1438,6 +1443,18 @@ const publicSubmissionCors = cors({
   maxAge: 86400,
 });
 
+app.use('/api/public/annual-conference/2026/registration', cors({
+  origin: publicApiCorsOrigin,
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+}));
+app.use('/api/public/annual-conference/2026/registration', async (c, next) => {
+  if (c.req.method === 'POST' && !publicApiCorsOrigin(c.req.header('Origin'), c)) {
+    return c.json({ error: 'Registration origin is not allowed.' }, 403);
+  }
+  await next();
+});
+
 const publicTestCheckoutCors = cors({
   origin: (origin, c) => {
     const configuration = devcon26TestConfigurationForRequest(c);
@@ -1516,6 +1533,9 @@ const credentialedApiCors = cors({
 });
 
 app.use('/api/*', async (c, next) => {
+  if (/^\/api\/cfp\/conferences\/\d{4}$/.test(c.req.path)) {
+    return cors({ origin: (origin, context) => publicApiCorsOrigin(origin, context) ?? corsOrigin(origin, context), allowMethods: ['GET', 'POST', 'OPTIONS'], allowHeaders: ['Content-Type'] })(c, next);
+  }
   if (c.req.path.startsWith('/api/public/')) {
     await next();
 
@@ -5282,6 +5302,8 @@ app.get('/api/annual-conference/:year/work-plan', async (c) => {
 registerAnnualConferenceSpeakerRoutes(app);
 registerAnnualConferenceTaskResourceRoutes(app);
 registerAnnualConferenceTicketingRoutes(app);
+registerAnnualConferenceRegistrationRoutes(app);
+registerAnnualConferenceCheckInRoutes(app);
 registerAnnualConferenceSocialCardRoutes(app);
 registerDevcon26TestCheckoutRoutes(app);
 registerVolunteerFollowUpRoutes(app);

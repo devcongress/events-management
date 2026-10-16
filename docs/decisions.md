@@ -1,5 +1,19 @@
 # Architectural Decisions
 
+## ADR-110: Keep annual registration independent of payments and monthly meetups
+
+**Date:** 2026-10-16
+
+**Decision:** Annual registrations have their own edition-scoped identity and FIFO queue, while confirmed registrations issue existing admission tickets and separate social-card capabilities. The settings row serializes capacity decisions across free registrations, paid holds, and sponsor allocations. Existing paid history is retained; a mode switch does not fabricate payments or reset capacity. New paid intake permits only one Regular ticket.
+
+**Delivery:** Repeated annual operational updates use separate reviewed audience snapshots and a bounded outbox, not a synthetic monthly meetup. The sender checks provider quota and protects transactional capacity. Bounces/complaints suppress future annual updates. Raw admission capabilities are scrubbed after provider acceptance or terminal retry expiry. Failed ambiguous deliveries require operator reconciliation, not blind reissue.
+
+**Access:** `ticketing.check_in` is edition-specific and delegable to volunteers; it does not grant financial, registration-management, or blast access. Check-in is online and atomic across volunteers. Manual lookup requires an explicit admission confirmation.
+
+**Rollout:** Four forward migrations must precede server deployment. Existing editions remain paid until an Owner opens free registration; email senders remain off until configured. This separates implementation from live database changes and communications.
+
+---
+
 ## ADR-109: Isolate sandbox confirmation delivery from admission emails
 
 **Date:** 2026-10-13

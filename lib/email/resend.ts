@@ -61,6 +61,34 @@ export type ResendEmail = {
   reply_to?: string;
 };
 
+export type ResendAttachedEmail = ResendEmail & {
+  attachments?: Array<{ filename: string; content: string; content_type: string; content_id: string }>;
+};
+
+export async function sendResendAttachedEmail(input: {
+  apiKey: string;
+  idempotencyKey: string;
+  email: ResendAttachedEmail;
+  fetcher?: typeof fetch;
+}): Promise<string> {
+  const response = await (input.fetcher ?? fetch)('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.apiKey}`,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': input.idempotencyKey,
+      'User-Agent': 'devcongress-events-management/1.0',
+    },
+    body: JSON.stringify(input.email),
+    signal: AbortSignal.timeout(15000),
+  });
+  const parsed = resendIdResponseSchema.safeParse(await response.json().catch(() => null));
+
+  if (!response.ok || !parsed.success) throw new Error('Admission email was not accepted.');
+
+  return parsed.data.id;
+}
+
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 // Resend rejects direct API requests that do not identify a client. Keep this

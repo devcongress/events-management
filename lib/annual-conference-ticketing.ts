@@ -26,6 +26,7 @@ export interface AnnualConferenceTicketingSettings {
   edition_id: string;
   public_capacity: number;
   ticket_sales_status: 'draft' | 'open' | 'closed';
+  public_mode?: 'free' | 'paid';
   currency: typeof ANNUAL_CONFERENCE_TICKET_CURRENCY;
   ticket_tiers: AnnualConferenceTicketTier[];
   updated_at: string;
@@ -40,6 +41,7 @@ export interface AnnualConferenceTicketPrices {
 export interface AnnualConferenceTicketingInventory {
   public_capacity: number;
   paid_seats: number;
+  confirmed_registrations?: number;
   sponsor_seats_held: number;
   checkout_seats_held: number;
   remaining_public_seats: number;
@@ -108,15 +110,18 @@ export function summarizeAnnualConferenceTicketingInventory(input: {
   paidSeats: number;
   sponsorSeatsHeld: number;
   checkoutSeatsHeld?: number;
+  confirmedRegistrations?: number;
 }): AnnualConferenceTicketingInventory {
   const paidSeats = Math.max(0, input.paidSeats);
   const sponsorSeatsHeld = Math.max(0, input.sponsorSeatsHeld);
   const checkoutSeatsHeld = Math.max(0, input.checkoutSeatsHeld ?? 0);
-  const reductionFloor = paidSeats + sponsorSeatsHeld + checkoutSeatsHeld;
+  const confirmedRegistrations = Math.max(0, input.confirmedRegistrations ?? 0);
+  const reductionFloor = paidSeats + sponsorSeatsHeld + checkoutSeatsHeld + confirmedRegistrations;
 
   return {
     public_capacity: input.settings.public_capacity,
     paid_seats: paidSeats,
+    confirmed_registrations: confirmedRegistrations,
     sponsor_seats_held: sponsorSeatsHeld,
     checkout_seats_held: checkoutSeatsHeld,
     remaining_public_seats: Math.max(0, input.settings.public_capacity - reductionFloor),

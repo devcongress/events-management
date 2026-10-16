@@ -52,6 +52,7 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
       edition_id: settingsResult.data.edition_id,
       public_capacity: settingsResult.data.public_capacity,
       ticket_sales_status: settingsResult.data.sales_status,
+      public_mode: (settingsResult.data as typeof settingsResult.data & { public_mode: 'free' | 'paid' }).public_mode,
       currency: settingsResult.data.currency,
       ticket_tiers: ticketTiersForPrices({
         regular: settingsResult.data.regular_price_minor,
@@ -86,6 +87,11 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
     }),
   ]);
 
+  const overview = await client.rpc('get_annual_conference_registration_overview' as never, { p_year: year } as never);
+
+  if (overview.error) throw new Error('Registration inventory unavailable.');
+  const confirmedRegistrations = (overview.data as { confirmed?: number } | null)?.confirmed ?? 0;
+
   return {
     settings,
     inventory: summarizeAnnualConferenceTicketingInventory({
@@ -93,6 +99,7 @@ export async function getSupabaseAnnualConferenceTicketing(year: number, c?: Con
       paidSeats,
       sponsorSeatsHeld,
       checkoutSeatsHeld,
+      confirmedRegistrations,
     }),
   };
 }
@@ -107,12 +114,14 @@ export async function getSupabaseAnnualConferencePublicTicketPrices(year: number
   if (!editionResult.data) return undefined;
 
   const settingsResult = await client.from('annual_conference_ticketing_settings')
-    .select('currency,regular_price_minor,team_3_price_minor,team_5_price_minor')
+    .select('currency,regular_price_minor,team_3_price_minor,team_5_price_minor,public_mode,sales_status')
     .eq('edition_id', editionResult.data.id)
     .maybeSingle();
 
   if (settingsResult.error) throw new Error(settingsResult.error.message);
   if (!settingsResult.data || settingsResult.data.currency !== 'GHS') return undefined;
+  if ((settingsResult.data as unknown as { public_mode: string }).public_mode !== 'paid'
+    || settingsResult.data.sales_status !== 'open') return undefined;
 
   const prices = {
     regular: settingsResult.data.regular_price_minor,
@@ -124,7 +133,7 @@ export async function getSupabaseAnnualConferencePublicTicketPrices(year: number
 
   return {
     currency: settingsResult.data.currency,
-    tiers: ticketTiersForPrices(prices).map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor })),
+    tiers: ticketTiersForPrices(prices).filter((tier) => tier.key === 'regular').map((tier) => ({ tier_key: tier.key, quantity: tier.quantity, amount_minor: tier.price_minor })),
   };
 }
 
