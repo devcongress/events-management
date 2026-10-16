@@ -9,6 +9,16 @@ DevCon26 registration is an annual-conference domain, not a monthly meetup or a 
 - An Owner explicitly chooses free/paid and draft/open/closed. Resolve the waitlist and active holds before switching to paid. Only Regular intake is allowed. Verified late payments incompatible with the current mode or inventory are recorded as refund-required, never silently accepted as an admission.
 - Each attendee update is a new draft with a frozen confirmed audience. Review message and count before queueing. Waitlisted, cancelled, and known suppressed recipients are excluded. These are operational conference notices, not unrelated marketing.
 
+## Shared-database rehearsal
+
+Apply `20261016140000_annual_conference_registration_testing.sql` after the four registration migrations. It does not enable testing or open registration. In Registration, an Owner can save **Testing settings**, enable **Restrict to approved testers**, and add exact email addresses (up to 200). An empty enabled list blocks everyone. Changes require a confirmation modal and take effect without redeploying.
+
+This uses existing records, real capacity, waitlisting, and valid admission QR codes. Testing registrations are marked internally; the public form keeps normal wording. Turning testing off does not delete records, release places, or revoke QR codes. Plan cleanup separately before launch. Removed tester addresses remain blocked for testing-record email even after testing is disabled; messages already in flight or sent cannot be recalled.
+
+For local end-to-end testing, run EMS with `pnpm dev` on localhost:5173 and the website dev server on localhost:4321. The website defaults registration and social-card API requests to local EMS in development; an explicit API-base environment override still wins. Configure the normal email sender settings locally. Open free registration and enable the tester list in EMS. Only a development EMS runtime receiving a loopback URL and Origin can use the no-Turnstile registration path, and the database independently requires enabled testing and an approved address. Hosted previews still require real Turnstile.
+
+After registering an approved address, use **Process queued emails** in local EMS and confirm the real send. The bounded batch processes admission, social-card, and attendee-update queues, with recipient checks before provider calls. Provider acceptance is not inbox delivery. Hosted workers sharing the database may also process eligible queues. Verify inbox receipt, social-card creation, waitlist promotion, and volunteer QR check-in separately; do not claim camera or delivery verification from automated tests.
+
 ## Entrance volunteers
 
 Grant an active volunteer `ticketing.check_in` for the relevant edition in conference access management. They open Annual Conference → Check-in on their phone and explicitly open the camera. Native QR detection falls back to bundled jsQR; denied camera access has paste and name/email lookup alternatives. Do not admit someone while an error or pending state is shown. An already-checked-in result means do not admit again.

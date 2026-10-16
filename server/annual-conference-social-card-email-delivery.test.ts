@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({
   finalize: vi.fn(),
   send: vi.fn(),
   health: vi.fn(),
+  allow: vi.fn(),
 }));
+
+vi.mock('@/server/annual-conference-registration-testing', () => ({ allowConferenceEmail: mocks.allow }));
 
 vi.mock('@/lib/supabase/annual-conference-social-cards', () => ({
   claimSupabaseAnnualConferenceSocialCardEmailDeliveries: mocks.claim,
@@ -33,6 +36,7 @@ import { retryAnnualConferenceSocialCardEmails } from './annual-conference-socia
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.allow.mockResolvedValue(true);
   mocks.claim.mockResolvedValue([{
     id: '10000000-0000-4000-8000-000000000001',
     recipient_name: 'Ama Mensah',
@@ -45,6 +49,12 @@ beforeEach(() => {
 });
 
 describe('annual conference social-card sender', () => {
+  it('does not send or finalize a message held by the current tester policy', async () => {
+    mocks.allow.mockResolvedValue(false);
+    await retryAnnualConferenceSocialCardEmails({} as Context);
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.finalize).not.toHaveBeenCalled();
+  });
   it('sends the website fragment management link then records the provider identifier before scrubbing', async () => {
     await expect(retryAnnualConferenceSocialCardEmails({} as Context)).resolves.toEqual({ configured: true, accepted: 1, failed: 0 });
 

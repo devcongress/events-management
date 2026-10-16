@@ -6,6 +6,7 @@ import { readResendEmailQuota, sendResendEmailBatch } from '@/lib/email/resend';
 import { getEmailOutboxSummary } from '@/lib/email/delivery-health';
 import { blastTransactionalReserve } from '@/lib/email/blast-capacity';
 import { envValue } from '@/server/env';
+import { allowConferenceEmail } from '@/server/annual-conference-registration-testing';
 
 const deliverySchema = z.object({
   id: z.string().uuid(), recipient_name: z.string(), recipient_email: z.string().email(),
@@ -54,6 +55,7 @@ export async function retryAnnualConferenceAttendeeUpdates(c: Context) {
     let id: string;
 
     try {
+      if (!await allowConferenceEmail(c, 'update', delivery.id, delivery.recipient_email, claim)) continue;
       const content = {
         from, reply_to: replyTo, to: [delivery.recipient_email], subject: delivery.subject,
         text: `Hi ${delivery.recipient_name},\n\n${delivery.body}\n\nAn update about your DevCon26 registration.`,
@@ -63,6 +65,7 @@ export async function retryAnnualConferenceAttendeeUpdates(c: Context) {
       const payload = payloadSchema.safeParse(frozen.data);
 
       if (frozen.error || !payload.success || payload.data.to[0] !== delivery.recipient_email) throw new Error('Update lease unavailable.');
+      if (!await allowConferenceEmail(c, 'update', delivery.id, payload.data.to[0], claim)) continue;
       const sent = await sendResendEmailBatch({ apiKey, idempotencyKey: `conference-update:${delivery.id}`, emails: [payload.data] });
 
       id = sent.ids[0];

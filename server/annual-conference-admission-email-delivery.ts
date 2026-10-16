@@ -5,6 +5,7 @@ import type { Context } from 'hono';
 import { sendResendAttachedEmail, type ResendAttachedEmail } from '@/lib/email/resend';
 import { getSupabaseAdminClient } from '@/lib/supabase/server';
 import { envValue } from '@/server/env';
+import { allowConferenceEmail } from '@/server/annual-conference-registration-testing';
 
 const deliverySchema = z.object({
   id: z.string().uuid(), recipient_name: z.string(), recipient_email: z.string().email(),
@@ -75,6 +76,7 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
     let providerId: string;
 
     try {
+      if (!await allowConferenceEmail(c, 'admission', delivery.id, delivery.recipient_email, claim)) continue;
       const content = await admissionEmailContent(delivery, from, replyTo);
       const frozen = await client.rpc('freeze_annual_conference_admission_email' as never, {
         p_id: delivery.id, p_claim: claim, p_payload: content,
@@ -82,6 +84,7 @@ export async function retryAnnualConferenceAdmissionEmails(c: Context) {
       const payload = frozenSchema.safeParse(frozen.data);
 
       if (frozen.error || !payload.success || payload.data.to[0] !== delivery.recipient_email) throw new Error('Admission lease unavailable.');
+      if (!await allowConferenceEmail(c, 'admission', delivery.id, payload.data.to[0], claim)) continue;
       providerId = await sendResendAttachedEmail({ apiKey, idempotencyKey: delivery.idempotency_key, email: payload.data });
     } catch {
       const failed = await client.rpc('finalize_annual_conference_ticket_email_outbox' as never, {

@@ -43,10 +43,56 @@ beforeEach(() => {
   mocks.capability = true;
   mocks.challenge = false;
   mocks.turnstile.mockReset().mockImplementation(async (c: Context) => mocks.challenge ? c.json({ error: 'Challenge required' }, 403) : null);
-  mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : [], error: null }));
+  mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview
+    : name === 'get_annual_conference_registration_testing' ? { enabled: false, tester_emails: [] } : [], error: null }));
 });
 
 describe('annual conference registration access and privacy', () => {
+  it('uses the locked local registration RPC only for enabled approved testing', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+
+    try {
+      const request = () => app.request(`http://localhost:5173${publicPath}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:4321' },
+        body: JSON.stringify({ name: 'Ada', email: 'ada@example.test' }),
+      });
+
+      expect((await request()).status).toBe(403);
+      mocks.rpc.mockImplementation(async (name: string) => ({
+        data: name === 'get_annual_conference_registration_overview' ? overview : { enabled: true, tester_emails: ['ada@example.test'] },
+        error: null,
+      }));
+      expect((await request()).status).toBe(202);
+      expect(mocks.turnstile).not.toHaveBeenCalled();
+      expect(mocks.rpc).toHaveBeenCalledWith('register_for_annual_conference_test', expect.objectContaining({ p_email: 'ada@example.test' }));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('restricts testing settings to owners without exposing the list publicly', async () => {
+    mocks.role = 'organizer';
+    expect((await app.request(`${privatePath}/testing`)).status).toBe(403);
+    expect((await app.request(`${privatePath}/testing`, { method: 'PATCH' })).status).toBe(403);
+    mocks.role = 'owner';
+    expect((await app.request(`${privatePath}/testing`)).status).toBe(200);
+    expect(await (await app.request(publicPath)).json()).toEqual({ mode: 'free', waitlist: true });
+  });
+
+  it('normalizes and deduplicates dynamic tester settings', async () => {
+    const response = await app.request(`${privatePath}/testing`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, tester_emails: ['ADA@example.test', ' ada@example.test '] }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('configure_annual_conference_registration_testing', expect.objectContaining({ p_emails: ['ada@example.test'] }));
+  });
+
+  it('blocks unapproved registration while testing is enabled', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ data: name === 'get_annual_conference_registration_overview' ? overview : { enabled: true, tester_emails: ['ada@example.test'] }, error: null }));
+    expect((await post(publicPath, { name: 'Other', email: 'other@example.test' })).status).toBe(403);
+    expect(mocks.rpc.mock.calls.some(([name]) => name === 'register_for_annual_conference')).toBe(false);
+  });
   it('protects both the collection and nested blast endpoints', async () => {
     mocks.role = 'volunteer';
     expect((await app.request(privatePath)).status).toBe(403);

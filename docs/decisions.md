@@ -1332,6 +1332,15 @@ Revisit when: Expense submitters need access without dashboard visibility, recei
 
 ---
 
+## ADR-111: Shared-database annual registration rehearsal
+
+**Date:** 2026-10-16
+**Decision:** At the organizer's explicit request, rehearse with existing conference data and real capacity/QR codes instead of a separate staging database. Owner-managed exact tester emails restrict registration and email delivery. Internally mark testing registrations and retain recipient restrictions after testing is switched off.
+**Safety boundary:** Hosted requests retain Turnstile. Local challenge-free intake requires development runtime, loopback request and Origin, enabled database settings, and an approved address. Senders and claim functions enforce recipient restrictions. No automatic data deletion or production activation occurs.
+**Tradeoffs:** Rehearsal consumes places and creates valid admissions; organizers must review cleanup before launch. In-flight or already sent messages cannot be recalled. Provider acceptance and automated tests do not establish inbox or camera success.
+
+---
+
 ## ADR-006: Design Tokens in Both Tailwind Config and JS Module
 
 **Date:** 2025-02

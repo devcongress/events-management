@@ -10,6 +10,7 @@ import { recordResendEmailHealth } from '@/lib/email/delivery-health';
 import { ResendBatchError, sendResendEmailBatch } from '@/lib/email/resend';
 import { claimSupabaseAnnualConferenceSocialCardEmailDeliveries, finalizeSupabaseAnnualConferenceSocialCardEmailDelivery } from '@/lib/supabase/annual-conference-social-cards';
 import { envValue } from '@/server/env';
+import { allowConferenceEmail } from '@/server/annual-conference-registration-testing';
 
 const retryDelayMilliseconds = 5 * 60_000;
 
@@ -26,10 +27,11 @@ export function annualConferenceSocialCardEmailConfigurationForRequest(c: Contex
   });
 }
 
-function deliveryContent(recipientName: string, capability: string, isCollection: boolean) {
-  const privateUrl = isCollection
+function deliveryContent(recipientName: string, capability: string, isCollection: boolean, local: boolean) {
+  const canonicalUrl = isCollection
     ? annualConferenceSocialCardCollectionManagementUrl(capability)
     : annualConferenceSocialCardManagementUrl(capability);
+  const privateUrl = local ? canonicalUrl.replace('https://devcongress.org', 'http://localhost:4321') : canonicalUrl;
   const name = htmlEscape(recipientName);
   const title = isCollection ? 'Create your DevCon26 ticket cards' : 'Create your DevCon26 social card';
   const prompt = isCollection
@@ -67,7 +69,8 @@ export async function retryAnnualConferenceSocialCardEmails(c: Context): Promise
 
   for (const delivery of deliveries) {
     try {
-      const content = deliveryContent(delivery.recipient_name, delivery.capability, Boolean(delivery.collection_order_id));
+      if (!await allowConferenceEmail(c, 'social', delivery.id, delivery.recipient_email, claimToken)) continue;
+      const content = deliveryContent(delivery.recipient_name, delivery.capability, Boolean(delivery.collection_order_id), envValue('NODE_ENV', c) === 'development');
       const result = await sendResendEmailBatch({
         apiKey: configured.apiKey,
         idempotencyKey: delivery.idempotency_key,
