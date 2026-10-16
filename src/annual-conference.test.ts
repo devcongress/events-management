@@ -5,7 +5,7 @@ import {
   VOLUNTEER_PUBLIC_PATH,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
-  canAccessAnnualConferenceTicketingPath,
+  annualConferenceRegistrationTarget,
   currentAnnualConferenceYear,
   mobileAnnualConferencePath,
   volunteerCanAccessOrganizerPath,
@@ -45,11 +45,14 @@ describe('volunteer organizer routes', () => {
     expect(volunteerCanAccessOrganizerPath('/organizer-console/organizers')).toBe(false);
   });
 
-  it('admits Ticketing only when the edition capability is effective', () => {
-    const ticketingPath = annualConferencePath('ticketing');
-
-    expect(canAccessAnnualConferenceTicketingPath(ticketingPath)).toBe(false);
-    expect(canAccessAnnualConferenceTicketingPath(ticketingPath, ['ticketing.manage'])).toBe(true);
+  it('routes Registration according to capability and keeps check-in volunteers on the scanner tab', () => {
+    expect(annualConferenceRegistrationTarget([])).toBeNull();
+    expect(annualConferenceRegistrationTarget(['ticketing.check_in']))
+      .toBe(annualConferencePath('check-in'));
+    expect(annualConferenceRegistrationTarget(['ticketing.manage']))
+      .toBe(annualConferencePath('registrations'));
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('registrations'), ['ticketing.check_in'])).toBe(true);
+    expect(volunteerCanAccessOrganizerPath(annualConferencePath('registrations'))).toBe(false);
   });
 
   it('uses the current Accra year for the default conference route', () => {

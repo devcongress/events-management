@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Make annual conference check-in list-first
+
+- Add a capability-gated, stable paged attendee roster limited to the current edition’s issued and checked-in tickets; return only the fields required for check-in and never expose roster email addresses.
+- Make name search and the existing alphabetical filter the primary flow, with confirmed manual check-in for named tickets and a QR-only path for unnamed bearer tickets. Camera scanning is optional and requests access only after volunteers choose it.
+- Reload the complete roster after manual or QR admission while keeping the current search and alphabet filter. Preserve the exact-email server lookup and all existing atomic check-in behavior; no database or live-data changes.
+- Nest Check-in under Registration for managers and scanner-only volunteers, move the existing capability-gated capacity control into Registration, and show Ticketing as disabled in desktop and mobile navigation while redirecting its old UI route. Ticket/order APIs and data remain unchanged.
+
 ## 2026-10-16 — Compact registration settings rows
 
 - Align registration mode, availability, and their review action on one desktop row; align the approved-tester email field and review action side by side. Keep stacked controls on narrow screens and preserve confirmation behavior.

@@ -9,8 +9,37 @@ const navSource = readFileSync(
   new URL('./components/AnnualConferenceNav.vue', import.meta.url),
   'utf8',
 );
+const registrationSource = readFileSync(
+  new URL('./views/admin/AdminAnnualConferenceRegistrationsView.vue', import.meta.url),
+  'utf8',
+);
+const checkInSource = readFileSync(
+  new URL('./views/admin/AdminAnnualConferenceCheckInView.vue', import.meta.url),
+  'utf8',
+);
+const routerSource = readFileSync(
+  new URL('./router.ts', import.meta.url),
+  'utf8',
+);
+const mobileSource = readFileSync(
+  new URL('./views/admin/AdminMobileAnnualConferenceView.vue', import.meta.url),
+  'utf8',
+);
 
 describe('annual conference ticketing operations UI', () => {
+  it('places check-in inside Registration and redirects the retired Ticketing screen', () => {
+    expect(navSource).toContain("label: 'Ticketing'");
+    expect(navSource).toContain('disabled: true');
+    expect(navSource).toContain(':aria-disabled="link.disabled ? \'true\' : undefined"');
+    expect(navSource).toContain("label: 'Registration'");
+    expect(mobileSource).toContain('class="conference-mobile__ticketing-disabled" aria-disabled="true"');
+    expect(registrationSource).toContain('AnnualConferenceRegistrationNav active="registration"');
+    expect(checkInSource).toContain('AnnualConferenceRegistrationNav active="check-in"');
+    expect(routerSource).toContain('redirect: (to) => annualConferencePath("registrations", String(to.params.year))');
+    expect(registrationSource).toContain('updateAnnualConferenceTicketingCapacity');
+    expect(registrationSource).toContain('canManageRegistration');
+  });
+
   it('reconciles every seat reservation in the inventory ledger', () => {
     expect(ticketingSource).toContain("['Capacity', ticketing.inventory.public_capacity");
     expect(ticketingSource).toContain("['Reserved', ticketing.inventory.reduction_floor");

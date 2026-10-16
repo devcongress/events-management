@@ -34,6 +34,7 @@ import { isAnnualConferenceTaskAssignedTo } from "@/lib/annual-conference-access
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
   VOLUNTEER_PUBLIC_PATH,
+  annualConferenceRegistrationTarget,
   annualConferenceEditionsForNavigation,
   annualConferencePath,
 } from "@/src/annual-conference";
@@ -163,6 +164,8 @@ const editionsQuery = useQuery({
   enabled: canManageEditions,
 });
 const capabilities = computed(() => permissions.value?.capabilities ?? []);
+const registrationTarget = computed(() => annualConferenceRegistrationTarget(capabilities.value, year.value));
+const canManageTicketing = computed(() => hasAnyAnnualConferenceCapability(capabilities.value, ["ticketing.manage"]));
 const assignedAccess = computed(
   () => permissions.value?.access_scope === "assigned",
 );
@@ -1012,7 +1015,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
           key="overview"
           class="conference-view"
         >
-          <RouterLink v-if="hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in', 'ticketing.manage'])" :to="annualConferencePath('check-in', year)" class="primary-button">Open attendee scanner →</RouterLink>
+          <RouterLink v-if="registrationTarget" :to="registrationTarget" class="primary-button">Open Registration →</RouterLink>
           <header v-if="assignedAccess" class="volunteer-intro">
             <span>Your conference work</span>
             <div
@@ -1685,7 +1688,7 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
 
     <nav
       class="conference-mobile__tabs"
-      :style="{ '--tab-count': availableTabs.length }"
+      :style="{ '--tab-count': availableTabs.length + Number(canManageTicketing) }"
       aria-label="Annual Conference workspace"
     >
       <button
@@ -1716,6 +1719,11 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
         </svg>
         <span>{{ tab.label }}</span>
       </button>
+      <span v-if="canManageTicketing" class="conference-mobile__ticketing-disabled" aria-disabled="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 9h8M8 13h5" /></svg>
+        <span>Ticketing</span>
+        <small>Disabled</small>
+      </span>
     </nav>
 
     <AnnualConferenceTaskDrawer
@@ -2945,6 +2953,32 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
     transform 100ms var(--motion-fast),
     color 150ms var(--motion-fast),
     background-color 150ms var(--motion-fast);
+}
+.conference-mobile__ticketing-disabled {
+  display: grid;
+  min-height: 3.5rem;
+  place-items: center;
+  align-content: center;
+  gap: 0.2rem;
+  color: #9a968d;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.5rem;
+  font-weight: 700;
+  opacity: 0.72;
+  text-transform: uppercase;
+}
+.conference-mobile__ticketing-disabled svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+.conference-mobile__ticketing-disabled small {
+  font-size: 0.45rem;
+  letter-spacing: 0.04em;
 }
 .conference-mobile__tabs button[aria-current="page"] {
   background: #fefce8;

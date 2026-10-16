@@ -7,11 +7,12 @@ import {
 } from "./admin-routes";
 import {
   ACTIVE_ANNUAL_CONFERENCE_EDITION,
+  annualConferenceRegistrationTarget,
   annualConferencePath,
-  canAccessAnnualConferenceTicketingPath,
   mobileAnnualConferencePath,
   volunteerCanAccessOrganizerPath,
 } from "./annual-conference";
+import { hasAnyAnnualConferenceCapability } from "@/lib/annual-conference-capabilities";
 import {
   fetchAdminSession,
   fetchAnnualConferenceWorkPlan,
@@ -113,8 +114,6 @@ const AdminAnnualConferenceWorkPlanView = () =>
   import("./views/admin/AdminAnnualConferenceWorkPlanView.vue");
 const AdminAnnualConferenceFinanceView = () =>
   import("./views/admin/AdminAnnualConferenceFinanceView.vue");
-const AdminAnnualConferenceTicketingView = () =>
-  import("./views/admin/AdminAnnualConferenceTicketingView.vue");
 const AdminVolunteerView = () => import("./views/admin/AdminVolunteerView.vue");
 const AdminVolunteerDisplayView = () =>
   import("./views/admin/AdminVolunteerDisplayView.vue");
@@ -376,11 +375,20 @@ export const router = createRouter({
       path: adminPath("annual-conference/:year(\\d{4})/registrations"),
       name: "admin-annual-conference-registrations",
       component: () => import("./views/admin/AdminAnnualConferenceRegistrationsView.vue"),
+      beforeEnter: async (to) => {
+        const year = String(to.params.year);
+        const target = await annualConferenceRegistrationRouteTarget(year);
+
+        return target === annualConferencePath("registrations", year) ? true : target;
+      },
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})/check-in"),
       name: "admin-annual-conference-check-in",
       component: () => import("./views/admin/AdminAnnualConferenceCheckInView.vue"),
+      beforeEnter: async (to) => await canOpenAnnualConferenceCheckInRoute(to.params.year)
+        ? true
+        : annualConferencePath("", String(to.params.year)),
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})"),
@@ -417,7 +425,7 @@ export const router = createRouter({
     {
       path: adminPath("annual-conference/:year(\\d{4})/ticketing"),
       name: "admin-annual-conference-ticketing",
-      component: AdminAnnualConferenceTicketingView,
+      redirect: (to) => annualConferencePath("registrations", String(to.params.year)),
     },
     {
       path: adminPath("annual-conference/:year(\\d{4})/volunteers"),
@@ -552,14 +560,22 @@ async function volunteerCanOpenRoute(
   }
 }
 
-async function canOpenAnnualConferenceTicketingRoute(
-  path: string,
-  yearParam: unknown,
-): Promise<boolean> {
-  const year =
-    typeof yearParam === "string"
-      ? yearParam
-      : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
+async function annualConferenceRegistrationRouteTarget(year: string): Promise<string> {
+  try {
+    const workspace = await queryClient.fetchQuery({
+      queryKey: queryKeys.annualConferenceWorkPlan(year),
+      queryFn: () => fetchAnnualConferenceWorkPlan(year),
+    });
+    const target = annualConferenceRegistrationTarget(workspace.permissions.capabilities, year);
+
+    return target ?? annualConferencePath("", year);
+  } catch {
+    return annualConferencePath("", year);
+  }
+}
+
+async function canOpenAnnualConferenceCheckInRoute(yearParam: unknown): Promise<boolean> {
+  const year = typeof yearParam === "string" ? yearParam : ACTIVE_ANNUAL_CONFERENCE_EDITION.year;
 
   try {
     const workspace = await queryClient.fetchQuery({
@@ -567,10 +583,7 @@ async function canOpenAnnualConferenceTicketingRoute(
       queryFn: () => fetchAnnualConferenceWorkPlan(year),
     });
 
-    return canAccessAnnualConferenceTicketingPath(
-      path,
-      workspace.permissions.capabilities,
-    );
+    return hasAnyAnnualConferenceCapability(workspace.permissions.capabilities, ["ticketing.check_in", "ticketing.manage"]);
   } catch {
     return false;
   }
@@ -639,6 +652,7 @@ router.beforeEach(async (to, from) => {
       isPhone &&
       to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
       to.name !== "admin-annual-conference-volunteer-display" &&
+      to.name !== "admin-annual-conference-registrations" &&
       to.name !== "admin-annual-conference-check-in"
     ) {
       if (
@@ -663,15 +677,6 @@ router.beforeEach(async (to, from) => {
       return (await volunteerCanOpenRoute(to.path, to.params.year))
         ? true
         : annualConferencePath();
-    }
-
-    if (to.name === "admin-annual-conference-ticketing") {
-      return (await canOpenAnnualConferenceTicketingRoute(to.path, to.params.year))
-        ? true
-        : annualConferencePath(
-          "",
-          typeof to.params.year === "string" ? to.params.year : undefined,
-        );
     }
 
     if (ownerOnlyPaths.has(to.path) && cachedSession.user?.role !== "owner") {
@@ -706,6 +711,7 @@ router.beforeEach(async (to, from) => {
         isPhone &&
         to.name !== ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME &&
         to.name !== "admin-annual-conference-volunteer-display" &&
+        to.name !== "admin-annual-conference-registrations" &&
         to.name !== "admin-annual-conference-check-in"
       ) {
         if (
@@ -730,15 +736,6 @@ router.beforeEach(async (to, from) => {
         return (await volunteerCanOpenRoute(to.path, to.params.year))
           ? true
           : annualConferencePath();
-      }
-
-      if (to.name === "admin-annual-conference-ticketing") {
-        return (await canOpenAnnualConferenceTicketingRoute(to.path, to.params.year))
-          ? true
-          : annualConferencePath(
-            "",
-            typeof to.params.year === "string" ? to.params.year : undefined,
-          );
       }
 
       if (ownerOnlyPaths.has(to.path) && session.user?.role !== "owner") {
@@ -793,7 +790,6 @@ router.afterEach((to) => {
     to.name === "admin-annual-conference" ||
     to.name === "admin-annual-conference-work-plan" ||
     to.name === "admin-annual-conference-finance" ||
-    to.name === "admin-annual-conference-ticketing" ||
     to.name === "admin-annual-conference-volunteers" ||
     to.name === ORGANIZER_PHONE_ANNUAL_CONFERENCE_ROUTE_NAME
   ) {

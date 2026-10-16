@@ -52,7 +52,9 @@ export function volunteerCanAccessOrganizerPath(
 ): boolean {
   return path === annualConferencePath()
     || (/^\/organizer-console\/annual-conference\/\d{4}\/check-in$/.test(path)
-      && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in']))
+      && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in', 'ticketing.manage']))
+    || (/^\/organizer-console\/annual-conference\/\d{4}\/registrations$/.test(path)
+      && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in', 'ticketing.manage']))
     || path === annualConferencePath('work-plan')
     || /^\/organizer-console\/mobile\/annual-conference\/\d{4}$/.test(path)
     || (/^\/organizer-console\/annual-conference\/\d{4}\/timeline$/.test(path)
@@ -63,10 +65,17 @@ export function volunteerCanAccessOrganizerPath(
       && hasAnyAnnualConferenceCapability(capabilities, ['volunteers.share_intake']));
 }
 
-export function canAccessAnnualConferenceTicketingPath(
-  path: string,
-  capabilities: readonly AnnualConferenceCapability[] = [],
-): boolean {
-  return /^\/organizer-console\/annual-conference\/\d{4}\/ticketing$/.test(path)
-    && hasAnyAnnualConferenceCapability(capabilities, ['ticketing.manage']);
+export function annualConferenceRegistrationTarget(
+  capabilities: readonly AnnualConferenceCapability[],
+  year: string = ACTIVE_ANNUAL_CONFERENCE_EDITION.year,
+): string | null {
+  if (hasAnyAnnualConferenceCapability(capabilities, ['ticketing.manage'])) {
+    return annualConferencePath('registrations', year);
+  }
+
+  if (hasAnyAnnualConferenceCapability(capabilities, ['ticketing.check_in'])) {
+    return annualConferencePath('check-in', year);
+  }
+
+  return null;
 }
