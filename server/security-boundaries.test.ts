@@ -55,6 +55,49 @@ describe('HTTP security boundaries', () => {
     }
   });
 
+  it('allows the exact DevCon26 preview on the annual CFP route and preserves configured origins', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('APP_DATA_SOURCE', 'local-json');
+    vi.stubEnv('PUBLIC_API_CORS_ORIGINS', 'https://devcongress.org,https://www.devcongress.org');
+    vi.stubEnv('PUBLIC_FRONTEND_ORIGIN', 'https://events.devcongress.org');
+    const { default: app } = await import('./app');
+    const previewOrigin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
+    const path = '/api/cfp/conferences/2026';
+
+    for (const origin of [previewOrigin, 'https://devcongress.org', 'https://events.devcongress.org']) {
+      for (const method of ['GET', 'POST']) {
+        const response = await app.request(path, {
+          method: 'OPTIONS',
+          headers: { Origin: origin, 'Access-Control-Request-Method': method },
+        });
+
+        expect(response.status).toBe(204);
+        expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+        expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+      }
+    }
+
+    const previewGet = await app.request(path, { headers: { Origin: previewOrigin } });
+
+    expect(previewGet.headers.get('access-control-allow-origin')).toBe(previewOrigin);
+
+    for (const [rejectedPath, origin] of [
+      ['/api/cfp/conferences/2025', previewOrigin],
+      ['/api/cfp/events/2026', previewOrigin],
+      ['/api/cfp/conferences/2026/sibling', previewOrigin],
+      [path, `${previewOrigin}.attacker.example`],
+      [path, 'https://other.workers.dev'],
+      [path, 'http://localhost:4321'],
+    ]) {
+      const response = await app.request(rejectedPath, {
+        method: 'OPTIONS',
+        headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' },
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    }
+  });
+
   it('keeps production Turnstile hostname binding on public domains only', () => {
     const match = productionWorkerConfig.match(/EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES\s*=\s*"([^"]+)"/);
 

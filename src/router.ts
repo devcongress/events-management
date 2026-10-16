@@ -44,6 +44,7 @@ import {
   conferenceSpeakerIntakeRoute,
   speakerTalkIntakeRoute,
 } from "./speaker-intake-route";
+import { registerDevCon26AnnualCfpRedirectGuard } from "./devcon26-annual-cfp-redirect-guard";
 
 const ORGANIZER_TITLE = "DevCongress | Organizers";
 const FEEDBACK_TITLE = "DevCongress | Feedback";
@@ -574,6 +575,8 @@ async function canOpenAnnualConferenceTicketingRoute(
     return false;
   }
 }
+
+registerDevCon26AnnualCfpRedirectGuard(router);
 
 router.beforeEach(async (to, from) => {
   const oauthCode = typeof to.query.code === "string" ? to.query.code : "";

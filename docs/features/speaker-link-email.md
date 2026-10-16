@@ -107,7 +107,15 @@ Monthly and Annual Conference calls share one proposal lifecycle, but never shar
 
 Annual Conference proposals, presenter links, and confirmed sessions are edition-owned records. They share the speaker-form and secure-link mechanics with monthly calls, but do not create, read, or appear as normal Event or Archive records. Apply `20260809110000_annual_conference_speaker_scope.sql` after the historical speaker-call migration to remove its former hidden Event bridge.
 
-Before moving the form to `devcongress.org`, choose and verify the canonical website URL. That future move is a hosting decision, not a blocker for the monthly Archive or email pilot.
+The public EMS paths `/speak/c/2026` and `/speak/c/2026/` have a temporary, reversible website handoff controlled by `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED`. It defaults to `false`. When explicitly enabled, exact `GET` and `HEAD` requests receive a no-store `302` to `https://devcongress.org/devcon26/speak/`; the original query string is dropped. Extra path segments, other conference years, monthly calls, organizer pages, the `/api/cfp/conferences/2026` contract, and private `/conference-speakers/:year/:token` links are outside this redirect.
+
+Keep the flag off until all of these conditions are verified:
+
+1. The production URL `https://devcongress.org/devcon26/speak/` serves the intended application form. Its current production response is `404`; a feature-preview `200` does not establish production readiness.
+2. The website's CFP context request and submission preflight succeed from the production website origin. The EMS feature-preview response currently returns `200` without the required `Access-Control-Allow-Origin` header, so the scoped EMS fix must be deployed and verified first.
+3. A controlled end-to-end submission is confirmed to reach the intended Annual Conference review queue.
+
+Only then set `DEVCON26_ANNUAL_CFP_WEBSITE_REDIRECT_ENABLED=true` in the Worker configuration. Reversal is the same flag set back to `false`.
 
 ## Implemented: Program Multi-Send
 

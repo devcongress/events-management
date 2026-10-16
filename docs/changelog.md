@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-16 — Prepare temporary DevCon26 CFP website handoff
+
+- Add an exact-path, default-off, no-store `302` for the public EMS annual CFP page and its trailing-slash alias, with a matching Vue navigation guard and a fixed production website destination.
+- Keep query strings out of the redirect and leave CFP APIs, monthly/other-year forms, organizer routes, and private speaker links untouched. Activation waits for the production website route to be deployed and the EMS CFP request to work from the production website origin.
+
 ## 2026-10-16 — Owner-managed registration rehearsal
 
 - Add dynamic tester-only registration and conference-email restrictions using the existing database, with internal testing markers, private settings, and a forward migration. Testing consumes real capacity and does not automatically clean up records.
@@ -11,6 +16,11 @@
 
 - Allow the exact website branch preview origin for registration CORS and POST-origin checks, with matching registration-only Turnstile hostname validation.
 - Keep unrelated public/organizer endpoints, other preview hosts, production localhost restrictions, and registration/email activation unchanged. Cloudflare widget hostname configuration remains a separate prerequisite.
+
+## 2026-10-16 — Scoped DevCon26 annual CFP preview access
+
+- Allow the exact website branch preview origin on `/api/cfp/conferences/2026` and accept its hostname in the 2026 CFP Turnstile check while retaining the existing production hostnames.
+- Keep other CFP years, routes, preview origins, production localhost, submission action validation, rate limits, and configured public/organizer CORS behavior unchanged. Cloudflare widget hostname configuration remains a separate prerequisite.
 
 ## 2026-10-16 — Annual conference registration and volunteer admission
 
