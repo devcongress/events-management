@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-16 — Compact registration settings rows
+
+- Align registration mode, availability, and their review action on one desktop row; align the approved-tester email field and review action side by side. Keep stacked controls on narrow screens and preserve confirmation behavior.
+
 ## 2026-10-16 — Prepare temporary DevCon26 CFP website handoff
 
 - Add an exact-path, default-off, no-store `302` for the public EMS annual CFP page and its trailing-slash alias, with a matching Vue navigation guard and a fixed production website destination.

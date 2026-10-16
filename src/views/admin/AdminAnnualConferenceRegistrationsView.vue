@@ -122,7 +122,7 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p><strong>{{ registrations.data.value.overview.reserved }} / {{ registrations.data.value.overview.capacity }}</strong> total reserved capacity</p>
         </div>
         <p>Capacity includes registrations, paid bookings, sponsor allocations, and active checkout holds. Change the capacity in Ticketing; increasing it promotes the oldest waitlisted registrations automatically.</p>
-        <form v-if="owner" @submit.prevent="error = ''; settingsConfirmation = true">
+        <form v-if="owner" class="registration-settings-row" @submit.prevent="error = ''; settingsConfirmation = true">
           <AppDropdown v-model="settings.mode" label="Registration mode" :options="modeOptions" :disabled="busy" />
           <AppDropdown v-model="settings.status" label="Availability" :options="statusOptions" :disabled="busy" />
           <button type="submit" :disabled="busy">Review settings</button>
@@ -142,13 +142,16 @@ async function mutate(path: string, body: unknown, success: string, method = 'PO
           <p class="text-dc-pink">Apply the registration testing migration to enable these controls.</p>
           <button @click="testingQuery.refetch()">Try again</button>
         </div>
-        <form v-else @submit.prevent="error = ''; testingConfirmation = true">
+        <form v-else class="testing-settings-form" @submit.prevent="error = ''; testingConfirmation = true">
           <label class="testing-toggle"><input v-model="testing.enabled" type="checkbox" :disabled="busy" /> Restrict to approved testers</label>
-          <label for="tester-emails">Approved tester emails</label>
-          <textarea id="tester-emails" v-model="testing.emails" class="app-form-control w-full" rows="4" maxlength="51000" :disabled="busy" aria-describedby="tester-help tester-error" :aria-invalid="Boolean(testingError)" />
+          <div class="testing-settings-row">
+            <label for="tester-emails">Approved tester emails
+              <textarea id="tester-emails" v-model="testing.emails" class="app-form-control w-full" rows="4" maxlength="51000" :disabled="busy" aria-describedby="tester-help tester-error" :aria-invalid="Boolean(testingError)" />
+            </label>
+            <button type="submit" :disabled="busy || Boolean(testingError)">Review testing settings</button>
+          </div>
           <p id="tester-help" class="text-xs text-dc-gray">One address per line. Add or remove addresses, then save. {{ testerEmails.length }} / 200 addresses. An empty list blocks everyone while enabled.</p>
           <p id="tester-error" role="status" class="text-sm text-dc-pink">{{ testingError }}</p>
-          <button type="submit" :disabled="busy || Boolean(testingError)">Review testing settings</button>
         </form>
         <ConfirmDialog :open="testingConfirmation" :title="testing.enabled ? 'Save testing restrictions?' : 'Turn off testing restrictions?'" :message="testing.enabled ? 'Only the ' + testerEmails.length + ' approved addresses can register and receive conference emails. Changes apply to future sends; messages already in flight or sent cannot be recalled.' : 'Open registration will no longer be restricted to testers. Existing testing records, valid QR codes, and capacity remain. Review cleanup separately before launch. Testing-record emails remain restricted to the saved list.'" confirm-label="Save testing settings" :busy="busy" :confirm-disabled="Boolean(testingError)" :danger="!testing.enabled && Boolean(testingQuery.data.value?.enabled)" @cancel="testingConfirmation = false" @confirm="mutate('/testing', { enabled: testing.enabled, tester_emails: testerEmails }, 'Testing settings saved.', 'PATCH')">
           <p v-if="error" role="alert" class="text-dc-pink">{{ error }}</p>
@@ -237,6 +240,28 @@ form {
   gap: 16px;
   max-width: 660px;
   margin-top: 20px;
+}
+.registration-settings-row,
+.testing-settings-form {
+  max-width: none;
+}
+.testing-settings-row {
+  display: grid;
+  gap: 16px;
+}
+.registration-settings-row > *,
+.testing-settings-row > * {
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .registration-settings-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+    align-items: end;
+  }
+  .testing-settings-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
 }
 label {
   display: grid;
