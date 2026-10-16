@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Repair registration crypto resolution and simplify disabled tabs
+
+- Prepare a forward migration qualifying pgcrypto calls with the Supabase `extensions` schema in registration ticket issuance, ticket social-card provisioning, social-card delivery, and QR check-in. Preserve function search paths, permissions, settings, records, and delivery policies.
+- Add a disposable `--free-only` database regression using production-like extension placement: reproduce the old failure, then verify registration, waitlist promotion, social-card queues, QR races, and tester restrictions after repair.
+- Move disabled Finance and Ticketing after enabled conference tabs; remove their Disabled pills on desktop/mobile while preserving disabled semantics.
+- The user applied the migration separately; read-only live verification confirms all 22 required contracts, including the crypto repair. No tester settings or live registrations were changed by verification.
+
 ## 2026-10-16 — Put conference admission actions inside Guests
 
 - Consolidate registration management and check-in into one searchable, alphabetically filtered Guests list, with optional camera scanning. Keep the five monthly-style Registration tabs; remove the separate Check-in tab.

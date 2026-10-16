@@ -1723,12 +1723,10 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
       <span v-if="canViewFinance" class="conference-mobile__ticketing-disabled" aria-disabled="true">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM4 10h16M15 14h2" /></svg>
         <span>Finance</span>
-        <small>Disabled</small>
       </span>
       <span v-if="canManageTicketing" class="conference-mobile__ticketing-disabled" aria-disabled="true">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v12H4zM8 9h8M8 13h5" /></svg>
         <span>Ticketing</span>
-        <small>Disabled</small>
       </span>
     </nav>
 
@@ -2981,10 +2979,6 @@ function openMobileVolunteer(row: VolunteerDirectoryRow) {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.7;
-}
-.conference-mobile__ticketing-disabled small {
-  font-size: 0.45rem;
-  letter-spacing: 0.04em;
 }
 .conference-mobile__tabs button[aria-current="page"] {
   background: #fefce8;
