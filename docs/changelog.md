@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-16 — Owner-managed registration rehearsal
+
+- Add dynamic tester-only registration and conference-email restrictions using the existing database, with internal testing markers, private settings, and a forward migration. Testing consumes real capacity and does not automatically clean up records.
+- Enable a server-gated localhost registration path and an Owner-confirmed local email batch action; hosted Turnstile verification remains required.
+- Align Registration with the app's editorial panels, dropdowns, loading state, and confirmation dialogs for availability, testing, cancellation, and attendee updates.
+- Extend route, delivery, migration-contract, and disposable PostgreSQL coverage. Shared-database migration application and real inbox/camera acceptance remain rollout steps.
+
 ## 2026-10-16 — Scoped DevCon26 registration preview access
 
 - Allow the exact website branch preview origin for registration CORS and POST-origin checks, with matching registration-only Turnstile hostname validation.

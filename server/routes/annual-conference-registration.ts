@@ -12,6 +12,8 @@ import { secureSharedSecret } from '@/lib/security/shared-secret';
 import { envValue } from '@/server/env';
 import { retryAnnualConferenceAdmissionEmails } from '@/server/annual-conference-admission-email-delivery';
 import { retryAnnualConferenceAttendeeUpdates } from '@/server/annual-conference-attendee-updates';
+import { localRegistrationRequest, registrationTesting, registrationTestingSchema } from '@/server/annual-conference-registration-testing';
+import { retryAnnualConferenceSocialCardEmails } from '@/server/annual-conference-social-card-email-delivery';
 
 export async function conferenceRegistrationOverview(c: Context, year: number) {
   const result = await getSupabaseAdminClient(c).rpc('get_annual_conference_registration_overview' as never, { p_year: year } as never);
@@ -47,6 +49,11 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
       const overview = await conferenceRegistrationOverview(c, 2026);
 
       if (!overview || overview.status !== 'open') return c.json({ mode: 'closed' });
+      if (localRegistrationRequest(c)) {
+        const testing = await registrationTesting(c, overview.edition_id);
+
+        if (!testing.enabled) return c.json({ mode: 'closed' });
+      }
 
       return c.json({ mode: overview.mode, waitlist: overview.reserved >= overview.capacity });
     } catch {
@@ -64,7 +71,8 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     }, 'Please wait before trying again.');
 
     if (limit) return limit;
-    const challenge = await requirePublicTurnstile(c, {
+    const local = localRegistrationRequest(c);
+    const challenge = local ? null : await requirePublicTurnstile(c, {
       token: parsed.data.turnstile_token,
       submittedAction: parsed.data.turnstile_action,
       expectedAction: CONFERENCE_REGISTRATION_ACTION,
@@ -85,7 +93,12 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
       const overview = await conferenceRegistrationOverview(c, 2026);
 
       if (!overview || overview.mode !== 'free' || overview.status !== 'open') return c.json({ error: 'Free registration is not open.' }, 409);
-      const result = await getSupabaseAdminClient(c).rpc('register_for_annual_conference' as never, {
+      const testing = await registrationTesting(c, overview.edition_id);
+
+      if ((local && !testing.enabled) || (testing.enabled && !testing.tester_emails.includes(parsed.data.email.toLowerCase()))) {
+        return c.json({ error: 'Registration is not available for these details. Please contact the event team.' }, 403);
+      }
+      const result = await getSupabaseAdminClient(c).rpc((local ? 'register_for_annual_conference_test' : 'register_for_annual_conference') as never, {
         p_edition_id: overview.edition_id, p_name: parsed.data.name, p_email: parsed.data.email,
       } as never);
 
@@ -126,6 +139,69 @@ export function registerAnnualConferenceRegistrationRoutes(app: Hono<AppBindings
     if (result.error) return c.json({ error: 'Unable to load registrations.' }, 503);
 
     return c.json({ overview, registrations: result.data });
+  });
+
+  app.get(`${privatePath}/testing`, async (c) => {
+    const denied = await requireAdmin(c, ['owner']);
+
+    if (denied) return denied;
+    const overview = await conferenceRegistrationOverview(c, Number(c.req.param('year')));
+
+    if (!overview) return c.json({ error: 'Conference not found.' }, 404);
+
+    try {
+      const localPage = c.req.header('Origin') || c.req.header('Referer');
+      const localDelivery = envValue('NODE_ENV', c) === 'development'
+        && /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/.test(c.req.url)
+        && Boolean(localPage && /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/.test(localPage));
+
+      return c.json({ ...await registrationTesting(c, overview.edition_id), local_delivery: localDelivery });
+    } catch {
+      return c.json({ error: 'Testing settings are unavailable. Check the registration testing migration.' }, 503);
+    }
+  });
+
+  app.patch(`${privatePath}/testing`, async (c) => {
+    const denied = await requireAdmin(c, ['owner']);
+
+    if (denied) return denied;
+    const input = registrationTestingSchema.safeParse(await c.req.json().catch(() => null));
+
+    if (!input.success) return c.json({ error: 'Use up to 200 valid tester email addresses.' }, 400);
+    const overview = await conferenceRegistrationOverview(c, Number(c.req.param('year')));
+    const session = await getAdminSession(c);
+
+    if (!overview || !session.authenticated) return c.json({ error: 'Conference not found.' }, 404);
+    const result = await getSupabaseAdminClient(c).rpc('configure_annual_conference_registration_testing' as never, {
+      p_edition_id: overview.edition_id, p_enabled: input.data.enabled,
+      p_emails: input.data.tester_emails, p_actor: session.email,
+    } as never);
+
+    if (result.error) return c.json({ error: 'Testing settings could not be saved.' }, 503);
+    await recordProtectedMutationAudit(c, {
+      action: 'annual_conference.registration.testing', targetType: 'annual_conference_edition', targetId: overview.edition_id,
+      metadata: { enabled: input.data.enabled, tester_count: input.data.tester_emails.length },
+    });
+
+    return c.json({ ok: true });
+  });
+
+  app.post(`${privatePath}/testing/deliver`, async (c) => {
+    const denied = await requireAdmin(c, ['owner']);
+
+    if (denied) return denied;
+    if (!localRegistrationRequest(c)) return c.json({ error: 'Not found.' }, 404);
+    const overview = await conferenceRegistrationOverview(c, Number(c.req.param('year')));
+
+    if (!overview || !(await registrationTesting(c, overview.edition_id)).enabled) return c.json({ error: 'Enable testing before processing local email.' }, 409);
+    await recordProtectedMutationAudit(c, {
+      action: 'annual_conference.registration.testing.deliver', targetType: 'annual_conference_edition', targetId: overview.edition_id,
+    });
+    const admissions = await retryAnnualConferenceAdmissionEmails(c);
+    const social = await retryAnnualConferenceSocialCardEmails(c);
+    const updates = await retryAnnualConferenceAttendeeUpdates(c);
+
+    return c.json({ admissions, social, updates });
   });
 
   app.patch(`${privatePath}/settings`, async (c) => {

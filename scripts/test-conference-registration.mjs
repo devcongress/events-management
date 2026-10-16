@@ -125,3 +125,35 @@ for (const [suffix, expiry, expected] of [['unswept', "now() - interval '1 minut
   assert.equal(sql(`select count(*) from annual_conference_tickets where order_id='${order}'`), expected === 'confirmed' ? '1' : '0');
 }
 console.log('Unswept expiry refunds consistently; an in-time Regular payment still issues one admission.');
+
+sql(read('20261016140000_annual_conference_registration_testing'));
+sql(`select configure_annual_conference_registration_testing('${edition}', true, array[' Alice@example.test ', 'alice@example.test', 'bob@example.test'], 'owner@example.test')`);
+assert.deepEqual(JSON.parse(sql(`select get_annual_conference_registration_testing('${edition}')`)), { enabled: true, tester_emails: ['alice@example.test', 'bob@example.test'] });
+assert.throws(() => sql(`select register_for_annual_conference('${edition}', 'Other', 'other@example.test')`));
+sql(`select register_for_annual_conference_test('${edition}', 'Alice', 'alice@example.test')`);
+assert.equal(sql(`select is_test from annual_conference_registrations where normalized_email='alice@example.test'`), 't');
+assert.equal(sql(`select status from annual_conference_registrations where normalized_email='alice@example.test'`), 'waitlisted');
+sql(`update annual_conference_ticketing_settings set public_capacity=10 where edition_id='${edition}'`);
+assert.equal(sql(`select status from annual_conference_registrations where normalized_email='alice@example.test'`), 'confirmed');
+const aliceAdmission = sql(`select id from annual_conference_ticket_email_outbox where recipient_email='alice@example.test' and kind='ticket_delivery'`);
+const aliceSocial = sql(`select id from annual_conference_social_card_email_outbox where recipient_email='alice@example.test'`);
+const testingBlast = sql(`select create_annual_conference_attendee_blast('${edition}', 'Rehearsal update', 'Arrival details', 'owner@example.test')`);
+const aliceUpdate = sql(`select id from annual_conference_attendee_blast_deliveries where blast_id='${testingBlast}' and recipient_email='alice@example.test'`);
+
+for (const [kind, id] of [['admission', aliceAdmission], ['social', aliceSocial], ['update', aliceUpdate]]) {
+  assert.equal(sql(`select annual_conference_email_allowed('${kind}', '${id}', 'alice@example.test')`), 't');
+  assert.equal(sql(`select annual_conference_email_allowed('${kind}', '${id}', 'other@example.test')`), 'f');
+}
+sql(`select configure_annual_conference_registration_testing('${edition}', true, array[]::text[], 'owner@example.test')`);
+assert.equal(sql(`select annual_conference_email_allowed('admission', '${aliceAdmission}', 'alice@example.test')`), 'f');
+assert.equal(sql(`select count(*) from claim_annual_conference_social_card_email_outbox(gen_random_uuid(), 20) where recipient_email='alice@example.test'`), '0');
+sql(`select configure_annual_conference_registration_testing('${edition}', false, array[]::text[], 'owner@example.test')`);
+assert.equal(sql(`select annual_conference_email_allowed('social', '${aliceSocial}', 'alice@example.test')`), 'f');
+assert.throws(() => sql(`select register_for_annual_conference_test('${edition}', 'Bob', 'bob@example.test')`));
+sql(`select configure_annual_conference_registration_testing('${edition}', false, array['alice@example.test'], 'owner@example.test')`);
+assert.equal(sql(`select annual_conference_email_allowed('social', '${aliceSocial}', 'alice@example.test')`), 't');
+assert.equal(sql(`select annual_conference_email_allowed('social', '${aliceSocial}', 'alice@example.test', true)`), 'f');
+assert.equal(sql(`select is_test from annual_conference_registrations where normalized_email='alice@example.test'`), 't');
+assert.equal(sql(`select has_function_privilege('anon', 'configure_annual_conference_registration_testing(uuid,boolean,text[],text)', 'execute')`), 'f');
+assert.equal(sql(`select has_table_privilege('authenticated', 'annual_conference_registration_test_settings', 'select')`), 'f');
+console.log('Shared-database testing: normalized dynamic list, DB intake guard, real waitlist/promotion, sender policy matrix, revoked claims, persistent marking, local-mode gate and privileges passed.');

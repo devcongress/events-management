@@ -1227,7 +1227,7 @@
           "schema": "public",
           "name": "claim_annual_conference_social_card_email_outbox",
           "argumentTypes": "uuid, integer",
-          "bodySha256": "f9b0b9a59c98071650fbca628d0789c6b55d19cb16e61944821c9dc3db91a0c5",
+          "bodySha256": "b02ed7c834708dc13a7de446cecbffe79ceb25d90295a5732eca356bbbb6abfb",
           "securityDefiner": true,
           "private": true,
           "serviceExecute": true,
@@ -1872,7 +1872,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "0ca3bc6d883fe903da63bbbe947c4ba1a4302a92ea238de5852161cfe810e685"
+          "bodySha256": "a433cd1b92a96fc27a607fd1fcbb5207eaa220a653da96ad7097c8317da7a10e"
         },
         {
           "kind": "function",
@@ -2688,7 +2688,7 @@
           "searchPath": "public",
           "private": true,
           "serviceExecute": true,
-          "bodySha256": "af46c34a9f9a5ff8e992b45e856092650cd93115e1b552fae2f86450020cf781"
+          "bodySha256": "3a6516bb8649a5f33da5d1ad70e4085679ec409b351e543d6720ca14c6bde1ed"
         },
         {
           "kind": "function",
@@ -2721,6 +2721,157 @@
           "private": true,
           "serviceExecute": true,
           "bodySha256": "67b5f69b6b2360e53f88d7c9417d4aef0d63bc3274822a69dabb8833729239ba"
+        }
+      ]
+    },
+    {
+      "file": "20261016140000_annual_conference_registration_testing.sql",
+      "sha256": "6f1ab75772647b3c38a65ba1cb16f8d5aa98c6157d794ca775003302ed997e70",
+      "checks": [
+        {
+          "kind": "table",
+          "schema": "public",
+          "name": "annual_conference_registration_test_settings",
+          "rls": true,
+          "private": true
+        },
+        {
+          "kind": "column",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "is_test",
+          "type": "boolean",
+          "notNull": true,
+          "defaultExpression": "false"
+        },
+        {
+          "kind": "trigger",
+          "schema": "public",
+          "table": "annual_conference_registrations",
+          "name": "guard_annual_conference_registration_testing",
+          "function": "guard_annual_conference_registration_testing",
+          "functionSchema": "public",
+          "contains": [
+            "BEFORE INSERT",
+            "FOR EACH ROW"
+          ]
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "get_annual_conference_registration_testing",
+          "argumentTypes": "uuid",
+          "result": "jsonb",
+          "language": "sql",
+          "bodySha256": "eca9c32a77b10fcf75e2d7d9441d7ca20b0afb42fefb8734cb5918799db26a98",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "configure_annual_conference_registration_testing",
+          "argumentTypes": "uuid, boolean, text[], text",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "73d5bd298f87dfe5c08d16e65404b151b4e3b6defbcfc01fcd82dfa9e64b4687",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "guard_annual_conference_registration_testing",
+          "argumentTypes": "",
+          "result": "trigger",
+          "language": "plpgsql",
+          "bodySha256": "32d9bd03bfe9e9a73a4400f696c42829f843b4b9ac6c9eabc6040b2554c0f223",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": false
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "register_for_annual_conference_test",
+          "argumentTypes": "uuid, text, text",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "b063d3c4fd24b4d66fd029e64ba1745c29058d65270620179383d0488f56341e",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "annual_conference_email_allowed",
+          "argumentTypes": "text, uuid, text, boolean",
+          "result": "boolean",
+          "language": "plpgsql",
+          "bodySha256": "7ac28307b808771647273da589ed468bdd0aebaa1b558861993e6c48a44648aa",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "hold_annual_conference_testing_email",
+          "argumentTypes": "text, uuid, uuid",
+          "result": "void",
+          "language": "plpgsql",
+          "bodySha256": "49640037f0b8a579ed00c985c6b9273209c520881d565a23d1a20bef7af7957f",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_ticket_email_outbox",
+          "argumentTypes": "uuid, integer",
+          "result": "SETOF annual_conference_ticket_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "a433cd1b92a96fc27a607fd1fcbb5207eaa220a653da96ad7097c8317da7a10e",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_social_card_email_outbox",
+          "argumentTypes": "uuid, integer",
+          "result": "SETOF annual_conference_social_card_email_outbox",
+          "language": "plpgsql",
+          "bodySha256": "b02ed7c834708dc13a7de446cecbffe79ceb25d90295a5732eca356bbbb6abfb",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
+        },
+        {
+          "kind": "function",
+          "schema": "public",
+          "name": "claim_annual_conference_attendee_updates",
+          "argumentTypes": "uuid, integer",
+          "result": "jsonb",
+          "language": "plpgsql",
+          "bodySha256": "3a6516bb8649a5f33da5d1ad70e4085679ec409b351e543d6720ca14c6bde1ed",
+          "securityDefiner": true,
+          "searchPath": "public",
+          "private": true,
+          "serviceExecute": true
         }
       ]
     }

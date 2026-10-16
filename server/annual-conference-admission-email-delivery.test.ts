@@ -25,7 +25,8 @@ beforeEach(() => {
   mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
     error: null,
     data: name === 'claim_annual_conference_ticket_email_outbox' ? [delivery]
-      : name === 'freeze_annual_conference_admission_email' ? args.p_payload : {},
+      : name === 'freeze_annual_conference_admission_email' ? args.p_payload
+        : name === 'annual_conference_email_allowed' ? true : {},
   }));
 });
 
@@ -58,7 +59,7 @@ describe('conference admission delivery', () => {
   it('does not turn an ambiguous accepted acknowledgement into a new failed delivery', async () => {
     mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => ({
       error: name === 'finalize_annual_conference_ticket_email_outbox' ? { message: 'unavailable' } : null,
-      data: name === 'claim_annual_conference_ticket_email_outbox' ? [delivery] : args.p_payload,
+      data: name === 'claim_annual_conference_ticket_email_outbox' ? [delivery] : name === 'annual_conference_email_allowed' ? true : args.p_payload,
     }));
     await expect(retryAnnualConferenceAdmissionEmails({} as Context)).rejects.toThrow('acknowledgement');
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'finalize_annual_conference_ticket_email_outbox')).toHaveLength(1);
