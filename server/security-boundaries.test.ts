@@ -9,6 +9,52 @@ afterEach(() => {
 });
 
 describe('HTTP security boundaries', () => {
+  it('allows the exact DevCon26 preview only on registration, including the POST origin guard', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PUBLIC_API_CORS_ORIGINS', 'https://devcongress.org,https://www.devcongress.org');
+    const { default: app } = await import('./app');
+    const origin = 'https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev';
+    const path = '/api/public/annual-conference/2026/registration';
+
+    for (const method of ['GET', 'POST']) {
+      const response = await app.request(path, {
+        method: 'OPTIONS',
+        headers: { Origin: origin, 'Access-Control-Request-Method': method },
+      });
+
+      expect(response.status).toBe(204);
+      expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+      expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+    }
+
+    const invalidInput = await app.request(path, {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}',
+    });
+
+    expect(invalidInput.status).toBe(400);
+    expect(invalidInput.headers.get('access-control-allow-origin')).toBe(origin);
+
+    for (const rejectedOrigin of ['https://other.workers.dev', `${origin}.attacker.example`, 'http://localhost:4321']) {
+      const response = await app.request(path, {
+        method: 'OPTIONS', headers: { Origin: rejectedOrigin, 'Access-Control-Request-Method': 'POST' },
+      });
+      const post = await app.request(path, {
+        method: 'POST', headers: { Origin: rejectedOrigin, 'Content-Type': 'application/json' }, body: '{}',
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).toBeNull();
+      expect(post.status).toBe(403);
+    }
+
+    for (const unrelated of ['/api/public/events', '/api/public/event-submissions', '/api/auth/session']) {
+      const response = await app.request(unrelated, {
+        method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+      });
+
+      expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    }
+  });
+
   it('keeps production Turnstile hostname binding on public domains only', () => {
     const match = productionWorkerConfig.match(/EVENT_SUBMISSION_TURNSTILE_EXPECTED_HOSTNAMES\s*=\s*"([^"]+)"/);
 

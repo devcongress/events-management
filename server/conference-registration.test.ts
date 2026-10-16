@@ -70,6 +70,14 @@ describe('annual conference registration access and privacy', () => {
 
     expect(first.status).toBe(202);
     expect(mocks.turnstile).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ expectedAction: CONFERENCE_REGISTRATION_ACTION, submittedAction: CONFERENCE_REGISTRATION_ACTION }));
+    expect(mocks.turnstile).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      expectedHostname: [
+        'devcongress.org',
+        'www.devcongress.org',
+        'em.devcongress.org',
+        'feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev',
+      ],
+    }));
     expect(await first.json()).toEqual(await duplicate.json());
   });
 

@@ -34,4 +34,6 @@ Allow the website origin in `PUBLIC_API_CORS_ORIGINS` and its host in the Turnst
 
 ## Verification
 
+The exact website branch preview origin `https://feature-devcon26-public-checkout-devcongress-website.admins-a7d.workers.dev` is allowed only on the DevCon26 registration GET/POST endpoint and in that route's Turnstile hostname validation. It is not added to general public or organizer CORS. The widget administrator must separately allow that hostname in Cloudflare Turnstile; this does not open registration or enable email delivery. Preview registrations use the configured EMS database, not an isolated sandbox. Deploy the EMS change before testing the hosted preview.
+
 `scripts/test-conference-registration.mjs` is restricted to a disposable local PostgreSQL socket/database. It exercises real migrations, capacity contention, normalized duplicates, cancellation/promotion, concurrent scanning, private grants, reviewed update snapshots, immutable retry payloads, suppression, and late-payment refunds. Vitest covers public/admin access and admission sender behavior without sending email. A production migration or real attendee email is never part of automated local verification.
