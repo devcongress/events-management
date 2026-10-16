@@ -1,0 +1,335 @@
+.registration-page-header {
+  margin-bottom: 0.5rem;
+}
+
+.registration-page-header h1 {
+  color: #111111;
+  font-size: clamp(2.125rem, 3.5vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.registration-page-header p {
+  max-width: 42rem;
+  margin-top: 0.5rem;
+  color: #6f6c65;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.registration-workspace-tabs {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #d6d2c8;
+  background: #f5f2e8;
+  padding: 0 0.125rem;
+  scrollbar-width: none;
+}
+
+.registration-workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .registration-workspace-tabs {
+    position: sticky;
+    top: var(--admin-event-tabs-height, 0px);
+    z-index: 40;
+    min-height: var(--registration-workspace-tabs-height);
+    box-shadow:
+      0 1px 0 #d6d2c8,
+      0 14px 22px rgba(245, 242, 232, 0.9);
+  }
+}
+
+.registration-workspace-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.875rem;
+  flex: 0 0 auto;
+  gap: 0.45rem;
+  padding: 0.125rem 0;
+  color: #6f6c65;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition:
+    color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.registration-workspace-tab-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.registration-workspace-tab::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: #e8117f;
+  content: '';
+  opacity: 0;
+  transform: scaleX(0.5);
+  transform-origin: center;
+  transition:
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-workspace-tab[aria-selected='true'],
+.registration-workspace-tab[aria-current='page'] {
+  color: #111111;
+}
+
+.registration-workspace-tab[aria-selected='true']::after,
+.registration-workspace-tab[aria-current='page']::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.registration-workspace-tab:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid rgba(232, 17, 127, 0.35);
+  outline-offset: 3px;
+}
+
+.registration-workspace-tab:active {
+  transform: scale(0.97);
+}
+
+.registration-overview {
+  border: 1px solid #d6d2c8;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: clamp(1.25rem, 2.6vw, 2rem);
+  box-shadow: 0 1px 0 rgba(17, 17, 17, 0.06);
+}
+
+.registration-overview-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.registration-overview-header h2 {
+  color: #111111;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.registration-overview-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+}
+
+.registration-overview-updated {
+  color: #85817a;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.registration-overview-refresh {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d6d2c8;
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  background: #ffffff;
+  color: #111111;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.registration-overview-refresh svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.registration-overview-refresh:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.registration-overview-reopen {
+  border-color: #e8117f;
+  background: #e8117f;
+  color: #ffffff;
+}
+
+.registration-overview-qr-link {
+  border-color: #111111;
+  background: #fff7bf;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .registration-overview-refresh:not(:disabled):hover {
+    border-color: #111111;
+  }
+
+  .registration-overview-reopen:not(:disabled):hover {
+    border-color: #c90f6f;
+    background: #c90f6f;
+  }
+}
+
+.registration-overview-metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 2rem;
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+}
+
+.registration-overview-figure {
+  display: flex;
+  min-height: 4rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: #111111;
+  line-height: 1;
+}
+
+.registration-overview-figure strong {
+  display: inline-block;
+  min-width: 1ch;
+  font-size: clamp(3rem, 6vw, 4.5rem);
+  font-weight: 800;
+  letter-spacing: -0.055em;
+}
+
+.registration-overview-figure span {
+  color: #85817a;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.registration-overview-primary > p:last-child,
+.registration-overview-secondary span {
+  color: #6f6c65;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.registration-overview-secondary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.registration-overview-secondary strong {
+  color: #111111;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.registration-overview-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.75rem;
+}
+
+.registration-overview-progress {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9e6de;
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.05);
+}
+
+.registration-overview-progress-fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #148461;
+  transform-origin: left center;
+  transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.registration-overview-progress-row > p {
+  min-width: 4.5rem;
+  color: #6f6c65;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .registration-workspace-tabs {
+    gap: 1.125rem;
+  }
+
+  .registration-overview-metrics {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .registration-overview-secondary {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .registration-overview-progress-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .registration-overview-progress-row > p {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .registration-workspace-tab,
+  .registration-workspace-tab::after,
+  .registration-overview-refresh,
+  .registration-overview-progress-fill {
+    transition: none;
+  }
+
+  .registration-workspace-tab:active {
+    transform: none;
+  }
+}
+

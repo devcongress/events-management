@@ -2532,6 +2532,95 @@ try {
       .waitFor();
   });
 
+  await journey("annual-registration-workspace", async ({ page, responses, requests }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const overview = { mode: "free", status: "open", capacity: 150, reserved: 101, confirmed: 101, waitlisted: 0 };
+    const guests = Array.from({ length: 101 }, (_, index) => ({
+      id: "guest-" + index, name: index === 100 ? "Zara Finalpage" : "Ada Guest " + index,
+      email: "guest" + index + "@example.test", status: "confirmed", is_test: false,
+      created_at: "2026-10-16T09:00:00Z",
+    }));
+
+    responses.set("/api/annual-conference/editions", { body: { editions: [edition] } });
+    responses.set("/api/annual-conference/2026/work-plan", {
+      body: { ...workspace, edition, permissions: { ...workspace.permissions, capabilities: ["ticketing.manage"] } },
+    });
+    responses.set("/api/annual-conference/2026/ticketing", {
+      body: { settings: { public_capacity: 150 }, inventory: { reduction_floor: 101 } },
+    });
+    responses.set("/api/annual-conference/2026/registrations", (request) => {
+      const offset = Number(new URL(request.url()).searchParams.get("offset") ?? 0);
+
+      return { body: { overview, registrations: guests.slice(offset, offset + 100) } };
+    });
+    let blastCreated = false;
+
+    responses.set("/api/annual-conference/2026/registrations/blasts", (request) => {
+      if (request.method() === "POST") blastCreated = true;
+
+      return { body: { blasts: blastCreated ? [{ id: "blast-1", subject: "Fixture update", body: "Fixture message", status: "draft", recipients: 101, accepted: 0, needs_attention: 0 }] : [] } };
+    });
+    responses.set("/api/annual-conference/2026/registrations/blasts/blast-1/send", { body: {} });
+    responses.set("/api/annual-conference/2026/ticketing/email-deliveries", {
+      body: {
+        deliveries: [{ id: "mail-1", order_id: null, kind: "waitlist_notice", recipient_name: "Fixture Recipient", recipient_email: "fixture@example.test", status: "failed", attempt_count: 1, provider_email_id: null, accepted_at: null }],
+        total: 1, page: 1, page_size: 8, summary: { accepted: 3, delivered: 2, queued: 1, sending: 0, failed: 1 },
+      },
+    });
+    responses.set("/api/annual-conference/2026/ticketing/email-deliveries/mail-1/retry", { body: { delivery: {} } });
+    responses.set("/api/annual-conference/2026/check-in/attendees", {
+      body: { attendees: [], page: 1, page_size: 100, has_more: false },
+    });
+
+    await page.goto(origin + "/organizer-console/annual-conference/2026/registrations");
+    await page.getByRole("heading", { name: "Registration overview" }).waitFor();
+    const nav = page.getByRole("navigation", { name: "Registration sections" });
+
+    assert.deepEqual(await nav.getByRole("link").allTextContents().then((items) => items.map((item) => item.trim())), [
+      "Summary", "Guests", "Form & capacity", "Emails", "Blasts", "Check-in",
+    ]);
+    const headingBefore = await page.getByRole("heading", { name: "Registration", exact: true }).boundingBox();
+
+    await page.screenshot({ path: artifacts + "/annual-registration-summary-desktop.png", fullPage: true });
+    await nav.getByRole("link", { name: "Guests", exact: true }).click();
+    await page.getByLabel("Search guests").fill("Finalpage");
+    await page.getByText("Zara Finalpage", { exact: true }).waitFor();
+    assert.equal(await nav.locator('[aria-current="page"]').count(), 1);
+    assert.equal(await nav.locator('[aria-current="page"]').innerText(), "Guests");
+    await page.screenshot({ path: artifacts + "/annual-registration-guests-desktop.png", fullPage: true });
+    await nav.getByRole("link", { name: "Emails", exact: true }).click();
+    await page.getByText("Waitlist notice", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    assert.equal(requests.filter((item) => item.path.endsWith("/mail-1/retry")).length, 0);
+    await page.getByRole("button", { name: "Queue retry", exact: true }).click();
+    await page.getByText("Email queued for retry.", { exact: false }).waitFor();
+    await nav.getByRole("link", { name: "Blasts", exact: true }).click();
+    await page.getByRole("button", { name: "Create blast", exact: true }).click();
+    await page.getByLabel("Subject", { exact: true }).fill("Fixture update");
+    await page.getByLabel("Message", { exact: true }).fill("Fixture message");
+    await page.getByRole("button", { name: "Review draft", exact: true }).click();
+    await page.getByRole("button", { name: "Prepare draft", exact: true }).click();
+    await page.getByRole("button", { name: "Review", exact: true }).click();
+    assert.equal(requests.filter((item) => item.path.endsWith("/blast-1/send")).length, 0);
+    await page.getByRole("button", { name: "Queue update", exact: true }).click();
+    await page.getByText("Update queued.", { exact: true }).waitFor();
+    await nav.getByRole("link", { name: "Check-in", exact: true }).click();
+    await page.getByRole("button", { name: "Scan with camera", exact: true }).waitFor();
+    await page.locator(".page-leave-active, .page-stable-leave-active").waitFor({ state: "detached" });
+    await page.locator(".page-enter-active, .page-stable-enter-active").waitFor({ state: "detached" });
+    const headingAfter = await page.getByRole("heading", { name: "Registration", exact: true }).boundingBox();
+
+    assert.ok(Math.abs(headingBefore.x - headingAfter.x) < 1);
+    assert.ok(Math.abs(headingBefore.y - headingAfter.y) < 1);
+    assert.equal(await page.getByText("Welcome them in.", { exact: true }).count(), 0);
+    await page.screenshot({ path: artifacts + "/annual-registration-checkin-desktop.png", fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 });
+    const checkInPanel = await page.getByRole("region", { name: "Conference attendee check-in" }).boundingBox();
+
+    assert.ok(checkInPanel.x >= 0 && checkInPanel.x + checkInPanel.width <= 391, "Check-in panel must fit the mobile viewport");
+    await page.screenshot({ path: artifacts + "/annual-registration-checkin-mobile.png", fullPage: true });
+  });
+
   await journey("annual-check-in-list-first", async ({ page, responses, requests }) => {
     const attendees = [
       {
@@ -2605,10 +2694,10 @@ try {
     assert.equal(await page.getByRole("navigation", { name: "Registration sections" }).getByRole("link", { name: "Registration", exact: true }).count(), 0);
     assert.equal(await page.getByRole("navigation", { name: "Annual Conference workspace" }).getByRole("link", { name: "Ticketing", exact: true }).count(), 0);
 
-    await page.getByLabel("Search the attendee list").fill("Kofi");
+    await page.getByLabel("Search guests").fill("Kofi");
     await page.getByText("Kofi Mensah", { exact: true }).waitFor();
     assert.equal(await page.getByText("Adjoa Mensah", { exact: true }).count(), 0);
-    await page.getByLabel("Search the attendee list").fill("");
+    await page.getByLabel("Search guests").fill("");
     await page
       .getByRole("button", { name: "Show guests whose names start with A" })
       .click();
@@ -2631,11 +2720,11 @@ try {
     await page
       .getByRole("button", { name: "Show all guests" })
       .click();
-    await page.getByLabel("Search the attendee list").fill("Kofi");
+    await page.getByLabel("Search guests").fill("Kofi");
     await page.getByRole("button", { name: "Check in", exact: true }).click();
     await page.getByRole("dialog", { name: "Confirm guest check-in" }).waitFor();
     await page.getByRole("button", { name: "Admit guest" }).click();
-    await page.getByText("Checked in", { exact: true }).waitFor();
+    await page.getByLabel("Attendees", { exact: true }).getByText("Checked in", { exact: true }).waitFor();
     assert.equal(
       requests.filter(
         (request) => request.path.endsWith("/check-in/admit") && request.method === "POST",
@@ -2661,7 +2750,7 @@ try {
       await page.evaluate(() => sessionStorage.getItem("fixture-camera-requests")),
       null,
     );
-    await page.getByRole("button", { name: "Scan a ticket instead" }).click();
+    await page.getByRole("button", { name: "Scan with camera" }).click();
     await page.getByText("Camera access failed.", { exact: false }).waitFor();
     assert.equal(
       await page.evaluate(() => sessionStorage.getItem("fixture-camera-requests")),

@@ -39,7 +39,7 @@ type RosterPage = {
 };
 
 const ROSTER_PAGE_SIZE = 100;
-const DISPLAY_PAGE_SIZE = 50;
+const DISPLAY_PAGE_SIZE = 8;
 const route = useRoute();
 const year = computed(() => String(route.params.year));
 const workPlan = useQuery({
@@ -62,6 +62,7 @@ const rosterError = ref('');
 const emailLookupError = ref('');
 const search = ref('');
 const selectedInitial = ref(ALL_REGISTRATION_INITIALS);
+const selectedStatus = ref('all');
 const page = ref(1);
 const attendees = ref<AttendeeRecord[]>([]);
 const emailResults = ref<AttendeeRecord[] | null>(null);
@@ -72,7 +73,7 @@ const availableInitials = computed(() => registrationInitials(visibleAttendees.v
 const filteredAttendees = computed(() => filterRegistrationsForCheckIn(
   visibleAttendees.value,
   { query: search.value.includes('@') && emailResults.value ? '' : search.value, initial: selectedInitial.value },
-));
+).filter((person) => selectedStatus.value === 'all' || person.status === selectedStatus.value));
 const pageCount = computed(() => Math.max(1, Math.ceil(filteredAttendees.value.length / DISPLAY_PAGE_SIZE)));
 const paginatedAttendees = computed(() => filteredAttendees.value.slice(
   (page.value - 1) * DISPLAY_PAGE_SIZE,
@@ -354,7 +355,7 @@ async function startCamera() {
   }
 }
 
-watch([search, selectedInitial], () => {
+watch([search, selectedInitial, selectedStatus], () => {
   page.value = 1;
 });
 watch(search, () => {
@@ -376,6 +377,7 @@ watch(year, () => {
   selected.value = null;
   search.value = '';
   selectedInitial.value = ALL_REGISTRATION_INITIALS;
+  selectedStatus.value = 'all';
   rosterLoaded.value = false;
   busy.value = false;
   emailLookupLoading.value = false;
@@ -391,31 +393,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="conference-check-in">
-    <AnnualConferenceNav
-      title="Attendee check-in"
-      description="Find each guest in the complete attendee list. Scanning is available when a ticket is easier to find by QR."
-    />
+  <main class="editorial-page"><div class="editorial-wrap registration-content">
+    <AnnualConferenceNav :show-page-heading="false" />
     <AnnualConferenceRegistrationNav active="check-in" :can-manage-registration="canManageRegistration" :can-check-in="canCheckIn" />
 
-    <section class="check-in-workspace" aria-label="Conference attendee check-in">
-      <header class="check-in-heading">
-        <div>
-          <p class="editorial-eyebrow">DevCon {{ year }} · entrance</p>
-          <h1>Welcome them in.</h1>
-          <p class="check-in-intro">Search names or browse alphabetically, then confirm the guest before admitting them.</p>
+    <section class="ops-panel registration-guest-panel overflow-hidden" aria-label="Conference attendee check-in">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-dc-border px-4 py-4">
+        <p class="text-sm font-semibold text-dc-gray" aria-live="polite">{{ checkedInCount }} / {{ attendees.length }} checked in</p>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="editorial-action" :disabled="rosterLoading" @click="loadRoster">{{ rosterLoading ? 'Refreshing…' : 'Refresh' }}</button>
+          <button type="button" class="editorial-action" :disabled="busy" @click="scannerOpen ? closeScanner() : openScanner()">{{ scannerOpen ? 'Close scanner' : 'Scan with camera' }}</button>
         </div>
-        <button type="button" class="check-in-scan-button" :disabled="busy" @click="scannerOpen ? closeScanner() : openScanner()">
-          {{ scannerOpen ? 'Close scanner' : 'Scan a ticket instead' }}
-        </button>
-      </header>
-
-      <div class="check-in-progress" aria-live="polite">
-        <span class="check-in-progress-count">{{ checkedInCount }} <span>/ {{ attendees.length }}</span></span>
-        <span class="check-in-progress-label">checked in</span>
-        <button type="button" class="check-in-refresh" :disabled="rosterLoading" @click="loadRoster">
-          {{ rosterLoading ? 'Refreshing…' : 'Refresh list' }}
-        </button>
       </div>
 
       <section v-if="scannerOpen" class="check-in-scanner" aria-label="Optional QR scanner">
@@ -444,9 +432,9 @@ onBeforeUnmount(() => {
       </p>
 
       <section class="check-in-roster">
-        <div class="check-in-roster-controls">
+        <div class="registration-guest-controls border-b border-dc-border bg-dc-paper-warm px-4 py-4 flex flex-wrap items-end gap-4">
           <div class="check-in-search-wrap">
-            <label for="attendee-search" class="editorial-label">Search the attendee list</label>
+            <label for="attendee-search" class="editorial-label">Search guests</label>
             <input
               id="attendee-search"
               v-model="search"
@@ -454,19 +442,24 @@ onBeforeUnmount(() => {
               type="search"
               inputmode="search"
               autocomplete="off"
-              placeholder="Start typing a name"
+              placeholder="Name or email"
               @keydown.enter.prevent="submitSearch"
             >
           </div>
           <button v-if="search.includes('@')" type="button" class="check-in-email-search" :disabled="emailLookupLoading || search.trim().length < 3" @click="findByExactEmail()">
             {{ emailLookupLoading ? 'Looking up…' : 'Find exact email' }}
           </button>
+          <div class="flex flex-wrap gap-2" aria-label="Check-in status filters">
+            <button v-for="option in [{ value: 'all', label: 'All' }, { value: 'issued', label: 'Not checked in' }, { value: 'checked_in', label: 'Checked in' }]"
+              :key="option.value" class="guest-status-filter" :class="{ 'guest-status-filter--active': selectedStatus === option.value }"
+              :aria-pressed="selectedStatus === option.value" @click="selectedStatus = option.value">{{ option.label }}</button>
+          </div>
           <p class="check-in-result-count">
             {{ filteredAttendees.length }} {{ filteredAttendees.length === 1 ? 'guest' : 'guests' }}
             <template v-if="emailResults === null">of {{ attendees.length }}</template>
             matching
           </p>
-          <RegistrationAlphabetFilter v-if="visibleAttendees.length" v-model="selectedInitial" :initials="availableInitials" />
+          <RegistrationAlphabetFilter class="w-full" v-if="visibleAttendees.length" v-model="selectedInitial" :initials="availableInitials" />
         </div>
 
         <p v-if="rosterLoading && !rosterLoaded" class="check-in-empty" role="status">Loading the complete attendee list…</p>
@@ -533,404 +526,190 @@ onBeforeUnmount(() => {
       @cancel="selected = null"
       @confirm="admitSelected"
     />
-  </main>
+  </div></main>
 </template>
 
 <style scoped>
-.conference-check-in {
-  padding: 24px;
-}
-
-.check-in-workspace {
-  max-width: 1040px;
-  margin: 24px auto 48px;
-  overflow: hidden;
-  border: 2px solid var(--dc-ink, #111111);
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 6px 6px 0 var(--dc-ink, #111111);
-}
-
-.check-in-heading,
-.check-in-progress,
-.check-in-roster-controls,
-.check-in-scanner-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.check-in-heading {
-  align-items: flex-end;
-  padding: 28px 32px;
-  background: var(--dc-paper-warm, #fbf7ed);
-}
-
-.check-in-heading h1,
-.check-in-scanner h2 {
-  margin: 5px 0 0;
-  color: var(--dc-ink, #111111);
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
-  font-weight: var(--font-weight-heading, 700);
-  letter-spacing: -0.035em;
-  line-height: 1.1;
-}
-
-.check-in-intro {
-  max-width: 42rem;
-  margin: 10px 0 0;
-  color: var(--dc-gray, #555555);
-  font-size: 0.9rem;
-  line-height: 1.55;
-}
-
-.check-in-scan-button,
-.check-in-manual-submit,
-.check-in-admit-button,
-.check-in-email-search {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--dc-ink, #111111);
-  border-radius: 6px;
-  padding: 0 16px;
-  color: var(--dc-ink, #111111);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.7rem;
-  font-weight: var(--font-weight-label, 700);
-  text-transform: uppercase;
-  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1), opacity 120ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.check-in-scan-button,
-.check-in-email-search {
-  background: #ffffff;
-}
-
-.check-in-manual-submit,
-.check-in-admit-button {
-  background: var(--dc-pink, #e5007d);
-  color: #ffffff;
-}
-
-.check-in-scan-button:active,
-.check-in-manual-submit:active,
-.check-in-admit-button:active,
-.check-in-email-search:active {
-  transform: scale(0.97);
-}
-
-.check-in-scan-button:disabled,
-.check-in-manual-submit:disabled,
-.check-in-admit-button:disabled,
-.check-in-email-search:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.check-in-progress {
-  justify-content: flex-start;
-  border-top: 1px solid var(--dc-border, #d1cec5);
-  border-bottom: 1px solid var(--dc-border, #d1cec5);
-  padding: 14px 32px;
-}
-
-.check-in-progress-count {
-  color: var(--dc-ink, #111111);
-  font-size: 1.15rem;
-  font-weight: var(--font-weight-heading, 700);
-  font-variant-numeric: tabular-nums;
-}
-
-.check-in-progress-count span,
-.check-in-progress-label,
-.check-in-refresh,
-.check-in-ticket-detail,
-.check-in-safety-note {
-  color: var(--dc-gray, #555555);
-}
-
-.check-in-progress-label,
-.check-in-refresh {
-  font-size: 0.78rem;
-}
-
-.check-in-refresh,
-.check-in-text-button {
-  min-height: 40px;
-  border-radius: 6px;
-  padding: 8px 10px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.check-in-refresh {
-  margin-left: auto;
-}
-
-.check-in-refresh:disabled,
-.check-in-text-button:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.check-in-scanner {
+.registration-content {
   display: grid;
-  gap: 16px;
-  padding: 24px 32px;
-  border-bottom: 1px solid var(--dc-border, #d1cec5);
-  background: var(--dc-paper-warm, #fbf7ed);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
 }
 
-.check-in-scanner h2 {
-  font-size: 1.4rem;
+.registration-content > * {
+  min-width: 0;
 }
 
-.check-in-scanner video {
-  width: min(100%, 480px);
-  max-height: 440px;
-  aspect-ratio: 4 / 3;
-  border-radius: 8px;
-  background: #111111;
-  object-fit: cover;
-}
-
-.check-in-code-entry {
-  max-width: 480px;
-  border-top: 1px solid var(--dc-border, #d1cec5);
-  padding-top: 12px;
-}
-
-.check-in-code-entry summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.check-in-code-entry form {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.check-in-feedback,
-.check-in-error-state {
-  margin: 20px 32px 0;
-  border: 1px solid #b5dfc2;
-  border-radius: 6px;
-  background: #f1fbf4;
-  padding: 12px 14px;
-  color: #176339;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.check-in-feedback--error,
-.check-in-error-state {
-  border-color: #fecaca;
-  background: #fff7f7;
-  color: #991b1b;
-}
-
-.check-in-error-state {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-}
-
-.check-in-roster {
-  padding: 0;
-}
-
-.check-in-roster-controls {
-  align-items: flex-end;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--dc-border, #d1cec5);
-  background: var(--dc-paper-warm, #fbf7ed);
-  padding: 20px 32px;
+.registration-guest-controls {
+  position: static;
+  box-shadow: none;
 }
 
 .check-in-search-wrap {
-  width: min(100%, 360px);
+  width: 100%;
+  max-width: 20rem;
 }
 
 .check-in-result-count {
-  margin: 0 0 10px auto;
-  color: var(--dc-gray, #555555);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.65rem;
-  font-weight: var(--font-weight-label, 600);
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
   text-transform: uppercase;
-}
-
-.check-in-roster-controls :deep(.registration-alphabet) {
-  width: 100%;
-}
-
-.check-in-empty {
-  margin: 0;
-  padding: 44px 20px;
-  color: var(--dc-gray, #555555);
-  text-align: center;
+  color: #6f6c65;
 }
 
 .check-in-attendee-list {
-  max-height: min(58vh, 760px);
-  overflow-y: auto;
-  margin: 0;
-  padding: 0;
   list-style: none;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  -webkit-overflow-scrolling: touch;
+  padding: 0;
+  margin: 0;
 }
 
 .check-in-attendee {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 16px;
-  border-bottom: 1px solid var(--dc-border, #d1cec5);
-  padding: 14px 32px;
-}
-
-.check-in-attendee:last-child {
-  border-bottom: 0;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #d6d2c8;
 }
 
 .check-in-attendee-name-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .check-in-attendee-name {
-  margin: 0;
-  color: var(--dc-ink, #111111);
-  font-size: 0.95rem;
-  font-weight: var(--font-weight-heading, 700);
-  line-height: 1.35;
+  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
 .check-in-ticket-detail {
-  margin: 4px 0 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
+  margin-top: 4px;
+  color: #6f6c65;
+  font-size: 12px;
 }
 
-.check-in-status,
-.check-in-checked-label {
-  display: inline-flex;
-  min-height: 24px;
-  align-items: center;
-  border: 1px solid var(--dc-border, #d1cec5);
+.check-in-status, .check-in-checked-label {
+  border: 1px solid #d6d2c8;
   border-radius: 4px;
-  background: #ffffff;
-  padding: 2px 7px;
-  color: var(--dc-gray, #555555);
-  font-family: var(--font-mono), monospace;
-  font-size: 0.58rem;
-  font-weight: var(--font-weight-label, 600);
+  padding: 2px 8px;
+  font-size: 10px;
   text-transform: uppercase;
 }
 
-.check-in-status--done,
-.check-in-checked-label {
-  border-color: #8bc9a0;
-  background: #f1fbf4;
-  color: #176339;
+.check-in-status--done, .check-in-checked-label {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.check-in-empty, .check-in-error-state {
+  padding: 48px 20px;
+  text-align: center;
+  color: #6f6c65;
+  font-size: 14px;
+}
+
+.check-in-feedback {
+  padding: 16px 20px;
+  background: #ecfdf5;
+  font-size: 14px;
+}
+
+.check-in-feedback--error {
+  background: #fff1f2;
+  color: #9f1239;
 }
 
 .check-in-safety-note {
-  margin: 0;
-  border-top: 1px solid var(--dc-border, #d1cec5);
-  padding: 16px 32px 20px;
-  font-size: 0.78rem;
-  line-height: 1.5;
+  padding: 16px 20px;
+  border-top: 1px solid #d6d2c8;
+  color: #6f6c65;
+  font-size: 12px;
 }
 
-@media (max-width: 700px) {
-  .conference-check-in {
-    padding: 12px;
-  }
+.check-in-scanner {
+  padding: 20px;
+  border-bottom: 1px solid #d6d2c8;
+}
 
-  .check-in-workspace {
-    margin: 16px auto 32px;
-    box-shadow: 3px 3px 0 var(--dc-ink, #111111);
-  }
+.check-in-scanner-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
 
-  .check-in-heading,
-  .check-in-progress,
-  .check-in-roster-controls,
-  .check-in-attendee,
-  .check-in-scanner {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
+.check-in-scanner h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
 
-  .check-in-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 16px;
-  }
+.check-in-scanner video {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  max-height: 320px;
+  margin: 16px 0;
+  border-radius: 8px;
+  background: #111;
+}
 
-  .check-in-scan-button {
-    width: 100%;
-  }
+.check-in-code-entry {
+  margin-top: 16px;
+}
 
-  .check-in-progress {
-    gap: 9px;
-  }
+.check-in-code-entry form {
+  display: grid;
+  gap: 12px;
+  max-width: 480px;
+  margin-top: 12px;
+}
 
-  .check-in-progress-label {
-    flex: 1;
-  }
+.check-in-scan-button, .check-in-manual-submit, .check-in-admit-button, .check-in-email-search, .check-in-text-button, .guest-status-filter {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #d6d2c8;
+  border-radius: 6px;
+  background: white;
+  color: #111111;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: transform 120ms cubic-bezier(.4, 0, .2, 1);
+}
 
-  .check-in-result-count {
-    width: 100%;
-    margin: 0;
-  }
+.guest-status-filter--active {
+  border-color: #e8117f;
+  background: #e8117f;
+  color: white;
+}
 
+button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+button:active:not(:disabled) {
+  transform: scale(.97);
+}
+
+@media (max-width: 600px) {
   .check-in-attendee {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
   }
-
-  .check-in-admit-button {
-    width: 100%;
-  }
-
-  .check-in-checked-label {
+  .check-in-attendee button {
     justify-self: start;
-  }
-
-  .check-in-feedback,
-  .check-in-error-state {
-    margin-right: 16px;
-    margin-left: 16px;
-  }
-
-  .check-in-safety-note {
-    padding-right: 16px;
-    padding-left: 16px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .check-in-scan-button,
-  .check-in-manual-submit,
-  .check-in-admit-button,
-  .check-in-email-search {
+  button {
     transition: none;
   }
-
-  .check-in-scan-button:active,
-  .check-in-manual-submit:active,
-  .check-in-admit-button:active,
-  .check-in-email-search:active {
+  button:active:not(:disabled) {
     transform: none;
   }
 }

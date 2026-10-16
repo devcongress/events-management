@@ -409,8 +409,8 @@ export interface AnnualConferenceSponsorAllocation { id: string; sponsor_name: s
 export type AnnualConferenceTicketEmailDeliveryStatus = 'queued' | 'sending' | 'accepted' | 'delivered' | 'failed';
 export interface AnnualConferenceTicketEmailDelivery {
   id: string;
-  order_id: string;
-  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery';
+  order_id: string | null;
+  kind: 'payment_receipt' | 'ticket_delivery' | 'ticket_bundle_delivery' | 'waitlist_notice';
   recipient_name: string;
   recipient_email: string;
   status: AnnualConferenceTicketEmailDeliveryStatus;

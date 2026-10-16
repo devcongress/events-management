@@ -33,7 +33,7 @@ describe('annual conference ticketing operations UI', () => {
     expect(navSource).toContain(':aria-disabled="link.disabled ? \'true\' : undefined"');
     expect(navSource).toContain("label: 'Registration'");
     expect(mobileSource).toContain('class="conference-mobile__ticketing-disabled" aria-disabled="true"');
-    expect(registrationSource).toContain('AnnualConferenceRegistrationNav active="registration"');
+    expect(registrationSource).toContain('AnnualConferenceRegistrationNav :active="activeSection"');
     expect(checkInSource).toContain('AnnualConferenceRegistrationNav active="check-in"');
     expect(routerSource).toContain('redirect: (to) => annualConferencePath("registrations", String(to.params.year))');
     expect(registrationSource).toContain('updateAnnualConferenceTicketingCapacity');
